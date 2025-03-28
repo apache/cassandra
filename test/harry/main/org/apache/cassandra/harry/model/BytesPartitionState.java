@@ -21,21 +21,31 @@ package org.apache.cassandra.harry.model;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.gen.BijectionCache;
@@ -44,6 +54,7 @@ import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 
@@ -53,6 +64,9 @@ public class BytesPartitionState
     public final Clustering<ByteBuffer> key;
     private final Token token;
     private final PartitionState state;
+    private final Map<Symbol, MultiCell> staticMultiCell;
+    @Nullable
+    private final Map<Long, Map<Symbol, MultiCell>> rowMultiCell;
 
     private BytesPartitionState(Factory factory, Clustering<ByteBuffer> key)
     {
@@ -60,33 +74,84 @@ public class BytesPartitionState
         this.key = key;
         this.token = factory.metadata.partitioner.getToken(key.serializeAsPartitionKey());
         this.state = factory.partitionState(key);
+        staticMultiCell = buildMultiCellState(factory.staticColumns);
+        rowMultiCell = factory.regularColumns.stream().anyMatch(s -> s.type().isMultiCell())
+                       ? new HashMap<>()
+                       : null;
     }
 
-    public void deleteRow(Clustering<ByteBuffer> clustering)
+    protected void validate()
+    {
+        var staticRow = staticRow();
+        for (var e : staticMultiCell.entrySet())
+        {
+            Symbol symbol = e.getKey();
+            var expected = e.getValue().state();
+            var actual = staticRow.get(symbol);
+            if (!Objects.equals(expected, actual))
+                throw new AssertionError("Unexpected value for " + ref() + "#" + symbol
+                                         + ";\nexpected=" + symbol.type().asCQL3Type().toCQLLiteral(expected)
+                                         + "\n,actual=" + symbol.type().asCQL3Type().toCQLLiteral(actual));
+        }
+    }
+
+    private static Map<Symbol, MultiCell> buildMultiCellState(Iterable<Symbol> columns)
+    {
+        ImmutableMap.Builder<Symbol, MultiCell> builder = ImmutableMap.builder();
+        for (var col : columns)
+        {
+            if (!col.type().isMultiCell()) continue;
+            builder.put(col, createMultiCell(col.type()));
+        }
+        return builder.build();
+    }
+
+    public void deleteRow(Clustering<ByteBuffer> clustering, long ts)
     {
         long cd = factory.clusteringCache.deflateOrUndefined(clustering);
         if (MagicConstants.UNSET_DESCR == cd)
             return;
-        state.delete(cd, MagicConstants.NO_TIMESTAMP);
+        deleteRow(cd, ts);
     }
 
-    public void deleteColumns(Clustering<ByteBuffer> clustering, Set<Symbol> columns)
+    private void deleteRow(long cd, long ts)
+    {
+        state.delete(cd, ts);
+        if (rowMultiCell != null && rowMultiCell.containsKey(cd))
+            rowMultiCell.remove(cd);
+    }
+
+    public void deleteColumns(Clustering<ByteBuffer> clustering, long ts, Set<Symbol> columns)
     {
         long cd = factory.clusteringCache.deflateOrUndefined(clustering);
         if (cd != MagicConstants.UNSET_DESCR)
         {
             BitSet regularColumns = bitset(columns, true);
             if (!regularColumns.allUnset())
-                state.deleteRegularColumns(MagicConstants.NO_TIMESTAMP, cd, regularColumns);
+                state.deleteRegularColumns(ts, cd, regularColumns);
+            if (rowMultiCell != null && rowMultiCell.containsKey(cd))
+            {
+                var multiCells = rowMultiCell.get(cd);
+                for (var c : Sets.intersection(columns, multiCells.keySet()))
+                {
+                    var value = multiCells.get(c).delete(ts);
+                    state.writeRegular(cd, toDescriptor(factory.regularColumns, Collections.singletonMap(c, value)), MagicConstants.NO_TIMESTAMP, false);
+                }
+            }
         }
-        deleteStaticColumns(columns);
+        deleteStaticColumns(ts, columns);
     }
 
-    public void deleteStaticColumns(Set<Symbol> columns)
+    public void deleteStaticColumns(long ts, Set<Symbol> columns)
     {
         BitSet staticColumns = bitset(columns, false);
         if (!staticColumns.allUnset())
-            state.deleteStaticColumns(MagicConstants.NO_TIMESTAMP, staticColumns);
+            state.deleteStaticColumns(ts, staticColumns);
+        for (var c : Sets.intersection(columns, staticMultiCell.keySet()))
+        {
+            var value = staticMultiCell.get(c).delete(ts);
+            state.writeStatic(toDescriptor(factory.staticColumns, Collections.singletonMap(c, value)), MagicConstants.NO_TIMESTAMP);
+        }
     }
 
     private BitSet bitset(Set<Symbol> columns, boolean regular)
@@ -96,7 +161,7 @@ public class BytesPartitionState
         for (int i = 0; i < positions.size(); i++)
         {
             Symbol column = positions.get(i);
-            if (columns.contains(column))
+            if (!column.type().isMultiCell() && columns.contains(column))
                 bitSet.set(i);
         }
         return bitSet;
@@ -112,25 +177,488 @@ public class BytesPartitionState
         return new PrimaryKey(ref(), null);
     }
 
-    public void setStaticColumns(Map<Symbol, ByteBuffer> values)
+    private interface MultiCell
+    {
+        ByteBuffer state();
+        ByteBuffer append(long ts, ByteBuffer buffer);
+
+        ByteBuffer remove(long ts, ByteBuffer value);
+
+        ByteBuffer delete(long ts);
+
+        default ByteBuffer override(long ts, ByteBuffer buffer)
+        {
+            var previous = delete(ts - 1);
+            return buffer == null ? previous : append(ts, buffer);
+        }
+    }
+
+    private static abstract class AbstractMultiCell implements MultiCell
+    {
+        protected long highestTombstone = MagicConstants.NO_TIMESTAMP;
+
+        protected boolean isShadowed(long ts)
+        {
+            return MagicConstants.NO_TIMESTAMP != ts && hasTombstone() && highestTombstone > ts;
+        }
+
+        protected boolean hasTombstone()
+        {
+            return highestTombstone != MagicConstants.NO_TIMESTAMP;
+        }
+    }
+
+    private static class ListState extends AbstractMultiCell
+    {
+        private final ListType<?> type;
+        private final List<Cell> cells = new ArrayList<>();
+
+        private ListState(ListType<?> type)
+        {
+            this.type = type;
+        }
+
+        @Override
+        public ByteBuffer state()
+        {
+            if (cells.isEmpty()) return null;
+            return type.getSerializer().pack(cells.stream().map(c -> c.value).collect(Collectors.toList()));
+        }
+
+        @Override
+        public ByteBuffer append(long ts, ByteBuffer buffer)
+        {
+            if (isShadowed(ts))
+                return state();
+            var values = type.compose(buffer);
+            for (var v : values)
+                cells.add(new Cell(ts, type.getElementsType().decomposeUntyped(v)));
+            return state();
+        }
+
+        @Override
+        public ByteBuffer remove(long ts, ByteBuffer value)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ByteBuffer delete(long ts)
+        {
+            if (isShadowed(ts))
+                return state();
+            highestTombstone = ts;
+            cells.removeIf(c -> c.ts <= ts);
+            return state();
+        }
+
+        private final class Cell
+        {
+            final long ts;
+            final ByteBuffer value;
+
+            private Cell(long ts, ByteBuffer value)
+            {
+                this.ts = ts;
+                this.value = value;
+            }
+
+            @Override
+            public String toString()
+            {
+                return ts + " " + type.getElementsType().asCQL3Type().toCQLLiteral(value);
+            }
+        }
+    }
+
+    private static class SetState extends AbstractMultiCell
+    {
+        private final SetType<?> type;
+        private final TreeMap<ByteBuffer, Long> cells;
+
+        private SetState(SetType<?> type)
+        {
+            this.type = type;
+            this.cells = new TreeMap<>(type.getElementsType());
+        }
+
+        @Override
+        public ByteBuffer state()
+        {
+            if (cells.isEmpty()) return null;
+            return type.getSerializer().pack(cells.keySet().stream().collect(Collectors.toList()));
+        }
+
+        @Override
+        public ByteBuffer append(long ts, ByteBuffer buffer)
+        {
+            if (isShadowed(ts))
+                return state();
+            var values = type.compose(buffer);
+            for (var v : values)
+            {
+                // writing will take the highest timestamp
+                ByteBuffer bb = type.getElementsType().decomposeUntyped(v);
+                if (ts != MagicConstants.NO_TIMESTAMP && cells.containsKey(bb))
+                {
+                    if (ts > cells.get(bb))
+                        cells.put(bb, ts);
+                }
+                else
+                {
+                    cells.put(bb, ts);
+                }
+            }
+            return state();
+        }
+
+        @Override
+        public ByteBuffer remove(long ts, ByteBuffer value)
+        {
+            if (isShadowed(ts))
+                return state();
+            var values = type.compose(value);
+            for (var v : values)
+            {
+                // writing will take the highest timestamp
+                ByteBuffer bb = type.getElementsType().decomposeUntyped(v);
+                if (ts != MagicConstants.NO_TIMESTAMP && cells.containsKey(bb))
+                {
+                    if (ts > cells.get(bb))
+                        cells.remove(bb);
+                }
+            }
+            return state();
+        }
+
+        @Override
+        public ByteBuffer delete(long ts)
+        {
+            if (isShadowed(ts))
+                return state();
+            highestTombstone = ts;
+            List<ByteBuffer> toDelete = new ArrayList<>();
+            for (var e : cells.entrySet())
+            {
+                if (e.getValue() <= ts)
+                    toDelete.add(e.getKey());
+            }
+            toDelete.forEach(cells::remove);
+            return state();
+        }
+    }
+
+    private static class MapState extends AbstractMultiCell
+    {
+        private final MapType<?, ?> type;
+        private final TreeMap<ByteBuffer, Value> cells;
+
+        private MapState(MapType<?, ?> type)
+        {
+            this.type = type;
+            this.cells = new TreeMap<>(type.getKeysType());
+        }
+
+        @Override
+        public ByteBuffer state()
+        {
+            if (cells.isEmpty()) return null;
+            List<ByteBuffer> buffers = new ArrayList<>(cells.size());
+            for (var e : cells.entrySet())
+            {
+                buffers.add(e.getKey());
+                buffers.add(e.getValue().value);
+            }
+            return type.getSerializer().pack(buffers);
+        }
+
+        @Override
+        public ByteBuffer append(long ts, ByteBuffer buffer)
+        {
+            if (isShadowed(ts))
+                return state();
+            var values = type.compose(buffer);
+            for (var e : values.entrySet())
+            {
+                // writing will take the highest timestamp
+                ByteBuffer bb = type.getKeysType().decomposeUntyped(e.getKey());
+                if (ts != MagicConstants.NO_TIMESTAMP && cells.containsKey(bb))
+                {
+                    if (ts > cells.get(bb).ts)
+                        cells.put(bb, new Value(ts, type.getValuesType().decomposeUntyped(e.getValue())));
+                }
+                else
+                {
+                    cells.put(bb, new Value(ts, type.getValuesType().decomposeUntyped(e.getValue())));
+                }
+            }
+            return state();
+        }
+
+        @Override
+        public ByteBuffer remove(long ts, ByteBuffer value)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ByteBuffer delete(long ts)
+        {
+            if (isShadowed(ts))
+                return state();
+            highestTombstone = ts;
+            List<ByteBuffer> toDelete = new ArrayList<>();
+            for (var e : cells.entrySet())
+            {
+                if (e.getValue().ts <= ts)
+                    toDelete.add(e.getKey());
+            }
+            toDelete.forEach(cells::remove);
+            return state();
+        }
+
+        private static class Value
+        {
+            private final long ts;
+            private final ByteBuffer value;
+
+            private Value(long ts, ByteBuffer value)
+            {
+                this.ts = ts;
+                this.value = value;
+            }
+        }
+    }
+
+    private static class UserTypeState extends AbstractMultiCell
+    {
+        private final UserType type;
+        private final FieldState[] fields;
+
+        private UserTypeState(UserType type)
+        {
+            this.type = type;
+            fields = new FieldState[type.size()];
+            for (int i = 0; i < fields.length; i++)
+                fields[i] = new FieldState(type.fieldType(i));
+        }
+
+        @Override
+        public ByteBuffer state()
+        {
+            List<ByteBuffer> values = Stream.of(fields).map(f -> f.value).collect(Collectors.toList());
+            return values.stream().allMatch(b -> b == null) ? null : type.pack(values);
+        }
+
+        @Override
+        public ByteBuffer append(long ts, ByteBuffer buffer)
+        {
+            if (isShadowed(ts))
+                return state();
+            var values = type.unpack(buffer);
+            for (int i = 0; i < values.size(); i++)
+            {
+                var v = values.get(i);
+                if (v == null)
+                    continue; // this isn't a tombstone like other types, this is a UNSET logically
+                fields[i].maybeApply(ts, v);
+            }
+            return state();
+        }
+
+        @Override
+        public ByteBuffer remove(long ts, ByteBuffer value)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ByteBuffer delete(long ts)
+        {
+            if (isShadowed(ts))
+                return state();
+            highestTombstone = ts;
+            for (var field : fields)
+                field.delete(ts);
+            return state();
+        }
+
+        private static class FieldState
+        {
+            private final AbstractType<?> type;
+            private @Nullable ByteBuffer value;
+            private long ts = MagicConstants.NO_TIMESTAMP;
+
+            private FieldState(AbstractType<?> type)
+            {
+                this.type = type;
+            }
+
+            private void maybeApply(long ts, ByteBuffer value)
+            {
+                if (ts != MagicConstants.NO_TIMESTAMP
+                    && ts < this.ts)
+                    return;
+                type.validate(value);
+                if (this.ts == ts)
+                {
+                    // tombstone always wins
+                    if (this.value == null) return;
+                    else if (value == null)
+                    {
+                        this.value = null;
+                        return;
+                    }
+                    // cell resolution
+                    this.value = ByteBufferUtil.compareUnsigned(this.value, value) >= 0
+                                 ? this.value
+                                 : value;
+                }
+                else
+                {
+                    this.ts = ts;
+                    this.value = value;
+                }
+            }
+
+            private void delete(long ts)
+            {
+                if (this.ts > ts) return;
+                this.ts = ts;
+                this.value = null;
+            }
+
+            @Override
+            public String toString()
+            {
+                return ts + " " + (value == null ? "null" : !value.hasRemaining() ? "<empty>" : type.asCQL3Type().toCQLLiteral(value));
+            }
+        }
+    }
+
+    private static MultiCell createMultiCell(AbstractType<?> type)
+    {
+        if (type.getClass() == ListType.class)
+            return new ListState((ListType<?>) type);
+        if (type.getClass() == SetType.class)
+            return new SetState((SetType<?>) type);
+        if (type.getClass() == MapType.class)
+            return new MapState((MapType<?, ?>) type);
+        if (type.getClass() == UserType.class)
+            return new UserTypeState((UserType) type);
+        throw new UnsupportedOperationException(type.getClass().toString());
+    }
+
+    public static class Update
+    {
+        public static final Update SKIP = new Update(Kind.SKIP, null);
+
+        public enum Kind
+        {SKIP, OVERRIDE, APPEND, REMOVE}
+
+        public final Kind kind;
+        public final @Nullable ByteBuffer value;
+
+        private Update(Kind kind, @Nullable ByteBuffer value)
+        {
+            this.kind = kind;
+            this.value = value;
+        }
+
+        public static Update override(@Nullable ByteBuffer value)
+        {
+            return new Update(Kind.OVERRIDE, value);
+        }
+
+        public static Update append(ByteBuffer value)
+        {
+            return new Update(Kind.APPEND, value);
+        }
+
+        public static Update remove(ByteBuffer value)
+        {
+            return new Update(Kind.REMOVE, value);
+        }
+
+        @Override
+        public String toString()
+        {
+            return kind.name() + "(" + value + ")";
+        }
+    }
+
+    private static class Writes
+    {
+        final Map<Symbol, ByteBuffer> regular, multicell;
+
+        private Writes(Map<Symbol, ByteBuffer> regular, Map<Symbol, ByteBuffer> multicell)
+        {
+            this.regular = regular;
+            this.multicell = multicell;
+        }
+    }
+
+    private Writes buildWrites(Map<Symbol, MultiCell> multiCells, long ts, Map<Symbol, Update> values)
+    {
+        Map<Symbol, ByteBuffer> regular = new HashMap<>();
+        Map<Symbol, ByteBuffer> multicell = new HashMap<>();
+        for (var e : values.entrySet())
+        {
+            Update update = e.getValue();
+            ByteBuffer value;
+            if (multiCells.containsKey(e.getKey()))
+            {
+                MultiCell multiCell = multiCells.get(e.getKey());
+                switch (update.kind)
+                {
+                    case SKIP:      continue;
+                    case OVERRIDE:  value = multiCell.override(ts, update.value); break;
+                    case APPEND:    value = multiCell.append(ts, update.value); break;
+                    case REMOVE:    value = multiCell.remove(ts, update.value); break;
+                    default:        throw new UnsupportedOperationException(update.kind.name());
+                }
+                multicell.put(e.getKey(), value);
+            }
+            else
+            {
+                switch (update.kind)
+                {
+                    case SKIP:      continue;
+                    case OVERRIDE:  value = update.value; break;
+                    default:        throw new UnsupportedOperationException(update.kind.name());
+                }
+                regular.put(e.getKey(), value);
+            }
+        }
+        return new Writes(regular, multicell);
+    }
+
+    public void setStaticColumns(long ts, Map<Symbol, Update> values)
     {
         if (factory.staticColumns.isEmpty() || values.isEmpty())
             throw new IllegalStateException("Attempt to write to static columns; but they do not exist");
-        long[] sds = toDescriptor(factory.staticColumns, values);
-        state.writeStatic(sds, MagicConstants.NO_TIMESTAMP);
+
+        var writes = buildWrites(staticMultiCell, ts, values);
+        state.writeStatic(toDescriptor(factory.staticColumns, writes.regular), ts);
+        state.writeStatic(toDescriptor(factory.staticColumns, writes.multicell), MagicConstants.NO_TIMESTAMP);
+        validate();
     }
 
-    public void setColumns(Clustering<ByteBuffer> clustering, Map<Symbol, ByteBuffer> values, boolean writePrimaryKeyLiveness)
+    public void setColumns(Clustering<ByteBuffer> clustering, long ts, Map<Symbol, Update> values, boolean writePrimaryKeyLiveness)
     {
         long cd = factory.clusteringCache.deflate(clustering);
-        long[] vds = toDescriptor(factory.regularColumns, values);
-        state.writeRegular(cd, vds, MagicConstants.NO_TIMESTAMP, writePrimaryKeyLiveness);
+        Map<Symbol, MultiCell> multiCells = rowMultiCell == null
+                                            ? Map.of()
+                                            : rowMultiCell.computeIfAbsent(cd, i -> buildMultiCellState(factory.regularColumns));
+        var writes = buildWrites(multiCells, ts, values);
+        state.writeRegular(cd, toDescriptor(factory.regularColumns, writes.regular), ts, writePrimaryKeyLiveness);
+        state.writeRegular(cd, toDescriptor(factory.regularColumns, writes.multicell), MagicConstants.NO_TIMESTAMP, writePrimaryKeyLiveness);
 
         // UDT's have the ability to "update" that triggers a delete; this allows creating an "empty" row.
         // When an empty row exists without liveness info, then purge the row
         var row = state.rows.get(cd);
         if (row.isEmpty() && !row.hasPrimaryKeyLivenessInfo)
-            state.delete(cd, MagicConstants.NO_TIMESTAMP);
+            deleteRow(cd, ts);
     }
 
     private long[] toDescriptor(ImmutableUniqueList<Symbol> positions, Map<Symbol, ByteBuffer> values)
@@ -200,6 +728,8 @@ public class BytesPartitionState
     @Nullable
     public Row get(Clustering<ByteBuffer> clustering)
     {
+        if (clustering == Clustering.STATIC_CLUSTERING)
+            return staticRow();
         long cd = factory.clusteringCache.deflateOrUndefined(clustering);
         if (cd == MagicConstants.UNSET_DESCR)
             return null;
@@ -216,6 +746,12 @@ public class BytesPartitionState
         return row == null ? null : row.get(column);
     }
 
+    public long timestamp(Clustering<ByteBuffer> clustering, Symbol column)
+    {
+        Row row = get(clustering);
+        return row == null ? MagicConstants.NO_TIMESTAMP : row.timestamp(column);
+    }
+
     private Row toRow(PartitionState.RowState rowState)
     {
         Clustering<ByteBuffer> clustering;
@@ -230,7 +766,7 @@ public class BytesPartitionState
             clustering = factory.clusteringCache.inflate(rowState.cd);
             values = fromDescriptor(factory.regularColumns, rowState.vds);
         }
-        return new Row(clustering, values);
+        return new Row(clustering, values, rowState.lts);
     }
 
     public Collection<Row> rows()
@@ -415,12 +951,14 @@ public class BytesPartitionState
         public final Clustering<ByteBuffer> clustering;
         private final ImmutableUniqueList<Symbol> columnNames;
         private final ByteBuffer[] columns;
+        private final long[] lts;
 
-        private Row(Clustering<ByteBuffer> clustering, ByteBuffer[] columns)
+        private Row(Clustering<ByteBuffer> clustering, ByteBuffer[] columns, long[] lts)
         {
             this.clustering = clustering;
             this.columnNames = clustering == Clustering.STATIC_CLUSTERING ? factory.staticColumns : factory.regularColumns;
             this.columns = columns;
+            this.lts = lts;
         }
 
         public ByteBuffer get(Symbol col)
@@ -431,6 +969,16 @@ public class BytesPartitionState
         public ByteBuffer get(int offset)
         {
             return columns[offset];
+        }
+
+        public long timestamp(Symbol col)
+        {
+            return lts[columnNames.indexOf(col)];
+        }
+
+        public long timestamp(int offset)
+        {
+            return lts[offset];
         }
 
         public PrimaryKey ref()
@@ -459,7 +1007,12 @@ public class BytesPartitionState
         // translation layer for harry interop
         private final BijectionCache<Clustering<ByteBuffer>> partitionCache = new BijectionCache<>(Reject.instance.as());
         private final BijectionCache<Clustering<ByteBuffer>> clusteringCache;
-        private final BijectionCache<Value> valueCache = new BijectionCache<>(Reject.instance.as());
+        private final BijectionCache<Value> valueCache = new BijectionCache<>((l, r) -> {
+            if (!l.type.equals(r.type))
+                throw new IllegalArgumentException("Unable to compare different types: " + l.type.asCQL3Type() + " != " + r.type.asCQL3Type());
+            // Cells resolve based off unsigned byte order and not type order
+            return ByteBufferUtil.compareUnsigned(l.value, r.value);
+        });
         private final ValueGenerators<Clustering<ByteBuffer>, Clustering<ByteBuffer>> valueGenerators;
 
         public Factory(TableMetadata metadata)
@@ -572,6 +1125,13 @@ public class BytesPartitionState
         private PartitionState partitionState(Clustering<ByteBuffer> key)
         {
             return new PartitionState(partitionCache.deflate(key), valueGenerators);
+        }
+
+        public void clear()
+        {
+            valueCache.clear();
+            clusteringCache.clear();
+            partitionCache.clear();
         }
     }
 

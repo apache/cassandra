@@ -43,6 +43,7 @@ import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.KnownIssue;
+import org.apache.cassandra.cql3.ast.Batch;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
@@ -374,6 +375,12 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         protected Gen<Mutation> mutationGen()
         {
             return mutationGen;
+        }
+
+        @Override
+        protected Gen<Batch> batchGen()
+        {
+            throw new UnsupportedOperationException("TODO");
         }
 
         private List<ByteBuffer> extractNeighbors(List<ByteBuffer> values)

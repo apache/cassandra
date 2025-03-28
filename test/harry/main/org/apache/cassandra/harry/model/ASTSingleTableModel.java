@@ -45,6 +45,7 @@ import com.google.common.collect.Sets;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
+import org.apache.cassandra.cql3.ast.Batch;
 import org.apache.cassandra.cql3.ast.CasCondition;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
@@ -67,7 +68,9 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
+import org.apache.cassandra.harry.model.BytesPartitionState.Update;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
@@ -188,9 +191,46 @@ public class ASTSingleTableModel
         }
     }
 
+    public void update(Batch batch)
+    {
+        if (!shouldApply(batch)) return;
+        long ts = batch.timestampOrDefault(MagicConstants.NO_TIMESTAMP);
+        // when deletes have the same timestamp as a write, the delete wins; to mimic this apply all deletes last
+        List<Mutation> deletes = null;
+        for (var m : batch.mutations)
+        {
+            if (ts != MagicConstants.NO_TIMESTAMP
+                && m.timestampOrDefault(MagicConstants.NO_TIMESTAMP) == MagicConstants.NO_TIMESTAMP)
+                m = m.withTimestamp(ts);
+            if (m.kind == Mutation.Kind.DELETE)
+            {
+                if (deletes == null)
+                    deletes = new ArrayList<>();
+                deletes.add(m);
+                continue;
+            }
+            updateInternal(m);
+        }
+        if (deletes != null)
+            deletes.forEach(this::updateInternal);
+        validatePartitions();
+    }
+
     public void update(Mutation mutation)
     {
         if (!shouldApply(mutation)) return;
+        updateInternal(mutation);
+
+        validatePartitions();
+    }
+
+    private void validatePartitions()
+    {
+        partitions.values().forEach(BytesPartitionState::validate);
+    }
+
+    private void updateInternal(Mutation mutation)
+    {
         switch (mutation.kind)
         {
             case INSERT:
@@ -209,6 +249,7 @@ public class ASTSingleTableModel
 
     private void update(Mutation.Insert insert)
     {
+        long nowTs = insert.timestampOrDefault(MagicConstants.NO_TIMESTAMP);
         Clustering<ByteBuffer> pd = pd(insert);
         BytesPartitionState partition = partitions.get(factory.createRef(pd));
         if (partition == null)
@@ -219,25 +260,59 @@ public class ASTSingleTableModel
         Map<Symbol, Expression> values = insert.values;
         if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns.asSet(), values.keySet()).isEmpty())
         {
-            // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
-            Map<Symbol, ByteBuffer> write = new HashMap<>();
-            for (Symbol col : Sets.intersection(factory.staticColumns.asSet(), values.keySet()))
-                write.put(col, eval(values.get(col)));
-            partition.setStaticColumns(write);
+            maybeUpdateColumns(Sets.intersection(factory.staticColumns.asSet(), values.keySet()),
+                               partition.staticRow(),
+                               nowTs, values,
+                               partition::setStaticColumns);
         }
         // table has clustering but non are in the write, so only pk/static can be updated
         if (!factory.clusteringColumns.isEmpty() && Sets.intersection(factory.clusteringColumns.asSet(), values.keySet()).isEmpty())
             return;
-        Map<Symbol, ByteBuffer> write = new HashMap<>();
-        for (Symbol col : Sets.intersection(factory.regularColumns.asSet(), values.keySet()))
-            write.put(col, eval(values.get(col)));
-        partition.setColumns(key(insert.values, factory.clusteringColumns),
-                             write,
-                             true);
+        BytesPartitionState finalPartition = partition;
+        var cd = key(insert.values, factory.clusteringColumns);
+        maybeUpdateColumns(Sets.intersection(factory.regularColumns.asSet(), values.keySet()),
+                           partition.get(cd),
+                           nowTs, values,
+                           (ts, write) -> finalPartition.setColumns(cd, ts, write, true));
+    }
+
+    public void clear()
+    {
+        partitions.clear();
+        factory.clear();
+    }
+
+    private interface ColumnUpdate
+    {
+        void update(long nowTs, Map<Symbol, Update> write);
+    }
+
+    private static void maybeUpdateColumns(Set<Symbol> columns,
+                                           @Nullable BytesPartitionState.Row row,
+                                           long nowTs, Map<Symbol, Expression> set,
+                                           ColumnUpdate update)
+    {
+        if (columns.isEmpty())
+        {
+            update.update(nowTs, Collections.emptyMap());
+            return;
+        }
+        // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
+        Map<Symbol, Update> write = new HashMap<>();
+        for (Symbol col : columns)
+        {
+            ByteBuffer current = row == null ? null : row.get(col);
+            Update result = eval(col, current, set.get(col));
+            if (result.kind == Update.Kind.SKIP) continue;
+            write.put(col, result);
+        }
+        if (!write.isEmpty())
+            update.update(nowTs, write);
     }
 
     private void update(Mutation.Update update)
     {
+        long nowTs = update.timestampOrDefault(MagicConstants.NO_TIMESTAMP);
         var split = splitOnPartition(update.where.simplify());
         List<Clustering<ByteBuffer>> pks = split.left;
         List<Conditional> remaining = split.right;
@@ -252,34 +327,21 @@ public class ASTSingleTableModel
             Map<Symbol, Expression> set = update.set;
             if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns.asSet(), set.keySet()).isEmpty())
             {
-                // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
-                Map<Symbol, ByteBuffer> write = new HashMap<>();
-                for (Symbol col : Sets.intersection(factory.staticColumns.asSet(), set.keySet()))
-                {
-                    ByteBuffer current = partition.staticRow().get(col);
-                    EvalResult result = eval(col, current, set.get(col));
-                    if (result.kind == EvalResult.Kind.SKIP) continue;
-                    write.put(col, result.value);
-                }
-                if (!write.isEmpty())
-                    partition.setStaticColumns(write);
+                maybeUpdateColumns(Sets.intersection(factory.staticColumns.asSet(), set.keySet()),
+                                   partition.staticRow(),
+                                   nowTs, set,
+                                   partition::setStaticColumns);
             }
             // table has clustering but non are in the write, so only pk/static can be updated
             if (!factory.clusteringColumns.isEmpty() && remaining.isEmpty())
                 return;
+            BytesPartitionState finalPartition = partition;
             for (Clustering<ByteBuffer> cd : clustering(remaining))
             {
-                Map<Symbol, ByteBuffer> write = new HashMap<>();
-                for (Symbol col : Sets.intersection(factory.regularColumns.asSet(), set.keySet()))
-                {
-                    ByteBuffer current = partition.get(cd, col);
-                    EvalResult result = eval(col, current, set.get(col));
-                    if (result.kind == EvalResult.Kind.SKIP) continue;
-                    write.put(col, result.value);
-                }
-
-                if (!write.isEmpty())
-                    partition.setColumns(cd, write, false);
+                maybeUpdateColumns(Sets.intersection(factory.regularColumns.asSet(), set.keySet()),
+                                   partition.get(cd),
+                                   nowTs, set,
+                                   (ts, write) -> finalPartition.setColumns(cd, ts, write, false));
             }
         }
     }
@@ -289,6 +351,7 @@ public class ASTSingleTableModel
 
     private void update(Mutation.Delete delete)
     {
+        long ts = delete.timestampOrDefault(MagicConstants.NO_TIMESTAMP);
         //TODO (coverage): range deletes
         var split = splitOnPartition(delete.where.simplify());
         List<Clustering<ByteBuffer>> pks = split.left;
@@ -313,7 +376,7 @@ public class ASTSingleTableModel
                 case ROW:
                     for (Clustering<ByteBuffer> cd : clusterings)
                     {
-                        partition.deleteRow(cd);
+                        partition.deleteRow(cd, ts);
                         if (partition.shouldDelete())
                             partitions.remove(partition.ref());
                     }
@@ -321,7 +384,7 @@ public class ASTSingleTableModel
                 case COLUMN:
                     if (clusterings.isEmpty())
                     {
-                        partition.deleteStaticColumns(columns);
+                        partition.deleteStaticColumns(ts, columns);
                         if (partition.shouldDelete())
                             partitions.remove(partition.ref());
                     }
@@ -329,7 +392,7 @@ public class ASTSingleTableModel
                     {
                         for (Clustering<ByteBuffer> cd : clusterings)
                         {
-                            partition.deleteColumns(cd, columns);
+                            partition.deleteColumns(cd, ts, columns);
                             if (partition.shouldDelete())
                                 partitions.remove(partition.ref());
                         }
@@ -339,6 +402,13 @@ public class ASTSingleTableModel
                     throw new UnsupportedOperationException();
             }
         }
+    }
+
+    public boolean shouldApply(Batch batch)
+    {
+        if (!batch.isCas()) return true;
+        //TODO (correctness): what happens with CAS on multiple partitions?
+        return batch.mutations.stream().allMatch(this::shouldApply);
     }
 
     public boolean shouldApply(Mutation mutation)
@@ -683,6 +753,18 @@ public class ASTSingleTableModel
 
     public void validate(ByteBuffer[][] actual, Select select)
     {
+        if (select.source.isEmpty())
+            throw new AssertionError("SELECT without a FROM only allowed in a BEGIN TRANSACTION");
+        {
+            var ref = select.source.get();
+            if (ref.keyspace.isPresent())
+            {
+                if (!factory.metadata.keyspace.equals(ref.keyspace.get()))
+                    throw new AssertionError("Incorrect keyspace: expected " + factory.metadata.keyspace + " but given " + ref.keyspace.get());
+            }
+            if (!factory.metadata.name.equals(ref.name))
+                throw new AssertionError("Incorrect table: expected " + factory.metadata.name + " but given " + ref.name);
+        }
         SelectResult results = getRowsAsByteBuffer(select);
         try
         {
@@ -692,7 +774,7 @@ public class ASTSingleTableModel
             }
             else
             {
-                validate(actual, results.rows);
+                validate(results.columns, actual, results.rows);
             }
         }
         catch (AssertionError e)
@@ -702,11 +784,6 @@ public class ASTSingleTableModel
             error.setStackTrace(new StackTraceElement[0]);
             throw error;
         }
-    }
-
-    public void validate(ByteBuffer[][] actual, ByteBuffer[][] expected)
-    {
-        validate(factory.selectionOrder, actual, expected);
     }
 
     private static void validate(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] actual, ByteBuffer[][] expected)
@@ -885,17 +962,47 @@ public class ASTSingleTableModel
         }
     }
 
-    public ImmutableUniqueList<Symbol> columns(Select select)
+    private ImmutableUniqueList<Symbol> columns(Select select)
     {
         if (select.selections.isEmpty()) return factory.selectionOrder;
-        throw new UnsupportedOperationException("Getting columns from select other than SELECT * is currently not supported");
+        var builder = ImmutableUniqueList.<Symbol>builder();
+        for (var e : select.selections)
+        {
+            if (!(e instanceof Symbol))
+                throw new UnsupportedOperationException("Only column selection is currently supported");
+            builder.add((Symbol) e);
+        }
+        return builder.build();
+    }
+
+    private static ByteBuffer[][] filter(ByteBuffer[][] rows, ImmutableUniqueList<Symbol> actualOrder, ImmutableUniqueList<Symbol> targetOrder)
+    {
+        if (actualOrder.equals(targetOrder)) return rows;
+        if (rows.length == 0) return rows;
+        if (!actualOrder.containsAll(targetOrder))
+            throw new UnsupportedOperationException("Only column selection is currently supported");
+        ByteBuffer[][] result = new ByteBuffer[rows.length][];
+        for (int i = 0; i < rows.length; i++)
+        {
+            ByteBuffer[] actual = rows[i];
+            ByteBuffer[] target = new ByteBuffer[targetOrder.size()];
+            for (int j = 0; j < targetOrder.size(); j++)
+            {
+                Symbol col = targetOrder.get(j);
+                int actualIndex = actualOrder.indexOf(col);
+                target[j] = actual[actualIndex];
+            }
+            result[i] = target;
+        }
+        return result;
     }
 
     private SelectResult getRowsAsByteBuffer(Select select)
     {
-        ImmutableUniqueList<Symbol> columns = columns(select);
+        ImmutableUniqueList<Symbol> selectOrder = factory.selectionOrder;
+        ImmutableUniqueList<Symbol> targetOrder = columns(select);
         if (select.where.isEmpty())
-            return SelectResult.ordered(columns, getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit)));
+            return SelectResult.ordered(targetOrder, filter(getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit)), selectOrder, targetOrder));
         LookupContext ctx = context(select);
         List<PrimaryKey> primaryKeys;
         if (ctx.unmatchable)
@@ -923,7 +1030,7 @@ public class ASTSingleTableModel
         }
         primaryKeys = applyLimits(primaryKeys, select.perPartitionLimit, select.limit);
         //TODO (correctness): now that we have the rows we need to handle the selections/aggregation/limit/group-by/etc.
-        return new SelectResult(columns, getRowsAsByteBuffer(primaryKeys), ctx.unordered);
+        return new SelectResult(targetOrder, filter(getRowsAsByteBuffer(primaryKeys), selectOrder, targetOrder), ctx.unordered);
     }
 
     private List<PrimaryKey> applyLimits(List<PrimaryKey> primaryKeys, Optional<Value> perPartitionLimitOpt, Optional<Value> limitOpt)
@@ -1230,52 +1337,42 @@ public class ASTSingleTableModel
         return current.stream().map(BufferClustering::new).collect(Collectors.toList());
     }
 
-    private static class EvalResult
+
+    private static Update eval(Symbol col, @Nullable ByteBuffer current, Expression e)
     {
-        private static final EvalResult SKIP = new EvalResult(Kind.SKIP, null);
-
-        private enum Kind { SKIP, ACCEPT }
-
-        private final Kind kind;
-        private final @Nullable ByteBuffer value;
-
-        private EvalResult(Kind kind, @Nullable ByteBuffer value)
+        if (col.type().isMultiCell())
         {
-            this.kind = kind;
-            this.value = value;
+            // there are 2 different cases to worry about
+            // col = ?
+            // col += ?
+            if (!(e instanceof AssignmentOperator))
+                return Update.override(eval(e));
+            var o = (AssignmentOperator) e;
+            ByteBuffer value = eval(o.right);
+            // validate your inputs...
+            if (value == null)
+                return Update.SKIP;
+            switch (o.kind)
+            {
+                case ADD:      return Update.append(value);
+                case SUBTRACT: return Update.remove(value);
+                default:       throw new UnsupportedOperationException(o.kind.name());
+            }
         }
-
-        private static EvalResult accept(@Nullable ByteBuffer bb)
-        {
-            return new EvalResult(Kind.ACCEPT, bb);
-        }
-    }
-
-    private static EvalResult eval(Symbol col, @Nullable ByteBuffer current, Expression e)
-    {
-        if (!(e instanceof AssignmentOperator)) return EvalResult.accept(eval(e));
+        if (!(e instanceof AssignmentOperator)) return Update.override(eval(e));
         current = col.type().sanitize(current);
-        // multi cell collections have the property that they do update even if the current value is null
-        boolean isFancy = col.type().isCollection() && col.type().isMultiCell();
-        if (current == null && !isFancy) return EvalResult.SKIP; // null + ? == null
+        if (current == null) return Update.SKIP; // null + ? == null
         var assignment = (AssignmentOperator) e;
-        if (isFancy && current == null)
-        {
-            return assignment.kind == AssignmentOperator.Kind.SUBTRACT
-                   // if it doesn't exist, then there is nothing to subtract
-                   ? EvalResult.SKIP
-                   : EvalResult.accept(eval(assignment.right));
-        }
         // validate your inputs...
         ByteBuffer rhs = col.type().sanitize(eval(assignment.right));
         if (rhs == null)
-            return EvalResult.SKIP;
+            return Update.SKIP;
         switch (assignment.kind)
         {
             case ADD:
-                return EvalResult.accept(eval(new Operator(Operator.Kind.ADD, new Literal(current, e.type()), assignment.right)));
+                return Update.override(eval(new Operator(Operator.Kind.ADD, new Literal(current, e.type()), assignment.right)));
             case SUBTRACT:
-                return EvalResult.accept(eval(new Operator(Operator.Kind.SUBTRACT, new Literal(current, e.type()), assignment.right)));
+                return Update.override(eval(new Operator(Operator.Kind.SUBTRACT, new Literal(current, e.type()), assignment.right)));
             default:
                 throw new UnsupportedOperationException(assignment.kind + ": " + assignment.toCQL());
         }

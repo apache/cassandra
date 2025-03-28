@@ -32,4 +32,9 @@ public interface Expression extends Element
     {
         return v.visit(this);
     }
+
+    default String debugCQL()
+    {
+        return visit(StandardVisitors.DEBUG).toCQL();
+    }
 }

@@ -43,6 +43,7 @@ import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
+import org.apache.cassandra.cql3.ast.Batch;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
@@ -366,7 +367,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
             preCheck(cluster, statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
-                                  .add(StatefulASTBase::insert)
+//                                  .add(StatefulASTBase::insert)
+                                  .add(StatefulASTBase::batch)
                                   .add(StatefulASTBase::fullTableScan)
                                   .addIf(State::hasPartitions, this::selectExisting)
                                   .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
@@ -426,6 +428,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
         protected final LinkedHashMap<Symbol, IndexedColumn> indexes;
         private final Gen<Mutation> mutationGen;
+        private final Gen<Batch> batchGen;
         private final List<Symbol> searchableNonPartitionColumns;
         private final List<Symbol> searchableColumns;
         private final List<Symbol> nonPkIndexedColumns;
@@ -472,6 +475,22 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             }
             model.factory.regularAndStaticColumns.forEach(mutationGenBuilder::allowNull);
             this.mutationGen = toMutationGen(mutationGenBuilder);
+            LinkedHashMap<LinkedHashMap<Symbol, Object>, Gen<Mutation>> perPartitionMutationGens = new LinkedHashMap<>();
+            for (var pk : uniquePartitions)
+                perPartitionMutationGens.put(pk, toMutationGen(new ASTGenerators.MutationGenBuilder(mutationGenBuilder).withPartitions(i -> pk)));
+            this.batchGen = r -> {
+                var builder = Batch.builder();
+                //TODO (coverage): multi partition
+                var pk = r.pick(uniquePartitions);
+                var gen = perPartitionMutationGens.get(pk);
+//                int numMutations = rs.nextInt(1, 10);
+                int numMutations = 2;
+                for (int i = 0; i < numMutations; i++)
+                    builder.add(gen.next(r));
+                return builder.build();
+            };
+
+
 
             var nonPartitionColumns = ImmutableList.<Symbol>builder()
                                                    .addAll(model.factory.clusteringColumns)
@@ -514,6 +533,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         protected Gen<Mutation> mutationGen()
         {
             return mutationGen;
+        }
+
+        @Override
+        protected Gen<Batch> batchGen()
+        {
+            return batchGen;
         }
 
         private LinkedHashMap<Symbol, IndexedColumn> createIndexes(RandomSource rs, TableMetadata metadata)

@@ -48,6 +48,7 @@ import com.datastax.driver.core.SocketOptions;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
+import org.apache.cassandra.cql3.ast.Batch;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CQLFormatter;
 import org.apache.cassandra.cql3.ast.Conditional;
@@ -175,6 +176,13 @@ public class StatefulASTBase extends TestBaseImpl
             state.cluster.forEach(i -> i.nodetoolResult("compact", s2.metadata.keyspace, s2.metadata.name).asserts().success());
             s2.compact();
         });
+    }
+
+    protected static <S extends CommonState> Property.Command<S, Void, ?> batch(RandomSource rs, S state)
+    {
+        int timestamp = ++state.operations;
+        Batch batch = state.batchGen().next(rs).withTimestamp(timestamp);
+        return state.command(rs, batch);
     }
 
     protected static <S extends CommonState> Property.Command<S, Void, ?> insert(RandomSource rs, S state)
@@ -394,6 +402,31 @@ public class StatefulASTBase extends TestBaseImpl
             });
         }
 
+        protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Batch batch)
+        {
+            return command(rs, batch, null);
+        }
+
+        protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Batch batch, @Nullable String annotate)
+        {
+            var inst = selectInstance(rs);
+            String postfix = "on " + inst;
+            if (batch.isCas())
+            {
+                postfix += ", would apply " + model.shouldApply(batch);
+                // CAS doesn't allow timestamps
+                batch = batch.withoutTimestamp();
+            }
+            if (annotate == null) annotate = postfix;
+            else                  annotate += ", " + postfix;
+            Batch finalBatch = batch;
+            return new Property.SimpleCommand<>(humanReadable(batch, annotate), s -> {
+                s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalBatch);
+                s.model.update(finalBatch);
+                s.mutation();
+            });
+        }
+
         protected IInvokableInstance selectInstance(RandomSource rs)
         {
             return cluster.get(rs.nextInt(0, cluster.size()) + 1);
@@ -504,7 +537,10 @@ public class StatefulASTBase extends TestBaseImpl
         {
             // With UTF-8 some chars can cause printing issues leading to error messages that don't reproduce the original issue.
             // To avoid this problem, always escape the CQL so nothing gets lost
-            String cql = StringUtils.escapeControlChars(stmt.visit(debug).toCQL(CQLFormatter.None.instance));
+            CQLFormatter formatter = CQLFormatter.None.instance;
+            if (stmt.kind() == Statement.Kind.BATCH) // its really hard to read these without this...
+                formatter = new CQLFormatter.PrettyPrint();
+            String cql = StringUtils.escapeControlChars(stmt.visit(debug).toCQL(formatter));
             if (annotate != null)
                 cql += " -- " + annotate;
             return cql;
@@ -576,5 +612,6 @@ public class StatefulASTBase extends TestBaseImpl
         }
 
         protected abstract Gen<Mutation> mutationGen();
+        protected abstract Gen<Batch> batchGen();
     }
 }

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -651,9 +652,288 @@ public class ASTSingleTableModelTest
         model.validate(rows(row(metadata, 0, List.of(42, 42), Set.of(0, 42), Map.of(42, 0), List.of(42, 42), Set.of(0, 42), Map.of(42, 0))), Select.builder(metadata).build());
     }
 
+    @Test
+    public void multiCellCollections()
+    {
+        ListType<Integer> listType = ListType.getInstance(Int32Type.instance, true);
+        SetType<Integer> setType = SetType.getInstance(Int32Type.instance, true);
+        MapType<Integer, Integer> mapType = MapType.getInstance(Int32Type.instance, Int32Type.instance, true);
+        TableMetadata metadata = defaultTable()
+                                 .addPartitionKeyColumn("pk", Int32Type.instance)
+                                 .addClusteringColumn("ck", Int32Type.instance)
+                                 .addStaticColumn("si", Int32Type.instance).addRegularColumn("ri", Int32Type.instance)
+                                 .addStaticColumn("sl", listType).addRegularColumn("rl", listType)
+                                 .addStaticColumn("ss", setType).addRegularColumn("rs", setType)
+                                 .addStaticColumn("sm", mapType).addRegularColumn("rm", mapType)
+                                 .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        int pk = 0;
+        int ck = 0;
+        SimpleWrite<Object> staticInsert =
+        (name, value, ts) ->
+        model.update(Mutation.insert(metadata)
+                             .value("pk", pk)
+                             .value(name, value)
+                             .timestamp(ts)
+                             .build());
+        SimpleWrite<Object> regularInsert =
+        (name, value, ts) ->
+        model.update(Mutation.insert(metadata)
+                             .value("pk", pk)
+                             .value("ck", ck)
+                             .value(name, value)
+                             .timestamp(ts)
+                             .build());
+        SimpleWrite<Object> staticAppend =
+        (name, value, ts) ->
+        model.update(Mutation.update(metadata)
+                             .value("pk", pk)
+                             .set(name, s -> new AssignmentOperator(AssignmentOperator.Kind.ADD, new Literal(value, s.type())))
+                             .timestamp(ts)
+                             .build());
+        SimpleWrite<Object> regularAppend =
+        (name, value, ts) ->
+        model.update(Mutation.update(metadata)
+                             .value("pk", pk)
+                             .value("ck", ck)
+                             .set(name, s -> new AssignmentOperator(AssignmentOperator.Kind.ADD, new Literal(value, s.type())))
+                             .timestamp(ts)
+                             .build());
+        BiConsumer<String, Long> staticColumnDelete =
+        (name, ts) ->
+        model.update(Mutation.delete(metadata)
+                             .column(name)
+                             .value("pk", pk)
+                             .timestamp(ts)
+                             .build());
+        BiConsumer<String, Long> regularColumnDelete =
+        (name, ts) ->
+        model.update(Mutation.delete(metadata)
+                             .column(name)
+                             .value("pk", pk)
+                             .value("ck", ck)
+                             .timestamp(ts)
+                             .build());
+        BiConsumer<String, Long> staticDelete =
+        (name, ts) ->
+        model.update(Mutation.delete(metadata)
+                             .value("pk", pk)
+                             .timestamp(ts)
+                             .build());
+        BiConsumer<String, Long> regularDelete =
+        (name, ts) ->
+        model.update(Mutation.delete(metadata)
+                             .value("pk", pk)
+                             .value("ck", ck)
+                             .timestamp(ts)
+                             .build());
+
+        BiConsumer<String, ByteBuffer> validateStaticColumn =
+        (name, value) ->
+        model.validate(value == null ? rows() : rows(row(value)),
+                       Select.builder(metadata)
+                             .columnSelection(name)
+                             .value("pk", pk)
+                             .build());
+        BiConsumer<String, ByteBuffer> validateRegularColumn =
+        (name, value) ->
+        model.validate(value == null ? rows() : rows(row(value)),
+                       Select.builder(metadata)
+                             .columnSelection(name)
+                             .value("pk", pk)
+                             .value("ck", ck)
+                             .build());
+
+        Runnable reset = () -> {
+            model.clear();
+
+            // add a row just to make sure the deletes don't clear the partition state by mistake
+            model.update(Mutation.insert(metadata)
+                                 .value("pk", pk)
+                                 .value("ck", ck + 1)
+                                 .value("si", 0)
+                                 .value("ri", 0)
+                                 .build());
+        };
+
+        for (boolean staticOrRegular : Arrays.asList(true, false))
+        {
+            SimpleWrite<Object> insert;
+            BiConsumer<String, ByteBuffer> validateColumn;
+            SimpleWrite<Object> append;
+            BiConsumer<String, Long> columnDelete;
+            BiConsumer<String, Long> delete;
+            String listCol, setCol, mapCol;
+            if (staticOrRegular)
+            {
+                listCol = "sl";
+                setCol = "ss";
+                mapCol = "sm";
+                validateColumn = validateStaticColumn;
+                insert = staticInsert;
+                append = staticAppend;
+                columnDelete = staticColumnDelete;
+                delete = staticDelete;
+            }
+            else
+            {
+                listCol = "rl";
+                setCol = "rs";
+                mapCol = "rm";
+                validateColumn = validateRegularColumn;
+                insert = regularInsert;
+                append = regularAppend;
+                columnDelete = regularColumnDelete;
+                delete = regularDelete;
+            }
+
+            // Test Insert
+            {
+                reset.run();
+                long ts = 1;
+                insert.write(listCol, List.of(1), ts);
+                validateColumn.accept(listCol, listType.decompose(List.of(1)));
+
+                // when ts conflicts, then the insert does append
+                insert.write(listCol, List.of(2), ts);
+                validateColumn.accept(listCol, listType.decompose(List.of(1, 2)));
+
+                // insert the same value again
+                insert.write(listCol, List.of(2), ts);
+                validateColumn.accept(listCol, listType.decompose(List.of(1, 2, 2)));
+
+                // when no conflict, then the past is deleted
+                ts++;
+                insert.write(listCol, List.of(3), ts);
+                validateColumn.accept(listCol, listType.decompose(List.of(3)));
+
+                ts++;
+                append.write(listCol, List.of(4), ts);
+                validateColumn.accept(listCol, listType.decompose(List.of(3, 4)));
+
+                columnDelete.accept(listCol, ts - 1);
+                validateColumn.accept(listCol, listType.decompose(List.of(4)));
+
+                // delete everything
+                ts++;
+                delete.accept(listCol, ts);
+                validateColumn.accept(listCol, null);
+
+                // append doesn't have the old history
+                ts++;
+                append.write(listCol, List.of(1), ts);
+                validateColumn.accept(listCol, listType.decompose(List.of(1)));
+            }
+            // Test Set
+            {
+                reset.run();
+                long ts = 1;
+                insert.write(setCol, Set.of(1), ts);
+                validateColumn.accept(setCol, setType.decompose(Set.of(1)));
+
+                // when ts conflicts, then the insert does append
+                insert.write(setCol, Set.of(2), ts);
+                validateColumn.accept(setCol, setType.decompose(Set.of(1, 2)));
+
+                // insert the same value again
+                insert.write(setCol, Set.of(2), ts);
+                validateColumn.accept(setCol, setType.decompose(Set.of(1, 2)));
+
+                // when no conflict, then the past is deleted
+                ts++;
+                insert.write(setCol, Set.of(3), ts);
+                validateColumn.accept(setCol, setType.decompose(Set.of(3)));
+
+                ts++;
+                append.write(setCol, Set.of(4), ts);
+                validateColumn.accept(setCol, setType.decompose(Set.of(3, 4)));
+
+                columnDelete.accept(setCol, ts - 1);
+                validateColumn.accept(setCol, setType.decompose(Set.of(4)));
+
+                // delete everything
+                ts++;
+                delete.accept(setCol, ts);
+                validateColumn.accept(setCol, null);
+
+                // append doesn't have the old history
+                ts++;
+                append.write(setCol, Set.of(1), ts);
+                validateColumn.accept(setCol, setType.decompose(Set.of(1)));
+            }
+            // Test Map
+            {
+                reset.run();
+                long ts = 1;
+                insert.write(mapCol, Map.of(1, 1), ts);
+                validateColumn.accept(mapCol, mapType.decompose(Map.of(1, 1)));
+
+                // when ts conflicts, then the insert does append
+                insert.write(mapCol, Map.of(2, 2), ts);
+                validateColumn.accept(mapCol, mapType.decompose(Map.of(1, 1, 2, 2)));
+
+                // insert the same value again
+                insert.write(mapCol, Map.of(2, 2), ts);
+                validateColumn.accept(mapCol, mapType.decompose(Map.of(1, 1, 2, 2)));
+
+                // when no conflict, then the past is deleted
+                ts++;
+                insert.write(mapCol, Map.of(3, 3), ts);
+                validateColumn.accept(mapCol, mapType.decompose(Map.of(3, 3)));
+
+                ts++;
+                append.write(mapCol, Map.of(4, 4), ts);
+                validateColumn.accept(mapCol, mapType.decompose(Map.of(3, 3, 4, 4)));
+
+                columnDelete.accept(mapCol, ts - 1);
+                validateColumn.accept(mapCol, mapType.decompose(Map.of(4, 4)));
+
+                // delete everything
+                ts++;
+                delete.accept(mapCol, ts);
+                validateColumn.accept(mapCol, null);
+
+                // append doesn't have the old history
+                ts++;
+                append.write(mapCol, Map.of(1, 1), ts);
+                validateColumn.accept(mapCol, mapType.decompose(Map.of(1, 1)));
+            }
+        }
+    }
+
+    @Test
+    public void insertEmptyRow()
+    {
+        TableMetadata metadata = defaultTable()
+                                 .addPartitionKeyColumn("pk", Int32Type.instance)
+                                 .addStaticColumn("s", Int32Type.instance)
+                                 .addClusteringColumn("ck", Int32Type.instance)
+                                 .addRegularColumn("r", Int32Type.instance)
+                                 .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        model.update(Mutation.insert(metadata)
+                             .value("pk", 0)
+                             .value("s", 0)
+                             .value("ck", 0)
+                             .build());
+        model.validate(rows(row(metadata, 0, 0, 0, null)), Select.builder(metadata).build());
+    }
+
+    private interface SimpleWrite<T>
+    {
+        void write(String name, T value, long ts);
+    }
+
     private static ByteBuffer[][] rows(ByteBuffer[]... rows)
     {
         return rows;
+    }
+
+    private static ByteBuffer[] row(ByteBuffer... values)
+    {
+        return values;
     }
 
     private static ByteBuffer[] row(TableMetadata metadata, Object... values)
@@ -661,7 +941,10 @@ public class ASTSingleTableModelTest
         ByteBuffer[] row = new ByteBuffer[values.length];
         var it = metadata.allColumnsInSelectOrder();
         for (int i = 0; i < values.length && it.hasNext(); i++)
-            row[i] = it.next().type.decomposeUntyped(values[i]);
+        {
+            Object value = values[i];
+            row[i] = value == null ? null : it.next().type.decomposeUntyped(value);
+        }
         return row;
     }
 

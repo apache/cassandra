@@ -41,7 +41,6 @@ public class ValueGenerators<PartitionKey, ClusteringKey>
     public ValueGenerators(Bijection<PartitionKey> pkGen,
                            Bijection<ClusteringKey> ckGen,
                            Accessor<ClusteringKey> ckAccessor,
-
                            List<? extends Bijection<? extends Object>> regularColumnGens,
                            List<? extends Bijection<? extends Object>> staticColumnGens,
 

@@ -27,6 +27,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
@@ -49,6 +50,8 @@ public abstract class Mutation implements Statement
         this.kind = kind;
         this.table = table;
     }
+
+    public abstract long timestampOrDefault(long defaultValue);
 
     public abstract boolean isCas();
 
@@ -161,6 +164,13 @@ public abstract class Mutation implements Statement
         {
             return Stream.of(value);
         }
+
+        public long get()
+        {
+            if (value.value() instanceof Long)
+                return (long) value.value();
+            return LongType.instance.compose(value.valueEncoded());
+        }
     }
 
     public static class Using implements Element
@@ -225,6 +235,16 @@ public abstract class Mutation implements Statement
             this.values = values;
             this.ifNotExists = ifNotExists;
             this.using = using;
+        }
+
+        @Override
+        public long timestampOrDefault(long defaultValue)
+        {
+            if (using.isEmpty()) return defaultValue;
+            var opt = using.get().timestamp;
+            if (opt.isEmpty()) return defaultValue;
+            var timestamp = opt.get();
+            return timestamp.get();
         }
 
         @Override
@@ -337,6 +357,16 @@ public abstract class Mutation implements Statement
             this.set = set;
             this.where = where;
             this.casCondition = casCondition;
+        }
+
+        @Override
+        public long timestampOrDefault(long defaultValue)
+        {
+            if (using.isEmpty()) return defaultValue;
+            var opt = using.get().timestamp;
+            if (opt.isEmpty()) return defaultValue;
+            var timestamp = opt.get();
+            return timestamp.get();
         }
 
         @Override
@@ -477,6 +507,15 @@ public abstract class Mutation implements Statement
             this.casCondition = casCondition;
         }
 
+        @Override
+        public long timestampOrDefault(long defaultValue)
+        {
+            var opt = timestamp;
+            if (opt.isEmpty()) return defaultValue;
+            var timestamp = opt.get();
+            return timestamp.get();
+        }
+
         /*
 DELETE [column_name (term)][, ...]
 FROM [keyspace_name.] table_name
@@ -612,6 +651,11 @@ WHERE PK_column_conditions
             neededPks.addAll(partitionColumns);
         }
 
+        protected Symbol find(String name)
+        {
+            return allColumns.stream().filter(s -> s.symbol.equals(name)).findAny().get();
+        }
+
         public abstract T build();
 
         @Override
@@ -678,6 +722,11 @@ WHERE PK_column_conditions
             return this;
         }
 
+        public InsertBuilder timestamp(long value)
+        {
+            return timestamp(Literal.of(value));
+        }
+
         public InsertBuilder timestamp(Value value)
         {
             this.timestamp = new Timestamp(value);
@@ -727,6 +776,11 @@ WHERE PK_column_conditions
             super(Kind.UPDATE, table);
         }
 
+        public UpdateBuilder timestamp(long value)
+        {
+            return timestamp(Literal.of(value));
+        }
+
         public UpdateBuilder timestamp(Value value)
         {
             this.timestamp = new Timestamp(value);
@@ -771,13 +825,18 @@ WHERE PK_column_conditions
 
         public UpdateBuilder set(String column, Expression expression)
         {
-            Symbol symbol = new Symbol(metadata.getColumn(new ColumnIdentifier(column, true)));
-            return set(symbol, expression);
+            return set(find(column), expression);
+        }
+
+        public UpdateBuilder set(String column, Function<Symbol, Expression> fn)
+        {
+            Symbol symbol = find(column);
+            return set(symbol, fn.apply(symbol));
         }
 
         public UpdateBuilder set(String column, String value)
         {
-            Symbol symbol = new Symbol(metadata.getColumn(new ColumnIdentifier(column, true)));
+            Symbol symbol = find(column);
             return set(symbol, new Bind(symbol.type().asCQL3Type().fromCQLLiteral(value), symbol.type()));
         }
 
@@ -879,6 +938,11 @@ WHERE PK_column_conditions
         {
             symbols.forEach(this::column);
             return this;
+        }
+
+        public DeleteBuilder timestamp(long value)
+        {
+            return timestamp(Literal.of(value));
         }
 
         public DeleteBuilder timestamp(Value value)

@@ -123,4 +123,10 @@ public class AssignmentOperator implements Expression
         if (r == right) return this;
         return new AssignmentOperator(kind, r);
     }
+
+    @Override
+    public String toString()
+    {
+        return debugCQL();
+    }
 }

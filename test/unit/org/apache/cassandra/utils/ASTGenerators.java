@@ -176,6 +176,17 @@ public class ASTGenerators
             this.allowedOperators = Operator.supportsOperators(this.type);
         }
 
+        public ExpressionBuilder(ExpressionBuilder other)
+        {
+            this.type = other.type;
+            this.valueGen = other.valueGen;
+            this.allowedOperators = other.allowedOperators;
+            this.useOperator = other.useOperator;
+            this.useEmpty = other.useEmpty;
+            this.useNull = other.useNull;
+            this.literalOrBindGen = other.literalOrBindGen;
+        }
+
         public ExpressionBuilder allowEmpty()
         {
             if (!type.allowsEmpty()) return this;
@@ -389,6 +400,30 @@ public class ASTGenerators
 
             for (Symbol symbol : allColumns)
                 columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder(MutationGenBuilder other)
+        {
+            this.metadata = other.metadata;
+            this.allColumns = other.allColumns;
+            this.partitionColumns = other.partitionColumns;
+            this.clusteringColumns = other.clusteringColumns;
+            this.primaryColumns = other.primaryColumns;
+            this.regularColumns = other.regularColumns;
+            this.staticColumns = other.staticColumns;
+            this.regularAndStaticColumns = other.regularAndStaticColumns;
+
+            this.kindGen = other.kindGen;
+            this.ttlGen = other.ttlGen;
+            this.timestampGen = other.timestampGen;
+            this.references = new ArrayList<>(other.references);
+            this.withCasGen = other.withCasGen;
+            this.useCasIf = other.useCasIf;
+            this.ifConditionFilter = other.ifConditionFilter;
+            this.deleteKindGen = other.deleteKindGen;
+
+            for (Symbol symbol : allColumns)
+                columnExpressions.put(symbol, new ExpressionBuilder(other.columnExpressions.get(symbol)));
         }
 
         public MutationGenBuilder withColumnExpressions(Consumer<ExpressionBuilder> fn)
