@@ -59,11 +59,12 @@ calculate_heap_sizes()
     quarter_system_memory_in_mb=`expr $system_memory_in_mb / 4`
     if [ "$half_system_memory_in_mb" -gt "$heap_limit" ] ; then
         CALCULATED_MAX_HEAP_SIZE="${heap_limit}M"
+        CALCULATED_MAX_DIRECT_MEMORY_SIZE="`expr $heap_limit / 2`M"
         CALCULATED_CMS_HEAP_NEWSIZE="8G"
     else
         CALCULATED_MAX_HEAP_SIZE="${half_system_memory_in_mb}M"
-        CALCULATED_CMS_HEAP_NEWSIZE="`expr $half_system_memory_in_mb / 4`M"
         CALCULATED_MAX_DIRECT_MEMORY_SIZE="${quarter_system_memory_in_mb}M"
+        CALCULATED_CMS_HEAP_NEWSIZE="`expr $half_system_memory_in_mb / 4`M"
     fi
 }
 
