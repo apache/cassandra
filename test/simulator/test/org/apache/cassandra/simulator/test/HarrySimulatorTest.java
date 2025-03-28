@@ -288,7 +288,7 @@ public class HarrySimulatorTest
 
                      work.add(interleave("Start generating", HarrySimulatorTest.generateWrites(rowsPerPhase, simulation, cl)));
                      work.add(work("Validate all data locally",
-                                   lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
+                                   lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf, validateQueryConsistency(), simulation.rng))));
 
                      return arr(work.toArray(new ActionSchedule.Work[0]));
                  },
@@ -339,8 +339,8 @@ public class HarrySimulatorTest
                                            run(() -> simulation.nodeState.decommission(node))));
                              work.add(work("Check node state", assertNodeState(simulation.simulated, simulation.cluster, node, NodeState.LEFT)));
                          }
-                         work.add(work("Validate data locally",
-                                       lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
+                         work.add(work("Validate data with " + validateQueryConsistency(),
+                                       lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf, validateQueryConsistency(), simulation.rng))));
                          boolean tmp = shouldBootstrap;
                          work.add(work("Output message",
                                        run(() -> logger.warn("Finished {} of {} and data validation!\n", tmp ? "bootstrap" : "decommission", node))));
@@ -846,7 +846,7 @@ public class HarrySimulatorTest
      * Given you have used `generate` methods to generate data with Harry, you can use this method to check whether all
      * data has been propagated everywhere it should be, be it via streaming, read repairs, or regular writes.
      */
-    public static Action validateAllLocal(HarrySimulation simulation, List<TokenPlacementModel.Node> owernship, TokenPlacementModel.ReplicationFactor rf)
+    public static Action validateAllLocal(HarrySimulation simulation, List<TokenPlacementModel.Node> owernship, TokenPlacementModel.ReplicationFactor rf, ConsistencyLevel consistencyLevel, EntropySource rng)
     {
         return new Actions.LambdaAction("Validate", Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                         () -> {
@@ -861,10 +861,17 @@ public class HarrySimulatorTest
                                                 Operations.SelectPartition select = new Operations.SelectPartition(Long.MAX_VALUE, pd);
                                                 actions.add(new HarryValidatingQuery(simulation, simulation.cluster, rf,
                                                                                      owernship, new Visit(Long.MAX_VALUE, new Operations.Operation[]{ select }),
-                                                                                     simulation.queryBuilder));
+                                                                                     simulation.queryBuilder,
+                                                                                     consistencyLevel,
+                                                                                     rng));
                                             }
                                             return ActionList.of(actions).setStrictlySequential();
                                         });
+    }
+
+    protected ConsistencyLevel validateQueryConsistency()
+    {
+        return ConsistencyLevel.NODE_LOCAL;
     }
 
     private static Set<Long> visitedPds(HarrySimulation simulation)
