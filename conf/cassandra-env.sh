@@ -56,11 +56,14 @@ calculate_heap_sizes()
         heap_limit="31744"
     fi
     half_system_memory_in_mb=`expr $system_memory_in_mb / 2`
+    quarter_system_memory_in_mb=`expr $system_memory_in_mb / 4`
     if [ "$half_system_memory_in_mb" -gt "$heap_limit" ] ; then
         CALCULATED_MAX_HEAP_SIZE="${heap_limit}M"
+        CALCULATED_MAX_DIRECT_MEMORY_SIZE="`expr $heap_limit / 2`M"
         CALCULATED_CMS_HEAP_NEWSIZE="8G"
     else
         CALCULATED_MAX_HEAP_SIZE="${half_system_memory_in_mb}M"
+        CALCULATED_MAX_DIRECT_MEMORY_SIZE="${quarter_system_memory_in_mb}M"
         CALCULATED_CMS_HEAP_NEWSIZE="`expr $half_system_memory_in_mb / 4`M"
     fi
 }
@@ -87,6 +90,8 @@ echo $JVM_OPTS | grep -q Xmx
 DEFINED_XMX=$?
 echo $JVM_OPTS | grep -q Xms
 DEFINED_XMS=$?
+echo $JVM_OPTS | grep -q MaxDirectMemorySize
+DEFINED_MAX_DIRECT_MEMORY_SIZE=$?
 echo $JVM_OPTS | grep -q ParallelGCThreads
 DEFINED_PARALLEL_GC_THREADS=$?
 echo $JVM_OPTS | grep -q ConcGCThreads
@@ -112,6 +117,7 @@ calculate_heap_sizes
 
 #MAX_HEAP_SIZE="20G"
 #HEAP_NEWSIZE="10G"
+#MAX_DIRECT_MEMORY_SIZE="10G"
 
 # Set this to control the amount of arenas per-thread in glibc
 #export MALLOC_ARENA_MAX=4
@@ -130,6 +136,10 @@ elif [ "x$MAX_HEAP_SIZE" = "x" ] ||  [ "x$HEAP_NEWSIZE" = "x" -a $USING_G1 -ne 0
     exit 1
 fi
 
+if [ "x$MAX_DIRECT_MEMORY_SIZE" = "x" ]; then
+    MAX_DIRECT_MEMORY_SIZE="$CALCULATED_MAX_DIRECT_MEMORY_SIZE"
+fi
+
 if [ "x$MALLOC_ARENA_MAX" = "x" ] ; then
     export MALLOC_ARENA_MAX=4
 fi
@@ -142,6 +152,10 @@ if [ $DEFINED_XMX -ne 0 ] && [ $DEFINED_XMS -ne 0 ]; then
 elif [ $DEFINED_XMX -ne 0 ] || [ $DEFINED_XMS -ne 0 ]; then
      echo "Please set or unset -Xmx and -Xms flags in pairs on jvm-server.options file."
      exit 1
+fi
+
+if [ $DEFINED_MAX_DIRECT_MEMORY_SIZE -ne 0 ]; then
+     JVM_OPTS="$JVM_OPTS -XX:MaxDirectMemorySize=${MAX_DIRECT_MEMORY_SIZE}"
 fi
 
 # We only set -Xmn flag if it was not defined in jvm-server.options file

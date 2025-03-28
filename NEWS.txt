@@ -74,6 +74,7 @@ Upgrading
       storage-attached indexes (SAI) to make migration between the two safer. This behavior can be switched off via
       the flag `sai_options.prioritize_over_legacy_index` (which defaults to `false`) in `cassandra.yaml` or via
       `setPrioritizeSAIOverLegacyIndex(boolean)` in the JMX MBean `org.apache.cassandra.db:type=StorageService`.
+    - Java's -XX:MaxDirectMemorySize is by default explicitly half of max heap size (-Xmx) instead of implicitly equal to it.
 
 5.0.1
 =====

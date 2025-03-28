@@ -166,6 +166,12 @@
 # For production use you may wish to adjust this for your environment.
 # If that's the case, see MAX_HEAP_SIZE (and HEAP_NEWSIZE for CMS) in cassandra-env.sh
 
+#####################
+# OFF-HEAP SETTINGS #
+#####################
+
+# By default, this setting is half of max heap size
+#-XX:MaxDirectMemorySize=
 
 ###################################
 # EXPIRATION DATE OVERFLOW POLICY #
