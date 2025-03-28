@@ -576,7 +576,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private ResultMessage executeWithCondition(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
-        CQL3CasRequest request = makeCasRequest(queryState, options);
+        CQL3CasRequest request = makeCasRequest(queryState, options, requestTime);
 
         try (RowIterator result = StorageProxy.cas(keyspace(),
                                                    table(),
@@ -592,7 +592,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
     }
 
-    private CQL3CasRequest makeCasRequest(QueryState queryState, QueryOptions options)
+    private CQL3CasRequest makeCasRequest(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
         ClientState clientState = queryState.getClientState();
         List<ByteBuffer> keys = buildPartitionKeyNames(options, clientState);
@@ -610,7 +610,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                     type.isUpdate()? "updates" : "deletions");
 
         Clustering<?> clustering = Iterables.getOnlyElement(createClustering(options, clientState));
-        CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow());
+        CQL3CasRequest request = new CQL3CasRequest(metadata(), key, conditionColumns(), updatesRegularRows(), updatesStaticRow(), requestTime);
 
         addConditions(clustering, request, options);
         request.addRowUpdate(clustering, this, options, timestamp, nowInSeconds);
@@ -718,7 +718,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     public ResultMessage executeLocally(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         return hasConditions()
-               ? executeInternalWithCondition(queryState, options)
+               ? executeInternalWithCondition(queryState, options, Dispatcher.RequestTime.forImmediateExecution())
                : executeInternalWithoutCondition(queryState, options, Dispatcher.RequestTime.forImmediateExecution());
     }
 
@@ -732,9 +732,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return null;
     }
 
-    public ResultMessage executeInternalWithCondition(QueryState state, QueryOptions options)
+    public ResultMessage executeInternalWithCondition(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
-        CQL3CasRequest request = makeCasRequest(state, options);
+        CQL3CasRequest request = makeCasRequest(state, options, requestTime);
 
         try (RowIterator result = casInternal(state.getClientState(), request, options.getTimestamp(state), options.getNowInSeconds(state)))
         {

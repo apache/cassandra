@@ -22,12 +22,15 @@ import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.transport.Dispatcher;
 
 /**
  * Abstract the conditions and updates for a CAS operation.
  */
 public interface CASRequest
 {
+    Dispatcher.RequestTime requestTime();
+
     /**
      * The command to use to fetch the value to compare for the CAS.
      */

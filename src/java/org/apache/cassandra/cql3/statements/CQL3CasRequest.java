@@ -34,6 +34,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.TimeUUID;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -49,6 +50,7 @@ public class CQL3CasRequest implements CASRequest
     private final RegularAndStaticColumns conditionColumns;
     private final boolean updatesRegularRows;
     private final boolean updatesStaticRow;
+    private final Dispatcher.RequestTime requestTime;
     private boolean hasExists; // whether we have an exist or if not exist condition
 
     // Conditions on the static row. We keep it separate from 'conditions' as most things related to the static row are
@@ -66,7 +68,8 @@ public class CQL3CasRequest implements CASRequest
                           DecoratedKey key,
                           RegularAndStaticColumns conditionColumns,
                           boolean updatesRegularRows,
-                          boolean updatesStaticRow)
+                          boolean updatesStaticRow,
+                          Dispatcher.RequestTime requestTime)
     {
         this.metadata = metadata;
         this.key = key;
@@ -74,6 +77,13 @@ public class CQL3CasRequest implements CASRequest
         this.conditionColumns = conditionColumns;
         this.updatesRegularRows = updatesRegularRows;
         this.updatesStaticRow = updatesStaticRow;
+        this.requestTime = requestTime;
+    }
+
+    @Override
+    public Dispatcher.RequestTime requestTime()
+    {
+        return requestTime;
     }
 
     void addRowUpdate(Clustering<?> clustering, ModificationStatement stmt, QueryOptions options, long timestamp, long nowInSeconds)
