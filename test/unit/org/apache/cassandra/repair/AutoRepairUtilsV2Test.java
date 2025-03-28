@@ -564,4 +564,19 @@ public class AutoRepairUtilsV2Test extends CQLTester
 
         assertEquals(0, AutoRepairUtilsV2.getLastRepairTimeForNode(repairType, myID));
     }
+
+    @Test
+    public void testDefaultNodeToBeRepairedNPE()
+    {
+        UUID myID = UUID.randomUUID();
+        UUID otherID = UUID.randomUUID();
+        DatabaseDescriptor.getAutoRepairConfig().setParallelRepairCountInGroup(repairType, 5);
+        long currentMillis = System.currentTimeMillis();
+
+        // edge case where all nodes have start time > finish time
+        AutoRepairUtilsV2.insertNewRepairHistory(repairType, myID, currentMillis, currentMillis - 100);
+        AutoRepairUtilsV2.insertNewRepairHistory(repairType, otherID, currentMillis, currentMillis - 100);
+
+        assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN, AutoRepairUtilsV2.myTurnToRunRepair(repairType, myID));
+    }
 }

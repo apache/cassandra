@@ -665,7 +665,7 @@ public class AutoRepairUtilsV2
                     return MY_TURN_DUE_TO_PRIORITY;
                 }
 
-                if (defaultNodeToBeRepaired.hostId.equals(myId))
+                if (defaultNodeToBeRepaired != null && defaultNodeToBeRepaired.hostId.equals(myId))
                     return MY_TURN;
             }
             else if (currentRepairStatus.hostIdsWithOnGoingForceRepair.contains(myId))
