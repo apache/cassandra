@@ -276,6 +276,18 @@ public class SerializationHeader
         private final Map<ByteBuffer, AbstractType<?>> regularColumns;
         private final EncodingStats stats;
 
+        /**
+         * <em>Only</em> exposed for {@link org.apache.cassandra.io.sstable.SSTableHeaderFix}.
+         */
+        public static Component buildComponentForTools(AbstractType<?> keyType,
+                                                       List<AbstractType<?>> clusteringTypes,
+                                                       Map<ByteBuffer, AbstractType<?>> staticColumns,
+                                                       Map<ByteBuffer, AbstractType<?>> regularColumns,
+                                                       EncodingStats stats)
+        {
+            return new Component(keyType, clusteringTypes, staticColumns, regularColumns, stats);
+        }
+
         private Component(AbstractType<?> keyType,
                           List<AbstractType<?>> clusteringTypes,
                           Map<ByteBuffer, AbstractType<?>> staticColumns,
