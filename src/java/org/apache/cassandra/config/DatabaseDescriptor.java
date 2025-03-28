@@ -5350,4 +5350,14 @@ public class DatabaseDescriptor
     {
         conf.tombstone_read_purgeable_metric_granularity = granularity;
     }
+
+    public static boolean getShadowRowsTrackingEnabled()
+    {
+        return conf.shadow_rows_tracking_enabled;
+    }
+
+    public static void setShadowRowsTrackingEnabled(boolean enabled)
+    {
+        conf.shadow_rows_tracking_enabled = enabled;
+    }
 }

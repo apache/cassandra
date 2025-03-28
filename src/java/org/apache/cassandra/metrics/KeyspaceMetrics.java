@@ -88,6 +88,16 @@ public class KeyspaceMetrics
     public final Histogram tombstoneScannedHistogram;
     /** Purgeable tombstones scanned in queries on this Keyspace */
     public final Histogram purgeableTombstoneScannedHistogram;
+    /** Rows shadowed by range tombstones scanned in queries on this Keyspace */
+    public final Histogram rowsScannedShadowedByRangeTombstoneHistogram;
+    /** Rows shadowed by row tombstones scanned in queries on this Keyspace */
+    public final Histogram rowsScannedShadowedByRowTombstoneHistogram;
+    /** Rows shadowed by partition tombstones scanned in queries on this Keyspace */
+    public final Histogram rowsScannedShadowedByPartitionTombstoneHistogram;
+    /** Rows shadowed by other rows scanned in queries on this Keyspace */
+    public final Histogram rowsScannedShadowedByOtherRowsHistogram;
+    /** Total rows shadowed scanned in queries on this Keyspace */
+    public final Histogram rowsScannedShadowedHistogram;
     /** Live cells scanned in queries on this Keyspace */
     public final Histogram liveScannedHistogram;
     /** Column update time delta on this Keyspace */
@@ -261,6 +271,11 @@ public class KeyspaceMetrics
         sstablesPerReadHistogram = createKeyspaceHistogram("SSTablesPerReadHistogram", true);
         tombstoneScannedHistogram = createKeyspaceHistogram("TombstoneScannedHistogram", false);
         purgeableTombstoneScannedHistogram = createKeyspaceHistogram("PurgeableTombstoneScannedHistogram", false);
+        rowsScannedShadowedByRangeTombstoneHistogram = createKeyspaceHistogram("RowsScannedShadowedByRangeTombstoneHistogram", false);
+        rowsScannedShadowedByRowTombstoneHistogram = createKeyspaceHistogram("RowsScannedShadowedByRowTombstoneHistogram", false);
+        rowsScannedShadowedByPartitionTombstoneHistogram = createKeyspaceHistogram("RowsScannedShadowedByPartitionTombstoneHistogram", false);
+        rowsScannedShadowedByOtherRowsHistogram = createKeyspaceHistogram("RowsScannedShadowedByOtherRowsHistogram", false);
+        rowsScannedShadowedHistogram = createKeyspaceHistogram("RowsScannedShadowedHistogram", false);
         liveScannedHistogram = createKeyspaceHistogram("LiveScannedHistogram", false);
         colUpdateTimeDeltaHistogram = createKeyspaceHistogram("ColUpdateTimeDeltaHistogram", false);
         viewLockAcquireTime = createKeyspaceTimer("ViewLockAcquireTime");

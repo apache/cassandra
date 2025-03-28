@@ -764,7 +764,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             StorageHook.instance.reportRead(cfs.metadata().id, partitionKey());
 
             List<UnfilteredRowIterator> iterators = inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone());
-            return withSSTablesIterated(iterators, cfs.metric, metricsCollector);
+            return withSSTablesIterated(iterators, cfs.metric, metricsCollector, controller.getRowMergeListener());
         }
         catch (RuntimeException | Error e)
         {
@@ -812,11 +812,17 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @SuppressWarnings("resource")
     private UnfilteredRowIterator withSSTablesIterated(List<UnfilteredRowIterator> iterators,
                                                        TableMetrics metrics,
-                                                       SSTableReadMetricsCollector metricsCollector)
+                                                       SSTableReadMetricsCollector metricsCollector,
+                                                       UnfilteredRowIterators.MergeListener rowMergeListener)
     {
         @SuppressWarnings("resource") //  Closed through the closing of the result of the caller method.
-        UnfilteredRowIterator merged = UnfilteredRowIterators.merge(iterators);
-
+        UnfilteredRowIterator merged;
+        if (iterators.size() > 1)
+            merged = UnfilteredRowIterators.merge(iterators, rowMergeListener);
+        else
+        {
+            merged = UnfilteredRowIterators.merge(iterators);
+        }
         if (!merged.isEmpty())
         {
             DecoratedKey key = merged.partitionKey();
@@ -978,7 +984,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (result == null)
             return ImmutableBTreePartition.create(iter, maxRows);
 
-        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(Arrays.asList(iter, result.unfilteredIterator(columnFilter(), Slices.ALL, filter.isReversed()))))
+        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(Arrays.asList(iter, result.unfilteredIterator(columnFilter(), Slices.ALL, filter.isReversed())), controller.getRowMergeListener()))
         {
             return ImmutableBTreePartition.create(merged, maxRows);
         }

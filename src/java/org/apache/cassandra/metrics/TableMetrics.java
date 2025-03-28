@@ -161,6 +161,16 @@ public class TableMetrics
     public final TableHistogram tombstoneScannedHistogram;
     /** Purgeable tombstones scanned in queries on this CF */
     public final TableHistogram purgeableTombstoneScannedHistogram;
+    /** Rows shadowed by range tombstones scanned in queries on this CF */
+    public final TableHistogram rowsScannedShadowedByRangeTombstoneHistogram;
+    /** Rows shadowed by row tombstones scanned in queries on this CF */
+    public final TableHistogram rowsScannedShadowedByRowTombstoneHistogram;
+    /** Rows shadowed by partition tombstones scanned in queries on this CF */
+    public final TableHistogram rowsScannedShadowedByPartitionTombstoneHistogram;
+    /** Rows shadowed by other rows scanned in queries on this CF */
+    public final TableHistogram rowsScannedShadowedByOtherRowsHistogram;
+    /** Total rows shadowed scanned in queries on this CF */
+    public final TableHistogram rowsScannedShadowedHistogram;
     /** Live rows scanned in queries on this CF */
     public final TableHistogram liveScannedHistogram;
     /** Column update time delta on this CF */
@@ -990,6 +1000,11 @@ public class TableMetrics
         }, null);
         tombstoneScannedHistogram = createTableHistogram("TombstoneScannedHistogram", cfs.keyspace.metric.tombstoneScannedHistogram, false);
         purgeableTombstoneScannedHistogram = createTableHistogram("PurgeableTombstoneScannedHistogram", cfs.keyspace.metric.purgeableTombstoneScannedHistogram, true);
+        rowsScannedShadowedByRangeTombstoneHistogram = createTableHistogram("RowsScannedShadowedByRangeTombstoneHistogram", cfs.keyspace.metric.rowsScannedShadowedByRangeTombstoneHistogram, false);
+        rowsScannedShadowedByRowTombstoneHistogram = createTableHistogram("RowsScannedShadowedByRowTombstoneHistogram", cfs.keyspace.metric.rowsScannedShadowedByRowTombstoneHistogram, false);
+        rowsScannedShadowedByPartitionTombstoneHistogram = createTableHistogram("RowsScannedShadowedByPartitionTombstoneHistogram", cfs.keyspace.metric.rowsScannedShadowedByPartitionTombstoneHistogram, false);
+        rowsScannedShadowedByOtherRowsHistogram = createTableHistogram("RowsScannedShadowedByOtherRowsHistogram", cfs.keyspace.metric.rowsScannedShadowedByOtherRowsHistogram, false);
+        rowsScannedShadowedHistogram = createTableHistogram("RowsScannedShadowedHistogram", cfs.keyspace.metric.rowsScannedShadowedHistogram, false);
         liveScannedHistogram = createTableHistogram("LiveScannedHistogram", cfs.keyspace.metric.liveScannedHistogram, false);
         colUpdateTimeDeltaHistogram = createTableHistogram("ColUpdateTimeDeltaHistogram", cfs.keyspace.metric.colUpdateTimeDeltaHistogram, false);
         coordinatorReadLatency = createTableTimer("CoordinatorReadLatency");

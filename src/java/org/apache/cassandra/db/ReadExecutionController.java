@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
@@ -48,6 +49,9 @@ public class ReadExecutionController implements AutoCloseable
 
     private final RepairedDataInfo repairedDataInfo;
     private int oldestUnrepairedTombstone = Integer.MAX_VALUE;
+
+    // Row merge listener for tracking the shadow rows scanned
+    private UnfilteredRowIterators.MergeListener rowMergeListener = null;
 
     ReadExecutionController(ReadCommand command,
                             OpOrder.Group baseOp,
@@ -231,5 +235,15 @@ public class ReadExecutionController implements AutoCloseable
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(baseMetadata.id);
         if (cfs != null)
             cfs.metric.topLocalReadQueryTime.addSample(cql, timeMicros);
+    }
+
+    void setRowMergeListener(UnfilteredRowIterators.MergeListener listener)
+    {
+        rowMergeListener = listener;
+    }
+
+    UnfilteredRowIterators.MergeListener getRowMergeListener()
+    {
+        return rowMergeListener;
     }
 }

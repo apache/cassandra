@@ -97,6 +97,23 @@ public abstract class UnfilteredRowIterators
          */
         public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions);
 
+        enum ShadowRowsType
+        {ROW_TOMBSTONE, RANGE_TOMBSTONE, PARTITION_TOMBSTONE, ROW}
+
+        /**
+         * Called once for every row participating in the merge.
+         * <p>
+         *
+         * @param merged the marker in the merged output. This can be {@code null} if there is no such marker, which
+         * means that at least one source has a marker in {@code versions} but the merged out has nothing corresponding
+         * (this basically mean the merged output has a currently open deletion that shadows whatever marker the source
+         * had).
+         * @param openDeletionMarker the deletion time of current open marker. Can be LIVE if there is no open range
+         * tombstone, or it's superseded by a partition tombstone.
+         * @param rowsToMerge number of rows compared and iterated when merging the versions
+         */
+        default public void withRowsShadowedTracking(Row merged, DeletionTime openDeletionMarker, int rowsToMerge) {}
+
         public void close();
 
         public static MergeListener NOOP = new MergeListener()
@@ -578,6 +595,7 @@ public abstract class UnfilteredRowIterators
                     if (listener == null)
                         return merged;
 
+                    listener.withRowsShadowedTracking(merged, markerMerger.currentOpenDeletionTimeInMerged(), rowMerger.getRowsToMerge());
                     merged = listener.onMergedRows(merged == null
                                                    ? BTreeRow.emptyRow(rowMerger.mergedClustering())
                                                    : merged,
