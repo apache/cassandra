@@ -19,6 +19,7 @@ package org.apache.cassandra.auth;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
@@ -36,6 +37,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.throttler.KeyspaceBasedRequestThrottler;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
@@ -56,6 +58,12 @@ public class GrantAndRevokeTest extends CQLTester
     {
         DatabaseDescriptor.setPermissionsValidity(0);
         DatabaseDescriptor.setRolesValidity(0);
+        DatabaseDescriptor.setRequestThrottler(new KeyspaceBasedRequestThrottler(Map.of(
+            "fetch_limits_period_in_sec", "30",
+            "replenish_limits_period_in_sec", "1"
+        )));
+        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        DatabaseDescriptor.setBadQueryReporter("BadQueriesInTable");
         CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
@@ -524,3 +532,4 @@ public class GrantAndRevokeTest extends CQLTester
             executeNet(ProtocolVersion.CURRENT, grant);
     }
 }
+

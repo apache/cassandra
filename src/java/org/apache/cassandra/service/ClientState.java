@@ -139,7 +139,7 @@ public class ClientState
     // Driver String for the client
     private volatile String driverName;
     private volatile String driverVersion;
-    
+
     // Options provided by the client
     private volatile Map<String,String> clientOptions;
 
@@ -327,7 +327,7 @@ public class ClientState
     {
         this.driverVersion = driverVersion;
     }
-    
+
     public void setClientOptions(Map<String,String> clientOptions)
     {
         this.clientOptions = ImmutableMap.copyOf(clientOptions);

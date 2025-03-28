@@ -337,9 +337,9 @@ public abstract class CQLTester
     public static void tearDownClass()
     {
         for (Session sess : sessions.values())
-                sess.close();
+            sess.close();
         for (Cluster cl : clusters.values())
-                cl.close();
+            cl.close();
 
         if (server != null)
             server.stop();
@@ -536,7 +536,6 @@ public abstract class CQLTester
 
     private static void startServices()
     {
-        nativePort = getAutomaticallyAllocatedPort(nativeAddr);
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
@@ -582,10 +581,10 @@ public abstract class CQLTester
     private static Cluster initClientCluster(User user, ProtocolVersion version)
     {
         SocketOptions socketOptions =
-                new SocketOptions().setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms",
-                                                                               DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
-                                   .setReadTimeoutMillis(Integer.getInteger("cassandra.test.driver.read_timeout_ms",
-                                                                            DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
+        new SocketOptions().setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms",
+                                                                       DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
+                           .setReadTimeoutMillis(Integer.getInteger("cassandra.test.driver.read_timeout_ms",
+                                                                    DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
 
         logger.info("Timeouts: {} / {}", socketOptions.getConnectTimeoutMillis(), socketOptions.getReadTimeoutMillis());
 
@@ -637,8 +636,8 @@ public abstract class CQLTester
     {
         String currentTable = currentTable();
         return currentTable == null
-             ? null
-             : getColumnFamilyStore(keyspace, currentTable);
+               ? null
+               : getColumnFamilyStore(keyspace, currentTable);
     }
 
     public ColumnFamilyStore getColumnFamilyStore(String keyspace, String table)
@@ -673,9 +672,9 @@ public abstract class CQLTester
 
     public void compact()
     {
-         ColumnFamilyStore store = getCurrentColumnFamilyStore();
-         if (store != null)
-             store.forceMajorCompaction();
+        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        if (store != null)
+            store.forceMajorCompaction();
     }
 
     public void disableCompaction()
@@ -1099,8 +1098,8 @@ public abstract class CQLTester
         String column = matcher.group(9);
 
         String baseName = Strings.isNullOrEmpty(column)
-                        ? IndexMetadata.generateDefaultIndexName(table)
-                        : IndexMetadata.generateDefaultIndexName(table, new ColumnIdentifier(column, true));
+                          ? IndexMetadata.generateDefaultIndexName(table)
+                          : IndexMetadata.generateDefaultIndexName(table, new ColumnIdentifier(column, true));
 
         KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(keyspace);
         return ks.findAvailableIndexName(baseName);
@@ -1876,7 +1875,7 @@ public abstract class CQLTester
     private static void assertMessageContains(String text, Exception e)
     {
         Assert.assertTrue("Expected error message to contain '" + text + "', but got '" + e.getMessage() + "'",
-                e.getMessage().contains(text));
+                          e.getMessage().contains(text));
     }
 
     /**
@@ -2416,7 +2415,7 @@ public abstract class CQLTester
             User u = (User) o;
 
             return Objects.equal(username, u.username)
-                && Objects.equal(password, u.password);
+                   && Objects.equal(password, u.password);
         }
     }
 }

@@ -53,11 +53,11 @@ public final class SchemaConstants
 
     /* system keyspace names (the ones with LocalStrategy replication strategy) */
     public static final Set<String> LOCAL_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME);
+    ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME);
 
     /* virtual table system keyspace names */
     public static final Set<String> VIRTUAL_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(VIRTUAL_VIEWS, VIRTUAL_SCHEMA);
+    ImmutableSet.of(VIRTUAL_VIEWS, VIRTUAL_SCHEMA);
 
     /* replicate system keyspace names (the ones with a "true" replication strategy) */
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =
@@ -118,7 +118,7 @@ public final class SchemaConstants
     public static boolean isSystemKeyspace(String keyspaceName)
     {
         return isLocalSystemKeyspace(keyspaceName) // this includes vtables
-                || isReplicatedSystemKeyspace(keyspaceName);
+               || isReplicatedSystemKeyspace(keyspaceName);
     }
 
     /**

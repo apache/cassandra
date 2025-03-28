@@ -64,7 +64,7 @@ public enum Permission
     EXECUTE;  // required to invoke any user defined function or aggregate
 
     public static final Set<Permission> ALL =
-            Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
+    Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
     public static final Set<Permission> NONE = ImmutableSet.of();
 
     /**
