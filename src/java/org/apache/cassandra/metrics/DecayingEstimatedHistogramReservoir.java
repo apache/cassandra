@@ -890,11 +890,11 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     protected class BucketsThreadLocal
     {
-        private final AtomicInteger inUse = new AtomicInteger();
         private final int size;
         // try to use int[] instead of long[] to reduce memory usage, and move to the sum array when overflow
         private final AtomicReference<DecayingArray> decayingRef;
         private final AtomicReference<long[]> estimatedRef;
+        private volatile boolean writing;
 
         public BucketsThreadLocal(int size)
         {
@@ -907,7 +907,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         {
             // This is only called by the thread that owns the thread local, so we don't need to worry about contention.
             // Once the rescaling has occurred, we need to flush the values to the decayingBucket and report that the values are no longer in use.
-            inUse.incrementAndGet();
+            writing = true;
             try
             {
                 DecayingArray decaying = decayingRef.get();
@@ -921,7 +921,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             }
             finally
             {
-                inUse.decrementAndGet();
+                writing = false;
             }
         }
 
@@ -1044,7 +1044,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                         if (local.decayingRef.compareAndSet(prev, new DecayingArray(buckets.length, now)))
                         {
                             // We successfully switched the thread local to the new decayLandmark, wait for the thread to finish updating.
-                            while (local.inUse.get() > 0)
+                            while (local.writing)
                                 LockSupport.parkNanos(50);
                             decayingPending.offer(prev);
                             break;
@@ -1153,10 +1153,19 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             assert updateStartEpoch.get() == updateEndEpoch.get();
 
             DecayingArray arr;
-            updateStartEpoch.incrementAndGet();
+            boolean started = false;
             while ((arr = decayingPending.poll()) != null)
+            {
+                if (!started)
+                {
+                    started = true;
+                    updateStartEpoch.incrementAndGet();
+                }
                 merge(buckets, arr.data);
-            updateEndEpoch.incrementAndGet();
+            }
+
+            if (started)
+                updateEndEpoch.incrementAndGet();
         }
     }
 
