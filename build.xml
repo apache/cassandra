@@ -466,6 +466,7 @@
                 <include name="doc/cql3/*.textile"/>
             </fileset>
         </wikitext-to-html>
+        <touch file="${basedir}/doc/cql3/CQL.html" pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" datetime="${build.date}"/>
     </target>
 
     <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
@@ -478,6 +479,7 @@
         <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="html"/>
         </exec>
+        <touch file="${basedir}/doc/cql3/CQL.html" pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" datetime="${build.date}"/>
     </target>
 
     <!--
@@ -493,11 +495,13 @@
     <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version,_set-build-date">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
-      <propertyfile file="${version.properties.dir}/version.properties">
-        <entry key="CassandraVersion" value="${version}"/>
-        <entry key="GitSHA" value="${git.sha}"/>
-        <entry key="BuildDate" value="${build.date}"/>
-      </propertyfile>
+        <exec executable="sh" osfamily="unix" dir="${build.helpers.dir}" failonerror="true">
+            <arg value="${build.helpers.dir}/generate-version-properties.sh"/>
+            <arg value="${version.properties.dir}/version.properties"/>
+            <arg value="${version}"/>
+            <arg value="${git.sha}"/>
+            <arg value="${build.date}"/>
+        </exec>
     </target>
 
     <!-- set ant build date -->
@@ -754,7 +758,7 @@
             tofile="${build.classes.main}/META-INF/NOTICE.txt"/>
 
       <!-- Main Jar -->
-      <jar jarfile="${build.dir}/${final.name}.jar">
+      <jar jarfile="${build.dir}/${final.name}.jar" modificationtime="${build.date}">
         <fileset dir="${build.classes.main}">
         </fileset>
         <manifest>
@@ -768,6 +772,7 @@
         <!-- </section> -->
         </manifest>
       </jar>
+      <touch file="${build.dir}/${final.name}.jar" pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" datetime="${build.date}"/>
     </target>
 
     <target name="stress-jar"

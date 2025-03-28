@@ -20,5 +20,6 @@
          xmlns:if="ant:if">
     <target name="set-cqlsh-version">
         <echo file="pylib/cqlshlib/serverversion.py" append="false">version = "${base.version}"${line.separator}</echo>
+        <touch file="pylib/cqlshlib/serverversion.py" pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" datetime="${build.date}"/>
     </target>
 </project>
