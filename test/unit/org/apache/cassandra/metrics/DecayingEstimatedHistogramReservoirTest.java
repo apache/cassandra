@@ -33,7 +33,9 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
@@ -43,6 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Snapshot;
+import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
@@ -51,6 +54,8 @@ import org.quicktheories.core.Gen;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.Util.spinAssertEquals;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_NS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
@@ -65,6 +70,27 @@ import static org.quicktheories.generators.SourceDSL.longs;
 public class DecayingEstimatedHistogramReservoirTest
 {
     public static final Logger logger = LoggerFactory.getLogger(DecayingEstimatedHistogramReservoirTest.class);
+    private static Interruptible rescaleThread;
+
+    @BeforeClass
+    public static void setUp()
+    {
+        rescaleThread = executorFactory().infiniteLoop("DecayingEstimatedHistogramReservoirTest-Releaser",
+                                                       () -> {
+                                                              Thread.sleep(500);
+                                                              DecayingEstimatedHistogramReservoir.rescale();
+                                                       },
+                                                       UNSAFE);
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        rescaleThread.interrupt();
+        rescaleThread = null;
+    }
+
+
     public static class NonParameterizedTests
     {
         public static final int numExamples = 1000000;

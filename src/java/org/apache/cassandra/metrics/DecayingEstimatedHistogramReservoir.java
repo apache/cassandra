@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,9 +42,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongBinaryOperator;
-import java.util.function.Supplier;
-
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -55,6 +53,7 @@ import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.Interruptible;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MonotonicClock;
@@ -65,6 +64,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_DECAYING_HISTOGRAM_RESET_INTERVAL_MS;
 
 /**
  * A decaying histogram reservoir where values collected during each minute will be twice as significant as the values
@@ -187,41 +187,22 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      *     <li>Efficient decay computation</li>
      * </ul>
      */
-    public static final long LANDMARK_RESET_INTERVAL_IN_NS = TimeUnit.MINUTES.toNanos(30L);
+    public static final long LANDMARK_RESET_INTERVAL_IN_NS = TimeUnit.MILLISECONDS.toNanos(CASSANDRA_DECAYING_HISTOGRAM_RESET_INTERVAL_MS.getInt());
 
     private static final ReferenceQueue<Object> retirementPhantomRefsQueue = new ReferenceQueue<>();
     private static final Set<PhantomReference<Object>> phantomReferences = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    public static final Interruptible releaseThread = executorFactory().infiniteLoop("DecayingBuckets-Releaser",
-                                                                                     () -> {
-                                                                                         Object ref = retirementPhantomRefsQueue.remove(100);
-                                                                                         if (ref instanceof MetricCleaner)
-                                                                                         {
-                                                                                             ((MetricCleaner) ref).clean();
-                                                                                             phantomReferences.remove(ref);
-                                                                                         }
-                                                                                     },
+    private static final Interruptible releaseThread = executorFactory().infiniteLoop("DecayingBuckets-Releaser",
+                                                                                     DecayingEstimatedHistogramReservoir::release,
                                                                                      UNSAFE);
 
     // Set of all decaying buckets thread locals, used to release the thread local when the thread is dead or to get the values.
     private static final Set<WeakReference<DecayingEstimatedHistogramReservoir>> allReservoirRefs = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    public static final Interruptible rescalerThread = executorFactory().infiniteLoop("DecayingBuckets-Rescaler",
-                                                                                      () -> {
-                                                                                          Iterator<WeakReference<DecayingEstimatedHistogramReservoir>> iterator =
-                                                                                              allReservoirRefs.iterator();
-                                                                                          while (iterator.hasNext())
-                                                                                          {
-                                                                                              WeakReference<DecayingEstimatedHistogramReservoir> ref = iterator.next();
-                                                                                              DecayingEstimatedHistogramReservoir reservoir = ref.get();
-                                                                                              if (reservoir == null)
-                                                                                              {
-                                                                                                  iterator.remove();
-                                                                                                  continue;
-                                                                                              }
-                                                                                              reservoir.rescaleReservoir();
-                                                                                          }
-                                                                                          Thread.sleep(100);
-                                                                                      },
-                                                                                      UNSAFE);
+    private static final Object rescaleMutex = new Object();
+    private static final ScheduledFuture<?> rescalerThread = ScheduledExecutors.scheduledTasks
+                                                             .scheduleWithFixedDelay(DecayingEstimatedHistogramReservoir::rescale,
+                                                                                     LANDMARK_RESET_INTERVAL_IN_NS,
+                                                                                     LANDMARK_RESET_INTERVAL_IN_NS,
+                                                                                     TimeUnit.NANOSECONDS);
 
     private final EstimatedBuckets estimatedBuckets;
     private final DecayingBuckets decayingBuckets;
@@ -247,8 +228,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
     // Wrapper around System.nanoTime() to simplify unit testing.
     private final MonotonicClock clock;
-    /** Interval in minutes to reset the forward decay landmark for the decaying histograms. Default {@code 30 mins}. */
-    private final long landmarkResetIntervalInNs;
 
     /**
      * Construct a decaying histogram with default number of buckets and without considering zeroes.
@@ -288,16 +267,9 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     }
 
     @VisibleForTesting
-    DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, MonotonicClock clock)
-    {
-        this(considerZeroes, bucketCount, clock, LANDMARK_RESET_INTERVAL_IN_NS);
-    }
-
-    @VisibleForTesting
     public DecayingEstimatedHistogramReservoir(boolean considerZeroes,
                                                int bucketCount,
-                                               MonotonicClock clock,
-                                               long landmarkResetIntervalInNs)
+                                               MonotonicClock clock)
     {
         assert bucketCount <= MAX_BUCKET_COUNT : "bucket count cannot exceed: " + MAX_BUCKET_COUNT;
 
@@ -318,7 +290,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         }
 
         this.clock = clock;
-        this.landmarkResetIntervalInNs = landmarkResetIntervalInNs;
         this.decayingBuckets = new DecayingBuckets(size(), clock.now());
         this.estimatedBuckets = new EstimatedBuckets(size());
         allReservoirRefs.add(new WeakReference<>(this));
@@ -333,6 +304,33 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     {
         int index = findIndex(bucketOffsets, value);
         bucketsThreadLocal.get().update(index, clock.now());
+    }
+
+
+    public static void release() throws InterruptedException
+    {
+        Object ref = retirementPhantomRefsQueue.remove(1000);
+        if (ref instanceof MetricCleaner)
+        {
+            ((MetricCleaner) ref).clean();
+            phantomReferences.remove(ref);
+        }
+        allReservoirRefs.removeIf(o -> o.get() == null);
+    }
+
+    public static void rescale()
+    {
+        synchronized (rescaleMutex)
+        {
+            Iterator<WeakReference<DecayingEstimatedHistogramReservoir>> iterator = allReservoirRefs.iterator();
+            while (iterator.hasNext())
+            {
+                DecayingEstimatedHistogramReservoir reservoir = iterator.next().get();
+                if (reservoir == null)
+                    continue;
+                reservoir.rescaleReservoir();
+            }
+        }
     }
 
     @VisibleForTesting
@@ -378,8 +376,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     private void rescaleReservoir()
     {
         long now = clock.now();
-        if (now - decayingBuckets.decayLandmark > landmarkResetIntervalInNs)
-            decayingBuckets.rescale(() -> threadLocals, now);
+        if (now - decayingBuckets.decayLandmark > LANDMARK_RESET_INTERVAL_IN_NS)
+            decayingBuckets.rescale(threadLocals, now);
     }
 
     /**
@@ -480,7 +478,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     @VisibleForTesting
     public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownAndWait(timeout, unit, of(releaseThread, rescalerThread));
+        ExecutorUtils.shutdownAndWait(timeout, unit, of(releaseThread));
+        rescalerThread.cancel(false);
     }
 
     private static abstract class AbstractSnapshot extends Snapshot
@@ -890,7 +889,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         public BucketsThreadLocal(int size)
         {
             this.size = size;
-            this.decayingRef = new AtomicReference<>();
+            this.decayingRef = new AtomicReference<>(new DecayingArray(size, decayingBuckets.decayLandmark));
             this.estimatedRef = new AtomicReference<>(new long[size]);
         }
 
@@ -902,7 +901,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             try
             {
                 DecayingArray decaying = decayingRef.get();
-                if (decaying == null || decaying.decayLandmark != decayingBuckets.decayLandmark)
+                if (decaying.decayLandmark != decayingBuckets.decayLandmark)
                     decayingBuckets.flush(this, decaying);
 
                 decayingRef.get().update(index, now);
@@ -1011,7 +1010,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             this.decayLandmark = now;
         }
 
-        public void rescale(Supplier<Set<BucketsThreadLocal>> localsSupp, long now)
+        public void rescale(Set<BucketsThreadLocal> locals, long now)
         {
             assert rescaleStartEpoch.get() == rescaleEndEpoch.get();
             if (now - decayLandmark <= LANDMARK_RESET_INTERVAL_IN_NS)
@@ -1024,7 +1023,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                 decayLandmark = now;
 
                 // The list of thread locals should be fetched after the lock is taken and decayLandmark is updated.
-                for (BucketsThreadLocal local : localsSupp.get())
+                for (BucketsThreadLocal local : locals)
                 {
                     while (true)
                     {
@@ -1071,7 +1070,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         /**
          * Used only by a thread-local writer to flush the values to the buffer.
          */
-        public void flush(BucketsThreadLocal local, @Nullable DecayingArray decaying)
+        public void flush(BucketsThreadLocal local, DecayingArray decaying)
         {
             if (lock.tryLock())
             {
@@ -1079,8 +1078,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                 {
                     boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(buckets.length, decayLandmark));
                     assert success : "The thread local was updated by another thread";
-                    if (decaying != null)
-                        decayingPending.offer(decaying);
+                    decayingPending.offer(decaying);
                     flushPendingInternal();
                 }
                 finally
@@ -1092,7 +1090,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             {
                 boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(buckets.length, decayLandmark));
                 // If the CAS failed, the thread local was updated by the rescale thread and all the values were already flushed.
-                if (success && decaying != null)
+                if (success)
                     decayingPending.offer(decaying);
             }
         }
