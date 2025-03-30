@@ -222,8 +222,8 @@ public class DecayingEstimatedHistogramReservoirTest
             }
 
             assertEquals(model.size(), test.size());
-            assertEquals(threads, model.getThreadLocals().size());
-            assertEquals(threads, test.getThreadLocals().size());
+            assertEquals(threads, model.getBucketsThreadLocals().size());
+            assertEquals(threads, test.getBucketsThreadLocals().size());
             executors.shutdown();
             Assert.assertTrue(executors.awaitTermination(1, TimeUnit.MINUTES));
 
@@ -231,10 +231,10 @@ public class DecayingEstimatedHistogramReservoirTest
             spinAssertEquals(0, () -> {
                                  // Hint to the GC to collect the phantom references.
                                  System.gc();
-                                 return model.getThreadLocals().size();
+                                 return model.getBucketsThreadLocals().size();
                              }
                 , 30);
-            spinAssertEquals(0, () -> test.getThreadLocals().size(), 30);
+            spinAssertEquals(0, () -> test.getBucketsThreadLocals().size(), 30);
 
             Snapshot modelSnapshot = toSnapshot.apply(model);
             Snapshot testSnapshot = toSnapshot.apply(test);
