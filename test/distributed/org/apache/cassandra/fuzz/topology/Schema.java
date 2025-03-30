@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.fuzz.topology;
 
-
 public interface Schema
 {
     String table();
