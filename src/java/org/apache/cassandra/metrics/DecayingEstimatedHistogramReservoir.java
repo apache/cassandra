@@ -92,14 +92,20 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_
  * <p/>
  * Each bucket represents values from (previous bucket offset, current offset].
  * <p/>
- * To reduce contention each logical bucket is striped accross a configurable number of stripes (default: 2). Threads are
- * assigned to specific stripes. In addition, logical buckets are distributed across the physical storage to reduce conention
- * when logically adjacent buckets are updated. See CASSANDRA-15213.
+ * To reduce contention the buckets are stored in the thread local variables, so each thread has its own copy of the
+ * buckets. The buckets are updated in a thread local variable and then merged into the main bucket array when a
+ * corresponding thread is dead (phantom references are used to detect this situation and to transfer the values).
+ * The reservoir main buckets are represented as a single long array, where the first half of the array contains the decaying
+ * buckets and the second half contains the estimated buckets. The decaying buckets are updated with the forward decay
+ * applied, while the estimated buckets are updated with the raw values.
+ * The readers use the optimistic locking to read the buckets, which means that they will read the buckets without locking them.
+ * If the buckets are updated while they are being read, the reader will retry the read operation until it succeeds.
  * <p/>
  * <ul>
  *   <li>[1]: http://dimacs.rutgers.edu/~graham/pubs/papers/fwddecay.pdf</li>
  *   <li>[2]: https://en.wikipedia.org/wiki/Half-life</li>
  *   <li>[3]: https://github.com/dropwizard/metrics/blob/v3.1.2/metrics-core/src/main/java/com/codahale/metrics/ExponentiallyDecayingReservoir.java</li>
+ *   <li>[4]: https://psy-lob-saw.blogspot.com/2013/06/java-concurrent-counters-by-numbers.html</li>
  * </ul>
  *
  * @see ExponentiallyDecayingReservoir
@@ -931,25 +937,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             {
                 bucketsStampedLock.unlockWrite(stamp);
             }
-        }
-    }
-
-    private static class EstimatedBuckets
-    {
-        private final StampedLock sLock;
-        private final long[] buckets;
-
-        public EstimatedBuckets(StampedLock shared, int size)
-        {
-            this.sLock = shared;
-            this.buckets = new long[size];
-        }
-
-        public void resetExclusive(LongBinaryOperator op)
-        {
-            sLock.isWriteLocked();
-            for (int i = 0; i < buckets.length; i++)
-                buckets[i] = op.applyAsLong(i, buckets[i]);
         }
     }
 
