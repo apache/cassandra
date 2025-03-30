@@ -114,6 +114,7 @@ cp ${DIST_DIR}/apache-cassandra-*-src.tar.gz ${RPM_BUILD_DIR}/SOURCES/
 
 # if CASSANDRA_VERSION is -alphaN, -betaN, -rcN, then rpmbuild fails on the '-' char; replace with '~'
 CASSANDRA_VERSION=${CASSANDRA_VERSION/-/\~}
+CASSANDRA_REVISION=${CASSANDRA_REVISION/-/_}
 
 command -v python >/dev/null 2>&1 || alias python=/usr/bin/python3
 rpmbuild --define="version ${CASSANDRA_VERSION}" --define="revision ${CASSANDRA_REVISION}" --define="_topdir ${RPM_BUILD_DIR}" -ba ${RPM_SPEC}
