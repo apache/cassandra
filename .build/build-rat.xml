@@ -41,6 +41,8 @@
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="." includesfile="${build.dir}/.ratinclude">
                  <!-- Config files with not much creativity -->
+                 <exclude name=".asf.yaml"/>
+                 <exclude name=".snyk"/>
                  <exclude name="**/cassandra*.yaml"/>
                  <exclude NAME="doc/antora.yml"/>
                  <exclude name="ide/**/*"/>
