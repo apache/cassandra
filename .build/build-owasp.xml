@@ -112,4 +112,7 @@
         <antcall target="-run-owasp-scan" inheritrefs="true" inheritall="true"/>
     </target>
 
+    <target name="generate-snyk-file" unless="ant.gen-snyk.skip">
+        <exec executable="python3" failonerror="true"><arg value="${basedir}/.build/generate-snyk-file"/></exec>
+    </target>
 </project>
