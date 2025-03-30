@@ -113,6 +113,7 @@
     </target>
 
     <target name="generate-snyk-file" unless="ant.gen-snyk.skip">
+        <chmod file="${basedir}/.build/generate-snyk-file" perm="+x"/>
         <exec executable="${basedir}/.build/generate-snyk-file" failonerror="true"/>
     </target>
 </project>
