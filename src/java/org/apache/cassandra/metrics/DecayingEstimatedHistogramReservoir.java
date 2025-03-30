@@ -267,9 +267,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     }
 
     @VisibleForTesting
-    public DecayingEstimatedHistogramReservoir(boolean considerZeroes,
-                                               int bucketCount,
-                                               MonotonicClock clock)
+    public DecayingEstimatedHistogramReservoir(boolean considerZeroes, int bucketCount, MonotonicClock clock)
     {
         assert bucketCount <= MAX_BUCKET_COUNT : "bucket count cannot exceed: " + MAX_BUCKET_COUNT;
 
@@ -880,7 +878,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     protected class BucketsThreadLocal
     {
-        private final int size;
         // try to use int[] instead of long[] to reduce memory usage, and move to the sum array when overflow
         private final AtomicReference<DecayingArray> decayingRef;
         private final AtomicReference<long[]> estimatedRef;
@@ -888,7 +885,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         public BucketsThreadLocal(int size)
         {
-            this.size = size;
             this.decayingRef = new AtomicReference<>(new DecayingArray(size, decayingBuckets.decayLandmark));
             this.estimatedRef = new AtomicReference<>(new long[size]);
         }
@@ -923,7 +919,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             if (threadLocals.remove(this))
             {
                 decayingBuckets.flush(this, decayingRef.get());
-                estimatedBuckets.release(estimatedRef);
+                long[] locBuf = estimatedRef.get();
+                estimatedBuckets.reset((index, value) -> locBuf[(int) index] + value);
             }
         }
     }
@@ -936,24 +933,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         public EstimatedBuckets(int size)
         {
             this.buckets = new long[size];
-        }
-
-        public void release(AtomicReference<long[]> estimatedRef)
-        {
-            long[] values = estimatedRef.get();
-            if (values == null)
-                return;
-            // The estimated values are merged to the buckets, since the thread is dead and no one will update the values.
-            rwLock.writeLock().lock();
-            try
-            {
-                merge(this.buckets, values);
-                estimatedRef.set(null);
-            }
-            finally
-            {
-                rwLock.writeLock().unlock();
-            }
         }
 
         public void reset(LongBinaryOperator op)
@@ -995,6 +974,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
     private static class DecayingBuckets
     {
+        /** Lock to protect the decaying {@code buckets}. Only one thread can update the buckets at a time. */
         private final ReentrantLock lock = new ReentrantLock();
         private final ConcurrentLinkedQueue<DecayingArray> decayingPending = new ConcurrentLinkedQueue<>();
         private final long[] buckets;
@@ -1057,9 +1037,11 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             try
             {
                 this.decayLandmark = decayLandmark;
+                updateStartEpoch.incrementAndGet();
                 for (int i = 0; i < buckets.length; i++)
                     buckets[i] = reset.applyAsLong(i, buckets[i]);
                 decayingPending.clear();
+                updateEndEpoch.incrementAndGet();
             }
             finally
             {
