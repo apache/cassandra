@@ -24,6 +24,7 @@ import java.io.PrintWriter;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.nio.LongBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
@@ -355,16 +356,10 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         return Math.round(Math.exp((now - decayLandmark) / MEAN_LIFETIME_IN_NS));
     }
 
-    private static void decay(long[] array, long decayLandmark, long now)
+    private static void decay(LongBuffer buffer, long decayLandmark, long now)
     {
-        for (int i = 0; i < array.length; i++)
-            array[i] = Math.round((float) array[i] / forwardDecayWeight(decayLandmark, now));
-    }
-
-    private static void merge(long[] target, long[] source)
-    {
-        for (int i = 0; i < target.length; i++)
-            target[i] += source[i];
+        for (int i = buffer.position(); i < buffer.limit(); i++)
+            buffer.put(i, Math.round((float) buffer.get(i) / forwardDecayWeight(decayLandmark, now)));
     }
 
     private void rescaleReservoir()
@@ -375,19 +370,11 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     }
 
     /**
-     * @return the estimated buckets.
-     */
-    public long[] snapshotEstimatedBuckets()
-    {
-        return decayingEstimatedBuckets.snapshotEstimated(bucketsThreadLocals);
-    }
-
-    /**
      * @return the decaying buckets with the forward decay applied.
      */
-    public DecayingArray snapshotDecayingBuckets()
+    public DecayingEstimatedArray snapshotBuckets()
     {
-        return decayingEstimatedBuckets.snapshotDecaying(bucketsThreadLocals);
+        return decayingEstimatedBuckets.snapshot(bucketsThreadLocals);
     }
 
     @VisibleForTesting
@@ -434,7 +421,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     @VisibleForTesting
     boolean isOverflowed()
     {
-        return snapshotDecayingBuckets().data[bucketOffsets.length] > 0;
+        return snapshotBuckets().decaying()[bucketOffsets.length] > 0;
     }
 
     @VisibleForTesting
@@ -495,15 +482,17 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     private static abstract class AbstractSnapshot extends Snapshot
     {
         protected final long[] decayingBuckets;
+        protected final long[] estimatedBuckets;
         protected long snapshotLandmark;
         protected final long[] bucketOffsets;
 
         AbstractSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
-            DecayingArray snapshot = reservoir.snapshotDecayingBuckets();
-            this.decayingBuckets = snapshot.data;
-            this.snapshotLandmark = snapshot.decayLandmark;
-            decay(decayingBuckets, reservoir.decayingEstimatedBuckets.decayLandmark, reservoir.clock.now());
+            DecayingEstimatedArray snapshot = reservoir.snapshotBuckets();
+            this.decayingBuckets = snapshot.decaying();
+            this.estimatedBuckets = snapshot.estimated();
+            this.snapshotLandmark = snapshot.landmark();
+            decay(LongBuffer.wrap(decayingBuckets), snapshotLandmark, reservoir.clock.now());
             this.bucketOffsets = reservoir.bucketOffsets;
         }
 
@@ -690,13 +679,11 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     static class EstimatedHistogramReservoirSnapshot extends AbstractSnapshot
     {
         private long count;
-        private final long[] estimatedBuckets;
         private final DecayingEstimatedHistogramReservoir reservoir;
 
         public EstimatedHistogramReservoirSnapshot(DecayingEstimatedHistogramReservoir reservoir)
         {
             super(reservoir);
-            this.estimatedBuckets = reservoir.snapshotEstimatedBuckets();
             this.count = count();
             this.reservoir = reservoir;
         }
@@ -968,17 +955,23 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
     private static class DecayingEstimatedBuckets
     {
+        private final int size;
         /** Lock to protect the decaying {@code buckets}. Only one thread can update the buckets at a time. */
         private final StampedLock stampedLock;
         private final ConcurrentLinkedQueue<DecayingArray> decayingPending = new ConcurrentLinkedQueue<>();
-        private final long[] decayingBuckets;
-        private final long[] estimatedBuckets;
+        /**
+         * The buckets array is used to store the decaying and estimated buckets, we can use the same array for both.
+         * The actual size of the array is twice the size of the decaying buckets or the estimated buckets.
+         * <p>
+         * The first half is used for the decaying buckets and the second half is used for the estimated buckets.
+         */
+        private final long[] buckets;
         private volatile long decayLandmark;
 
         public DecayingEstimatedBuckets(StampedLock shared, int size, long now)
         {
-            this.decayingBuckets = new long[size];
-            this.estimatedBuckets = new long[size];
+            this.size = size;
+            this.buckets = new long[size * 2];
             this.decayLandmark = now;
             this.stampedLock = shared;
         }
@@ -1000,9 +993,9 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                     {
                         DecayingArray prev = local.decayingRef.get();
                         // Skip the thread local if it was created after the decayLandmark was updated.
-                        if (prev == null || prev.decayLandmark == now)
+                        if (prev.decayLandmark == now)
                             break;
-                        if (local.decayingRef.compareAndSet(prev, new DecayingArray(decayingBuckets.length, now)))
+                        if (local.decayingRef.compareAndSet(prev, new DecayingArray(size, now)))
                         {
                             // We successfully switched the thread local to the new decayLandmark, wait for the thread to finish updating.
                             while (local.writing)
@@ -1013,7 +1006,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                     }
                 }
                 flushPendingExclusive();
-                DecayingEstimatedHistogramReservoir.decay(decayingBuckets, previousDecayLandmark, now);
+                DecayingEstimatedHistogramReservoir.decay(LongBuffer.wrap(buckets, 0, size), previousDecayLandmark, now);
             }
             finally
             {
@@ -1025,10 +1018,10 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         {
             assert stampedLock.isWriteLocked();
             this.decayLandmark = decayLandmark;
-            for (int i = 0; i < decayingBuckets.length; i++)
+            for (int i = 0; i < size; i++)
             {
-                decayingBuckets[i] = decayingOp.applyAsLong(i, decayingBuckets[i]);
-                estimatedBuckets[i] = estimatedOp.applyAsLong(i, estimatedBuckets[i]);
+                buckets[i] = decayingOp.applyAsLong(i, buckets[i]);
+                buckets[size + i] = estimatedOp.applyAsLong(i, buckets[size + i]);
             }
         }
 
@@ -1042,7 +1035,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             {
                 try
                 {
-                    boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(decayingBuckets.length, decayLandmark));
+                    boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(size, decayLandmark));
                     assert success : "The thread local was updated by another thread";
                     decayingPending.offer(decaying);
                     flushPendingExclusive();
@@ -1054,37 +1047,17 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             }
             else
             {
-                boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(decayingBuckets.length, decayLandmark));
+                boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(size, decayLandmark));
                 // If the CAS failed, the thread local was updated by the rescale thread and all the values were already flushed.
                 if (success)
                     decayingPending.offer(decaying);
             }
         }
 
-        public long[] snapshotEstimated(Set<BucketsThreadLocal> locals)
+        public DecayingEstimatedArray snapshot(Set<BucketsThreadLocal> locals)
         {
-            long[] result = new long[estimatedBuckets.length];
-            long stamp;
-            do
-            {
-                stamp = stampedLock.tryOptimisticRead();
-                if (stamp == 0)
-                {
-                    LockSupport.parkNanos(this, 100);
-                    continue;
-                }
-                Arrays.fill(result, 0);
-                merge(result, estimatedBuckets);
-                for (BucketsThreadLocal local : locals)
-                    merge(result, local.estimated);
-            } while (!stampedLock.validate(stamp));
-
-            return result;
-        }
-
-        public DecayingArray snapshotDecaying(Set<BucketsThreadLocal> locals)
-        {
-            long[] result = new long[decayingBuckets.length];
+            long[] decaying = new long[size];
+            long[] estimated = new long[size];
             long resultLandmark = this.decayLandmark;
             long stamp;
             do
@@ -1111,17 +1084,27 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                     LockSupport.parkNanos(this, 100);
                     continue;
                 }
-                Arrays.fill(result, 0);
+                Arrays.fill(decaying, 0);
+                Arrays.fill(estimated, 0);
                 resultLandmark = this.decayLandmark;
-                merge(result, decayingBuckets);
+                for (int i = 0; i < size; i++)
+                {
+                    decaying[i] = buckets[i];
+                    estimated[i] = buckets[size + i];
+                }
                 for (BucketsThreadLocal local : locals)
                 {
-                    DecayingArray decaying = local.decayingRef.get();
-                    merge(result, decaying.data);
+                    DecayingArray decayingLoc = local.decayingRef.get();
+                    long[] estimatedLoc = local.estimated;
+                    for (int i = 0; i < size; i++)
+                    {
+                        decaying[i] += decayingLoc.data[i];
+                        estimated[i] += estimatedLoc[i];
+                    }
                 }
             } while (!stampedLock.validate(stamp));
 
-            return new DecayingArray(result, resultLandmark);
+            return new DecayingEstimatedArray(decaying, estimated, resultLandmark);
         }
 
         private void flushPendingExclusive()
@@ -1129,23 +1112,51 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             assert stampedLock.isWriteLocked();
             DecayingArray arr;
             while ((arr = decayingPending.poll()) != null)
-                merge(decayingBuckets, arr.data);
+            {
+                // We need to flush the values to the decaying buckets only, which is a half of the buckets array.
+                for (int i = 0; i < arr.data.length; i++)
+                    buckets[i] += arr.data[i];
+            }
         }
     }
 
-    public static class DecayingArray
+    public static class DecayingEstimatedArray
+    {
+        private final long[] decaying;
+        private final long[] estimated;
+        private final long decayLandmark;
+
+        public DecayingEstimatedArray(long[] decaying, long[] estimated, long decayLandmark)
+        {
+            this.decaying = decaying;
+            this.estimated = estimated;
+            this.decayLandmark = decayLandmark;
+        }
+
+        public long[] estimated()
+        {
+            return estimated;
+        }
+
+        public long[] decaying()
+        {
+            return decaying;
+        }
+
+        public long landmark()
+        {
+            return decayLandmark;
+        }
+    }
+
+    private static class DecayingArray
     {
         private final long[] data;
         private final long decayLandmark;
 
         public DecayingArray(int size, long decayLandmark)
         {
-            this(new long[size], decayLandmark);
-        }
-
-        public DecayingArray(long[] arr, long decayLandmark)
-        {
-            this.data = arr;
+            this.data = new long[size];
             this.decayLandmark = decayLandmark;
         }
 
