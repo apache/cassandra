@@ -1,4 +1,5 @@
 5.1
+ * Add additional metrics around hints (CASSANDRA-20499)
  * Support for add and replace in IntervalTree (CASSANDRA-20513)
  * Enable single_sstable_uplevel by default for LCS (CASSANDRA-18509)
  * Introduce NativeAccessor to avoid new ByteBuffer allocation on flush for each NativeCell (CASSANDRA-20173)

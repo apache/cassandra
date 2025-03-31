@@ -108,6 +108,8 @@ public class HintsServiceMetricsTest extends TestBaseImpl
             dropWritesForNode2.set(true);
             for (int i = 0; i < NUM_ROWS / 2; i++)
                 coordinator.execute(withKeyspace("INSERT INTO %s.t (k, v) VALUES (?, ?)"), QUORUM, i, i);
+            // some hints have created for node1, so file size must be greater than 0
+            waitUntilAsserted(() -> assertThat(countHintsFileSize(node1)).isGreaterThan(0));
             dropWritesForNode2.set(false);
 
             // write the second half of the rows with the third node dropping mutations requests,
@@ -115,7 +117,14 @@ public class HintsServiceMetricsTest extends TestBaseImpl
             dropWritesForNode3.set(true);
             for (int i = NUM_ROWS / 2; i < NUM_ROWS; i++)
                 coordinator.execute(withKeyspace("INSERT INTO %s.t (k, v) VALUES (?, ?)"), QUORUM, i, i);
+            // another hints have created for node1, so file size must be greater than 0
+            waitUntilAsserted(() -> assertThat(countHintsFileSize(node1)).isGreaterThan(0));
             dropWritesForNode3.set(false);
+
+            // Hints Throttle happens in the delivery process, so must be greater than 0
+            waitUntilAsserted(() -> assertThat(countHintsThrottle(node1)).isGreaterThan(0));
+            waitUntilAsserted(() -> assertThat(countHintsApplySucceeded(node1)).isEqualTo(0));
+            waitUntilAsserted(() -> assertThat(countHintsApplyFailed(node1)).isEqualTo(0));
 
             // wait until all the hints have been successfully applied to the nodes that have been dropping mutations
             waitUntilAsserted(() -> assertThat(countRows(node2)).isEqualTo(countRows(node3)).isEqualTo(NUM_ROWS));
@@ -143,6 +152,13 @@ public class HintsServiceMetricsTest extends TestBaseImpl
                 assertThat(countHintsFailed(node)).isEqualTo(0);
                 assertThat(countHintsTimedOut(node)).isEqualTo(0);
                 assertThat(countHintsRetryDifferentSystem(node)).isEqualTo(0);
+
+                assertThat(countHintsFileSize(node)).isEqualTo(0);
+                assertThat(countHintsThrottle(node)).isEqualTo(0);
+                // node two and three must apply these hints which belongs to them, so must be greater than 0
+                assertThat(countHintsApplySucceeded(node)).isGreaterThan(0);
+                assertThat(countHintsApplyFailed(node)).isEqualTo(0);
+
                 assertThat(countGlobalDelays(node)).isEqualTo(0);
                 cluster.forEach(target -> assertThat(countEndpointDelays(node, target)).isEqualTo(0));
             }
@@ -185,6 +201,29 @@ public class HintsServiceMetricsTest extends TestBaseImpl
     private static Long countHintsRetryDifferentSystem(IInvokableInstance node)
     {
         return node.callOnInstance(() -> HintsServiceMetrics.hintsRetryDifferentSystem.getCount());
+    }
+
+    private static Long countHintsFileSize(IInvokableInstance node)
+    {
+        return node.callOnInstance(HintsServiceMetrics.hintsFileSize::getValue);
+    }
+
+    @SuppressWarnings("Convert2MethodRef")
+    private static Long countHintsApplySucceeded(IInvokableInstance node)
+    {
+        return node.callOnInstance(() -> HintsServiceMetrics.hintsApplySucceeded.getCount());
+    }
+
+    @SuppressWarnings("Convert2MethodRef")
+    private static Long countHintsApplyFailed(IInvokableInstance node)
+    {
+        return node.callOnInstance(() -> HintsServiceMetrics.hintsApplyFailed.getCount());
+    }
+
+    @SuppressWarnings("Convert2MethodRef")
+    private static Long countHintsThrottle(IInvokableInstance node)
+    {
+        return node.callOnInstance(() -> HintsServiceMetrics.hintsThrottle.getCount());
     }
 
     private static Long countGlobalDelays(IInvokableInstance node)

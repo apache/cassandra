@@ -20,6 +20,7 @@ package org.apache.cassandra.hints;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +86,11 @@ final class HintsCatalog
         {
             throw new FSReadError(e, hintsDirectory);
         }
+    }
+
+    Collection<HintsStore> storesCollection()
+    {
+        return stores.values();
     }
 
     Stream<HintsStore> stores()

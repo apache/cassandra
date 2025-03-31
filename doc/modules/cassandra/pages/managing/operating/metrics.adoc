@@ -880,41 +880,15 @@ Reported name format:
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
-|HintsSucceeded a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints successfully delivered
-____
-
-|HintsFailed a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints that failed deliver
-____
-
-|HintsTimedOut a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints that timed out
-____
-
-|Hint_delays |Histogram |Histogram of hint delivery delays (in
-milliseconds)
-
-|Hint_delays-<PeerIP> |Histogram |Histogram of hint delivery delays (in
-milliseconds) per peer
+|HintsSucceeded|Meter|A meter of the hints successfully delivered
+|HintsFailed |Meter|A meter of the hints that failed deliver
+|HintsTimedOut |Meter|A meter of the hints that timed out
+|Hint_delays |Histogram |Histogram of hint delivery delays (in milliseconds)
+|Hint_delays-<PeerIP> |Histogram |Histogram of hint delivery delays (in milliseconds) per peer
+|HintsFileSize |Gauge| Total size of hints of a node
+|HintsThrottle |Counter|Increased when rate limiter is acquired
+|HintsApplySucceeded|Meter|A meter of succeeded applications of a hint
+|HintsApplyFailed|Meter|A meter of failed applications of a hint
 |===
 
 == SSTable Index Metrics

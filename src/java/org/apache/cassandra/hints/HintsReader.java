@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -231,8 +232,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
         private Hint readHint(int size) throws IOException
         {
-            if (rateLimiter != null)
-                rateLimiter.acquire(size);
+            applyThrottleRateLimit(size);
             input.limit(size);
 
             Hint hint;
@@ -338,8 +338,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
         private ByteBuffer readBuffer(int size) throws IOException
         {
-            if (rateLimiter != null)
-                rateLimiter.acquire(size);
+            applyThrottleRateLimit(size);
             input.limit(size);
 
             ByteBuffer buffer = Hint.serializer.readBufferIfLive(input, now, size, descriptor.messagingVersion());
@@ -363,5 +362,14 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 return false;
         }
         return true;
+    }
+
+    private void applyThrottleRateLimit(int size)
+    {
+        if (rateLimiter != null)
+        {
+            rateLimiter.acquire(size);
+            HintsServiceMetrics.hintsThrottle.inc(size);
+        }
     }
 }
