@@ -119,7 +119,7 @@ public class ViewTest
         testFailure(View.updateCompacting(emptySet(), of(r2)), cur);
         // update one compacting, one non-compacting, of the liveset to another instance of the same readers;
         // confirm liveset changes but compacting does not
-        cur = View.updateLiveSet(copyOf(readers.subList(1, 3)), of(r1, r2)).apply(cur);
+        cur = View.updateLiveSet(copyOf(readers.subList(1, 3)), of(r1, r2), cfs.metric.viewSSTableIntervalTree).apply(cur);
         Assert.assertSame(readers.get(0), cur.sstablesMap.get(r0));
         Assert.assertSame(r1, cur.sstablesMap.get(r1));
         Assert.assertSame(r2, cur.sstablesMap.get(r2));
@@ -179,7 +179,7 @@ public class ViewTest
         Assert.assertEquals(memtable2, cur.liveMemtables.get(1));
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
 
-        testFailure(View.replaceFlushed(memtable2, null), cur);
+        testFailure(View.replaceFlushed(memtable2, null, cfs.metric.viewSSTableIntervalTree), cur);
 
         cur = View.markFlushing(memtable2).apply(cur);
         Assert.assertTrue(cur.flushingMemtables.contains(memtable2));
@@ -196,14 +196,14 @@ public class ViewTest
         Assert.assertEquals(memtable2, cur.flushingMemtables.get(1));
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
 
-        cur = View.replaceFlushed(memtable2, null).apply(cur);
+        cur = View.replaceFlushed(memtable2, null, cfs.metric.viewSSTableIntervalTree).apply(cur);
         Assert.assertEquals(1, cur.liveMemtables.size());
         Assert.assertEquals(1, cur.flushingMemtables.size());
         Assert.assertEquals(memtable1, cur.flushingMemtables.get(0));
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());
 
         SSTableReader sstable = MockSchema.sstable(1, cfs);
-        cur = View.replaceFlushed(memtable1, singleton(sstable)).apply(cur);
+        cur = View.replaceFlushed(memtable1, singleton(sstable), cfs.metric.viewSSTableIntervalTree).apply(cur);
         Assert.assertEquals(0, cur.flushingMemtables.size());
         Assert.assertEquals(1, cur.liveMemtables.size());
         Assert.assertEquals(memtable3, cur.getCurrentMemtable());

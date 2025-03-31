@@ -45,6 +45,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.LatencyMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
@@ -251,14 +252,14 @@ public class Tracker
         addSSTablesInternal(sstables, true, false, true);
     }
 
-    public void addInitialSSTablesWithoutUpdatingSize(Collection<SSTableReader> sstables, ColumnFamilyStore cfs)
+    public void addInitialSSTablesWithoutUpdatingSize(Collection<SSTableReader> sstables)
     {
         if (!isDummy())
         {
             for (SSTableReader reader : sstables)
                 reader.setupOnline();
         }
-        apply(updateLiveSet(emptySet(), sstables));
+        apply(updateLiveSet(emptySet(), sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
         notifyAdded(sstables, true);
     }
 
@@ -279,7 +280,7 @@ public class Tracker
     {
         if (!isDummy())
             setupOnline(sstables);
-        apply(updateLiveSet(emptySet(), sstables));
+        apply(updateLiveSet(emptySet(), sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
         if(updateSize)
             maybeFail(updateSizeTracking(emptySet(), sstables, null));
         if (maybeIncrementallyBackup)
@@ -332,7 +333,7 @@ public class Tracker
         {
             Pair<View, View> result = apply(view -> {
                 Set<SSTableReader> toremove = copyOf(filter(view.sstables, and(remove, notIn(view.compacting))));
-                return updateLiveSet(toremove, emptySet()).apply(view);
+                return updateLiveSet(toremove, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(view);
             });
 
             Set<SSTableReader> removed = Sets.difference(result.left.sstables, result.right.sstables);
@@ -434,7 +435,7 @@ public class Tracker
         {
             // sstable may be null if we flushed batchlog and nothing needed to be retained
             // if it's null, we don't care what state the cfstore is in, we just replace it and continue
-            apply(View.replaceFlushed(memtable, null));
+            apply(View.replaceFlushed(memtable, null, maybeGetSSTableIntervalTreeLatencyMetrics()));
             return;
         }
 
@@ -442,7 +443,7 @@ public class Tracker
         // back up before creating a new Snapshot (which makes the new one eligible for compaction)
         maybeIncrementallyBackup(sstables);
 
-        apply(View.replaceFlushed(memtable, sstables));
+        apply(View.replaceFlushed(memtable, sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
 
         Throwable fail;
         fail = updateSizeTracking(emptySet(), sstables, null);
@@ -625,6 +626,13 @@ public class Tracker
     @VisibleForTesting
     public void removeUnsafe(Set<SSTableReader> toRemove)
     {
-        Pair<View, View> result = apply(view -> updateLiveSet(toRemove, emptySet()).apply(view));
+        Pair<View, View> result = apply(view -> updateLiveSet(toRemove, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(view));
+    }
+
+    public LatencyMetrics maybeGetSSTableIntervalTreeLatencyMetrics()
+    {
+        if (cfstore == null)
+            return null;
+        return cfstore.metric != null ? cfstore.metric.viewSSTableIntervalTree : null;
     }
 }

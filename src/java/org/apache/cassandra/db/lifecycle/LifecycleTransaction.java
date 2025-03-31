@@ -294,7 +294,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // replace all updated readers with a version restored to its original state
         List<SSTableReader> restored = restoreUpdatedOriginals();
         List<SSTableReader> invalid = Lists.newArrayList(Iterables.concat(logged.update, logged.obsolete));
-        accumulate = tracker.apply(updateLiveSet(logged.update, restored), accumulate);
+        accumulate = tracker.apply(updateLiveSet(logged.update, restored, tracker.maybeGetSSTableIntervalTreeLatencyMetrics()), accumulate);
         accumulate = tracker.notifySSTablesChanged(invalid, restored, OperationType.COMPACTION, accumulate);
         // setReplaced immediately preceding versions that have not been obsoleted
         accumulate = setReplaced(logged.update, accumulate);
@@ -374,7 +374,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // and don't want anyone else messing with them
         // apply atomically along with updating the live set of readers
         tracker.apply(compose(updateCompacting(emptySet(), fresh),
-                              updateLiveSet(toUpdate, staged.update)));
+                              updateLiveSet(toUpdate, staged.update, tracker.maybeGetSSTableIntervalTreeLatencyMetrics())));
 
         // log the staged changes and our newly marked readers
         marked.addAll(fresh);

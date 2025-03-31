@@ -1,4 +1,5 @@
 5.1
+ * Add SSTableIntervalTree latency metric (CASSANDRA-20502)
  * Ignore repetitions of semicolon in CQLSH (CASSANDRA-19956)
  * Avoid NPE during cms initialization abort (CASSANDRA-20527)
  * Avoid failing queries when epoch changes and replica goes up/down (CASSANDRA-20489)
