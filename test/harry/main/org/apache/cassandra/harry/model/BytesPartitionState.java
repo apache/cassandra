@@ -381,15 +381,22 @@ public class BytesPartitionState
             for (var e : values.entrySet())
             {
                 // writing will take the highest timestamp
-                ByteBuffer bb = type.getKeysType().decomposeUntyped(e.getKey());
-                if (ts != MagicConstants.NO_TIMESTAMP && cells.containsKey(bb))
+                ByteBuffer key = type.getKeysType().decomposeUntyped(e.getKey());
+                ByteBuffer value = type.getValuesType().decomposeUntyped(e.getValue());
+                if (ts != MagicConstants.NO_TIMESTAMP && cells.containsKey(key))
                 {
-                    if (ts > cells.get(bb).ts)
-                        cells.put(bb, new Value(ts, type.getValuesType().decomposeUntyped(e.getValue())));
+                    Value state = cells.get(key);
+                    if (ts == state.ts)
+                    {
+                        if (ByteBufferUtil.compareUnsigned(value, state.value) > 0)
+                            cells.put(key, new Value(ts, value));
+                    }
+                    else if (ts > state.ts)
+                        cells.put(key, new Value(ts, value));
                 }
                 else
                 {
-                    cells.put(bb, new Value(ts, type.getValuesType().decomposeUntyped(e.getValue())));
+                    cells.put(key, new Value(ts, value));
                 }
             }
             return state();
