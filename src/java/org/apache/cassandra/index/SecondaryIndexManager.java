@@ -847,8 +847,6 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
             if (!index.getSupportedLoadTypeOnFailure(isInitialBuild).supportsReads() && queryableIndexes.remove(indexName))
                 logger.info("Index [{}] became not-queryable because of failed build.", indexName);
-
-            makeIndexNonQueryable(index, Index.Status.BUILD_FAILED);
         }
     }
 

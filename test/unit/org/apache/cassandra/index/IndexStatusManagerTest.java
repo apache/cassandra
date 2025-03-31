@@ -359,7 +359,7 @@ public class IndexStatusManagerTest
                 .hasMessageStartingWith("Operation failed")
                 .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.253:7000")
                 .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.254:7000")
-                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.255:7000");
+                .hasMessageContaining("INDEX_BUILD_IN_PROGRESS from /127.0.0.255:7000");
     }
 
     void runTest(Testcase testcase)
