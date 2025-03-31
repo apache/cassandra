@@ -966,11 +966,11 @@ public class ASTSingleTableModelTest
                             row(metadata, 0, 1, 0, 1)), Select.builder(metadata).build());
 
         model.update(Mutation.delete(metadata)
-                             .column("r")
+                             .columns("r", "s")
                              .value("pk", 0)
                              .value("ck", 0)
                              .build());
-        model.validate(rows(row(metadata, 0, 1, 0, 1)), Select.builder(metadata).build());
+        model.validate(rows(row(metadata, 0, 1, null, 1)), Select.builder(metadata).build());
     }
 
     private interface SimpleWrite<T>

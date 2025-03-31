@@ -31,7 +31,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -916,9 +915,15 @@ WHERE PK_column_conditions
             return Collections.unmodifiableList(columns);
         }
 
+        public DeleteBuilder columns(String... names)
+        {
+            Stream.of(names).map(this::find).forEach(this::column);
+            return this;
+        }
+
         public DeleteBuilder column(String columnName)
         {
-            return column(Symbol.from(metadata.getColumn(new ColumnIdentifier(columnName, true))));
+            return column(find(columnName));
         }
 
         public DeleteBuilder column(Symbol symbol)
