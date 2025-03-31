@@ -331,6 +331,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                     continue;
                 reservoir.rescaleReservoir();
             }
+            logger.info("Rescaled decaying histogram buckets with configured interval of {} ms",
+                        TimeUnit.NANOSECONDS.toMillis(LANDMARK_RESET_INTERVAL_IN_NS));
         }
     }
 

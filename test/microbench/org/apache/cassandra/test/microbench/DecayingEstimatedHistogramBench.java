@@ -42,8 +42,8 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 3, time = 2, timeUnit = TimeUnit.SECONDS)
+@Warmup(iterations = 1, time = 3, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 3, time = 3, timeUnit = TimeUnit.SECONDS)
 @Threads(4)
 @State(Scope.Benchmark)
 public class DecayingEstimatedHistogramBench
@@ -69,43 +69,43 @@ public class DecayingEstimatedHistogramBench
     }
 
     @Benchmark
-    @Fork(value = 1, warmups = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
-                                                    "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
-                                                    "-Dcassandra.decaying_histogram_reset_interval_ms=100" })
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
+                                       "-Dcassandra.decaying_histogram_reset_interval_ms=100" })
     public void update100msRescale(HistogramUpdateState state)
     {
         reservoir.update(state.update);
     }
 
     @Benchmark
-    @Fork(value = 1, warmups = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
-                                                    "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
-                                                    "-Dcassandra.decaying_histogram_reset_interval_ms=500" })
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
+                                       "-Dcassandra.decaying_histogram_reset_interval_ms=500" })
     public void update500msRescale(HistogramUpdateState state)
     {
         reservoir.update(state.update);
     }
 
     @Benchmark
-    @Fork(value = 1, warmups = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
-                                                    "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
-                                                    "-Dcassandra.decaying_histogram_reset_interval_ms=1000" })
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
+                                       "-Dcassandra.decaying_histogram_reset_interval_ms=1000" })
     public void update1000msRescale(HistogramUpdateState state)
     {
         reservoir.update(state.update);
     }
 
     @Benchmark
-    @Fork(value = 1, warmups = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
-                                                    "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"})
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
     public void update30minRescale(HistogramUpdateState state)
     {
         reservoir.update(state.update);
     }
 
     @Benchmark
-    @Fork(value = 1, warmups = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
-                                                    "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"})
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
     public void get(Blackhole blackhole)
     {
         blackhole.consume(reservoir.getSnapshot());
