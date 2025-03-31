@@ -24,7 +24,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.Mutation;
@@ -53,20 +53,34 @@ class LocalMutationStates
 
         final Token token;
         final int offset;
-        final Set<TableId> tables; // TODO (consider): in the most common case just one table - optimise for it
+        final Object tableOrTables;
 
-        Entry(Token token, int offset, Set<TableId> tables)
+        Entry(Token token, int offset, Object tableOrTables)
         {
             this.token = token;
             this.offset = offset;
-            this.tables = tables;
+            this.tableOrTables = tableOrTables;
         }
 
         static Entry create(Mutation mutation)
         {
             Collection<TableId> ids = mutation.getTableIds();
             Preconditions.checkArgument(!ids.isEmpty());
-            return new Entry(mutation.key().getToken(), mutation.id().offset(), ImmutableSet.copyOf(mutation.getTableIds()));
+            return new Entry(mutation.key().getToken(), mutation.id().offset(), tableOrTables(mutation));
+        }
+
+        private static Object tableOrTables(Mutation mutation)
+        {
+            Collection<TableId> ids = mutation.getTableIds();
+            Preconditions.checkArgument(!ids.isEmpty());
+            return ids.size() == 1 ? ids.iterator().next() : Sets.newHashSet(mutation.getTableIds());
+        }
+
+        private boolean contains(TableId tableId)
+        {
+            return tableOrTables instanceof Set
+                 ? ((Set<?>) tableOrTables).contains(tableId)
+                 : tableId.equals(tableOrTables);
         }
 
         static Entry start(Token token, boolean isInclusive)
@@ -107,7 +121,7 @@ class LocalMutationStates
         boolean found = false;
         for (Entry entry : subset)
         {
-            if (entry.tables.contains(tableId))
+            if (entry.contains(tableId))
             {
                 into.add(entry.offset);
                 found = true;
