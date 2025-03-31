@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -210,10 +211,18 @@ public class ColumnConstraints extends ColumnConstraint<ColumnConstraints>
             this.constraints = Collections.emptyList();
         }
 
-        public ColumnConstraints prepare()
+        public ColumnConstraints prepare(ColumnIdentifier column)
         {
             if (constraints.isEmpty())
                 return NO_OP;
+
+            for (ColumnConstraint<?> constraint : constraints)
+            {
+                if (constraint.columnName != null && !column.equals(constraint.columnName))
+                    throw new InvalidConstraintDefinitionException(format("Constraint %s was not specified on a column it operates on: %s but on: %s",
+                                                                          constraint, column.toCQLString(), constraint.columnName));
+            }
+
             return new ColumnConstraints(constraints);
         }
     }

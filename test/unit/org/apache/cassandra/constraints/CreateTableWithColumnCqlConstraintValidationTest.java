@@ -26,9 +26,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Generators;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static accord.utils.Property.qt;
@@ -1437,5 +1439,21 @@ public class CreateTableWithColumnCqlConstraintValidationTest extends CqlConstra
                     throw new RuntimeException(e);
                 }
             });
+    }
+
+    @Test
+    public void testCreateTableAddConstraintWithCheckOnNonExistingColumn() throws Throwable
+    {
+        assertThatThrownBy(() -> createTable("CREATE TABLE %s (pk int, ck1 text CHECK NOT_NULL(ck3), ck2 text, v int, PRIMARY KEY ((pk),ck1, ck2));"))
+        .hasRootCauseMessage("Constraint NOT_NULL(ck3) was not specified on a column it operates on: ck1 but on: ck3")
+        .rootCause().isInstanceOf(InvalidConstraintDefinitionException.class);
+
+        assertThatThrownBy(() -> createTable("CREATE TABLE %s (pk int, ck1 int CHECK ck3 > 5, ck2 text, v int, PRIMARY KEY ((pk),ck1, ck2));"))
+        .hasRootCauseMessage("Constraint ck3 > 5 was not specified on a column it operates on: ck1 but on: ck3")
+        .rootCause().isInstanceOf(InvalidConstraintDefinitionException.class);
+
+        assertThatThrownBy(() -> createTable("CREATE TABLE %s (pk int, ck1 text CHECK LENGTH(ck3) > 10, ck2 text, v int, PRIMARY KEY ((pk),ck1, ck2));"))
+        .hasRootCauseMessage("Constraint LENGTH(ck3) > 10 was not specified on a column it operates on: ck1 but on: ck3")
+        .rootCause().isInstanceOf(InvalidConstraintDefinitionException.class);
     }
 }
