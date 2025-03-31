@@ -48,7 +48,7 @@ public abstract class ReadResponse implements IReadResponse
     @Override
     public Kind kind()
     {
-        return Kind.LEGACY;
+        return Kind.UNTRACKED;
     }
 
     public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi)
@@ -94,8 +94,8 @@ public abstract class ReadResponse implements IReadResponse
 
     public static ReadResponse fromResponse(IReadResponse response)
     {
-        if (response.kind() != Kind.LEGACY)
-            throw new IllegalArgumentException("Response kind must be " + Kind.LEGACY + ", got " + response.kind());
+        if (response.kind() != Kind.UNTRACKED)
+            throw new IllegalArgumentException("Response kind must be " + Kind.UNTRACKED + ", got " + response.kind());
         return (ReadResponse) response;
     }
 

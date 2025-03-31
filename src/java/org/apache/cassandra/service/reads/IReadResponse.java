@@ -41,20 +41,20 @@ public interface IReadResponse
 {
     enum Kind
     {
-        LEGACY,
-        LOGGED;
+        UNTRACKED,
+        TRACKED;
 
-        public static final IVersionedSerializer<Kind> serializer = new IVersionedSerializer<Kind>()
+        public static final IVersionedSerializer<Kind> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Kind kind, DataOutputPlus out, int version) throws IOException
             {
                 switch (kind)
                 {
-                    case LEGACY:
+                    case UNTRACKED:
                         out.writeByte(0);
                         break;
-                    case LOGGED:
+                    case TRACKED:
                         out.writeByte(1);
                         break;
                     default:
@@ -69,9 +69,9 @@ public interface IReadResponse
                 switch (tag)
                 {
                     case 0:
-                        return LEGACY;
+                        return UNTRACKED;
                     case 1:
-                        return LOGGED;
+                        return TRACKED;
                     default:
                         throw new IllegalStateException("Unhandled kind value: " + tag);
                 }
@@ -103,7 +103,7 @@ public interface IReadResponse
         }
     }
 
-    static IVersionedSerializer<IReadResponse> serializer = new IVersionedSerializer<IReadResponse>()
+    IVersionedSerializer<IReadResponse> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(IReadResponse response, DataOutputPlus out, int version) throws IOException
@@ -111,14 +111,14 @@ public interface IReadResponse
             if (version >= MessagingService.VERSION_52)
                 Kind.serializer.serialize(response.kind(), out, version);
             else
-                Preconditions.checkArgument(response.kind() == Kind.LEGACY);
+                Preconditions.checkArgument(response.kind() == Kind.UNTRACKED);
 
             switch (response.kind())
             {
-                case LEGACY:
+                case UNTRACKED:
                     ReadResponse.serializer.serialize((ReadResponse) response, out, version);
                     break;
-                case LOGGED:
+                case TRACKED:
                     TrackedReadResponse.serializer.serialize((TrackedReadResponse) response, out, version);
                     break;
                 default:
@@ -130,12 +130,12 @@ public interface IReadResponse
         public IReadResponse deserialize(DataInputPlus in, int version) throws IOException
         {
 
-            Kind kind = version >= MessagingService.VERSION_52 ? Kind.serializer.deserialize(in, version) : Kind.LEGACY;
+            Kind kind = version >= MessagingService.VERSION_52 ? Kind.serializer.deserialize(in, version) : Kind.UNTRACKED;
             switch (kind)
             {
-                case LEGACY:
+                case UNTRACKED:
                     return ReadResponse.serializer.deserialize(in, version);
-                case LOGGED:
+                case TRACKED:
                     return TrackedReadResponse.serializer.deserialize(in, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + kind);
@@ -149,13 +149,13 @@ public interface IReadResponse
             if (version >= MessagingService.VERSION_52)
                 size += Kind.serializer.serializedSize(response.kind(), version);
             else
-                Preconditions.checkArgument(response.kind() == Kind.LEGACY);
+                Preconditions.checkArgument(response.kind() == Kind.UNTRACKED);
 
             switch (response.kind())
             {
-                case LEGACY:
+                case UNTRACKED:
                     return size + ReadResponse.serializer.serializedSize((ReadResponse) response, version);
-                case LOGGED:
+                case TRACKED:
                     return size + TrackedReadResponse.serializer.serializedSize((TrackedReadResponse) response, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + response.kind());

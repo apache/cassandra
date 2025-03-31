@@ -160,7 +160,7 @@ public class TrackedReadResponse implements IReadResponse
     @Override
     public Kind kind()
     {
-        return Kind.LOGGED;
+        return Kind.TRACKED;
     }
 
     public static TrackedReadResponse createDataResponse(UnfilteredPartitionIterator partitionIterator, ReadCommand command, MutationSummary summary, PendingRead pendingRead)
@@ -176,8 +176,8 @@ public class TrackedReadResponse implements IReadResponse
 
     public static TrackedReadResponse fromResponse(IReadResponse response)
     {
-        if (response.kind() != Kind.LOGGED)
-            throw new IllegalArgumentException("Response kind must be " + Kind.LOGGED + ", got " + response.kind());
+        if (response.kind() != Kind.TRACKED)
+            throw new IllegalArgumentException("Response kind must be " + Kind.TRACKED + ", got " + response.kind());
         return (TrackedReadResponse) response;
     }
 
