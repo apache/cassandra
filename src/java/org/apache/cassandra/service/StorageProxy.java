@@ -116,6 +116,7 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.TrackedWriteRequest;
 import org.apache.cassandra.schema.PartitionDenylist;
 import org.apache.cassandra.schema.Schema;
@@ -2246,10 +2247,11 @@ public class StorageProxy implements StorageProxyMBean
                 command.setMonitoringTime(requestTime.startedAtNanos(), false, deadline - requestTime.startedAtNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
 
                 IReadResponse response;
+                MutationSummary initialSummary = command.createMutationSummary(false);
                 try (ReadExecutionController controller = command.executionController(trackRepairedStatus);
                      UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                 {
-                    response = command.createResponse(iterator, controller.getRepairedDataInfo(), command.createMutationSummary(), controller.pendingRead());
+                    response = command.createResponse(iterator, controller.getRepairedDataInfo(), initialSummary);
                 }
                 catch (RejectException e)
                 {

@@ -25,8 +25,6 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.replication.MutationTrackingService.PendingRead;
-import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -51,7 +49,6 @@ public class ReadExecutionController implements AutoCloseable
 
     private final RepairedDataInfo repairedDataInfo;
     private long oldestUnrepairedTombstone = Long.MAX_VALUE;
-    private final PendingRead pendingRead;
 
     ReadExecutionController(ReadCommand command,
                             OpOrder.Group baseOp,
@@ -84,13 +81,6 @@ public class ReadExecutionController implements AutoCloseable
         {
             repairedDataInfo = RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
         }
-
-        pendingRead = command != null ? MutationTrackingService.instance.startReading(command) : null;
-    }
-
-    public PendingRead pendingRead()
-    {
-        return pendingRead;
     }
 
     public boolean isRangeCommand()
@@ -206,23 +196,15 @@ public class ReadExecutionController implements AutoCloseable
         }
         finally
         {
-            try
+            if (indexController != null)
             {
-                if (pendingRead != null)
-                    pendingRead.close();
-            }
-            finally
-            {
-                if (indexController != null)
+                try
                 {
-                    try
-                    {
-                        indexController.close();
-                    }
-                    finally
-                    {
-                        writeContext.close();
-                    }
+                    indexController.close();
+                }
+                finally
+                {
+                    writeContext.close();
                 }
             }
         }

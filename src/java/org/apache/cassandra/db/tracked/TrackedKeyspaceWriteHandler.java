@@ -15,49 +15,40 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.tracked;
 
+import org.apache.cassandra.db.CassandraWriteContext;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.KeyspaceWriteHandler;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.replication.MutationTrackingService.PendingWrite;
-import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
 {
-    private final Keyspace keyspace;
-
-    public TrackedKeyspaceWriteHandler(Keyspace keyspace)
-    {
-        this.keyspace = keyspace;
-    }
-
     @Override
     public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
     {
         OpOrder.Group group = null;
-        PendingWrite pendingWrite = null;
         try
         {
             group = Keyspace.writeOrder.start();
 
-            // write the mutation to the commitlog and memtables
             Tracing.trace("Appending to mutation journal");
-            CommitLogPosition position = MutationJournal.instance.write(mutation.id(), mutation);
+            RecordPointer pointer = MutationJournal.instance.write(mutation.id(), mutation);
 
-            // mark as pending once in the journal, but before written to a memtable,
-            // so that it can be looked up from the journal by mutation id once known
-            pendingWrite = MutationTrackingService.instance.startWriting(mutation);
-            return new CassandraWriteContext(group, position, pendingWrite);
+            // TODO (preferred): update journal to return CommitLogPosition or otherwise remove requirement to allocate second object here
+            return new CassandraWriteContext(group, new CommitLogPosition(pointer.segment, pointer.position));
         }
         catch (Throwable t)
         {
             if (group != null)
                 group.close();
-            if (pendingWrite != null)
-                pendingWrite.close();
             throw t;
         }
     }
@@ -79,7 +70,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
         OpOrder.Group group = Keyspace.writeOrder.start();
         try
         {
-            return new CassandraWriteContext(group, null, PendingWrite.NOOP);
+            return new CassandraWriteContext(group, null);
         }
         catch (Throwable t)
         {

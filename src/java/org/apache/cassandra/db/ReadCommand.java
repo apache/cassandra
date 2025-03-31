@@ -32,7 +32,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.replication.MutationTrackingService.PendingRead;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +65,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
@@ -470,14 +470,16 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations);
 
-    protected abstract MutationSummary createMutationSummaryInternal();
+    public abstract UnfilteredPartitionIterator queryJournal(Collection<ShortMutationId> mutationIds);
 
-    public MutationSummary createMutationSummary()
+    protected abstract MutationSummary createMutationSummaryInternal(boolean includePending);
+
+    public MutationSummary createMutationSummary(boolean includePending)
     {
         if (!responseType.isTracked())
             return null;
 
-        return createMutationSummaryInternal();
+        return createMutationSummaryInternal(includePending);
     }
 
     /**
@@ -487,7 +489,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract boolean isReversed();
 
-    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, MutationSummary summary, PendingRead pendingRead)
+    public IReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, MutationSummary initialSummary)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
@@ -500,9 +502,9 @@ public abstract class ReadCommand extends AbstractReadQuery
             case UNTRACKED_DIGEST:
                 return ReadResponse.createDigestResponse(iterator, this);
             case TRACKED_DATA:
-                return TrackedReadResponse.createDataResponse(iterator, this, summary, pendingRead);
+                return TrackedReadResponse.createDataResponse(iterator, this, initialSummary);
             case TRACKED_SUMMARY:
-                return TrackedReadResponse.createSummaryResponse(summary);
+                return TrackedReadResponse.createSummaryResponse(initialSummary);
             default:
                 throw new IllegalArgumentException("Unsupported response type: " + responseType());
         }

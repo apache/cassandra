@@ -24,7 +24,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 
@@ -39,7 +38,7 @@ public abstract class CoordinatorLog
     /**
      * State machines and an Id <-> token index for unreconciled mutation ids that exist oh this host.
      */
-    private final LocalMutationStates localMutations;
+    private final LocalMutationStates unreconciledMutations;
 
     protected final Offsets[] witnessedIds;
     protected final Offsets reconciledIds;
@@ -50,7 +49,7 @@ public abstract class CoordinatorLog
         this.localHostId = localHostId;
         this.logId = logId;
         this.participants = participants;
-        this.localMutations = new LocalMutationStates();
+        this.unreconciledMutations = new LocalMutationStates();
         this.lock = new ReentrantReadWriteLock();
 
         Offsets[] ids = new Offsets[participants.size()];
@@ -67,20 +66,6 @@ public abstract class CoordinatorLog
                                         : new CoordinatorLogReplica(localHostId, id, participants);
     }
 
-    void witnessedRemoteMutations(Offsets ranges, int onHostId)
-    {
-        lock.writeLock().lock();
-        try
-        {
-            // TODO (expected): implement index update logic once we have positions broadcasting going
-            get(onHostId).addAll(ranges);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
-
     void witnessedRemoteMutation(MutationId mutationId, int onHostId)
     {
         lock.writeLock().lock();
@@ -90,7 +75,7 @@ public abstract class CoordinatorLog
                 return; // already witnessed
 
             if (!getLocal().contains(mutationId.offset()))
-                return; // local host hasn't witnessed -> hasn't indexed -> no index cleanup needed
+                return; // local host hasn't witnessed -> no cleanup needed
 
             // see if any other replicas haven't witnessed the id yet
             boolean allOtherReplicasWitnessed = true;
@@ -104,9 +89,25 @@ public abstract class CoordinatorLog
             if (allOtherReplicasWitnessed)
             {
                 // if all replicas have now witnessed the id, remove it from the index
-                localMutations.remove(mutationId.offset());
+                unreconciledMutations.remove(mutationId.offset());
                 reconciledIds.add(mutationId.offset());
             }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    void startWriting(Mutation mutation)
+    {
+        lock.writeLock().lock();
+        try
+        {
+            if (getLocal().contains(mutation.id().offset()))
+                return; // already witnessed; shouldn't get to this path often (duplicate mutation)
+
+            unreconciledMutations.startWriting(mutation);
         }
         finally
         {
@@ -120,7 +121,7 @@ public abstract class CoordinatorLog
         try
         {
             if (!getLocal().add(mutation.id().offset()))
-                return; // already witnessed; shouldn't get to this path
+                throw new IllegalStateException("finishWriting() called on a reconciled mutation");
 
             // see if any other replicas haven't witnessed the id yet
             boolean allOtherReplicasWitnessed = true;
@@ -136,7 +137,7 @@ public abstract class CoordinatorLog
             if (allOtherReplicasWitnessed)
                 reconciledIds.add(mutation.id().offset());
             else
-                localMutations.add(mutation);
+                unreconciledMutations.finishWriting(mutation);
         }
         finally
         {
@@ -148,13 +149,13 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean collectOffsetsFor(Token token, TableId tableId, Offsets unreconciledInto, Offsets reconciledInto)
+    boolean collectOffsetsFor(Token token, TableId tableId, boolean includePending, Offsets unreconciledInto, Offsets reconciledInto)
     {
         lock.readLock().lock();
         try
         {
             reconciledInto.addAll(reconciledIds);
-            return localMutations.lookUp(token, tableId, unreconciledInto);
+            return unreconciledMutations.collect(token, tableId, includePending, unreconciledInto);
         }
         finally
         {
@@ -166,31 +167,13 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean collectOffsetsFor(Range<Token> range, TableId tableId, Offsets unreconciledInto, Offsets reconciledInto)
+    boolean collectOffsetsFor(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets unreconciledInto, Offsets reconciledInto)
     {
         lock.readLock().lock();
         try
         {
             reconciledInto.addAll(reconciledIds);
-            return localMutations.lookUp(range, tableId, unreconciledInto);
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
-
-    /**
-     * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
-     * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
-     */
-    boolean collectOffsetsFor(AbstractBounds<PartitionPosition> range, TableId tableId, Offsets unreconciledInto, Offsets reconciledInto)
-    {
-        lock.readLock().lock();
-        try
-        {
-            reconciledInto.addAll(reconciledIds);
-            return localMutations.lookUp(range, tableId, unreconciledInto);
+            return unreconciledMutations.collect(range, tableId, includePending, unreconciledInto);
         }
         finally
         {

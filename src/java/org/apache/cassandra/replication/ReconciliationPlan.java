@@ -52,7 +52,7 @@ public class ReconciliationPlan
                 size += offsets.offsetCount();
             Set<ShortMutationId> ids = Sets.newHashSetWithExpectedSize(size);
             for (Offsets offsets : coordinatorIds.values())
-                offsets.forEachOffset((logId, offset) -> ids.add(new ShortMutationId(logId, offset)));
+                offsets.collectIds(ids);
             return ids;
         }
 

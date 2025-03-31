@@ -30,6 +30,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
+import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.IReadResponse;
@@ -69,10 +70,11 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             command.trackWarnings();
 
         IReadResponse response;
+        MutationSummary initialSummary = command.createMutationSummary(false);
         try (ReadExecutionController controller = command.executionController(message.trackRepairedData());
              UnfilteredPartitionIterator iterator = command.executeLocally(controller))
         {
-            response = command.createResponse(iterator, controller.getRepairedDataInfo(), command.createMutationSummary(), controller.pendingRead());
+            response = command.createResponse(iterator, controller.getRepairedDataInfo(), initialSummary);
         }
         catch (RejectException e)
         {
@@ -181,7 +183,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         }
         else
         {
-            AbstractBounds<PartitionPosition> range = ((PartitionRangeReadCommand) command).dataRange().keyRange();
+            AbstractBounds<PartitionPosition> range = command.dataRange().keyRange();
 
             // TODO: preexisting issue: for the range queries or queries that span multiple replicas, we can only make requests where the right token is owned, but not the left one
             Replica maxTokenLocalReplica = getLocalReplica(metadata, range.right.getToken(), command.metadata().keyspace);

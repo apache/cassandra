@@ -112,7 +112,7 @@ public class MutationTrackingUtils
     public static MutationSummary summaryForKey(String keyspaceName, String tableName, DecoratedKey dk)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
-        return MutationTrackingService.instance.summaryForKey(table.id, dk);
+        return MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
     }
 
     public static MutationSummary summaryForTable(String keyspaceName, String tableName)
@@ -149,7 +149,7 @@ public class MutationTrackingUtils
     public static MutationSummary summaryForRange(String keyspaceName, String tableName, Range<Token> range)
     {
         TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
-        return MutationTrackingService.instance.summaryForRange(table.id, range);
+        return MutationTrackingService.instance.createSummaryForRange(range, table.id, false);
     }
 
     public static Offsets summaryIdSpace(CoordinatorSummary summary)

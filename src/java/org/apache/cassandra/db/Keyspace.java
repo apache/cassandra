@@ -43,6 +43,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
+import org.apache.cassandra.db.tracked.TrackedKeyspaceWriteHandler;
 import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -53,6 +54,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -284,7 +286,7 @@ public class Keyspace
 
         this.repairManager = new CassandraKeyspaceRepairManager(this);
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
-        this.trackedWriteHandler = new TrackedKeyspaceWriteHandler(this);
+        this.trackedWriteHandler = new TrackedKeyspaceWriteHandler();
     }
 
     public Keyspace(KeyspaceMetadata metadata)
@@ -296,7 +298,7 @@ public class Keyspace
         this.viewManager = new ViewManager(this);
         this.repairManager = new CassandraKeyspaceRepairManager(this);
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
-        this.trackedWriteHandler = new TrackedKeyspaceWriteHandler(this);
+        this.trackedWriteHandler = new TrackedKeyspaceWriteHandler();
         this.metadataRef = new KeyspaceMetadataRef(metadata, schema);
     }
 
@@ -610,6 +612,8 @@ public class Keyspace
 
         try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
         {
+            MutationTrackingService.instance.startWriting(mutation);
+
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
             {
                 ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(upd.metadata().id);
@@ -622,6 +626,8 @@ public class Keyspace
                 cfs.getWriteHandler().write(upd, ctx, true);
             }
         }
+
+        MutationTrackingService.instance.finishWriting(mutation);
 
         if (future != null)
             future.trySuccess(null);

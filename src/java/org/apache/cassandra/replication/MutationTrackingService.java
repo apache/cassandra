@@ -19,20 +19,15 @@ package org.apache.cassandra.replication;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
-import com.google.common.collect.Sets;
-
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -93,33 +88,29 @@ public class MutationTrackingService
         getOrCreate(keyspace).witnessedRemoteMutation(token, mutationId, onHost);
     }
 
-    public PendingWrite startWriting(Mutation mutation)
+    public void startWriting(Mutation mutation)
     {
-        if (mutation.id().isNone())
-            return PendingWrite.NOOP;
-        return getOrCreate(mutation.getKeyspaceName()).startWriting(mutation);
+        getOrCreate(mutation.getKeyspaceName()).startWriting(mutation);
     }
 
-    public PendingRead startReading(ReadCommand command)
+    public void finishWriting(Mutation mutation)
     {
-        if (!command.responseType().isTracked())
-            return PendingRead.NOOP;
-        return getOrCreate(command.metadata().keyspace).startReading(command);
+        getOrCreate(mutation.getKeyspaceName()).finishWriting(mutation);
     }
 
-    public MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
+    public MutationSummary createSummaryForKey(DecoratedKey key, TableId tableId, boolean includePending)
     {
-        return getOrCreate(tableId).summaryForKey(tableId, key);
+        return getOrCreate(tableId).createSummaryForKey(key, tableId, includePending);
     }
 
-    public MutationSummary summaryForRange(TableId tableId, AbstractBounds<PartitionPosition> range)
+    public MutationSummary createSummaryForRange(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending)
     {
-        return getOrCreate(tableId).summaryForRange(tableId, range);
+        return getOrCreate(tableId).createSummaryForRange(range, tableId, includePending);
     }
 
-    public MutationSummary summaryForRange(TableId tableId, Range<Token> range)
+    public MutationSummary createSummaryForRange(Range<Token> range, TableId tableId, boolean includePending)
     {
-        return summaryForRange(tableId, Range.makeRowRange(range));
+        return createSummaryForRange(Range.makeRowRange(range), tableId, includePending);
     }
 
     private KeyspaceShards getOrCreate(TableId tableId)
@@ -153,10 +144,6 @@ public class MutationTrackingService
 
         private transient final Map<Range<PartitionPosition>, Shard> ppShards;
 
-        // TODO: do not hold onto mutation objects - extract the relevant fields, or fetch from journal if needed
-        private final Map<MutationId, Mutation> pendingMutations = new ConcurrentHashMap<>();
-        private final Set<ListeningPendingRead> pendingReads = Sets.newConcurrentHashSet();
-
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, IntSupplier logIdProvider)
         {
             Map<Range<Token>, Shard> shards = new HashMap<>();
@@ -189,45 +176,31 @@ public class MutationTrackingService
             lookUp(token).witnessedRemoteMutation(mutationId, onHost);
         }
 
-        // TODO (eventually): callbacks for failing to write to LSM?
-        PendingWrite startWriting(Mutation mutation)
+        void startWriting(Mutation mutation)
         {
-            pendingMutations.put(mutation.id(), mutation);
-            // TODO (consider): an indexed lookup structure for relevant commands (interval-tree-like)
-            pendingReads.forEach(read -> read.onNewWrite(mutation));
-            return () -> finishWriting(mutation);
+            lookUp(mutation).startWriting(mutation);
         }
 
         void finishWriting(Mutation mutation)
         {
-            Shard shard = lookUp(mutation);
-            shard.finishWriting(mutation);
-            pendingMutations.remove(mutation.id());
+            lookUp(mutation).finishWriting(mutation);
         }
 
-        PendingRead startReading(ReadCommand command)
-        {
-            ListeningPendingRead pendingRead = new ListeningPendingRead(command, pendingReads);
-            pendingReads.add(pendingRead);
-            pendingMutations.values().forEach(pendingRead::onNewWrite);
-            return pendingRead;
-        }
-
-        MutationSummary summaryForKey(TableId tableId, DecoratedKey key)
+        MutationSummary createSummaryForKey(DecoratedKey key, TableId tableId, boolean includePending)
         {
             MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
-            lookUp(key.getToken()).addSummaryForKey(builder, key.getToken());
+            lookUp(key.getToken()).addSummaryForKey(key.getToken(), includePending, builder);
             return builder.build();
         }
 
-        MutationSummary summaryForRange(TableId tableId, AbstractBounds<PartitionPosition> range)
+        MutationSummary createSummaryForRange(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending)
         {
             MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
-            forEachIntersectingShard(range, shard -> shard.addSummaryForRange(builder, range));
+            forEachIntersectingShard(range, shard -> shard.addSummaryForRange(range, includePending, builder));
             return builder.build();
         }
 
-        void forEachIntersectingShard(AbstractBounds<PartitionPosition> bounds, Consumer<Shard> consumer)
+        private void forEachIntersectingShard(AbstractBounds<PartitionPosition> bounds, Consumer<Shard> consumer)
         {
             ppShards.forEach((range, shard) -> {
                 // TODO (expected): partial workaround - is there a better way to do this?
@@ -255,29 +228,5 @@ public class MutationTrackingService
             Range<Token> range = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(token).range();
             return shards.get(range);
         }
-    }
-
-    public interface PendingWrite extends AutoCloseable
-    {
-        PendingWrite NOOP = () -> {};
-
-        @Override
-        void close();
-    }
-
-    public interface PendingRead extends AutoCloseable
-    {
-        PendingRead NOOP = (iterator, summary) -> iterator;
-
-        @Override
-        default void close()
-        {
-        }
-
-        /**
-         * Returns mutations contained in the mutation summary that may not have been
-         * applied to the memtable when it was read.
-         */
-        UnfilteredPartitionIterator augmentResponseWithPendingWrites(UnfilteredPartitionIterator iterator, MutationSummary summary);
     }
 }

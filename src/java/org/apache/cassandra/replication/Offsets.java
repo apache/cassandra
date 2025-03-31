@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 
 public class Offsets
 {
@@ -119,6 +120,17 @@ public class Offsets
             int   end = bounds[i + 1];
             for (int offset = start; offset <= end; offset++)
                 consumer.accept(logId, offset);
+        }
+    }
+
+    public void collectIds(Collection<ShortMutationId> into)
+    {
+        for (int i = 0; i < size; i += 2)
+        {
+            int start = bounds[i];
+            int   end = bounds[i + 1];
+            for (int offset = start; offset <= end; offset++)
+                into.add(new ShortMutationId(logId, offset));
         }
     }
 

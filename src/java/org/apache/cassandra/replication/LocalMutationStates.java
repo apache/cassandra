@@ -30,7 +30,6 @@ import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 
@@ -43,6 +42,12 @@ class LocalMutationStates
     private final Int2ObjectHashMap<Entry> statesMap = new Int2ObjectHashMap<>();
     private final SortedSet<Entry> statesSet = new TreeSet<>(Entry.comparator);
 
+    enum Visibility
+    {
+        PENDING, // written to the journal, but not yet to LSM
+        VISIBLE, // written to both the journal and LSM
+    }
+
     private static final class Entry
     {
         private static final Comparator<Entry> comparator = (left, right) ->
@@ -54,19 +59,21 @@ class LocalMutationStates
         final Token token;
         final int offset;
         final Object tableOrTables;
+        private Visibility visibility;
 
-        Entry(Token token, int offset, Object tableOrTables)
+        Entry(Token token, int offset, Object tableOrTables, Visibility visibility)
         {
             this.token = token;
             this.offset = offset;
             this.tableOrTables = tableOrTables;
+            this.visibility = visibility;
         }
 
         static Entry create(Mutation mutation)
         {
             Collection<TableId> ids = mutation.getTableIds();
             Preconditions.checkArgument(!ids.isEmpty());
-            return new Entry(mutation.key().getToken(), mutation.id().offset(), tableOrTables(mutation));
+            return new Entry(mutation.key().getToken(), mutation.id().offset(), tableOrTables(mutation), Visibility.PENDING);
         }
 
         private static Object tableOrTables(Mutation mutation)
@@ -76,21 +83,26 @@ class LocalMutationStates
             return ids.size() == 1 ? ids.iterator().next() : Sets.newHashSet(mutation.getTableIds());
         }
 
-        private boolean contains(TableId tableId)
+        boolean contains(TableId tableId)
         {
             return tableOrTables instanceof Set
                  ? ((Set<?>) tableOrTables).contains(tableId)
                  : tableId.equals(tableOrTables);
         }
 
+        boolean isVisible()
+        {
+            return visibility == Visibility.VISIBLE;
+        }
+
         static Entry start(Token token, boolean isInclusive)
         {
-            return new Entry(token, isInclusive ? 0 : Integer.MAX_VALUE, null);
+            return new Entry(token, isInclusive ? 0 : Integer.MAX_VALUE, null, null);
         }
 
         static Entry end(Token token, boolean isInclusive)
         {
-            return new Entry(token, isInclusive ? Integer.MAX_VALUE : 0, null);
+            return new Entry(token, isInclusive ? Integer.MAX_VALUE : 0, null, null);
         }
 
         @Override
@@ -103,25 +115,46 @@ class LocalMutationStates
         }
     }
 
-    void add(Mutation mutation)
+    void startWriting(Mutation mutation)
     {
         Entry entry = Entry.create(mutation);
         statesMap.put(entry.offset, entry);
         statesSet.add(entry);
     }
 
-    boolean lookUp(Token token, TableId tableId, Offsets into)
+    void finishWriting(Mutation mutation)
     {
-        SortedSet<Entry> subset = statesSet.subSet(Entry.start(token, true), Entry.end(token, true));
-        return addSubset(subset, tableId, into);
+        Entry entry = statesMap.get(mutation.id().offset());
+        Preconditions.checkNotNull(entry);
+        entry.visibility = Visibility.VISIBLE;
     }
 
-    private boolean addSubset(SortedSet<Entry> subset, TableId tableId, Offsets into)
+    void remove(int offset)
+    {
+        Entry state = statesMap.remove(offset);
+        Preconditions.checkNotNull(state);
+        statesSet.remove(state);
+    }
+
+    boolean collect(Token token, TableId tableId, boolean includePending, Offsets into)
+    {
+        SortedSet<Entry> subset = statesSet.subSet(Entry.start(token, true), Entry.end(token, true));
+        return collect(subset, tableId, includePending, into);
+    }
+
+    boolean collect(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets into)
+    {
+        Entry start = Entry.start(range.left.getToken(), range.left.kind() != PartitionPosition.Kind.MAX_BOUND);
+        Entry end = Entry.end(range.right.getToken(), range.right.kind() != PartitionPosition.Kind.MIN_BOUND);
+        return collect(start, end, tableId, includePending, into);
+    }
+
+    private boolean collect(SortedSet<Entry> subset, TableId tableId, boolean includePending, Offsets into)
     {
         boolean found = false;
         for (Entry entry : subset)
         {
-            if (entry.contains(tableId))
+            if (entry.isVisible() && entry.contains(tableId) && (includePending || entry.isVisible()))
             {
                 into.add(entry.offset);
                 found = true;
@@ -130,44 +163,25 @@ class LocalMutationStates
         return found;
     }
 
-    private boolean lookUp(Entry start, Entry end, TableId tableId, Offsets into)
+    private boolean collect(Entry start, Entry end, TableId tableId, boolean includePending, Offsets into)
     {
         int cmp = start.token.compareTo(end.token);
         if (cmp == 0)
         {
             // full range
-            return addSubset(statesSet, tableId, into);
+            return collect(statesSet, tableId, includePending, into);
         }
         else if (cmp > 0)
         {
             // wrap around range
-            boolean lFound = addSubset(statesSet.headSet(end), tableId, into);
-            boolean rFound = addSubset(statesSet.tailSet(start), tableId, into);
+            boolean lFound = collect(statesSet.headSet(end), tableId, includePending, into);
+            boolean rFound = collect(statesSet.tailSet(start), tableId, includePending, into);
             return lFound || rFound;
         }
         else
         {
             // contiguous range
-            return addSubset(statesSet.subSet(start, end), tableId, into);
+            return collect(statesSet.subSet(start, end), tableId, includePending, into);
         }
-    }
-
-    boolean lookUp(Range<Token> range, TableId tableId, Offsets into)
-    {
-        return lookUp(Entry.start(range.left, false), Entry.end(range.right, true), tableId, into);
-    }
-
-    boolean lookUp(AbstractBounds<PartitionPosition> range, TableId tableId, Offsets into)
-    {
-        Entry start = Entry.start(range.left.getToken(), range.left.kind() != PartitionPosition.Kind.MAX_BOUND);
-        Entry end = Entry.end(range.right.getToken(), range.right.kind() != PartitionPosition.Kind.MIN_BOUND);
-        return lookUp(start, end, tableId, into);
-    }
-
-    void remove(int offset)
-    {
-        Entry state = statesMap.remove(offset);
-        if (state != null)
-            statesSet.remove(new Entry(state.token, offset, null));
     }
 }

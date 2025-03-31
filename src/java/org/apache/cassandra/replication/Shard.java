@@ -60,10 +60,15 @@ public class Shard
         return currentLocalLog.nextId();
     }
 
-    public void witnessedRemoteMutation(MutationId mutationId, InetAddressAndPort onHost)
+    void witnessedRemoteMutation(MutationId mutationId, InetAddressAndPort onHost)
     {
         int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
         get(mutationId).witnessedRemoteMutation(mutationId, onHostId);
+    }
+
+    void startWriting(Mutation mutation)
+    {
+        get(mutation.id()).startWriting(mutation);
     }
 
     void finishWriting(Mutation mutation)
@@ -71,27 +76,19 @@ public class Shard
         get(mutation.id()).finishWriting(mutation);
     }
 
-    public void addSummaryForKey(MutationSummary.Builder builder, Token token)
+    void addSummaryForKey(Token token, boolean includePending, MutationSummary.Builder builder)
     {
         logs.forEach((id, log) -> {
             MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.collectOffsetsFor(token, builder.tableId, summaryBuilder.unreconciled, summaryBuilder.reconciled);
+            log.collectOffsetsFor(token, builder.tableId, includePending, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 
-    public void addSummaryForRange(MutationSummary.Builder builder, Range<Token> range)
+    void addSummaryForRange(AbstractBounds<PartitionPosition> range, boolean includePending, MutationSummary.Builder builder)
     {
         logs.forEach((id, log) -> {
             MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.collectOffsetsFor(range, builder.tableId, summaryBuilder.unreconciled, summaryBuilder.reconciled);
-        });
-    }
-
-    public void addSummaryForRange(MutationSummary.Builder builder, AbstractBounds<PartitionPosition> range)
-    {
-        logs.forEach((id, log) -> {
-            MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
-            log.collectOffsetsFor(range, builder.tableId, summaryBuilder.unreconciled, summaryBuilder.reconciled);
+            log.collectOffsetsFor(range, builder.tableId, includePending, summaryBuilder.unreconciled, summaryBuilder.reconciled);
         });
     }
 

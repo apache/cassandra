@@ -76,7 +76,7 @@ public class CoordinatorLogTest
         TableId tableId = TableId.generate();
         Offsets reconciled = new Offsets(LOG_ID);
         Offsets unreconciled = new Offsets(LOG_ID);
-        log.collectOffsetsFor(token, tableId, unreconciled, reconciled);
+        log.collectOffsetsFor(token, tableId, false, unreconciled, reconciled);
 
         for (MutationId mid : expectedIds)
             Assert.assertTrue(unreconciled.contains(mid.offset()));

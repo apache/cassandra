@@ -29,7 +29,10 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
@@ -75,8 +78,10 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
@@ -858,19 +863,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             return result;
 
         List<UnfilteredRowIterator> rows = new ArrayList<>(mutations.size());
-        ClusteringIndexFilter filter = clusteringIndexFilter();
-        Slices slices = filter.getSlices(metadata());
-        mutations.forEach(mutation -> {
-            if (!partitionKey().equals(mutation.key()))
-                return;
-            PartitionUpdate update = mutation.getPartitionUpdate(metadata());
-            if (update == null)
-                return;
-            // FIXME: support index queries
-            UnfilteredRowIterator rowIter = update.unfilteredIterator(columnFilter(), slices, filter.isReversed());
-            if (rowIter != null)
-                rows.add(rowIter);
-        });
+        Slices slices = clusteringIndexFilter().getSlices(metadata());
+
+        for (Mutation mutation : mutations)
+        {
+            UnfilteredRowIterator rowIter = queryMutation(mutation, slices);
+            if (rowIter != null) rows.add(rowIter);
+        }
         UnfilteredRowIterator merged = UnfilteredRowIterators.merge(rows);
 
         List<UnfilteredPartitionIterator> partitions = new ArrayList<>(2);
@@ -879,9 +878,43 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return UnfilteredPartitionIterators.merge(partitions, UnfilteredPartitionIterators.MergeListener.NOOP);
     }
 
-    protected MutationSummary createMutationSummaryInternal()
+    @Override
+    public UnfilteredPartitionIterator queryJournal(Collection<ShortMutationId> mutationIds)
     {
-        return MutationTrackingService.instance.summaryForKey(metadata().id, partitionKey);
+        if (mutationIds.isEmpty())
+            return EmptyIterators.unfilteredPartition(metadata());
+
+        List<UnfilteredRowIterator> rows = new ArrayList<>(mutationIds.size());
+        Slices slices = clusteringIndexFilter().getSlices(metadata());
+
+        for (ShortMutationId mutationId : mutationIds)
+        {
+            Mutation mutation = MutationJournal.instance.read(mutationId);
+            Preconditions.checkNotNull(mutation);
+            UnfilteredRowIterator rowIter = queryMutation(mutation, slices);
+            if (rowIter != null) rows.add(rowIter);
+        }
+
+        return rows.isEmpty()
+             ? EmptyIterators.unfilteredPartition(metadata())
+             : new SingletonUnfilteredPartitionIterator(UnfilteredRowIterators.merge(rows));
+    }
+
+    @Nullable
+    private UnfilteredRowIterator queryMutation(Mutation mutation, Slices slices)
+    {
+        if (!partitionKey().equals(mutation.key()))
+            return null;
+        PartitionUpdate update = mutation.getPartitionUpdate(metadata());
+        if (update == null)
+            return null;
+        // FIXME: support index queries
+        return update.unfilteredIterator(columnFilter(), slices, clusteringIndexFilter().isReversed());
+    }
+
+    protected MutationSummary createMutationSummaryInternal(boolean includePending)
+    {
+        return MutationTrackingService.instance.createSummaryForKey(partitionKey, metadata().id, includePending);
     }
 
     @Override

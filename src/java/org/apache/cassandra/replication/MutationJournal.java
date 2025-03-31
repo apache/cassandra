@@ -31,7 +31,6 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
@@ -72,11 +71,9 @@ public class MutationJournal
         journal.shutdown();
     }
 
-    public CommitLogPosition write(ShortMutationId id, Mutation mutation)
+    public RecordPointer write(ShortMutationId id, Mutation mutation)
     {
-        // TODO (preferred): update journal to return CommitLogPosition or otherwise remove requirement to allocate second object here
-        RecordPointer rp = journal.blockingWrite(id, mutation);
-        return new CommitLogPosition(rp.segment, rp.position);
+        return journal.blockingWrite(id, mutation);
     }
 
     @Nullable

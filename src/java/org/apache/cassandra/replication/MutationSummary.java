@@ -80,6 +80,14 @@ public class MutationSummary
             return reconciled.contains(offset) || unreconciled.contains(offset);
         }
 
+        /**
+         * Finds all elements that are contained by {@code left} and not contained by {@code right}
+         */
+        static void difference(CoordinatorSummary left, CoordinatorSummary right, Collection<ShortMutationId> into)
+        {
+            // TODO: implement
+        }
+
         void digest(Digest digest)
         {
             reconciled.digest(digest);
@@ -261,6 +269,47 @@ public class MutationSummary
     public CoordinatorSummary get(CoordinatorLogId logId)
     {
         return coordinatorSummaryMap.get(logId.asLong());
+    }
+
+    /**
+     * Finds all elements that are contained by {@code left} and not contained by {@code right}
+     */
+    public static void difference(MutationSummary left, MutationSummary right, Collection<ShortMutationId> into)
+    {
+        int i = 0, j = 0, lsize = left.size(), rsize = right.size();
+
+        while (i < lsize && j < rsize)
+        {
+            CoordinatorSummary l = left.get(i);
+            CoordinatorSummary r = right.get(j);
+
+            int cmp = CoordinatorSummary.idComparator.compare(l, r);
+
+            if (cmp == 0)
+            {
+                CoordinatorSummary.difference(l, r, into);
+                ++i;
+                ++j;
+            }
+            else if (cmp < 0)
+            {
+                l.reconciled.collectIds(into);
+                l.unreconciled.collectIds(into);
+                ++i;
+            }
+            else
+            {
+                ++j;
+            }
+        }
+
+        while (i < lsize)
+        {
+            CoordinatorSummary l = left.get(i);
+            l.reconciled.collectIds(into);
+            l.unreconciled.collectIds(into);
+            ++i;
+        }
     }
 
     public static final IVersionedSerializer<MutationSummary> serializer = new IVersionedSerializer<>()
