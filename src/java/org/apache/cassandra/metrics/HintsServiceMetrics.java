@@ -17,16 +17,20 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.io.Serializable;
 import java.net.UnknownHostException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -62,6 +66,12 @@ public final class HintsServiceMetrics
     public static final Meter hintsTimedOut  = Metrics.meter(factory.createMetricName("HintsTimedOut"));
     public static final Meter hintsRetryDifferentSystem  = Metrics.meter(factory.createMetricName("HintsRetryDifferentSystem"));
 
+    public static final Gauge<Long> hintsFileSize = Metrics.gauge(factory.createMetricName("HintsFileSize"), new TotalHintsSizeGauge());
+    // Corresponding to the hinted_handoff_throttle_in_kb configuration
+    public static final Counter hintsThrottle = Metrics.counter(factory.createMetricName("HintsThrottle"));
+
+    public static final Meter hintsApplySucceeded = Metrics.meter(factory.createMetricName("HintsApplySucceeded"));
+    public static final Meter hintsApplyFailed = Metrics.meter(factory.createMetricName("HintsApplyFailed"));
 
     /** Histogram of all hint delivery delays */
     private static final Histogram globalDelayHistogram = Metrics.histogram(factory.createMetricName("Hint_delays"), false);
@@ -70,6 +80,18 @@ public final class HintsServiceMetrics
     private static final LoadingCache<InetAddressAndPort, Histogram> delayByEndpoint = Caffeine.newBuilder()
                                                                                                .executor(ImmediateExecutor.INSTANCE)
                                                                                                .build(address -> Metrics.histogram(factory.createMetricName("Hint_delays-"+address.toString().replace(':', '.')), false));
+
+    // because at the time of static hintsFileSize being initialized,
+    // HintsService.instance is null / is not initialized yet so usage of method reference is not possible,
+    // so this is the workaround.
+    private static class TotalHintsSizeGauge implements Gauge<Long>, Serializable
+    {
+        @Override
+        public Long getValue()
+        {
+            return HintsService.instance.getTotalHintsSize();
+        }
+    }
 
     public static void updateDelayMetrics(InetAddressAndPort endpoint, long delay)
     {

@@ -293,6 +293,26 @@ public final class HintsService implements HintsServiceMBean
     }
 
     /**
+     * Get the total hints file size of current node
+     *
+     * Does not use stream on purpose as this is called in metrics
+     * which might be considered to be a hot path when queried frequently.
+     *
+     * The computation is reasonably fast as we have cached sizes since CASSANDRA-19477.
+     */
+    public long getTotalHintsSize()
+    {
+        long size = 0;
+        for (HintsStore store : catalog.storesCollection())
+        {
+            if (store == null)
+                continue;
+            size += store.getTotalFileSize();
+        }
+        return size;
+    }
+
+    /**
      * Gracefully and blockingly shut down the service.
      *
      * Will abort dispatch sessions that are currently in progress (which is okay, it's idempotent),
