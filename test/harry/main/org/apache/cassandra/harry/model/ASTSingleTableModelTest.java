@@ -921,6 +921,58 @@ public class ASTSingleTableModelTest
         model.validate(rows(row(metadata, 0, 0, 0, null)), Select.builder(metadata).build());
     }
 
+    @Test
+    public void updateEmptyRow()
+    {
+        TableMetadata metadata = defaultTable()
+                                 .addPartitionKeyColumn("pk", Int32Type.instance)
+                                 .addStaticColumn("s", Int32Type.instance)
+                                 .addClusteringColumn("ck", Int32Type.instance)
+                                 .addRegularColumn("r", Int32Type.instance)
+                                 .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        model.update(Mutation.update(metadata)
+                             .set("s", 0)
+                             .value("pk", 0)
+                             .value("ck", 0)
+                             .build());
+        model.validate(rows(row(metadata, 0, null, 0, null)), Select.builder(metadata).build());
+    }
+
+    @Test
+    public void deleteColumnUpdateDoesntHavePartitionState()
+    {
+        TableMetadata metadata = defaultTable()
+                                 .addPartitionKeyColumn("pk", Int32Type.instance)
+                                 .addStaticColumn("s", Int32Type.instance)
+                                 .addClusteringColumn("ck", Int32Type.instance)
+                                 .addRegularColumn("r", Int32Type.instance)
+                                 .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        model.update(Mutation.update(metadata)
+                             .set("r", 0)
+                             .set("s", 0)
+                             .value("pk", 0)
+                             .value("ck", 0)
+                             .build());
+        model.update(Mutation.update(metadata)
+                             .set("r", 1)
+                             .value("pk", 0)
+                             .value("ck", 1)
+                             .build());
+        model.validate(rows(row(metadata, 0, 0, 0, 0),
+                            row(metadata, 0, 1, 0, 1)), Select.builder(metadata).build());
+
+        model.update(Mutation.delete(metadata)
+                             .column("r")
+                             .value("pk", 0)
+                             .value("ck", 0)
+                             .build());
+        model.validate(rows(row(metadata, 0, 1, 0, 1)), Select.builder(metadata).build());
+    }
+
     private interface SimpleWrite<T>
     {
         void write(String name, T value, long ts);
