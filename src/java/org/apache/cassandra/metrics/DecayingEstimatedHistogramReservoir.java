@@ -380,7 +380,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     /**
      * @return the decaying buckets with the forward decay applied.
      */
-    public DecayingEstimatedArray snapshotBuckets()
+    private DecayingEstimatedArray snapshotBuckets()
     {
         return decayingEstimatedBuckets.snapshot(bucketsThreadLocals);
     }
@@ -1109,7 +1109,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         }
     }
 
-    public static class DecayingEstimatedArray
+    private static class DecayingEstimatedArray
     {
         private final long[] decaying;
         private final long[] estimated;
