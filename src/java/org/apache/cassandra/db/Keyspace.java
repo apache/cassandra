@@ -451,8 +451,7 @@ public class Keyspace
                                                boolean isDeferrable,
                                                Promise<?> future)
     {
-
-        Preconditions.checkState(!getMetadata().useMutationTracking());
+        Preconditions.checkState(!getMetadata().useMutationTracking() && mutation.id().isNone());
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
@@ -604,7 +603,7 @@ public class Keyspace
      */
     private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
     {
-        Preconditions.checkState(getMetadata().useMutationTracking());
+        Preconditions.checkState(getMetadata().useMutationTracking() && !mutation.id().isNone());
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
