@@ -72,7 +72,7 @@ public class TrackedWriteRequest
      * @param consistencyLevel the consistency level for the write operation
      * @param requestTime object holding times when request got enqueued and started execution
      */
-    public TrackedWriteResponseHandler perform(
+    public static TrackedWriteResponseHandler perform(
         Mutation mutation, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         Tracing.trace("Determining replicas for mutation");
@@ -103,7 +103,7 @@ public class TrackedWriteRequest
         return handler;
     }
 
-    public void applyLocallyAndSendToReplicas(Mutation mutation, ReplicaPlan.ForWrite plan, TrackedWriteResponseHandler handler)
+    public static void applyLocallyAndSendToReplicas(Mutation mutation, ReplicaPlan.ForWrite plan, TrackedWriteResponseHandler handler)
     {
         String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
 
@@ -179,7 +179,7 @@ public class TrackedWriteRequest
         }
     }
 
-    private void applyMutationLocally(Mutation mutation, TrackedWriteResponseHandler handler)
+    private static void applyMutationLocally(Mutation mutation, TrackedWriteResponseHandler handler)
     {
         Stage.MUTATION.maybeExecuteImmediately(new LocalMutationRunnable(mutation, handler));
     }
@@ -245,9 +245,9 @@ public class TrackedWriteRequest
     /*
      * Send the message to the first replica of targets, and have it forward the message to others in its DC
      */
-    private void sendMessagesToRemoteDC(Message<? extends IMutation> message,
-                                        EndpointsForToken targets,
-                                        TrackedWriteResponseHandler handler)
+    private static void sendMessagesToRemoteDC(Message<? extends IMutation> message,
+                                               EndpointsForToken targets,
+                                               TrackedWriteResponseHandler handler)
     {
         final Replica target;
 
