@@ -506,7 +506,6 @@ public class Offsets
         private static RangeOverlap calculateRangeOverlap(int[] a, int aRange, int[] b, int bRange)
         {
             return calculateRangeOverlap(NO_SPLIT_SENTINEL, a, aRange, NO_SPLIT_SENTINEL, b, bRange);
-
         }
 
         private static int[] ensureCapacity(int[] offsets, int capacity, int expectedMaxCapacity)

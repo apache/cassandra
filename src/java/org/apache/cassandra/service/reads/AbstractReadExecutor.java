@@ -89,7 +89,7 @@ public abstract class AbstractReadExecutor
 
         if (command.responseType().isUntracked())
         {
-            // FIXME: tighten up alter table validation so you can't adjust read repair type for logged tables
+            // TODO (expected): tighten up alter table validation so you can't adjust read repair type for tracked keyspace tables
             this.readRepair = command.metadata().params.readRepair.create(command, this.replicaPlan, requestTime);
             this.resolver = new DigestResolver<>(command, this.replicaPlan, requestTime);
         }

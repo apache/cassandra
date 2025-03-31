@@ -40,6 +40,7 @@ public class Shard
     private final Participants participants;
     private final Epoch sinceEpoch;
     private final NonBlockingHashMapLong<CoordinatorLog> logs;
+    // TODO (expected): add support for log rotation
     private final CoordinatorLogPrimary currentLocalLog;
 
     Shard(String keyspace, Range<Token> tokenRange, int localHostId, Participants participants, Epoch sinceEpoch, IntSupplier logIdProvider)
