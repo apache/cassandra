@@ -19,7 +19,7 @@
 <project basedir="." name="apache-cassandra-owasp-tasks"
          xmlns:unless="ant:unless"
          xmlns:if="ant:if">
-    <property name="dependency-check.version" value="10.0.4"/>
+    <property name="dependency-check.version" value="12.1.0"/>
     <property name="dependency-check.home" value="${tmp.dir}/dependency-check-ant-${dependency-check.version}"/>
     <property name="dependency-check.archive.dir" value="${local.repository}/org/owasp/dependency-check-ant/${dependency-check.version}"/>
     <property name="dependency-check.archive.name" value="dependency-check-ant-${dependency-check.version}-release.zip"/>
@@ -34,7 +34,7 @@
             unless="dependency-check-ant.archive.present">
 
         <mkdir dir="${dependency-check.archive.dir}"/>
-        <get src="https://github.com/jeremylong/DependencyCheck/releases/download/v${dependency-check.version}/${dependency-check.archive.name}"
+        <get src="https://github.com/dependency-check/DependencyCheck/releases/download/v${dependency-check.version}/${dependency-check.archive.name}"
              dest="${dependency-check.archive.dir}/${dependency-check.archive.name}" retries="3"/>
     </target>
 
