@@ -36,6 +36,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,6 +94,8 @@ public final class HintsService implements HintsServiceMBean
 
     public final HintedHandoffMetrics metrics;
 
+    public final HintsServiceMetrics hintsServiceMetrics;
+
     private HintsService()
     {
         this(FailureDetector.instance);
@@ -125,6 +128,8 @@ public final class HintsService implements HintsServiceMBean
         triggerCleanupFuture = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(cleanupTrigger, 1, 1, TimeUnit.HOURS);
 
         metrics = new HintedHandoffMetrics();
+
+        hintsServiceMetrics = new HintsServiceMetrics(this);
     }
 
     private static ImmutableMap<String, Object> createDescriptorParams()
@@ -256,6 +261,17 @@ public final class HintsService implements HintsServiceMBean
         if (store == null)
             return 0;
         return store.getTotalFileSize();
+    }
+
+    /**
+     * Get the total hints file size of current node
+     */
+    public long getTotalHintsSizeOfNode()
+    {
+        return catalog.stores()
+                      .filter(Objects::nonNull)
+                      .mapToLong(HintsStore::getTotalFileSize)
+                      .sum();
     }
 
     /**
