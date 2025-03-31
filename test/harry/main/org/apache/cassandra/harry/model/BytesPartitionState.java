@@ -126,7 +126,7 @@ public class BytesPartitionState
         long cd = factory.clusteringCache.deflateOrUndefined(clustering);
         if (cd != MagicConstants.UNSET_DESCR)
         {
-            BitSet regularColumns = bitset(columns, true);
+            BitSet regularColumns = bitset(columns, true, false);
             if (!regularColumns.allUnset())
                 state.deleteRegularColumns(ts, cd, regularColumns);
             if (rowMultiCell != null && rowMultiCell.containsKey(cd))
@@ -135,7 +135,14 @@ public class BytesPartitionState
                 for (var c : Sets.intersection(columns, multiCells.keySet()))
                 {
                     var value = multiCells.get(c).delete(ts);
-                    state.writeRegular(cd, toDescriptor(factory.regularColumns, Collections.singletonMap(c, value)), MagicConstants.NO_TIMESTAMP, false);
+                    if (value == null)
+                    {
+                        state.deleteRegularColumns(MagicConstants.NO_TIMESTAMP, cd, bitset(Collections.singleton(c), true, true));
+                    }
+                    else
+                    {
+                        state.writeRegular(cd, toDescriptor(factory.regularColumns, Collections.singletonMap(c, value)), MagicConstants.NO_TIMESTAMP, false);
+                    }
                 }
             }
         }
@@ -144,24 +151,31 @@ public class BytesPartitionState
 
     public void deleteStaticColumns(long ts, Set<Symbol> columns)
     {
-        BitSet staticColumns = bitset(columns, false);
+        BitSet staticColumns = bitset(columns, false, false);
         if (!staticColumns.allUnset())
             state.deleteStaticColumns(ts, staticColumns);
         for (var c : Sets.intersection(columns, staticMultiCell.keySet()))
         {
             var value = staticMultiCell.get(c).delete(ts);
-            state.writeStatic(toDescriptor(factory.staticColumns, Collections.singletonMap(c, value)), MagicConstants.NO_TIMESTAMP);
+            if (value == null)
+            {
+                state.deleteStaticColumns(ts, bitset(Collections.singleton(c), false, true));
+            }
+            else
+            {
+                state.writeStatic(toDescriptor(factory.staticColumns, Collections.singletonMap(c, value)), MagicConstants.NO_TIMESTAMP);
+            }
         }
     }
 
-    private BitSet bitset(Set<Symbol> columns, boolean regular)
+    private BitSet bitset(Set<Symbol> columns, boolean regular, boolean withMultiCell)
     {
         ImmutableUniqueList<Symbol> positions = regular ? factory.regularColumns : factory.staticColumns;
         BitSet bitSet = new BitSet.BitSet64Bit(positions.size());
         for (int i = 0; i < positions.size(); i++)
         {
             Symbol column = positions.get(i);
-            if (!column.type().isMultiCell() && columns.contains(column))
+            if (withMultiCell == column.type().isMultiCell() && columns.contains(column))
                 bitSet.set(i);
         }
         return bitSet;

@@ -819,7 +819,16 @@ WHERE PK_column_conditions
 
         public UpdateBuilder set(String column, int value)
         {
-            return set(new Symbol(column, Int32Type.instance), Bind.of(value));
+            Symbol symbol = find(column);
+            if (!symbol.type().equals(Int32Type.instance))
+                throw new AssertionError("Expected int type but given " + symbol.type().asCQL3Type());
+            return set(symbol, Bind.of(value));
+        }
+
+        public UpdateBuilder set(String column, Object value)
+        {
+            Symbol symbol = find(column);
+            return set(symbol, new Bind(value, symbol.type()));
         }
 
         public UpdateBuilder set(String column, Expression expression)

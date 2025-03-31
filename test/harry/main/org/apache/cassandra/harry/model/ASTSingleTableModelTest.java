@@ -947,30 +947,30 @@ public class ASTSingleTableModelTest
                                  .addPartitionKeyColumn("pk", Int32Type.instance)
                                  .addStaticColumn("s", Int32Type.instance)
                                  .addClusteringColumn("ck", Int32Type.instance)
-                                 .addRegularColumn("r", Int32Type.instance)
+                                 .addRegularColumn("r", ListType.getInstance(Int32Type.instance, true))
                                  .build();
         ASTSingleTableModel model = new ASTSingleTableModel(metadata);
 
         model.update(Mutation.update(metadata)
-                             .set("r", 0)
+                             .set("r", List.of(0))
                              .set("s", 0)
                              .value("pk", 0)
                              .value("ck", 0)
                              .build());
         model.update(Mutation.update(metadata)
-                             .set("r", 1)
+                             .set("r", List.of(1))
                              .value("pk", 0)
                              .value("ck", 1)
                              .build());
-        model.validate(rows(row(metadata, 0, 0, 0, 0),
-                            row(metadata, 0, 1, 0, 1)), Select.builder(metadata).build());
+        model.validate(rows(row(metadata, 0, 0, 0, List.of(0)),
+                            row(metadata, 0, 1, 0, List.of(1))), Select.builder(metadata).build());
 
         model.update(Mutation.delete(metadata)
                              .columns("r", "s")
                              .value("pk", 0)
                              .value("ck", 0)
                              .build());
-        model.validate(rows(row(metadata, 0, 1, null, 1)), Select.builder(metadata).build());
+        model.validate(rows(row(metadata, 0, 1, null, List.of(1))), Select.builder(metadata).build());
     }
 
     private interface SimpleWrite<T>
@@ -994,8 +994,9 @@ public class ASTSingleTableModelTest
         var it = metadata.allColumnsInSelectOrder();
         for (int i = 0; i < values.length && it.hasNext(); i++)
         {
+            ColumnMetadata column = it.next();
             Object value = values[i];
-            row[i] = value == null ? null : it.next().type.decomposeUntyped(value);
+            row[i] = value == null ? null : column.type.decomposeUntyped(value);
         }
         return row;
     }
