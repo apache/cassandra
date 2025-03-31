@@ -289,6 +289,9 @@ public class TableMetrics
 
     public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
+    // Time spent building SSTableIntervalTree when constructing a new View under the Tracker lock
+    public final LatencyMetrics viewSSTableIntervalTree;
+
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
         long total = 0;
@@ -860,6 +863,8 @@ public class TableMetrics
 
         tooManySSTableIndexesReadWarnings = createTableMeter("TooManySSTableIndexesReadWarnings", cfs.keyspace.metric.tooManySSTableIndexesReadWarnings);
         tooManySSTableIndexesReadAborts = createTableMeter("TooManySSTableIndexesReadAborts", cfs.keyspace.metric.tooManySSTableIndexesReadAborts);
+
+        viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree", cfs.keyspace.metric.viewSSTableIntervalTree);
 
         formatSpecificGauges = createFormatSpecificGauges(cfs);
     }
