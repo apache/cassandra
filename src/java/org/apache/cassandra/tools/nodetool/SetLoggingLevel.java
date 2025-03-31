@@ -83,7 +83,7 @@ public class SetLoggingLevel extends NodeToolCmd
                     "org.apache.cassandra.batchlog",
                     "org.apache.cassandra.net.ResponseVerbHandler",
                     "org.apache.cassandra.service.AbstractReadExecutor",
-                    "org.apache.cassandra.service.AbstractWriteResponseHandler",
+                    "org.apache.cassandra.service.WriteResponseHandler",
                     "org.apache.cassandra.service.paxos",
                     "org.apache.cassandra.service.ReadCallback",
                     "org.apache.cassandra.service.ResponseResolver");

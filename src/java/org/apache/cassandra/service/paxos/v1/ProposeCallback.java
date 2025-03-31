@@ -21,10 +21,12 @@ package org.apache.cassandra.service.paxos.v1;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.db.ConsistencyLevel;
+import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Nemesis;
@@ -46,31 +48,29 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
 {
     private static final Logger logger = LoggerFactory.getLogger(ProposeCallback.class);
 
+    /** We track the count of accepted proposal responses separately from just _who_ responded / counts in the tracker */
     @Nemesis private final AtomicInteger accepts = new AtomicInteger(0);
-    private final int requiredAccepts;
     private final boolean failFast;
 
-    public ProposeCallback(int totalTargets, int requiredTargets, boolean failFast, ConsistencyLevel consistency, Dispatcher.RequestTime requestTime)
+    public ProposeCallback(ReplicaPlan.ForPaxosWrite replicaPlan, int requiredResponses, boolean failFast, Dispatcher.RequestTime requestTime)
     {
-        super(totalTargets, consistency, requestTime);
-        this.requiredAccepts = requiredTargets;
+        super(replicaPlan.contacts().endpoints(), requiredResponses, replicaPlan.consistencyLevel(), requestTime);
         this.failFast = failFast;
     }
 
     public void onResponse(Message<Boolean> msg)
     {
+        Preconditions.checkNotNull(msg, "Got unexpected null message in onResponse callback.");
         logger.trace("Propose response {} from {}", msg.payload, msg.from());
+        tracker.recordResponse(msg.from());
 
         if (msg.payload)
             accepts.incrementAndGet();
 
         latch.decrement();
 
-        if (isSuccessful() || (failFast && (latch.count() + accepts.get() < requiredAccepts)))
-        {
-            while (latch.count() > 0)
-                latch.decrement();
-        }
+        if (isSuccessful() || (failFast && (latch.count() + accepts.get() < tracker.requiredResponses)))
+            signal();
     }
 
     public int getAcceptCount()
@@ -80,7 +80,7 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
 
     public boolean isSuccessful()
     {
-        return accepts.get() >= requiredAccepts;
+        return accepts.get() >= tracker.requiredResponses;
     }
 
     // Note: this is only reliable if !failFast

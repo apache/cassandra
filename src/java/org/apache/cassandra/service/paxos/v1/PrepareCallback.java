@@ -22,11 +22,12 @@ package org.apache.cassandra.service.paxos.v1;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,30 +41,43 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
 {
     private static final Logger logger = LoggerFactory.getLogger(PrepareCallback.class);
 
-    public boolean promised = true;
-    public Commit mostRecentCommit;
-    public Commit mostRecentInProgressCommit;
+    private boolean promised = true;
+    private Commit mostRecentCommit;
+    private Commit mostRecentInProgressCommit;
 
     private final Map<InetAddressAndPort, Commit> commitsByReplica = new ConcurrentHashMap<>();
 
-    public PrepareCallback(DecoratedKey key, TableMetadata metadata, int targets, ConsistencyLevel consistency, Dispatcher.RequestTime requestTime)
+
+    public PrepareCallback(DecoratedKey key, TableMetadata metadata, ReplicaPlan.ForPaxosWrite replicaPlan, Dispatcher.RequestTime requestTime)
     {
-        super(targets, consistency, requestTime);
+        super(replicaPlan.contacts().endpoints(), replicaPlan.requiredParticipants(), replicaPlan.consistencyLevel(), requestTime);
         // need to inject the right key in the empty commit so comparing with empty commits in the response works as expected
         mostRecentCommit = Commit.emptyCommit(key, metadata);
         mostRecentInProgressCommit = Commit.emptyCommit(key, metadata);
     }
 
-    public synchronized void onResponse(Message<PrepareResponse> message)
+    public boolean isPromised() { return promised; }
+    public Commit getMostRecentCommit() { return mostRecentCommit; }
+    public Commit getMostRecentInProgressCommit() { return mostRecentInProgressCommit; }
+
+    public synchronized void onResponse(Message<PrepareResponse> msg)
     {
-        PrepareResponse response = message.payload;
-        logger.trace("Prepare response {} from {}", response, message.from());
+        Preconditions.checkNotNull(msg, "Got unexpected null message in onResponse callback.");
+        PrepareResponse response = msg.payload;
+        tracker.recordResponse(msg.from());
+        logger.trace("Prepare response {} from {}", response, msg.from());
+
+        // We don't want to flip the promise state if we've already succeeded or failed on this callback; if we've hit
+        // a quorum promised subsequent failures shouldn't be considered in our calculation.
+        if (latch.count() == 0)
+            return;
 
         // We set the mostRecentInProgressCommit even if we're not promised as, in that case, the ballot of that commit
         // will be used to avoid generating a ballot that has not chance to win on retry (think clock skew).
         if (response.inProgressCommit.isAfter(mostRecentInProgressCommit))
             mostRecentInProgressCommit = response.inProgressCommit;
 
+        // Immediately bail out if any participant declines
         if (!response.promised)
         {
             promised = false;
@@ -72,11 +86,13 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
             return;
         }
 
-        commitsByReplica.put(message.from(), response.mostRecentCommit);
+        commitsByReplica.put(msg.from(), response.mostRecentCommit);
         if (response.mostRecentCommit.isAfter(mostRecentCommit))
             mostRecentCommit = response.mostRecentCommit;
 
         latch.decrement();
+        if (tracker.isSuccessful())
+            signal();
     }
 
     public Iterable<InetAddressAndPort> replicasMissingMostRecentCommit()

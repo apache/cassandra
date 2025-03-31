@@ -25,39 +25,43 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.transport.Dispatcher;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
  * This class blocks for a quorum of responses _in the local datacenter only_ (CL.LOCAL_QUORUM).
  */
-public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
+public class LocalQuorumResponseHandler<T> extends WriteResponseHandler<T>
 {
     private final Predicate<InetAddressAndPort> waitingFor = InOurDc.endpoints();
 
-    public DatacenterWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
-                                          Runnable callback,
-                                          WriteType writeType,
-                                          Supplier<Mutation> hintOnFailure,
-                                          Dispatcher.RequestTime requestTime)
+    /** We only want to consider acks from the local DC towards our success count for LOCAL_QUORUM */
+    private final AtomicInteger localDCAcks = new AtomicInteger(0);
+
+    public LocalQuorumResponseHandler(ReplicaPlan.ForWrite replicaPlan,
+                                      Runnable callback,
+                                      WriteType writeType,
+                                      Supplier<Mutation> hintOnFailure,
+                                      Dispatcher.RequestTime requestTime)
     {
         super(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         assert replicaPlan.consistencyLevel().isDatacenterLocal();
+        // We don't update our tracker w/any per-DC context here since we consider success as "got enough in local DC".
     }
 
     @Override
-    public void onResponse(Message<T> message)
+    public void onResponse(Message<T> msg)
     {
-        if (message == null || waitingFor(message.from()))
-        {
-            super.onResponse(message);
-        }
-        else
-        {
-            //WriteResponseHandler.response will call logResonseToIdealCLDelegate so only do it if not calling WriteResponseHandler.response.
-            //Must be last after all subclass processing
-            logResponseToIdealCLDelegate(message);
-        }
+        if (msg == null || waitingFor(msg.from()))
+            localDCAcks.getAndIncrement();
+        super.onResponse(msg);
+    }
+
+    @Override
+    public boolean receivedSufficientResponses()
+    {
+        return localDCAcks.get() >= tracker.requiredResponses;
     }
 
     @Override

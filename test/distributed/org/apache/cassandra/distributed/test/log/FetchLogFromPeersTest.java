@@ -106,7 +106,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             }
             catch (Exception writeTimeout)
             {
-                Assert.assertTrue(writeTimeout.getMessage().contains("Operation timed out"));
+                Assert.assertTrue(writeTimeout.getMessage().contains("write timeout"));
             }
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(3), 1);
             Assert.assertEquals(1,

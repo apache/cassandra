@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.exceptions;
 
+import java.util.Map;
+
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class CasWriteUnknownResultException extends RequestExecutionException
 {
@@ -26,11 +29,26 @@ public class CasWriteUnknownResultException extends RequestExecutionException
     public final int received;
     public final int blockFor;
 
-    public CasWriteUnknownResultException(ConsistencyLevel consistency, int received, int blockFor)
+    public CasWriteUnknownResultException(ConsistencyLevel consistency, int received, int blockFor, String msg)
     {
-        super(ExceptionCode.CAS_WRITE_UNKNOWN, String.format("CAS operation result is unknown - proposal accepted by %d but not a quorum.", received));
+        super(ExceptionCode.CAS_WRITE_UNKNOWN, msg);
         this.consistency = consistency;
         this.received = received;
         this.blockFor = blockFor;
+    }
+
+    /**
+     * Always prefer {@link #withParticipants} when you have that information available in context 
+     */
+    public static CasWriteUnknownResultException withoutParticipants(ConsistencyLevel consistency, int received, int blockFor)
+    {
+        return new CasWriteUnknownResultException(consistency, received, blockFor, String.format("CAS operation result is unknown - proposal accepted by %d but not a quorum.", received));
+    }
+
+    public static CasWriteUnknownResultException withParticipants(ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    {
+        return new CasWriteUnknownResultException(consistency, received, blockFor, RequestFailureReason.buildErrorMessage(
+                                                      String.format("CAS operation result is unknown - proposal accepted by %d but not a quorum", received),
+                                                      failureReasonByEndpoint));
     }
 }

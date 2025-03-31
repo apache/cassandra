@@ -83,7 +83,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         int receivedBlockFor = 3;
         ConsistencyLevel consistencyLevel = ConsistencyLevel.ALL;
         WriteType writeType = WriteType.SIMPLE;
-        WriteFailureException wfe = new WriteFailureException(consistencyLevel, receivedBlockFor, receivedBlockFor, writeType, failureReasonMap2);
+        WriteFailureException wfe = new WriteFailureException(writeType, consistencyLevel, receivedBlockFor, receivedBlockFor, failureReasonMap2);
 
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(wfe), ProtocolVersion.V5);
         WriteFailureException deserializedWfe = (WriteFailureException) deserialized.error;
@@ -101,7 +101,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         int contentions = 1;
         int receivedBlockFor = 3;
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
-        CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.CAS, consistencyLevel, 0, receivedBlockFor, contentions);
+        CasWriteTimeoutException ex = CasWriteTimeoutException.withoutParticipants(WriteType.CAS, consistencyLevel, 0, receivedBlockFor, contentions);
 
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V5);
         assertTrue(deserialized.error instanceof CasWriteTimeoutException);
@@ -122,7 +122,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
         int contentions = 1;
         int receivedBlockFor = 3;
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
-        CasWriteTimeoutException ex = new CasWriteTimeoutException(WriteType.CAS, consistencyLevel, receivedBlockFor, receivedBlockFor, contentions);
+        CasWriteTimeoutException ex = CasWriteTimeoutException.withoutParticipants(WriteType.CAS, consistencyLevel, receivedBlockFor, receivedBlockFor, contentions);
 
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V4);
         assertTrue(deserialized.error instanceof WriteTimeoutException);
@@ -140,7 +140,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
     {
         int receivedBlockFor = 3;
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
-        CasWriteUnknownResultException ex = new CasWriteUnknownResultException(consistencyLevel, receivedBlockFor, receivedBlockFor);
+        CasWriteUnknownResultException ex = CasWriteUnknownResultException.withoutParticipants(consistencyLevel, receivedBlockFor, receivedBlockFor);
 
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V5);
         assertTrue(deserialized.error instanceof CasWriteUnknownResultException);
@@ -158,7 +158,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
     {
         int receivedBlockFor = 3;
         ConsistencyLevel consistencyLevel = ConsistencyLevel.SERIAL;
-        CasWriteUnknownResultException ex = new CasWriteUnknownResultException(consistencyLevel, receivedBlockFor, receivedBlockFor);
+        CasWriteUnknownResultException ex = CasWriteUnknownResultException.withoutParticipants(consistencyLevel, receivedBlockFor, receivedBlockFor);
 
         ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromException(ex), ProtocolVersion.V4);
         assertTrue(deserialized.error instanceof WriteTimeoutException);
@@ -175,7 +175,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
      * so later modifications to the map passed in don't affect the map in the exception.
      *
      * This is to prevent potential issues in serialization if the map created in
-     * ReadCallback/AbstractWriteResponseHandler is modified due to a delayed failure
+     * ReadCallback/WriteResponseHandler is modified due to a delayed failure
      * response after the exception is created.
      */
     @Test
@@ -183,7 +183,7 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
     {
         Map<InetAddressAndPort, RequestFailureReason> modifiableFailureReasons = new HashMap<>(failureReasonMap1);
         ReadFailureException rfe = new ReadFailureException(ConsistencyLevel.ALL, 3, 3, false, modifiableFailureReasons);
-        WriteFailureException wfe = new WriteFailureException(ConsistencyLevel.ALL, 3, 3, WriteType.SIMPLE, modifiableFailureReasons);
+        WriteFailureException wfe = new WriteFailureException(WriteType.SIMPLE, ConsistencyLevel.ALL, 3, 3, modifiableFailureReasons);
 
         modifiableFailureReasons.put(InetAddressAndPort.getByName("127.0.0.4"), RequestFailureReason.UNKNOWN);
 

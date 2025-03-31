@@ -58,10 +58,11 @@ public class ReplicaUtils
         return transientReplica(endpoint, new Range<>(token, token));
     }
 
-    static final InetAddressAndPort EP1, EP2, EP3, EP4, EP5, EP6, EP7, EP8, EP9, BROADCAST_EP, NULL_EP;
-    static final Range<Token> R1, R2, R3, R4, R5, R6, R7, R8, R9, BROADCAST_RANGE, NULL_RANGE, WRAP_RANGE;
-    static final List<InetAddressAndPort> ALL_EP;
-    static final List<Range<Token>> ALL_R;
+    public static final InetAddressAndPort EP1, EP2, EP3, EP4, EP5, EP6, EP7, EP8, EP9, EP10, BROADCAST_EP, NULL_EP;
+    public static final Range<Token> R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, BROADCAST_RANGE, NULL_RANGE, WRAP_RANGE;
+    public static final List<InetAddressAndPort> ALL_EP;
+    public static final List<InetAddressAndPort> UNIQUE_EP;
+    public static final List<Range<Token>> ALL_R;
 
     static
     {
@@ -76,6 +77,7 @@ public class ReplicaUtils
             EP7 = InetAddressAndPort.getByName("127.0.0.7");
             EP8 = InetAddressAndPort.getByName("127.0.0.8");
             EP9 = InetAddressAndPort.getByName("127.0.0.9");
+            EP10 = InetAddressAndPort.getByName("127.0.0.10");
             BROADCAST_EP = FBUtilities.getBroadcastAddressAndPort();
             NULL_EP = InetAddressAndPort.getByName("127.255.255.255");
             R1 = range(0, 1);
@@ -87,10 +89,12 @@ public class ReplicaUtils
             R7 = range(6, 7);
             R8 = range(7, 8);
             R9 = range(8, 9);
+            R10 = range(9, 10);
             BROADCAST_RANGE = range(10, 11);
             NULL_RANGE = range(10000, 10001);
             WRAP_RANGE = range(100000, 0);
             ALL_EP = ImmutableList.of(EP1, EP2, EP3, EP4, EP5, BROADCAST_EP);
+            UNIQUE_EP = ImmutableList.of(EP1, EP2, EP3, EP4, EP5, EP6, EP7, EP8, EP9, EP10);
             ALL_R = ImmutableList.of(R1, R2, R3, R4, R5, BROADCAST_RANGE, WRAP_RANGE);
         }
         catch (UnknownHostException e)

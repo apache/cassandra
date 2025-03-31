@@ -17,10 +17,18 @@
  */
 package org.apache.cassandra.service.paxos.v1;
 
+import java.util.Collection;
+import java.util.Map;
+
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.CallbackResponseTracker;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -28,26 +36,26 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
 {
     protected final CountDownLatch latch;
-    protected final int targets;
     private final ConsistencyLevel consistency;
     private final Dispatcher.RequestTime requestTime;
 
-    public AbstractPaxosCallback(int targets, ConsistencyLevel consistency, Dispatcher.RequestTime requestTime)
+    protected final CallbackResponseTracker tracker;
+
+    protected AbstractPaxosCallback(Collection<InetAddressAndPort> endpoints, int requiredResponses, ConsistencyLevel consistency, Dispatcher.RequestTime requestTime)
     {
-        this.targets = targets;
+        tracker = new CallbackResponseTracker(endpoints, requiredResponses);
+        latch = CountDownLatch.newCountDownLatch(endpoints.size());
         this.consistency = consistency;
-        latch = newCountDownLatch(targets);
         this.requestTime = requestTime;
     }
 
     public int getResponseCount()
     {
-        return targets - latch.count();
+        return tracker.participantCount() - latch.count();
     }
 
     public void await() throws WriteTimeoutException
@@ -58,11 +66,37 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
             long timeout = requestTime.computeTimeout(now, DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS));
 
             if (!latch.await(timeout, NANOSECONDS))
-                throw new WriteTimeoutException(WriteType.CAS, consistency, getResponseCount(), targets);
+            {
+                String errorMessage = RequestFailureReason.buildErrorMessage("CAS operation timed out", tracker.endProcessing());
+                throw new WriteTimeoutException(WriteType.CAS, consistency, getResponseCount(), tracker.requiredResponses, errorMessage);
+            }
         }
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
         }
+    }
+
+    public Map<InetAddressAndPort, RequestFailureReason> getFailureMap()
+    {
+        return tracker.endProcessing();
+    }
+
+    protected void signal()
+    {
+        while (latch.count() > 0)
+            latch.decrement();
+    }
+
+    @VisibleForTesting
+    public int blockFor()
+    {
+        return tracker.requiredResponses;
+    }
+
+    @VisibleForTesting
+    public CallbackResponseTracker responseTracker()
+    {
+        return tracker;
     }
 }

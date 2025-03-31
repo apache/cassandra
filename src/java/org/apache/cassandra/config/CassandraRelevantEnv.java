@@ -28,8 +28,8 @@ public enum CassandraRelevantEnv
      */
     JAVA_HOME ("JAVA_HOME"),
     CIRCLECI("CIRCLECI"),
-    CASSANDRA_SKIP_SYNC("CASSANDRA_SKIP_SYNC")
-
+    CASSANDRA_SKIP_SYNC("CASSANDRA_SKIP_SYNC"),
+    USER_SEED("cassandra.test.seed")
     ;
 
     CassandraRelevantEnv(String key)

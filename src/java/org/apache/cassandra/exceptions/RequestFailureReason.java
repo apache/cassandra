@@ -18,11 +18,13 @@
 package org.apache.cassandra.exceptions;
 
 import java.io.IOException;
+import java.util.Map;
 
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.NotCMSException;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -68,7 +70,7 @@ public enum RequestFailureReason
         for (RequestFailureReason reason : reasons)
         {
             if (codeMap[reason.code] != null)
-                throw new RuntimeException("Two RequestFailureReason-s that map to the same code: " + reason.code);
+                throw new RuntimeException("Two RequestFailureReasons that map to the same code: " + reason.code);
             codeMap[reason.code] = reason;
         }
 
@@ -102,6 +104,11 @@ public enum RequestFailureReason
             return COORDINATOR_BEHIND;
 
         return UNKNOWN;
+    }
+
+    public static String buildErrorMessage(CharSequence msg, Map<InetAddressAndPort, RequestFailureReason> failures)
+    {
+        return RequestFailureException.buildErrorMessage(msg, failures);
     }
 
     public static final class Serializer implements IVersionedSerializer<RequestFailureReason>

@@ -17,15 +17,16 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.net.CallbackResponseTracker;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TruncateResponse;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -43,20 +44,19 @@ import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeConditio
 
 public class TruncateResponseHandler implements RequestCallback<TruncateResponse>
 {
-    protected static final Logger logger = LoggerFactory.getLogger(TruncateResponseHandler.class);
-    protected final Condition condition = newOneTimeCondition();
-    private final int responseCount;
-    protected final AtomicInteger responses = new AtomicInteger(0);
-    private final long start;
-    private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
 
-    public TruncateResponseHandler(int responseCount)
+    protected final Condition condition = newOneTimeCondition();
+    private final long start;
+    private final CallbackResponseTracker tracker;
+
+    public TruncateResponseHandler(Set<InetAddressAndPort> endpoints)
     {
         // at most one node per range can bootstrap at a time, and these will be added to the write until
         // bootstrap finishes (at which point we no longer need to write to the old ones).
-        assert 1 <= responseCount: "invalid response count " + responseCount;
+        Preconditions.checkArgument(!endpoints.isEmpty(), "Need non-zero number of replicas to send truncate to.");
 
-        this.responseCount = responseCount;
+        // We need all to ack a truncate for it to be good.
+        tracker = new CallbackResponseTracker(endpoints, endpoints.size());
         start = nanoTime();
     }
 
@@ -73,37 +73,33 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
             throw new UncheckedInterruptedException(e);
         }
 
-        if (!signaled)
-            throw new TimeoutException("Truncate timed out - received only " + responses.get() + " responses");
+        Map<InetAddressAndPort, RequestFailureReason> failures = tracker.endProcessing();
+        if (signaled && tracker.isSuccessful())
+            return;
 
-        if (!failureReasonByEndpoint.isEmpty())
-        {
-            // clone to make sure no race condition happens
-            Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>(this.failureReasonByEndpoint);
-            if (RequestCallback.isTimeout(failureReasonByEndpoint))
-                throw new TimeoutException("Truncate timed out - received only " + responses.get() + " responses");
+        String msgRider = failures.isEmpty()
+                          ? String.format("received %d of %d required successes to truncate", tracker.responseCount(), tracker.requiredResponses)
+                          : String.format("must have all %d replicas succeed to truncate; saw %d failures", tracker.requiredResponses, failures.size());
 
-            StringBuilder sb = new StringBuilder("Truncate failed on ");
-            for (Map.Entry<InetAddressAndPort, RequestFailureReason> e : failureReasonByEndpoint.entrySet())
-                sb.append("replica ").append(e.getKey()).append(" -> ").append(e.getValue()).append(", ");
-            sb.setLength(sb.length() - 2);
-            throw new TruncateException(sb.toString());
-        }
+        if (!signaled && tracker.isTimeout())
+            throw new TimeoutException(tracker.buildParticipantString(String.format("truncate timeout: %s", msgRider)));
+        else if (!tracker.isSuccessful())
+            throw new TruncateException(tracker.buildParticipantString(String.format("truncate failure: %s", msgRider)));
     }
 
     @Override
-    public void onResponse(Message<TruncateResponse> message)
+    public void onResponse(Message<TruncateResponse> msg)
     {
-        responses.incrementAndGet();
-        if (responses.get() >= responseCount)
+        tracker.recordResponse(msg == null ? FBUtilities.getBroadcastAddressAndPort() : msg.from());
+        if (tracker.isSuccessful())
             condition.signalAll();
     }
 
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
-        // If the truncation hasn't succeeded on some replica, abort and indicate this back to the client.
-        failureReasonByEndpoint.put(from, failureReason);
+        // If the truncation hasn't succeeded on any replica, abort and indicate this back to the client.
+        tracker.recordFailure(from, failureReason);
         condition.signalAll();
     }
 
@@ -111,5 +107,16 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
     public boolean invokeOnFailure()
     {
         return true;
+    }
+
+    @VisibleForTesting
+    public int blockFor()
+    {
+        return tracker.requiredResponses;
+    }
+
+    public String getTrackerStatus()
+    {
+        return tracker.toString();
     }
 }

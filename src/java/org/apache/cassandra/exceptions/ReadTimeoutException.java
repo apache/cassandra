@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.exceptions;
 
+import java.util.Map;
+
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class ReadTimeoutException extends RequestTimeoutException
 {
@@ -27,5 +30,22 @@ public class ReadTimeoutException extends RequestTimeoutException
     {
         super(ExceptionCode.READ_TIMEOUT, consistency, received, blockFor);
         this.dataPresent = dataPresent;
+    }
+
+    public ReadTimeoutException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, String msg)
+    {
+        super(ExceptionCode.READ_TIMEOUT, consistency, received, blockFor, msg);
+        this.dataPresent = dataPresent;
+    }
+
+    public static ReadTimeoutException withParticipants(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failures)
+    {
+        ReadTimeoutException result = new ReadTimeoutException(consistency,
+                                                               received,
+                                                               blockFor,
+                                                               dataPresent,
+                                                               RequestFailureReason.buildErrorMessage(String.format("read timeout; received only %d of %d responses", received, blockFor), failures)
+        );
+        return result;
     }
 }

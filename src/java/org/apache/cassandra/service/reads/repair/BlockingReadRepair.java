@@ -103,16 +103,17 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             // pick one of the repairs to throw, as this is better than completely manufacturing the error message
             int blockFor = timedOut.blockFor();
             int received = Math.min(blockFor - timedOut.waitingOn(), blockFor - 1);
+            String msg = String.format("Timed out while read-repairing after receiving all %d data and digest responses", blockFor);
             if (Tracing.isTracing())
-                Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
+                Tracing.trace(msg);
             else
-                logger.debug("Timeout while read-repairing after receiving all {} data and digest responses", blockFor);
+                logger.debug(msg);
 
-            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, true);
+            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, true, msg);
         }
 
-        if (repairs.isEmpty() || repairPlan.stillAppliesTo(ClusterMetadata.current()))
-            return;
+        if (!repairs.isEmpty())
+            repairPlan.checkStillAppliesTo(ClusterMetadata.current());
     }
 
     @Override
