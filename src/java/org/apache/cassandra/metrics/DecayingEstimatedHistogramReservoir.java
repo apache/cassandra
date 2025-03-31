@@ -1138,10 +1138,21 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         }
     }
 
+    /**
+     * This class is used to store the decaying buckets in a thread local variable along with the landmark.
+     * No concurrency issues are expected here, as the thread local is only used by one thread at a time.
+     */
     private static class DecayingArray
     {
         private final long[] data;
         private final long decayLandmark;
+        /**
+         * As SampledClock is used to register the last time the decay weight was sampled,
+         * and the precision of the clock is not guaranteed to be nanoseconds (approximately 2ms),
+         * we can avoid calculating the decay weight for every sample and instead use the last calculated weight.
+         */
+        private long lastSampledClock;
+        private long lastDecayedWeight;
 
         public DecayingArray(int size, long decayLandmark)
         {
@@ -1151,8 +1162,12 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         public void update(int index, long now)
         {
-            // Add forward decay weight to the value.
-            data[index] += forwardDecayWeight(decayLandmark, now);
+            if (lastSampledClock != now)
+            {
+                lastSampledClock = now;
+                lastDecayedWeight = forwardDecayWeight(decayLandmark, now);
+            }
+            data[index] += lastDecayedWeight;
         }
     }
 }
