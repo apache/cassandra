@@ -274,7 +274,7 @@ public class BytesPartitionState
     private static class SetState extends AbstractMultiCell
     {
         private final SetType<?> type;
-        private final TreeMap<ByteBuffer, Long> cells;
+        private final TreeMap<ByteBuffer, Value> cells;
 
         private SetState(SetType<?> type)
         {
@@ -285,8 +285,12 @@ public class BytesPartitionState
         @Override
         public ByteBuffer state()
         {
-            if (cells.isEmpty()) return null;
-            return type.getSerializer().pack(cells.keySet().stream().collect(Collectors.toList()));
+            var alive = cells.entrySet().stream()
+                             .filter(e -> e.getValue().kind == Value.Kind.LIVE)
+                             .map(e -> e.getKey())
+                             .collect(Collectors.toList());
+            if (alive.isEmpty()) return null;
+            return type.getSerializer().pack(alive);
         }
 
         @Override
@@ -301,32 +305,33 @@ public class BytesPartitionState
                 ByteBuffer bb = type.getElementsType().decomposeUntyped(v);
                 if (ts != MagicConstants.NO_TIMESTAMP && cells.containsKey(bb))
                 {
-                    if (ts > cells.get(bb))
-                        cells.put(bb, ts);
+                    Value value = cells.get(bb);
+                    if (ts > value.ts)
+                        cells.put(bb, new Value(ts, Value.Kind.LIVE));
                 }
                 else
                 {
-                    cells.put(bb, ts);
+                    cells.put(bb, new Value(ts, Value.Kind.LIVE));
                 }
             }
             return state();
         }
 
         @Override
-        public ByteBuffer remove(long ts, ByteBuffer value)
+        public ByteBuffer remove(long ts, ByteBuffer buffer)
         {
             if (isShadowed(ts))
                 return state();
-            var values = type.compose(value);
+            var values = type.compose(buffer);
             for (var v : values)
             {
-                // writing will take the highest timestamp
                 ByteBuffer bb = type.getElementsType().decomposeUntyped(v);
-                if (ts != MagicConstants.NO_TIMESTAMP && cells.containsKey(bb))
-                {
-                    if (ts > cells.get(bb))
-                        cells.remove(bb);
-                }
+                Value value = cells.get(bb);
+                if (ts == MagicConstants.NO_TIMESTAMP
+                    || value == null
+                    || ts > value.ts
+                    || (ts == value.ts && value.kind == Value.Kind.LIVE))
+                    cells.put(bb, new Value(ts, Value.Kind.TOMBSTONE));
             }
             return state();
         }
@@ -340,11 +345,24 @@ public class BytesPartitionState
             List<ByteBuffer> toDelete = new ArrayList<>();
             for (var e : cells.entrySet())
             {
-                if (e.getValue() <= ts)
+                if (e.getValue().ts <= ts)
                     toDelete.add(e.getKey());
             }
             toDelete.forEach(cells::remove);
             return state();
+        }
+
+        private static class Value
+        {
+            private enum Kind { LIVE, TOMBSTONE }
+            private final long ts;
+            private final Kind kind;
+
+            private Value(long ts, Kind kind)
+            {
+                this.ts = ts;
+                this.kind = kind;
+            }
         }
     }
 
