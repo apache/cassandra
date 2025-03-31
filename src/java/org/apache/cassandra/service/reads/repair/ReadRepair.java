@@ -19,22 +19,14 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.function.Consumer;
 
-import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.ResponseResolver;
-import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
-import org.apache.cassandra.transport.Dispatcher;
 
 public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
 {
-    public interface Factory
-    {
-        <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        UntrackedReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime);
-    }
 
     /**
      * Called when the digests from the initial read don't match. Reads may block on the

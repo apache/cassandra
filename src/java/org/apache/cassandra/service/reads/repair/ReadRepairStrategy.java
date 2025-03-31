@@ -26,7 +26,7 @@ import org.apache.cassandra.transport.Dispatcher;
 
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
-public enum ReadRepairStrategy implements ReadRepair.Factory
+public enum ReadRepairStrategy implements UntrackedReadRepair.Factory
 {
     NONE
     {

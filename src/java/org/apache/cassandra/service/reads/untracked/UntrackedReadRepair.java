@@ -22,14 +22,21 @@ import java.util.Map;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.transport.Dispatcher;
 
 public interface UntrackedReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ReadRepair<E, P>
 {
+    interface Factory
+    {
+        <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+        UntrackedReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime);
+    }
 
     /**
      * Used by DataResolver to generate corrections as the partition iterator is consumed
