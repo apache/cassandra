@@ -181,7 +181,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      * This value provides an average duration over which a data point meaningfully affects the histogram before
      * its weight diminishes substantially.
      */
-    public static final double MEAN_LIFETIME_IN_NS = TimeUnit.SECONDS.toNanos(Math.round(HALF_TIME_IN_S / Math.log(2.0)));
+    public static final double MEAN_LIFETIME_IN_S = HALF_TIME_IN_S / Math.log(2.0);
     /**
      * The rescaling of decaying buckets every 30 minutes serves several key purposes:
      * <ul>
@@ -361,7 +361,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
     private static long forwardDecayWeight(long decayLandmark, long now)
     {
-        return Math.round(Math.exp((now - decayLandmark) / MEAN_LIFETIME_IN_NS));
+        return Math.round(Math.exp(TimeUnit.NANOSECONDS.toSeconds(now - decayLandmark) / MEAN_LIFETIME_IN_S));
     }
 
     private static void decay(LongBuffer buffer, long decayLandmark, long now)
@@ -781,7 +781,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         private void rescaleArray(long[] decayingBuckets, long landMarkDifference)
         {
-            final double rescaleFactor = Math.exp(landMarkDifference / MEAN_LIFETIME_IN_NS);
+            final double rescaleFactor = Math.exp((landMarkDifference / 1000.0) / MEAN_LIFETIME_IN_S);
             for (int i = 0; i < decayingBuckets.length; i++)
             {
                 decayingBuckets[i] = Math.round(decayingBuckets[i] / rescaleFactor);
