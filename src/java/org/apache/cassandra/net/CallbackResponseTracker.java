@@ -129,7 +129,6 @@ public class CallbackResponseTracker
 
     public boolean isSuccessful()
     {
-        logger.error("isSuccessful check. responseCount: {}, required: {}", responseCount(), requiredResponses);
         return responseCount() >= requiredResponses;
     }
 
@@ -245,14 +244,9 @@ public class CallbackResponseTracker
     {
         for (Map.Entry<String, AtomicInteger> pair : context.entrySet())
         {
-            logger.error(" - satisfiedCL; DC: {}, count: {}", pair.getKey(), pair.getValue().get());
             if (pair.getValue().get() > 0)
-            {
-                logger.error(" -- FALSE");
                 return false;
-            }
         }
-        logger.error(" -- TRUE");
         return true;
     }
 
