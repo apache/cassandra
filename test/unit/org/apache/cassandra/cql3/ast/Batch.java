@@ -40,7 +40,7 @@ APPLY BATCH;
     public final Optional<Mutation.Using> using;
     public final List<Mutation> mutations;
 
-    public Batch(Optional<Kind> kind, Optional<Mutation.Using> using, List<Mutation> mutations)
+    private Batch(Optional<Kind> kind, Optional<Mutation.Using> using, List<Mutation> mutations)
     {
         this.kind = kind;
         this.using = using;
@@ -74,8 +74,10 @@ APPLY BATCH;
 
     public Batch withoutTimestamp()
     {
-        if (using.isEmpty() || using.get().timestamp.isEmpty()) return this;
-        return new Batch(kind, using.map(u -> u.withoutTimestamp()), mutations.stream().map(Mutation::withoutTimestamp).collect(Collectors.toList()));
+        if (using.isEmpty()) return this;
+        var using = this.using.get();
+        if (using.timestamp.isEmpty()) return this;
+        return new Batch(kind, using.withoutTimestamp(), mutations.stream().map(Mutation::withoutTimestamp).collect(Collectors.toList()));
     }
 
     public Batch withTimestamp(long timestamp)
@@ -86,7 +88,7 @@ APPLY BATCH;
     public Batch withTimestamp(Mutation.Timestamp timestamp)
     {
         Optional<Mutation.Using> using = this.using.isEmpty()
-                                          ? Optional.of(new Mutation.Using(Optional.empty(), Optional.of(timestamp)))
+                                          ? Mutation.Using.create(Optional.empty(), Optional.of(timestamp))
                                           : this.using.map(u -> u.withTimestamp(timestamp));
         return new Batch(kind, using, mutations);
     }

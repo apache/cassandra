@@ -180,15 +180,24 @@ public abstract class Mutation implements Statement
         public final Optional<TTL> ttl;
         public final Optional<Timestamp> timestamp;
 
-        public Using(Optional<TTL> ttl, Optional<Timestamp> timestamp)
+        private Using(Optional<TTL> ttl, Optional<Timestamp> timestamp)
         {
             this.ttl = ttl;
             this.timestamp = timestamp;
+            if (ttl.isEmpty() && timestamp.isEmpty())
+                throw new IllegalStateException("Empty USING isnt allowed");
         }
 
-        public Using withoutTimestamp()
+        public static Optional<Using> create(Optional<TTL> ttl, Optional<Timestamp> timestamp)
         {
-            return new Using(ttl, Optional.empty());
+            if (ttl.isEmpty() && timestamp.isEmpty()) return Optional.empty();
+            return Optional.of(new Using(ttl, timestamp));
+        }
+
+        public Optional<Using> withoutTimestamp()
+        {
+            if (ttl.isEmpty()) return Optional.empty();
+            return Optional.of(new Using(ttl, Optional.empty()));
         }
 
         public Using withTimestamp(Timestamp timestamp)
@@ -199,8 +208,6 @@ public abstract class Mutation implements Statement
         @Override
         public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
-            if (ttl.isEmpty() && timestamp.isEmpty())
-                return;
             sb.append("USING ");
             if (ttl.isPresent())
                 ttl.get().toCQL(sb, formatter);
@@ -333,7 +340,7 @@ public abstract class Mutation implements Statement
         {
             return new Insert(table, values, ifNotExists, using.isEmpty()
                                                           ? using
-                                                          : using.map(u -> u.withoutTimestamp()));
+                                                          : using.flatMap(u -> u.withoutTimestamp()));
         }
 
         @Override
@@ -482,7 +489,7 @@ public abstract class Mutation implements Statement
         @Override
         public Mutation withoutTimestamp()
         {
-            return new Update(table, using.isEmpty() ? using : using.map(u -> u.withoutTimestamp()), set, where, casCondition);
+            return new Update(table, using.isEmpty() ? using : using.flatMap(u -> u.withoutTimestamp()), set, where, casCondition);
         }
 
         @Override
