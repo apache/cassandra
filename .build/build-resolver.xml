@@ -275,8 +275,8 @@
         <delete file="${build.lib}/AmazonCorrettoCryptoProvider-2.2.0-linux-x86_64.jar" failonerror="false"/>
         <delete file="${build.lib}/AmazonCorrettoCryptoProvider-2.2.0-linux-aarch_64.jar" failonerror="false"/>
 
-        <delete file="${build.lib}/netty-tcnative-boringssl-static-2.0.61.Final-windows-x86_64.jar" failonerror="false"/>
-        <delete file="${build.dir.lib}/jars/netty-tcnative-boringssl-static-2.0.61.Final-windows-x86_64.jar" failonerror="false"/>
+        <delete file="${build.lib}/netty-tcnative-boringssl-static-2.0.70.Final-windows-x86_64.jar" failonerror="false"/>
+        <delete file="${build.dir.lib}/jars/netty-tcnative-boringssl-static-2.0.70.Final-windows-x86_64.jar" failonerror="false"/>
     </target>
 
     <target name="_resolver-dist-lib_get_files">
