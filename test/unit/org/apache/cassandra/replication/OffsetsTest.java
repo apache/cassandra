@@ -546,7 +546,9 @@ public class OffsetsTest
     private static void testUnion(Offsets expected, Offsets a, Offsets b)
     {
         Assert.assertEquals(expected, Offsets.union(a, b));
+        Assert.assertEquals(expected, new Offsets(Offsets.union(a.rangeIterator(), b.rangeIterator())));
         Assert.assertEquals(expected, Offsets.union(b, a));
+        Assert.assertEquals(expected, new Offsets(Offsets.union(b.rangeIterator(), a.rangeIterator())));
     }
 
     @Test
@@ -596,9 +598,11 @@ public class OffsetsTest
 
         // check copy-remaining
         Assert.assertEquals(expected, Offsets.difference(a, b));
+        Assert.assertEquals(expected, new Offsets(Offsets.difference(a.rangeIterator(), b.rangeIterator())));
 
         // check discarded tail
         Assert.assertEquals(expected, Offsets.difference(a, bPlus));
+        Assert.assertEquals(expected, new Offsets(Offsets.difference(a.rangeIterator(), bPlus.rangeIterator())));
     }
 
     @Test

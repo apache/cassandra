@@ -38,6 +38,16 @@ public class Offsets
     private int[] bounds;
     private int size;
 
+    public Offsets(RangeIterator rangeIterator)
+    {
+        this(rangeIterator.logId());
+        while (!rangeIterator.isFinished())
+        {
+            append(rangeIterator.start(), rangeIterator.end());
+            rangeIterator.tryAdvance();
+        }
+    }
+
     public Offsets(CoordinatorLogId logId)
     {
         this(logId, INITIAL_CAPACITY);
@@ -487,6 +497,51 @@ public class Offsets
             append(offset, offset);
     }
 
+    public RangeIterator rangeIterator()
+    {
+        int numRanges = rangeCount();
+
+        return new RangeIterator()
+        {
+            int range = 0;
+
+            @Override
+            public int start()
+            {
+                Preconditions.checkState(range <= numRanges);
+                return bounds[rangeStart(range)];
+            }
+
+            @Override
+            public int end()
+            {
+                Preconditions.checkState(range <= numRanges);
+                return bounds[rangeEnd(range)];
+            }
+
+            @Override
+            public boolean tryAdvance()
+            {
+                if (isFinished())
+                    return false;
+                range++;
+                return !isFinished();
+            }
+
+            @Override
+            public CoordinatorLogId logId()
+            {
+                return logId;
+            }
+
+            @Override
+            public boolean isFinished()
+            {
+                return range >= numRanges;
+            }
+        };
+    }
+
     private static class SetSupport
     {
         private static final int NO_SPLIT_SENTINEL = Integer.MIN_VALUE;
@@ -496,14 +551,9 @@ public class Offsets
             BEFORE, BEFORE_ADJACENT, AFTER, AFTER_ADJACENT, INTERSECTING
         }
 
-        private static RangeOverlap calculateRangeOverlap(int aSplit, int[] a, int aRange, int bSplit, int[] b, int bRange)
+        private static RangeOverlap calculateRangeOverlap(int aStart, int aEnd, int bStart, int bEnd)
         {
-            int aStart = aSplit != NO_SPLIT_SENTINEL ? aSplit : a[rangeStart(aRange)];
-            int aEnd = a[rangeEnd(aRange)];
             Preconditions.checkState(aStart <= aEnd);
-
-            int bStart = bSplit != NO_SPLIT_SENTINEL ? bSplit : b[rangeStart(bRange)];
-            int bEnd = b[rangeEnd(bRange)];
             Preconditions.checkState(bStart <= bEnd);
 
             if (aEnd < bStart)
@@ -513,6 +563,18 @@ public class Offsets
                 return bEnd == aStart - 1 ? RangeOverlap.AFTER_ADJACENT : RangeOverlap.AFTER;
 
             return RangeOverlap.INTERSECTING;
+        }
+
+        private static RangeOverlap calculateRangeOverlap(int aSplit, int aStart, int aEnd, int bSplit, int bStart, int bEnd)
+        {
+            aStart = aSplit != NO_SPLIT_SENTINEL ? aSplit : aStart;
+            bStart = bSplit != NO_SPLIT_SENTINEL ? bSplit : bStart;
+            return calculateRangeOverlap(aStart, aEnd, bStart, bEnd);
+        }
+
+        private static RangeOverlap calculateRangeOverlap(int aSplit, int[] a, int aRange, int bSplit, int[] b, int bRange)
+        {
+            return calculateRangeOverlap(aSplit, a[rangeStart(aRange)], a[rangeEnd(aRange)], bSplit, b[rangeStart(bRange)], b[rangeEnd(bRange)]);
         }
 
         private static RangeOverlap calculateRangeOverlap(int[] a, int aRange, int[] b, int bRange)
@@ -661,6 +723,149 @@ public class Offsets
         return new Offsets(logId, c, cRange * 2);
     }
 
+    private static abstract class AbstractSetIterator implements RangeIterator
+    {
+        final RangeIterator a;
+        final RangeIterator b;
+        int start;
+        int end;
+        private boolean isFinished;
+
+        public AbstractSetIterator(RangeIterator a, RangeIterator b)
+        {
+            Preconditions.checkNotNull(a);
+            Preconditions.checkNotNull(b);
+            Preconditions.checkArgument(a.logId().equals(b.logId()));
+            this.a = a;
+            this.b = b;
+            isFinished = computeNext();
+        }
+
+        @Override
+        public int start()
+        {
+            Preconditions.checkState(!isFinished());
+            return start;
+        }
+
+        @Override
+        public int end()
+        {
+            Preconditions.checkState(!isFinished());
+            return end;
+        }
+
+        protected abstract boolean computeNext();
+
+        @Override
+        public boolean tryAdvance()
+        {
+            if (isFinished)
+                return false;
+
+            isFinished = computeNext();
+            return !isFinished();
+        }
+
+        @Override
+        public boolean isFinished()
+        {
+            return isFinished;
+        }
+
+        @Override
+        public CoordinatorLogId logId()
+        {
+            return a.logId();
+        }
+    }
+
+    private static class UnionIterator extends AbstractSetIterator
+    {
+        public UnionIterator(RangeIterator a, RangeIterator b)
+        {
+            super(a, b);
+        }
+
+        void extendEnd(RangeIterator iter)
+        {
+            while (iter.tryAdvance())
+            {
+                SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(iter.start(), iter.end(), start, end);
+                switch (rangeOverlap)
+                {
+                    case BEFORE:
+                    case BEFORE_ADJACENT:
+                        throw new IllegalStateException();
+                    case AFTER:
+                        return;
+                    case INTERSECTING:
+                    case AFTER_ADJACENT:
+                        end = Math.max(end, iter.end());
+                        continue;
+                    default:
+                        throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
+                }
+            }
+        }
+
+        @Override
+        protected boolean computeNext()
+        {
+
+            if (a.isFinished())
+            {
+                if (b.isFinished())
+                    return true;
+
+                start = b.start();
+                end = b.end();
+                b.tryAdvance();
+                return false;
+            }
+
+            if (b.isFinished())
+            {
+                start = a.start();
+                end = a.end();
+                a.tryAdvance();
+                return false;
+            }
+
+            SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(a.start(), a.end(), b.start(), b.end());
+            switch (rangeOverlap)
+            {
+                case BEFORE:
+                    start = a.start();
+                    end = a.end();
+                    a.tryAdvance();
+                    break;
+                case AFTER:
+                    start = b.start();
+                    end = b.end();
+                    b.tryAdvance();
+                    break;
+                case BEFORE_ADJACENT:
+                case AFTER_ADJACENT:
+                case INTERSECTING:
+                    start = Math.min(a.start(), b.start());
+                    end = Math.max(a.end(), b.end());
+                    extendEnd(a);
+                    extendEnd(b);
+                    break;
+                default:
+                    throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
+            }
+
+            return false;
+        }
+    }
+
+    public static RangeIterator union(RangeIterator a, RangeIterator b)
+    {
+        return new UnionIterator(a, b);
+    }
+
     /**
      * Subtract b from a
      */
@@ -776,6 +981,104 @@ public class Offsets
         return new Offsets(logId, c, cRange * 2);
     }
 
+    private static class DifferenceIterator extends AbstractSetIterator
+    {
+        private int aSplit = SetSupport.NO_SPLIT_SENTINEL;
+
+        public DifferenceIterator(RangeIterator a, RangeIterator b)
+        {
+            super(a, b);
+        }
+
+        @Override
+        protected boolean computeNext()
+        {
+            while (!a.isFinished() && !b.isFinished())
+            {
+                SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(aSplit, a.start(), a.end(),
+                                                                                        SetSupport.NO_SPLIT_SENTINEL, b.start(), b.end());
+                switch (rangeOverlap)
+                {
+                    case BEFORE:
+                    case BEFORE_ADJACENT:
+                        start = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.start();
+                        end = a.end();
+                        aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                        a.tryAdvance();
+                        return false;
+                    case AFTER:
+                    case AFTER_ADJACENT:
+                        aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                        b.tryAdvance();
+                        continue;
+                    case INTERSECTING:
+                        int aStart = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.start();
+                        int aEnd = a.end();
+                        int bStart = b.start();
+                        int bEnd = b.end();
+
+                        if (bStart <= aStart)
+                        {
+                            if (bEnd >= aEnd)
+                            {
+                                // b consumes the entire a range
+                                aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                                a.tryAdvance();
+                            }
+                            else
+                            {
+                                // set the split and start over, the next b range may intersect with the current range
+                                aSplit = bEnd + 1;
+                                b.tryAdvance();
+                            }
+                            continue;
+                        }
+
+                        // does not consume the start of the range
+                        Preconditions.checkState(bStart > aStart);
+                        start = aStart;
+                        end = bStart - 1;
+
+                        if (bEnd < aEnd)
+                        {
+                            // b splits the range
+                            aSplit = bEnd + 1;
+                            b.tryAdvance();
+                        }
+                        else
+                        {
+                            // b consumes the rest of the a range
+                            aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                            a.tryAdvance();
+                        }
+                        return false;
+                    default:
+                        throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
+                }
+            }
+
+            if (a.isFinished())
+                return true;
+
+            if (b.isFinished())
+            {
+                start = aSplit != SetSupport.NO_SPLIT_SENTINEL ? aSplit : a.start();
+                end = a.end();
+                aSplit = SetSupport.NO_SPLIT_SENTINEL;
+                a.tryAdvance();
+                return false;
+            }
+
+            // shouldn't be possible to get here
+            throw new IllegalStateException();
+        }
+    }
+
+    public static RangeIterator difference(RangeIterator a, RangeIterator b)
+    {
+        return new DifferenceIterator(a, b);
+    }
+
     public static Offsets intersection(Offsets a, Offsets b)
     {
         Preconditions.checkArgument(a.logId.equals(b.logId));
@@ -879,6 +1182,20 @@ public class Offsets
         RangeConsumer NONE = (log, start, end) -> {};
 
         void consume(CoordinatorLogId logId, int startOffset, int endOffset);
+    }
+
+    /**
+     * Intrusive iterator. Adjacent ranges may or may not be merged
+     *
+     * isFinished needs to be called before calling start or end to support empty iterators
+     */
+    public interface RangeIterator
+    {
+        int start();
+        int end();
+        boolean tryAdvance();
+        boolean isFinished();
+        CoordinatorLogId logId();
     }
 
     // TODO (consider): delta-encoding + vints
