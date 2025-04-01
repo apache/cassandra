@@ -45,6 +45,8 @@ public enum KnownIssue
                                        "WHERE clause blocks operations on UDTs but CAS allows in IF clause.  During this path empty can be confused with null which allows non-existing rows to match empty bytes"),
     BATCH_CAS_CONDITION_CONFLICT("",
                                  "When 2+ statements in a batch do CAS and have conditions, they can not mix IF [NOT] EXISTS and IF column"),
+    BATCH_CAS_DELETE_STATIC_WITH_UPDATE_IF_NOT_EXISTS("",
+                                                      "When a DELETE static_column IF EXISTS is present (and all static columns are null) in a BATCH and a INSERT/UPDATE tries to add a row IF NOT EXISTS then CAS wont apply the transaction!"),
     ;
 
     KnownIssue(String url, String description)

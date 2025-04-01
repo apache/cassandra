@@ -24,6 +24,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -1009,6 +1011,14 @@ public class BytesPartitionState
             this.lts = lts;
         }
 
+        private Row(Clustering<ByteBuffer> clustering, ImmutableUniqueList<Symbol> columnNames, ByteBuffer[] columns, long[] lts)
+        {
+            this.clustering = clustering;
+            this.columnNames = columnNames;
+            this.columns = columns;
+            this.lts = lts;
+        }
+
         public ByteBuffer get(Symbol col)
         {
             return columns[columnNames.indexOf(col)];
@@ -1037,6 +1047,31 @@ public class BytesPartitionState
         public boolean isEmpty()
         {
             return Stream.of(columns).allMatch(b -> b == null );
+        }
+
+        public Row select(List<Symbol> selection)
+        {
+            if (columnNames.equals(selection)) return this;
+            selection = validateSelect(selection);
+            ByteBuffer[] selected = new ByteBuffer[selection.size()];
+            ImmutableUniqueList.Builder<Symbol> names = ImmutableUniqueList.builder(selected.length);
+            for (int i = 0; i < selection.size(); i++)
+            {
+                Symbol col = selection.get(i);
+                selected[i] = columns[columnNames.indexOf(col)];
+                names.add(col);
+            }
+
+            return new Row(clustering, names.build(), selected, lts);
+        }
+
+        private List<Symbol> validateSelect(List<Symbol> selection)
+        {
+            LinkedHashSet<Symbol> uniqueSelection = new LinkedHashSet<>(selection);
+            var unknown = Sets.difference(uniqueSelection, columnNames.asSet());
+            if (!unknown.isEmpty())
+                throw new AssertionError("Unable to select columns " + selection + "; has unknown columns " + unknown);
+            return uniqueSelection.size() == selection.size() ? selection : new ArrayList<>(uniqueSelection);
         }
     }
 

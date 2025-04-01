@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -44,6 +45,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import accord.utils.Invariants;
+import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Batch;
 import org.apache.cassandra.cql3.ast.CasCondition;
@@ -85,12 +87,19 @@ public class ASTSingleTableModel
     private static final ByteBuffer[][] NO_ROWS = new ByteBuffer[0][];
 
     public final BytesPartitionState.Factory factory;
+    private final EnumSet<KnownIssue> ignoredIssues;
     private final TreeMap<BytesPartitionState.Ref, BytesPartitionState> partitions = new TreeMap<>();
     private long numMutations = 0;
 
     public ASTSingleTableModel(TableMetadata metadata)
     {
+        this(metadata, EnumSet.noneOf(KnownIssue.class));
+    }
+
+    public ASTSingleTableModel(TableMetadata metadata, EnumSet<KnownIssue> ignoredIssues)
+    {
         this.factory = new BytesPartitionState.Factory(metadata);
+        this.ignoredIssues = Objects.requireNonNull(ignoredIssues);
     }
 
     public NavigableSet<BytesPartitionState.Ref> partitionKeys()
@@ -398,7 +407,62 @@ public class ASTSingleTableModel
     {
         if (!batch.isCas()) return true;
         //TODO (correctness): what happens with CAS on multiple partitions?
-        return batch.mutations.stream().allMatch(this::shouldApply);
+        boolean shouldApply = batch.mutations.stream().allMatch(this::shouldApply);
+        if (shouldApply
+            && ignoredIssues.contains(KnownIssue.BATCH_CAS_DELETE_STATIC_WITH_UPDATE_IF_NOT_EXISTS)
+            && !factory.staticColumns.isEmpty())
+        {
+            // No really, should it?
+            // Let's say you have 2 mutations
+            // DELETE s0 FROM tbl WHERE pk=0 IF EXISTS
+            // INSERT INTO tbl (pk, ck, r) VALUES (0, 0, 0) IF NOT EXISTS
+            // There are 2 cases this query can be in: static columns have values, static columns are null
+            // When the static columns are not null, then this applies as expected, but when the static columns are null then the CAS read query returns empty!
+            // CAS does "SELECT s0, r FROM tbl WHERE pk=0 AND ck=0" and since the row and the static columns are null, the empty result is generated; so the DELETE's condition of "IF EXISTS" can not apply!
+            // Now, it doesn't mean that the partition doesn't exist, the DELETE outside a batch would do "SELECT s0 FROM tbl WHERE pk=0 LIMIT 1"
+            boolean partitionExistsButCasConditionWillFail = false;
+            boolean rowDoesNotExist = false;
+            for (var m : batch.mutations)
+            {
+                if (m.casCondition().isEmpty()) continue;
+                var condition = m.casCondition().get();
+
+                var row = referenceRow(m);
+                if (m.kind == Mutation.Kind.DELETE)
+                {
+                    var delete = (Mutation.Delete) m;
+                    if (!delete.columns.isEmpty()
+                        && row.clustering == null // delete is partition level, so deletes static columns
+                        && existsOrColumnConditionsEqNull(condition))
+                    {
+                        // are the columns deleted currently null?
+                        var partition = partitions.get(row.partition);
+                        if (partition != null)
+                        {
+                            if (partition.staticRow().isEmpty())
+                                partitionExistsButCasConditionWillFail = true;
+                        }
+                    }
+                }
+                if (row.clustering != null && condition == CasCondition.Simple.NotExists)
+                    rowDoesNotExist = true;
+            }
+            if (rowDoesNotExist && partitionExistsButCasConditionWillFail)
+                return false;
+        }
+        return shouldApply;
+    }
+
+    private static boolean existsOrColumnConditionsEqNull(CasCondition condition)
+    {
+        if (condition == CasCondition.Simple.Exists) return true;
+        var conditions = ((CasCondition.IfCondition) condition).conditional.simplify();
+        return conditions.stream().allMatch(c -> {
+            if (!(c instanceof Conditional.Where)) return false;
+            var where = (Conditional.Where) c;
+            if (where.kind != Inequality.EQUAL) return false;
+            return ExpressionEvaluator.eval(where.rhs) == null;
+        });
     }
 
     public boolean shouldApply(Mutation mutation)

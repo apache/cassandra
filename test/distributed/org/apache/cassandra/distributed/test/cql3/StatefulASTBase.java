@@ -277,7 +277,7 @@ public class StatefulASTBase extends TestBaseImpl
 
             this.metadata = metadata;
             this.tableRef = TableReference.from(metadata);
-            this.model = new ASTSingleTableModel(metadata);
+            this.model = new ASTSingleTableModel(metadata, IGNORED_ISSUES);
             createTable(metadata);
         }
 
