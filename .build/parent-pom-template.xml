@@ -38,7 +38,7 @@
   <properties>
     <bytebuddy.version>1.12.13</bytebuddy.version>
     <byteman.version>4.0.20</byteman.version>
-    <netty.version>4.1.113.Final</netty.version>
+    <netty.version>4.1.119.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
 
     <!-- These are referenced in build.xml, so need to be propagated from there -->
@@ -800,7 +800,7 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-tcnative-boringssl-static</artifactId>
-        <version>2.0.61.Final</version>
+        <version>2.0.70.Final</version>
       </dependency>
       <dependency>
         <groupId>org.bouncycastle</groupId>
