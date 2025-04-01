@@ -122,14 +122,28 @@ public class Offsets
         return size == 0;
     }
 
+    private static void forEachOffsetInRange(CoordinatorLogId logId, int start, int end, OffsetConsumer consumer)
+    {
+        for (int offset = start; offset <= end; offset++)
+            consumer.accept(logId, offset);
+    }
+
     public void forEachOffset(OffsetConsumer consumer)
     {
         for (int i = 0; i < size; i += 2)
         {
             int start = bounds[i];
             int   end = bounds[i + 1];
-            for (int offset = start; offset <= end; offset++)
-                consumer.accept(logId, offset);
+            forEachOffsetInRange(logId, start, end, consumer);
+        }
+    }
+
+    public static void forEachOffset(RangeIterator iter, OffsetConsumer consumer)
+    {
+        while (!iter.isFinished())
+        {
+            forEachOffsetInRange(iter.logId(), iter.start(), iter.end(), consumer);
+            iter.tryAdvance();
         }
     }
 
