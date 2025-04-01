@@ -86,6 +86,7 @@ public class ASTSingleTableModel
 
     public final BytesPartitionState.Factory factory;
     private final TreeMap<BytesPartitionState.Ref, BytesPartitionState> partitions = new TreeMap<>();
+    private long numMutations = 0;
 
     public ASTSingleTableModel(TableMetadata metadata)
     {
@@ -194,14 +195,14 @@ public class ASTSingleTableModel
     public void update(Batch batch)
     {
         if (!shouldApply(batch)) return;
-        long ts = batch.timestampOrDefault(MagicConstants.NO_TIMESTAMP);
+        // when running in transactions timestamps are not supported, so need to fall back to an internal timestamp
+        long nowTs = batch.timestampOrDefault(numMutations);
         // when deletes have the same timestamp as a write, the delete wins; to mimic this apply all deletes last
         List<Mutation> deletes = null;
         for (var m : batch.mutations)
         {
-            if (ts != MagicConstants.NO_TIMESTAMP
-                && m.timestampOrDefault(MagicConstants.NO_TIMESTAMP) == MagicConstants.NO_TIMESTAMP)
-                m = m.withTimestamp(ts);
+            if (m.timestampOrDefault(MagicConstants.NO_TIMESTAMP) == MagicConstants.NO_TIMESTAMP)
+                m = m.withTimestamp(nowTs);
             if (m.kind == Mutation.Kind.DELETE)
             {
                 if (deletes == null)
@@ -231,6 +232,7 @@ public class ASTSingleTableModel
 
     private void updateInternal(Mutation mutation)
     {
+        numMutations++;
         switch (mutation.kind)
         {
             case INSERT:
@@ -249,7 +251,7 @@ public class ASTSingleTableModel
 
     private void update(Mutation.Insert insert)
     {
-        long nowTs = insert.timestampOrDefault(MagicConstants.NO_TIMESTAMP);
+        long nowTs = insert.timestampOrDefault(numMutations);
         Clustering<ByteBuffer> pd = pd(insert);
         BytesPartitionState partition = partitions.get(factory.createRef(pd));
         if (partition == null)
@@ -312,7 +314,7 @@ public class ASTSingleTableModel
 
     private void update(Mutation.Update update)
     {
-        long nowTs = update.timestampOrDefault(MagicConstants.NO_TIMESTAMP);
+        long nowTs = update.timestampOrDefault(numMutations);
         var split = splitOnPartition(update.where.simplify());
         List<Clustering<ByteBuffer>> pks = split.left;
         List<Conditional> remaining = split.right;
@@ -351,7 +353,7 @@ public class ASTSingleTableModel
 
     private void update(Mutation.Delete delete)
     {
-        long ts = delete.timestampOrDefault(MagicConstants.NO_TIMESTAMP);
+        long nowTs = delete.timestampOrDefault(numMutations);
         //TODO (coverage): range deletes
         var split = splitOnPartition(delete.where.simplify());
         List<Clustering<ByteBuffer>> pks = split.left;
@@ -376,7 +378,7 @@ public class ASTSingleTableModel
                 case ROW:
                     for (Clustering<ByteBuffer> cd : clusterings)
                     {
-                        partition.deleteRow(cd, ts);
+                        partition.deleteRow(cd, nowTs);
                         if (partition.shouldDelete())
                             partitions.remove(partition.ref());
                     }
@@ -384,7 +386,7 @@ public class ASTSingleTableModel
                 case COLUMN:
                     if (clusterings.isEmpty())
                     {
-                        partition.deleteStaticColumns(ts, columns);
+                        partition.deleteStaticColumns(nowTs, columns);
                         if (partition.shouldDelete())
                             partitions.remove(partition.ref());
                     }
@@ -392,7 +394,7 @@ public class ASTSingleTableModel
                     {
                         for (Clustering<ByteBuffer> cd : clusterings)
                         {
-                            partition.deleteColumns(cd, ts, columns);
+                            partition.deleteColumns(cd, nowTs, columns);
                             if (partition.shouldDelete())
                                 partitions.remove(partition.ref());
                         }

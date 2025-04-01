@@ -484,7 +484,8 @@ public class StatefulASTBase extends TestBaseImpl
                 SimpleStatement ss = new SimpleStatement(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 if (fetchSize != Integer.MAX_VALUE)
                     ss.setFetchSize(fetchSize);
-                if (stmt instanceof Mutation)
+                if (stmt.kind() == Statement.Kind.MUTATION
+                    || stmt.kind() == Statement.Kind.BATCH)
                 {
                     switch (cl)
                     {
