@@ -122,16 +122,17 @@ public class MutationTrackingPendingReadTest
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 // apply it to the journal and open a pending write
                 TrackedReadResponse response;
-                MutationSummary summary;
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
                 TrackedKeyspaceWriteHandler trackedWriteHandler = new TrackedKeyspaceWriteHandler();
+                MutationSummary initialSummary;
                 try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
                 {
+                    initialSummary = command.createMutationSummary(false);
+                    MutationTrackingService.instance.startWriting(mutation);
                     try (ReadExecutionController controller = command.executionController(false);
                          UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                     {
-                        summary = command.createMutationSummary(false);
-                        response = (TrackedReadResponse) command.createResponse(iterator, controller.getRepairedDataInfo(), summary);
+                        response = (TrackedReadResponse) command.createResponse(iterator, controller.getRepairedDataInfo(), initialSummary);
                     }
                 }
 
@@ -146,8 +147,13 @@ public class MutationTrackingPendingReadTest
                     assertNoKcvRow(partition, 1);
                 }
 
+                // confirm that the initial summary was not aware of the unapplied mutation
+                Offsets initialIds = summaryIdSpace(initialSummary.get(logId));
+                Assert.assertEquals(1, initialIds.offsetCount());
+                Assert.assertFalse(initialIds.contains(secondId.offset()));
+
                 // check that the summary is aware of the unapplied mutation
-                Offsets summaryIds = summaryIdSpace(summary.get(logId));
+                Offsets summaryIds = summaryIdSpace(response.summary.get(logId));
                 Assert.assertEquals(2, summaryIds.offsetCount());
                 Assert.assertTrue(summaryIds.contains(secondId.offset()));
 

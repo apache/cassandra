@@ -154,7 +154,7 @@ class LocalMutationStates
         boolean found = false;
         for (Entry entry : subset)
         {
-            if (entry.isVisible() && entry.contains(tableId) && (includePending || entry.isVisible()))
+            if (entry.contains(tableId) && (includePending || entry.isVisible()))
             {
                 into.add(entry.offset);
                 found = true;
