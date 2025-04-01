@@ -33,7 +33,11 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  */
 public class MutationId extends ShortMutationId
 {
-    private static final MutationId NONE = new MutationId(Integer.MIN_VALUE, Long.MIN_VALUE);
+    private static final long NONE_LOG_ID = Long.MIN_VALUE;
+    private static final long NONE_SEQUENCE_ID = Long.MIN_VALUE;
+    private static final int NONE_OFFSET = offset(NONE_SEQUENCE_ID);
+    private static final int NONE_TIMESTAMP = timestamp(NONE_SEQUENCE_ID);
+    private static final MutationId NONE = new MutationId(NONE_LOG_ID, NONE_SEQUENCE_ID);
 
     /**
      * 4 byte timestamp. The timestamp is monotonically non-decreasing.
@@ -86,7 +90,9 @@ public class MutationId extends ShortMutationId
 
     public boolean isNone()
     {
-        return this == NONE;
+        if (this == NONE)
+            return true;
+        return logId() == NONE_LOG_ID && offset() == NONE_OFFSET && timestamp() == NONE_TIMESTAMP;
     }
 
     @Override
@@ -115,6 +121,8 @@ public class MutationId extends ShortMutationId
         {
             long logId = in.readLong();
             long sequenceId = in.readLong();
+            if (logId == NONE_LOG_ID && sequenceId == NONE_SEQUENCE_ID)
+                return none();
             return new MutationId(logId, sequenceId);
         }
 
