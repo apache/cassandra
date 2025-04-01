@@ -85,7 +85,10 @@ public class MutationSummary
          */
         static void difference(CoordinatorSummary left, CoordinatorSummary right, Collection<ShortMutationId> into)
         {
-            // TODO: implement
+            Offsets leftIds = Offsets.union(left.reconciled, left.unreconciled);
+            Offsets rightIds = Offsets.union(right.reconciled, right.unreconciled);
+            Offsets missing = Offsets.difference(leftIds, rightIds);
+            missing.forEachOffset((logId, offset) -> into.add(new ShortMutationId(logId, offset)));
         }
 
         void digest(Digest digest)
