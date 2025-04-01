@@ -149,7 +149,7 @@ public class CQL3CasRequest implements CASRequest
         }
         else if (!(condition instanceof ColumnsConditions))
         {
-            throw new InvalidRequestException("Cannot mix IF conditions and IF NOT EXISTS for the same row");
+            throw new InvalidRequestException("Cannot mix IF conditions and " + ((ToCQL) condition).toCQL() + " for the same row");
         }
         ((ColumnsConditions)condition).addConditions(conds, options);
     }
@@ -352,7 +352,12 @@ public class CQL3CasRequest implements CASRequest
         public abstract boolean appliesTo(FilteredPartition current) throws InvalidRequestException;
     }
 
-    private static class NotExistCondition extends RowCondition
+    private interface ToCQL
+    {
+        String toCQL();
+    }
+
+    private static class NotExistCondition extends RowCondition implements ToCQL
     {
         private NotExistCondition(Clustering<?> clustering)
         {
@@ -363,9 +368,15 @@ public class CQL3CasRequest implements CASRequest
         {
             return current.getRow(clustering) == null;
         }
+
+        @Override
+        public String toCQL()
+        {
+            return "IF NOT EXISTS";
+        }
     }
 
-    private static class ExistCondition extends RowCondition
+    private static class ExistCondition extends RowCondition implements ToCQL
     {
         private ExistCondition(Clustering<?> clustering)
         {
@@ -375,6 +386,12 @@ public class CQL3CasRequest implements CASRequest
         public boolean appliesTo(FilteredPartition current)
         {
             return current.getRow(clustering) != null;
+        }
+
+        @Override
+        public String toCQL()
+        {
+            return "IF EXISTS";
         }
     }
 
