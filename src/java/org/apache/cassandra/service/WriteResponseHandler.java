@@ -362,7 +362,7 @@ public class WriteResponseHandler<T> implements RequestCallback<T>
         long timeout = MAX_VALUE;
         List<ColumnFamilyStore> cfs = mutation.getTableIds().stream()
                                               .map(instance::getColumnFamilyStoreInstance)
-                                              .toList();
+                                              .collect(Collectors.toList());
         for (ColumnFamilyStore cf : cfs)
             timeout = min(timeout, cf.additionalWriteLatencyMicros);
 
