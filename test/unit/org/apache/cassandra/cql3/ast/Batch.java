@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.ast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.db.marshal.LongType;
@@ -74,7 +75,7 @@ APPLY BATCH;
     public Batch withoutTimestamp()
     {
         if (using.isEmpty() || using.get().timestamp.isEmpty()) return this;
-        return new Batch(kind, using.map(u -> u.withoutTimestamp()), mutations);
+        return new Batch(kind, using.map(u -> u.withoutTimestamp()), mutations.stream().map(Mutation::withoutTimestamp).collect(Collectors.toList()));
     }
 
     public Batch withTimestamp(long timestamp)
