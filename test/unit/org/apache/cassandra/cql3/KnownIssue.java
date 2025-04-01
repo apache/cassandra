@@ -43,6 +43,8 @@ public enum KnownIssue
                            "When doing an SAI query, if the where clause also contains a vector column bad results can be produced"),
     CAS_CONDITION_ON_UDT_W_EMPTY_BYTES("https://issues.apache.org/jira/browse/CASSANDRA-20479",
                                        "WHERE clause blocks operations on UDTs but CAS allows in IF clause.  During this path empty can be confused with null which allows non-existing rows to match empty bytes"),
+    BATCH_CAS_CONDITION_CONFLICT("",
+                                 "When 2+ statements in a batch do CAS and have conditions, they can not mix IF [NOT] EXISTS and IF column"),
     ;
 
     KnownIssue(String url, String description)

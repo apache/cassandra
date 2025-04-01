@@ -63,6 +63,9 @@ public abstract class Mutation implements Statement
 
     public abstract Mutation withTimestamp(Timestamp timestamp);
 
+
+    public abstract Optional<? extends CasCondition> casCondition();
+
     public final Kind mutationKind()
     {
         return kind;
@@ -340,6 +343,12 @@ public abstract class Mutation implements Statement
                                                           ? Optional.of(new Using(Optional.empty(), Optional.of(timestamp)))
                                                           : using.map(u -> u.withTimestamp(timestamp)));
         }
+
+        @Override
+        public Optional<? extends CasCondition> casCondition()
+        {
+            return ifNotExists ? Optional.of(CasCondition.Simple.NotExists) : Optional.empty();
+        }
     }
 
     public static class Update extends Mutation
@@ -484,6 +493,12 @@ public abstract class Mutation implements Statement
                           : using.map(u -> u.withTimestamp(timestamp));
             return new Update(table, updated, set, where, casCondition);
         }
+
+        @Override
+        public Optional<? extends CasCondition> casCondition()
+        {
+            return casCondition;
+        }
     }
 
     public static class Delete extends Mutation
@@ -622,6 +637,12 @@ WHERE PK_column_conditions
         public Delete withTimestamp(Timestamp timestamp)
         {
             return new Delete(columns, table, Optional.of(timestamp), where, casCondition);
+        }
+
+        @Override
+        public Optional<? extends CasCondition> casCondition()
+        {
+            return casCondition;
         }
     }
 

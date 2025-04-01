@@ -278,40 +278,6 @@ public class ASTSingleTableModel
                            (ts, write) -> finalPartition.setColumns(cd, ts, write, true));
     }
 
-    public void clear()
-    {
-        partitions.clear();
-        factory.clear();
-    }
-
-    private interface ColumnUpdate
-    {
-        void update(long nowTs, Map<Symbol, Update> write);
-    }
-
-    private static void maybeUpdateColumns(Set<Symbol> columns,
-                                           @Nullable BytesPartitionState.Row row,
-                                           long nowTs, Map<Symbol, Expression> set,
-                                           ColumnUpdate update)
-    {
-        if (columns.isEmpty())
-        {
-            update.update(nowTs, Collections.emptyMap());
-            return;
-        }
-        // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
-        Map<Symbol, Update> write = new HashMap<>();
-        for (Symbol col : columns)
-        {
-            ByteBuffer current = row == null ? null : row.get(col);
-            Update result = eval(col, current, set.get(col));
-            if (result.kind == Update.Kind.SKIP) continue;
-            write.put(col, result);
-        }
-        if (!write.isEmpty())
-            update.update(nowTs, write);
-    }
-
     private void update(Mutation.Update update)
     {
         long nowTs = update.timestampOrDefault(numMutations);
@@ -349,8 +315,7 @@ public class ASTSingleTableModel
     }
 
     private enum DeleteKind
-    {PARTITION, ROW, COLUMN}
-
+    {PARTITION, ROW, COLUMN;}
     private void update(Mutation.Delete delete)
     {
         long nowTs = delete.timestampOrDefault(numMutations);
@@ -406,6 +371,29 @@ public class ASTSingleTableModel
         }
     }
 
+    private static void maybeUpdateColumns(Set<Symbol> columns,
+                                           @Nullable BytesPartitionState.Row row,
+                                           long nowTs, Map<Symbol, Expression> set,
+                                           ColumnUpdate update)
+    {
+        if (columns.isEmpty())
+        {
+            update.update(nowTs, Collections.emptyMap());
+            return;
+        }
+        // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
+        Map<Symbol, Update> write = new HashMap<>();
+        for (Symbol col : columns)
+        {
+            ByteBuffer current = row == null ? null : row.get(col);
+            Update result = eval(col, current, set.get(col));
+            if (result.kind == Update.Kind.SKIP) continue;
+            write.put(col, result);
+        }
+        if (!write.isEmpty())
+            update.update(nowTs, write);
+    }
+
     public boolean shouldApply(Batch batch)
     {
         if (!batch.isCas()) return true;
@@ -419,9 +407,27 @@ public class ASTSingleTableModel
         return shouldApply(mutation, selectPartitionForCAS(mutation));
     }
 
+    public void clear()
+    {
+        partitions.clear();
+        factory.clear();
+    }
+
+    public BytesPartitionState.Ref referencePartition(Mutation mutation)
+    {
+        return factory.createRef(pd(mutation));
+    }
+
+    public BytesPartitionState.PrimaryKey referenceRow(Mutation mutation)
+    {
+        var pk = referencePartition(mutation);
+        var cd = cdOrNull(mutation);
+        return factory.createPrimaryKey(pk, cd);
+    }
+
     private SelectResult selectPartitionForCAS(Mutation mutation)
     {
-        var partition = partitions.get(factory.createRef(pd(mutation)));
+        var partition = partitions.get(referencePartition(mutation));
         if (partition == null) return SelectResult.ordered(factory.selectionOrder, NO_ROWS);
 
         var cd = cdOrNull(mutation);
@@ -1783,5 +1789,10 @@ public class ASTSingleTableModel
             this.inequality = inequality;
             this.token = token;
         }
+    }
+
+    private interface ColumnUpdate
+    {
+        void update(long nowTs, Map<Symbol, Update> write);
     }
 }

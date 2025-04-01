@@ -23,8 +23,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -34,6 +36,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +48,7 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Batch;
 import org.apache.cassandra.cql3.ast.Bind;
+import org.apache.cassandra.cql3.ast.CasCondition;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.cql3.ast.FunctionCall;
@@ -63,6 +67,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
+import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ASTGenerators;
@@ -237,7 +242,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         List<Symbol> searchableColumns = state.searchableNonPartitionColumns;
         Symbol symbol = rs.pick(searchableColumns);
 
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(ref, symbol);
+        TreeMap<ByteBuffer, List<PrimaryKey>> universe = state.model.index(ref, symbol);
         // we need to index 'null' so LT works, but we can not directly query it... so filter out when selecting values
         NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
         if (allowed.isEmpty())
@@ -267,7 +272,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     public Property.Command<State, Void, ?> nonPartitionQuery(RandomSource rs, State state)
     {
         Symbol symbol = rs.pick(state.searchableColumns);
-        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
+        TreeMap<ByteBuffer, List<PrimaryKey>> universe = state.model.index(symbol);
         // we need to index 'null' so LT works, but we can not directly query it... so filter out when selecting values
         NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
         if (allowed.isEmpty())
@@ -308,7 +313,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         for (Symbol symbol : cols)
         {
-            TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
+            TreeMap<ByteBuffer, List<PrimaryKey>> universe = state.model.index(symbol);
             NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
             //TODO (now): support
             if (allowed.isEmpty())
@@ -485,8 +490,97 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 var gen = perPartitionMutationGens.get(pk);
 //                int numMutations = rs.nextInt(1, 10);
                 int numMutations = 2;
+                Map<PrimaryKey, CasCondition> knownCasConditions = null;
                 for (int i = 0; i < numMutations; i++)
-                    builder.add(gen.next(r));
+                {
+                    Mutation next = gen.next(r);
+                    if (IGNORED_ISSUES.contains(KnownIssue.BATCH_CAS_CONDITION_CONFLICT))
+                    {
+                        while (next.casCondition().isPresent())
+                        {
+                            var cond = next.casCondition().get();
+                            var columns = cond.streamRecursive()
+                                              .filter(e -> e instanceof Symbol)
+                                              .map(e -> (Symbol) e)
+                                              .collect(Collectors.toList());
+                            PrimaryKey pkOrRow = model.referenceRow(next);
+                            PrimaryKey pkRef = pkOrRow.isPartitionLevel()
+                                               ? pkOrRow
+                                               : model.factory.createPrimaryKey(pkOrRow.partition, null);
+                            boolean isPartitionLevel = pkRef == pkOrRow;
+                            boolean hasPartitionLevelColumn = columns.isEmpty() ? false : columns.stream().anyMatch(s -> model.factory.partitionAndStaticColumns.contains(s));
+                            boolean hasRowLevelColumn = columns.isEmpty() ? false : columns.stream().anyMatch(s -> model.factory.clusteringAndRegularColumns.contains(s));
+                            if (knownCasConditions == null)
+                                knownCasConditions = new HashMap<>();
+                            // handle partition level
+                            Runnable undoPartitionKnownUpdate = () -> {};
+                            {
+                                var known = knownCasConditions.get(pkRef);
+                                if (known == null)
+                                {
+                                    if ((isPartitionLevel && cond instanceof CasCondition.Simple)
+                                        || hasPartitionLevelColumn)
+                                    {
+                                        knownCasConditions.put(pkRef, cond);
+                                        var finalKnownCasConditions = knownCasConditions;
+                                        undoPartitionKnownUpdate = () -> finalKnownCasConditions.remove(pkRef);
+                                    }
+                                }
+                                else if (known.getClass() == cond.getClass())
+                                {
+                                    // nothing to see here
+                                }
+                                else if (known instanceof CasCondition.Simple)
+                                {
+                                    if (hasPartitionLevelColumn)
+                                    {
+                                        next = gen.next(rs);
+                                        continue;
+                                    }
+                                }
+                                else if (known instanceof CasCondition.IfCondition)
+                                {
+                                    if (cond instanceof CasCondition.Simple)
+                                    {
+                                        next = gen.next(rs);
+                                        continue;
+                                    }
+                                }
+                                else
+                                {
+                                    throw new AssumptionViolatedException(known.toCQL() + " != " + cond.toCQL());
+                                }
+                            }
+                            if (!isPartitionLevel)
+                            {
+                                // mutation is row level, handle row level
+                                var known = knownCasConditions.get(pkOrRow);
+                                if (known == null)
+                                {
+                                    if (hasRowLevelColumn || cond instanceof CasCondition.Simple)
+                                        knownCasConditions.put(pkOrRow, cond);
+                                    break;
+                                }
+                                else if (known.getClass() == cond.getClass())
+                                {
+                                    // nothing to see here
+                                    break;
+                                }
+                                else
+                                {
+                                    undoPartitionKnownUpdate.run();
+                                    next = gen.next(rs);
+                                    continue;
+                                }
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    builder.add(next);
+                }
                 return builder.build();
             };
 

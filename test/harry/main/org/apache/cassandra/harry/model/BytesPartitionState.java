@@ -188,7 +188,7 @@ public class BytesPartitionState
 
     public PrimaryKey partitionRowRef()
     {
-        return new PrimaryKey(ref(), null);
+        return new PrimaryKey(factory, ref(), null);
     }
 
     private interface MultiCell
@@ -856,16 +856,24 @@ public class BytesPartitionState
             sb.append(')');
     }
 
-    public class PrimaryKey implements Comparable<PrimaryKey>
+    public static class PrimaryKey implements Comparable<PrimaryKey>
     {
+        private final Factory factory;
         public final BytesPartitionState.Ref partition;
         @Nullable
         public final Clustering<ByteBuffer> clustering;
 
-        public PrimaryKey(BytesPartitionState.Ref partition, @Nullable Clustering<ByteBuffer> clustering)
+        private PrimaryKey(Factory factory, BytesPartitionState.Ref partition, @Nullable Clustering<ByteBuffer> clustering)
         {
+            this.factory = factory;
             this.partition = partition;
             this.clustering = clustering;
+        }
+
+        public boolean isPartitionLevel()
+        {
+            return clustering == null                       // has clustering, but only referencing partition
+                   || Clustering.EMPTY.equals(clustering);  // doesn't have clustering
         }
 
         @Override
@@ -899,7 +907,8 @@ public class BytesPartitionState
             StringBuilder sb = new StringBuilder("(partition=");
             sb.append(partition);
             sb.append(", clustering=");
-            appendValues(sb, factory.clusteringColumns, clustering);
+            if (clustering == null) sb.append("null");
+            else                    appendValues(sb, factory.clusteringColumns, clustering);
             sb.append(')');
             return sb.toString();
         }
@@ -1022,7 +1031,7 @@ public class BytesPartitionState
 
         public PrimaryKey ref()
         {
-            return new PrimaryKey(BytesPartitionState.this.ref(), clustering);
+            return new PrimaryKey(factory, BytesPartitionState.this.ref(), clustering);
         }
 
         public boolean isEmpty()
@@ -1039,7 +1048,7 @@ public class BytesPartitionState
         public final ImmutableUniqueList<Symbol> primaryColumns;
         public final ImmutableUniqueList<Symbol> staticColumns;
         public final ImmutableUniqueList<Symbol> regularColumns;
-        public final ImmutableUniqueList<Symbol> selectionOrder, partitionAndStaticColumns, regularAndStaticColumns;
+        public final ImmutableUniqueList<Symbol> selectionOrder, partitionAndStaticColumns, clusteringAndRegularColumns, regularAndStaticColumns;
         public final ClusteringComparator clusteringComparator;
 
 
@@ -1067,9 +1076,9 @@ public class BytesPartitionState
             if (clusteringColumns.isEmpty()) primaryColumns = partitionColumns;
             else
             {
-                symbolListBuilder.addAll(partitionColumns);
-                symbolListBuilder.addAll(clusteringColumns);
-                primaryColumns = symbolListBuilder.buildAndClear();
+                primaryColumns = symbolListBuilder.addAll(partitionColumns)
+                                                  .addAll(clusteringColumns)
+                                                  .buildAndClear();
             }
             for (ColumnMetadata pk : metadata.staticColumns())
                 symbolListBuilder.add(Symbol.from(pk));
@@ -1077,13 +1086,16 @@ public class BytesPartitionState
             if (staticColumns.isEmpty()) partitionAndStaticColumns = partitionColumns;
             else
             {
-                symbolListBuilder.addAll(partitionColumns);
-                symbolListBuilder.addAll(staticColumns);
-                partitionAndStaticColumns = symbolListBuilder.buildAndClear();
+                partitionAndStaticColumns = symbolListBuilder.addAll(partitionColumns)
+                                                             .addAll(staticColumns)
+                                                             .buildAndClear();
             }
             for (ColumnMetadata pk : metadata.regularColumns())
                 symbolListBuilder.add(Symbol.from(pk));
             regularColumns = symbolListBuilder.buildAndClear();
+            clusteringAndRegularColumns = symbolListBuilder.addAll(clusteringColumns)
+                                                           .addAll(regularColumns)
+                                                           .buildAndClear();
             metadata.allColumnsInSelectOrder().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
             selectionOrder = symbolListBuilder.buildAndClear();
             metadata.regularAndStaticColumns().forEach(cm -> symbolListBuilder.add(Symbol.from(cm)));
@@ -1159,6 +1171,11 @@ public class BytesPartitionState
         public BytesPartitionState.Ref createRef(Token token, boolean nullKeyGtMatchingToken)
         {
             return new BytesPartitionState.Ref(this, token, nullKeyGtMatchingToken);
+        }
+
+        public PrimaryKey createPrimaryKey(Ref pk, @Nullable Clustering<ByteBuffer> cd)
+        {
+            return new BytesPartitionState.PrimaryKey(this, pk, cd);
         }
 
         private PartitionState partitionState(Clustering<ByteBuffer> key)

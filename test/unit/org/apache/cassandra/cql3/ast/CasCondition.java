@@ -85,5 +85,11 @@ public interface CasCondition extends Element
             if (c == conditional) return this;
             return new IfCondition(c);
         }
+
+        @Override
+        public String toString()
+        {
+            return toCQL();
+        }
     }
 }
