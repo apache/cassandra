@@ -33,6 +33,7 @@ import org.yaml.snakeyaml.Yaml;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.utils.JsonUtils.JSON_OBJECT_MAPPER;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 /**
  * Helper to format POJOs that are easy to convert (primitives, nonnull, and built in collections)
@@ -70,7 +71,7 @@ public class PojoToString
 
         public static Format fromString(String formatString)
         {
-            formatString = LocalizeString.toUpperCaseLocalized(formatString);
+            formatString = toUpperCaseLocalized(formatString);
             switch (formatString)
             {
                 case "YAML":
