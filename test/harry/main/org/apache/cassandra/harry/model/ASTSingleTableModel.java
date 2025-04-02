@@ -68,6 +68,7 @@ import org.apache.cassandra.cql3.ast.Visitor;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.MagicConstants;
@@ -85,8 +86,12 @@ import static org.apache.cassandra.harry.model.BytesPartitionState.asCQL;
 public class ASTSingleTableModel
 {
     private static final ByteBuffer[][] NO_ROWS = new ByteBuffer[0][];
+    private static final Symbol CAS_APPLIED = new Symbol.UnquotedSymbol("[applied]", BooleanType.instance);
+    private static final ImmutableUniqueList<Symbol> CAS_SUCCESS_COLUMNS = ImmutableUniqueList.<Symbol>builder().add(CAS_APPLIED).build();
+    private static final ByteBuffer[][] CAS_SUCCESS_RESULT = new ByteBuffer[][] { new ByteBuffer[] {BooleanType.instance.decompose(true)} };
 
     public final BytesPartitionState.Factory factory;
+    private final ImmutableUniqueList<Symbol> casFailureColumnsForPartition, casFailureColumnsForRow;
     private final EnumSet<KnownIssue> ignoredIssues;
     private final TreeMap<BytesPartitionState.Ref, BytesPartitionState> partitions = new TreeMap<>();
     private long numMutations = 0;
@@ -100,6 +105,10 @@ public class ASTSingleTableModel
     {
         this.factory = new BytesPartitionState.Factory(metadata);
         this.ignoredIssues = Objects.requireNonNull(ignoredIssues);
+
+        var builder = ImmutableUniqueList.<Symbol>builder();
+        casFailureColumnsForRow = builder.add(CAS_APPLIED).addAll(factory.partitionColumns).addAll(factory.clusteringColumns).addAll(factory.staticColumns).addAll(factory.regularColumns).buildAndClear();
+        casFailureColumnsForPartition = builder.add(CAS_APPLIED).addAll(factory.partitionColumns).addAll(factory.staticColumns).buildAndClear();
     }
 
     public NavigableSet<BytesPartitionState.Ref> partitionKeys()
@@ -235,6 +244,34 @@ public class ASTSingleTableModel
     public void update(Mutation mutation)
     {
         if (!shouldApply(mutation)) return;
+        updateInternal(mutation);
+
+        validatePartitions();
+    }
+
+    public void updateAndValidate(ByteBuffer[][] actual, Mutation mutation)
+    {
+        if (!mutation.isCas())
+            throw new IllegalArgumentException("Mutation isn't a CAS operation; given " + mutation.toCQL());
+        if (shouldApply(mutation))
+        {
+            validate(CAS_SUCCESS_COLUMNS, actual, CAS_SUCCESS_RESULT);
+        }
+        else
+        {
+            // not correct
+            // row schema or or partition schema
+            var cd = cdOrNull(mutation);
+            var columns = actual[0].length == 1
+                          ? CAS_SUCCESS_COLUMNS
+                          : cd == null ? casFailureColumnsForPartition
+                                       : casFailureColumnsForRow;
+            ByteBuffer[][] expected = {new ByteBuffer[columns.size()]};
+            expected[0][0] = BooleanType.instance.decompose(false);
+            validate(columns, actual, expected);
+            return;
+        }
+//        if (!shouldApply(mutation)) return;
         updateInternal(mutation);
 
         validatePartitions();
@@ -857,6 +894,17 @@ public class ASTSingleTableModel
 
     private static void validate(ImmutableUniqueList<Symbol> columns, ByteBuffer[][] actual, ByteBuffer[][] expected)
     {
+        int expectedLength = columns.size();
+        for (var a : actual)
+        {
+            if (a.length != expectedLength)
+                throw new AssertionError("actual rows do not match the schema " + columns + "; found " + Arrays.toString(a));
+        }
+        for (var e : expected)
+        {
+            if (e.length != expectedLength)
+                throw new AssertionError("expected rows do not match the schema " + columns + "; found " + Arrays.toString(e));
+        }
         // check any order
         validateAnyOrder(columns, toRow(columns, actual), toRow(columns, expected));
         // all rows match, but are they in the right order?
