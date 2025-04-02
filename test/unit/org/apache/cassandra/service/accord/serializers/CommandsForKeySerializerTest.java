@@ -201,7 +201,7 @@ public class CommandsForKeySerializerTest
             if (saveStatus.known.outcome() == Known.Outcome.Apply)
             {
                 if (txnId.is(Kind.Write))
-                    builder.writes(new Writes(txnId, executeAt, txn.keys(), new TxnWrite(Collections.emptyList(), true)));
+                    builder.writes(new Writes(txnId, executeAt, txn.keys(), new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true)));
                 builder.result(new TxnData());
             }
             return builder;

@@ -110,6 +110,8 @@ import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
@@ -524,7 +526,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         TxnId txnId = node.nextTxnId(minBound, Write, Key, cardinality(keys));
         FullRoute<?> route = node.computeRoute(txnId, keys);
-        Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.NONE, TxnUpdate.empty());
+        Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.NONE, TxnUpdate.empty(), new TableMetadatasAndKeys(TableMetadatas.none(), keys));
         return CoordinateTransaction.coordinate(node, route, txnId, txn)
                                     .map(ignore -> (Void)null).beginAsResult();
     }

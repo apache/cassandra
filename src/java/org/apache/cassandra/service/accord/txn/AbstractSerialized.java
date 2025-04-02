@@ -25,82 +25,54 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import accord.utils.Invariants;
-import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.Version;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * Item that is serialized by default
  */
 @NotThreadSafe
-public abstract class AbstractSerialized<T>
+public abstract class AbstractSerialized<T, P>
 {
-    private static final long EMPTY = ObjectSizes.measure(new AbstractSerialized<ByteBuffer>(null, null) {
-        @Override
-        protected IVersionedSerializer<ByteBuffer> serializer()
-        {
-            throw new AssertionError();
-        }
-    });
-    public final Version version;
-    private @Nullable final ByteBuffer bytes;
+    private @Nullable final ByteBuffer latestVersionBytes;
     private transient @Nullable T memoized = null;
 
-    public AbstractSerialized(@Nullable ByteBuffer bytes, Version version)
+    protected AbstractSerialized(@Nullable ByteBuffer latestVersionBytes)
     {
-        this.version = version;
-        this.bytes = bytes;
-    }
-
-    public AbstractSerialized(T value)
-    {
-        this.version = Version.LATEST;
-        this.bytes = serializer().serializeUnchecked(Invariants.nonNull(value), version);
-        this.memoized = value;
-    }
-
-    public long estimatedSizeOnHeap()
-    {
-        return EMPTY + ByteBufferUtil.estimatedSizeOnHeap(bytes);
+        this.latestVersionBytes = latestVersionBytes;
     }
 
     @Override
     public boolean equals(Object o)
     {
         if (this == o) return true;
-        if (o == null || !(o instanceof AbstractSerialized)) return false;
+        if (o == null || (o.getClass() != getClass())) return false;
 
-        AbstractSerialized<?> that = (AbstractSerialized<?>) o;
-
-        return Objects.equals(bytes, that.bytes);
+        AbstractSerialized<?,?> that = (AbstractSerialized<?,?>) o;
+        return Objects.equals(latestVersionBytes, that.latestVersionBytes);
     }
 
     @Override
     public int hashCode()
     {
-        return bytes != null ? bytes.hashCode() : 0;
+        return latestVersionBytes != null ? latestVersionBytes.hashCode() : 0;
     }
 
-    @Override
-    public String toString()
-    {
-        return Objects.toString(get());
-    }
-
-    protected abstract IVersionedSerializer<T> serializer();
+    public abstract long estimatedSizeOnHeap();
+    protected abstract ByteBuffer serialize(T value, P param, Version version);
+    protected abstract ByteBuffer reserialize(ByteBuffer bytes, P param, Version srcVersion, Version trgVersion);
+    protected abstract T deserialize(P param, ByteBuffer bytes, Version version);
 
     protected boolean isNull()
     {
-        return bytes == null;
+        return latestVersionBytes == null;
     }
 
     @Nullable
-    protected T get()
+    protected T deserialize(P param)
     {
         T result = memoized;
-        if (result == null && bytes != null)
-            memoized = result = serializer().deserializeUnchecked(bytes, version);
+        if (result == null && latestVersionBytes != null)
+            memoized = result = deserialize(param, latestVersionBytes, Version.LATEST);
         return result;
     }
 
@@ -112,39 +84,15 @@ public abstract class AbstractSerialized<T>
     @Nullable
     protected ByteBuffer unsafeBytes()
     {
-        return bytes;
+        return latestVersionBytes;
     }
 
     @Nonnull
-    protected ByteBuffer bytes(Version target)
+    protected ByteBuffer bytes(P param, Version target)
     {
-        Invariants.nonNull(bytes);
-        if (version == target)
-            return bytes;
-        return serializer().serializeUnchecked(get(), target);
-    }
-
-    public static <T> AbstractSerialized<T> of(IVersionedSerializer<T> serializer, T value)
-    {
-        return new AbstractSerialized<T>(value)
-        {
-            @Override
-            protected IVersionedSerializer<T> serializer()
-            {
-                return serializer;
-            }
-        };
-    }
-
-    public static <T> AbstractSerialized<T> fromBytes(IVersionedSerializer<T> serializer, ByteBuffer bytes, Version version)
-    {
-        return new AbstractSerialized<T>(bytes, version)
-        {
-            @Override
-            protected IVersionedSerializer<T> serializer()
-            {
-                return serializer;
-            }
-        };
+        Invariants.nonNull(latestVersionBytes);
+        if (Version.LATEST == target)
+            return latestVersionBytes;
+        return reserialize(latestVersionBytes, param, Version.LATEST, target);
     }
 }

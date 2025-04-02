@@ -222,6 +222,6 @@ public class KeySerializersTest
 
     private static Gen<Ranges> rangesGen()
     {
-        return partitioner().flatMap(AccordGenerators::rangesSplitOrArbitrary);
+        return partitioner().flatMap(p -> AccordGenerators.rangesSplitOrArbitrary(p));
     }
 }

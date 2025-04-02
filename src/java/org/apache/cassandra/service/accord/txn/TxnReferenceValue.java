@@ -24,9 +24,10 @@ import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -34,9 +35,9 @@ public abstract class TxnReferenceValue
 {
     private interface Serializer<T extends TxnReferenceValue>
     {
-        void serialize(T t, DataOutputPlus out, Version version) throws IOException;
-        T deserialize(DataInputPlus in, Version version, Kind kind) throws IOException;
-        long serializedSize(T t, Version version);
+        void serialize(T t, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException;
+        T deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException;
+        long serializedSize(T t, TableMetadatas tables, Version version);
     }
 
     enum Kind
@@ -55,6 +56,7 @@ public abstract class TxnReferenceValue
 
     protected abstract Kind kind();
     abstract ByteBuffer compute(TxnData data, AbstractType<?> receiver);
+    abstract void collect(TableMetadatas.Collector collector);
 
     public static class Constant extends TxnReferenceValue
     {
@@ -103,22 +105,27 @@ public abstract class TxnReferenceValue
             return value;
         }
 
+        @Override
+        void collect(TableMetadatas.Collector collector)
+        {
+        }
+
         private static final Serializer<Constant> serializer = new Serializer<Constant>()
         {
             @Override
-            public void serialize(Constant constant, DataOutputPlus out, Version version) throws IOException
+            public void serialize(Constant constant, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
             {
                 ByteBufferUtil.writeWithVIntLength(constant.value, out);
             }
 
             @Override
-            public Constant deserialize(DataInputPlus in, Version version, Kind kind) throws IOException
+            public Constant deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException
             {
                 return new Constant(ByteBufferUtil.readWithVIntLength(in));
             }
 
             @Override
-            public long serializedSize(Constant constant, Version version)
+            public long serializedSize(Constant constant, TableMetadatas tables, Version version)
             {
                 return ByteBufferUtil.serializedSizeWithVIntLength(constant.value);
             }
@@ -167,50 +174,56 @@ public abstract class TxnReferenceValue
             return reference.toByteBuffer(data, receiver);
         }
 
-        private static final Serializer<Substitution> serializer = new Serializer<Substitution>()
+        @Override
+        void collect(TableMetadatas.Collector collector)
+        {
+            reference.collect(collector);
+        }
+
+        private static final Serializer<Substitution> serializer = new Serializer<>()
         {
             @Override
-            public void serialize(Substitution substitution, DataOutputPlus out, Version version) throws IOException
+            public void serialize(Substitution substitution, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
             {
-                TxnReference.serializer.serialize(substitution.reference, out, version);
+                TxnReference.serializer.serialize(substitution.reference, tables, out, version);
             }
 
             @Override
-            public Substitution deserialize(DataInputPlus in, Version version, Kind kind) throws IOException
+            public Substitution deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException
             {
-                return new Substitution(TxnReference.serializer.deserialize(in, version));
+                return new Substitution(TxnReference.serializer.deserialize(tables, in, version));
             }
 
             @Override
-            public long serializedSize(Substitution substitution, Version version)
+            public long serializedSize(Substitution substitution, TableMetadatas tables, Version version)
             {
-                return TxnReference.serializer.serializedSize(substitution.reference, version);
+                return TxnReference.serializer.serializedSize(substitution.reference, tables, version);
             }
         };
     }
 
-    static final IVersionedSerializer<TxnReferenceValue> serializer = new IVersionedSerializer<TxnReferenceValue>()
+    static final ParameterisedVersionedSerializer<TxnReferenceValue, TableMetadatas, Version> serializer = new ParameterisedVersionedSerializer<>()
     {
         @SuppressWarnings("unchecked")
         @Override
-        public void serialize(TxnReferenceValue value, DataOutputPlus out, Version version) throws IOException
+        public void serialize(TxnReferenceValue value, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt32(value.kind().ordinal());
-            value.kind().serializer.serialize(value, out, version);
+            value.kind().serializer.serialize(value, tables, out, version);
         }
 
         @Override
-        public TxnReferenceValue deserialize(DataInputPlus in, Version version) throws IOException
+        public TxnReferenceValue deserialize(TableMetadatas tables, DataInputPlus in, Version version) throws IOException
         {
             Kind kind = Kind.values()[in.readUnsignedVInt32()];
-            return kind.serializer.deserialize(in, version, kind);
+            return kind.serializer.deserialize(tables, in, version, kind);
         }
 
         @SuppressWarnings("unchecked")
         @Override
-        public long serializedSize(TxnReferenceValue value, Version version)
+        public long serializedSize(TxnReferenceValue value, TableMetadatas tables, Version version)
         {
-            return TypeSizes.sizeofUnsignedVInt(value.kind().ordinal()) + value.kind().serializer.serializedSize(value, version);
+            return TypeSizes.sizeofUnsignedVInt(value.kind().ordinal()) + value.kind().serializer.serializedSize(value, tables, version);
         }
     };
 }

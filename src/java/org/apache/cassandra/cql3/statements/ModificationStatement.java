@@ -111,6 +111,8 @@ import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys.KeyCollector;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperation;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
@@ -642,8 +644,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                          false,
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
-                         requestTime,
-                         false);
+                         requestTime
+            );
         if (!mutations.isEmpty())
         {
             StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime);
@@ -808,7 +810,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
-        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime, false))
+        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime))
             mutation.apply();
         return null;
     }
@@ -857,19 +859,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
      * @return list of the mutations
      */
     public List<? extends IMutation> getMutations(ClientState state,
-                                                   QueryOptions options,
-                                                   boolean local,
-                                                   long timestamp,
-                                                   long nowInSeconds,
-                                                   Dispatcher.RequestTime requestTime,
-                                                   boolean constructingAccordBaseUpdate)
+                                                  QueryOptions options,
+                                                  boolean local,
+                                                  long timestamp,
+                                                  long nowInSeconds,
+                                                  Dispatcher.RequestTime requestTime)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
 
         if (keys.size() == 1)
         {
             SingleTableSinglePartitionUpdatesCollector collector = new SingleTableSinglePartitionUpdatesCollector(metadata, updatedColumns);
-            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
             // local means this is test or internal things that are bypassing distributed system modification/checks
             return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
         }
@@ -877,7 +878,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         {
             HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
             SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
             // local means this is test or internal things that are bypassing distributed system modification/checks
             return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
         }
@@ -885,7 +886,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public PartitionUpdate getTxnUpdate(ClientState state, QueryOptions options)
     {
-        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0), true);
+        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0));
         // TODO: Temporary fix for CASSANDRA-20079
         if (mutations.isEmpty())
             return PartitionUpdate.emptyUpdate(metadata, metadata.partitioner.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER));
@@ -923,7 +924,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             {
                 migrated = txnStmt;
                 if (migrated == null)
-                    txnStmt = migrated = withOperations(operations.forTxn());
+                    txnStmt = migrated = withOperations(operations.forTxn(metadata));
             }
         }
         return migrated;
@@ -937,11 +938,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return operations.allSubstitutions();
     }
 
-    public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options)
+    public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
     {
         PartitionUpdate baseUpdate = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
-        return new TxnWrite.Fragment(index, baseUpdate, referenceOps);
+        return new TxnWrite.Fragment(partitionKey, index, baseUpdate, referenceOps);
+    }
+
+    public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector)
+    {
+        PartitionUpdate baseUpdate = getTxnUpdate(state, options);
+        TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
+        return new TxnWrite.Fragment(keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), index, baseUpdate, referenceOps);
     }
 
     final void addUpdates(UpdatesCollector collector,
@@ -951,8 +959,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                           boolean local,
                           long timestamp,
                           long nowInSeconds,
-                          Dispatcher.RequestTime requestTime,
-                          boolean constructingAccordBaseUpdate)
+                          Dispatcher.RequestTime requestTime)
     {
         if (hasSlices())
         {
@@ -984,7 +991,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 else
                     for (Slice slice : slices)
                         addUpdateForKey(updateBuilder, slice, params);
-
             }
         }
         else

@@ -51,16 +51,15 @@ import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.AbstractWithKeysSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
-import org.apache.cassandra.utils.CastingSerializer;
 import org.apache.cassandra.utils.NullableSerializer;
 
 public class CommandSerializers
@@ -786,79 +785,73 @@ public class CommandSerializers
         }
     }
 
-    public static class PartialTxnSerializer extends AbstractWithKeysSerializer
+    public static class PartialTxnSerializer
     implements IVersionedSerializer<PartialTxn>
     {
-        private final VersionedSerializer<Read, Version> readSerializer;
+        private final ParameterisedVersionedSerializer<Read, TableMetadatasAndKeys, Version> readSerializer;
         private final UnversionedSerializer<Query> querySerializer;
-        private final VersionedSerializer<Update, Version> updateSerializer;
+        private final ParameterisedVersionedSerializer<Update, TableMetadatasAndKeys, Version> updateSerializer;
+        private final UnversionedSerializer<TableMetadatasAndKeys> tablesAndKeysSerializer;
 
-        public PartialTxnSerializer(VersionedSerializer<Read, Version> readSerializer,
+        public PartialTxnSerializer(ParameterisedVersionedSerializer<Read, TableMetadatasAndKeys, Version> readSerializer,
                                     UnversionedSerializer<Query> querySerializer,
-                                    VersionedSerializer<Update, Version> updateSerializer)
+                                    ParameterisedVersionedSerializer<Update, TableMetadatasAndKeys, Version> updateSerializer,
+                                    UnversionedSerializer<TableMetadatasAndKeys> tablesAndKeysSerializer)
         {
             this.readSerializer = readSerializer;
             this.querySerializer = querySerializer;
             this.updateSerializer = updateSerializer;
+            this.tablesAndKeysSerializer = tablesAndKeysSerializer;
         }
 
         @Override
         public void serialize(PartialTxn txn, DataOutputPlus out, Version version) throws IOException
         {
-            KeySerializers.seekables.serialize(txn.keys(), out);
-            serializeWithoutKeys(txn, out, version);
+            PartialTxn.InMemory cast = (PartialTxn.InMemory)txn;
+            CommandSerializers.kind.serialize(txn.kind(), out);
+            TableMetadatasAndKeys tablesAndKeys = (TableMetadatasAndKeys) cast.implementationDefined;
+            if (tablesAndKeys != null) tablesAndKeysSerializer.serialize(tablesAndKeys, out);
+            else KeySerializers.seekables.serialize(txn.keys(), out);
+            readSerializer.serialize(txn.read(), tablesAndKeys, out, version);
+            querySerializer.serialize(txn.query(), out);
+            out.writeBoolean(txn.update() != null);
+            if (txn.update() != null)
+                updateSerializer.serialize(txn.update(), tablesAndKeys, out, version);
         }
 
         @Override
         public PartialTxn deserialize(DataInputPlus in, Version version) throws IOException
         {
-            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in);
-            return deserializeWithoutKeys(keys, in, version);
+            Txn.Kind kind = CommandSerializers.kind.deserialize(in);
+            TableMetadatasAndKeys tablesAndKeys = tablesAndKeysSerializer.deserialize(in);
+            Seekables keys = tablesAndKeys != null ? tablesAndKeys.keys : KeySerializers.seekables.deserialize(in);
+            Read read = readSerializer.deserialize(tablesAndKeys, in, version);
+            Query query = querySerializer.deserialize(in);
+            Update update = in.readBoolean() ? updateSerializer.deserialize(tablesAndKeys, in, version) : null;
+            return new PartialTxn.InMemory(kind, keys, read, query, update, tablesAndKeys);
         }
 
         @Override
         public long serializedSize(PartialTxn txn, Version version)
         {
-            long size = KeySerializers.seekables.serializedSize(txn.keys());
-            size += serializedSizeWithoutKeys(txn, version);
-            return size;
-        }
-
-        private void serializeWithoutKeys(PartialTxn txn, DataOutputPlus out, Version version) throws IOException
-        {
-            CommandSerializers.kind.serialize(txn.kind(), out);
-            readSerializer.serialize(txn.read(), out, version);
-            querySerializer.serialize(txn.query(), out);
-            out.writeBoolean(txn.update() != null);
-            if (txn.update() != null)
-                updateSerializer.serialize(txn.update(), out, version);
-        }
-
-        private PartialTxn deserializeWithoutKeys(Seekables<?, ?> keys, DataInputPlus in, Version version) throws IOException
-        {
-            Txn.Kind kind = CommandSerializers.kind.deserialize(in);
-            Read read = readSerializer.deserialize(in, version);
-            Query query = querySerializer.deserialize(in);
-            Update update = in.readBoolean() ? updateSerializer.deserialize(in, version) : null;
-            return new PartialTxn.InMemory(kind, keys, read, query, update);
-        }
-
-        private long serializedSizeWithoutKeys(PartialTxn txn, Version version)
-        {
             long size = CommandSerializers.kind.serializedSize(txn.kind());
-            size += readSerializer.serializedSize(txn.read(), version);
+            TableMetadatasAndKeys tablesAndKeys = (TableMetadatasAndKeys) ((PartialTxn.InMemory)txn).implementationDefined;
+            if (tablesAndKeys != null) size += tablesAndKeysSerializer.serializedSize(tablesAndKeys);
+            else size += KeySerializers.seekables.serializedSize(txn.keys());
+            size += readSerializer.serializedSize(txn.read(), tablesAndKeys, version);
             size += querySerializer.serializedSize(txn.query());
             size += TypeSizes.sizeof(txn.update() != null);
             if (txn.update() != null)
-                size += updateSerializer.serializedSize(txn.update(), version);
+                size += updateSerializer.serializedSize(txn.update(), tablesAndKeys, version);
             return size;
         }
     }
 
-    public static final VersionedSerializer<Read, Version> read;
+    public static final ParameterisedVersionedSerializer<Read, TableMetadatasAndKeys, Version> read;
     public static final UnversionedSerializer<Query> query;
-    public static final VersionedSerializer<Update, Version> update;
-    public static final VersionedSerializer<Write, Version> write;
+    public static final ParameterisedVersionedSerializer<Update, TableMetadatasAndKeys, Version> update;
+    public static final ParameterisedVersionedSerializer<Write, Seekables, Version> write;
+    public static final UnversionedSerializer<TableMetadatasAndKeys> tablesAndKeys;
 
     public static final VersionedSerializer<PartialTxn, Version> partialTxn;
     public static final VersionedSerializer<PartialTxn, Version> nullablePartialTxn;
@@ -871,6 +864,7 @@ public class CommandSerializers
         query = querySerializers.query;
         update = querySerializers.update;
         write = querySerializers.write;
+        tablesAndKeys = querySerializers.tablesAndKeys;
 
         partialTxn = querySerializers.partialTxn;
         nullablePartialTxn = querySerializers.nullablePartialTxn;
@@ -879,33 +873,37 @@ public class CommandSerializers
     @VisibleForTesting
     public static class QuerySerializers
     {
-        public final VersionedSerializer<Read, Version> read;
+        public final ParameterisedVersionedSerializer<Read, TableMetadatasAndKeys, Version> read;
         public final UnversionedSerializer<Query> query;
-        public final VersionedSerializer<Update, Version> update;
-        public final VersionedSerializer<Write, Version> write;
+        public final ParameterisedVersionedSerializer<Update, TableMetadatasAndKeys, Version> update;
+        public final ParameterisedVersionedSerializer<Write, Seekables, Version> write;
+        public final UnversionedSerializer<TableMetadatasAndKeys> tablesAndKeys;
 
         public final VersionedSerializer<PartialTxn, Version> partialTxn;
         public final VersionedSerializer<PartialTxn, Version> nullablePartialTxn;
 
         private QuerySerializers()
         {
-            this(CastingSerializer.create(TxnRead.class, TxnRead.serializer),
-                 CastingSerializer.create(TxnQuery.class, TxnQuery.serializer),
-                 CastingSerializer.create(AccordUpdate.class, AccordUpdate.serializer),
-                 CastingSerializer.create(TxnWrite.class, TxnWrite.serializer));
+            this((ParameterisedVersionedSerializer) TxnRead.serializer,
+                 (UnversionedSerializer) TxnQuery.serializer,
+                 (ParameterisedVersionedSerializer) AccordUpdate.serializer,
+                 (ParameterisedVersionedSerializer) TxnWrite.serializer,
+                 TableMetadatasAndKeys.serializer);
         }
 
-        public QuerySerializers(VersionedSerializer<Read, Version> read,
+        public QuerySerializers(ParameterisedVersionedSerializer<Read, TableMetadatasAndKeys, Version> read,
                                 UnversionedSerializer<Query> query,
-                                VersionedSerializer<Update, Version> update,
-                                VersionedSerializer<Write, Version> write)
+                                ParameterisedVersionedSerializer<Update, TableMetadatasAndKeys, Version> update,
+                                ParameterisedVersionedSerializer<Write, Seekables, Version> write,
+                                UnversionedSerializer<TableMetadatasAndKeys> tablesAndKeys)
         {
             this.read = read;
             this.query = query;
             this.update = update;
             this.write = write;
+            this.tablesAndKeys = tablesAndKeys;
 
-            this.partialTxn = new PartialTxnSerializer(read, query, update);
+            this.partialTxn = new PartialTxnSerializer(read, query, update, tablesAndKeys);
             this.nullablePartialTxn = NullableSerializer.wrap(partialTxn);
         }
     }
@@ -922,20 +920,23 @@ public class CommandSerializers
             txnId.serialize(writes.txnId, out);
             ExecuteAtSerializer.serialize(writes.txnId, writes.executeAt, out);
             KeySerializers.seekables.serialize(writes.keys, out);
-            boolean hasWrites = writes.write != null;
-            out.writeBoolean(hasWrites);
-
-            if (hasWrites)
-                CommandSerializers.write.serialize(writes.write, out, version);
+            boolean hasWrite = writes.write != null;
+            out.writeBoolean(hasWrite);
+            if (hasWrite)
+                CommandSerializers.write.serialize(writes.write, writes.keys, out, version);
         }
 
         @Override
         public Writes deserialize(DataInputPlus in, Version version) throws IOException
         {
             TxnId id = txnId.deserialize(in);
-            return new Writes(id, ExecuteAtSerializer.deserialize(id, in),
-                              KeySerializers.seekables.deserialize(in),
-                              in.readBoolean() ? CommandSerializers.write.deserialize(in, version) : null);
+            Timestamp executeAt = ExecuteAtSerializer.deserialize(id, in);
+            Seekables seekables = KeySerializers.seekables.deserialize(in);
+            boolean hasWrite = in.readBoolean();
+            Write write = null;
+            if (hasWrite)
+                write = CommandSerializers.write.deserialize(seekables, in, version);
+            return new Writes(id, executeAt, seekables, write);
         }
 
         @Override
@@ -943,11 +944,11 @@ public class CommandSerializers
         {
             long size = txnId.serializedSize(writes.txnId);
             size += ExecuteAtSerializer.serializedSize(writes.txnId, writes.executeAt);
-            size += KeySerializers.seekables.serializedSize(writes.keys);
             boolean hasWrites = writes.write != null;
+            size += KeySerializers.seekables.serializedSize(writes.keys);
             size += TypeSizes.sizeof(hasWrites);
             if (hasWrites)
-                size += CommandSerializers.write.serializedSize(writes.write, version);
+                size += CommandSerializers.write.serializedSize(writes.write, writes.keys, version);
             return size;
         }
     };

@@ -25,17 +25,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import accord.api.Data;
-import accord.api.Key;
 import accord.api.Update;
 import accord.primitives.Keys;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
+import accord.utils.Invariants;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
@@ -45,9 +44,12 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
-import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
+import org.apache.cassandra.service.accord.txn.TxnCondition.SerializedTxnCondition;
+import org.apache.cassandra.service.accord.txn.TxnWrite.Fragment;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -69,12 +71,13 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class TxnUpdate extends AccordUpdate
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(null, new ByteBuffer[0], null, null, false));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(TableMetadatas.none(), null, new ByteBuffer[0], null, null, false));
     private static final int FLAG_PRESERVE_TIMESTAMPS = 0x1;
 
+    final TableMetadatas tables;
     private final Keys keys;
     private final ByteBuffer[] fragments;
-    private final AbstractSerialized<TxnCondition> condition;
+    private final AbstractSerialized<TxnCondition, TableMetadatas> condition;
 
     @Nullable
     private final ConsistencyLevel cassandraCommitCL;
@@ -87,23 +90,26 @@ public class TxnUpdate extends AccordUpdate
     // Memoize computation of condition
     private Boolean conditionResult;
 
-    public TxnUpdate(List<TxnWrite.Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
+    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
     {
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
-        // TODO: Figure out a way to shove keys into TxnCondition, and have it implement slice/merge.
+        this.tables = tables;
         this.keys = Keys.of(fragments, fragment -> fragment.key);
-        fragments.sort(TxnWrite.Fragment::compareKeys);
-        //TODO (correctness): this node could be on version N while the peers are on N-1, which would have issues as the peers wouldn't know about N yet.
-        // Can not eagerly serialize until we know the "correct" version, else we need a way to fallback on mismatch.
-        this.fragments = toSerializedValuesArray(keys, fragments, fragment -> fragment.key, Version.LATEST, TxnWrite.Fragment.serializer);
-        this.condition = AbstractSerialized.of(TxnCondition.serializer, condition);
+        fragments.sort(Fragment::compareKeys);
+        // TODO (required): this node could be on version N while the peers are on N-1, which would have issues as the peers wouldn't know about N yet.
+        //  Can not eagerly serialize until we know the "correct" version, else we need a way to fallback on mismatch.
+        this.fragments = toSerializedValuesArray(keys, fragments, tables, Version.LATEST);
+        // TODO (desired): slice TxnCondition, or pick a single shard to persist it
+        this.condition = new SerializedTxnCondition(condition, tables);
         this.condition.unmemoize();
+        this.condition.deserialize(tables);
         this.cassandraCommitCL = cassandraCommitCL;
         this.preserveTimestamps = preserveTimestamps;
     }
 
-    private TxnUpdate(Keys keys, ByteBuffer[] fragments, AbstractSerialized<TxnCondition> condition, ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
+    private TxnUpdate(TableMetadatas tables, Keys keys, ByteBuffer[] fragments, AbstractSerialized<TxnCondition, TableMetadatas> condition, ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
     {
+        this.tables = tables;
         this.keys = keys;
         this.fragments = fragments;
         this.condition = condition;
@@ -113,7 +119,7 @@ public class TxnUpdate extends AccordUpdate
 
     public static TxnUpdate empty()
     {
-        return new TxnUpdate(Collections.emptyList(), TxnCondition.none(), null, false);
+        return new TxnUpdate(TableMetadatas.none(), Collections.emptyList(), TxnCondition.none(), null, false);
     }
 
     @Override
@@ -129,8 +135,8 @@ public class TxnUpdate extends AccordUpdate
     @Override
     public String toString()
     {
-        return "TxnUpdate{updates=" + deserialize(fragments, TxnWrite.Fragment.serializer) +
-               ", condition=" + condition.get() + '}';
+        return "TxnUpdate{updates=" + deserialize(keys, tables, fragments) +
+               ", condition=" + condition.deserialize(tables) + '}';
     }
 
     @Override
@@ -169,7 +175,7 @@ public class TxnUpdate extends AccordUpdate
     {
         Keys keys = this.keys.slice(ranges);
         // TODO: Slice the condition.
-        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL, preserveTimestamps);
+        return new TxnUpdate(tables, keys, select(this.keys, keys, fragments), condition, cassandraCommitCL, preserveTimestamps);
     }
 
     @Override
@@ -177,7 +183,7 @@ public class TxnUpdate extends AccordUpdate
     {
         Keys keys = this.keys.intersecting(participants);
         // TODO: Slice the condition.
-        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL, preserveTimestamps);
+        return new TxnUpdate(tables, keys, select(this.keys, keys, fragments), condition, cassandraCommitCL, preserveTimestamps);
     }
 
     private static ByteBuffer[] select(Keys in, Keys out, ByteBuffer[] from)
@@ -199,7 +205,7 @@ public class TxnUpdate extends AccordUpdate
         TxnUpdate that = (TxnUpdate) update;
         Keys mergedKeys = this.keys.with(that.keys);
         ByteBuffer[] mergedFragments = merge(this.keys, that.keys, this.fragments, that.fragments, mergedKeys.size());
-        return new TxnUpdate(mergedKeys, mergedFragments, condition, cassandraCommitCL, preserveTimestamps);
+        return new TxnUpdate(tables, mergedKeys, mergedFragments, condition, cassandraCommitCL, preserveTimestamps);
     }
 
     private static ByteBuffer[] merge(Keys leftKeys, Keys rightKeys, ByteBuffer[] left, ByteBuffer[] right, int outputSize)
@@ -228,29 +234,29 @@ public class TxnUpdate extends AccordUpdate
             return TxnWrite.EMPTY_CONDITION_FAILED;
 
         if (keys.isEmpty())
-            return new TxnWrite(Collections.emptyList(), true);
+            return new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true);
 
-        List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
+        List<Fragment> fragments = deserialize(keys, tables, this.fragments);
         List<TxnWrite.Update> updates = new ArrayList<>(fragments.size());
         QueryOptions options = QueryOptions.forProtocolVersion(ProtocolVersion.CURRENT);
         AccordUpdateParameters parameters = new AccordUpdateParameters((TxnData) data, options, executeAt.uniqueHlc());
 
-        for (TxnWrite.Fragment fragment : fragments)
+        for (Fragment fragment : fragments)
             // Filter out fragments that already constitute complete updates to avoid persisting them via TxnWrite:
             if (!fragment.isComplete())
-                updates.add(fragment.complete(parameters));
+                updates.add(fragment.complete(parameters, tables));
 
-        return new TxnWrite(updates, true);
+        return new TxnWrite(tables, updates, true);
     }
 
     public List<TxnWrite.Update> completeUpdatesForKey(RoutableKey key)
     {
-        List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
+        List<Fragment> fragments = deserialize(keys, tables, this.fragments);
         List<TxnWrite.Update> updates = new ArrayList<>(fragments.size());
 
-        for (TxnWrite.Fragment fragment : fragments)
+        for (Fragment fragment : fragments)
             if (fragment.isComplete() && fragment.key.equals(key))
-                updates.add(fragment.toUpdate());
+                updates.add(fragment.toUpdate(tables));
 
         return updates;
     }
@@ -258,72 +264,72 @@ public class TxnUpdate extends AccordUpdate
     public static final AccordUpdateSerializer<TxnUpdate> serializer = new AccordUpdateSerializer<TxnUpdate>()
     {
         @Override
-        public void serialize(TxnUpdate update, DataOutputPlus out, Version version) throws IOException
+        public void serialize(TxnUpdate update, TableMetadatasAndKeys tablesAndKeys, DataOutputPlus out, Version version) throws IOException
         {
             out.writeByte(update.preserveTimestamps ? FLAG_PRESERVE_TIMESTAMPS : 0);
-            KeySerializers.keys.serialize(update.keys, out);
-            writeWithVIntLength(update.condition.bytes(version), out);
+            tablesAndKeys.serializeKeys(update.keys, out);
+            writeWithVIntLength(update.condition.bytes(tablesAndKeys.tables, version), out);
             serializeArray(update.fragments, out, ByteBufferUtil.byteBufferSerializer);
             serializeNullable(update.cassandraCommitCL, out, consistencyLevelSerializer);
         }
 
         @Override
-        public TxnUpdate deserialize(DataInputPlus in, Version version) throws IOException
+        public TxnUpdate deserialize(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
         {
             int flags = in.readByte();
             boolean preserveTimestamps = (FLAG_PRESERVE_TIMESTAMPS & flags) == 1;
-            Keys keys = KeySerializers.keys.deserialize(in);
+            Keys keys = tablesAndKeys.deserializeKeys(in);
             ByteBuffer condition = readWithVIntLength(in);
             ByteBuffer[] fragments = deserializeArray(in, ByteBufferUtil.byteBufferSerializer, ByteBuffer[]::new);
             ConsistencyLevel consistencyLevel = deserializeNullable(in, consistencyLevelSerializer);
-            return new TxnUpdate(keys, fragments, AbstractSerialized.fromBytes(TxnCondition.serializer, condition, version), consistencyLevel, preserveTimestamps);
+            return new TxnUpdate(tablesAndKeys.tables, keys, fragments, new SerializedTxnCondition(condition), consistencyLevel, preserveTimestamps);
         }
 
         @Override
-        public long serializedSize(TxnUpdate update, Version version)
+        public long serializedSize(TxnUpdate update, TableMetadatasAndKeys tablesAndKeys, Version version)
         {
             long size = 1; // flags
-            size += KeySerializers.keys.serializedSize(update.keys);
-            size += serializedSizeWithVIntLength(update.condition.bytes(version));
+            size += tablesAndKeys.serializedKeysSize(update.keys);
+            size += serializedSizeWithVIntLength(update.condition.bytes(tablesAndKeys.tables, version));
             size += serializedArraySize(update.fragments, ByteBufferUtil.byteBufferSerializer);
             size += serializedNullableSize(update.cassandraCommitCL, consistencyLevelSerializer);
             return size;
         }
     };
 
-    private static <T> ByteBuffer[] toSerializedValuesArray(Keys keys, List<T> items, Function<? super T, ? extends Key> toKey, Version version, IVersionedSerializer<T> serializer)
+    private static ByteBuffer[] toSerializedValuesArray(Keys keys, List<Fragment> items, TableMetadatas tables, Version version)
     {
         ByteBuffer[] result = new ByteBuffer[keys.size()];
         int i = 0, mi = items.size(), ki = 0;
         while (i < mi)
         {
-            Key key = toKey.apply(items.get(i));
+            PartitionKey key = items.get(i).key;
             int j = i + 1;
-            while (j < mi && toKey.apply(items.get(j)).equals(key))
+            while (j < mi && items.get(j).key.equals(key))
                 ++j;
 
             int nextki = keys.findNext(ki, key, CEIL);
             Arrays.fill(result, ki, nextki, ByteBufferUtil.EMPTY_BYTE_BUFFER);
             ki = nextki;
-            result[ki++] = toSerializedValues(items, i, j, serializer, version);
+            result[ki++] = toSerializedValues(items, tables, i, j, version);
             i = j;
         }
         Arrays.fill(result, ki, result.length, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         return result;
     }
 
-    private static <T> ByteBuffer toSerializedValues(List<T> items, int start, int end, IVersionedSerializer<T> serializer, Version version)
+    private static ByteBuffer toSerializedValues(List<Fragment> items, TableMetadatas tables, int start, int end, Version version)
     {
         long size = TypeSizes.sizeofUnsignedVInt(version.version) + TypeSizes.sizeofUnsignedVInt(end - start);
         for (int i = start ; i < end ; ++i)
-            size += serializer.serializedSize(items.get(i), version);
+            size += Fragment.serializer.serializedSize(items.get(i), tables, version);
 
         try (DataOutputBuffer out = new DataOutputBuffer((int) size))
         {
             out.writeUnsignedVInt32(version.version);
             out.writeUnsignedVInt32(end - start);
             for (int i = start ; i < end ; ++i)
-                serializer.serialize(items.get(i), out, version);
+                Fragment.serializer.serialize(items.get(i), tables, out, version);
             return out.buffer(false);
         }
         catch (IOException e)
@@ -332,7 +338,7 @@ public class TxnUpdate extends AccordUpdate
         }
     }
 
-    private static <T> List<T> deserialize(ByteBuffer bytes, IVersionedSerializer<T> serializer)
+    private static List<Fragment> deserialize(PartitionKey key, TableMetadatas tables, ByteBuffer bytes)
     {
         if (!bytes.hasRemaining())
             return Collections.emptyList();
@@ -344,11 +350,11 @@ public class TxnUpdate extends AccordUpdate
             switch (count)
             {
                 case 0: throw new IllegalStateException();
-                case 1: return Collections.singletonList(serializer.deserialize(in, version));
+                case 1: return Collections.singletonList(Fragment.serializer.deserialize(key, tables, in, version));
                 default:
-                    List<T> result = new ArrayList<>();
+                    List<Fragment> result = new ArrayList<>();
                     for (int i = 0 ; i < count ; ++i)
-                        result.add(serializer.deserialize(in, version));
+                        result.add(Fragment.serializer.deserialize(key, tables, in, version));
                     return result;
             }
         }
@@ -358,11 +364,12 @@ public class TxnUpdate extends AccordUpdate
         }
     }
 
-    private static <T> List<T> deserialize(ByteBuffer[] buffers, IVersionedSerializer<T> serializer)
+    private static List<Fragment> deserialize(Keys keys, TableMetadatas tables, ByteBuffer[] buffers)
     {
-        List<T> result = new ArrayList<>(buffers.length);
-        for (ByteBuffer bytes : buffers)
-            result.addAll(deserialize(bytes, serializer));
+        Invariants.require(keys.size() == buffers.length);
+        List<Fragment> result = new ArrayList<>(buffers.length);
+        for (int i = 0 ; i < keys.size() ; ++i)
+            result.addAll(deserialize((PartitionKey) keys.get(i), tables, buffers[i]));
         return result;
     }
 
@@ -372,7 +379,7 @@ public class TxnUpdate extends AccordUpdate
         // Assert data that was memoized is same as data that is provided?
         if (conditionResult != null)
             return conditionResult;
-        TxnCondition condition = this.condition.get();
+        TxnCondition condition = this.condition.deserialize(tables);
         if (condition == TxnCondition.none())
             return conditionResult = true;
         return conditionResult = condition.applies((TxnData) data);

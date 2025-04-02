@@ -919,7 +919,7 @@ public class KeySerializers
 
         public KS deserializeSubset(AbstractUnseekableKeys superset, DataInputPlus in) throws IOException
         {
-            RoutingKey[] keys = deserializeRoutingKeySubset(superset, in, (ks, s) -> ks == null ? s.unsafeKeys() : ks);
+            RoutingKey[] keys = deserializeSubset(superset, in, (ks, s) -> ks == null ? s.unsafeKeys() : ks, RoutingKey[]::new);
             return deserialize(in, keys);
         }
     }
@@ -1071,7 +1071,7 @@ public class KeySerializers
 
         public RS deserializeSubset(AbstractRanges superset, DataInputPlus in) throws IOException
         {
-            Range[] ranges = deserializeRangeSubset(superset, in, (rs, s) -> rs == null ? s.unsafeRanges() : rs);
+            Range[] ranges = deserializeSubset(superset, in, (rs, s) -> rs == null ? s.unsafeRanges() : rs, Range[]::new);
             return deserialize(in, ranges);
         }
     }
@@ -1134,6 +1134,4 @@ public class KeySerializers
             return super.serializedSubsetSize(route, superset) + routingKey.serializedSize(route.homeKey);
         }
     }
-
-
 }

@@ -24,6 +24,7 @@ import java.util.Set;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
@@ -48,5 +49,10 @@ public class SelectReferenceSource implements RowDataReference.ReferenceSource
             checkTrue(selectedColumns.contains(column), COLUMN_NOT_IN_SELECT_MESSAGE, statement);
         }
         return column;
+    }
+
+    public TableMetadata getTable()
+    {
+        return statement.table;
     }
 }

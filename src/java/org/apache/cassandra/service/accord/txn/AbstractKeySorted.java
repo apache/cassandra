@@ -131,6 +131,11 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
         return itemKeys;
     }
 
+    public T get(int index)
+    {
+        return items[index];
+    }
+
     /**
      * Compare the non-key component of items (since this class handles sorting by key)
      */
@@ -138,8 +143,6 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
 
     abstract Seekable getKey(T item);
     abstract T[] newArray(int size);
-
-    abstract Domain domain();
 
     public int compareKey(T left, T right)
     {

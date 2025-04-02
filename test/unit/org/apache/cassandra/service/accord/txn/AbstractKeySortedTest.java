@@ -107,12 +107,6 @@ public class AbstractKeySortedTest
         }
 
         @Override
-        Domain domain()
-        {
-            return Domain.Key;
-        }
-
-        @Override
         Item[] newArray(int size)
         {
             return new Item[size];
