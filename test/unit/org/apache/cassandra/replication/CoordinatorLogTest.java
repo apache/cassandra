@@ -18,6 +18,7 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Assert;
@@ -71,12 +72,11 @@ public class CoordinatorLogTest
         return list;
     }
 
-    private static void assertUnreconciled(Token token, CoordinatorLog log, Offsets expectedReconciled, MutationId... expectedIds)
+    private static void assertUnreconciled(Token token, TableId tableId, CoordinatorLog log, boolean includePending, Offsets expectedReconciled, MutationId... expectedIds)
     {
-        TableId tableId = TableId.generate();
         Offsets reconciled = new Offsets(LOG_ID);
         Offsets unreconciled = new Offsets(LOG_ID);
-        log.collectOffsetsFor(token, tableId, false, unreconciled, reconciled);
+        log.collectOffsetsFor(token, tableId, includePending, unreconciled, reconciled);
 
         for (MutationId mid : expectedIds)
             Assert.assertTrue(unreconciled.contains(mid.offset()));
@@ -89,28 +89,41 @@ public class CoordinatorLogTest
     public void remoteReconciliationTest()
     {
         Token tk = tk("key");
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        TableId tableId = metadata.id;
         CoordinatorLogPrimary log = new CoordinatorLogPrimary(LOCAL_HOST_ID, LOG_ID, PARTICIPANTS);
         MutationId[] ids = new MutationId[] { log.nextId(), log.nextId(), log.nextId(), };
 
+        List<Mutation> mutations = new ArrayList<>(ids.length);
         for (MutationId id : ids)
         {
             Mutation mutation =
-                new RowUpdateBuilder(Schema.instance.getTableMetadata(KEYSPACE, TABLE), 0, "key")
+                new RowUpdateBuilder(metadata, 0, "key")
                 .clustering("ck")
                 .add("value", "value")
                 .build()
                 .withMutationId(id);
-            log.finishWriting(mutation);
+
+            mutations.add(mutation);
+            log.startWriting(mutation);
         }
 
         Offsets reconciled = new Offsets(LOG_ID);
-        assertUnreconciled(tk, log, reconciled, ids);
+        // we've only started writing, so the ids shouldn't appear without includePending being true
+        assertUnreconciled(tk, tableId, log, false, reconciled);
+        assertUnreconciled(tk, tableId, log, true, reconciled, ids);
+
+        for (Mutation mutation : mutations)
+            log.finishWriting(mutation);
+
+        // the call to finishWriting will have made the ids visible without the includePending flag
+        assertUnreconciled(tk, tableId, log, false, reconciled, ids);
 
         log.witnessedRemoteMutation(ids[0], PARTICIPANTS.get(1));
-        assertUnreconciled(tk, log, reconciled, ids);
+        assertUnreconciled(tk, tableId, log, false, reconciled, ids);
 
         log.witnessedRemoteMutation(ids[0], PARTICIPANTS.get(2));
         reconciled.add(ids[0].offset());
-        assertUnreconciled(tk, log, reconciled, ids[1], ids[2]);
+        assertUnreconciled(tk, tableId, log, false, reconciled, ids[1], ids[2]);
     }
 }
