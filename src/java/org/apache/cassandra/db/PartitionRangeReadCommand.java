@@ -404,12 +404,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     @Override
-    public boolean readsMutationContents(Mutation mutation)
-    {
-        return dataRange().contains(mutation.key()) && mutation.getPartitionUpdate(metadata()) != null;
-    }
-
-    @Override
     public UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations)
     {
         if (mutations.isEmpty())
