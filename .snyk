@@ -52,3 +52,5 @@ ignore:
     - reason: Suppressed due to internal review, see project's .build/dependency-check-suppressions.xml
   CVE-2024-12801:
     - reason: Suppressed due to internal review, see project's .build/dependency-check-suppressions.xml
+  CVE-2025-25193:
+    - reason: netty's http stuff is not applicable here -- ^pkg:maven/io\.netty/netty\-all@.*$
