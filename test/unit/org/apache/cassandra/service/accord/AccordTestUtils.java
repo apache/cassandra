@@ -98,6 +98,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -302,7 +304,10 @@ public class AccordTestUtils
 
     public static Txn createTxn(Txn.Kind kind, Seekables<?, ?> seekables)
     {
-        return new Txn.InMemory(kind, seekables, TxnRead.empty(seekables.domain()), TxnQuery.NONE, null);
+        TableMetadatas.Collector tables = new TableMetadatas.Collector();
+        for (Seekable seekable : seekables)
+            tables.add(TableMetadata.minimal("", "", (TableId)seekable.prefix()));
+        return new Txn.InMemory(kind, seekables, TxnRead.empty(seekables.domain()), TxnQuery.NONE, null, new TableMetadatasAndKeys(tables.build(), seekables));
     }
 
     public static Ranges fullRange(Txn txn)
@@ -319,8 +324,10 @@ public class AccordTestUtils
     public static PartialTxn createPartialTxn(int key)
     {
         Txn txn = createTxn(key, key);
-        Ranges ranges = fullRange(txn);
-        return new PartialTxn.InMemory(txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
+        TableMetadatas.Collector tables = new TableMetadatas.Collector();
+        for (Seekable seekable : txn.keys())
+            tables.add(TableMetadata.minimal("", "", (TableId)seekable.prefix()));
+        return new PartialTxn.InMemory(txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update(), new TableMetadatasAndKeys(tables.build(), txn.keys()));
     }
 
     public static AccordCommandStore createAccordCommandStore(

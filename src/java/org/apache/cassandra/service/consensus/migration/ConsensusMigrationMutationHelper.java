@@ -32,7 +32,6 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.primitives.Keys;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Txn;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -53,6 +52,8 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -242,24 +243,37 @@ public class ConsensusMigrationMutationHelper
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
             throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
+
+        TableMetadatas tables;
+        {
+            TableMetadatas.Collector tableCollector = new TableMetadatas.Collector();
+            for (IMutation mutation : mutations)
+            {
+                for (TableId tableId : mutation.getTableIds())
+                    tableCollector.add(cm.schema.getTableMetadata(tableId));
+            }
+            tables = tableCollector.build();
+        }
+
+        TableMetadatasAndKeys.KeyCollector keyCollector = new TableMetadatasAndKeys.KeyCollector(tables);
+
         int fragmentIndex = 0;
         List<TxnWrite.Fragment> fragments = new ArrayList<>(mutations.size());
-        List<PartitionKey> partitionKeys = new ArrayList<>(mutations.size());
         long minEpoch = Epoch.EMPTY.getEpoch();
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
-                PartitionKey pk = PartitionKey.of(update);
-                partitionKeys.add(pk);
+                PartitionKey pk = keyCollector.collect(update.metadata(), update.partitionKey());
                 minEpoch = Math.max(minEpoch, update.metadata().epoch.getEpoch());
-                fragments.add(new TxnWrite.Fragment(PartitionKey.of(update), fragmentIndex++, update, TxnReferenceOperations.empty()));
+                fragments.add(new TxnWrite.Fragment(pk, fragmentIndex++, update, TxnReferenceOperations.empty()));
             }
         }
         // Potentially ignore commit consistency level if the TransactionalMode specifies full
         ConsistencyLevel clForCommit = consistencyLevelForCommit(cm, mutations, consistencyLevel);
-        TxnUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit, true);
-        Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.empty(Domain.Key), TxnQuery.NONE, update);
+        TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, keyCollector.build());
+        TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, true);
+        Txn.InMemory txn = new Txn.InMemory(tablesAndKeys.keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, update, tablesAndKeys);
         return AccordService.instance().coordinateAsync(minEpoch, txn, clForCommit, requestTime);
     }
 

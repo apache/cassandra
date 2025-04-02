@@ -28,6 +28,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -47,8 +48,9 @@ public class AccordUpdateTest
     public void predicateSerializer() throws IOException
     {
         Txn txn = AccordTestUtils.createTxn(0, 0);
-        AccordUpdate update = (AccordUpdate) txn.update();
+        TxnUpdate update = (TxnUpdate) txn.update();
+        TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(update.tables, update.keys());
         for (Version version : Version.V1.greaterThanOrEqual())
-            Serializers.testSerde(AccordUpdate.serializer, update, version);
+            Serializers.testSerde(AccordUpdate.serializer, update, tablesAndKeys, version);
     }
 }

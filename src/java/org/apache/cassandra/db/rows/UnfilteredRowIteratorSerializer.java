@@ -124,7 +124,11 @@ public class UnfilteredRowIteratorSerializer
         assert !header.isForSSTable();
 
         ByteBufferUtil.writeWithVIntLength(iterator.partitionKey().getKey(), out);
+        serializeWithoutKey(iterator, header, out, version, rowEstimate, serializer, param);
+    }
 
+    public <P> void serializeWithoutKey(UnfilteredRowIterator iterator, SerializationHeader header, DataOutputPlus out, int version, int rowEstimate, ParameterizedSerializer<P> serializer, P param) throws IOException
+    {
         int flags = 0;
         if (iterator.isReverseOrder())
             flags |= IS_REVERSED;
@@ -179,16 +183,21 @@ public class UnfilteredRowIteratorSerializer
                                                              iterator.columns(),
                                                              iterator.stats());
 
-        SerializationHelper helper = new SerializationHelper(header);
-
         assert rowEstimate >= 0;
 
-        long size = ByteBufferUtil.serializedSizeWithVIntLength(iterator.partitionKey().getKey())
-                  + 1; // flags
+        long size = ByteBufferUtil.serializedSizeWithVIntLength(iterator.partitionKey().getKey());
+        return size + serializedSizeWithoutKey(iterator, header, version, rowEstimate, serializer, param);
+    }
 
+    // Please note that this consume the iterator, and as such should not be called unless we have a simple way to
+    // recreate an iterator for both serialize and serializedSize, which is mostly only PartitionUpdate/ArrayBackedCachedPartition.
+    public <P> long serializedSizeWithoutKey(UnfilteredRowIterator iterator, SerializationHeader header, int version, int rowEstimate, ParameterizedSerializer<P> serializer, P param)
+    {
+        long size = 1; // flags
         if (iterator.isEmpty())
             return size;
 
+        SerializationHelper helper = new SerializationHelper(header);
         DeletionTime partitionDeletion = iterator.partitionLevelDeletion();
         Row staticRow = iterator.staticRow();
         boolean hasStatic = staticRow != Rows.EMPTY_STATIC_ROW;
@@ -219,6 +228,11 @@ public class UnfilteredRowIteratorSerializer
     public <P> Header deserializeHeader(TableMetadata metadata, DataInputPlus in, int version, DeserializationHelper.Flag flag, ParameterizedSerializer<P> serializer, P param) throws IOException
     {
         DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithVIntLength(in));
+        return deserializeHeaderWithoutKey(metadata, key, in, version, flag, serializer, param);
+    }
+
+    public <P> Header deserializeHeaderWithoutKey(TableMetadata metadata, DecoratedKey key, DataInputPlus in, int version, DeserializationHelper.Flag flag, ParameterizedSerializer<P> serializer, P param) throws IOException
+    {
         int flags = in.readUnsignedByte();
         boolean isReversed = (flags & IS_REVERSED) != 0;
         if ((flags & IS_EMPTY) != 0)

@@ -45,14 +45,16 @@ import static org.apache.cassandra.schema.TableMetadata.UNDEFINED_COLUMN_NAME_ME
 public class ReferenceOperation
 {
     private final ColumnMetadata receiver;
+    private final TableMetadata table;
     private final TxnReferenceOperation.Kind kind;
     private final FieldIdentifier field;
     private final Term key;
     private final ReferenceValue value;
 
-    public ReferenceOperation(ColumnMetadata receiver, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, ReferenceValue value)
+    public ReferenceOperation(ColumnMetadata receiver, TableMetadata table, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, ReferenceValue value)
     {
         this.receiver = receiver;
+        this.table = table;
         this.kind = kind;
         this.key = key;
         this.field = field;
@@ -64,7 +66,7 @@ public class ReferenceOperation
      * within a transaction. When the language sees an Operation using a reference one is created already, but for cases
      * that needs to defer execution (such as when {@link Operation#requiresRead()} is true), this method can be used.
      */
-    public static ReferenceOperation create(Operation operation)
+    public static ReferenceOperation create(Operation operation, TableMetadata table)
     {
         TxnReferenceOperation.Kind kind = TxnReferenceOperation.Kind.from(operation);
         ColumnMetadata receiver = operation.column;
@@ -73,7 +75,7 @@ public class ReferenceOperation
         ReferenceValue value = new ReferenceValue.Constant(operation.term());
         Term key = extractKeyOrIndex(operation);
         FieldIdentifier field = extractField(operation);
-        return new ReferenceOperation(receiver, kind, key, field, value);
+        return new ReferenceOperation(receiver, table, kind, key, field, value);
     }
 
     public TxnReferenceOperation.Kind getKind()
@@ -100,7 +102,7 @@ public class ReferenceOperation
     public TxnReferenceOperation bindAndGet(QueryOptions options)
     {
         return new TxnReferenceOperation(kind,
-                                         receiver,
+                                         receiver, table,
                                          key != null ? key.bindAndGet(options) : null,
                                          field != null ? field.bytes : null,
                                          value.bindAndGet(options));
@@ -155,7 +157,7 @@ public class ReferenceOperation
                 }
             }
 
-            return new ReferenceOperation(receiver, kind, key, field, value.prepare(valueReceiver, bindVariables));
+            return new ReferenceOperation(receiver, metadata, kind, key, field, value.prepare(valueReceiver, bindVariables));
         }
     }
 

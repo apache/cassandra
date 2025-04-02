@@ -26,11 +26,14 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
+import accord.primitives.Seekable;
+import accord.primitives.Seekables;
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
@@ -77,6 +80,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -89,6 +93,7 @@ import org.apache.cassandra.utils.btree.BTreeSet;
 public class SinglePartitionReadCommand extends ReadCommand implements SinglePartitionReadQuery
 {
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
+    protected static final Function<Seekable, SelectionDeserializer> accordSelectionDeserializer = AccordDeserializer::new;
 
     protected final DecoratedKey partitionKey;
     protected final ClusteringIndexFilter clusteringIndexFilter;
@@ -1277,7 +1282,18 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         ClusteringIndexFilter.serializer.serialize(clusteringIndexFilter(), out, version);
     }
 
+    protected void serializeSelectionWithoutKey(DataOutputPlus out, int version) throws IOException
+    {
+        ClusteringIndexFilter.serializer.serialize(clusteringIndexFilter(), out, version);
+    }
+
     protected long selectionSerializedSize(int version)
+    {
+        return metadata().partitionKeyType.writtenLength(partitionKey().getKey())
+             + ClusteringIndexFilter.serializer.serializedSize(clusteringIndexFilter(), version);
+    }
+
+    protected long selectionSerializedSize(Seekables seekables, int version)
     {
         return metadata().partitionKeyType.writtenLength(partitionKey().getKey())
              + ClusteringIndexFilter.serializer.serializedSize(clusteringIndexFilter(), version);
@@ -1406,6 +1422,35 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         throws IOException
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
+            ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
+            return SinglePartitionReadCommand.create(serializedAtEpoch, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
+        }
+    }
+
+    private static class AccordDeserializer extends SelectionDeserializer
+    {
+        final DecoratedKey key;
+
+        private AccordDeserializer(Seekable seekable)
+        {
+            this.key = ((PartitionKey)seekable).partitionKey();
+        }
+
+        public ReadCommand deserialize(DataInputPlus in,
+                                       int version,
+                                       Epoch serializedAtEpoch,
+                                       boolean isDigest,
+                                       int digestVersion,
+                                       boolean acceptsTransient,
+                                       PotentialTxnConflicts potentialTxnConflicts,
+                                       TableMetadata metadata,
+                                       long nowInSec,
+                                       ColumnFilter columnFilter,
+                                       RowFilter rowFilter,
+                                       DataLimits limits,
+                                       Index.QueryPlan indexQueryPlan)
+        throws IOException
+        {
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
             return SinglePartitionReadCommand.create(serializedAtEpoch, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
         }

@@ -64,6 +64,7 @@ import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
@@ -204,7 +205,7 @@ public class AccordAgent implements Agent
     @Override
     public Txn emptySystemTxn(Kind kind, Routable.Domain domain)
     {
-        return new Txn.InMemory(kind, domain == Key ? Keys.EMPTY : Ranges.EMPTY, TxnRead.empty(domain), TxnQuery.UNSAFE_EMPTY, null);
+        return new Txn.InMemory(kind, (domain == Key ? Keys.EMPTY : Ranges.EMPTY), TxnRead.empty(domain), TxnQuery.UNSAFE_EMPTY, null, TableMetadatasAndKeys.none(domain));
     }
 
     @Override

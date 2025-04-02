@@ -1198,6 +1198,7 @@ public final class CassandraGenerators
     {
         Gen<String> ksNameGen = CassandraGenerators.KEYSPACE_NAME_GEN;
         Gen<String> tableNameGen = IDENTIFIER_GEN;
+
         return rs -> {
             String ks = ksNameGen.generate(rs);
             String table = tableNameGen.generate(rs);
@@ -1224,7 +1225,7 @@ public final class CassandraGenerators
             // empty type is also not supported, so filter out
             case PARTITION_KEY:
             case CLUSTERING:
-                typeGen = Generators.filter(typeGen, t -> t != EmptyType.instance).map(AbstractType::freeze);
+                typeGen = Generators.filter(typeGen, t -> t != EmptyType.instance && t != CounterColumnType.instance).map(AbstractType::freeze);
                 break;
         }
         if (kind == ColumnMetadata.Kind.CLUSTERING)

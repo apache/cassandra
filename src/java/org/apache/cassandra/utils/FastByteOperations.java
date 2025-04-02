@@ -396,9 +396,9 @@ public class FastByteOperations
                 if (lw != rw)
                 {
                     if (BIG_ENDIAN)
-                        return UnsignedLongs.compare(lw, rw);
+                        return Long.compareUnsigned(lw, rw);
 
-                    return UnsignedLongs.compare(Long.reverseBytes(lw), Long.reverseBytes(rw));
+                    return Long.compareUnsigned(Long.reverseBytes(lw), Long.reverseBytes(rw));
                 }
             }
 

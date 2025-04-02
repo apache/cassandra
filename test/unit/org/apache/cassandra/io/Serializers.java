@@ -48,6 +48,28 @@ public class Serializers
         Assertions.assertThat(buffer.remaining()).describedAs("skip did not consume all the serialized input").isEqualTo(0);
     }
 
+    public static <T, P> void testSerde(DataOutputBuffer output, ParameterisedUnversionedSerializer<T, P> serializer, T input, P p) throws IOException
+    {
+        output.clear();
+        long expectedSize = serializer.serializedSize(input, p);
+        serializer.serialize(input, p, output);
+        Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(expectedSize);
+        DataInputBuffer in = new DataInputBuffer(output.unsafeGetBufferAndFlip(), false);
+        T read = serializer.deserialize(p, in);
+        Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read, input).toString())).isEqualTo(input);
+    }
+
+    public static <T, P, Version> void testSerde(DataOutputBuffer output, ParameterisedVersionedSerializer<T, P, Version> serializer, T input, P p, Version version) throws IOException
+    {
+        output.clear();
+        long expectedSize = serializer.serializedSize(input, p, version);
+        serializer.serialize(input, p, output, version);
+        Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(expectedSize);
+        DataInputBuffer in = new DataInputBuffer(output.unsafeGetBufferAndFlip(), false);
+        T read = serializer.deserialize(p, in, version);
+        Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read, input).toString())).isEqualTo(input);
+    }
+
     public static <T> void testSerde(AsymmetricUnversionedSerializer<T, T> serializer, T input) throws IOException
     {
         try (DataOutputBuffer output = new DataOutputBuffer(Math.toIntExact(serializer.serializedSize(input))))
@@ -91,6 +113,14 @@ public class Serializers
         try (DataOutputBuffer output = new DataOutputBuffer(Math.toIntExact(serializer.serializedSize(input, version))))
         {
             testSerde(output, serializer, input, version);
+        }
+    }
+
+    public static <T, P, Version> void testSerde(ParameterisedVersionedSerializer<T, P, Version> serializer, T input, P param, Version version) throws IOException
+    {
+        try (DataOutputBuffer output = new DataOutputBuffer(Math.toIntExact(serializer.serializedSize(input, param, version))))
+        {
+            testSerde(output, serializer, input, param, version);
         }
     }
 }

@@ -50,8 +50,8 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
-import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -61,6 +61,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamCoordinator;
@@ -70,7 +71,6 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.CastingSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -214,24 +214,24 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
 
     public static class StreamingRead implements Read
     {
-        public static final IVersionedSerializer<StreamingRead> serializer = new IVersionedSerializer<StreamingRead>()
+        public static final ParameterisedVersionedSerializer<StreamingRead, TableMetadatasAndKeys, Version> serializer = new ParameterisedVersionedSerializer<StreamingRead, TableMetadatasAndKeys, Version>()
         {
             @Override
-            public void serialize(StreamingRead read, DataOutputPlus out, Version version) throws IOException
+            public void serialize(StreamingRead read, TableMetadatasAndKeys seekables, DataOutputPlus out, Version version) throws IOException
             {
                 InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(read.to, out, version.messageVersion());
                 KeySerializers.ranges.serialize(read.ranges, out);
             }
 
             @Override
-            public StreamingRead deserialize(DataInputPlus in, Version version) throws IOException
+            public StreamingRead deserialize(TableMetadatasAndKeys seekables, DataInputPlus in, Version version) throws IOException
             {
                 return new StreamingRead(InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version.messageVersion()),
                                          KeySerializers.ranges.deserialize(in));
             }
 
             @Override
-            public long serializedSize(StreamingRead read, Version version)
+            public long serializedSize(StreamingRead read, TableMetadatasAndKeys seekables, Version version)
             {
                 return InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(read.to, version.messageVersion())
                        + KeySerializers.ranges.serializedSize(read.ranges);
@@ -305,8 +305,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
 
     public static class StreamingTxn
     {
-        private static final VersionedSerializer<Read, Version> read = CastingSerializer.create(StreamingRead.class,
-                                                                                                StreamingRead.serializer);
+        private static final ParameterisedVersionedSerializer<Read, TableMetadatasAndKeys, Version> read = (ParameterisedVersionedSerializer)StreamingRead.serializer;
 
         private static final UnversionedSerializer<Query> query = new UnversionedSerializer<>()
         {
@@ -330,22 +329,22 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             }
         };
 
-        private static final IVersionedSerializer<Update> update = new IVersionedSerializer<Update>()
+        private static final ParameterisedVersionedSerializer<Update, TableMetadatasAndKeys, Version> update = new ParameterisedVersionedSerializer<>()
         {
             @Override
-            public void serialize(Update t, DataOutputPlus out, Version version)
+            public void serialize(Update t, TableMetadatasAndKeys seekables, DataOutputPlus out, Version version)
             {
                 Invariants.requireArgument(t == null);
             }
 
             @Override
-            public Update deserialize(DataInputPlus in, Version version)
+            public Update deserialize(TableMetadatasAndKeys seekables, DataInputPlus in, Version version)
             {
                 return null;
             }
 
             @Override
-            public long serializedSize(Update t, Version version)
+            public long serializedSize(Update t, TableMetadatasAndKeys seekables, Version version)
             {
                 Invariants.requireArgument(t == null);
                 return 0;
@@ -353,7 +352,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         };
 
         // TODO (desired): this could be serialized as an InetAddressAndPort and Ranges if we had a special case PartialTxn implementation
-        public static final IVersionedSerializer<PartialTxn> serializer = new CommandSerializers.PartialTxnSerializer(read, query, update);
+        public static final IVersionedSerializer<PartialTxn> serializer = new CommandSerializers.PartialTxnSerializer(read, query, update, TableMetadatasAndKeys.serializer);
     }
 
     private final Map<TimeUUID, IncomingStream> streams = new HashMap<>();
@@ -392,7 +391,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
     protected PartialTxn rangeReadTxn(Ranges ranges)
     {
         StreamingRead read = new StreamingRead(FBUtilities.getBroadcastAddressAndPort(), ranges);
-        return new PartialTxn.InMemory(Txn.Kind.Read, ranges, read, noopQuery, null);
+        return new PartialTxn.InMemory(Txn.Kind.Read, ranges, read, noopQuery, null, TableMetadatasAndKeys.none(Routable.Domain.Range));
     }
 
     @Override

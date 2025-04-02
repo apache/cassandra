@@ -46,6 +46,7 @@ import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -59,16 +60,18 @@ public class RowDataReference extends Term.NonTerminal
     private final String selectName;
     private final int txnDataName;
     private final ColumnMetadata column;
+    private final TableMetadata table;
     private final Term elementPath;
     private final CellPath fieldPath;
     
-    public RowDataReference(String selectName, int txnDataName, ColumnMetadata column, Term elementPath, CellPath fieldPath)
+    public RowDataReference(String selectName, int txnDataName, ColumnMetadata column, TableMetadata table, Term elementPath, CellPath fieldPath)
     {
         Preconditions.checkArgument(elementPath == null || fieldPath == null, "Cannot specify both element and field paths");
         
         this.selectName = selectName;
         this.txnDataName = txnDataName;
         this.column = column;
+        this.table = table;
         this.elementPath = elementPath;
         this.fieldPath = fieldPath;
     }
@@ -183,7 +186,8 @@ public class RowDataReference extends Term.NonTerminal
     {
         Preconditions.checkState(elementPath == null || column.isComplex() || column.type.isFrozenCollection());
         Preconditions.checkState(fieldPath == null || column.isComplex() || column.type.isUDT());
-        return new TxnReference(txnDataName, column, bindCellPath(options));
+
+        return new TxnReference(txnDataName, table, column, bindCellPath(options));
     }
 
     public ColumnIdentifier getFullyQualifiedName()
@@ -199,6 +203,11 @@ public class RowDataReference extends Term.NonTerminal
         return column;
     }
 
+    public TableMetadata table()
+    {
+        return table;
+    }
+
     public static class Raw extends Term.Raw
     {
         private final Selectable.RawIdentifier tuple;
@@ -209,6 +218,7 @@ public class RowDataReference extends Term.NonTerminal
 
         private int tupleName;
         private ColumnMetadata column;
+        private TableMetadata table;
         private Term elementPath = null;
         private CellPath fieldPath = null;
 
@@ -269,6 +279,7 @@ public class RowDataReference extends Term.NonTerminal
             }
 
             column = source.getColumn(selected.toString());
+            table = source.getTable();
             checkNotNull(column, COLUMN_NOT_IN_TUPLE_MESSAGE, selected.toString(), rawTupleName);
 
             // TODO: confirm update partition key terms don't contain column references. This can't be done in prepare
@@ -341,7 +352,7 @@ public class RowDataReference extends Term.NonTerminal
         public RowDataReference prepareAsReceiver()
         {
             checkResolved();
-            return new RowDataReference(tuple.toString(), tupleName, column, elementPath, fieldPath);
+            return new RowDataReference(tuple.toString(), tupleName, column, table, elementPath, fieldPath);
         }
 
         private RowDataReference prepare(String keyspace,
@@ -355,7 +366,7 @@ public class RowDataReference extends Term.NonTerminal
                 throw new InvalidRequestException(String.format("Invalid reference type %s (%s) for \"%s\" of type %s",
                                                                 column.type, column.name, receiver.name, receiver.type.asCQL3Type()));
 
-            return new RowDataReference(tuple.toString(), txnDataName, column, elementPath, fieldPath);
+            return new RowDataReference(tuple.toString(), txnDataName, column, table, elementPath, fieldPath);
         }
 
         @Override
@@ -403,5 +414,6 @@ public class RowDataReference extends Term.NonTerminal
     public interface ReferenceSource
     {
         ColumnMetadata getColumn(String name);
+        TableMetadata getTable();
     }
 }

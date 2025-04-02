@@ -80,6 +80,7 @@ import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.quicktheories.impl.JavaRandom;
@@ -100,6 +101,7 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialT
 public class AccordGenerators
 {
     private static final Gen<IPartitioner> PARTITIONER_GEN = fromQT(CassandraGenerators.nonLocalPartitioners());
+    private static final Gen<TableId> TABLE_ID_GEN = fromQT(CassandraGenerators.TABLE_ID_GEN);
 
     private AccordGenerators()
     {
@@ -265,7 +267,7 @@ public class AccordGenerators
             if (saveStatus.hasBeen(Status.PreApplied) && !saveStatus.hasBeen(Status.Truncated))
             {
                 if (txnId.is(Write))
-                    builder.writes(new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)));
+                    builder.writes(new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true)));
                 builder.result(new TxnData());
             }
             return builder;
@@ -320,8 +322,8 @@ public class AccordGenerators
                     else return Truncated.truncated(command, saveStatus, executeAt, null, null, null, null);
 
                 case TruncatedApplyWithOutcome:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), txnId);
-                    else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(Collections.emptyList(), true)) : null, new TxnData(), null);
+                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true)) : null, new TxnData(), txnId);
+                    else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), true)) : null, new TxnData(), null);
 
                 case Erased:
                 case Vestigial:
@@ -333,13 +335,20 @@ public class AccordGenerators
 
     public static Gen<PartitionKey> keys()
     {
-        return keys(fromQT(CassandraGenerators.TABLE_ID_GEN),
+        return keys(TABLE_ID_GEN,
                     fromQT(CassandraGenerators.decoratedKeys()));
     }
 
     public static Gen<PartitionKey> keys(IPartitioner partitioner)
     {
-        return keys(fromQT(CassandraGenerators.TABLE_ID_GEN),
+        return keys(TABLE_ID_GEN,
+                    fromQT(CassandraGenerators.decoratedKeys(ignore -> partitioner)));
+    }
+
+    public static Gen<PartitionKey> keys(IPartitioner partitioner, List<TableId> tables)
+    {
+        //TODO (correctness): fix Gens.pick to not fail with lists of size 1
+        return keys(tables.size() == 1 ? Gens.constant(tables.get(0)) : Gens.pick(tables),
                     fromQT(CassandraGenerators.decoratedKeys(ignore -> partitioner)));
     }
 
@@ -350,7 +359,7 @@ public class AccordGenerators
 
     public static Gen<TokenKey> routingKeysGen(IPartitioner partitioner)
     {
-        return routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN),
+        return routingKeyGen(TABLE_ID_GEN,
                              fromQT(CassandraGenerators.token(partitioner)),
                              partitioner);
     }
@@ -398,12 +407,17 @@ public class AccordGenerators
 
     public static Gen<Range> range()
     {
-        return partitioner().flatMap(partitioner -> range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner)), partitioner));
+        return partitioner().flatMap(partitioner -> range(TABLE_ID_GEN, fromQT(CassandraGenerators.token(partitioner)), partitioner));
     }
 
     public static Gen<Range> range(IPartitioner partitioner)
     {
-        return range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner)), partitioner);
+        return range(TABLE_ID_GEN, fromQT(CassandraGenerators.token(partitioner)), partitioner);
+    }
+
+    public static Gen<Range> range(IPartitioner partitioner, Gen<TableId> tables)
+    {
+        return range(tables, fromQT(CassandraGenerators.token(partitioner)), partitioner);
     }
 
     public static Gen<Range> range(Gen<TableId> tables, Gen<Token> tokenGen, IPartitioner partitioner)
@@ -430,16 +444,23 @@ public class AccordGenerators
     public static Gen<Ranges> ranges()
     {
         // javac couldn't pick the right constructor with HashSet::new, so had to create new lambda...
-        return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), partitioner());
+        return ranges(Gens.lists(TABLE_ID_GEN).unique().ofSizeBetween(1, 10), partitioner());
     }
 
-    public static Gen<Ranges> ranges(Gen<Set<TableId>> tableIdGen, Gen<IPartitioner> partitionerGen)
+    public static Gen<Ranges> ranges(Gen<List<TableId>> tableIdGen, Gen<IPartitioner> partitionerGen)
+    {
+        Gen.IntGen splitsGen = Gens.ints().between(10, 99);
+        return ranges(tableIdGen, partitionerGen, splitsGen);
+    }
+
+    public static Gen<Ranges> ranges(Gen<List<TableId>> tableIdGen, Gen<IPartitioner> partitionerGen, Gen.IntGen splitsGen)
     {
         return rs -> {
-            Set<TableId> tables = tableIdGen.next(rs);
+            List<TableId> tables = tableIdGen.next(rs);
             IPartitioner partitioner = partitionerGen.next(rs);
             List<Range> ranges = new ArrayList<>();
-            int numSplits = rs.nextInt(10, 100);
+            int numSplits = splitsGen.nextInt(rs);
+            if (numSplits == 0) return Ranges.EMPTY;
             TokenRange range = TokenRange.create(TokenKey.min(TABLE_ID1, partitioner), TokenKey.max(TABLE_ID1, partitioner));
             AccordSplitter splitter = partitioner.accordSplitter().apply(Ranges.of(range));
             BigInteger size = splitter.sizeOf(range);
@@ -461,19 +482,34 @@ public class AccordGenerators
 
     public static Gen<Ranges> ranges(IPartitioner partitioner)
     {
-        return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), ignore -> partitioner);
+        return ranges(Gens.lists(TABLE_ID_GEN).unique().ofSizeBetween(1, 10), ignore -> partitioner);
+    }
+
+    public static Gen<Ranges> ranges(IPartitioner partitioner, Gen.IntGen splitsGen)
+    {
+        return ranges(Gens.lists(TABLE_ID_GEN).unique().ofSizeBetween(1, 10), ignore -> partitioner, splitsGen);
     }
 
     public static Gen<Ranges> ranges(TableId tableId, IPartitioner partitioner)
     {
-        Set<TableId> tables = Collections.singleton(tableId);
+        List<TableId> tables = Collections.singletonList(tableId);
         return ranges(i -> tables, i -> partitioner);
     }
 
     public static Gen<Ranges> rangesArbitrary(IPartitioner partitioner)
     {
-        Gen<Range> rangeGen = range(partitioner);
         Gen.IntGen sizeGen = Gens.ints().between(0, 10);
+        return rangesArbitrary(partitioner, sizeGen);
+    }
+
+    public static Gen<Ranges> rangesArbitrary(IPartitioner partitioner, Gen.IntGen sizeGen)
+    {
+        return rangesArbitrary(partitioner, TABLE_ID_GEN, sizeGen);
+    }
+
+    public static Gen<Ranges> rangesArbitrary(IPartitioner partitioner, Gen<TableId> tables, Gen.IntGen sizeGen)
+    {
+        Gen<Range> rangeGen = range(partitioner, tables);
         return rs -> {
             int targetSize = sizeGen.nextInt(rs);
             List<Range> ranges = new ArrayList<>(targetSize);
@@ -487,6 +523,18 @@ public class AccordGenerators
     {
         Gen<Ranges> split = ranges(partitioner);
         Gen<Ranges> arbitrary = rangesArbitrary(partitioner);
+        return rs -> rs.nextBoolean() ? split.next(rs) : arbitrary.next(rs);
+    }
+
+    public static Gen<Ranges> rangesSplitOrArbitrary(IPartitioner partitioner, Gen.IntGen sizeGen)
+    {
+        return rangesSplitOrArbitrary(partitioner, sizeGen, Gens.lists(TABLE_ID_GEN).unique().ofSizeBetween(1, 10));
+    }
+
+    public static Gen<Ranges> rangesSplitOrArbitrary(IPartitioner partitioner, Gen.IntGen sizeGen, Gen<List<TableId>> tableIdGen)
+    {
+        Gen<Ranges> split = ranges(tableIdGen, i -> partitioner, sizeGen);
+        Gen<Ranges> arbitrary = rangesArbitrary(partitioner, tableIdGen.map((rs, l) -> rs.pick(l)), sizeGen);
         return rs -> rs.nextBoolean() ? split.next(rs) : arbitrary.next(rs);
     }
 

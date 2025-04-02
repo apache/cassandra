@@ -32,12 +32,16 @@ import accord.utils.Gens;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.conditions.ColumnConditionTest;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -68,8 +72,17 @@ public class TxnConditionTest
     });
     private static Gen<ByteBuffer> BYTES_GEN = Generators.toGen(Generators.directAndHeapBytes(0, 10));
     private static Gen<TxnReference> TXN_REF_GEN = rs -> {
-        return rs.nextBoolean() ? new TxnReference(rs.nextInt(0, Integer.MAX_VALUE), COLUM_METADATA_GEN.next(rs))
-                                : new TxnReference(rs.nextInt(0, Integer.MAX_VALUE), COLUM_METADATA_GEN.next(rs), CellPath.create(BYTES_GEN.next(rs)));
+        {
+            ColumnMetadata cm = COLUM_METADATA_GEN.next(rs);
+            TableMetadata.Builder builder = TableMetadata.builder("", "", TableId.generate())
+                                                        .addColumn(cm);
+            if (!cm.isPartitionKey())
+                builder.addPartitionKeyColumn(cm.name.toString().equals("_") ? "__" : "_", Int32Type.instance);
+            TableMetadata tm = builder.build();
+            cm = tm.getColumn(cm.name);
+            return rs.nextBoolean() ? new TxnReference(rs.nextInt(0, Integer.MAX_VALUE), cm, tm)
+                                    : new TxnReference(rs.nextInt(0, Integer.MAX_VALUE), tm, cm, CellPath.create(BYTES_GEN.next(rs)));
+        }
     };
     private static Gen<Clustering<?>> CLUSTERING_GEN = Generators.toGen(CassandraGenerators.CLUSTERING_GEN);
     private static Gen<ColumnCondition.Bound> BOUND_GEN = ColumnConditionTest.boundGen().map(b -> {
@@ -82,8 +95,11 @@ public class TxnConditionTest
     {
         DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(txnConditionGen()).check(condition -> {
+            TableMetadatas.Collector collector = new TableMetadatas.Collector();
+            condition.collect(collector);
+            TableMetadatas tables = collector.build();
             for (Version version : Version.V1.greaterThanOrEqual())
-                Serializers.testSerde(output, TxnCondition.serializer, condition, version);
+                Serializers.testSerde(output, TxnCondition.serializer, condition, tables, version);
             SCHEMA.clear();
         });
     }

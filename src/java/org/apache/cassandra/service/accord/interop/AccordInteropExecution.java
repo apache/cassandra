@@ -27,9 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import accord.api.Agent;
 import accord.api.Data;
 import accord.api.Result;
@@ -40,17 +37,19 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.messages.Commit;
 import accord.messages.Commit.Kind;
+import accord.primitives.AbstractRanges;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
+import accord.primitives.Keys;
 import accord.primitives.Participants;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Shard;
 import accord.topology.Topologies;
 import accord.topology.Topology;
+import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Stage;
@@ -79,8 +78,8 @@ import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.interop.AccordInteropReadCallback.MaximalCommitSender;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
@@ -112,8 +111,6 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWri
  */
 public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSender
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordInteropExecution.class);
-
     static class InteropExecutor implements AgentExecutor
     {
         private final AccordAgent agent;
@@ -249,32 +246,33 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
 
     private List<AsyncChain<Data>> readChains(Dispatcher.RequestTime requestTime)
     {
-        TxnRead read = (TxnRead) txn.read();
-        Seekables<?, ?> keys = txn.read().keys();
-        switch (keys.domain())
+        switch (txnId.domain())
         {
             case Key:
-                return keyReadChains(read, keys, requestTime);
+                return keyReadChains((Txn.InMemory)txn, requestTime);
             case Range:
-                return rangeReadChains(read, keys, requestTime);
+                return rangeReadChains((Txn.InMemory)txn, requestTime);
             default:
-                throw new IllegalStateException("Unhandled domain " + keys.domain());
+                throw UnhandledEnum.unknown(txnId.domain());
         }
     }
 
-    private List<AsyncChain<Data>> keyReadChains(TxnRead read, Seekables<?, ?> keys, Dispatcher.RequestTime requestTime)
+    private List<AsyncChain<Data>> keyReadChains(Txn.InMemory txn, Dispatcher.RequestTime requestTime)
     {
+        TxnRead read = (TxnRead) txn.read();
+        Keys keys = (Keys) read.keys();
+        TableMetadatasAndKeys tablesAndKeys = (TableMetadatasAndKeys) txn.implementationDefined;
         ClusterMetadata cm = ClusterMetadata.current();
         List<AsyncChain<Data>> results = new ArrayList<>();
         keys.forEach(key -> {
-                         read.forEachWithKey((PartitionKey) key, fragment -> {
-                             SinglePartitionReadCommand command = (SinglePartitionReadCommand) fragment.command();
+                         read.forEachWithKey(key, fragment -> {
+                             SinglePartitionReadCommand command = (SinglePartitionReadCommand) fragment.command(tablesAndKeys.tables);
 
                              // This should only rarely occur when coordinators start a transaction in a migrating range
                              // because they haven't yet updated their cluster metadata.
                              // It would be harmless to do the read, because it will be rejected in `TxnQuery` anyways,
                              // but it's faster to skip the read
-                             AccordClientRequestMetrics metrics = txn.kind().isWrite() ? accordWriteMetrics : accordReadMetrics;
+                             AccordClientRequestMetrics metrics = txnId.isWrite() ? accordWriteMetrics : accordReadMetrics;
                              // TODO (required): This doesn't use the metadata from the correct epoch
                              if (!ConsensusRequestRouter.instance.isKeyManagedByAccordForReadAndWrite(cm, command.metadata().id, command.partitionKey()))
                              {
@@ -308,12 +306,15 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         return results;
     }
 
-    private List<AsyncChain<Data>> rangeReadChains(TxnRead read, Seekables<?, ?> keys, Dispatcher.RequestTime requestTime)
+    private List<AsyncChain<Data>> rangeReadChains(Txn.InMemory txn, Dispatcher.RequestTime requestTime)
     {
+        TxnRead read = (TxnRead) txn.read();
+        AbstractRanges ranges = (AbstractRanges) read.keys();
+        TableMetadatasAndKeys tablesAndKeys = (TableMetadatasAndKeys) txn.implementationDefined;
         List<AsyncChain<Data>> results = new ArrayList<>();
-        keys.forEach(key -> {
-            read.forEachWithKey(key, fragment -> {
-                PartitionRangeReadCommand command = ((PartitionRangeReadCommand) fragment.command()).withTxnReadName(fragment.txnDataName());
+        ranges.forEach(range -> {
+            read.forEachWithKey(range, fragment -> {
+                PartitionRangeReadCommand command = ((PartitionRangeReadCommand) fragment.command(tablesAndKeys.tables)).withTxnReadName(fragment.txnDataName());
 
                 // TODO (required): To make migration work we need to validate that the range is all on Accord
 

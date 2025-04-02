@@ -98,7 +98,8 @@ public class AccordJournalBurnTest extends BurnTestBase
         FieldUtil.transferFields(new CommandSerializers.QuerySerializers(BurnTestKeySerializers.read,
                                                                          BurnTestKeySerializers.query,
                                                                          BurnTestKeySerializers.update,
-                                                                         BurnTestKeySerializers.write),
+                                                                         BurnTestKeySerializers.write,
+                                                                         BurnTestKeySerializers.tablesAndKeys),
                                  CommandSerializers.class);
 
         FieldUtil.transferFields(new DepsSerializers.Impl(BurnTestKeySerializers.range),

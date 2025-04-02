@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
@@ -41,16 +40,15 @@ import accord.primitives.Keys;
 import accord.primitives.Range;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
-import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
-import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey.AccordSearchableKeySerializer;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.CastingSerializer;
@@ -240,10 +238,10 @@ public class BurnTestKeySerializers
         }
     };
 
-    public static final VersionedSerializer<Read, Version> read = CastingSerializer.create(ListRead.class, new IVersionedSerializer<>()
+    public static final ParameterisedVersionedSerializer<Read, TableMetadatasAndKeys, Version> read = (ParameterisedVersionedSerializer) new ParameterisedVersionedSerializer<ListRead, TableMetadatasAndKeys, Version>()
     {
         @Override
-        public void serialize(ListRead t, DataOutputPlus out, Version version) throws IOException
+        public void serialize(ListRead t, TableMetadatasAndKeys seekables, DataOutputPlus out, Version version) throws IOException
         {
             out.writeBoolean(t.isEphemeralRead);
             KeySerializers.seekables.serialize(t.userReadKeys, out);
@@ -251,7 +249,7 @@ public class BurnTestKeySerializers
         }
 
         @Override
-        public ListRead deserialize(DataInputPlus in, Version version) throws IOException
+        public ListRead deserialize(TableMetadatasAndKeys seekables, DataInputPlus in, Version version) throws IOException
         {
             boolean isEphemeralRead = in.readBoolean();
             Seekables<?, ?> userReadKeys = KeySerializers.seekables.deserialize(in);
@@ -260,11 +258,11 @@ public class BurnTestKeySerializers
         }
 
         @Override
-        public long serializedSize(ListRead t, Version version)
+        public long serializedSize(ListRead t, TableMetadatasAndKeys seekables, Version version)
         {
             throw new RuntimeException("not implemented");
         }
-    });
+    };
 
     public static final UnversionedSerializer<Query> query = CastingSerializer.create(ListQuery.class, new UnversionedSerializer<>()
     {
@@ -305,9 +303,9 @@ public class BurnTestKeySerializers
         }
     });
 
-    public static final VersionedSerializer<Update, Version> update = CastingSerializer.create(ListUpdate.class, new IVersionedSerializer<>()
+    public static final ParameterisedVersionedSerializer<Update, TableMetadatasAndKeys, Version> update = (ParameterisedVersionedSerializer) new ParameterisedVersionedSerializer<ListUpdate, TableMetadatasAndKeys, Version>()
     {
-        public void serialize(ListUpdate t, DataOutputPlus out, Version version) throws IOException
+        public void serialize(ListUpdate t, TableMetadatasAndKeys seekables, DataOutputPlus out, Version version) throws IOException
         {
             out.writeInt(t.size());
             for (Map.Entry<Key, Integer> e : t.entrySet())
@@ -317,7 +315,7 @@ public class BurnTestKeySerializers
             }
         }
 
-        public ListUpdate deserialize(DataInputPlus in, Version version) throws IOException
+        public ListUpdate deserialize(TableMetadatasAndKeys seekables, DataInputPlus in, Version version) throws IOException
         {
             int size = in.readInt();
             ListUpdate listUpdate = new ListUpdate(Function.identity());
@@ -330,15 +328,15 @@ public class BurnTestKeySerializers
             return listUpdate;
         }
 
-        public long serializedSize(ListUpdate t, Version version)
+        public long serializedSize(ListUpdate t, TableMetadatasAndKeys seekables, Version version)
         {
             throw new RuntimeException("not implemented");
         }
-    });
+    };
 
-    public static final VersionedSerializer<Write, Version> write = CastingSerializer.create(ListWrite.class, new IVersionedSerializer<>()
+    public static final ParameterisedVersionedSerializer<Write, Seekables, Version> write = (ParameterisedVersionedSerializer) new ParameterisedVersionedSerializer<ListWrite, Seekables, Version>()
     {
-        public void serialize(ListWrite t, DataOutputPlus out, Version version) throws IOException
+        public void serialize(ListWrite t, Seekables seekables, DataOutputPlus out, Version version) throws IOException
         {
             out.writeInt(t.size());
             for (Map.Entry<Key, int[]> e : t.entrySet())
@@ -350,7 +348,7 @@ public class BurnTestKeySerializers
             }
         }
 
-        public ListWrite deserialize(DataInputPlus in, Version version) throws IOException
+        public ListWrite deserialize(Seekables seekables, DataInputPlus in, Version version) throws IOException
         {
             int size = in.readInt();
             ListWrite write = new ListWrite(Function.identity());
@@ -366,16 +364,34 @@ public class BurnTestKeySerializers
             return write;
         }
 
-        public long serializedSize(ListWrite t, Version version)
+        public long serializedSize(ListWrite t, Seekables seekables, Version version)
         {
             throw new RuntimeException("not implemented");
         }
-    });
+    };
+
+    public static final UnversionedSerializer<TableMetadatasAndKeys> tablesAndKeys = new UnversionedSerializer<>()
+    {
+        @Override
+        public void serialize(TableMetadatasAndKeys t, DataOutputPlus out) throws IOException
+        {
+        }
+
+        @Override
+        public TableMetadatasAndKeys deserialize(DataInputPlus in) throws IOException
+        {
+            return null;
+        }
+
+        @Override
+        public long serializedSize(TableMetadatasAndKeys t)
+        {
+            return 0;
+        }
+    };
 
     public static final UnversionedSerializer<Result> result = CastingSerializer.create(ListResult.class, new UnversionedSerializer<>()
     {
-        private final EmbeddedAsymmetricVersionedSerializer<Update, Update, Version> unversionedUpdate = AccordSerializers.embedded(Version.LATEST, update);
-
         public void serialize(ListResult t, DataOutputPlus out) throws IOException
         {
             TopologySerializers.nodeId.serialize(t.client, out);
@@ -395,7 +411,7 @@ public class BurnTestKeySerializers
 
             out.writeInt(t.update == null ? 0 : 1);
             if (t.update != null)
-                unversionedUpdate.serialize(t.update, out);
+                update.serialize(t.update, null, out, Version.LATEST);
 
             out.writeInt(t.status.ordinal());
         }
@@ -417,11 +433,11 @@ public class BurnTestKeySerializers
                 }
                 read[i] = v;
             }
-            ListUpdate update = null;
+            ListUpdate upd = null;
             if (in.readInt() != 0)
-                update = (ListUpdate) unversionedUpdate.deserialize(in);
+                upd = (ListUpdate) update.deserialize(null, in, Version.LATEST);
             ListResult.Status status = ListResult.Status.values()[in.readInt()];
-            return new ListResult(status, client, requestId, txnId, readKeys, responseKeys, read, update);
+            return new ListResult(status, client, requestId, txnId, readKeys, responseKeys, read, upd);
         }
 
         public long serializedSize(ListResult t)

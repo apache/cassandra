@@ -212,14 +212,14 @@ public class UpdateStatement extends ModificationStatement
                 {
                     ReferenceValue.Raw raw = (ReferenceValue.Raw) value;
                     ReferenceValue referenceValue = raw.prepare(def, bindVariables);
-                    ReferenceOperation operation = new ReferenceOperation(def, TxnReferenceOperation.Kind.setterFor(def), null, null, referenceValue);
+                    ReferenceOperation operation = new ReferenceOperation(def, metadata, TxnReferenceOperation.Kind.setterFor(def), null, null, referenceValue);
                     operations.add(def, operation);
                 }
                 else
                 {
                     Operation operation = new Operation.SetValue(value).prepare(metadata, def, !conditions.isEmpty());
                     operation.collectMarkerSpecification(bindVariables);
-                    operations.add(operation);
+                    operations.add(operation, metadata);
                 }
             }
 
@@ -293,7 +293,7 @@ public class UpdateStatement extends ModificationStatement
                 {
                     Operation operation = new Operation.SetValue(raw).prepare(metadata, def, !conditions.isEmpty());
                     operation.collectMarkerSpecification(bindVariables);
-                    operations.add(operation);
+                    operations.add(operation, metadata);
                 }
             }
 
@@ -414,7 +414,7 @@ public class UpdateStatement extends ModificationStatement
                 checkFalse(def.isPrimaryKeyColumn(), UPDATING_PRIMARY_KEY_MESSAGE, def.name);
                 Operation operation = entry.right.prepare(metadata, def, !conditions.isEmpty() || isForTxn);
                 operation.collectMarkerSpecification(bindVariables);
-                operations.add(operation);
+                operations.add(operation, metadata);
             }
 
             Preconditions.checkState(updates.referenceOps.isEmpty() || isForTxn);

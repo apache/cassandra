@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Update;
+import accord.primitives.Keys;
 import accord.primitives.Txn;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
@@ -60,6 +61,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
@@ -424,7 +428,7 @@ public class CQL3CasRequest implements CASRequest
 
         public TxnCondition asTxnCondition()
         {
-            TxnReference txnReference = new TxnReference(txnDataName(CAS_READ), null);
+            TxnReference txnReference = new TxnReference(txnDataName(CAS_READ), null, null);
             return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NULL);
         }
     }
@@ -449,7 +453,7 @@ public class CQL3CasRequest implements CASRequest
 
         public TxnCondition asTxnCondition()
         {
-            TxnReference txnReference = new TxnReference(txnDataName(CAS_READ), null);
+            TxnReference txnReference = new TxnReference(txnDataName(CAS_READ), null, null);
             return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NOT_NULL);
         }
     }
@@ -499,27 +503,30 @@ public class CQL3CasRequest implements CASRequest
     public Txn toAccordTxn(ClusterMetadata cm, ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, long nowInSecs)
     {
         SinglePartitionReadCommand readCommand = readCommand(nowInSecs);
-        Update update = createUpdate(cm, clientState, commitConsistencyLevel);
+        TableMetadata metadata = getTableMetadata(cm, this.metadata.id);
+        TableMetadatas.Complete tables = TableMetadatas.of(metadata);
+        TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, Keys.of(new PartitionKey(metadata.id, readCommand.partitionKey())));
+        Update update = createUpdate(cm, tables, clientState, commitConsistencyLevel);
         // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely
-        TableParams tableParams = getTableMetadata(cm, metadata.id).params;
+        TableParams tableParams = tables.getMetadata(metadata.id).params;
         consistencyLevel = tableParams.transactionalMode.readCLForMode(tableParams.transactionalMigrationFrom, consistencyLevel, cm, metadata.id, readCommand.partitionKey().getToken());
-        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
+        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel, tablesAndKeys);
         // In a CAS requesting only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
-        return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update);
+        return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update, tablesAndKeys);
     }
 
-    private Update createUpdate(ClusterMetadata cm, ClientState clientState, ConsistencyLevel commitConsistencyLevel)
+    private Update createUpdate(ClusterMetadata cm, TableMetadatas.Complete tables, ClientState clientState, ConsistencyLevel commitConsistencyLevel)
     {
         // Potentially ignore commit consistency level if TransactionalMode is full
         // since it is safe to match what non-SERIAL writes do
-        TableMetadata tableMetadata = getTableMetadata(cm, metadata.id);
+        TableMetadata tableMetadata = tables.getMetadata(metadata.id);
         TableParams tableParams = tableMetadata.params;
-        commitConsistencyLevel = tableParams.transactionalMode.commitCLForMode(tableParams.transactionalMigrationFrom, commitConsistencyLevel, cm, metadata.id, key.getToken());
+        commitConsistencyLevel = tableParams.transactionalMode.commitCLForMode(tableParams.transactionalMigrationFrom, commitConsistencyLevel, cm, tableMetadata.id, key.getToken());
         // CAS requires using the new txn timestamp to correctly linearize some kinds of updates
-        return new TxnUpdate(createWriteFragments(clientState), createCondition(), commitConsistencyLevel, false);
+        return new TxnUpdate(tables, createWriteFragments(clientState), createCondition(), commitConsistencyLevel, false);
     }
 
     private TxnCondition createCondition()
@@ -538,6 +545,7 @@ public class CQL3CasRequest implements CASRequest
 
     private List<TxnWrite.Fragment> createWriteFragments(ClientState state)
     {
+        PartitionKey partitionKey = new PartitionKey(metadata.id, key);
         List<TxnWrite.Fragment> fragments = new ArrayList<>();
         int idx = 0;
         for (RowUpdate update : updates)
@@ -547,14 +555,14 @@ public class CQL3CasRequest implements CASRequest
             // see CASSANDRA-18337
             ModificationStatement modification = update.stmt.forTxn();
             QueryOptions options = update.options;
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options);
+            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options, partitionKey);
             fragments.add(fragment);
         }
         for (RangeDeletion rangeDeletion : rangeDeletions)
         {
             ModificationStatement modification = rangeDeletion.stmt;
             QueryOptions options = rangeDeletion.options;
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options);
+            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options, partitionKey);
             fragments.add(fragment);
         }
         return fragments;

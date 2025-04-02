@@ -178,7 +178,7 @@ public class DeleteStatement extends ModificationStatement
 
                 Operation op = deletion.prepare(metadata.keyspace, def, metadata);
                 op.collectMarkerSpecification(bindVariables);
-                operations.add(op);
+                operations.add(op, metadata);
             }
 
             StatementRestrictions restrictions = newRestrictions(state,

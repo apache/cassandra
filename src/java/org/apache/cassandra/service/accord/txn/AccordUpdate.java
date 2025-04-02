@@ -26,7 +26,8 @@ import accord.api.Update;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
+import org.apache.cassandra.service.accord.serializers.TxnSerializer;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 public abstract class AccordUpdate implements Update
@@ -77,14 +78,8 @@ public abstract class AccordUpdate implements Update
 
     public abstract long estimatedSizeOnHeap();
 
-    public interface AccordUpdateSerializer<T extends AccordUpdate> extends IVersionedSerializer<T>
+    public interface AccordUpdateSerializer<T extends AccordUpdate> extends TxnSerializer<T>
     {
-        @Override
-        void serialize(T update, DataOutputPlus out, Version version) throws IOException;
-        @Override
-        T deserialize(DataInputPlus in, Version version) throws IOException;
-        @Override
-        long serializedSize(T update, Version version);
     }
 
     private static AccordUpdateSerializer serializerFor(AccordUpdate toSerialize)
@@ -105,26 +100,26 @@ public abstract class AccordUpdate implements Update
         }
     }
 
-    public static final AccordUpdateSerializer<AccordUpdate> serializer = new AccordUpdateSerializer<AccordUpdate>()
+    public static final AccordUpdateSerializer<AccordUpdate> serializer = new AccordUpdateSerializer<>()
     {
         @Override
-        public void serialize(AccordUpdate update, DataOutputPlus out, Version version) throws IOException
+        public void serialize(AccordUpdate update, TableMetadatasAndKeys tablesAndKeys, DataOutputPlus out, Version version) throws IOException
         {
             out.writeByte(update.kind().val);
-            serializerFor(update).serialize(update, out, version);
+            serializerFor(update).serialize(update, tablesAndKeys, out, version);
         }
 
         @Override
-        public AccordUpdate deserialize(DataInputPlus in, Version version) throws IOException
+        public AccordUpdate deserialize(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
         {
             Kind kind = Kind.valueOf(in.readByte());
-            return serializerFor(kind).deserialize(in, version);
+            return (AccordUpdate) serializerFor(kind).deserialize(tablesAndKeys, in, version);
         }
 
         @Override
-        public long serializedSize(AccordUpdate update, Version version)
+        public long serializedSize(AccordUpdate update, TableMetadatasAndKeys tablesAndKeys, Version version)
         {
-            return 1 + serializerFor(update).serializedSize(update, version);
+            return 1 + serializerFor(update).serializedSize(update, tablesAndKeys, version);
         }
     };
 }

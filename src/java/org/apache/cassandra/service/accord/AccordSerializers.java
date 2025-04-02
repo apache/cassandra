@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import accord.utils.VIntCoding;
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.ArrayClustering;
@@ -33,10 +34,9 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -46,7 +46,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.Version;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
@@ -75,58 +74,28 @@ public class AccordSerializers
         throw new UnsupportedOperationException("Unsupported collection type: " + type);
     }
 
-    public static final IVersionedSerializer<PartitionUpdate> partitionUpdateSerializer = new IVersionedSerializer<PartitionUpdate>()
+    public static final ParameterisedUnversionedSerializer<ColumnMetadata, TableMetadata> columnMetadataSerializer = new ParameterisedUnversionedSerializer<>()
     {
         @Override
-        public void serialize(PartitionUpdate upd, DataOutputPlus out, Version version) throws IOException
+        public void serialize(ColumnMetadata column, TableMetadata table, DataOutputPlus out) throws IOException
         {
-            PartitionUpdate.serializer.serialize(upd, out, version.messageVersion());
+            out.writeUnsignedVInt32(column.uniqueId);
         }
 
         @Override
-        public PartitionUpdate deserialize(DataInputPlus in, Version version) throws IOException
+        public ColumnMetadata deserialize(TableMetadata table, DataInputPlus in) throws IOException
         {
-            return PartitionUpdate.serializer.deserialize(in, version.messageVersion(), DeserializationHelper.Flag.FROM_REMOTE);
+            return table.getColumnById(in.readUnsignedVInt32());
         }
 
         @Override
-        public long serializedSize(PartitionUpdate upd, Version version)
+        public long serializedSize(ColumnMetadata column, TableMetadata table)
         {
-            return PartitionUpdate.serializer.serializedSize(upd, version.messageVersion());
+            return VIntCoding.sizeOfUnsignedVInt(column.uniqueId);
         }
     };
 
-    public static final UnversionedSerializer<ColumnMetadata> columnMetadataSerializer = new UnversionedSerializer<ColumnMetadata>()
-    {
-        @Override
-        public void serialize(ColumnMetadata column, DataOutputPlus out) throws IOException
-        {
-            out.writeUTF(column.ksName);
-            out.writeUTF(column.cfName);
-            ByteBufferUtil.writeWithShortLength(column.name.bytes, out);
-        }
-
-        @Override
-        public ColumnMetadata deserialize(DataInputPlus in) throws IOException
-        {
-            String keyspace = in.readUTF();
-            String table = in.readUTF();
-            ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
-            return Schema.instance.getColumnMetadata(keyspace, table, name);
-        }
-
-        @Override
-        public long serializedSize(ColumnMetadata column)
-        {
-            long size = 0;
-            size += sizeof(column.ksName);
-            size += sizeof(column.cfName);
-            size += ByteBufferUtil.serializedSizeWithShortLength(column.name.bytes);
-            return size;
-        }
-    };
-
-    public static final IVersionedSerializer<TableMetadata> tableMetadataSerializer = new IVersionedSerializer<TableMetadata>()
+    public static final IVersionedSerializer<TableMetadata> tableMetadataSerializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(TableMetadata metadata, DataOutputPlus out, Version version) throws IOException

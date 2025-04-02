@@ -114,6 +114,7 @@ public abstract class AccordRoutableKey implements RoutableKey
 
     public final int compareTo(AccordRoutableKey that)
     {
+        if (this == that) return 0;
         int c = compareAsRoutingKey(that);
         if (c != 0)
             return c;

@@ -64,6 +64,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
@@ -219,7 +220,7 @@ public class AccordObjectSizes
         }
     }
 
-    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null));
+    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
     public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;
@@ -314,7 +315,7 @@ public class AccordObjectSizes
                 builder.partialDeps(PartialDeps.NONE);
 
             if (hasTxn)
-                builder.partialTxn(new PartialTxn.InMemory(null, null, null, null, null));
+                builder.partialTxn(new PartialTxn.InMemory(null, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
 
             if (executes)
             {

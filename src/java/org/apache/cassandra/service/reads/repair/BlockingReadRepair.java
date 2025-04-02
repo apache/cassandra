@@ -48,6 +48,8 @@ import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
@@ -221,10 +223,10 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         checkState(coordinator.isEventuallyConsistent(), "Should only repair transactionally for an eventually consistent read coordinator");
         ReadRepairMetrics.repairedBlockingViaAccord.mark();
         PartitionKey partitionKey = new PartitionKey(command.metadata().id, dk);
-        Keys key = Keys.of(partitionKey);
+        Keys keys = Keys.of(partitionKey);
         // This is going create a new BlockingReadRepair inside an Accord transaction which will go down
         // the !isEventuallyConsistent path and apply the repairs through Accord command stores using AccordInteropExecution
-        UnrecoverableRepairUpdate<E, P> repairUpdate = new UnrecoverableRepairUpdate(AccordService.instance().nodeId(), this, key, dk, accordMutations, writePlan);
+        UnrecoverableRepairUpdate<E, P> repairUpdate = new UnrecoverableRepairUpdate(AccordService.instance().nodeId(), this, keys, dk, accordMutations, writePlan);
 
         /*
          * The motivation for using a read to apply read repair is that we want to apply the writes in the execute phase
@@ -242,7 +244,8 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
          * since overlapping non-transactional writes with transactional reads will never be deterministic, but it combines
          * the two things into the same mechanism and we can't tell the origin of the writes needing read repair anyways.
          */
-        Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
+        TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(TableMetadatas.of(command.metadata()), keys);
+        Txn txn = new Txn.InMemory(Txn.Kind.Read, keys, TxnRead.createNoOpRead(keys), TxnQuery.NONE, repairUpdate, tablesAndKeys);
         Future<TxnResult> repairFuture = Stage.ACCORD_MIGRATION.submit(() -> AccordService.instance().coordinate(command.metadata().epoch.getEpoch(), txn, ConsistencyLevel.ANY, requestTime));
 
         repairs.add(new PendingPartitionRepair()

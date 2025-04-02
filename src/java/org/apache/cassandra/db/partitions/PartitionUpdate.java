@@ -44,6 +44,7 @@ import org.apache.cassandra.db.MutableDeletionInfo;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SimpleBuilders;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -77,12 +78,15 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
 import static org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer.IS_EMPTY;
 
 /**
@@ -810,6 +814,17 @@ public class PartitionUpdate extends AbstractBTreePartition
             }
         }
 
+        public void serializeWithoutKey(PartitionUpdate update, TableMetadatas tables, DataOutputPlus out, int version) throws IOException
+        {
+            try (UnfilteredRowIterator iter = update.unfilteredIterator())
+            {
+                tables.serialize(update.metadata, out);
+                Epoch.serializer.serialize(update.metadata.epoch, out);
+                SerializationHeader header = new SerializationHeader(false, update.metadata, iter.columns(), iter.stats());
+                UnfilteredRowIteratorSerializer.serializer.serializeWithoutKey(iter, header, out, version, update.rowCount(), STABLE, null);
+            }
+        }
+
         public PartitionUpdate deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
@@ -833,6 +848,19 @@ public class PartitionUpdate extends AbstractBTreePartition
                 throw e;
             }
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(tableMetadata, null, in, version, flag);
+            return deserialize(header, remoteVersion, tableMetadata, in, version, flag);
+        }
+
+        public PartitionUpdate deserialize(PartitionKey key, TableMetadatas tables, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
+            TableMetadata tableMetadata = tables.deserialize(in);
+            Epoch remoteVersion = Epoch.serializer.deserialize(in);
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeaderWithoutKey(tableMetadata, key.partitionKey(), in, version, flag, STABLE, null);
+            return deserialize(header, remoteVersion, tableMetadata, in, version, flag);
+        }
+
+        private PartitionUpdate deserialize(UnfilteredRowIteratorSerializer.Header header, Epoch remoteVersion, TableMetadata tableMetadata, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
             if (header.isEmpty)
                 return emptyUpdate(tableMetadata, header.key);
 
@@ -893,6 +921,18 @@ public class PartitionUpdate extends AbstractBTreePartition
                 return update.metadata.id.serializedSize()
                      + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(update.metadata.epoch) : 0)
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
+            }
+        }
+
+        public long serializedSizeWithoutKey(PartitionUpdate update, TableMetadatas tables, int version)
+        {
+            try (UnfilteredRowIterator iter = update.unfilteredIterator())
+            {
+                long size = tables.serializedSize(update.metadata);
+                size += Epoch.serializer.serializedSize(update.metadata.epoch);
+
+                SerializationHeader header = new SerializationHeader(false, update.metadata, iter.columns(), iter.stats());
+                return size + UnfilteredRowIteratorSerializer.serializer.serializedSizeWithoutKey(iter, header, version, update.rowCount(), STABLE, null);
             }
         }
     }

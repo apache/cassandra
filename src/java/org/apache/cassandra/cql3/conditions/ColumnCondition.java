@@ -43,11 +43,12 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.*;
@@ -121,21 +122,23 @@ public final class ColumnCondition
     private Bound bindSingleColumn(QueryOptions options)
     {
         ColumnMetadata column = columnsExpression.firstColumn();
+        TableMetadata table = columnsExpression.table();
         if (column.type.isMultiCell())
-            return new MultiCellBound(column, operator, toValue(column.type, bindAndGetTerms(options)));
+            return new MultiCellBound(column, table, operator, toValue(column.type, bindAndGetTerms(options)));
 
-        return new SimpleBound(column, operator, toValue(column.type, bindAndGetTerms(options)));
+        return new SimpleBound(column, table, operator, toValue(column.type, bindAndGetTerms(options)));
     }
 
     private ColumnCondition.Bound bindElement(QueryOptions options)
     {
         ColumnMetadata column = columnsExpression.firstColumn();
+        TableMetadata table = columnsExpression.table();
         ByteBuffer keyOrIndex = columnsExpression.element(options);
         if (column.type.isCollection())
         {
             checkNotNull(keyOrIndex, "Invalid null value for %s element access", column.type instanceof MapType ? "map" : "list");
         }
-        return new ElementOrFieldAccessBound(column, keyOrIndex, operator, toValue(columnsExpression.type(), bindAndGetTerms(options)));
+        return new ElementOrFieldAccessBound(column, table, keyOrIndex, operator, toValue(columnsExpression.type(), bindAndGetTerms(options)));
     }
 
     private ByteBuffer toValue(AbstractType<?> type, List<ByteBuffer> values)
@@ -181,7 +184,7 @@ public final class ColumnCondition
     public interface BoundSerializer<T extends Bound>
     {
         default void serialize(T bound, DataOutputPlus out) throws IOException {}
-        Bound deserialize(DataInputPlus in, ColumnMetadata column, Operator operator, ByteBuffer value) throws IOException;
+        Bound deserialize(DataInputPlus in, ColumnMetadata column, TableMetadata table, Operator operator, ByteBuffer value) throws IOException;
         default long serializedSize(T condition) { return 0; }
     }
 
@@ -216,12 +219,14 @@ public final class ColumnCondition
     public static abstract class Bound
     {
         public final ColumnMetadata column;
+        public final TableMetadata table;
         public final Operator operator;
         public final ByteBuffer value;
 
-        protected Bound(ColumnMetadata column, Operator operator, ByteBuffer value)
+        protected Bound(ColumnMetadata column, TableMetadata table, Operator operator, ByteBuffer value)
         {
             this.column = column;
+            this.table = table;
             this.operator = operator;
             this.value = value;
         }
@@ -233,11 +238,12 @@ public final class ColumnCondition
 
         public abstract BoundKind kind();
 
-        public static final UnversionedSerializer<Bound> serializer = new UnversionedSerializer<>() {
+        public static final ParameterisedUnversionedSerializer<Bound, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>() {
             @Override
-            public void serialize(Bound bound, DataOutputPlus out) throws IOException
+            public void serialize(Bound bound, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
-                columnMetadataSerializer.serialize(bound.column, out);
+                tables.serialize(bound.table, out);
+                columnMetadataSerializer.serialize(bound.column, bound.table, out);
                 bound.operator.writeToUnsignedVInt(out);
                 nullableByteBufferSerializer.serialize(bound.value, out);
                 ColumnCondition.BoundKind kind = bound.kind();
@@ -246,20 +252,22 @@ public final class ColumnCondition
             }
 
             @Override
-            public Bound deserialize(DataInputPlus in) throws IOException
+            public Bound deserialize(TableMetadatas tables, DataInputPlus in) throws IOException
             {
-                ColumnMetadata column = columnMetadataSerializer.deserialize(in);
+                TableMetadata table = tables.deserialize(in);
+                ColumnMetadata column = columnMetadataSerializer.deserialize(table, in);
                 Operator operator = Operator.readFromUnsignedVInt(in);
                 ByteBuffer value = nullableByteBufferSerializer.deserialize(in);
                 ColumnCondition.BoundKind boundKind = ColumnCondition.BoundKind.valueOf(in.readUnsignedVInt32());
-                return boundKind.serializer.deserialize(in, column, operator, value);
+                return boundKind.serializer.deserialize(in, column, table, operator, value);
             }
 
             @Override
-            public long serializedSize(Bound bound)
+            public long serializedSize(Bound bound, TableMetadatas tables)
             {
                 ColumnCondition.BoundKind kind = bound.kind();
-                return columnMetadataSerializer.serializedSize(bound.column)
+                return tables.serializedSize(bound.table)
+                       + columnMetadataSerializer.serializedSize(bound.column, bound.table)
                        + bound.operator.sizeAsUnsignedVInt()
                        + nullableByteBufferSerializer.serializedSize(bound.value)
                        + sizeofUnsignedVInt(kind.ordinal())
@@ -273,11 +281,11 @@ public final class ColumnCondition
      */
     public static class SimpleBound extends Bound
     {
-        private static final BoundSerializer<SimpleBound> serializer = (in, column, operator, value) -> new SimpleBound(column, operator, value);
+        private static final BoundSerializer<SimpleBound> serializer = (in, column, table, operator, value) -> new SimpleBound(column, table, operator, value);
 
-        public SimpleBound(ColumnMetadata column, Operator operator, ByteBuffer value)
+        public SimpleBound(ColumnMetadata column, TableMetadata table, Operator operator, ByteBuffer value)
         {
-            super(column, operator, value);
+            super(column, table, operator, value);
         }
 
         @Override
@@ -321,9 +329,9 @@ public final class ColumnCondition
 
     public static class SimpleClusteringBound extends SimpleBound
     {
-        public SimpleClusteringBound(ColumnMetadata column, Operator operator, ByteBuffer value)
+        public SimpleClusteringBound(ColumnMetadata column, TableMetadata table, Operator operator, ByteBuffer value)
         {
-            super(column, operator, value);
+            super(column, table, operator, value);
             assert column.isClusteringColumn() : String.format("Column must be a clustering column, but given %s", column);
         }
 
@@ -348,10 +356,10 @@ public final class ColumnCondition
             }
 
             @Override
-            public Bound deserialize(DataInputPlus in, ColumnMetadata column, Operator operator, ByteBuffer value) throws IOException
+            public Bound deserialize(DataInputPlus in, ColumnMetadata column, TableMetadata table, Operator operator, ByteBuffer value) throws IOException
             {
                 ByteBuffer keyOrIndex = nullableByteBufferSerializer.deserialize(in);
-                return new ElementOrFieldAccessBound(column, keyOrIndex, operator, value);
+                return new ElementOrFieldAccessBound(column, table, keyOrIndex, operator, value);
             }
 
             @Override
@@ -372,11 +380,12 @@ public final class ColumnCondition
 
 
         public ElementOrFieldAccessBound(ColumnMetadata column,
+                                         TableMetadata table,
                                          ByteBuffer keyOrIndex,
                                          Operator operator,
                                          ByteBuffer value)
         {
-            super(column, operator, value);
+            super(column, table, operator, value);
             this.elementType = ((MultiElementType<?>) column.type).elementType(keyOrIndex);
             this.keyOrIndex = keyOrIndex;
         }
@@ -425,11 +434,11 @@ public final class ColumnCondition
      */
     public static final class MultiCellBound extends Bound
     {
-        private static final BoundSerializer<MultiCellBound> serializer = (in, column, operator, value) -> new MultiCellBound(column, operator, value);
+        private static final BoundSerializer<MultiCellBound> serializer = (in, column, table, operator, value) -> new MultiCellBound(column, table, operator, value);
 
-        public MultiCellBound(ColumnMetadata column, Operator operator, ByteBuffer value)
+        public MultiCellBound(ColumnMetadata column, TableMetadata table, Operator operator, ByteBuffer value)
         {
-            super(column, operator, value);
+            super(column, table, operator, value);
             assert column.type.isMultiCell() : String.format("Unexpected type: %s", column.type);
         }
 

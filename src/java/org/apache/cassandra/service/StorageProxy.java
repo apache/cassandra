@@ -138,6 +138,8 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
 import org.apache.cassandra.service.accord.txn.TxnDataValue;
@@ -2211,9 +2213,11 @@ public class StorageProxy implements StorageProxyMBean
         TableMetadata tableMetadata = getTableMetadata(cm, command.metadata().id);
         TableParams tableParams = tableMetadata.params;
         consistencyLevel = tableParams.transactionalMode.readCLForMode(tableParams.transactionalMigrationFrom, consistencyLevel, cm, tableMetadata.id, command.dataRange().keyRange());
-        TxnRead read = TxnRead.createRangeRead(command, range, consistencyLevel);
+        TableMetadatas tables = TableMetadatas.of(tableMetadata);
+        TxnRead read = TxnRead.createRangeRead(tables, command, range, consistencyLevel);
         Txn.Kind kind = shouldReadEphemerally(read.keys(), tableParams, Read);
-        Txn txn = new Txn.InMemory(kind, read.keys(), read, TxnQuery.RANGE_QUERY, null);
+        TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, read.keys());
+        Txn txn = new Txn.InMemory(kind, read.keys(), read, TxnQuery.RANGE_QUERY, null, tablesAndKeys);
         IAccordService accordService = AccordService.instance();
         return accordService.coordinateAsync(tableMetadata.epoch.getEpoch(), txn, consistencyLevel, requestTime);
     }
@@ -2226,11 +2230,13 @@ public class StorageProxy implements StorageProxyMBean
         // If the non-SERIAL write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely
         TableMetadata tableMetadata = getTableMetadata(cm, group.metadata().id);
+        TableMetadatas tables = TableMetadatas.of(tableMetadata);
         TableParams tableParams = tableMetadata.params;
-        consistencyLevel = consistencyLevelForAccordRead(cm, group.queries.get(0).metadata().id, group, consistencyLevel);
-        TxnRead read = TxnRead.createSerialRead(group.queries, consistencyLevel);
+        TableMetadatasAndKeys.KeyCollector keyCollector = new TableMetadatasAndKeys.KeyCollector(tables);
+        consistencyLevel = consistencyLevelForAccordRead(cm, tableMetadata.id, group, consistencyLevel);
+        TxnRead read = TxnRead.createSerialRead(group.queries, consistencyLevel, keyCollector);
         Txn.Kind kind = shouldReadEphemerally(read.keys(), tableParams, Read);
-        Txn txn = new Txn.InMemory(kind, read.keys(), read, TxnQuery.ALL, null);
+        Txn txn = new Txn.InMemory(kind, read.keys(), read, TxnQuery.ALL, null, keyCollector.buildTablesAndKeys());
         return AccordService.instance().coordinateAsync(tableMetadata.epoch.getEpoch(), txn, consistencyLevel, requestTime);
     }
 

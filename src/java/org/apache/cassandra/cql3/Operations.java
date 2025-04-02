@@ -28,6 +28,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.StatementType;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * A set of <code>Operation</code>s.
@@ -63,7 +64,7 @@ public final class Operations implements Iterable<Operation>
         this.isForTxn = isForTxn;
     }
 
-    private Operations(Operations other)
+    private Operations(Operations other, TableMetadata tableMetadata)
     {
         Preconditions.checkState(!other.isForTxn, "Unable to migrate from txn to txn");
         Preconditions.checkState(other.regularSubstitutions.isEmpty() && other.staticSubstitutions.isEmpty(), "Transaction substitutions are defined for a non-transaction operations! regular=%s, static=%s", other.regularSubstitutions, other.staticSubstitutions);
@@ -71,12 +72,12 @@ public final class Operations implements Iterable<Operation>
         type = other.type;
         isForTxn = true;
         for (Operation opt : other)
-            add(opt);
+            add(opt, tableMetadata);
     }
 
-    public Operations forTxn()
+    public Operations forTxn(TableMetadata tableMetadata)
     {
-        return new Operations(this);
+        return new Operations(this, tableMetadata);
     }
 
     /**
@@ -122,13 +123,15 @@ public final class Operations implements Iterable<Operation>
 
     /**
      * Adds the specified <code>Operation</code> to this set of operations.
-     * @param operation the operation to add
+     *
+     * @param operation     the operation to add
+     * @param tableMetadata
      */
-    public void add(Operation operation)
+    public void add(Operation operation, TableMetadata tableMetadata)
     {
         if (isForTxn && (operation.requiresRead() || operation.requiresTimestamp()))
         {
-            add(operation.column, ReferenceOperation.create(operation));
+            add(operation.column, ReferenceOperation.create(operation, tableMetadata));
             return;
         }
         if (operation.column.isStatic())

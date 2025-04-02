@@ -568,6 +568,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         DataRange.serializer.serialize(dataRange(), out, version, metadata());
     }
 
+    protected void serializeSelectionWithoutKey(DataOutputPlus out, int version) throws IOException
+    {
+        serializeSelection(out, version);
+    }
+
     protected long selectionSerializedSize(int version)
     {
         return DataRange.serializer.serializedSize(dataRange(), version, metadata());
