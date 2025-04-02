@@ -485,10 +485,11 @@ public class Offsets
     {
         if (bounds.length == size)
         {
-            int[] newBounds = new int[bounds.length * 2];
+            int[] newBounds = new int[Math.max(bounds.length * 2, INITIAL_CAPACITY)];
             System.arraycopy(bounds, 0, newBounds, 0, bounds.length);
             bounds = newBounds;
         }
+        Preconditions.checkState(size == 0 || start > bounds[size - 1]);
         bounds[size++] = start;
         bounds[size++] = end;
     }
