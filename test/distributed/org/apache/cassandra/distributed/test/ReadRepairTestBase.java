@@ -197,6 +197,8 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
             assertRows(cluster.get(3).executeInternal(withTable("SELECT * FROM %s WHERE pk = 1")));
 
             cluster.filters().verbs(READ_REPAIR_REQ.id).to(3).drop();
+            cluster.filters().verbs(READ_RECONCILE_SEND.id).to(3).drop();
+            cluster.filters().verbs(READ_RECONCILE_RCV.id).to(3).drop();
             assertRows(cluster.coordinator(1).execute(withTable("SELECT * FROM %s WHERE pk = 1"),
                                                       ConsistencyLevel.QUORUM),
                        row(1, 1, 1));
@@ -209,6 +211,7 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
     @Test @Ignore
     public void movingTokenReadRepairTest() throws Throwable
     {
+        MutationTrackingUtils.fixmeSkipIfTracked(replicationType(), "Token moves not supported");
         // TODO: rewrite using FuzzTestBase to control progress through decommission
         // TODO: fails with vnode enabled
         try (Cluster cluster = init(Cluster.build(4).withoutVNodes().start(), 3))
