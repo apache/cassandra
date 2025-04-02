@@ -461,7 +461,8 @@ public class ASTSingleTableModel
             if (!(c instanceof Conditional.Where)) return false;
             var where = (Conditional.Where) c;
             if (where.kind != Inequality.EQUAL) return false;
-            return ExpressionEvaluator.eval(where.rhs) == null;
+            // s0 = null matches even if the partition doesn't exist!
+            return ExpressionEvaluator.eval(where.rhs) != null;
         });
     }
 
