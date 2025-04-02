@@ -554,6 +554,11 @@ public class OffsetsTest
     @Test
     public void unionTest()
     {
+        // empty
+        testUnion(offsets(1, 1, 5, 6),
+                  offsets(1, 1, 5, 6),
+                  offsets());
+
         // left union
         testUnion(offsets(0, 3, 6, 10, 15, 17),
                   offsets(0, 3, 7, 10, 15, 17),
@@ -608,6 +613,21 @@ public class OffsetsTest
     @Test
     public void differenceTest()
     {
+        // empty input
+        testDifference(offsets(1, 1),
+                       offsets(1, 1),
+                       offsets());
+
+        testDifference(offsets(),
+                       offsets(),
+                       offsets(1, 1));
+
+        // empty result
+        testDifference(offsets(),
+                       offsets(1, 1),
+                       offsets(1, 1));
+
+
         // noop
         testDifference(offsets(0, 3, 7, 10, 15, 17),
                        offsets(0, 3, 7, 10, 15, 17),
@@ -669,6 +689,11 @@ public class OffsetsTest
     @Test
     public void intersectionTest()
     {
+        // emtpy input
+        testIntersection(offsets(),
+                         offsets(0, 3, 7, 10, 15, 17),
+                         offsets());
+
         // disjoint test
         testIntersection(offsets(),
                          offsets(0, 3, 7, 10, 15, 17),

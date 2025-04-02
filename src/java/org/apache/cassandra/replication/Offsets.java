@@ -41,11 +41,8 @@ public class Offsets
     public Offsets(RangeIterator rangeIterator)
     {
         this(rangeIterator.logId());
-        while (!rangeIterator.isFinished())
-        {
+        while (rangeIterator.tryAdvance())
             append(rangeIterator.start(), rangeIterator.end());
-            rangeIterator.tryAdvance();
-        }
     }
 
     public Offsets(CoordinatorLogId logId)
@@ -140,11 +137,8 @@ public class Offsets
 
     public static void forEachOffset(RangeIterator iter, OffsetConsumer consumer)
     {
-        while (!iter.isFinished())
-        {
+        while (iter.tryAdvance())
             forEachOffsetInRange(iter.logId(), iter.start(), iter.end(), consumer);
-            iter.tryAdvance();
-        }
     }
 
     public void collectIds(Collection<ShortMutationId> into)
@@ -518,19 +512,19 @@ public class Offsets
 
         return new RangeIterator()
         {
-            int range = 0;
+            int range = -1;
 
             @Override
             public int start()
             {
-                Preconditions.checkState(range <= numRanges);
+                Preconditions.checkState(range >= 0 && range <= numRanges);
                 return bounds[rangeStart(range)];
             }
 
             @Override
             public int end()
             {
-                Preconditions.checkState(range <= numRanges);
+                Preconditions.checkState(range >= 0 && range <= numRanges);
                 return bounds[rangeEnd(range)];
             }
 
@@ -740,11 +734,25 @@ public class Offsets
 
     private static abstract class AbstractSetIterator implements RangeIterator
     {
+        enum State
+        {
+            INITIALIZED, VALID, FINISHED;
+
+            boolean isValid()
+            {
+                return this == VALID;
+            }
+
+            boolean isFinished()
+            {
+                return this == FINISHED;
+            }
+        }
         final RangeIterator a;
         final RangeIterator b;
         int start;
         int end;
-        private boolean isFinished;
+        private State state = State.INITIALIZED;
 
         public AbstractSetIterator(RangeIterator a, RangeIterator b)
         {
@@ -753,39 +761,49 @@ public class Offsets
             Preconditions.checkArgument(a.logId().equals(b.logId()));
             this.a = a;
             this.b = b;
-            isFinished = computeNext();
         }
 
         @Override
         public int start()
         {
-            Preconditions.checkState(!isFinished());
+            Preconditions.checkState(state.isValid());
             return start;
         }
 
         @Override
         public int end()
         {
-            Preconditions.checkState(!isFinished());
+            Preconditions.checkState(state.isValid());
             return end;
         }
 
-        protected abstract boolean computeNext();
+        protected abstract State computeNext();
 
         @Override
         public boolean tryAdvance()
         {
-            if (isFinished)
-                return false;
-
-            isFinished = computeNext();
-            return !isFinished();
+            switch (state)
+            {
+                case INITIALIZED:
+                    a.tryAdvance();
+                    b.tryAdvance();
+                    state = State.VALID;
+                case VALID:
+                    state = computeNext();
+                    if (!state.isFinished())
+                        break;;
+                case FINISHED:
+                    return false;
+                default:
+                    throw new IllegalStateException("Unhandled state: " + state);
+            }
+            return true;
         }
 
         @Override
         public boolean isFinished()
         {
-            return isFinished;
+            return state.isFinished();
         }
 
         @Override
@@ -825,18 +843,18 @@ public class Offsets
         }
 
         @Override
-        protected boolean computeNext()
+        protected State computeNext()
         {
 
             if (a.isFinished())
             {
                 if (b.isFinished())
-                    return true;
+                    return State.FINISHED;
 
                 start = b.start();
                 end = b.end();
                 b.tryAdvance();
-                return false;
+                return State.VALID;
             }
 
             if (b.isFinished())
@@ -844,7 +862,7 @@ public class Offsets
                 start = a.start();
                 end = a.end();
                 a.tryAdvance();
-                return false;
+                return State.VALID;
             }
 
             SetSupport.RangeOverlap rangeOverlap = SetSupport.calculateRangeOverlap(a.start(), a.end(), b.start(), b.end());
@@ -872,7 +890,7 @@ public class Offsets
                     throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
             }
 
-            return false;
+            return State.VALID;
         }
     }
 
@@ -1006,7 +1024,7 @@ public class Offsets
         }
 
         @Override
-        protected boolean computeNext()
+        protected State computeNext()
         {
             while (!a.isFinished() && !b.isFinished())
             {
@@ -1020,7 +1038,7 @@ public class Offsets
                         end = a.end();
                         aSplit = SetSupport.NO_SPLIT_SENTINEL;
                         a.tryAdvance();
-                        return false;
+                        return State.VALID;
                     case AFTER:
                     case AFTER_ADJACENT:
                         aSplit = SetSupport.NO_SPLIT_SENTINEL;
@@ -1066,14 +1084,14 @@ public class Offsets
                             aSplit = SetSupport.NO_SPLIT_SENTINEL;
                             a.tryAdvance();
                         }
-                        return false;
+                        return State.VALID;
                     default:
                         throw new IllegalStateException("Unhandled union op: " + rangeOverlap);
                 }
             }
 
             if (a.isFinished())
-                return true;
+                return State.FINISHED;
 
             if (b.isFinished())
             {
@@ -1081,7 +1099,7 @@ public class Offsets
                 end = a.end();
                 aSplit = SetSupport.NO_SPLIT_SENTINEL;
                 a.tryAdvance();
-                return false;
+                return State.VALID;
             }
 
             // shouldn't be possible to get here
@@ -1102,11 +1120,8 @@ public class Offsets
         int aNumRanges = a.rangeCount();
         int bNumRanges = b.rangeCount();
 
-        if (aNumRanges == 0)
+        if (aNumRanges == 0 || bNumRanges == 0)
             return new Offsets(logId);
-
-        if (bNumRanges == 0)
-            return a.copy();
 
         int aRange = 0;
         int bRange = 0;
@@ -1202,7 +1217,9 @@ public class Offsets
     /**
      * Intrusive iterator. Adjacent ranges may or may not be merged
      *
-     * isFinished needs to be called before calling start or end to support empty iterators
+     * iterator is created in an invalid state, and tryAdvance needs to be called before calling start or
+     * stop. This is to support empty iterators, and makes iterating through the contents less verbose than
+     * have to check isFinished before reading the values, and makes iterator initialization less error-prone;
      */
     public interface RangeIterator
     {
