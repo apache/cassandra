@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -253,9 +252,15 @@ public class BytesPartitionState
         }
 
         @Override
-        public ByteBuffer remove(long ts, ByteBuffer value)
+        public ByteBuffer remove(long ts, ByteBuffer buffer)
         {
-            throw new UnsupportedOperationException();
+            if (isShadowed(ts))
+                return state();
+            var values = type.compose(buffer);
+            for (var v : values)
+                cells.removeIf(c -> c.value.equals(v));
+
+            return state();
         }
 
         @Override
@@ -1115,8 +1120,7 @@ public class BytesPartitionState
                                                   .addAll(clusteringColumns)
                                                   .buildAndClear();
             }
-            for (ColumnMetadata pk : metadata.staticColumns())
-                symbolListBuilder.add(Symbol.from(pk));
+            metadata.staticColumns().selectOrderIterator().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
             staticColumns = symbolListBuilder.buildAndClear();
             if (staticColumns.isEmpty()) partitionAndStaticColumns = partitionColumns;
             else
@@ -1125,16 +1129,14 @@ public class BytesPartitionState
                                                              .addAll(staticColumns)
                                                              .buildAndClear();
             }
-            for (ColumnMetadata pk : metadata.regularColumns())
-                symbolListBuilder.add(Symbol.from(pk));
+            metadata.regularColumns().selectOrderIterator().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
             regularColumns = symbolListBuilder.buildAndClear();
             clusteringAndRegularColumns = symbolListBuilder.addAll(clusteringColumns)
                                                            .addAll(regularColumns)
                                                            .buildAndClear();
             metadata.allColumnsInSelectOrder().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
             selectionOrder = symbolListBuilder.buildAndClear();
-            metadata.regularAndStaticColumns().forEach(cm -> symbolListBuilder.add(Symbol.from(cm)));
-            regularAndStaticColumns = symbolListBuilder.buildAndClear();
+            regularAndStaticColumns = symbolListBuilder.addAll(staticColumns).addAll(regularColumns).buildAndClear();
 
             clusteringComparator = new ClusteringComparator(clusteringColumns.stream().map(Symbol::rawType).collect(Collectors.toList()));
 
