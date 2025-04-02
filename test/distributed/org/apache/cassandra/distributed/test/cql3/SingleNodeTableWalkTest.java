@@ -494,89 +494,106 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 for (int i = 0; i < numMutations; i++)
                 {
                     Mutation next = gen.next(r);
-                    if (IGNORED_ISSUES.contains(KnownIssue.BATCH_CAS_CONDITION_CONFLICT))
+                    while (next.casCondition().isPresent())
                     {
-                        while (next.casCondition().isPresent())
+                        var cond = next.casCondition().get();
+                        var columns = cond.streamRecursive()
+                                          .filter(e -> e instanceof Symbol)
+                                          .map(e -> (Symbol) e)
+                                          .collect(Collectors.toList());
+                        PrimaryKey pkOrRow = model.referenceRow(next);
+                        PrimaryKey pkRef = pkOrRow.isPartitionLevel()
+                                           ? pkOrRow
+                                           : model.factory.createPrimaryKey(pkOrRow.partition, null);
+                        boolean isPartitionLevel = pkRef == pkOrRow;
+                        boolean hasPartitionLevelColumn = columns.isEmpty() ? false : columns.stream().anyMatch(s -> model.factory.partitionAndStaticColumns.contains(s));
+                        boolean hasRowLevelColumn = columns.isEmpty() ? false : columns.stream().anyMatch(s -> model.factory.clusteringAndRegularColumns.contains(s));
+                        if (knownCasConditions == null)
+                            knownCasConditions = new HashMap<>();
+                        // handle partition level
+                        Runnable undoPartitionKnownUpdate = () -> {};
                         {
-                            var cond = next.casCondition().get();
-                            var columns = cond.streamRecursive()
-                                              .filter(e -> e instanceof Symbol)
-                                              .map(e -> (Symbol) e)
-                                              .collect(Collectors.toList());
-                            PrimaryKey pkOrRow = model.referenceRow(next);
-                            PrimaryKey pkRef = pkOrRow.isPartitionLevel()
-                                               ? pkOrRow
-                                               : model.factory.createPrimaryKey(pkOrRow.partition, null);
-                            boolean isPartitionLevel = pkRef == pkOrRow;
-                            boolean hasPartitionLevelColumn = columns.isEmpty() ? false : columns.stream().anyMatch(s -> model.factory.partitionAndStaticColumns.contains(s));
-                            boolean hasRowLevelColumn = columns.isEmpty() ? false : columns.stream().anyMatch(s -> model.factory.clusteringAndRegularColumns.contains(s));
-                            if (knownCasConditions == null)
-                                knownCasConditions = new HashMap<>();
-                            // handle partition level
-                            Runnable undoPartitionKnownUpdate = () -> {};
+                            var known = knownCasConditions.get(pkRef);
+                            if (known == null)
                             {
-                                var known = knownCasConditions.get(pkRef);
-                                if (known == null)
+                                if ((isPartitionLevel && cond instanceof CasCondition.Simple)
+                                    || hasPartitionLevelColumn)
                                 {
-                                    if ((isPartitionLevel && cond instanceof CasCondition.Simple)
-                                        || hasPartitionLevelColumn)
-                                    {
-                                        knownCasConditions.put(pkRef, cond);
-                                        var finalKnownCasConditions = knownCasConditions;
-                                        undoPartitionKnownUpdate = () -> finalKnownCasConditions.remove(pkRef);
-                                    }
-                                }
-                                else if (known.getClass() == cond.getClass())
-                                {
-                                    // nothing to see here
-                                }
-                                else if (known instanceof CasCondition.Simple)
-                                {
-                                    if (hasPartitionLevelColumn)
-                                    {
-                                        next = gen.next(rs);
-                                        continue;
-                                    }
-                                }
-                                else if (known instanceof CasCondition.IfCondition)
-                                {
-                                    if (cond instanceof CasCondition.Simple)
-                                    {
-                                        next = gen.next(rs);
-                                        continue;
-                                    }
-                                }
-                                else
-                                {
-                                    throw new AssumptionViolatedException(known.toCQL() + " != " + cond.toCQL());
+                                    knownCasConditions.put(pkRef, cond);
+                                    var finalKnownCasConditions = knownCasConditions;
+                                    undoPartitionKnownUpdate = () -> finalKnownCasConditions.remove(pkRef);
                                 }
                             }
-                            if (!isPartitionLevel)
+                            else if (known instanceof CasCondition.IfCondition && cond instanceof CasCondition.IfCondition)
                             {
-                                // mutation is row level, handle row level
-                                var known = knownCasConditions.get(pkOrRow);
-                                if (known == null)
+                                // nothing to see here
+                            }
+                            else if (known instanceof CasCondition.Simple && cond instanceof CasCondition.Simple)
+                            {
+                                if (known != cond)
                                 {
-                                    if (hasRowLevelColumn || cond instanceof CasCondition.Simple)
-                                        knownCasConditions.put(pkOrRow, cond);
-                                    break;
+                                    // can't mix "IS EXISTS" and "IS NOT EXISTS"
+                                    next = gen.next(rs);
+                                    continue;
                                 }
-                                else if (known.getClass() == cond.getClass())
+                            }
+                            else if (known instanceof CasCondition.Simple)
+                            {
+                                if (hasPartitionLevelColumn)
                                 {
-                                    // nothing to see here
-                                    break;
+                                    next = gen.next(rs);
+                                    continue;
                                 }
-                                else
+                            }
+                            else if (known instanceof CasCondition.IfCondition)
+                            {
+                                if (cond instanceof CasCondition.Simple)
                                 {
-                                    undoPartitionKnownUpdate.run();
                                     next = gen.next(rs);
                                     continue;
                                 }
                             }
                             else
                             {
+                                throw new AssumptionViolatedException(known.toCQL() + " != " + cond.toCQL());
+                            }
+                        }
+                        if (!isPartitionLevel)
+                        {
+                            // mutation is row level, handle row level
+                            var known = knownCasConditions.get(pkOrRow);
+                            if (known == null)
+                            {
+                                if (hasRowLevelColumn || cond instanceof CasCondition.Simple)
+                                    knownCasConditions.put(pkOrRow, cond);
                                 break;
                             }
+                            else if (known instanceof CasCondition.IfCondition && cond instanceof CasCondition.IfCondition)
+                            {
+                                // nothing to see here
+                                break;
+                            }
+                            else if (known instanceof CasCondition.Simple && cond instanceof CasCondition.Simple)
+                            {
+                                if (known != cond)
+                                {
+                                    // can't mix "IS EXISTS" and "IS NOT EXISTS"
+                                    undoPartitionKnownUpdate.run();
+                                    next = gen.next(rs);
+                                    continue;
+                                }
+                                break;
+                            }
+                            else
+                            {
+                                undoPartitionKnownUpdate.run();
+                                next = gen.next(rs);
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            break;
                         }
                     }
                     builder.add(next);
