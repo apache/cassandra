@@ -372,7 +372,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
             preCheck(cluster, statefulBuilder);
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
-//                                  .add(StatefulASTBase::insert)
+                                  .add(StatefulASTBase::insert)
                                   .add(StatefulASTBase::batch)
                                   .add(StatefulASTBase::fullTableScan)
                                   .addIf(State::hasPartitions, this::selectExisting)
