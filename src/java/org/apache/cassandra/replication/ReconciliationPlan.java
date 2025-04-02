@@ -167,6 +167,7 @@ public class ReconciliationPlan
         }
     }
 
+    // TODO (desired): rework Offsets set logic usage to use Offsets#RangeIterator instead of rematerializing sets
     private static class CoordinatorLogReconciliation
     {
         final CoordinatorLogId logId;
