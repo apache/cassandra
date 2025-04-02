@@ -117,6 +117,12 @@ public class ASTSingleTableModel
         return partitions.isEmpty();
     }
 
+    public void clear()
+    {
+        partitions.clear();
+        factory.clear();
+    }
+
     public TreeMap<ByteBuffer, List<PrimaryKey>> index(BytesPartitionState.Ref ref, Symbol symbol)
     {
         if (factory.partitionColumns.contains(symbol))
@@ -497,7 +503,7 @@ public class ASTSingleTableModel
             // CAS's definition of partition EXISTS isn't based off the partition existing, its based off the static row
             // existing (aka at least 1 static column exists and is not null).
             boolean hasPartition = partitionKnown && !ctx.partition.staticRow().isEmpty();
-            boolean hasRow = row != null && !row.isEmpty();
+            boolean hasRow = row != null; // don't do !isEmpty here as liveness dictates the existence of a row.  If you INSERT a row then delete all its columns, it still exists!
             var simple = (CasCondition.Simple) condition;
             switch (simple)
             {
@@ -529,12 +535,6 @@ public class ASTSingleTableModel
             }
         });
         return process(updatedCondition, lets);
-    }
-
-    public void clear()
-    {
-        partitions.clear();
-        factory.clear();
     }
 
     public BytesPartitionState.Ref referencePartition(Mutation mutation)
