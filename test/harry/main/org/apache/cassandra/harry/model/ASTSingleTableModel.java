@@ -471,6 +471,65 @@ public class ASTSingleTableModel
         return shouldApply(mutation, selectPartitionForCAS(mutation));
     }
 
+    private CasContext selectPartitionForCAS(Mutation mutation)
+    {
+        BytesPartitionState.Ref ref = referencePartition(mutation);
+        Clustering<ByteBuffer> cd = cdOrNull(mutation);
+        BytesPartitionState partition = partitions.get(ref);
+        return new CasContext(ref, cd, partition);
+    }
+
+    private boolean shouldApply(Mutation mutation, CasContext ctx)
+    {
+        Preconditions.checkArgument(mutation.isCas());
+        // process condition
+        CasCondition condition = mutation.casCondition().get();
+        boolean partitionOrRow = ctx.clustering == null;
+        boolean partitionKnown = ctx.partition != null;
+        BytesPartitionState.Row row = partitionKnown && !partitionOrRow
+                                      ? ctx.partition.get(ctx.clustering)
+                                      : null;
+        if (condition instanceof CasCondition.Simple)
+        {
+            if (partitionOrRow && factory.staticColumns.isEmpty())
+                throw new AssertionError("Attempted to create a EXISTS condition on partition without static columns; " + mutation.toCQL());
+            // CAS's definition of partition EXISTS isn't based off the partition existing, its based off the static row
+            // existing (aka at least 1 static column exists and is not null).
+            boolean hasPartition = partitionKnown && !ctx.partition.staticRow().isEmpty();
+            boolean hasRow = row != null && !row.isEmpty();
+            var simple = (CasCondition.Simple) condition;
+            switch (simple)
+            {
+                case Exists:
+                    return partitionOrRow ? hasPartition : hasRow;
+                case NotExists:
+                    return partitionOrRow ? !hasPartition : !hasRow;
+                default:
+                    throw new UnsupportedOperationException(simple.name());
+            }
+        }
+        var ifCondition = (CasCondition.IfCondition) condition;
+        String letRow = "row";
+        Symbol rowSymbol = Symbol.unknownType(letRow);
+        ImmutableUniqueList<Symbol> columns = partitionOrRow ? factory.partitionAndStaticColumns : factory.selectionOrder;
+        SelectResult current = SelectResult.ordered(columns,
+                                                    partitionKnown
+                                                    ? new ByteBuffer[][] { getRowAsByteBuffer(columns, ctx.partition, row)}
+                                                    : NO_ROWS);
+        Map<String, SelectResult> lets = Map.of(letRow, current);
+        // point the columns to be row.column that way it matches LET clause in BEGIN TRANSACTION, allowing better reuse
+        var updatedCondition = ifCondition.conditional.visit(new Visitor()
+        {
+            @Override
+            public ReferenceExpression visit(ReferenceExpression r)
+            {
+                Preconditions.checkArgument(!(r instanceof Reference), "Unexpected reference detected: %s", r);
+                return Reference.of(rowSymbol, r);
+            }
+        });
+        return process(updatedCondition, lets);
+    }
+
     public void clear()
     {
         partitions.clear();
@@ -487,69 +546,6 @@ public class ASTSingleTableModel
         var pk = referencePartition(mutation);
         var cd = cdOrNull(mutation);
         return factory.createPrimaryKey(pk, cd);
-    }
-
-    private SelectResult selectPartitionForCAS(Mutation mutation)
-    {
-        var partition = partitions.get(referencePartition(mutation));
-        if (partition == null) return SelectResult.ordered(factory.selectionOrder, NO_ROWS);
-
-        var cd = cdOrNull(mutation);
-        var row = cd == null ? null : partition.get(cd);
-        ImmutableUniqueList<Symbol> columns = cd != null ? factory.selectionOrder : factory.partitionAndStaticColumns;
-        return SelectResult.ordered(columns, new ByteBuffer[][] { getRowAsByteBuffer(columns, partition, row)});
-    }
-
-    private boolean shouldApply(Mutation mutation, SelectResult current)
-    {
-        Preconditions.checkArgument(mutation.isCas());
-        // process condition
-        CasCondition condition;
-        switch (mutation.kind)
-        {
-            case INSERT:
-                condition = CasCondition.Simple.NotExists;
-                break;
-            case UPDATE:
-                condition = ((Mutation.Update) mutation).casCondition.get();
-                break;
-            case DELETE:
-                condition = ((Mutation.Delete) mutation).casCondition.get();
-                break;
-            default:
-                throw new UnsupportedOperationException(mutation.kind.name());
-        }
-        if (condition instanceof CasCondition.Simple)
-        {
-            boolean hasPartition = current.rows.length > 0;
-            boolean partitionOrRow = current.columns.equals(factory.partitionAndStaticColumns);
-            boolean hasRow = partitionOrRow ? hasPartition : current.isAllDefined(factory.clusteringColumns);
-            var simple = (CasCondition.Simple) condition;
-            switch (simple)
-            {
-                case Exists:
-                    return hasRow;
-                case NotExists:
-                    return !hasRow;
-                default:
-                    throw new UnsupportedOperationException(simple.name());
-            }
-        }
-        var ifCondition = (CasCondition.IfCondition) condition;
-        String letRow = "row";
-        Symbol rowSymbol = Symbol.unknownType(letRow);
-        Map<String, SelectResult> lets = Map.of(letRow, current);
-        // point the columns to be row.column that way it matches LET clause in BEGIN TRANSACTION, allowing better reuse
-        var updatedCondition = ifCondition.conditional.visit(new Visitor()
-        {
-            @Override
-            public ReferenceExpression visit(ReferenceExpression r)
-            {
-                Preconditions.checkArgument(!(r instanceof Reference), "Unexpected reference detected: %s", r);
-                return Reference.of(rowSymbol, r);
-            }
-        });
-        return process(updatedCondition, lets);
     }
 
     private boolean process(Conditional condition, Map<String, SelectResult> lets)
@@ -994,6 +990,22 @@ public class ASTSingleTableModel
         for (ByteBuffer[] row : rows)
             set.add(new Row(columns, row));
         return set;
+    }
+
+    private static class CasContext
+    {
+        private final BytesPartitionState.Ref ref;
+        @Nullable
+        private final Clustering<ByteBuffer> clustering;
+        @Nullable
+        private final BytesPartitionState partition;
+
+        private CasContext(BytesPartitionState.Ref ref, @Nullable Clustering<ByteBuffer> clustering, @Nullable BytesPartitionState partition)
+        {
+            this.ref = ref;
+            this.clustering = clustering;
+            this.partition = partition;
+        }
     }
 
     private static class SelectResult
