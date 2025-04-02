@@ -41,6 +41,7 @@ import org.apache.cassandra.utils.Pair;
 import org.quicktheories.WithQuickTheories;
 import org.quicktheories.core.Gen;
 
+import static java.lang.Math.max;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 
 public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
@@ -48,16 +49,17 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
     private static final int numFiles = 5;
     private static final File[] files = new File[numFiles];
     private static final Logger logger = LoggerFactory.getLogger(ThreadLocalReadAheadBufferTest.class);
+    private static Integer seed;
 
     @BeforeClass
     public static void setup()
     {
-        int seed = new Random().nextInt();
+        seed = new Random().nextInt();
         logger.info("Seed: {}", seed);
 
         for (int i = 0; i < numFiles; i++)
         {
-            int size = new Random().nextInt((Integer.MAX_VALUE - 1) / 8);
+            int size = new Random(seed).nextInt((Integer.MAX_VALUE - 1) / 8);
             files[i] = writeFile(seed, size);
         }
     }
@@ -81,7 +83,7 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
     @Test
     public void testLastBlockReads()
     {
-        qt().forAll(lastBlockReads())
+        qt().withFixedSeed(seed).forAll(lastBlockReads())
             .checkAssert(this::testReads);
     }
 
@@ -89,7 +91,7 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
     public void testReadsLikeChannelProxy()
     {
 
-        qt().forAll(randomReads())
+        qt().withFixedSeed(seed).forAll(reads())
             .checkAssert(this::testReads);
     }
 
@@ -127,7 +129,7 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
         }
     }
 
-    private Gen<InputData> lastBlockReads()
+    private Gen<InputData> reads()
     {
         return arbitrary().pick(List.of(files))
                           .flatMap((file) ->
@@ -137,12 +139,12 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
 
     }
 
-    private Gen<InputData> randomReads()
+    private Gen<InputData> lastBlockReads()
     {
         int blockSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
         return arbitrary().pick(List.of(files))
                          .flatMap((file) ->
-                                  lists().of(longs().between(fileSize(file) - blockSize, fileSize(file)).zip(integers().between(1, 100), Pair::create))
+                                  lists().of(longs().between(max(0, fileSize(file) - blockSize), fileSize(file)).zip(integers().between(1, 100), Pair::create))
                                          .ofSizeBetween(5, 10)
                                          .map(positionsAndLengths -> new InputData(file, positionsAndLengths)));
 
