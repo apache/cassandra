@@ -91,6 +91,8 @@ public class ASTSingleTableModel
     private static final Symbol CAS_APPLIED = new Symbol.UnquotedSymbol("[applied]", BooleanType.instance);
     private static final ImmutableUniqueList<Symbol> CAS_APPLIED_COLUMNS = ImmutableUniqueList.<Symbol>builder().add(CAS_APPLIED).build();
     private static final ByteBuffer[][] CAS_SUCCESS_RESULT = new ByteBuffer[][] { new ByteBuffer[] {BooleanType.instance.decompose(true)} };
+    private static final ByteBuffer FALSE = BooleanType.instance.decompose(false);
+    private static final ByteBuffer[][] CAS_REJECTION_RESULT = new ByteBuffer[][] { new ByteBuffer[] {FALSE} };
 
     public final BytesPartitionState.Factory factory;
     private final EnumSet<KnownIssue> ignoredIssues;
@@ -274,7 +276,7 @@ public class ASTSingleTableModel
         if (partition == null)
         {
             columns = CAS_APPLIED_COLUMNS;
-            expected = new ByteBuffer[][]{ new ByteBuffer[]{ BooleanType.instance.decompose(false) } };
+            expected = CAS_REJECTION_RESULT;
         }
         else if (condition instanceof CasCondition.IfCondition)
         {
@@ -282,7 +284,7 @@ public class ASTSingleTableModel
             {
                 // row based mutation and static/row doesn't exist
                 columns = CAS_APPLIED_COLUMNS;
-                expected = new ByteBuffer[][]{ new ByteBuffer[]{ BooleanType.instance.decompose(false) } };
+                expected = CAS_REJECTION_RESULT;
             }
             else
             {
@@ -317,7 +319,7 @@ public class ASTSingleTableModel
                                              .addAll(conditionReferencedColumns)
                                              .build();
                 ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
-                result[0] = BooleanType.instance.decompose(false);
+                result[0] = FALSE;
 
                 expected = new ByteBuffer[][]{ result };
             }
@@ -344,7 +346,7 @@ public class ASTSingleTableModel
                                              .addAll(factory.selectionOrder)
                                              .build();
                 ByteBuffer[] result = getRowAsByteBuffer(columns, partition, partition.rows().get(0));
-                result[0] = BooleanType.instance.decompose(false);
+                result[0] = FALSE;
                 for (var c : factory.regularColumns)
                     // null out the row columns....
                     result[columns.indexOf(c)] = null;
@@ -354,7 +356,7 @@ public class ASTSingleTableModel
             else if (!touchesStaticColumns || partition.staticRow().isEmpty())
             {
                 columns = CAS_APPLIED_COLUMNS;
-                expected = new ByteBuffer[][]{ new ByteBuffer[]{ BooleanType.instance.decompose(false) } };
+                expected = CAS_REJECTION_RESULT;
             }
             else
             {
@@ -363,7 +365,7 @@ public class ASTSingleTableModel
                                              .addAll(factory.selectionOrder)
                                              .build();
                 ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
-                result[0] = BooleanType.instance.decompose(false);
+                result[0] = FALSE;
 
                 expected = new ByteBuffer[][]{ result };
             }
@@ -377,7 +379,7 @@ public class ASTSingleTableModel
                                          .addAll(factory.selectionOrder)
                                          .build();
             ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
-            result[0] = BooleanType.instance.decompose(false);
+            result[0] = FALSE;
             if (!touchesStaticColumns)
             {
                 for (var s : factory.staticColumns)
