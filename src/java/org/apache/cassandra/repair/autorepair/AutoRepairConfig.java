@@ -593,4 +593,16 @@ public class AutoRepairConfig implements Serializable
         // Otherwise check defaults
         return getOverride(Options.getDefaultOptionsMap().get(repairType), optionSupplier);
     }
+
+    public String toString()
+    {
+        return "AutoRepairConfig{" +
+               "enabled=" + enabled +
+               ", repair_check_interval=" + repair_check_interval +
+               ", history_clear_delete_hosts_buffer_interval=" + history_clear_delete_hosts_buffer_interval +
+               ", repair_task_min_duration=" + repair_task_min_duration +
+               ", global_settings=" + global_settings +
+               ", repair_type_overrides=" + repair_type_overrides +
+               "}";
+    }
 }
