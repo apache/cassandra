@@ -264,15 +264,6 @@ public class ASTSingleTableModel
 
     private void validateCasNotApplied(ByteBuffer[][] actual, Mutation mutation)
     {
-        //TODO (coverage) actually figure out the rules behind the CAS result column selections
-        // What I see is that there are a few things that tie together
-        // 1) CAS Condition (IF EXISTS, IF NOT EXISTS, IF col).  If "IF col" is used, then the schema should reflect these columns
-        // 2) The ReadCommand may not cover all the columns.  If a row mutation is going on then static row isn't needed
-        // There exists several edge cases that are unclear how to handle all cases, some times the model things all columns
-        // should be included, but CAS doesn't, other times model and CAS agree columns should be returned, but not which ones,
-        // and other times the model says no columns should be present but they were!
-        // Rather than spend all the time trying to infer these rules, only a subset are handled and the full coverage is
-        // punted till later
         // see org.apache.cassandra.cql3.statements.ModificationStatement.buildCasFailureResultSet
         var condition = mutation.casCondition().get();
         var partition = partitions.get(referencePartition(mutation));
@@ -333,30 +324,6 @@ public class ASTSingleTableModel
         }
         else if (condition == CasCondition.Simple.Exists)
         {
-            // special case: we work at the partition level but return an arbitary clustering key
-            // DELETE s0 WHERE  pk0 = ? AND  pk1 = ? IF EXISTS
-            //  static row is empty
-            //  Columns[[applied](boolean), pk0(boolean), pk1(bigint), ck0(inet), ck1(uuid), s0(vector<vector<LexicalUUID, 3>, 1>), v0(list<vector<ascii, 1>>), v1(list<map<boolean, timestamp>>)]
-            
-            // ALTERS STATIC COLUMNS
-            // UPDATE SET s0=?, v0=?, v1=? WHERE pk0 = true AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
-            //  static row exists
-            //  Columns[[applied](boolean), pk0(boolean), pk1(bigint), ck0(inet), ck1(uuid), s0(vector<vector<LexicalUUID, 3>, 1>), v0(list<vector<ascii, 1>>), v1(list<map<boolean, timestamp>>)]
-            // DELETE v1, s0 WHERE  pk0 = ? AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
-            //  static row exists
-            //  Columns[[applied](boolean), pk0(boolean), pk1(bigint), ck0(inet), ck1(uuid), s0(vector<vector<LexicalUUID, 3>, 1>), v0(list<vector<ascii, 1>>), v1(list<map<boolean, timestamp>>)]
-
-            // IGNORES STATIC COLUMNS
-            // UPDATE SET v1=?, v0=? WHERE pk0 = ? AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
-            //  static row exists
-            //  Columns[[applied](boolean)]
-            // DELETE WHERE pk0 = false AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
-            //  static row exists
-            //  Columns[[applied](boolean)]
-            // DELETE v0 WHERE  pk0 = ? AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
-            //  static row exists
-            //  Columns[[applied](boolean)]
-
             boolean touchesStaticColumns = !factory.staticColumns.isEmpty()
                                            && symbols(mutation).anyMatch(factory.staticColumns::contains);
 
@@ -401,14 +368,27 @@ public class ASTSingleTableModel
                 expected = new ByteBuffer[][]{ result };
             }
         }
+        else if (condition == CasCondition.Simple.NotExists)
+        {
+            boolean touchesStaticColumns = !factory.staticColumns.isEmpty()
+                                           && symbols(mutation).anyMatch(factory.staticColumns::contains);
+            columns = ImmutableUniqueList.<Symbol>builder(factory.selectionOrder.size() + 1)
+                                         .add(CAS_APPLIED)
+                                         .addAll(factory.selectionOrder)
+                                         .build();
+            ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
+            result[0] = BooleanType.instance.decompose(false);
+            if (!touchesStaticColumns)
+            {
+                for (var s : factory.staticColumns)
+                    result[columns.indexOf(s)] = null;
+            }
+
+            expected = new ByteBuffer[][]{ result };
+        }
         else
         {
-            columns = CAS_APPLIED_COLUMNS;
-            expected = new ByteBuffer[][]{ new ByteBuffer[]{ BooleanType.instance.decompose(false) } };
-
-            // trim actual to match
-            if (actual[0].length != 1)
-                actual = new ByteBuffer[][]{new ByteBuffer[] {actual[0][0]}};
+            throw new AssertionError();
         }
         validate(columns, actual, expected);
     }
