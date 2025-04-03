@@ -18,6 +18,7 @@
  * Avoid under-skipping during intersections when an iterator has mixed STATIC and WIDE keys (CASSANDRA-20258)
  * Correct the default behavior of compareTo() when comparing WIDE and STATIC PrimaryKeys (CASSANDRA-20238)
 Merged from 4.1:
+ * Fix mixed mode paxos ttl commit hang (CASSANDRA-20514)
  * Fix paxos mixed mode infinite loop (CASSANDRA-20493)
  * Optionally skip exception logging on invalid legacy protocol magic exception (CASSANDRA-19483)
  * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
