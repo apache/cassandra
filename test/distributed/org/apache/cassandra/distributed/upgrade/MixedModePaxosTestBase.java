@@ -76,6 +76,7 @@ public abstract class MixedModePaxosTestBase extends UpgradeTestBase
         String keyspace = KEYSPACE;
         String table = "tbl";
         int gcGrace = 10;
+        int key = 1;
         new TestCase()
         .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
         .nodes(2)
@@ -91,11 +92,11 @@ public abstract class MixedModePaxosTestBase extends UpgradeTestBase
 
             // insert a ttl'd committed paxos state
             long ballotMicros = TimeUnit.NANOSECONDS.toMicros(System.currentTimeMillis());
-            FakePaxosHelper helper = FakePaxosHelper.create(cluster.coordinator(1), keyspace, table, gcGrace, ballotMicros);
+            FakePaxosHelper helper = FakePaxosHelper.create(cluster.coordinator(1), keyspace, table, key, gcGrace, ballotMicros);
 
             // confirm none of the nodes have paxos state
             for (int i = 1; i <= cluster.size(); i++)
-                Assert.assertEquals(0, cluster.coordinator(i).execute("SELECT * FROM system.paxos", ConsistencyLevel.ONE).length);
+                helper.assertNoPaxosData(cluster.coordinator(i));
 
 
             // save commit to both nodes
@@ -109,11 +110,11 @@ public abstract class MixedModePaxosTestBase extends UpgradeTestBase
             Thread.sleep(TimeUnit.SECONDS.toMillis(gcGrace * 2));
 
             // confirm paxos state has ttld
-            Assert.assertEquals(0, cluster.coordinator(1).execute("SELECT * FROM system.paxos", ConsistencyLevel.ONE).length);
-            Assert.assertEquals(0, cluster.coordinator(2).execute("SELECT * FROM system.paxos", ConsistencyLevel.ONE).length);
+            helper.assertNoPaxosData(cluster.coordinator(1));
+            helper.assertNoPaxosData(cluster.coordinator(2));
 
             // paxos operation should not timeout
-            cluster.coordinator(upgradedCoordinator() ? 1 : 2).execute(format("SELECT * FROM %s.%s WHERE k=1", keyspace, table), ConsistencyLevel.SERIAL);
+            cluster.coordinator(upgradedCoordinator() ? 1 : 2).execute(format("SELECT * FROM %s.%s WHERE k=%s", keyspace, table, key), ConsistencyLevel.SERIAL);
         })
         .run();
     }
@@ -133,14 +134,14 @@ public abstract class MixedModePaxosTestBase extends UpgradeTestBase
     @Test
     public void bothAwareTTldPaxosStateTest() throws Throwable
     {
-        ttldPaxosStateTest(true, false);
+        ttldPaxosStateTest(true, true);
     }
 
     /**
      * This is an upgrade test, and paxos internally limits ttls to 3 hours, so we have to manually save commits in
      * the paxos table to get entries ttl'd in a reasonable amount of time
      */
-    private static class FakePaxosHelper
+    static class FakePaxosHelper
     {
         static final int current_version = MessagingService.current_version;
         static final int version_40a = MessagingService.VERSION_40;
@@ -181,6 +182,21 @@ public abstract class MixedModePaxosTestBase extends UpgradeTestBase
             return PartitionUpdate.toBytes(update, version);
         }
 
+        private Object[][] paxosData(ICoordinator coordinator)
+        {
+            return coordinator.execute("SELECT * FROM system.paxos WHERE row_key = ? AND cf_id = ?", ConsistencyLevel.ONE, key, cfId);
+        }
+
+        void assertNoPaxosData(ICoordinator coordinator)
+        {
+            Assert.assertEquals(0, paxosData(coordinator).length);
+        }
+
+        void assertPaxosData(ICoordinator coordinator)
+        {
+            Assert.assertEquals(1, paxosData(coordinator).length);
+        }
+
         void saveCommit(ICoordinator coordinator)
         {
             String cql = "UPDATE system.paxos USING TIMESTAMP ? AND TTL ? SET proposal_ballot = null, proposal = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ? WHERE row_key = ? AND cf_id = ?";
@@ -194,10 +210,31 @@ public abstract class MixedModePaxosTestBase extends UpgradeTestBase
                                 cfId);
         }
 
-        public static FakePaxosHelper create(ICoordinator coordinator, String keyspace, String table, int ttl, long ballotMicros)
+        void tombstoneCommit(ICoordinator coordinator)
+        {
+            String cql = "DELETE proposal_ballot, proposal, most_recent_commit_at, most_recent_commit, most_recent_commit_version FROM system.paxos USING TIMESTAMP ? WHERE row_key = ? AND cf_id = ?";
+            coordinator.execute(cql, ConsistencyLevel.ONE,
+                                ballotMicros,
+                                key,
+                                cfId);
+        }
+
+        void saveCommitNoTTL(ICoordinator coordinator)
+        {
+            String cql = "UPDATE system.paxos USING TIMESTAMP ? SET proposal_ballot = null, proposal = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ? WHERE row_key = ? AND cf_id = ?";
+            coordinator.execute(cql, ConsistencyLevel.ONE,
+                                ballotMicros,
+                                ballot,
+                                updateBytes(version_40a),
+                                version_40a,
+                                key,
+                                cfId);
+        }
+
+        public static FakePaxosHelper create(ICoordinator coordinator, String keyspace, String table, int key, int ttl, long ballotMicros)
         {
             UUID cfId = (UUID) coordinator.execute("SELECT id FROM system_schema.tables WHERE keyspace_name=? AND table_name=?", ConsistencyLevel.ONE, keyspace, table)[0][0];
-            return new FakePaxosHelper(keyspace, table, cfId, 1, ttl, ballotMicros);
+            return new FakePaxosHelper(keyspace, table, cfId, key, ttl, ballotMicros);
         }
     }
 }
