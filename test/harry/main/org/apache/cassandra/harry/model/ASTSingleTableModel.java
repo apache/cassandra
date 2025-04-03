@@ -82,6 +82,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.cql3.ast.Elements.symbols;
 import static org.apache.cassandra.harry.model.BytesPartitionState.asCQL;
 
 public class ASTSingleTableModel
@@ -259,24 +260,21 @@ public class ASTSingleTableModel
             // see org.apache.cassandra.cql3.statements.ModificationStatement.buildCasFailureResultSet
             var partition = partitions.get(referencePartition(mutation));
             var cd = cdOrNull(mutation);
+            BytesPartitionState.Row row = partition == null ? null : partition.get(cd);
             ImmutableUniqueList<Symbol> columns;
             ByteBuffer[][] expected;
-            if (partition == null)
+            if (partition == null || (partition.staticRow().isEmpty() && row == null))
             {
                 columns = CAS_APPLIED_COLUMNS;
                 expected = new ByteBuffer[][]{new ByteBuffer[] {BooleanType.instance.decompose(false)}};
             }
             else
             {
-                List<Symbol> referencedColumns =  null;
+                List<Symbol> conditionReferencedColumns =  null;
                 {
                     //TODO (correctness): does ast.AND support the correct "order" as seen from CAS?
                     LinkedHashSet<Symbol> regularCols = null, staticCols = null;
-                    for (var c : (Iterable<Symbol>) () -> mutation.casCondition().get().streamRecursive()
-                                                                  .filter(e -> e instanceof Symbol)
-                                                                  .map(e -> (Symbol) e)
-                                                                  .distinct()
-                                                                  .iterator())
+                    for (var c : (Iterable<Symbol>) () -> symbols(mutation.casCondition().get()).distinct().iterator())
                     {
                         if (factory.staticColumns.contains(c))
                         {
@@ -292,23 +290,38 @@ public class ASTSingleTableModel
                         }
                     }
                     if (regularCols != null)
-                        referencedColumns = new ArrayList<>(regularCols);
+                        conditionReferencedColumns = new ArrayList<>(regularCols);
                     if (staticCols != null)
                     {
-                        if (referencedColumns == null)
-                            referencedColumns = new ArrayList<>(staticCols.size());
-                        referencedColumns.addAll(staticCols);
+                        if (conditionReferencedColumns == null)
+                            conditionReferencedColumns = new ArrayList<>(staticCols.size());
+                        conditionReferencedColumns.addAll(staticCols);
                     }
-                    if (referencedColumns == null)
-                        referencedColumns = factory.selectionOrder;
+                    //TODO (correctness): DELETE v0, v2 FROM ks1.tbl WHERE  pk0 = '39.129.59.93' AND  pk1 = -3.8585292E-17 AND  ck0 = true IF EXISTS
+                    // that query doesn't touch static, so the query only had the row and not the static..
+                    // the ReadCommand was: SELECT v0, v1, v2 FROM ks1.tbl WHERE pk0 = '39.129.59.93' AND pk1 = -3.8585292E-17 AND ck0 = true ALLOW FILTERING
+                    if (conditionReferencedColumns == null)
+                    {
+                        // were statics loaded?
+                        boolean staticsLoaded = !factory.staticColumns.isEmpty()
+                                                && symbols(mutation).anyMatch(factory.staticColumns::contains);
+                        if (!staticsLoaded && row == null)
+                        {
+                            conditionReferencedColumns = Collections.emptyList();
+                        }
+                        else
+                        {
+                            conditionReferencedColumns = factory.selectionOrder;
+                        }
+                    }
                 }
-                columns = ImmutableUniqueList.<Symbol>builder(referencedColumns.size() + 1)
+                columns = ImmutableUniqueList.<Symbol>builder(conditionReferencedColumns.size() + 1)
                                              .add(CAS_APPLIED)
-                                             .addAll(referencedColumns)
+                                             .addAll(conditionReferencedColumns)
                                              .build();
                 ByteBuffer[] result = new ByteBuffer[columns.size()];
                 result[0] = BooleanType.instance.decompose(false);
-                ByteBuffer[] current = getRowAsByteBuffer(partition, partition.get(cd));
+                ByteBuffer[] current = getRowAsByteBuffer(partition, row);
                 for (var c : factory.selectionOrder)
                 {
                     if (!columns.contains(c)) continue;
