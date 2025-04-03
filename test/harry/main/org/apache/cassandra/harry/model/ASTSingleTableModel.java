@@ -297,9 +297,6 @@ public class ASTSingleTableModel
                             conditionReferencedColumns = new ArrayList<>(staticCols.size());
                         conditionReferencedColumns.addAll(staticCols);
                     }
-                    //TODO (correctness): DELETE v0, v2 FROM ks1.tbl WHERE  pk0 = '39.129.59.93' AND  pk1 = -3.8585292E-17 AND  ck0 = true IF EXISTS
-                    // that query doesn't touch static, so the query only had the row and not the static..
-                    // the ReadCommand was: SELECT v0, v1, v2 FROM ks1.tbl WHERE pk0 = '39.129.59.93' AND pk1 = -3.8585292E-17 AND ck0 = true ALLOW FILTERING
                     if (conditionReferencedColumns == null)
                     {
                         // were statics loaded?
