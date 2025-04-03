@@ -109,12 +109,12 @@ public class CMSInitializationRequest
     public static class Initiator
     {
         public static final Serializer serializer = new Serializer();
-        public final InetAddressAndPort initiator;
+        public final InetAddressAndPort endpoint;
         public final UUID initToken;
 
         public Initiator(InetAddressAndPort initiator, UUID initToken)
         {
-            this.initiator = initiator;
+            this.endpoint = initiator;
             this.initToken = initToken;
         }
 
@@ -124,20 +124,20 @@ public class CMSInitializationRequest
             if (this == o) return true;
             if (!(o instanceof Initiator)) return false;
             Initiator other = (Initiator) o;
-            return Objects.equals(initiator, other.initiator) && Objects.equals(initToken, other.initToken);
+            return Objects.equals(endpoint, other.endpoint) && Objects.equals(initToken, other.initToken);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(initiator, initToken);
+            return Objects.hash(endpoint, initToken);
         }
 
         @Override
         public String toString()
         {
             return "Initiator{" +
-                   "initiator=" + initiator +
+                   "initiator=" + endpoint +
                    ", initToken=" + initToken +
                    '}';
         }
@@ -147,7 +147,7 @@ public class CMSInitializationRequest
             @Override
             public void serialize(Initiator t, DataOutputPlus out, int version) throws IOException
             {
-                InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(t.initiator, out, version);
+                InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(t.endpoint, out, version);
                 UUIDSerializer.serializer.serialize(t.initToken, out, version);
             }
 
@@ -161,7 +161,7 @@ public class CMSInitializationRequest
             @Override
             public long serializedSize(Initiator t, int version)
             {
-                return InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(t.initiator, version) +
+                return InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(t.endpoint, version) +
                        UUIDSerializer.serializer.serializedSize(t.initToken, version);
             }
         }

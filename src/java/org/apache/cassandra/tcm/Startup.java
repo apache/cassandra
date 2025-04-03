@@ -246,7 +246,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             else
             {
                 CMSInitializationRequest.Initiator initiator = Election.instance.initiator();
-                candidates = Discovery.instance.discoverOnce(initiator == null ? null : initiator.initiator);
+                candidates = Discovery.instance.discoverOnce(initiator == null ? null : initiator.endpoint);
             }
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
