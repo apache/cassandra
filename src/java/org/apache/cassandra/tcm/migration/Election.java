@@ -134,7 +134,7 @@ public class Election
     {
         CMSInitializationRequest.Initiator currentInitiator = initiator.get();
         if (currentInitiator != null &&
-            Objects.equals(currentInitiator.initiator, FBUtilities.getBroadcastAddressAndPort()) &&
+            Objects.equals(currentInitiator.endpoint, FBUtilities.getBroadcastAddressAndPort()) &&
             initiator.compareAndSet(currentInitiator, MIGRATING))
         {
             Startup.initializeAsFirstCMSNode();
@@ -183,7 +183,7 @@ public class Election
     {
         InetAddressAndPort expectedInitiator = InetAddressAndPort.getByNameUnchecked(initiatorEp);
         CMSInitializationRequest.Initiator currentInitiator = initiator.get();
-        if (currentInitiator != null && Objects.equals(currentInitiator.initiator, expectedInitiator) && initiator.compareAndSet(currentInitiator, null))
+        if (currentInitiator != null && Objects.equals(currentInitiator.endpoint, expectedInitiator) && initiator.compareAndSet(currentInitiator, null))
         {
             ClusterMetadata metadata = ClusterMetadata.current();
             for (Map.Entry<NodeId, NodeState> entry : metadata.directory.states.entrySet())
@@ -243,9 +243,11 @@ public class Election
         public void doVerb(Message<CMSInitializationRequest.Initiator> message) throws IOException
         {
             logger.info("Received election abort message {} from {}", message.payload, message.from());
-            CMSInitializationRequest.Initiator initiator = message.payload;
-            if (!initiator.initiator.equals(initiator().initiator) || !updateInitiator(message.payload, null))
-                logger.error("Could not clear initiator - initiator is set to {}, abort message received from {}", initiator(), message.payload);
+            CMSInitializationRequest.Initiator remoteInitiator = message.payload;
+            if (initiator() == null)
+                logger.info("Initiator already cleared, ignoring abort message from {}: {}", message.from(), remoteInitiator);
+            else if (!remoteInitiator.endpoint.equals(initiator().endpoint) || !updateInitiator(remoteInitiator, null))
+                logger.error("Could not clear initiator - initiator is set to {}, abort message received from {}: {}", initiator(), message.from(), remoteInitiator);
         }
     }
 }
