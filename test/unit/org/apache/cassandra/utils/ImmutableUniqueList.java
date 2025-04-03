@@ -41,6 +41,12 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
         indexLookup = new Object2IntHashMap<>(builder.indexLookup);
     }
 
+    public static <T> ImmutableUniqueList<T> copyOf(Collection<T> collection)
+    {
+        if (collection instanceof ImmutableUniqueList) return (ImmutableUniqueList<T>) collection;
+        return ImmutableUniqueList.<T>builder().addAll(collection).build();
+    }
+
     public static <T> Builder<T> builder()
     {
         return new Builder<>();

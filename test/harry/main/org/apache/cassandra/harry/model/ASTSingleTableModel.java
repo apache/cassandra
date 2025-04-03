@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -87,11 +88,10 @@ public class ASTSingleTableModel
 {
     private static final ByteBuffer[][] NO_ROWS = new ByteBuffer[0][];
     private static final Symbol CAS_APPLIED = new Symbol.UnquotedSymbol("[applied]", BooleanType.instance);
-    private static final ImmutableUniqueList<Symbol> CAS_SUCCESS_COLUMNS = ImmutableUniqueList.<Symbol>builder().add(CAS_APPLIED).build();
+    private static final ImmutableUniqueList<Symbol> CAS_APPLIED_COLUMNS = ImmutableUniqueList.<Symbol>builder().add(CAS_APPLIED).build();
     private static final ByteBuffer[][] CAS_SUCCESS_RESULT = new ByteBuffer[][] { new ByteBuffer[] {BooleanType.instance.decompose(true)} };
 
     public final BytesPartitionState.Factory factory;
-    private final ImmutableUniqueList<Symbol> casFailureColumnsForPartition, casFailureColumnsForRow;
     private final EnumSet<KnownIssue> ignoredIssues;
     private final TreeMap<BytesPartitionState.Ref, BytesPartitionState> partitions = new TreeMap<>();
     private long numMutations = 0;
@@ -105,10 +105,6 @@ public class ASTSingleTableModel
     {
         this.factory = new BytesPartitionState.Factory(metadata);
         this.ignoredIssues = Objects.requireNonNull(ignoredIssues);
-
-        var builder = ImmutableUniqueList.<Symbol>builder();
-        casFailureColumnsForRow = builder.add(CAS_APPLIED).addAll(factory.partitionColumns).addAll(factory.clusteringColumns).addAll(factory.staticColumns).addAll(factory.regularColumns).buildAndClear();
-        casFailureColumnsForPartition = builder.add(CAS_APPLIED).addAll(factory.partitionColumns).addAll(factory.staticColumns).buildAndClear();
     }
 
     public NavigableSet<BytesPartitionState.Ref> partitionKeys()
@@ -218,6 +214,7 @@ public class ASTSingleTableModel
 
     public void update(Batch batch)
     {
+        numMutations++; // bump here to make sure the last mutation doesn't have the same ts as the mutations here
         if (!shouldApply(batch)) return;
         // when running in transactions timestamps are not supported, so need to fall back to an internal timestamp
         long nowTs = batch.timestampOrDefault(numMutations);
@@ -255,23 +252,75 @@ public class ASTSingleTableModel
             throw new IllegalArgumentException("Mutation isn't a CAS operation; given " + mutation.toCQL());
         if (shouldApply(mutation))
         {
-            validate(CAS_SUCCESS_COLUMNS, actual, CAS_SUCCESS_RESULT);
+            validate(CAS_APPLIED_COLUMNS, actual, CAS_SUCCESS_RESULT);
         }
         else
         {
-            // not correct
-            // row schema or or partition schema
+            // see org.apache.cassandra.cql3.statements.ModificationStatement.buildCasFailureResultSet
+            var partition = partitions.get(referencePartition(mutation));
             var cd = cdOrNull(mutation);
-            var columns = actual[0].length == 1
-                          ? CAS_SUCCESS_COLUMNS
-                          : cd == null ? casFailureColumnsForPartition
-                                       : casFailureColumnsForRow;
-            ByteBuffer[][] expected = {new ByteBuffer[columns.size()]};
-            expected[0][0] = BooleanType.instance.decompose(false);
+            ImmutableUniqueList<Symbol> columns;
+            ByteBuffer[][] expected;
+            if (partition == null)
+            {
+                columns = CAS_APPLIED_COLUMNS;
+                expected = new ByteBuffer[][]{new ByteBuffer[] {BooleanType.instance.decompose(false)}};
+            }
+            else
+            {
+                List<Symbol> referencedColumns =  null;
+                {
+                    //TODO (correctness): does ast.AND support the correct "order" as seen from CAS?
+                    LinkedHashSet<Symbol> regularCols = null, staticCols = null;
+                    for (var c : (Iterable<Symbol>) () -> mutation.casCondition().get().streamRecursive()
+                                                                  .filter(e -> e instanceof Symbol)
+                                                                  .map(e -> (Symbol) e)
+                                                                  .distinct()
+                                                                  .iterator())
+                    {
+                        if (factory.staticColumns.contains(c))
+                        {
+                            if (staticCols == null)
+                                staticCols = new LinkedHashSet<>();
+                            staticCols.add(c);
+                        }
+                        else
+                        {
+                            if (regularCols == null)
+                                regularCols = new LinkedHashSet<>();
+                            regularCols.add(c);
+                        }
+                    }
+                    if (regularCols != null)
+                        referencedColumns = new ArrayList<>(regularCols);
+                    if (staticCols != null)
+                    {
+                        if (referencedColumns == null)
+                            referencedColumns = new ArrayList<>(staticCols.size());
+                        referencedColumns.addAll(staticCols);
+                    }
+                    if (referencedColumns == null)
+                        referencedColumns = factory.selectionOrder;
+                }
+                columns = ImmutableUniqueList.<Symbol>builder(referencedColumns.size() + 1)
+                                             .add(CAS_APPLIED)
+                                             .addAll(referencedColumns)
+                                             .build();
+                ByteBuffer[] result = new ByteBuffer[columns.size()];
+                result[0] = BooleanType.instance.decompose(false);
+                ByteBuffer[] current = getRowAsByteBuffer(partition, partition.get(cd));
+                for (var c : factory.selectionOrder)
+                {
+                    if (!columns.contains(c)) continue;
+                    result[columns.indexOf(c)] = current[factory.selectionOrder.indexOf(c)];
+                }
+
+                expected = new ByteBuffer[][] {result};
+            }
+
             validate(columns, actual, expected);
             return;
         }
-//        if (!shouldApply(mutation)) return;
         updateInternal(mutation);
 
         validatePartitions();
