@@ -251,26 +251,51 @@ public class ASTSingleTableModel
     {
         if (!mutation.isCas())
             throw new IllegalArgumentException("Mutation isn't a CAS operation; given " + mutation.toCQL());
-        if (shouldApply(mutation))
+        if (!shouldApply(mutation))
         {
-            validate(CAS_APPLIED_COLUMNS, actual, CAS_SUCCESS_RESULT);
+            validateCasNotApplied(actual, mutation);
+            return;
         }
-        else
+        validate(CAS_APPLIED_COLUMNS, actual, CAS_SUCCESS_RESULT);
+        updateInternal(mutation);
+
+        validatePartitions();
+    }
+
+    private void validateCasNotApplied(ByteBuffer[][] actual, Mutation mutation)
+    {
+        //TODO (coverage) actually figure out the rules behind the CAS result column selections
+        // What I see is that there are a few things that tie together
+        // 1) CAS Condition (IF EXISTS, IF NOT EXISTS, IF col).  If "IF col" is used, then the schema should reflect these columns
+        // 2) The ReadCommand may not cover all the columns.  If a row mutation is going on then static row isn't needed
+        // There exists several edge cases that are unclear how to handle all cases, some times the model things all columns
+        // should be included, but CAS doesn't, other times model and CAS agree columns should be returned, but not which ones,
+        // and other times the model says no columns should be present but they were!
+        // Rather than spend all the time trying to infer these rules, only a subset are handled and the full coverage is
+        // punted till later
+        // see org.apache.cassandra.cql3.statements.ModificationStatement.buildCasFailureResultSet
+        var condition = mutation.casCondition().get();
+        var partition = partitions.get(referencePartition(mutation));
+        var cd = cdOrNull(mutation);
+        BytesPartitionState.Row row = partition == null ? null : partition.get(cd);
+        ImmutableUniqueList<Symbol> columns;
+        ByteBuffer[][] expected;
+        if (partition == null)
         {
-            // see org.apache.cassandra.cql3.statements.ModificationStatement.buildCasFailureResultSet
-            var partition = partitions.get(referencePartition(mutation));
-            var cd = cdOrNull(mutation);
-            BytesPartitionState.Row row = partition == null ? null : partition.get(cd);
-            ImmutableUniqueList<Symbol> columns;
-            ByteBuffer[][] expected;
-            if (partition == null || (partition.staticRow().isEmpty() && row == null))
+            columns = CAS_APPLIED_COLUMNS;
+            expected = new ByteBuffer[][]{ new ByteBuffer[]{ BooleanType.instance.decompose(false) } };
+        }
+        else if (condition instanceof CasCondition.IfCondition)
+        {
+            if (cd != null && partition.staticRow().isEmpty() && row == null)
             {
+                // row based mutation and static/row doesn't exist
                 columns = CAS_APPLIED_COLUMNS;
-                expected = new ByteBuffer[][]{new ByteBuffer[] {BooleanType.instance.decompose(false)}};
+                expected = new ByteBuffer[][]{ new ByteBuffer[]{ BooleanType.instance.decompose(false) } };
             }
             else
             {
-                List<Symbol> conditionReferencedColumns =  null;
+                List<Symbol> conditionReferencedColumns;
                 {
                     //TODO (correctness): does ast.AND support the correct "order" as seen from CAS?
                     LinkedHashSet<Symbol> regularCols = null, staticCols = null;
@@ -289,51 +314,103 @@ public class ASTSingleTableModel
                             regularCols.add(c);
                         }
                     }
+                    List<Symbol> ordered = new ArrayList<>();
                     if (regularCols != null)
-                        conditionReferencedColumns = new ArrayList<>(regularCols);
+                        ordered.addAll(regularCols);
                     if (staticCols != null)
-                    {
-                        if (conditionReferencedColumns == null)
-                            conditionReferencedColumns = new ArrayList<>(staticCols.size());
-                        conditionReferencedColumns.addAll(staticCols);
-                    }
-                    if (conditionReferencedColumns == null)
-                    {
-                        // were statics loaded?
-                        boolean staticsLoaded = !factory.staticColumns.isEmpty()
-                                                && symbols(mutation).anyMatch(factory.staticColumns::contains);
-                        if (!staticsLoaded && row == null)
-                        {
-                            conditionReferencedColumns = Collections.emptyList();
-                        }
-                        else
-                        {
-                            conditionReferencedColumns = factory.selectionOrder;
-                        }
-                    }
+                        ordered.addAll(staticCols);
+                    conditionReferencedColumns = ordered;
                 }
                 columns = ImmutableUniqueList.<Symbol>builder(conditionReferencedColumns.size() + 1)
                                              .add(CAS_APPLIED)
                                              .addAll(conditionReferencedColumns)
                                              .build();
-                ByteBuffer[] result = new ByteBuffer[columns.size()];
+                ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
                 result[0] = BooleanType.instance.decompose(false);
-                ByteBuffer[] current = getRowAsByteBuffer(partition, row);
-                for (var c : factory.selectionOrder)
-                {
-                    if (!columns.contains(c)) continue;
-                    result[columns.indexOf(c)] = current[factory.selectionOrder.indexOf(c)];
-                }
 
-                expected = new ByteBuffer[][] {result};
+                expected = new ByteBuffer[][]{ result };
             }
-
-            validate(columns, actual, expected);
-            return;
         }
-        updateInternal(mutation);
+        else if (condition == CasCondition.Simple.Exists)
+        {
+            // special case: we work at the partition level but return an arbitary clustering key
+            // DELETE s0 WHERE  pk0 = ? AND  pk1 = ? IF EXISTS
+            //  static row is empty
+            //  Columns[[applied](boolean), pk0(boolean), pk1(bigint), ck0(inet), ck1(uuid), s0(vector<vector<LexicalUUID, 3>, 1>), v0(list<vector<ascii, 1>>), v1(list<map<boolean, timestamp>>)]
+            
+            // ALTERS STATIC COLUMNS
+            // UPDATE SET s0=?, v0=?, v1=? WHERE pk0 = true AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
+            //  static row exists
+            //  Columns[[applied](boolean), pk0(boolean), pk1(bigint), ck0(inet), ck1(uuid), s0(vector<vector<LexicalUUID, 3>, 1>), v0(list<vector<ascii, 1>>), v1(list<map<boolean, timestamp>>)]
+            // DELETE v1, s0 WHERE  pk0 = ? AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
+            //  static row exists
+            //  Columns[[applied](boolean), pk0(boolean), pk1(bigint), ck0(inet), ck1(uuid), s0(vector<vector<LexicalUUID, 3>, 1>), v0(list<vector<ascii, 1>>), v1(list<map<boolean, timestamp>>)]
 
-        validatePartitions();
+            // IGNORES STATIC COLUMNS
+            // UPDATE SET v1=?, v0=? WHERE pk0 = ? AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
+            //  static row exists
+            //  Columns[[applied](boolean)]
+            // DELETE WHERE pk0 = false AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
+            //  static row exists
+            //  Columns[[applied](boolean)]
+            // DELETE v0 WHERE  pk0 = ? AND  pk1 = ? AND  ck0 = ? AND  ck1 = ? IF EXISTS
+            //  static row exists
+            //  Columns[[applied](boolean)]
+
+            boolean touchesStaticColumns = !factory.staticColumns.isEmpty()
+                                           && symbols(mutation).anyMatch(factory.staticColumns::contains);
+
+            boolean staticColumnDelete = mutation.kind == Mutation.Kind.DELETE
+                                         && touchesStaticColumns;
+            if (staticColumnDelete
+                && cd == null // partition level, aka deleting static columns (as of this writing delete partition in CAS isn't supported)
+                && ignoredIssues.contains(KnownIssue.CAS_DELETE_STATIC_COLUMN_IF_EXISTS))
+            {
+                // Partition level IF EXISTS checks if the static row exists (which is defined as notEmpty), so its known that the static row is empty!
+                // One would expect that the DELETE just returns [[applied]] but it actually returns a row... but we are not working with rows, we are working with partitions...
+                // This is a leaky implementation detail!  Checking for the partition to exist is the following ReadCommand:
+                // SELECT s0, s1 WHERE pk = ? LIMIT 1
+                // this doesn't include the row columns, only the static columns... but the LIMIT returned a row and not
+                // the static row (because the static row is empty)!
+                columns = ImmutableUniqueList.<Symbol>builder(factory.selectionOrder.size() + 1)
+                                             .add(CAS_APPLIED)
+                                             .addAll(factory.selectionOrder)
+                                             .build();
+                ByteBuffer[] result = getRowAsByteBuffer(columns, partition, partition.rows().get(0));
+                result[0] = BooleanType.instance.decompose(false);
+                for (var c : factory.regularColumns)
+                    // null out the row columns....
+                    result[columns.indexOf(c)] = null;
+
+                expected = new ByteBuffer[][]{ result };
+            }
+            else if (!touchesStaticColumns || partition.staticRow().isEmpty())
+            {
+                columns = CAS_APPLIED_COLUMNS;
+                expected = new ByteBuffer[][]{ new ByteBuffer[]{ BooleanType.instance.decompose(false) } };
+            }
+            else
+            {
+                columns = ImmutableUniqueList.<Symbol>builder(factory.selectionOrder.size() + 1)
+                                             .add(CAS_APPLIED)
+                                             .addAll(factory.selectionOrder)
+                                             .build();
+                ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
+                result[0] = BooleanType.instance.decompose(false);
+
+                expected = new ByteBuffer[][]{ result };
+            }
+        }
+        else
+        {
+            columns = CAS_APPLIED_COLUMNS;
+            expected = new ByteBuffer[][]{ new ByteBuffer[]{ BooleanType.instance.decompose(false) } };
+
+            // trim actual to match
+            if (actual[0].length != 1)
+                actual = new ByteBuffer[][]{new ByteBuffer[] {actual[0][0]}};
+        }
+        validate(columns, actual, expected);
     }
 
     private void validatePartitions()
