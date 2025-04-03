@@ -17,17 +17,57 @@
  */
 package org.apache.cassandra.exceptions;
 
+import java.util.Collection;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 
 public class CasWriteTimeoutException extends WriteTimeoutException
 {
     public final int contentions;
 
-    public CasWriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, int contentions)
+    public CasWriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, int contentions, String msg)
     {
-        super(writeType, consistency, received, blockFor, String.format("CAS operation timed out: received %d of %d required responses after %d contention retries", received, blockFor, contentions));
+        super(writeType, consistency, received, blockFor, msg);
         this.contentions = contentions;
+    }
+
+    /**
+     * Always prefer {@link #withParticipants} if you have that information available 
+     */
+    public static CasWriteTimeoutException withoutParticipants(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, int contentions)
+    {
+        return new CasWriteTimeoutException(writeType,
+                                            consistency,
+                                            received,
+                                            blockFor,
+                                            contentions,
+                                            String.format("CAS operation timed out: received %d of %d required responses after %d contention retries.",
+                                                          received, blockFor, contentions));
+    }
+
+    public static CasWriteTimeoutException withParticipants(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, int contentions, Collection<InetAddressAndPort> participants)
+    {
+        return new CasWriteTimeoutException(writeType,
+                                            consistency,
+                                            received,
+                                            blockFor,
+                                            contentions,
+                                            buildParticipantList(
+                                                String.format("CAS operation timed out: received %d of %d required responses after %d contention retries. Participating endpoints: ",
+                                                              received, blockFor, contentions),
+                                                participants));
+    }
+
+    private static String buildParticipantList(String msg, Collection<InetAddressAndPort> participants)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(msg);
+        for (InetAddressAndPort ep : participants)
+            sb.append(ep).append(", ");
+        sb.replace(sb.length() - 2, sb.length(), "");
+        return sb.toString();
     }
 }

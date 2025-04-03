@@ -23,10 +23,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,15 +39,16 @@ import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.SuperMethod;
 import net.bytebuddy.implementation.bind.annotation.This;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.TruncateException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -92,6 +94,13 @@ public class RequestTimeoutTest extends TestBaseImpl
     public void before()
     {
         CLUSTER.get(COORDINATOR).runOnInstance(() -> MessagingService.instance().callbacks.unsafeClear());
+        CLUSTER.forEach(i -> i.runOnInstance(() -> {
+            DatabaseDescriptor.setWriteRpcTimeout(100);
+            DatabaseDescriptor.setReadRpcTimeout(100);
+            DatabaseDescriptor.setCasContentionTimeout(100);
+            DatabaseDescriptor.setRangeRpcTimeout(100);
+            DatabaseDescriptor.setTruncateRpcTimeout(100);
+        }));
         CLUSTER.filters().reset();
         BB.reset();
     }
@@ -99,55 +108,58 @@ public class RequestTimeoutTest extends TestBaseImpl
     @Test
     public void insert()
     {
-        CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
-                  .is(isThrowable(WriteTimeoutException.class));
-        BB.assertIsTimeoutTrue();
+        runTest(Verb.MUTATION_REQ, 2, "INSERT INTO %s.tbl (pk, v) VALUES (?, ?)", WriteTimeoutException.class, 1);
     }
 
     @Test
     public void update()
     {
-        CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("UPDATE %s.tbl SET v=? WHERE pk=?"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
-                  .is(isThrowable(WriteTimeoutException.class));
-        BB.assertIsTimeoutTrue();
+        runTest(Verb.MUTATION_REQ, 2, "UPDATE %s.tbl SET v=? WHERE pk=?", WriteTimeoutException.class, 1);
     }
 
     @Test
     public void batchInsert()
     {
-        CLUSTER.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(batch(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)")), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
-                  .is(isThrowable(WriteTimeoutException.class));
-        BB.assertIsTimeoutTrue();
+        runTest(Verb.MUTATION_REQ, 2, batch("INSERT INTO %s.tbl (pk, v) VALUES (?, ?)"), WriteTimeoutException.class, 1);
     }
 
     @Test
     public void rangeSelect()
     {
-        CLUSTER.filters().verbs(Verb.RANGE_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("SELECT * FROM %s.tbl"), ConsistencyLevel.ALL))
-                  .is(isThrowable(ReadTimeoutException.class));
-        BB.assertIsTimeoutTrue();
+        runTest(Verb.RANGE_REQ, 2, "SELECT * FROM %s.tbl", ReadTimeoutException.class, 1);
     }
 
     @Test
     public void select()
     {
-        CLUSTER.filters().verbs(Verb.READ_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=?"), ConsistencyLevel.ALL, NEXT.getAndIncrement()))
-                  .is(isThrowable(ReadTimeoutException.class));
-        BB.assertIsTimeoutTrue();
+        runTest(Verb.READ_REQ, 2, "SELECT * FROM %s.tbl WHERE pk=?", ReadTimeoutException.class, 1);
     }
 
     @Test
     public void truncate()
     {
-        CLUSTER.filters().verbs(Verb.TRUNCATE_REQ.id).to(2).drop();
-        Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("TRUNCATE %s.tbl"), ConsistencyLevel.ALL))
-                  .is(AssertionUtils.rootCauseIs(TimeoutException.class));
-        BB.assertIsTimeoutTrue();
+        runTest(Verb.TRUNCATE_REQ, 2, "TRUNCATE %s.tbl", TruncateException.class, 1, true);
+    }
+
+    @Test
+    public void casV1PrepareInsert()
+    {
+        withPaxos(Config.PaxosVariant.v1_without_linearizable_reads_or_rejected_writes);
+        runPaxosTest(Verb.PAXOS_PREPARE_RSP, 1, "INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS", CasWriteTimeoutException.class, "CAS operation timed out");
+    }
+
+    @Test
+    public void casV1Propose()
+    {
+        withPaxos(Config.PaxosVariant.v1_without_linearizable_reads_or_rejected_writes);
+        runPaxosTest(Verb.PAXOS_PROPOSE_RSP, 1, "INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS", CasWriteTimeoutException.class, "CAS operation timed out");
+    }
+
+    @Test
+    public void casV1CommitInsert()
+    {
+        withPaxos(Config.PaxosVariant.v1_without_linearizable_reads_or_rejected_writes);
+        runTest(Verb.PAXOS_COMMIT_REQ, 2, "INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS", CasWriteTimeoutException.class, 1);
     }
 
     // don't call BB.assertIsTimeoutTrue(); for CAS, as it has its own logic
@@ -156,7 +168,6 @@ public class RequestTimeoutTest extends TestBaseImpl
     public void casV2PrepareInsert()
     {
         withPaxos(Config.PaxosVariant.v2);
-
         CLUSTER.filters().verbs(Verb.PAXOS2_PREPARE_REQ.id).to(2, 3).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
                   .is(isThrowable(CasWriteTimeoutException.class));
@@ -166,7 +177,6 @@ public class RequestTimeoutTest extends TestBaseImpl
     public void casV2PrepareSelect()
     {
         withPaxos(Config.PaxosVariant.v2);
-
         CLUSTER.filters().verbs(Verb.PAXOS2_PREPARE_REQ.id).to(2, 3).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=?"), ConsistencyLevel.SERIAL, NEXT.getAndIncrement()))
                   .is(isThrowable(ReadTimeoutException.class)); // why does write have its own type but not read?
@@ -176,7 +186,6 @@ public class RequestTimeoutTest extends TestBaseImpl
     public void casV2CommitInsert()
     {
         withPaxos(Config.PaxosVariant.v2);
-
         CLUSTER.filters().verbs(Verb.PAXOS_COMMIT_REQ.id).to(2, 3).drop();
         Assertions.assertThatThrownBy(() -> CLUSTER.coordinator(COORDINATOR).execute(withKeyspace("INSERT INTO %s.tbl (pk, v) VALUES (?, ?) IF NOT EXISTS"), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement()))
                   .is(isThrowable(CasWriteTimeoutException.class));
@@ -249,5 +258,58 @@ public class RequestTimeoutTest extends TestBaseImpl
         {
             CLUSTER.get(COORDINATOR).runOnInstance(() -> TIMEOUTS.set(0));
         }
+    }
+
+
+    private void dropVerb(Verb toDrop, int target)
+    {
+        CLUSTER.filters().verbs(toDrop.id).to(target).drop();
+    }
+
+    private void runTest(Verb toDrop, int nodeTarget, String query, Class<?> expectedException, int timeoutCount)
+    {
+        runTest(toDrop, nodeTarget, query, expectedException, timeoutCount, false);
+    }
+
+    /**
+     * We want to confirm that both the exception thrown is what we expect for a timeout, but also that the count of timeouts
+     * in the error messages matches what's expected.
+     */
+    private void runTest(Verb toDrop, int nodeTarget, String query, Class<?> expectedException, int timeoutCount, boolean skipTimeoutCheck)
+    {
+        dropVerb(toDrop, nodeTarget);
+        boolean timeout = false;
+        try
+        {
+            CLUSTER.coordinator(COORDINATOR).execute(withKeyspace(query), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement());
+        }
+        catch (Exception e)
+        {
+            // Classloader fiddling means we have to compare for string equality and can't rely on type comparison
+            Assert.assertEquals(String.format("Unexpected exception type thrown by %s", query), expectedException.toString(), e.getClass().toString());
+            Assert.assertEquals(timeoutCount, StringUtils.countMatches(e.getMessage(), ": TIMEOUT"));
+            timeout = true;
+        }
+        Assert.assertTrue(String.format("Expected exception containing %d ': TIMEOUT' of type: [%s] but saw none", timeoutCount, expectedException), timeout);
+        if (!skipTimeoutCheck)
+            BB.assertIsTimeoutTrue();
+    }
+
+    private void runPaxosTest(Verb toDrop, int nodeTarget, String query, Class<?> expectedException, String expectedMsg)
+    {
+        dropVerb(toDrop, nodeTarget);
+        boolean timeout = false;
+        try
+        {
+            CLUSTER.coordinator(COORDINATOR).execute(withKeyspace(query), ConsistencyLevel.ALL, NEXT.getAndIncrement(), NEXT.getAndIncrement());
+        }
+        catch (Exception e)
+        {
+            // Classloader fiddling means we have to compare for string equality and can't rely on type comparison
+            Assert.assertEquals(String.format("Unexpected exception type thrown by %s", query), expectedException.toString(), e.getClass().toString());
+            Assert.assertTrue(e.getMessage().contains(expectedMsg));
+            timeout = true;
+        }
+        Assert.assertTrue(String.format("Expected exception containing %s of type %s but saw none", expectedMsg, expectedException), timeout);
     }
 }

@@ -46,7 +46,7 @@ public class RequestFailureException extends RequestExecutionException
 
     private static String buildErrorMessage(int received, Map<InetAddressAndPort, RequestFailureReason> failures)
     {
-        return String.format("received %d responses and %d failures", received, failures.size());
+        return String.format("received %d responses and %d failures; ", received, failures.size());
     }
 
     private static String buildFailureString(Map<InetAddressAndPort, RequestFailureReason> failures)
@@ -56,7 +56,7 @@ public class RequestFailureException extends RequestExecutionException
                        .collect(Collectors.joining(", "));
     }
 
-    private static String buildErrorMessage(CharSequence msg, Map<InetAddressAndPort, RequestFailureReason> failures)
+    static String buildErrorMessage(CharSequence msg, Map<InetAddressAndPort, RequestFailureReason> failures)
     {
         StringBuilder sb = new StringBuilder("Operation failed - ");
         sb.append(msg);

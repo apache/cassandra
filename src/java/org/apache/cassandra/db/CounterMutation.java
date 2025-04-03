@@ -167,12 +167,16 @@ public class CounterMutation implements IMutation
             try
             {
                 if (!lock.tryLock(timeout, NANOSECONDS))
-                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
+                    throw new WriteTimeoutException(WriteType.COUNTER,
+                                                    consistency(),
+                                                    0,
+                                                    consistency().blockFor(replicationStrategy),
+                                                    String.format("Failed to acquire counter lock after waiting for %d nanoseconds; aborting.", timeout));
                 locks.add(lock);
             }
             catch (InterruptedException e)
             {
-                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
+                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy), "Interrupted while trying to acquire counter lock; aborting.");
             }
         }
     }

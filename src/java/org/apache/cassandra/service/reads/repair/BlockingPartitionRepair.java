@@ -56,8 +56,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 import static com.google.common.collect.Iterables.all;
 
-public class BlockingPartitionRepair
-        extends AsyncFuture<Object> implements RequestCallback<Object>
+public class BlockingPartitionRepair extends AsyncFuture<Object> implements RequestCallback<Object>
 {
     private final DecoratedKey key;
     private final ReplicaPlan.ForWrite repairPlan;

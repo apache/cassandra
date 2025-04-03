@@ -73,7 +73,6 @@ import org.hamcrest.Description;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.INTERNALLY_FORCED;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.hamcrest.CoreMatchers.containsString;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class CasWriteTest extends TestBaseImpl
@@ -179,8 +178,6 @@ public class CasWriteTest extends TestBaseImpl
         cluster.coordinator(1).execute(mkUniqueCasInsertQuery(1), ConsistencyLevel.QUORUM);
     }
 
-
-
     @Test
     public void casWriteContentionTimeoutTest() throws InterruptedException
     {
@@ -258,8 +255,8 @@ public class CasWriteTest extends TestBaseImpl
                 description.appendText("Cause should be loaded by InstanceClassLoader");
             }
         });
-        // unable to assert on class becuase the exception thrown was loaded by a differnet classloader, InstanceClassLoader
-        // therefor asserts the FQCN name present in the message as a workaround
+        // unable to assert on class because the exception thrown was loaded by a different classloader, InstanceClassLoader
+        // therefore asserts the FQCN name present in the message as a workaround
         thrown.expect(new BaseMatcher<Throwable>()
         {
             public boolean matches(Object item)
@@ -272,7 +269,8 @@ public class CasWriteTest extends TestBaseImpl
                 description.appendText("Class was expected to be " + CasWriteTimeoutException.class.getCanonicalName() + " but was not");
             }
         });
-        thrown.expectMessage(containsString("CAS operation timed out"));
+        thrown.expectMessage("CAS operation timed out");
+
     }
 
     @Test

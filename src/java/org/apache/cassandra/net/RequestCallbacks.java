@@ -35,7 +35,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.InternodeOutboundMetrics;
-import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.service.WriteResponseHandler;
 
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -101,7 +101,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         assert previous == null : format("Callback already exists for id %d/%s! (%s)", message.id(), to, previous);
     }
 
-    public void addWithExpiration(AbstractWriteResponseHandler<?> cb, Message<?> message, Replica to)
+    public void addWithExpiration(WriteResponseHandler<?> cb, Message<?> message, Replica to)
     {
         assert message.verb() == Verb.MUTATION_REQ || message.verb() == Verb.COUNTER_MUTATION_REQ || message.verb() == Verb.PAXOS_COMMIT_REQ;
         CallbackInfo previous = callbacks.put(key(message.id(), to.endpoint()), new CallbackInfo(message, to.endpoint(), cb));

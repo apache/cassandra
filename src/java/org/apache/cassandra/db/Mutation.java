@@ -44,7 +44,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -425,7 +425,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
         /**
          * Called early during request processing to prevent that {@link #serialization(Mutation, int)} is
          * called concurrently.
-         * See {@link org.apache.cassandra.service.StorageProxy#sendToHintedReplicas(Mutation, ReplicaPlan.ForWrite, AbstractWriteResponseHandler, String, Stage)}
+         * See {@link org.apache.cassandra.service.StorageProxy#sendToHintedReplicas(Mutation, ReplicaPlan.ForWrite, WriteResponseHandler, String, Stage)}
          */
         @SuppressWarnings("JavadocReference")
         public void prepareSerializedBuffer(Mutation mutation, int version)
@@ -439,7 +439,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
          * concurrently. Concurrent calls are still safe however, the only risk is that the value is not cached yet,
          * multiple concurrent calls may compute it multiple times instead of just once. This is ok as in practice
          * as we make sure this doesn't happen in the hot path by forcing the initial caching in
-         * {@link org.apache.cassandra.service.StorageProxy#sendToHintedReplicas(Mutation, ReplicaPlan.ForWrite, AbstractWriteResponseHandler, String, Stage)}
+         * {@link org.apache.cassandra.service.StorageProxy#sendToHintedReplicas(Mutation, ReplicaPlan.ForWrite, WriteResponseHandler, String, Stage)}
          * via {@link #prepareSerializedBuffer(Mutation)}, which is the only caller that passes
          * {@code isPrepare==true}.
          */

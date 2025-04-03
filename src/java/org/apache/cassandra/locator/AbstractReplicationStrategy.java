@@ -37,10 +37,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
-import org.apache.cassandra.service.DatacenterWriteResponseHandler;
+import org.apache.cassandra.service.EachQuorumResponseHandler;
+import org.apache.cassandra.service.LocalQuorumResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -82,60 +81,40 @@ public abstract class AbstractReplicationStrategy
 
     public abstract DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata);
 
-    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
-                                                                       Runnable callback,
-                                                                       WriteType writeType,
-                                                                       Supplier<Mutation> hintOnFailure,
-                                                                       Dispatcher.RequestTime requestTime)
+    public <T> WriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
+                                                               Runnable callback,
+                                                               WriteType writeType,
+                                                               Supplier<Mutation> hintOnFailure,
+                                                               Dispatcher.RequestTime requestTime)
     {
         return getWriteResponseHandler(replicaPlan, callback, writeType, hintOnFailure,
                                        requestTime, DatabaseDescriptor.getIdealConsistencyLevel());
     }
 
-    public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
-                                                                       Runnable callback,
-                                                                       WriteType writeType,
-                                                                       Supplier<Mutation> hintOnFailure,
-                                                                       Dispatcher.RequestTime requestTime,
-                                                                       ConsistencyLevel idealConsistencyLevel)
+    public <T> WriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
+                                                               Runnable callback,
+                                                               WriteType writeType,
+                                                               Supplier<Mutation> hintOnFailure,
+                                                               Dispatcher.RequestTime requestTime,
+                                                               ConsistencyLevel idealConsistencyLevel)
     {
-        AbstractWriteResponseHandler<T> resultResponseHandler;
+        WriteResponseHandler<T> resultResponseHandler;
         if (replicaPlan.consistencyLevel().isDatacenterLocal())
         {
             // block for in this context will be localnodes block.
-            resultResponseHandler = new DatacenterWriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
+            resultResponseHandler = new LocalQuorumResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         }
         else if (replicaPlan.consistencyLevel() == ConsistencyLevel.EACH_QUORUM && (this instanceof NetworkTopologyStrategy))
         {
-            resultResponseHandler = new DatacenterSyncWriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
+            resultResponseHandler = new EachQuorumResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         }
         else
         {
             resultResponseHandler = new WriteResponseHandler<T>(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         }
 
-        //Check if tracking the ideal consistency level is configured
         if (idealConsistencyLevel != null)
-        {
-            //If ideal and requested are the same just use this handler to track the ideal consistency level
-            //This is also used so that the ideal consistency level handler when constructed knows it is the ideal
-            //one for tracking purposes
-            if (idealConsistencyLevel == replicaPlan.consistencyLevel())
-            {
-                resultResponseHandler.setIdealCLResponseHandler(resultResponseHandler);
-            }
-            else
-            {
-                //Construct a delegate response handler to use to track the ideal consistency level
-                AbstractWriteResponseHandler<T> idealHandler = getWriteResponseHandler(replicaPlan.withConsistencyLevel(idealConsistencyLevel),
-                                                                                       callback,
-                                                                                       writeType,
-                                                                                       hintOnFailure,
-                                                                                       requestTime,
-                                                                                       idealConsistencyLevel);
-                resultResponseHandler.setIdealCLResponseHandler(idealHandler);
-            }
-        }
+            resultResponseHandler.trackIdealCL(replicaPlan.withConsistencyLevel(idealConsistencyLevel));
 
         return resultResponseHandler;
     }

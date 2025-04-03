@@ -28,6 +28,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -60,6 +63,8 @@ import static org.junit.Assert.assertTrue;
 
 public class WriteResponseHandlerTest
 {
+    protected static final Logger logger = LoggerFactory.getLogger(WriteResponseHandlerTest.class);
+
     static Keyspace ks;
     static ColumnFamilyStore cfs;
     static EndpointsForToken targets;
@@ -120,25 +125,24 @@ public class WriteResponseHandlerTest
     }
 
     /**
-     * Validate that a successful write at ideal CL logs latency information. Also validates
-     * DatacenterSyncWriteResponseHandler
+     * Validate that a successful write at ideal CL logs latency information.
      * @throws Throwable
      */
     @Test
     public void idealCLLatencyTracked() throws Throwable
     {
         long startingCount = ks.metric.idealCLWriteLatency.latency.getCount();
-        //Specify query start time in past to ensure minimum latency measurement
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, new Dispatcher.RequestTime(nanoTime() - DAYS.toNanos(1)));
+        // Specify query start time in past to ensure minimum latency measurement
+        WriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, new Dispatcher.RequestTime(nanoTime() - DAYS.toNanos(1)));
 
-        //dc1
+        // dc1
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
 
         // there are not enough responses for ideal EACH_QUORUM yet
         assertEquals(startingCount, ks.metric.idealCLWriteLatency.latency.getCount());
 
-        //dc2
+        // dc2
         awr.onResponse(createDummyMessage(4));
         awr.onResponse(createDummyMessage(5));
 
@@ -146,11 +150,13 @@ public class WriteResponseHandlerTest
         assertTrue( TimeUnit.DAYS.toMicros(1) < ks.metric.idealCLWriteLatency.totalLatency.getCount());
         assertEquals(startingCount + 1, ks.metric.idealCLWriteLatency.latency.getCount());
 
-        //Don't need the others
-        awr.expired();
-        awr.expired();
+        // Don't need the others
+        awr.onFailure(targets.get(2).endpoint(), RequestFailureReason.NODE_DOWN);
+        awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.NODE_DOWN);
 
+        // Make sure that those failures didn't increment a failure metric and no re-signaling occurred.
         assertEquals(0,  ks.metric.writeFailedIdealCL.getCount());
+        assertTrue( TimeUnit.DAYS.toMicros(1) < ks.metric.idealCLWriteLatency.totalLatency.getCount());
     }
 
     /**
@@ -161,13 +167,13 @@ public class WriteResponseHandlerTest
     public void idealCLWriteResponeHandlerWorks() throws Throwable
     {
         long startingCount = ks.metric.idealCLWriteLatency.latency.getCount();
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.ALL);
+        WriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.ALL);
 
-        //dc1
+        // dc1
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
         awr.onResponse(createDummyMessage(2));
-        //dc2
+        // dc2
         awr.onResponse(createDummyMessage(3));
         awr.onResponse(createDummyMessage(4));
         awr.onResponse(createDummyMessage(5));
@@ -184,13 +190,13 @@ public class WriteResponseHandlerTest
     public void idealCLDatacenterWriteResponeHandlerWorks() throws Throwable
     {
         long startingCount = ks.metric.idealCLWriteLatency.latency.getCount();
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_QUORUM);
+        WriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_QUORUM);
 
-        //dc1
+        // dc1
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
         awr.onResponse(createDummyMessage(2));
-        //dc2
+        // dc2
         awr.onResponse(createDummyMessage(3));
         awr.onResponse(createDummyMessage(4));
         awr.onResponse(createDummyMessage(5));
@@ -207,17 +213,17 @@ public class WriteResponseHandlerTest
     public void failedIdealCLIncrementsStat() throws Throwable
     {
         ks.metric.idealCLWriteLatency.totalLatency.dec(ks.metric.idealCLWriteLatency.totalLatency.getCount());
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+        org.apache.cassandra.service.WriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
 
-        //Succeed in local DC
+        // Succeed in local DC
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
         awr.onResponse(createDummyMessage(2));
 
-        //Fail in remote DC
-        awr.expired();
-        awr.expired();
-        awr.expired();
+        // Fail in remote DC
+        awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.NODE_DOWN);
+        awr.onFailure(targets.get(4).endpoint(), RequestFailureReason.NODE_DOWN);
+        awr.onFailure(targets.get(5).endpoint(), RequestFailureReason.NODE_DOWN);
         assertEquals(1, ks.metric.writeFailedIdealCL.getCount());
         assertEquals(0, ks.metric.idealCLWriteLatency.totalLatency.getCount());
     }
@@ -225,19 +231,19 @@ public class WriteResponseHandlerTest
     @Test
     public void failedIdealCLIncrementsStatForExplicitOnFailure()
     {
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+        WriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
 
         long startingCountForWriteFailedIdealCL = ks.metric.writeFailedIdealCL.getCount();
         long startingCountForIdealCLWriteLatency = ks.metric.idealCLWriteLatency.totalLatency.getCount();
 
 
-        //Succeed in local DC
+        // Succeed in local DC
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
         awr.onResponse(createDummyMessage(2));
 
 
-        //Fail in remote DC
+        // Fail in remote DC
         awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.TIMEOUT);
         awr.onFailure(targets.get(4).endpoint(), RequestFailureReason.TIMEOUT);
         awr.onResponse(createDummyMessage(5));
@@ -253,20 +259,20 @@ public class WriteResponseHandlerTest
     @Test
     public void failedIdealCLDoesNotIncrementsStatOnQueryFailure() throws Throwable
     {
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+        WriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
 
         long startingCount = ks.metric.writeFailedIdealCL.getCount();
 
         // Failure in local DC
         awr.onResponse(createDummyMessage(0));
-        
-        awr.expired();
-        awr.expired();
+
+        awr.onFailure(targets.get(1).endpoint(), RequestFailureReason.NODE_DOWN);
+        awr.onFailure(targets.get(2).endpoint(), RequestFailureReason.NODE_DOWN);
 
         //Fail in remote DC
-        awr.expired();
-        awr.expired();
-        awr.expired();
+        awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.NODE_DOWN);
+        awr.onFailure(targets.get(4).endpoint(), RequestFailureReason.NODE_DOWN);
+        awr.onFailure(targets.get(5).endpoint(), RequestFailureReason.NODE_DOWN);
 
         assertEquals(startingCount, ks.metric.writeFailedIdealCL.getCount());
     }
@@ -274,19 +280,17 @@ public class WriteResponseHandlerTest
     @Test
     public void failedIdealCLDoesNotIncrementsStatOnExplicitQueryFailure()
     {
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+        WriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
 
         long startingCountForWriteFailedIdealCL = ks.metric.writeFailedIdealCL.getCount();
         long startingCountForIdealCLWriteLatency = ks.metric.idealCLWriteLatency.totalLatency.getCount();
 
-
-        //Fail in local DC
+        // Fail in local DC
         awr.onFailure(targets.get(0).endpoint(), RequestFailureReason.TIMEOUT);
         awr.onFailure(targets.get(1).endpoint(), RequestFailureReason.TIMEOUT);
         awr.onResponse(createDummyMessage(2));
 
-
-        //Fail in remote DC
+        // Fail in remote DC
         awr.onFailure(targets.get(3).endpoint(), RequestFailureReason.TIMEOUT);
         awr.onFailure(targets.get(4).endpoint(), RequestFailureReason.TIMEOUT);
         awr.onResponse(createDummyMessage(5));
@@ -296,12 +300,12 @@ public class WriteResponseHandlerTest
     }
 
 
-    private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal)
+    private static WriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal)
     {
         return createWriteResponseHandler(cl, ideal, Dispatcher.RequestTime.forImmediateExecution());
     }
 
-    private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, Dispatcher.RequestTime requestTime)
+    private static WriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, Dispatcher.RequestTime requestTime)
     {
         return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
                                                                    null, WriteType.SIMPLE, null, requestTime, ideal);

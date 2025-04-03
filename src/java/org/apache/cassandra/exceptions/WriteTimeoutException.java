@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.exceptions;
 
+import java.util.Map;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class WriteTimeoutException extends RequestTimeoutException
 {
@@ -35,5 +38,16 @@ public class WriteTimeoutException extends RequestTimeoutException
     {
         super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor, msg);
         this.writeType = writeType;
+    }
+
+    public static WriteTimeoutException withParticipants(WriteType writeType,
+                                                         ConsistencyLevel consistency,
+                                                         int received,
+                                                         int blockFor,
+                                                         Map<InetAddressAndPort, RequestFailureReason> failures)
+    {
+        return new WriteTimeoutException(writeType, consistency, received, blockFor,
+                                         RequestFailureReason.buildErrorMessage(String.format("write timeout; received only %d of %d responses", received, blockFor), failures)
+        );
     }
 }

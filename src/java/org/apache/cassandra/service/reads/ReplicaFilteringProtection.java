@@ -563,7 +563,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             catch (ReadTimeoutException e)
             {
                 int blockFor = consistency.blockFor(replicaPlan.replicationStrategy());
-                throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
+                throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true, e.getMessage());
             }
             catch (UnavailableException e)
             {

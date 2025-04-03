@@ -617,14 +617,14 @@ public class Paxos
                 mark(isWrite, m -> m.failures, consistency);
                 throw serverError != null ? new RequestFailureException(ExceptionCode.SERVER_ERROR, serverError, consistency, successes, required, failures)
                                           : isWrite
-                                            ? new WriteFailureException(consistency, successes, required, WriteType.CAS, failures)
+                                            ? new WriteFailureException(WriteType.CAS, consistency, successes, required, failures)
                                             : new ReadFailureException(consistency, successes, required, false, failures);
             }
             else
             {
                 mark(isWrite, m -> m.timeouts, consistency);
                 throw isWrite
-                        ? new CasWriteTimeoutException(WriteType.CAS, consistency, successes, required, failedAttemptsDueToContention)
+                        ? CasWriteTimeoutException.withoutParticipants(WriteType.CAS, consistency, successes, required, failedAttemptsDueToContention)
                         : new ReadTimeoutException(consistency, successes, required, false);
             }
         }

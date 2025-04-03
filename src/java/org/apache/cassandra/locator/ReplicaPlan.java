@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.locator;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -29,6 +30,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
@@ -355,8 +357,19 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
             return res;
         }
 
-        ForWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
+        @VisibleForTesting
+        public ForWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
         public ForWrite withContacts(EndpointsForToken newContact) { return copy(consistencyLevel, newContact); }
+
+        /**
+         * This raises an {@link IllegalArgumentException} if the state has changed; syntactic sugar around
+         * {@link #stillAppliesTo(ClusterMetadata)} making the calling convention a bit more ergonomic for the base case
+         * of "return true or raise an exception"
+         */
+        public void checkStillAppliesTo(ClusterMetadata newMetadata)
+        {
+            stillAppliesTo(newMetadata);
+        }
 
         // TODO: this method can return a collection of received responses that apply, and an explanation on why
         // contacts are not enough to satisfy the replicaplan.
@@ -424,6 +437,32 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
             this.requiredParticipants = requiredParticipants;
         }
 
+        /**
+         * We don't ever intend for users of this class to directly access this outside of tests as {@link
+         * ReplicaPlans#forPaxos} has much more structure and sanity checks in it.
+         */
+        @VisibleForTesting
+        public static ForPaxosWrite forTest(Keyspace keyspace,
+                                            ConsistencyLevel consistencyLevel,
+                                            EndpointsForToken pending,
+                                            EndpointsForToken liveAndDown,
+                                            EndpointsForToken live,
+                                            EndpointsForToken contact,
+                                            int requiredParticipants,
+                                            Function<ClusterMetadata, ForWrite> recompute,
+                                            Epoch epoch)
+        {
+            return new ForPaxosWrite(keyspace,
+                                     consistencyLevel,
+                                     pending,
+                                     liveAndDown,
+                                     live,
+                                     contact,
+                                     requiredParticipants,
+                                     recompute,
+                                     epoch);
+        }
+
         public int requiredParticipants() { return requiredParticipants; }
     }
 
@@ -449,6 +488,10 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
          * get the shared replica plan, non-volatile (so maybe stale) but no risk of partially initialised
          */
         public P get();
+        /**
+         * get the replica plan's list of endpoints
+         */
+        public Collection<InetAddressAndPort> endpoints();
     }
 
     public static class SharedForTokenRead implements Shared<EndpointsForToken, ForTokenRead>
@@ -457,6 +500,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         SharedForTokenRead(ForTokenRead replicaPlan) { this.replicaPlan = replicaPlan; }
         public void addToContacts(Replica replica) { replicaPlan = replicaPlan.withContacts(Endpoints.append(replicaPlan.contacts(), replica)); }
         public ForTokenRead get() { return replicaPlan; }
+        public Collection<InetAddressAndPort> endpoints() { return replicaPlan.contacts().endpoints(); }
     }
 
     public static class SharedForRangeRead implements Shared<EndpointsForRange, ForRangeRead>
@@ -465,6 +509,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         SharedForRangeRead(ForRangeRead replicaPlan) { this.replicaPlan = replicaPlan; }
         public void addToContacts(Replica replica) { replicaPlan = replicaPlan.withContacts(Endpoints.append(replicaPlan.contacts(), replica)); }
         public ForRangeRead get() { return replicaPlan; }
+        public Collection<InetAddressAndPort> endpoints() { return replicaPlan.contacts().endpoints(); }
     }
 
     public static SharedForTokenRead shared(ForTokenRead replicaPlan) { return new SharedForTokenRead(replicaPlan); }

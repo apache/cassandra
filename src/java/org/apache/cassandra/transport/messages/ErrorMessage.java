@@ -110,7 +110,7 @@ public class ErrorMessage extends Message.Response
                         if (code == ExceptionCode.WRITE_FAILURE)
                         {
                             WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
-                            te = new WriteFailureException(cl, received, blockFor, writeType, failureReasonByEndpoint);
+                            te = new WriteFailureException(writeType, cl, received, blockFor, failureReasonByEndpoint);
                         }
                         else
                         {
@@ -131,7 +131,7 @@ public class ErrorMessage extends Message.Response
                             if (version.isGreaterOrEqualTo(ProtocolVersion.V5) && writeType == WriteType.CAS)
                             {
                                 int contentions = body.readShort();
-                                te = new CasWriteTimeoutException(writeType, cl, received, blockFor, contentions);
+                                te = CasWriteTimeoutException.withoutParticipants(writeType, cl, received, blockFor, contentions);
                             }
                             else
                             {
@@ -186,7 +186,7 @@ public class ErrorMessage extends Message.Response
                     ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
                     int received = body.readInt();
                     int blockFor = body.readInt();
-                    te = new CasWriteUnknownResultException(cl, received, blockFor);
+                    te = CasWriteUnknownResultException.withoutParticipants(cl, received, blockFor);
                     break;
             }
             return new ErrorMessage(te);

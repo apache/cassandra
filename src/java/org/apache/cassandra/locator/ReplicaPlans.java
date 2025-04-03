@@ -763,7 +763,7 @@ public class ReplicaPlans
 
         // TODO: this should use assureSufficientReplicas
         int participants = liveAndDown.all().size();
-        int requiredParticipants = participants / 2 + 1; // See CASSANDRA-8346, CASSANDRA-833
+        int requiredParticipants = calculateQuorumMajority(participants);
 
         if (throwOnInsufficientLiveReplicas)
         {
@@ -789,6 +789,13 @@ public class ReplicaPlans
                                              requiredParticipants,
                                              (newClusterMetadata) -> forPaxos(newClusterMetadata, keyspace, key, consistencyForPaxos, false),
                                              metadata.epoch);
+    }
+
+    @VisibleForTesting
+    public static int calculateQuorumMajority(int participantCount)
+    {
+        // See CASSANDRA-8346, CASSANDRA-833
+        return participantCount / 2 + 1;
     }
 
     private static <E extends Endpoints<E>> E candidatesForRead(Keyspace keyspace,

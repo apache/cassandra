@@ -27,15 +27,19 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.transport.Dispatcher;
 
-public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
+/**
+ * Since this wraps other callbacks, we don't interact with the {@link org.apache.cassandra.net.CallbackResponseTracker} here
+ * and instead defer to the wrapped handlers to track and process responses as per their internal logic.
+ */
+public class BatchlogResponseHandler<T> extends WriteResponseHandler<T>
 {
-    AbstractWriteResponseHandler<T> wrapped;
+    WriteResponseHandler<T> wrapped;
     BatchlogCleanup cleanup;
     protected volatile int requiredBeforeFinish;
     private static final AtomicIntegerFieldUpdater<BatchlogResponseHandler> requiredBeforeFinishUpdater
             = AtomicIntegerFieldUpdater.newUpdater(BatchlogResponseHandler.class, "requiredBeforeFinish");
 
-    public BatchlogResponseHandler(AbstractWriteResponseHandler<T> wrapped, int requiredBeforeFinish, BatchlogCleanup cleanup, Dispatcher.RequestTime requestTime)
+    public BatchlogResponseHandler(WriteResponseHandler<T> wrapped, int requiredBeforeFinish, BatchlogCleanup cleanup, Dispatcher.RequestTime requestTime)
     {
         super(wrapped.replicaPlan, wrapped.callback, wrapped.writeType, null, requestTime);
         this.wrapped = wrapped;
@@ -43,11 +47,9 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
         this.cleanup = cleanup;
     }
 
-    protected int ackCount()
-    {
-        return wrapped.ackCount();
-    }
-
+    /**
+     * @param msg response received. Can be null if the wrapped response handler allows nullability
+     */
     public void onResponse(Message<T> msg)
     {
         wrapped.onResponse(msg);
@@ -70,7 +72,8 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
         wrapped.get();
     }
 
-    protected int blockFor()
+    @Override
+    public int blockFor()
     {
         return wrapped.blockFor();
     }
@@ -88,6 +91,12 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
     protected void signal()
     {
         wrapped.signal();
+    }
+
+    @Override
+    public boolean receivedSufficientResponses()
+    {
+        return wrapped.receivedSufficientResponses();
     }
 
     public static class BatchlogCleanup

@@ -80,7 +80,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
                 StorageProxy.truncateBlocking(keyspace(), name());
             }
         }
-        catch (UnavailableException | TimeoutException e)
+        catch (InterruptedException | UnavailableException | TimeoutException e)
         {
             throw new TruncateException(e);
         }

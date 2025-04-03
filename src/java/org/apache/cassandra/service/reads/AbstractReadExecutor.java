@@ -461,7 +461,7 @@ public abstract class AbstractReadExecutor
                 logger.trace("Timed out waiting on digest mismatch repair requests");
             // the caught exception here will have CL.ALL from the repair command,
             // not whatever CL the initial command was at (CASSANDRA-7947)
-            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), handler.replicaPlan().readQuorum() - 1, handler.replicaPlan().readQuorum(), true);
+            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), handler.blockFor() - 1, handler.blockFor(), true, e.getMessage());
         }
     }
 

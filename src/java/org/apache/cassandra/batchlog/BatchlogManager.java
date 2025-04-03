@@ -548,7 +548,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
 
             @Override
-            protected int blockFor()
+            public int blockFor()
             {
                 return this.replicaPlan.contacts().size();
             }
@@ -556,9 +556,16 @@ public class BatchlogManager implements BatchlogManagerMBean
             @Override
             public void onResponse(Message<T> m)
             {
+                // tracker update handled in super
                 boolean removed = undelivered.remove(m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from());
                 assert removed;
                 super.onResponse(m);
+            }
+
+            @Override
+            public boolean receivedSufficientResponses()
+            {
+                return super.receivedSufficientResponses();
             }
         }
     }

@@ -65,6 +65,13 @@ public interface RequestCallback<T>
         return false;
     }
 
+    /**
+     * Only call this in a failure scenario as it considers an empty map to be timed out, since messages can come in
+     * after the callback has timed out.
+     *
+     * Worth noting, we rely on intercepting this in {@code RequestTimeoutTest} to determine whether a test has timed out.
+     * Any changes here should be reflected in that test class.
+     */
     static boolean isTimeout(Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
         // The reason that all must be timeout to be called a timeout is as follows
