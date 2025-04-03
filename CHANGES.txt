@@ -23,6 +23,7 @@ Merged from 4.1:
  * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
 Merged from 4.0:
+ * Update OWASP dependency checker to version 12.1.0 (CASSANDRA-20501)
  * Suppress CVE-2025-25193 (CASSANDRA-20504)
  * Include in source tree and build packages a Snyk policy file that lists known false positives (CASSANDRA-20319)
  * Update zstd-jni to 1.5.7-2 (CASSANDRA-20453)
