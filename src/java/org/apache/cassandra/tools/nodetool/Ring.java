@@ -34,11 +34,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Lists;
 
 @Command(name = "ring", description = "Print information about the token ring")
 public class Ring extends NodeToolCmd
@@ -49,10 +51,14 @@ public class Ring extends NodeToolCmd
     @Option(title = "resolve_ip", name = {"-r", "--resolve-ip"}, description = "Show node domain names instead of IPs")
     private boolean resolveIp = false;
 
+    @Option(title = "cms node", name = { "-c", "--cms" }, description = "Show a node whether is a cms node")
+    private boolean hasCms = false;
+
     private PrintStream out;
     private EndpointSnitchInfoMBean epSnitchInfo;
     private Collection<String> liveNodes, deadNodes, joiningNodes, leavingNodes, movingNodes;
     private Map<String, String> loadMap;
+    private CMSOperationsMBean cmsProxy;
 
     @Override
     public void execute(NodeProbe probe)
@@ -65,6 +71,7 @@ public class Ring extends NodeToolCmd
         movingNodes = probe.getMovingNodes(true);
         loadMap = probe.getLoadMap(true);
         epSnitchInfo = probe.getEndpointSnitchInfoProxy();
+        cmsProxy = hasCms ? probe.getCMSOperationsProxy() : null;
 
         Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(true);
         LinkedHashMultimap<String, String> endpointsToTokens = LinkedHashMultimap.create();
@@ -78,7 +85,7 @@ public class Ring extends NodeToolCmd
         int maxAddressLength = Collections.max(endpointsToTokens.keys(),
                                                Comparator.comparingInt(String::length)).length();
 
-        String formatPlaceholder = "%%-%ds  %%-12s%%-7s%%-8s%%-16s%%-20s%%-44s%%n";
+        String formatPlaceholder = getFormatPlaceholder(hasCms);
         String format = format(formatPlaceholder, maxAddressLength);
 
         StringBuilder errors = new StringBuilder();
@@ -140,10 +147,10 @@ public class Ring extends NodeToolCmd
             lastToken = tokens.get(tokens.size() - 1);
         }
 
-        out.printf(format, "Address", "Rack", "Status", "State", "Load", "Owns", "Token");
+        addNodesHeader(format, hasCms);
 
         if (hoststats.size() > 1)
-            out.printf(format, "", "", "", "", "", "", lastToken);
+            printLastTokenRow(format, lastToken, hasCms);
         else
             out.println();
 
@@ -177,8 +184,39 @@ public class Ring extends NodeToolCmd
 
             String load = loadMap.getOrDefault(endpoint, "?");
             String owns = stat.owns != null && showEffectiveOwnership? new DecimalFormat("##0.00%").format(stat.owns) : "?";
-            out.printf(format, stat.ipOrDns(printPort), rack, status, state, load, owns, stat.token);
+            List<Object> result = Lists.newArrayList(stat.ipOrDns(printPort), rack, status, state, load, owns, stat.token);
+            if (hasCms)
+                result.add(String.valueOf(cmsProxy.isCurrentMember(stat.endpointWithPort)));
+
+            out.printf(format, result.toArray());
         }
         out.println();
+    }
+
+    private void addNodesHeader(String format, boolean hasCms)
+    {
+        List<String> headers = Lists.newArrayList("Address", "Rack", "Status", "State", "Load", "Owns", "Token");
+        if (hasCms)
+            headers.add("CMS");
+        out.printf(format, headers.toArray());
+    }
+
+    private static String getFormatPlaceholder(boolean hasCms)
+    {
+        StringBuilder formatPlaceholder = new StringBuilder("%%-%ds  %%-12s%%-7s%%-8s%%-16s%%-20s%%-44s");
+        if (hasCms)
+            formatPlaceholder.append("%%-6s");
+        formatPlaceholder.append("%%n");
+
+        return formatPlaceholder.toString();
+    }
+
+    private void printLastTokenRow(String format, String lastToken, boolean hasCms)
+    {
+        List<String> values = Lists.newArrayList("", "", "", "", "", "", lastToken);
+
+        if (hasCms)
+            values.add("");
+        out.printf(format, values.toArray());
     }
 }

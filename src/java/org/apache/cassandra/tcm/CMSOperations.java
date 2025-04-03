@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -158,6 +159,12 @@ public class CMSOperations implements CMSOperationsMBean
         info.put(COMMITS_PAUSED, Boolean.toString(cms.commitsPaused()));
         info.put(REPLICATION_FACTOR, ReplicationParams.meta(metadata).toString());
         return info;
+    }
+
+    @Override
+    public boolean isCurrentMember(InetAddressAndPort peer)
+    {
+        return cms.isCurrentMember(peer);
     }
 
     @Override

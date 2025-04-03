@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
+
 public interface CMSOperationsMBean
 {
     public void initializeCMS(List<String> ignore);
@@ -33,6 +35,7 @@ public interface CMSOperationsMBean
     public void cancelReconfigureCms();
 
     public Map<String, String> describeCMS();
+    public boolean isCurrentMember(InetAddressAndPort peer);
     public void snapshotClusterMetadata();
 
     public void unsafeRevertClusterMetadata(long epoch);
