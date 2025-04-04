@@ -168,10 +168,10 @@ public class TrackedWriteRequest
                 if (remoteDCReplicas == null)
                     remoteDCReplicas = new HashMap<>();
 
-                List<Replica> messages = remoteDCReplicas.get(dc);
-                if (messages == null)
-                    messages = remoteDCReplicas.computeIfAbsent(dc, ignore -> new ArrayList<>(3)); // most DCs will have <= 3 replicas
-                messages.add(destination);
+                List<Replica> replicas = remoteDCReplicas.get(dc);
+                if (replicas == null)
+                    replicas = remoteDCReplicas.computeIfAbsent(dc, ignore -> new ArrayList<>(3)); // most DCs will have <= 3 replicas
+                replicas.add(destination);
             }
         }
 
@@ -179,8 +179,8 @@ public class TrackedWriteRequest
         applyMutationLocally(mutation, handler);
 
         if (localDCReplicas != null)
-            for (Replica destination : localDCReplicas)
-                MessagingService.instance().sendWriteWithCallback(message, destination, handler);
+            for (Replica replica : localDCReplicas)
+                MessagingService.instance().sendWriteWithCallback(message, replica, handler);
 
         if (remoteDCReplicas != null)
         {

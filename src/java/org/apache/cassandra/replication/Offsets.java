@@ -309,6 +309,7 @@ public class Offsets
         if (size == 0)
         {
             append(start, end);
+            onAdded.consume(logId, start, end);
             return true;
         }
 
@@ -486,24 +487,6 @@ public class Offsets
         Preconditions.checkState(size == 0 || start > bounds[size - 1]);
         bounds[size++] = start;
         bounds[size++] = end;
-    }
-
-    public void append(int offset)
-    {
-        if (size == 0)
-        {
-            append(offset, offset);
-            return;
-        }
-
-        int tail = bounds[size - 1];
-        if (offset <= tail)
-            throw new IllegalArgumentException("Can't append " + offset + " to " + tail);
-
-        if (offset == tail + 1)
-            bounds[size-1] = offset;
-        else
-            append(offset, offset);
     }
 
     public RangeIterator rangeIterator()
@@ -791,7 +774,7 @@ public class Offsets
                 case VALID:
                     state = computeNext();
                     if (!state.isFinished())
-                        break;;
+                        break;
                 case FINISHED:
                     return false;
                 default:

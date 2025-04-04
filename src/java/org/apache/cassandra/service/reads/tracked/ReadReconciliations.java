@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.Clock;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.DISCARD;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
 
 /**
@@ -51,7 +51,7 @@ public class ReadReconciliations implements Shutdownable
     private static final Logger logger = LoggerFactory.getLogger(ReadReconciliations.class);
 
     private final ConcurrentMap<Long, Info> reconciliations = new ConcurrentHashMap<>();
-    private final ScheduledExecutorPlus executor = executorFactory().scheduled("Reconciliation-Map-Reaper", DISCARD);
+    private final ScheduledExecutorPlus executor = executorFactory().scheduled("Reconciliation-Map-Reaper", NORMAL);
 
     private static final AtomicLong lastReconciliationId = new AtomicLong();
 

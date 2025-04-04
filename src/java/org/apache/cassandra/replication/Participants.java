@@ -46,6 +46,11 @@ public class Participants
         return idx;
     }
 
+    boolean contains(int hostId)
+    {
+        return indexOf(hostId) >= 0;
+    }
+
     int get(int idx)
     {
         if (idx < 0 || idx >= hosts.length)
