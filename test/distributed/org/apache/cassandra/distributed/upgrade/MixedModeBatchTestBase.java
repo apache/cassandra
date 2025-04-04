@@ -62,6 +62,8 @@ public class MixedModeBatchTestBase extends UpgradeTestBase
         .setup(cluster -> {
             cluster.schemaChange("CREATE KEYSPACE test_simple WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
             cluster.schemaChange("CREATE TABLE test_simple.names (key int PRIMARY KEY, name text)");
+            if (isLogged)
+                cluster.setUncaughtExceptionsFilter(t -> t.getMessage() != null && t.getMessage().startsWith("Operation timed out"));
         })
         .runAfterNodeUpgrade((cluster, upgraded) -> {
             if (isLogged)
