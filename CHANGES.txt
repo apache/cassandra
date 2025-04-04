@@ -1,4 +1,5 @@
 5.1
+ * Fix TreeMap race in CollectionVirtualTableAdapter causing us to lose rows in the virtual table (CASSANDRA-20524)
  * Improve metadata log catch up with inter-DC mutation forwarding (CASSANDRA-20523)
  * Support topology-safe changes to Datacenter & Rack for live nodes (CASSANDRA-20528)
  * Add SSTableIntervalTree latency metric (CASSANDRA-20502)

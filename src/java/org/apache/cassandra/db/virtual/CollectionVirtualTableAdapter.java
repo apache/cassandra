@@ -31,7 +31,6 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -366,14 +365,16 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
             private Iterator<? extends UnfilteredRowIterator> buildDataRangeIterator(DataRange dataRange,
                                                                                      ColumnFilter columnFilter)
             {
-                NavigableMap<DecoratedKey, NavigableMap<Clustering<?>, Row>> partitionMap = new ConcurrentSkipListMap<>(DecoratedKey.comparator);
-                StreamSupport.stream(data.spliterator(), true)
-                             .map(row -> makeRow(row, columnFilter))
-                             .filter(cr -> dataRange.keyRange().contains(cr.key.get()))
-                             .forEach(cr -> partitionMap.computeIfAbsent(cr.key.get(),
-                                                                         key -> new TreeMap<>(metadata.comparator))
-                                                        .put(cr.clustering, cr.rowSup.get()));
-
+                NavigableMap<DecoratedKey, NavigableMap<Clustering<?>, Row>> partitionMap = new TreeMap<>(DecoratedKey.comparator);
+                for (R row : data)
+                {
+                    CollectionRow cr = makeRow(row, columnFilter);
+                    if (dataRange.keyRange().contains(cr.key.get()))
+                    {
+                        partitionMap.computeIfAbsent(cr.key.get(),
+                                                     key -> new TreeMap<>(metadata.comparator)).put(cr.clustering, cr.rowSup.get());
+                    }
+                }
                 return partitionMap.entrySet().stream().map(
                     e -> new DataRowUnfilteredIterator(e.getKey(), dataRange.clusteringIndexFilter(e.getKey()), columnFilter,
                                                        e.getValue())).iterator();
