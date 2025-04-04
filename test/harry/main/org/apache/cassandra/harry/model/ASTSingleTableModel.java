@@ -294,7 +294,7 @@ public class ASTSingleTableModel
                                          && touchesStaticColumns;
             if (staticColumnDelete
                 && cd == null // partition level, aka deleting static columns (as of this writing delete partition in CAS isn't supported)
-                && ignoredIssues.contains(KnownIssue.CAS_DELETE_STATIC_COLUMN_IF_EXISTS))
+                && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW))
             {
                 // Partition level IF EXISTS checks if the static row exists (which is defined as notEmpty), so its known that the static row is empty!
                 // One would expect that the DELETE just returns [[applied]] but it actually returns a row... but we are not working with rows, we are working with partitions...
@@ -333,6 +333,10 @@ public class ASTSingleTableModel
         }
         else if (condition == CasCondition.Simple.NotExists)
         {
+            if (cd == null // partition level, aka deleting static columns (as of this writing delete partition in CAS isn't supported)
+                && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW)
+                && !partition.rows().isEmpty())
+                row = partition.rows().get(0);
             boolean touchesStaticColumns = !factory.staticColumns.isEmpty()
                                            && symbols(mutation).anyMatch(factory.staticColumns::contains);
             columns = ImmutableUniqueList.<Symbol>builder(factory.selectionOrder.size() + 1)
@@ -345,6 +349,15 @@ public class ASTSingleTableModel
             {
                 for (var s : factory.staticColumns)
                     result[columns.indexOf(s)] = null;
+            }
+
+            if (cd == null
+                && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW)
+                && row != null)
+            {
+                for (var c : factory.regularColumns)
+                    // null out the row columns....
+                    result[columns.indexOf(c)] = null;
             }
 
             expected = new ByteBuffer[][]{ result };
@@ -928,27 +941,9 @@ public class ASTSingleTableModel
         var unexpected = Sets.difference(actual, expected);
         var missing = Sets.difference(expected, actual);
         StringBuilder sb = null;
-        if (!unexpected.isEmpty())
-        {
-            sb = new StringBuilder();
-            sb.append("Unexpected rows found:\n").append(table(columns, unexpected));
-        }
-
-        if (!missing.isEmpty())
-        {
-            if (sb == null)
-            {
-                sb = new StringBuilder();
-            }
-            else
-            {
-                sb.append('\n');
-            }
-            if (actual.isEmpty()) sb.append("No rows returned");
-            else sb.append("Missing rows:\n").append(table(columns, missing));
-        }
         if (!unexpected.isEmpty() && unexpected.size() == missing.size())
         {
+            sb = new StringBuilder();
             // good chance a column differs
             StringBuilder finalSb = sb;
             Runnable runOnce = new Runnable()
@@ -984,6 +979,35 @@ public class ASTSingleTableModel
                 Row eSmall = e.select(smallestDiff);
                 Row aSmall = smallest.select(smallestDiff);
                 sb.append(table(eSmall.columns, Arrays.asList(eSmall, aSmall)));
+            }
+        }
+        else
+        {
+            if (!unexpected.isEmpty())
+            {
+                if (sb == null)
+                {
+                    sb = new StringBuilder();
+                }
+                else
+                {
+                    sb.append('\n');
+                }
+                sb.append("Unexpected rows found:\n").append(table(columns, unexpected));
+            }
+
+            if (!missing.isEmpty())
+            {
+                if (sb == null)
+                {
+                    sb = new StringBuilder();
+                }
+                else
+                {
+                    sb.append('\n');
+                }
+                if (actual.isEmpty()) sb.append("No rows returned");
+                else sb.append("Missing rows:\n").append(table(columns, missing));
             }
         }
         if (sb != null)

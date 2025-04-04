@@ -373,6 +373,8 @@ public class ASTGenerators
         private BiFunction<RandomnessSource, List<Symbol>, List<Symbol>> ifConditionFilter = (rnd, symbols) -> symbols;
         private Gen<DeleteKind> deleteKindGen = SourceDSL.arbitrary().enumValues(DeleteKind.class);
         private Map<Symbol, ExpressionBuilder> columnExpressions = new LinkedHashMap<>();
+        private boolean allowPartitionOnlyUpdate = true;
+        private boolean allowPartitionOnlyInsert = true;
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -389,6 +391,18 @@ public class ASTGenerators
 
             for (Symbol symbol : allColumns)
                 columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder withAllowPartitionOnlyUpdate(boolean value)
+        {
+            this.allowPartitionOnlyUpdate = value;
+            return this;
+        }
+
+        public MutationGenBuilder withAllowPartitionOnlyInsert(boolean value)
+        {
+            this.allowPartitionOnlyInsert = value;
+            return this;
         }
 
         public MutationGenBuilder withColumnExpressions(Consumer<ExpressionBuilder> fn)
@@ -572,6 +586,12 @@ public class ASTGenerators
                         if (timestamp.isPresent())
                             builder.timestamp(valueGen(timestamp.getAsLong(), LongType.instance).generate(rnd));
                         values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+                        if (!staticColumns.isEmpty() && allowPartitionOnlyInsert && bool.generate(rnd))
+                        {
+                            var columnsToGenerate = new LinkedHashSet<>(subset(rnd, staticColumns));
+                            generateRemaining(rnd, bool, Mutation.Kind.INSERT, isTransaction, typeToReference, builder, columnsToGenerate);
+                            return builder.build();
+                        }
                         values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
                         LinkedHashSet<Symbol> columnsToGenerate;
                         if (regularAndStaticColumns.isEmpty())
@@ -613,6 +633,14 @@ public class ASTGenerators
                             }
                         }
                         values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+
+                        if (!staticColumns.isEmpty() && allowPartitionOnlyUpdate && bool.generate(rnd))
+                        {
+                            var columnsToGenerate = new LinkedHashSet<>(subset(rnd, staticColumns));
+                            Conditional.EqBuilder<Mutation.UpdateBuilder> setBuilder = builder::set;
+                            generateRemaining(rnd, bool, Mutation.Kind.UPDATE, isTransaction, typeToReference, setBuilder, columnsToGenerate);
+                            return builder.build();
+                        }
                         values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
 
                         LinkedHashSet<Symbol> columnsToGenerate;

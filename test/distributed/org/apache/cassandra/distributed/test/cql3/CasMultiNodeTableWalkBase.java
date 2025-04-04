@@ -78,7 +78,8 @@ public abstract class CasMultiNodeTableWalkBase extends MultiNodeTableWalkBase
         @Override
         protected Gen<Mutation> toMutationGen(ASTGenerators.MutationGenBuilder mutationGenBuilder)
         {
-            mutationGenBuilder.withCasGen(i -> true);
+            mutationGenBuilder.withCasGen(i -> true)
+                              .withAllowPartitionOnlyUpdate(false); // CAS requires full partition for INSERT/UPDATE (but not DELETE static columns)
             // generator might not always generate a cas statement... should fix generator!
             Gen<Mutation> gen = toGen(mutationGenBuilder.build()).filter(Mutation::isCas);
             if (metadata.regularAndStaticColumns().stream().anyMatch(c -> c.type.isUDT())
