@@ -46,4 +46,6 @@ public interface CMSOperationsMBean
     public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind);
 
     public void unregisterLeftNodes(List<String> nodeIds);
+    public Map<Long, Map<String, String>> dumpDirectory(boolean includeTokens);
+    public Map<Long, Map<String, String>> dumpLog(long startEpoch, long endEpoch);
 }
