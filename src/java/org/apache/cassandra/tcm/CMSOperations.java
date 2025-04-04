@@ -31,6 +31,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.virtual.ClusterMetadataDirectoryTable;
+import org.apache.cassandra.db.virtual.ClusterMetadataLogTable;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -260,5 +262,30 @@ public class CMSOperations implements CMSOperationsMBean
             logger.info("Unregistering " + nodeId);
             cms.commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT), ClusterMetadataService.instance().placementProvider()));
         }
+    }
+
+    public Map<Long, Map<String, String>> dumpDirectory(boolean tokens)
+    {
+        Map<Long, Map<String, Object>> directory = ClusterMetadataDirectoryTable.directory(tokens);
+        return convertToStringValues(directory);
+    }
+
+    public Map<Long, Map<String, String>> dumpLog(long startEpoch, long endEpoch)
+    {
+        Map<Long, Map<String, Object>> log = ClusterMetadataLogTable.log(startEpoch, endEpoch);
+        return convertToStringValues(log);
+    }
+
+    private Map<Long, Map<String, String>> convertToStringValues(Map<Long, Map<String, Object>> log)
+    {
+        Map<Long, Map<String, String>> res = new LinkedHashMap<>();
+        for (Map.Entry<Long, Map<String, Object>> outerEntry : log.entrySet())
+        {
+            Map<String, String> rowRes = new HashMap<>();
+            for (Map.Entry<String, Object> row : outerEntry.getValue().entrySet())
+                rowRes.put(row.getKey(), row.getValue().toString());
+            res.put(outerEntry.getKey(), rowRes);
+        }
+        return res;
     }
 }

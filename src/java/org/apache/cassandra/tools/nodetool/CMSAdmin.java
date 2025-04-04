@@ -18,14 +18,19 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
@@ -206,5 +211,50 @@ public abstract class CMSAdmin extends NodeTool.NodeToolCmd
         {
             probe.getCMSOperationsProxy().abortInitialization(initiator);
         }
+    }
+
+    @Command(name = "dumpdirectory", description = "Dump the directory from the current ClusterMetadata")
+    public static class DumpDirectory extends NodeTool.NodeToolCmd
+    {
+        @Option(name = "--tokens", title = "Include tokens", description = "Include tokens in output")
+        public boolean tokens = false;
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            output(probe.output().out, "NodeId", probe.getCMSOperationsProxy().dumpDirectory(tokens));
+        }
+    }
+
+    @Command(name = "dumplog", description = "Dump the metadata log")
+    public static class DumpLog extends NodeTool.NodeToolCmd
+    {
+        @Option(name = "--start", title = "Start epoch")
+        long startEpoch = Epoch.FIRST.getEpoch();
+        @Option(name = "--end", title = "End epoch")
+        long endEpoch = Long.MAX_VALUE;
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            output(probe.output().out, "Epoch", probe.getCMSOperationsProxy().dumpLog(startEpoch, endEpoch));
+        }
+    }
+
+    private static void output(PrintStream out, String title, Map<Long, Map<String, String>> map)
+    {
+        if (map.isEmpty())
+            return;
+        int keywidth = keywidth(map);
+        for (Long key : ImmutableList.sortedCopyOf(map.keySet()))
+        {
+            out.println(title + ": " + key);
+            for (Map.Entry<String, String> nodeEntry : map.get(key).entrySet())
+                out.printf("  %-" + keywidth + "s%s%n", nodeEntry.getKey(), nodeEntry.getValue());
+        }
+    }
+
+    private static int keywidth(Map<?, Map<String, String>> map)
+    {
+        assert !map.isEmpty();
+        return map.entrySet().iterator().next().getValue().keySet().stream().max(Comparator.comparingInt(String::length)).get().length() + 1;
     }
 }
