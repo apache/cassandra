@@ -37,4 +37,9 @@ public interface Value extends Expression
     {
         return v.visit(this);
     }
+
+    default String debugCQL()
+    {
+        return visit(StandardVisitors.DEBUG).toCQL();
+    }
 }

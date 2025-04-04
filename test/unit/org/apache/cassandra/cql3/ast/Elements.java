@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cql3.ast;
 
+import java.util.stream.Stream;
+
 public final class Elements
 {
     private Elements()
@@ -28,5 +30,12 @@ public final class Elements
         sb.append('\n');
         for (int i = 0; i < indent; i++)
             sb.append(' ');
+    }
+
+    public static Stream<Symbol> symbols(Element element)
+    {
+        return element.streamRecursive(true)
+                      .filter(e -> e instanceof Symbol)
+                      .map(e -> (Symbol) e);
     }
 }

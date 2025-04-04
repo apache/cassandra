@@ -50,6 +50,11 @@ public interface Conditional extends Expression
         return v.visit(this);
     }
 
+    default String debugCQL()
+    {
+        return visit(StandardVisitors.DEBUG).toCQL();
+    }
+
     default List<Conditional> simplify()
     {
         return Collections.singletonList(this);

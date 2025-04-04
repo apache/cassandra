@@ -43,6 +43,8 @@ public enum KnownIssue
                            "When doing an SAI query, if the where clause also contains a vector column bad results can be produced"),
     CAS_CONDITION_ON_UDT_W_EMPTY_BYTES("https://issues.apache.org/jira/browse/CASSANDRA-20479",
                                        "WHERE clause blocks operations on UDTs but CAS allows in IF clause.  During this path empty can be confused with null which allows non-existing rows to match empty bytes"),
+    CAS_DELETE_STATIC_COLUMN_IF_EXISTS("",
+                                       "When you do a DELETE s0 FROM tbl WHERE pk=? IF EXISTS, if the CAS doesn't apply the response includes the first row in the partition with its values redacted... this statement is partition level and not row level, would expect just the applied column like the other cases where the static row isn't present"),
     ;
 
     KnownIssue(String url, String description)

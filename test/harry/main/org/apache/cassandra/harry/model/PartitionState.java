@@ -236,8 +236,12 @@ public class PartitionState implements Iterable<PartitionState.RowState>
                 {
                     // Timestamp collision case
                     Bijections.Bijection<?> column = columns.apply(i);
-                    if (column.compare(vds[i], currentState.vds[i]) > 0)
+                    if (vds[i] == MagicConstants.NIL_DESCR // writing a null is the same as a tombstone, which has higher priority
+                        || (currentState.vds[i] != MagicConstants.NIL_DESCR
+                            && column.compare(vds[i], currentState.vds[i]) > 0))
+                    {
                         currentState.vds[i] = vds[i];
+                    }
                 }
                 else
                 {

@@ -103,4 +103,10 @@ public class Operator implements Expression
         if (left == this.left && right == this.right) return this;
         return new Operator(kind, left, right);
     }
+
+    @Override
+    public String toString()
+    {
+        return visit(StandardVisitors.DEBUG).toCQL();
+    }
 }

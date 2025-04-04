@@ -20,8 +20,8 @@ package org.apache.cassandra.harry.model;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -31,6 +31,8 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.db.Clustering;
@@ -44,6 +46,7 @@ import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 
@@ -62,31 +65,36 @@ public class BytesPartitionState
         this.state = factory.partitionState(key);
     }
 
-    public void deleteRow(Clustering<ByteBuffer> clustering)
+    public void deleteRow(Clustering<ByteBuffer> clustering, long ts)
     {
         long cd = factory.clusteringCache.deflateOrUndefined(clustering);
         if (MagicConstants.UNSET_DESCR == cd)
             return;
-        state.delete(cd, MagicConstants.NO_TIMESTAMP);
+        deleteRow(cd, ts);
     }
 
-    public void deleteColumns(Clustering<ByteBuffer> clustering, Set<Symbol> columns)
+    private void deleteRow(long cd, long ts)
+    {
+        state.delete(cd, ts);
+    }
+
+    public void deleteColumns(Clustering<ByteBuffer> clustering, long ts, Set<Symbol> columns)
     {
         long cd = factory.clusteringCache.deflateOrUndefined(clustering);
         if (cd != MagicConstants.UNSET_DESCR)
         {
             BitSet regularColumns = bitset(columns, true);
             if (!regularColumns.allUnset())
-                state.deleteRegularColumns(MagicConstants.NO_TIMESTAMP, cd, regularColumns);
+                state.deleteRegularColumns(ts, cd, regularColumns);
         }
-        deleteStaticColumns(columns);
+        deleteStaticColumns(ts, columns);
     }
 
-    public void deleteStaticColumns(Set<Symbol> columns)
+    public void deleteStaticColumns(long ts, Set<Symbol> columns)
     {
         BitSet staticColumns = bitset(columns, false);
         if (!staticColumns.allUnset())
-            state.deleteStaticColumns(MagicConstants.NO_TIMESTAMP, staticColumns);
+            state.deleteStaticColumns(ts, staticColumns);
     }
 
     private BitSet bitset(Set<Symbol> columns, boolean regular)
@@ -109,28 +117,27 @@ public class BytesPartitionState
 
     public PrimaryKey partitionRowRef()
     {
-        return new PrimaryKey(ref(), null);
+        return new PrimaryKey(factory, ref(), null);
     }
 
-    public void setStaticColumns(Map<Symbol, ByteBuffer> values)
+    public void setStaticColumns(long ts, Map<Symbol, ByteBuffer> values)
     {
         if (factory.staticColumns.isEmpty() || values.isEmpty())
             throw new IllegalStateException("Attempt to write to static columns; but they do not exist");
-        long[] sds = toDescriptor(factory.staticColumns, values);
-        state.writeStatic(sds, MagicConstants.NO_TIMESTAMP);
+
+        state.writeStatic(toDescriptor(factory.staticColumns, values), ts);
     }
 
-    public void setColumns(Clustering<ByteBuffer> clustering, Map<Symbol, ByteBuffer> values, boolean writePrimaryKeyLiveness)
+    public void setColumns(Clustering<ByteBuffer> clustering, long ts, Map<Symbol, ByteBuffer> values, boolean writePrimaryKeyLiveness)
     {
         long cd = factory.clusteringCache.deflate(clustering);
-        long[] vds = toDescriptor(factory.regularColumns, values);
-        state.writeRegular(cd, vds, MagicConstants.NO_TIMESTAMP, writePrimaryKeyLiveness);
+        state.writeRegular(cd, toDescriptor(factory.regularColumns, values), ts, writePrimaryKeyLiveness);
 
         // UDT's have the ability to "update" that triggers a delete; this allows creating an "empty" row.
         // When an empty row exists without liveness info, then purge the row
         var row = state.rows.get(cd);
         if (row.isEmpty() && !row.hasPrimaryKeyLivenessInfo)
-            state.delete(cd, MagicConstants.NO_TIMESTAMP);
+            deleteRow(cd, ts);
     }
 
     private long[] toDescriptor(ImmutableUniqueList<Symbol> positions, Map<Symbol, ByteBuffer> values)
@@ -200,6 +207,8 @@ public class BytesPartitionState
     @Nullable
     public Row get(Clustering<ByteBuffer> clustering)
     {
+        if (clustering == Clustering.STATIC_CLUSTERING)
+            return staticRow();
         long cd = factory.clusteringCache.deflateOrUndefined(clustering);
         if (cd == MagicConstants.UNSET_DESCR)
             return null;
@@ -216,6 +225,12 @@ public class BytesPartitionState
         return row == null ? null : row.get(column);
     }
 
+    public long timestamp(Clustering<ByteBuffer> clustering, Symbol column)
+    {
+        Row row = get(clustering);
+        return row == null ? MagicConstants.NO_TIMESTAMP : row.timestamp(column);
+    }
+
     private Row toRow(PartitionState.RowState rowState)
     {
         Clustering<ByteBuffer> clustering;
@@ -230,10 +245,10 @@ public class BytesPartitionState
             clustering = factory.clusteringCache.inflate(rowState.cd);
             values = fromDescriptor(factory.regularColumns, rowState.vds);
         }
-        return new Row(clustering, values);
+        return new Row(clustering, values, rowState.lts);
     }
 
-    public Collection<Row> rows()
+    public List<Row> rows()
     {
         return state.rows().values().stream().map(this::toRow).collect(Collectors.toList());
     }
@@ -281,16 +296,24 @@ public class BytesPartitionState
             sb.append(')');
     }
 
-    public class PrimaryKey implements Comparable<PrimaryKey>
+    public static class PrimaryKey implements Comparable<PrimaryKey>
     {
+        private final Factory factory;
         public final BytesPartitionState.Ref partition;
         @Nullable
         public final Clustering<ByteBuffer> clustering;
 
-        public PrimaryKey(BytesPartitionState.Ref partition, @Nullable Clustering<ByteBuffer> clustering)
+        private PrimaryKey(Factory factory, BytesPartitionState.Ref partition, @Nullable Clustering<ByteBuffer> clustering)
         {
+            this.factory = factory;
             this.partition = partition;
             this.clustering = clustering;
+        }
+
+        public boolean isPartitionLevel()
+        {
+            return clustering == null                       // has clustering, but only referencing partition
+                   || Clustering.EMPTY.equals(clustering);  // doesn't have clustering
         }
 
         @Override
@@ -324,7 +347,8 @@ public class BytesPartitionState
             StringBuilder sb = new StringBuilder("(partition=");
             sb.append(partition);
             sb.append(", clustering=");
-            appendValues(sb, factory.clusteringColumns, clustering);
+            if (clustering == null) sb.append("null");
+            else                    appendValues(sb, factory.clusteringColumns, clustering);
             sb.append(')');
             return sb.toString();
         }
@@ -415,12 +439,22 @@ public class BytesPartitionState
         public final Clustering<ByteBuffer> clustering;
         private final ImmutableUniqueList<Symbol> columnNames;
         private final ByteBuffer[] columns;
+        private final long[] lts;
 
-        private Row(Clustering<ByteBuffer> clustering, ByteBuffer[] columns)
+        private Row(Clustering<ByteBuffer> clustering, ByteBuffer[] columns, long[] lts)
         {
             this.clustering = clustering;
             this.columnNames = clustering == Clustering.STATIC_CLUSTERING ? factory.staticColumns : factory.regularColumns;
             this.columns = columns;
+            this.lts = lts;
+        }
+
+        private Row(Clustering<ByteBuffer> clustering, ImmutableUniqueList<Symbol> columnNames, ByteBuffer[] columns, long[] lts)
+        {
+            this.clustering = clustering;
+            this.columnNames = columnNames;
+            this.columns = columns;
+            this.lts = lts;
         }
 
         public ByteBuffer get(Symbol col)
@@ -433,14 +467,49 @@ public class BytesPartitionState
             return columns[offset];
         }
 
+        public long timestamp(Symbol col)
+        {
+            return lts[columnNames.indexOf(col)];
+        }
+
+        public long timestamp(int offset)
+        {
+            return lts[offset];
+        }
+
         public PrimaryKey ref()
         {
-            return new PrimaryKey(BytesPartitionState.this.ref(), clustering);
+            return new PrimaryKey(factory, BytesPartitionState.this.ref(), clustering);
         }
 
         public boolean isEmpty()
         {
             return Stream.of(columns).allMatch(b -> b == null );
+        }
+
+        public Row select(List<Symbol> selection)
+        {
+            if (columnNames.equals(selection)) return this;
+            selection = validateSelect(selection);
+            ByteBuffer[] selected = new ByteBuffer[selection.size()];
+            ImmutableUniqueList.Builder<Symbol> names = ImmutableUniqueList.builder(selected.length);
+            for (int i = 0; i < selection.size(); i++)
+            {
+                Symbol col = selection.get(i);
+                selected[i] = columns[columnNames.indexOf(col)];
+                names.add(col);
+            }
+
+            return new Row(clustering, names.build(), selected, lts);
+        }
+
+        private List<Symbol> validateSelect(List<Symbol> selection)
+        {
+            LinkedHashSet<Symbol> uniqueSelection = new LinkedHashSet<>(selection);
+            var unknown = Sets.difference(uniqueSelection, columnNames.asSet());
+            if (!unknown.isEmpty())
+                throw new AssertionError("Unable to select columns " + selection + "; has unknown columns " + unknown);
+            return uniqueSelection.size() == selection.size() ? selection : new ArrayList<>(uniqueSelection);
         }
     }
 
@@ -452,14 +521,19 @@ public class BytesPartitionState
         public final ImmutableUniqueList<Symbol> primaryColumns;
         public final ImmutableUniqueList<Symbol> staticColumns;
         public final ImmutableUniqueList<Symbol> regularColumns;
-        public final ImmutableUniqueList<Symbol> selectionOrder, partitionAndStaticColumns, regularAndStaticColumns;
+        public final ImmutableUniqueList<Symbol> selectionOrder, partitionAndStaticColumns, clusteringAndRegularColumns, regularAndStaticColumns;
         public final ClusteringComparator clusteringComparator;
 
 
         // translation layer for harry interop
         private final BijectionCache<Clustering<ByteBuffer>> partitionCache = new BijectionCache<>(Reject.instance.as());
         private final BijectionCache<Clustering<ByteBuffer>> clusteringCache;
-        private final BijectionCache<Value> valueCache = new BijectionCache<>(Reject.instance.as());
+        private final BijectionCache<Value> valueCache = new BijectionCache<>((l, r) -> {
+            if (!l.type.equals(r.type))
+                throw new IllegalArgumentException("Unable to compare different types: " + l.type.asCQL3Type() + " != " + r.type.asCQL3Type());
+            // Cells resolve based off unsigned byte order and not type order
+            return ByteBufferUtil.compareUnsigned(l.value, r.value);
+        });
         private final ValueGenerators<Clustering<ByteBuffer>, Clustering<ByteBuffer>> valueGenerators;
 
         public Factory(TableMetadata metadata)
@@ -475,27 +549,27 @@ public class BytesPartitionState
             if (clusteringColumns.isEmpty()) primaryColumns = partitionColumns;
             else
             {
-                symbolListBuilder.addAll(partitionColumns);
-                symbolListBuilder.addAll(clusteringColumns);
-                primaryColumns = symbolListBuilder.buildAndClear();
+                primaryColumns = symbolListBuilder.addAll(partitionColumns)
+                                                  .addAll(clusteringColumns)
+                                                  .buildAndClear();
             }
-            for (ColumnMetadata pk : metadata.staticColumns())
-                symbolListBuilder.add(Symbol.from(pk));
+            metadata.staticColumns().selectOrderIterator().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
             staticColumns = symbolListBuilder.buildAndClear();
             if (staticColumns.isEmpty()) partitionAndStaticColumns = partitionColumns;
             else
             {
-                symbolListBuilder.addAll(partitionColumns);
-                symbolListBuilder.addAll(staticColumns);
-                partitionAndStaticColumns = symbolListBuilder.buildAndClear();
+                partitionAndStaticColumns = symbolListBuilder.addAll(partitionColumns)
+                                                             .addAll(staticColumns)
+                                                             .buildAndClear();
             }
-            for (ColumnMetadata pk : metadata.regularColumns())
-                symbolListBuilder.add(Symbol.from(pk));
+            metadata.regularColumns().selectOrderIterator().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
             regularColumns = symbolListBuilder.buildAndClear();
+            clusteringAndRegularColumns = symbolListBuilder.addAll(clusteringColumns)
+                                                           .addAll(regularColumns)
+                                                           .buildAndClear();
             metadata.allColumnsInSelectOrder().forEachRemaining(cm -> symbolListBuilder.add(Symbol.from(cm)));
             selectionOrder = symbolListBuilder.buildAndClear();
-            metadata.regularAndStaticColumns().forEach(cm -> symbolListBuilder.add(Symbol.from(cm)));
-            regularAndStaticColumns = symbolListBuilder.buildAndClear();
+            regularAndStaticColumns = symbolListBuilder.addAll(staticColumns).addAll(regularColumns).buildAndClear();
 
             clusteringComparator = new ClusteringComparator(clusteringColumns.stream().map(Symbol::rawType).collect(Collectors.toList()));
 
@@ -567,6 +641,11 @@ public class BytesPartitionState
         public BytesPartitionState.Ref createRef(Token token, boolean nullKeyGtMatchingToken)
         {
             return new BytesPartitionState.Ref(this, token, nullKeyGtMatchingToken);
+        }
+
+        public PrimaryKey createPrimaryKey(Ref pk, @Nullable Clustering<ByteBuffer> cd)
+        {
+            return new BytesPartitionState.PrimaryKey(this, pk, cd);
         }
 
         private PartitionState partitionState(Clustering<ByteBuffer> key)

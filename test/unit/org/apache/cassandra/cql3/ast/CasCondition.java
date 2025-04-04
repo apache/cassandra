@@ -24,6 +24,11 @@ public interface CasCondition extends Element
 {
     CasCondition visit(Visitor v);
 
+    default String debugCQL()
+    {
+        return visit(StandardVisitors.DEBUG).toCQL();
+    }
+
     enum Simple implements CasCondition
     {
         NotExists("IF NOT EXISTS"),
@@ -79,6 +84,12 @@ public interface CasCondition extends Element
             var c = conditional.visit(v);
             if (c == conditional) return this;
             return new IfCondition(c);
+        }
+
+        @Override
+        public String toString()
+        {
+            return toCQL();
         }
     }
 }
