@@ -21,15 +21,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import com.google.common.base.Preconditions;
+import javax.annotation.Nullable;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -41,29 +43,26 @@ public abstract class CoordinatorLog
     protected final CoordinatorLogId logId;
     protected final Participants participants;
 
-    /**
-     * State machines and an Id <-> token index for unreconciled mutation ids that exist oh this host.
-     */
-    private final LocalMutationStates unreconciledMutations;
+    protected final Offsets.Mutable[] witnessedOffsets;
+    protected final Offsets.Mutable reconciledOffsets;
 
-    protected final Offsets.Mutable[] witnessedIds;
-    protected final Offsets.Mutable reconciledIds;
     protected final ReadWriteLock lock;
+
+    abstract UnreconciledMutations unreconciledMutations();
 
     CoordinatorLog(int localHostId, CoordinatorLogId logId, Participants participants)
     {
         this.localHostId = localHostId;
         this.logId = logId;
         this.participants = participants;
-        this.unreconciledMutations = new LocalMutationStates();
         this.lock = new ReentrantReadWriteLock();
 
         Offsets.Mutable[] ids = new Offsets.Mutable[participants.size()];
         for (int i = 0; i < participants.size(); i++)
             ids[i] = new Offsets.Mutable(logId);
 
-        witnessedIds = ids;
-        reconciledIds = new Offsets.Mutable(logId);
+        witnessedOffsets = ids;
+        reconciledOffsets = new Offsets.Mutable(logId);
     }
 
     static CoordinatorLog create(int localHostId, CoordinatorLogId id, Participants participants)
@@ -72,7 +71,7 @@ public abstract class CoordinatorLog
                                         : new CoordinatorLogReplica(localHostId, id, participants);
     }
 
-    void witnessedRemoteMutation(MutationId mutationId, int onHostId)
+    void receivedWriteResponse(MutationId mutationId, int onHostId)
     {
         Preconditions.checkArgument(!mutationId.isNone());
         logger.trace("witnessed remote mutation {} from {}", mutationId, onHostId);
@@ -80,31 +79,62 @@ public abstract class CoordinatorLog
         try
         {
             if (!get(onHostId).add(mutationId.offset()))
-                return; // already witnessed
+                return; // already witnessed; very uncommon but possible path
 
             if (!getLocal().contains(mutationId.offset()))
-                return; // local host hasn't witnessed -> no cleanup needed
+                return; // local host hasn't witnessed yet -> no cleanup needed
 
-            // see if any other replicas haven't witnessed the id yet
-            boolean allOtherReplicasWitnessed = true;
-            for (int i = 0; i < participants.size() && allOtherReplicasWitnessed; i++)
-            {
-                int hostId = participants.get(i);
-                if (hostId != onHostId && hostId != localHostId && !get(hostId).contains(mutationId.offset()))
-                    allOtherReplicasWitnessed = false;
-            }
-
-            if (allOtherReplicasWitnessed)
+            if (hasWrittenToRemoteReplicas(mutationId.offset()))
             {
                 logger.trace("marking mutation {} as fully reconciled", mutationId);
                 // if all replicas have now witnessed the id, remove it from the index
-                unreconciledMutations.remove(mutationId.offset());
-                reconciledIds.add(mutationId.offset());
+                unreconciledMutations().remove(mutationId.offset());
+                reconciledOffsets.add(mutationId.offset());
             }
         }
         finally
         {
             lock.writeLock().unlock();
+        }
+    }
+
+    void updateReplicatedOffsets(Offsets offsets, int onHostId)
+    {
+        lock.writeLock().lock();
+        try
+        {
+            get(onHostId).addAll(offsets, (ignore, start, end) ->
+            {
+                for (int offset = start; offset <= end; ++offset)
+                {
+                    // TODO (desired): skip checking the host's offsets - all just added
+                    // TODO (desired): use the fact that Offsets are ordered to optimise this look up
+                    if (hasWrittenLocally(offset) && hasWrittenToRemoteReplicas(offset))
+                    {
+                        reconciledOffsets.add(offset);
+                        unreconciledMutations().remove(offset);
+                    }
+                }
+            });
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    @Nullable
+    Offsets.Immutable collectReplicatedOffsets()
+    {
+        lock.readLock().lock();
+        try
+        {
+            Offsets offsets = witnessedOffsets[participants.indexOf(localHostId)];
+            return offsets.isEmpty() ? null : Offsets.Immutable.copy(offsets);
+        }
+        finally
+        {
+            lock.readLock().unlock();
         }
     }
 
@@ -116,7 +146,7 @@ public abstract class CoordinatorLog
             if (getLocal().contains(mutation.id().offset()))
                 return; // already witnessed; shouldn't get to this path often (duplicate mutation)
 
-            unreconciledMutations.startWriting(mutation);
+            unreconciledMutations().startWriting(mutation);
         }
         finally
         {
@@ -127,32 +157,42 @@ public abstract class CoordinatorLog
     void finishWriting(Mutation mutation)
     {
         logger.trace("witnessed local mutation {}", mutation.id());
+
         lock.writeLock().lock();
         try
         {
-            if (!getLocal().add(mutation.id().offset()))
-                throw new IllegalStateException("finishWriting() called on a reconciled mutation");
+            int offset = mutation.id().offset();
+            if (!getLocal().add(offset))
+                throw new IllegalStateException("finishWriting() called on a locally witnessed mutation " + mutation.id());
 
-            // see if any other replicas haven't witnessed the id yet
-            boolean allOtherReplicasWitnessed = true;
-            for (int i = 0; i < participants.size() && allOtherReplicasWitnessed; i++)
+            unreconciledMutations().finishWriting(mutation);
+
+            if (hasWrittenToRemoteReplicas(offset))
             {
-                int hostId = participants.get(i);
-                if (hostId != localHostId && !get(hostId).contains(mutation.id().offset()))
-                    allOtherReplicasWitnessed = false;
+                reconciledOffsets.add(offset);
+                unreconciledMutations().remove(offset);
             }
-
-            // if some replicas also haven't witnessed the mutation yet, we should update local mutation state;
-            // otherwise we are the last node to witness this mutation, and can clean it up
-            if (allOtherReplicasWitnessed)
-                reconciledIds.add(mutation.id().offset());
-            else
-                unreconciledMutations.finishWriting(mutation);
         }
         finally
         {
             lock.writeLock().unlock();
         }
+    }
+
+    private boolean hasWrittenLocally(int offset)
+    {
+        return getLocal().contains(offset);
+    }
+
+    private boolean hasWrittenToRemoteReplicas(int offset)
+    {
+        for (int i = 0; i < participants.size(); ++i)
+        {
+            int hostId = participants.get(i);
+            if (hostId != localHostId && !get(hostId).contains(offset))
+                return false;
+        }
+        return true;
     }
 
     /**
@@ -164,8 +204,8 @@ public abstract class CoordinatorLog
         lock.readLock().lock();
         try
         {
-            reconciledInto.addAll(reconciledIds);
-            return unreconciledMutations.collect(token, tableId, includePending, unreconciledInto);
+            reconciledInto.addAll(reconciledOffsets);
+            return unreconciledMutations().collect(token, tableId, includePending, unreconciledInto);
         }
         finally
         {
@@ -182,8 +222,8 @@ public abstract class CoordinatorLog
         lock.readLock().lock();
         try
         {
-            reconciledInto.addAll(reconciledIds);
-            return unreconciledMutations.collect(range, tableId, includePending, unreconciledInto);
+            reconciledInto.addAll(reconciledOffsets);
+            return unreconciledMutations().collect(range, tableId, includePending, unreconciledInto);
         }
         finally
         {
@@ -193,21 +233,29 @@ public abstract class CoordinatorLog
 
     protected Offsets.Mutable get(int hostId)
     {
-        return witnessedIds[participants.indexOf(hostId)];
+        return witnessedOffsets[participants.indexOf(hostId)];
     }
 
     protected Offsets.Mutable getLocal()
     {
-        return witnessedIds[participants.indexOf(localHostId)];
+        return witnessedOffsets[participants.indexOf(localHostId)];
     }
 
     public static class CoordinatorLogPrimary extends CoordinatorLog
     {
-        AtomicLong sequenceId = new AtomicLong(-1);
+        private final AtomicLong sequenceId = new AtomicLong(-1);
+        private final UnreconciledMutationsReplica unreconciledMutations;
 
         CoordinatorLogPrimary(int localHostId, CoordinatorLogId logId, Participants participants)
         {
             super(localHostId, logId, participants);
+            unreconciledMutations = new UnreconciledMutationsReplica();
+        }
+
+        @Override
+        UnreconciledMutationsReplica unreconciledMutations()
+        {
+            return unreconciledMutations;
         }
 
         MutationId nextId()
@@ -235,9 +283,18 @@ public abstract class CoordinatorLog
 
     public static class CoordinatorLogReplica extends CoordinatorLog
     {
+        private final UnreconciledMutationsReplica unreconciledMutations;
+
         CoordinatorLogReplica(int localHostId, CoordinatorLogId logId, Participants participants)
         {
             super(localHostId, logId, participants);
+            this.unreconciledMutations = new UnreconciledMutationsReplica();
+        }
+
+        @Override
+        UnreconciledMutationsReplica unreconciledMutations()
+        {
+            return unreconciledMutations;
         }
     }
 }

@@ -402,7 +402,7 @@ public class ForwardedWrite
         {
             // Local mutations are witnessed from Keyspace.applyInternalTracked
             if (msg != null)
-                MutationTrackingService.instance.witnessedRemoteMutation(keyspace, token, id, msg.from());
+                MutationTrackingService.instance.receivedWriteResponse(keyspace, token, id, msg.from());
 
             // Local write needs to be ack'd to coordinator
             if (msg == null && ackTo != null)

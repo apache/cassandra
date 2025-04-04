@@ -18,29 +18,43 @@
 package org.apache.cassandra.replication;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.agrona.collections.IntArrayList;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 
 // TODO (expected): persistence (handle restarts)
 // TODO (expected): handle topology changes
@@ -50,6 +64,7 @@ public class MutationTrackingService
     public static final MutationTrackingService instance = new MutationTrackingService();
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
+    private final ReplicatedOffsetsBroadcaster broadcaster = new ReplicatedOffsetsBroadcaster();
     private final ConcurrentHashMap<String, KeyspaceShards> shards = new ConcurrentHashMap<>();
 
     private volatile boolean started = false;
@@ -67,6 +82,9 @@ public class MutationTrackingService
         for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
             if (keyspace.useMutationTracking())
                 shards.put(keyspace.name, KeyspaceShards.make(keyspace, metadata, this::nextHostLogId));
+
+        broadcaster.start();
+
         started = true;
     }
 
@@ -92,10 +110,15 @@ public class MutationTrackingService
         return id;
     }
 
-    public void witnessedRemoteMutation(String keyspace, Token token, MutationId mutationId, InetAddressAndPort onHost)
+    public void receivedWriteResponse(String keyspace, Token token, MutationId mutationId, InetAddressAndPort onHost)
     {
         Preconditions.checkArgument(!mutationId.isNone());
-        getOrCreate(keyspace).witnessedRemoteMutation(token, mutationId, onHost);
+        getOrCreate(keyspace).receivedWriteResponse(token, mutationId, onHost);
+    }
+
+    public void updateReplicatedOffsets(String keyspace, Range<Token> range, List<? extends Offsets> offsets, InetAddressAndPort onHost)
+    {
+        getOrCreate(keyspace).updateReplicatedOffsets(range, offsets, onHost);
     }
 
     public void startWriting(Mutation mutation)
@@ -123,6 +146,12 @@ public class MutationTrackingService
     public MutationSummary createSummaryForRange(Range<Token> range, TableId tableId, boolean includePending)
     {
         return createSummaryForRange(Range.makeRowRange(range), tableId, includePending);
+    }
+
+    void forEachKeyspace(Consumer<KeyspaceShards> consumer)
+    {
+        for (KeyspaceShards keyspaceShards : shards.values())
+            consumer.accept(keyspaceShards);
     }
 
     private KeyspaceShards getOrCreate(TableId tableId)
@@ -161,11 +190,13 @@ public class MutationTrackingService
             Preconditions.checkArgument(keyspace.params.replicationType.isTracked());
             Map<Range<Token>, Shard> shards = new HashMap<>();
             cluster.placements.get(keyspace.params.replication).writes.forEach((tokenRange, forRange) -> {
-               IntArrayList participants = new IntArrayList(forRange.size(), IntArrayList.DEFAULT_NULL_VALUE);
-               for (InetAddressAndPort endpoint : forRange.endpoints())
-                   participants.add(cluster.directory.peerId(endpoint).id());
-               Shard shard = new Shard(keyspace.name, tokenRange, cluster.myNodeId().id(), new Participants(participants), forRange.lastModified(), logIdProvider);
-               shards.put(tokenRange, shard);
+                if (!forRange.endpoints().contains(FBUtilities.getBroadcastAddressAndPort()))
+                    return;
+                IntArrayList participants = new IntArrayList(forRange.size(), IntArrayList.DEFAULT_NULL_VALUE);
+                for (InetAddressAndPort endpoint : forRange.endpoints())
+                    participants.add(cluster.directory.peerId(endpoint).id());
+                Shard shard = new Shard(keyspace.name, tokenRange, cluster.myNodeId().id(), new Participants(participants), forRange.lastModified(), logIdProvider);
+                shards.put(tokenRange, shard);
             });
             return new KeyspaceShards(keyspace.name, shards);
         }
@@ -184,9 +215,14 @@ public class MutationTrackingService
             return lookUp(token).nextId();
         }
 
-        void witnessedRemoteMutation(Token token, MutationId mutationId, InetAddressAndPort onHost)
+        void receivedWriteResponse(Token token, MutationId mutationId, InetAddressAndPort onHost)
         {
-            lookUp(token).witnessedRemoteMutation(mutationId, onHost);
+            lookUp(token).receivedWriteResponse(mutationId, onHost);
+        }
+
+        void updateReplicatedOffsets(Range<Token> range, List<? extends Offsets> offsets, InetAddressAndPort onHost)
+        {
+            shards.get(range).updateReplicatedOffsets(offsets, onHost);
         }
 
         void startWriting(Mutation mutation)
@@ -224,6 +260,12 @@ public class MutationTrackingService
             });
         }
 
+        void forEachShard(Consumer<Shard> consumer)
+        {
+            for (Shard shard : shards.values())
+                consumer.accept(shard);
+        }
+
         Shard lookUp(Mutation mutation)
         {
             return lookUp(mutation.key());
@@ -241,5 +283,74 @@ public class MutationTrackingService
             Range<Token> range = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(token).range();
             return shards.get(range);
         }
+    }
+
+    // TODO (later): a more intelligent heuristic for offsets included in broadcasts
+    private static class ReplicatedOffsetsBroadcaster implements Runnable, Shutdownable
+    {
+        private static final ScheduledExecutorPlus executor =
+            executorFactory().scheduled("Replicated-Offsets-Broadcaster", NORMAL);
+
+        // TODO (later): a more intelligent heuristic for scheduling broadcasts
+        private static final long BROADCAST_INTERVAL_MILLIS = 200;
+
+        void start()
+        {
+            executor.scheduleWithFixedDelay(this, BROADCAST_INTERVAL_MILLIS, BROADCAST_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+        }
+
+        @Override
+        public boolean isTerminated()
+        {
+            return executor.isTerminated();
+        }
+
+        @Override
+        public void shutdown()
+        {
+            executor.shutdown();
+        }
+
+        @Override
+        public Object shutdownNow()
+        {
+            return executor.shutdownNow();
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+        {
+            return executor.awaitTermination(timeout, units);
+        }
+
+        @Override
+        public void run()
+        {
+            MutationTrackingService.instance.forEachKeyspace(this::run);
+        }
+
+        private void run(KeyspaceShards shards)
+        {
+            shards.forEachShard(this::run);
+        }
+
+        private void run(Shard shard)
+        {
+            ShardReplicatedOffsets replicatedOffsets = shard.collectReplicatedOffsets();
+            if (replicatedOffsets.isEmpty())
+                return;
+
+            Message<ShardReplicatedOffsets> message = Message.out(Verb.BROADCAST_LOG_OFFSETS, replicatedOffsets);
+
+            for (InetAddressAndPort target : shard.remoteReplicas())
+                if (FailureDetector.instance.isAlive(target))
+                    MessagingService.instance().send(message, target);
+        }
+    }
+
+    @VisibleForTesting
+    public void broadcastOffsetsForTesting()
+    {
+        broadcaster.run();
     }
 }

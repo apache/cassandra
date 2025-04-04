@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.IntSupplier;
 
 import com.google.common.base.Preconditions;
@@ -30,6 +32,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.jctools.maps.NonBlockingHashMapLong;
 
 public class Shard
@@ -45,6 +48,8 @@ public class Shard
 
     Shard(String keyspace, Range<Token> tokenRange, int localHostId, Participants participants, Epoch sinceEpoch, IntSupplier logIdProvider)
     {
+        Preconditions.checkArgument(participants.contains(localHostId));
+
         this.keyspace = keyspace;
         this.tokenRange = tokenRange;
         this.localHostId = localHostId;
@@ -62,20 +67,27 @@ public class Shard
         return currentLocalLog.nextId();
     }
 
-    void witnessedRemoteMutation(MutationId mutationId, InetAddressAndPort onHost)
+    void receivedWriteResponse(MutationId mutationId, InetAddressAndPort onHost)
     {
         int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
-        get(mutationId).witnessedRemoteMutation(mutationId, onHostId);
+        getOrCreate(mutationId).receivedWriteResponse(mutationId, onHostId);
+    }
+
+    void updateReplicatedOffsets(List<? extends Offsets> offsets, InetAddressAndPort onHost)
+    {
+        int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
+        for (Offsets logOffsets : offsets)
+            getOrCreate(logOffsets.logId()).updateReplicatedOffsets(logOffsets, onHostId);
     }
 
     void startWriting(Mutation mutation)
     {
-        get(mutation.id()).startWriting(mutation);
+        getOrCreate(mutation.id()).startWriting(mutation);
     }
 
     void finishWriting(Mutation mutation)
     {
-        get(mutation.id()).finishWriting(mutation);
+        getOrCreate(mutation.id()).finishWriting(mutation);
     }
 
     void addSummaryForKey(Token token, boolean includePending, MutationSummary.Builder builder)
@@ -94,6 +106,34 @@ public class Shard
         });
     }
 
+    List<InetAddressAndPort> remoteReplicas()
+    {
+        List<InetAddressAndPort> replicas = new ArrayList<>(participants.size() - 1);
+        for (int i = 0, size = participants.size(); i < size; ++i)
+        {
+            int hostId = participants.get(i);
+            if (hostId != localHostId)
+                replicas.add(ClusterMetadata.current().directory.endpoint(new NodeId(hostId)));
+        }
+        return replicas;
+    }
+
+    /**
+     * Collects replicated offsets for the logs owned by this coordinator on this shard.
+     */
+    ShardReplicatedOffsets collectReplicatedOffsets()
+    {
+        List<Offsets.Immutable> offsets = new ArrayList<>();
+        for (CoordinatorLog log : logs.values())
+        {
+            Offsets.Immutable logOffsets = log.collectReplicatedOffsets();
+            if (logOffsets != null)
+                offsets.add(logOffsets);
+        }
+
+        return new ShardReplicatedOffsets(keyspace, tokenRange, offsets);
+    }
+
     /**
      * Creates a new coordinator log for this host. Primarily on Shard init (node startup or topology change).
      * Also on keyspace creation.
@@ -104,13 +144,18 @@ public class Shard
         return new CoordinatorLog.CoordinatorLogPrimary(localHostId, logId, participants);
     }
 
-    private CoordinatorLog get(MutationId mutationId)
+    private CoordinatorLog getOrCreate(MutationId mutationId)
     {
         Preconditions.checkArgument(!mutationId.isNone());
-        return get(mutationId.logId());
+        return getOrCreate(mutationId.logId());
     }
 
-    private CoordinatorLog get(long logId)
+    private CoordinatorLog getOrCreate(CoordinatorLogId logId)
+    {
+        return getOrCreate(logId.asLong());
+    }
+
+    private CoordinatorLog getOrCreate(long logId)
     {
         CoordinatorLog log = logs.get(logId);
         return log != null
