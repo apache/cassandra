@@ -104,6 +104,7 @@ public class ClusterMetadata
     private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
     private Set<NodeId> fullCMSIds;
+    private DataPlacements writePlacementAllSettled;
 
     public ClusterMetadata(IPartitioner partitioner)
     {
@@ -282,15 +283,19 @@ public class ClusterMetadata
 
     public DataPlacement writePlacementAllSettled(KeyspaceMetadata ksm)
     {
-        ClusterMetadata metadata = this;
-        Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
-        while (iter.hasNext())
+        if (writePlacementAllSettled == null)
         {
-            Transformation.Result result = iter.next().applyTo(metadata);
-            assert result.isSuccess();
-            metadata = result.success().metadata;
+            ClusterMetadata metadata = this;
+            Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
+            while (iter.hasNext())
+            {
+                Transformation.Result result = iter.next().applyTo(metadata);
+                assert result.isSuccess();
+                metadata = result.success().metadata;
+            }
+            writePlacementAllSettled = metadata.placements;
         }
-        return metadata.placements.get(ksm.params.replication);
+        return writePlacementAllSettled.get(ksm.params.replication);
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
