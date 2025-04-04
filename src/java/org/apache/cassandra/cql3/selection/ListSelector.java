@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -102,7 +101,7 @@ final class ListSelector extends Selector
         {
             buffers.add(elements.get(i).getOutput(protocolVersion));
         }
-        return type.pack(buffers, ByteBufferAccessor.instance);
+        return type.pack(buffers);
     }
 
     public void reset()
