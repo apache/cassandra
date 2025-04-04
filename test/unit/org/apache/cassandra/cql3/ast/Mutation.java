@@ -50,6 +50,21 @@ public abstract class Mutation implements Statement
         this.table = table;
     }
 
+    public Insert asInsert()
+    {
+        return (Insert) this;
+    }
+
+    public Update asUpdate()
+    {
+        return (Update) this;
+    }
+
+    public Delete asDelete()
+    {
+        return (Delete) this;
+    }
+
     public abstract long timestampOrDefault(long defaultValue);
 
     public abstract boolean isCas();
