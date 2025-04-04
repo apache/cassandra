@@ -776,8 +776,8 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
             // Because some data might have been shadowed by the 'activeDeletion', we could have an empty row
             return rowInfo.isEmpty() && rowDeletion.isLive() && dataBuffer.isEmpty()
-                 ? null
-                 : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer));
+                  ? null
+                  : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer));
         }
 
         public Clustering<?> mergedClustering()
@@ -788,6 +788,11 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
         public Row[] mergedRows()
         {
             return rows;
+        }
+
+        public int getRowsToMerge()
+        {
+            return rowsToMerge;
         }
 
         private static class ColumnDataReducer extends MergeIterator.Reducer<ColumnData, ColumnData>

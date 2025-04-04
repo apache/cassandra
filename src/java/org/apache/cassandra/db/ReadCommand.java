@@ -458,6 +458,10 @@ public abstract class ReadCommand extends AbstractReadQuery
                                             .collect(Collectors.joining(",")));
             }
 
+            // set up merge listener tracking the shadow rows scanned if enabled
+            if (DatabaseDescriptor.getShadowRowsTrackingEnabled())
+                executionController.setRowMergeListener(new ShadowRowsListener(cfs));
+
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
             iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
@@ -530,7 +534,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     /**
      * Wraps the provided iterator so that metrics on what is scanned by the command are recorded.
-     * This also log warning/trow TombstoneOverwhelmingException if appropriate.
+     * This also log warning/throw TombstoneOverwhelmingException if appropriate.
      */
     private UnfilteredPartitionIterator withMetricsRecording(UnfilteredPartitionIterator iter, final TableMetrics metric, final long startTimeNanos)
     {
@@ -1073,6 +1077,70 @@ public abstract class ReadCommand extends AbstractReadQuery
         // DataLimits are satisfied. The input to the function will be the iterator of merged, repaired partitions
         // which we'll keep reading until the RepairedDataInfo's internal counter is satisfied.
         return new InputCollector<>(view, controller, merge, Function.identity());
+    }
+
+    static class ShadowRowsListener implements UnfilteredRowIterators.MergeListener
+    {
+        public ColumnFamilyStore cfs;
+        EnumMap<ShadowRowsType, Long> rowsScannedShadowed = new EnumMap<>(ShadowRowsType.class);
+        EnumMap<ShadowRowsType, TableMetrics.TableHistogram> metrics = new EnumMap<>(ShadowRowsType.class);
+        long totalRowsScannedShadowed = 0L;
+
+        public ShadowRowsListener(ColumnFamilyStore cfs)
+        {
+            this.cfs = cfs;
+            this.metrics.put(ShadowRowsType.ROW, cfs.metric.rowsScannedShadowedByOtherRowsHistogram);
+            this.metrics.put(ShadowRowsType.ROW_TOMBSTONE, cfs.metric.rowsScannedShadowedByRowTombstoneHistogram);
+            this.metrics.put(ShadowRowsType.RANGE_TOMBSTONE, cfs.metric.rowsScannedShadowedByRangeTombstoneHistogram);
+            this.metrics.put(ShadowRowsType.PARTITION_TOMBSTONE, cfs.metric.rowsScannedShadowedByPartitionTombstoneHistogram);
+        }
+
+        @Override
+        public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions) {}
+
+        @Override
+        public void onMergedRows(Row merged, Row[] versions) {}
+
+        @Override
+        public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions) {}
+
+        @Override
+        public void close()
+        {
+            rowsScannedShadowed.forEach((type, count) -> {
+                if (count > 0)
+                    this.metrics.get(type).update(count);
+            });
+            cfs.metric.rowsScannedShadowedHistogram.update(totalRowsScannedShadowed);
+        }
+
+        @Override
+        public void withRowsShadowedTracking(Row merged, DeletionTime openDeletionMarker, int rowsToMerge)
+        {
+            ShadowRowsType type;
+            // merged is null when it's shadowed by range/partition tombstones
+            // otherwise there should always be 1 row that is the result, other rows read are shadowed
+            if (merged == null)
+                type = openDeletionMarker.isLive() ? ShadowRowsType.PARTITION_TOMBSTONE : ShadowRowsType.RANGE_TOMBSTONE;
+            else if (rowsToMerge > 1)
+                type = !merged.deletion().isLive() && merged.columnCount() == 0 ? ShadowRowsType.ROW_TOMBSTONE : ShadowRowsType.ROW;
+            else
+                return;
+            switch (type)
+            {
+                case ROW:
+                case ROW_TOMBSTONE:
+                    // one of the row is the result
+                    rowsScannedShadowed.put(type, rowsScannedShadowed.getOrDefault(type, 0L) + rowsToMerge - 1);
+                    totalRowsScannedShadowed += rowsToMerge - 1;
+                    break;
+                case PARTITION_TOMBSTONE:
+                case RANGE_TOMBSTONE:
+                    // partition/range deletion won't be merged with the rows
+                    rowsScannedShadowed.put(type, rowsScannedShadowed.getOrDefault(type, 0L) + rowsToMerge);
+                    totalRowsScannedShadowed += rowsToMerge;
+            }
+        }
     }
 
     /**

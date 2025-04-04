@@ -364,7 +364,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 return EmptyIterators.unfilteredPartition(metadata());
 
             List<UnfilteredPartitionIterator> finalizedIterators = inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone());
-            UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.mergeLazily(finalizedIterators);
+            UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.mergeLazily(finalizedIterators, controller.getRowMergeListener());
             return checkCacheFilter(Transformation.apply(merged, new Transformation<UnfilteredRowIterator>()
             {
                 @Override

@@ -546,6 +546,8 @@ public class Config
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    public boolean shadow_rows_tracking_enabled = false;
+
     public TombstonesMetricGranularity tombstone_read_purgeable_metric_granularity = TombstonesMetricGranularity.disabled;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
