@@ -185,7 +185,7 @@ public class Config
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = null;
     @Deprecated(since="5.1")
     public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = null;
-    public String cms_retry_delay = "0 <= 50ms*1*attempts <= 1s,retries=10";
+    public String cms_retry_delay = "50ms*attempts <= 500ms ... 100ms*attempts <= 1s,retries=10";
 
     public volatile int epoch_aware_debounce_inflight_tracker_max_size = 100;
 

@@ -109,7 +109,7 @@ public class ContentionStrategy extends RetryStrategy
 
     public ContentionStrategy(WaitRandomizer waitRandomizer, LegacyWait min, LegacyWait max, LegacyWait spread, int retries, int traceAfterAttempts)
     {
-        super(waitRandomizer, min.min, min, max, max.max, retries);
+        super(waitRandomizer, min.min, min, min.max, max, max.max, retries);
         this.traceAfterAttempts = traceAfterAttempts;
         this.spread = spread;
     }

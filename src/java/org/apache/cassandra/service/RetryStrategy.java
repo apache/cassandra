@@ -97,7 +97,7 @@ public class RetryStrategy implements WaitStrategy
 
     static final Pattern PARSE = Pattern.compile(
           "(\\s*(?<minmin>0|[0-9]+[mu]?s)\\s*<=)?" +
-                "(\\s*(?<min>[^=]+)\\s*[.]{3})?" +
+                "(\\s*(?<min>[^=]+)([(]?\\s*<=\\s*(?<maxmin>0|[0-9]+[mu]?s)\\s*[)]?)?\\s*[.]{3})?" +
                 "(\\s*(?<max>[^=]+))" +
                 "(\\s*<=\\s*(?<maxmax>0|[0-9]+[mu]?s))?");
 
@@ -198,16 +198,17 @@ public class RetryStrategy implements WaitStrategy
     }
 
     public final WaitRandomizer waitRandomizer;
-    public final long minMinMicros, maxMaxMicros;
+    public final long minMinMicros, maxMinMicros, maxMaxMicros;
     public final @Nullable Wait min;
     public final @Nonnull Wait max;
     public final int maxAttempts;
 
-    protected RetryStrategy(WaitRandomizer waitRandomizer, long minMinMicros, Wait min, Wait max, long maxMaxMicros, int retries)
+    protected RetryStrategy(WaitRandomizer waitRandomizer, long minMinMicros, Wait min, long maxMinMicros, Wait max, long maxMaxMicros, int retries)
     {
         this.waitRandomizer = waitRandomizer;
         this.minMinMicros = minMinMicros;
         this.min = min;
+        this.maxMinMicros = maxMinMicros;
         this.max = max;
         this.maxMaxMicros = maxMaxMicros;
         this.maxAttempts = retries == Integer.MAX_VALUE ? Integer.MAX_VALUE : retries + 1;
@@ -235,6 +236,8 @@ public class RetryStrategy implements WaitStrategy
         else
         {
             long min = this.min.getMicros(attempt);
+            if (min > maxMinMicros)
+                min = maxMinMicros;
             long max = this.max.getMicros(attempt);
             result = min >= max ? min : waitRandomizer.wait(min, max, attempt);
         }
@@ -294,11 +297,14 @@ public class RetryStrategy implements WaitStrategy
             throw new IllegalArgumentException("Invalid to specify randomiser when no range specified: '" + original + '\'');
         if (min instanceof Wait.Constant && minMin != 0)
             throw new IllegalArgumentException("Invalid to specify an absolute minimum constant when the min bound is itself a constant: '" + original + '\'');
+        long maxMin = parseInMicros(m.group("maxmin"), Long.MAX_VALUE);
+        if (min instanceof Wait.Constant && maxMin != Long.MAX_VALUE)
+            throw new IllegalArgumentException("Invalid to specify an absolute max(min) constant when the min bound is itself a constant: '" + original + '\'');
         if (max instanceof Wait.Constant && maxMax != Long.MAX_VALUE)
             throw new IllegalArgumentException("Invalid to specify an absolute maximum constant when the max bound is itself a constant: '" + original + '\'');
         if (randomizer == null)
             randomizer = randomizers.uniform();
-        return new RetryStrategy(randomizer, minMin, min, max, maxMax, retries);
+        return new RetryStrategy(randomizer, minMin, min, maxMin, max, maxMax, retries);
     }
 
     @VisibleForTesting
