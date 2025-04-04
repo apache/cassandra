@@ -97,7 +97,7 @@ public class RetryStrategy implements WaitStrategy
 
     static final Pattern PARSE = Pattern.compile(
           "(\\s*(?<minmin>0|[0-9]+[mu]?s)\\s*<=)?" +
-                "(\\s*(?<min>[^=]+)([(]\\s*<=\\s*(?<maxmin>0|[0-9]+[mu]?s)\\s*[)])?\\s*[.]{3})?" +
+                "(\\s*(?<min>[^=]+)([(]?\\s*<=\\s*(?<maxmin>0|[0-9]+[mu]?s)\\s*[)]?)?\\s*[.]{3})?" +
                 "(\\s*(?<max>[^=]+))" +
                 "(\\s*<=\\s*(?<maxmax>0|[0-9]+[mu]?s))?");
 
