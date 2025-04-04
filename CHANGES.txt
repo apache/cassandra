@@ -1,4 +1,5 @@
 5.1
+ * Improve metadata log catch up with inter-DC mutation forwarding (CASSANDRA-20523)
  * Support topology-safe changes to Datacenter & Rack for live nodes (CASSANDRA-20528)
  * Add SSTableIntervalTree latency metric (CASSANDRA-20502)
  * Ignore repetitions of semicolon in CQLSH (CASSANDRA-19956)
