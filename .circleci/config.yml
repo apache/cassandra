@@ -90,7 +90,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -197,7 +197,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -314,7 +314,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -379,7 +379,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -468,7 +468,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -601,7 +601,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -666,7 +666,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -784,7 +784,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -892,7 +892,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1046,7 +1046,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1178,7 +1178,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1287,7 +1287,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1404,7 +1404,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1494,7 +1494,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1612,7 +1612,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1720,7 +1720,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1810,7 +1810,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -1918,7 +1918,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2051,7 +2051,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2205,7 +2205,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2322,7 +2322,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2412,7 +2412,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2520,7 +2520,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2628,7 +2628,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2718,7 +2718,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2807,7 +2807,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -2925,7 +2925,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -3120,7 +3120,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -3205,7 +3205,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -3338,7 +3338,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -3423,7 +3423,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -3513,7 +3513,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -3631,7 +3631,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -3764,7 +3764,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -3882,7 +3882,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4077,7 +4077,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4183,7 +4183,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4300,7 +4300,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4390,7 +4390,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4507,7 +4507,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4578,7 +4578,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4668,7 +4668,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4758,7 +4758,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4861,7 +4861,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -4933,7 +4933,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5023,7 +5023,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5136,7 +5136,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5254,7 +5254,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5326,7 +5326,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5416,7 +5416,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5523,7 +5523,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5655,7 +5655,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5773,7 +5773,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -5891,7 +5891,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6024,7 +6024,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6113,7 +6113,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6198,7 +6198,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6331,7 +6331,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6421,7 +6421,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6492,7 +6492,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6576,7 +6576,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6684,7 +6684,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6774,7 +6774,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6864,7 +6864,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -6973,7 +6973,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7037,7 +7037,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7145,7 +7145,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7263,7 +7263,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7371,7 +7371,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7479,7 +7479,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7596,7 +7596,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7703,7 +7703,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7820,7 +7820,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7891,7 +7891,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -7997,7 +7997,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8087,7 +8087,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8172,7 +8172,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8236,7 +8236,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8321,7 +8321,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8430,7 +8430,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8547,7 +8547,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8636,7 +8636,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8720,7 +8720,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8809,7 +8809,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8881,7 +8881,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -8970,7 +8970,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -9054,7 +9054,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -9144,7 +9144,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -9276,7 +9276,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -9365,7 +9365,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -9454,7 +9454,7 @@ jobs:
     - REPEATED_UTESTS_STRESS_COUNT: 500
     - REPEATED_SIMULATOR_DTESTS: null
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.sai.IndexAvailabilityTest#testIndexExceptionsTwoIndexesOn3NodeCluster
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
@@ -9517,6 +9517,28 @@ workflows:
           - success
           j11_build:
           - success
+    - start_j11_jvm_dtests_repeat:
+        type: approval
+    - j11_jvm_dtests_repeat:
+        requires:
+        - start_j11_jvm_dtests_repeat
+        - j11_build
+        upstream:
+          start_j11_jvm_dtests_repeat:
+          - success
+          j11_build:
+          - success
+    - start_j11_jvm_dtests_latest_vnode_repeat:
+        type: approval
+    - j11_jvm_dtests_latest_vnode_repeat:
+        requires:
+        - start_j11_jvm_dtests_latest_vnode_repeat
+        - j11_build
+        upstream:
+          start_j11_jvm_dtests_latest_vnode_repeat:
+          - success
+          j11_build:
+          - success
     - start_j17_jvm_dtests:
         type: approval
     - j17_jvm_dtests:
@@ -9536,6 +9558,28 @@ workflows:
         - j11_build
         upstream:
           start_j17_jvm_dtests_latest_vnode:
+          - success
+          j11_build:
+          - success
+    - start_j17_jvm_dtests_repeat:
+        type: approval
+    - j17_jvm_dtests_repeat:
+        requires:
+        - start_j17_jvm_dtests_repeat
+        - j11_build
+        upstream:
+          start_j17_jvm_dtests_repeat:
+          - success
+          j11_build:
+          - success
+    - start_j17_jvm_dtests_latest_vnode_repeat:
+        type: approval
+    - j17_jvm_dtests_latest_vnode_repeat:
+        requires:
+        - start_j17_jvm_dtests_latest_vnode_repeat
+        - j11_build
+        upstream:
+          start_j17_jvm_dtests_latest_vnode_repeat:
           - success
           j11_build:
           - success
@@ -10080,7 +10124,19 @@ workflows:
         upstream:
           j11_build:
           - success
+    - j11_jvm_dtests_repeat:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
     - j11_jvm_dtests_latest_vnode:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
+    - j11_jvm_dtests_latest_vnode_repeat:
         requires:
         - j11_build
         upstream:
@@ -10092,7 +10148,19 @@ workflows:
         upstream:
           j11_build:
           - success
+    - j17_jvm_dtests_repeat:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
     - j17_jvm_dtests_latest_vnode:
+        requires:
+        - j11_build
+        upstream:
+          j11_build:
+          - success
+    - j17_jvm_dtests_latest_vnode_repeat:
         requires:
         - j11_build
         upstream:
@@ -10492,6 +10560,28 @@ workflows:
           - success
           j17_build:
           - success
+    - start_j17_jvm_dtests_repeat:
+        type: approval
+    - j17_jvm_dtests_repeat:
+        requires:
+        - start_j17_jvm_dtests_repeat
+        - j17_build
+        upstream:
+          start_j17_jvm_dtests_repeat:
+          - success
+          j17_build:
+          - success
+    - start_j17_jvm_dtests_latest_vnode_repeat:
+        type: approval
+    - j17_jvm_dtests_latest_vnode_repeat:
+        requires:
+        - start_j17_jvm_dtests_latest_vnode_repeat
+        - j17_build
+        upstream:
+          start_j17_jvm_dtests_latest_vnode_repeat:
+          - success
+          j17_build:
+          - success
     - start_j17_cqlshlib_tests:
         type: approval
     - j17_cqlshlib_tests:
@@ -10749,7 +10839,19 @@ workflows:
         upstream:
           j17_build:
           - success
+    - j17_jvm_dtests_repeat:
+        requires:
+        - j17_build
+        upstream:
+          j17_build:
+          - success
     - j17_jvm_dtests_latest_vnode:
+        requires:
+        - j17_build
+        upstream:
+          j17_build:
+          - success
+    - j17_jvm_dtests_latest_vnode_repeat:
         requires:
         - j17_build
         upstream:
