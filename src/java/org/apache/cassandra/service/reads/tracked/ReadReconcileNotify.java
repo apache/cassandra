@@ -68,7 +68,7 @@ public class ReadReconcileNotify
         }
     };
 
-    public static final IVersionedSerializer<ReadReconcileNotify> serializer = new IVersionedSerializer<ReadReconcileNotify>()
+    public static final IVersionedSerializer<ReadReconcileNotify> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(ReadReconcileNotify notify, DataOutputPlus out, int version) throws IOException

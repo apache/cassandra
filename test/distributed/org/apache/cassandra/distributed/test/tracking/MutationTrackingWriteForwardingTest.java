@@ -15,14 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.distributed.test.tracking;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -31,7 +28,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
@@ -39,7 +35,6 @@ import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.dcAndRack;
@@ -64,7 +59,7 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
     public void testBasicWriteForwarding() throws Throwable
     {
         // 2 DCs, 1 replica in each, to test forwarding to instances in remote DCs and local DCs
-        Map<Integer, NetworkTopology.DcAndRack> topology = networkTopology(5, (nodeid) -> nodeid % 2 == 1 ? dcAndRack("dc1", "rack1") : dcAndRack("dc2", "rack2"));
+        Map<Integer, NetworkTopology.DcAndRack> topology = networkTopology(NODES, (nodeid) -> nodeid % 2 == 1 ? dcAndRack("dc1", "rack1") : dcAndRack("dc2", "rack2"));
 
         // TODO: disable background reconciliation so we can test that writes are reconciling immediately
         try (Cluster cluster = Cluster.build(NODES)
@@ -82,56 +77,44 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
                                         "AND replication_type='tracked';", keyspaceName));
             cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
 
-            Map<IInstance, Integer> instanceUnreconciled = new HashMap<>();
             int ROWS = 100;
             for (int inserted = 0; inserted < ROWS; inserted++)
             {
                 // Writes should be completed for the client, regardless of whether they are forwarded or not
                 cluster.coordinator(inst(inserted)).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (?, ?, ?)", keyspaceName, tableName), ConsistencyLevel.ALL, inserted, inserted, inserted);
-
-                // Writes should be ack'd in the journal too, but these could lag behind client acks, so could be
-                // permissive here. Each write should be reconciled on 1 leader, unreconciled on TOTAL_RF-1
-                // replicas (until background reconciliation broadcast is implemented), and ignored on others.
-                Set<IInvokableInstance> leaderOrNonReplica = new HashSet<>(2);
-                Set<IInvokableInstance> replicas = new HashSet<>();
-                for (IInvokableInstance instance : cluster)
-                {
-                    int unreconciled = instance.callOnInstance(() -> {
-                        Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
-                        Range<Token> fullRange = new Range<>(token, token);
-                        TableId tableId = Schema.instance.getTableMetadata(keyspaceName, tableName).id;
-                        MutationSummary summary = MutationTrackingService.instance.createSummaryForRange(fullRange, tableId, true);
-                        return summary.unreconciledIds();
-                    });
-                    int lastUnreconciled = instanceUnreconciled.getOrDefault(instance, 0);
-                    int newUnreconciled = unreconciled - lastUnreconciled;
-
-                    if (newUnreconciled == 0)
-                    {
-                        // instance already reconciled (as leader) or did not receive new mutation ID (non-replica)
-                        leaderOrNonReplica.add(instance);
-                    }
-                    else if (newUnreconciled == 1)
-                    {
-                        // instance has not reconciled, so it's a replica (until reconciliation broadcast is implemented)
-                        replicas.add(instance);
-                    }
-                    else
-                    {
-                        Assertions.fail("Should not have more than one new unreconciled mutation");
-                    }
-                    instanceUnreconciled.put(instance, unreconciled);
-                }
-                Assertions.assertThat(leaderOrNonReplica).hasSize(2);
-                Assertions.assertThat(replicas).hasSize(TOTAL_RF - 1);
             }
-            Assertions.assertThat(instanceUnreconciled).matches(map -> {
-                int sum = 0;
-                for (Integer value : map.values())
-                    sum += value;
-                // Each write is reconciled on the leader, unreconciled on all other replicas
-                return sum == (ROWS * (TOTAL_RF - 1));
-            });
+
+            Thread.sleep(1000); // allow time for all offsets to be broadcasted
+
+            int allReconciled = 0;
+            int allUnreconciled = 0;
+
+            // Writes should be ack'd in the journal too, but these could lag behind client acks, so could be
+            // permissive here. Each write should be reconciled everywhere.
+            for (IInvokableInstance instance : cluster)
+            {
+                int reconciled = instance.callOnInstance(() -> {
+                    Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
+                    Range<Token> fullRange = new Range<>(token, token);
+                    TableId tableId = Schema.instance.getTableMetadata(keyspaceName, tableName).id;
+                    MutationSummary summary = MutationTrackingService.instance.createSummaryForRange(fullRange, tableId, true);
+                    return summary.reconciledIds();
+                });
+
+                int unreconciled = instance.callOnInstance(() -> {
+                    Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
+                    Range<Token> fullRange = new Range<>(token, token);
+                    TableId tableId = Schema.instance.getTableMetadata(keyspaceName, tableName).id;
+                    MutationSummary summary = MutationTrackingService.instance.createSummaryForRange(fullRange, tableId, true);
+                    return summary.unreconciledIds();
+                });
+
+                allReconciled += reconciled;
+                allUnreconciled += unreconciled;
+            }
+
+            Assert.assertEquals(0, allUnreconciled);
+            Assert.assertEquals(ROWS * TOTAL_RF, allReconciled);
         }
     }
 }

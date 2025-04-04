@@ -255,6 +255,14 @@ public class MutationSummary
         return count;
     }
 
+    public int reconciledIds()
+    {
+        int count = 0;
+        for (CoordinatorSummary summary : summaries)
+            count += summary.reconciled.offsetCount();
+        return count;
+    }
+
     public int size()
     {
         return summaries.size();

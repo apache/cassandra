@@ -37,7 +37,7 @@ import org.apache.cassandra.schema.TableId;
  * Tracks unreconciled local mutations - the subset of all unreconciled mutations
  * that have been witnessed, or are currently being written to, on the local node.
  */
-class LocalMutationStates
+class UnreconciledMutationsReplica implements UnreconciledMutations
 {
     private final Int2ObjectHashMap<Entry> statesMap = new Int2ObjectHashMap<>();
     private final SortedSet<Entry> statesSet = new TreeSet<>(Entry.comparator);
@@ -115,14 +115,16 @@ class LocalMutationStates
         }
     }
 
-    void startWriting(Mutation mutation)
+    @Override
+    public void startWriting(Mutation mutation)
     {
         Entry entry = Entry.create(mutation);
         statesMap.put(entry.offset, entry);
         statesSet.add(entry);
     }
 
-    void finishWriting(Mutation mutation)
+    @Override
+    public void finishWriting(Mutation mutation)
     {
         Preconditions.checkArgument(!mutation.id().isNone());
         Entry entry = statesMap.get(mutation.id().offset());
@@ -130,20 +132,23 @@ class LocalMutationStates
         entry.visibility = Visibility.VISIBLE;
     }
 
-    void remove(int offset)
+    @Override
+    public void remove(int offset)
     {
         Entry state = statesMap.remove(offset);
         Preconditions.checkNotNull(state);
         statesSet.remove(state);
     }
 
-    boolean collect(Token token, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
+    @Override
+    public boolean collect(Token token, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
     {
         SortedSet<Entry> subset = statesSet.subSet(Entry.start(token, true), Entry.end(token, true));
         return collect(subset, tableId, includePending, into);
     }
 
-    boolean collect(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
+    @Override
+    public boolean collect(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
     {
         Entry start = Entry.start(range.left.getToken(), range.left.kind() != PartitionPosition.Kind.MAX_BOUND);
         Entry end = Entry.end(range.right.getToken(), range.right.kind() != PartitionPosition.Kind.MIN_BOUND);

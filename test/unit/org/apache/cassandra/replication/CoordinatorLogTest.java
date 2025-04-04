@@ -68,7 +68,7 @@ public class CoordinatorLogTest
     {
         Offsets.Mutable list = new Offsets.Mutable(LOG_ID);
         for (MutationId id : ids)
-            list.append(id.offset());
+            list.add(id.offset());
         return list;
     }
 
@@ -119,10 +119,10 @@ public class CoordinatorLogTest
         // the call to finishWriting will have made the ids visible without the includePending flag
         assertUnreconciled(tk, tableId, log, false, reconciled, ids);
 
-        log.witnessedRemoteMutation(ids[0], PARTICIPANTS.get(1));
+        log.receivedWriteResponse(ids[0], PARTICIPANTS.get(1));
         assertUnreconciled(tk, tableId, log, false, reconciled, ids);
 
-        log.witnessedRemoteMutation(ids[0], PARTICIPANTS.get(2));
+        log.receivedWriteResponse(ids[0], PARTICIPANTS.get(2));
         reconciled.add(ids[0].offset());
         assertUnreconciled(tk, tableId, log, false, reconciled, ids[1], ids[2]);
     }

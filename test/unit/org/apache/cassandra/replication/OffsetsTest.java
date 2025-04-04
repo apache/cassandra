@@ -507,46 +507,20 @@ public class OffsetsTest
     }
 
     @Test
-    public void appendTest()
+    public void addTest()
     {
         Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);
-        ids.append(5);
+        ids.add(5);
         assertEquals(1, ids.rangeCount());
         assertEquals(1, ids.offsetCount());
 
-        ids.append(6);
+        ids.add(6);
         assertEquals(1, ids.rangeCount());
         assertEquals(2, ids.offsetCount());
 
-        ids.append(8);
+        ids.add(8);
         assertEquals(2, ids.rangeCount());
         assertEquals(3, ids.offsetCount());
-
-        // insert before tail
-        try
-        {
-            ids.append(8);
-            Assert.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-            assertEquals(2, ids.rangeCount());
-            assertEquals(3, ids.offsetCount());
-        }
-
-        // insert before tail
-        try
-        {
-            ids.append(7);
-            Assert.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-            assertEquals(2, ids.rangeCount());
-            assertEquals(3, ids.offsetCount());
-        }
     }
 
     private static void testUnion(Offsets expected, Offsets a, Offsets b)
