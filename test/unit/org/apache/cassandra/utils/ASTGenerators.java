@@ -621,6 +621,29 @@ public class ASTGenerators
                         var timestamp = timestampGen.generate(rnd);
                         if (timestamp.isPresent())
                             builder.timestamp(valueGen(timestamp.getAsLong(), LongType.instance).generate(rnd));
+                        values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+
+                        if (!staticColumns.isEmpty() && allowPartitionOnlyUpdate && bool.generate(rnd))
+                        {
+                            var columnsToGenerate = new LinkedHashSet<>(subset(rnd, staticColumns));
+                            Conditional.EqBuilder<Mutation.UpdateBuilder> setBuilder = builder::set;
+                            generateRemaining(rnd, bool, Mutation.Kind.UPDATE, isTransaction, typeToReference, setBuilder, columnsToGenerate);
+
+                            if (isCas)
+                            {
+                                if (useCasIf.generate(rnd))
+                                {
+                                    ifGen(new ArrayList<>(staticColumns)).generate(rnd).ifPresent(c -> builder.ifCondition(c));
+                                }
+                                else
+                                {
+                                    builder.ifExists();
+                                }
+                            }
+                            return builder.build();
+                        }
+                        values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
+
                         if (isCas)
                         {
                             if (useCasIf.generate(rnd))
@@ -632,16 +655,6 @@ public class ASTGenerators
                                 builder.ifExists();
                             }
                         }
-                        values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
-
-                        if (!staticColumns.isEmpty() && allowPartitionOnlyUpdate && bool.generate(rnd))
-                        {
-                            var columnsToGenerate = new LinkedHashSet<>(subset(rnd, staticColumns));
-                            Conditional.EqBuilder<Mutation.UpdateBuilder> setBuilder = builder::set;
-                            generateRemaining(rnd, bool, Mutation.Kind.UPDATE, isTransaction, typeToReference, setBuilder, columnsToGenerate);
-                            return builder.build();
-                        }
-                        values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
 
                         LinkedHashSet<Symbol> columnsToGenerate;
                         if (regularAndStaticColumns.size() == 1 || bool.generate(rnd))

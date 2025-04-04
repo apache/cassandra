@@ -290,9 +290,7 @@ public class ASTSingleTableModel
             boolean touchesStaticColumns = !factory.staticColumns.isEmpty()
                                            && symbols(mutation).anyMatch(factory.staticColumns::contains);
 
-            boolean staticColumnDelete = mutation.kind == Mutation.Kind.DELETE
-                                         && touchesStaticColumns;
-            if (staticColumnDelete
+            if (touchesStaticColumns
                 && cd == null // partition level, aka deleting static columns (as of this writing delete partition in CAS isn't supported)
                 && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW))
             {
