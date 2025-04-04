@@ -485,7 +485,7 @@ public class ASTSingleTableModel
     }
 
     private enum DeleteKind
-    {PARTITION, ROW, COLUMN;}
+    {PARTITION, ROW, COLUMN}
     private void update(Mutation.Delete delete)
     {
         long nowTs = delete.timestampOrDefault(numMutations);
