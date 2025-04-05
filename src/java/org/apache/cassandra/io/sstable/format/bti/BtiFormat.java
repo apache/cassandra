@@ -354,6 +354,12 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
         }
 
         @Override
+        public boolean hasLegacyCardinality()
+        {
+            return true;
+        }
+
+        @Override
         public boolean hasOldBfFormat()
         {
             return false;

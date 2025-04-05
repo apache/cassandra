@@ -59,6 +59,8 @@ public abstract class Version
     public abstract boolean hasIsTransient();
 
     public abstract boolean hasMetadataChecksum();
+
+    public abstract boolean hasLegacyCardinality();
     
     /**
      * This format raises the legacy int year 2038 limit to 2106 by using an uint instead
