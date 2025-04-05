@@ -375,6 +375,7 @@ public class ASTGenerators
         private Map<Symbol, ExpressionBuilder> columnExpressions = new LinkedHashMap<>();
         private boolean allowPartitionOnlyUpdate = true;
         private boolean allowPartitionOnlyInsert = true;
+        private boolean allowUpdateMultipleClusteringKeys = true;
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -402,6 +403,12 @@ public class ASTGenerators
         public MutationGenBuilder withAllowPartitionOnlyInsert(boolean value)
         {
             this.allowPartitionOnlyInsert = value;
+            return this;
+        }
+
+        public MutationGenBuilder withAllowUpdateMultipleClusteringKeys(boolean allowUpdateMultipleClusteringKeys)
+        {
+            this.allowUpdateMultipleClusteringKeys = allowUpdateMultipleClusteringKeys;
             return this;
         }
 
@@ -548,9 +555,34 @@ public class ASTGenerators
             }
             else
             {
-                //TODO (coverage): support IN rather than just EQ
                 for (Symbol s : columns)
                     builder.value(s, columnExpressions.get(s).build().generate(rnd));
+            }
+        }
+
+        private static void where(RandomnessSource rnd,
+                                  Map<Symbol, ExpressionBuilder> columnExpressions,
+                                  Conditional.ConditionalBuilder<?> builder,
+                                  LinkedHashSet<Symbol> columns,
+                                  @Nullable Gen<? extends Map<Symbol, Object>> gen)
+        {
+            if (gen != null)
+            {
+                Map<Symbol, Object> map = gen.generate(rnd);
+                for (Map.Entry<Symbol, ?> e : assertDeterministic(map).entrySet())
+                    builder.value(e.getKey(), valueGen(e.getValue(), e.getKey().type()).generate(rnd));
+                return;
+            }
+
+            for (Symbol s : columns)
+            {
+                if (SourceDSL.booleans().all().generate(rnd))
+                {
+                    builder.value(s, columnExpressions.get(s).build().generate(rnd));
+                    return;
+                }
+                var valueGen = columnExpressions.get(s).build();
+                builder.in(s, SourceDSL.lists().of(valueGen).ofSizeBetween(1, 3).generate(rnd));
             }
         }
 
@@ -621,7 +653,10 @@ public class ASTGenerators
                         var timestamp = timestampGen.generate(rnd);
                         if (timestamp.isPresent())
                             builder.timestamp(valueGen(timestamp.getAsLong(), LongType.instance).generate(rnd));
-                        values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+                        if (allowUpdateMultipleClusteringKeys)
+                            where(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+                        else
+                            values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
 
                         if (!staticColumns.isEmpty() && allowPartitionOnlyUpdate && bool.generate(rnd))
                         {
@@ -642,7 +677,10 @@ public class ASTGenerators
                             }
                             return builder.build();
                         }
-                        values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
+                        if (allowUpdateMultipleClusteringKeys)
+                            where(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
+                        else
+                            values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
 
                         if (isCas)
                         {

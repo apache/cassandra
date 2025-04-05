@@ -35,13 +35,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -602,13 +602,6 @@ public class ASTSingleTableModel
         return factory.createRef(pd(mutation));
     }
 
-    public BytesPartitionState.PrimaryKey referenceRow(Mutation mutation)
-    {
-        var pk = referencePartition(mutation);
-        var cd = cdOrNull(mutation);
-        return factory.createPrimaryKey(pk, cd);
-    }
-
     private boolean process(Conditional condition, Map<String, SelectResult> lets)
     {
         if (condition.getClass() == Conditional.Is.class)
@@ -730,7 +723,7 @@ public class ASTSingleTableModel
     private Pair<List<Clustering<ByteBuffer>>, List<Conditional>> splitOn(ImmutableUniqueList<Symbol>.AsSet columns, List<Conditional> conditionals)
     {
         // pk requires equality
-        Map<Symbol, Set<ByteBuffer>> pks = new HashMap<>();
+        Map<Symbol, List<ByteBuffer>> pks = new HashMap<>();
         List<Conditional> other = new ArrayList<>();
         for (Conditional c : conditionals)
         {
@@ -743,7 +736,7 @@ public class ASTSingleTableModel
                     ByteBuffer bb = eval(w.rhs);
                     if (pks.containsKey(col))
                         throw new IllegalArgumentException("Partition column " + col + " was defined multiple times in the WHERE clause");
-                    pks.put(col, Collections.singleton(bb));
+                    pks.put(col, Collections.singletonList(bb));
                 }
                 else
                 {
@@ -758,8 +751,8 @@ public class ASTSingleTableModel
                     Symbol col = (Symbol) i.ref;
                     if (pks.containsKey(col))
                         throw new IllegalArgumentException("Partition column " + col + " was defined multiple times in the WHERE clause");
-                    var set = i.expressions.stream().map(ASTSingleTableModel::eval).collect(Collectors.toSet());
-                    pks.put(col, set);
+                    var list = i.expressions.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
+                    pks.put(col, list);
                 }
                 else
                 {
@@ -781,19 +774,48 @@ public class ASTSingleTableModel
         return Pair.create(partitionKeys, other);
     }
 
-    private List<Clustering<ByteBuffer>> keys(Collection<Symbol> columns, Map<Symbol, Set<ByteBuffer>> pks)
+    private static List<Clustering<ByteBuffer>> keys(Collection<Symbol> columns, Map<Symbol, List<ByteBuffer>> columnValues)
     {
-        //TODO (coverage): handle IN
-        ByteBuffer[] bbs = new ByteBuffer[columns.size()];
+        return keys(columns, columnValues, Function.identity());
+    }
+
+    private static List<Clustering<ByteBuffer>> keys(Map<Symbol, List<? extends Expression>> values, Collection<Symbol> columns)
+    {
+        return keys(columns, values, ASTSingleTableModel::eval);
+    }
+
+    private static <T> List<Clustering<ByteBuffer>> keys(Collection<Symbol> columns,
+                                                         Map<Symbol, ? extends List<? extends T>> columnValues,
+                                                         Function<T, ByteBuffer> eval)
+    {
+        if (columns.isEmpty()) return Collections.singletonList(Clustering.EMPTY);
+        List<ByteBuffer[]> current = new ArrayList<>();
+        current.add(new ByteBuffer[columns.size()]);
         int idx = 0;
-        for (Symbol s : columns)
+        for (Symbol symbol : columns)
         {
-            Set<ByteBuffer> values = pks.get(s);
-            if (values.size() > 1)
-                throw new UnsupportedOperationException("IN clause is currently unsupported... its on the backlog!");
-            bbs[idx++] = Iterables.getFirst(values, null);
+            int position = idx++;
+            List<? extends T> expressions = columnValues.get(symbol);
+            ByteBuffer firstBB = eval.apply(expressions.get(0));
+            current.forEach(bbs -> bbs[position] = firstBB);
+            if (expressions.size() > 1)
+            {
+                // this has a multiplying effect... if there is 1 row and there are 2 expressions, then we have 2 rows
+                // if there are 2 rows and 2 expressions, we have 4 rows... and so on...
+                List<ByteBuffer[]> copy = new ArrayList<>(current);
+                for (int i = 1; i < expressions.size(); i++)
+                {
+                    ByteBuffer bb = eval.apply(expressions.get(i));
+                    for (ByteBuffer[] bbs : copy)
+                    {
+                        bbs = bbs.clone();
+                        bbs[position] = bb;
+                        current.add(bbs);
+                    }
+                }
+            }
         }
-        return Collections.singletonList(BufferClustering.make(bbs));
+        return current.stream().map(BufferClustering::new).collect(Collectors.toList());
     }
 
     private Clustering<ByteBuffer> pd(Mutation mutation)
@@ -1473,37 +1495,6 @@ public class ASTSingleTableModel
         return keys.get(0);
     }
 
-    private List<Clustering<ByteBuffer>> keys(Map<Symbol, List<? extends Expression>> values, ImmutableUniqueList<Symbol> columns)
-    {
-        if (columns.isEmpty()) return Collections.singletonList(Clustering.EMPTY);
-        List<ByteBuffer[]> current = new ArrayList<>();
-        current.add(new ByteBuffer[columns.size()]);
-        for (Symbol symbol : columns)
-        {
-            int position = columns.indexOf(symbol);
-            List<? extends Expression> expressions = values.get(symbol);
-            ByteBuffer firstBB = eval(expressions.get(0));
-            current.forEach(bbs -> bbs[position] = firstBB);
-            if (expressions.size() > 1)
-            {
-                // this has a multiplying effect... if there is 1 row and there are 2 expressions, then we have 2 rows
-                // if there are 2 rows and 2 expressions, we have 4 rows... and so on...
-                List<ByteBuffer[]> copy = new ArrayList<>(current);
-                for (int i = 1; i < expressions.size(); i++)
-                {
-                    ByteBuffer bb = eval(expressions.get(i));
-                    for (ByteBuffer[] bbs : copy)
-                    {
-                        bbs = bbs.clone();
-                        bbs[position] = bb;
-                        current.add(bbs);
-                    }
-                }
-            }
-        }
-        return current.stream().map(BufferClustering::new).collect(Collectors.toList());
-    }
-
     private static class EvalResult
     {
         private static final EvalResult SKIP = new EvalResult(Kind.SKIP, null);
@@ -1665,6 +1656,22 @@ public class ASTSingleTableModel
         {
             addConditional(select.where.get());
             maybeNormalizeTokenBounds();
+        }
+
+        private LookupContext(Mutation mutation)
+        {
+            if (mutation.kind == Mutation.Kind.INSERT)
+            {
+                var insert = mutation.asInsert();
+                for (var e : insert.values.entrySet())
+                    eq.put(e.getKey(), Collections.singletonList(e.getValue()));
+            }
+            else
+            {
+                addConditional(mutation.kind == Mutation.Kind.UPDATE
+                               ? mutation.asUpdate().where
+                               : mutation.asDelete().where);
+            }
         }
 
         private void maybeNormalizeTokenBounds()
