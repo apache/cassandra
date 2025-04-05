@@ -153,7 +153,7 @@ public interface RangeTombstoneMarker extends Unfiltered, IMeasurableMemory
             return markers;
         }
 
-        private DeletionTime currentOpenDeletionTimeInMerged()
+        public DeletionTime currentOpenDeletionTimeInMerged()
         {
             if (biggestOpenMarker < 0)
                 return DeletionTime.LIVE;

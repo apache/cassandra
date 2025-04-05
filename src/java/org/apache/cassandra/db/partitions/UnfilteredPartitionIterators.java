@@ -217,7 +217,7 @@ public abstract class UnfilteredPartitionIterators
         };
     }
 
-    public static UnfilteredPartitionIterator mergeLazily(final List<? extends UnfilteredPartitionIterator> iterators)
+    public static UnfilteredPartitionIterator mergeLazily(final List<? extends UnfilteredPartitionIterator> iterators, UnfilteredRowIterators.MergeListener rowMergeListener)
     {
         assert !iterators.isEmpty();
 
@@ -241,7 +241,7 @@ public abstract class UnfilteredPartitionIterators
                 {
                     protected UnfilteredRowIterator initializeIterator()
                     {
-                        return UnfilteredRowIterators.merge(toMerge);
+                        return UnfilteredRowIterators.merge(toMerge, rowMergeListener);
                     }
                 };
             }
