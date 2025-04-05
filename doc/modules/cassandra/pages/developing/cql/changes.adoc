@@ -1,4 +1,4 @@
-= Changes
+= CQL Changes
 
 The following describes the changes in each version of CQL.
 
@@ -63,15 +63,15 @@ explicitly set.
 * `ALTER TABLE` `ADD` and `DROP` now allow multiple columns to be
 added/removed.
 * New `PER PARTITION LIMIT` option for `SELECT` statements (see
-https://issues.apache.org/jira/browse/CASSANDRA-7017)[CASSANDRA-7017].
+https://issues.apache.org/jira/browse/CASSANDRA-7017[CASSANDRA-7017]).
 * `User-defined functions <cql-functions>` can now instantiate
 `UDTValue` and `TupleValue` instances via the new `UDFContext` interface
 (see
-https://issues.apache.org/jira/browse/CASSANDRA-10818)[CASSANDRA-10818].
+https://issues.apache.org/jira/browse/CASSANDRA-10818[CASSANDRA-10818]).
 * `User-defined types <udts>` may now be stored in a non-frozen form,
 allowing individual fields to be updated and deleted in `UPDATE`
 statements and `DELETE` statements, respectively.
-(https://issues.apache.org/jira/browse/CASSANDRA-7423)[CASSANDRA-7423]).
+(https://issues.apache.org/jira/browse/CASSANDRA-7423[CASSANDRA-7423]).
 
 == 3.4.1
 
@@ -175,7 +175,7 @@ and `UPDATE` supports `IF` conditions.
 
 * `SELECT`, `UPDATE`, and `DELETE` statements now allow empty `IN`
 relations (see
-https://issues.apache.org/jira/browse/CASSANDRA-5626)[CASSANDRA-5626].
+https://issues.apache.org/jira/browse/CASSANDRA-5626[CASSANDRA-5626]).
 
 == 3.0.4
 

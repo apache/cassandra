@@ -41,7 +41,7 @@ Use single quotation marks to preserve upper case.
 Braces (`{ }`) enclose map collections or key value pairs.
 A colon separates the key and the value.
 
-| `<<datatype1>,<datatype2>>`
+| `< <datatype1>,<datatype2> >`
 | Set, list, map, or tuple.
 Angle brackets ( `< >` ) enclose data types in a set, list, map, or tuple.
 Separate the data types with a comma.

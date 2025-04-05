@@ -1,4 +1,4 @@
-== SASI Index
+= SASI Index
 
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/SASIIndex.java[`SASIIndex`],
 or ``SASI`` for short, is an implementation of Cassandra's `Index`
@@ -9,7 +9,7 @@ has superior performance in cases where queries would previously require
 filtering. In achieving this performance, SASI aims to be significantly
 less resource intensive than existing implementations, in memory, disk,
 and CPU usage. In addition, SASI supports prefix and contains queries on
-strings (similar to SQL's `LIKE = "foo*"` or `LIKE = "*foo*"'`).
+strings (similar to SQL's ``LIKE = "foo\*"`` or ``LIKE = "*foo*"`` ).
 
 The following goes on describe how to get up and running with SASI,
 demonstrates usage with examples, and provides some details on its
@@ -357,7 +357,7 @@ parts: Indexing and Querying. Further, Cassandra makes it possible to
 divide those responsibilities into the memory and disk components. SASI
 takes advantage of Cassandra's write-once, immutable, ordered data model
 to build indexes along with the flushing of the memtable to disk – this
-is the origin of the name ``SSTable Attached Secondary Index''.
+is the origin of the name `SSTable Attached Secondary Index`.
 
 The SASI index data structures are built in memory as the SSTable is
 being written and they are flushed to disk before the writing of the
@@ -405,15 +405,15 @@ or more page-sized blocks. The
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/OnDiskIndex.java[`OnDiskIndex`]
 is structured as a tree of arrays, where each level describes the terms
 in the level below, the final level being the terms themselves. The
-`PointerLevel`s and their `PointerBlock`s contain terms and pointers to
+``PointerLevel``s and their ``PointerBlock``s contain terms and pointers to
 other blocks that _end_ with those terms. The `DataLevel`, the final
-level, and its `DataBlock`s contain terms and point to the data itself,
+level, and its ``DataBlock``s contain terms and point to the data itself,
 contained in
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/TokenTree.java[`TokenTree`]s.
 
 The terms written to the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/OnDiskIndex.java[`OnDiskIndex`]
-vary depending on its ``mode'': either `PREFIX`, `CONTAINS`, or
+vary depending on its `mode` : either `PREFIX`, `CONTAINS`, or
 `SPARSE`. In the `PREFIX` and `SPARSE` cases, terms' exact values are
 written exactly once per `OnDiskIndex`. For example, when using a
 `PREFIX` index with terms `Jason`, `Jordan`, `Pavel`, all three will be
@@ -428,14 +428,14 @@ is built merging all the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/TokenTree.java[`TokenTree`]s
 for each term into a single one. This copy of the data is used for
 efficient iteration of large ranges of e.g. timestamps. The index
-``mode'' is configurable per column at index creation time.
+`mode` is configurable per column at index creation time.
 
 ===== TokenTree(Builder)
 
 The
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/TokenTree.java[`TokenTree`]
 is an implementation of the well-known
-https://en.wikipedia.org/wiki/B%2B_tree[B+-tree] that has been modified
+https://en.wikipedia.org/wiki/B%2B_tree[B+ tree] that has been modified
 to optimize for its use-case. In particular, it has been optimized to
 associate tokens, longs, with a set of positions in an SSTable, also
 longs. Allowing the set of long values accommodates the possibility of a
@@ -519,7 +519,7 @@ execution.
 
 During the analysis phase,
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java[`QueryPlan`]
-converts from Cassandra's internal representation of `IndexExpression`s,
+converts from Cassandra's internal representation of ``IndexExpression``s,
 which has also been modified to support encoding queries that contain
 ORs and groupings of expressions using parentheses (see the
 link:#cassandra-internal-changes[Cassandra Internal Changes] section
@@ -653,8 +653,8 @@ like this:
 The last type of optimization applied, for this query, is to merge range
 expressions across branches of the tree – without modifying the meaning
 of the query, of course. In this case, because the query contains all
-`AND`s the `age` expressions can be collapsed. Along with this
-optimization, the initial collapsing of unneeded `AND`s can also be
+``AND``s the `age` expressions can be collapsed. Along with this
+optimization, the initial collapsing of unneeded ``AND``s can also be
 applied once more to result in this final tree using to execute the
 query:
 
@@ -683,7 +683,7 @@ class, more specifically, can have zero, one, or two
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java[`Operation`]s
 as children and an unlimited number of expressions. The iterators used
 to perform the queries, discussed below in the
-``Range(Union|Intersection)Iterator'' section, implement the necessary
+`Range(Union|Intersection)Iterator` section, implement the necessary
 logic to merge results transparently regardless of the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java[`Operation`]s
 children.
@@ -706,14 +706,14 @@ the code].
 The abstract `RangeIterator` class provides a unified interface over the
 two main operations performed by SASI at various layers in the execution
 path: set intersection and union. These operations are performed in a
-iterated, or ``streaming'', fashion to prevent unneeded reads of
+iterated, or `streaming`, fashion to prevent unneeded reads of
 elements from either set. In both the intersection and union cases the
 algorithms take advantage of the data being pre-sorted using the same
 sort order, e.g. term or token order.
 
 The
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeUnionIterator.java[`RangeUnionIterator`]
-performs the ``Merge-Join'' portion of the
+performs the `Merge-Join` portion of the
 https://en.wikipedia.org/wiki/Sort-merge_join[Sort-Merge-Join]
 algorithm, with the properties of an outer-join, or union. It is
 implemented with several optimizations to improve its performance over a
@@ -733,7 +733,7 @@ between them based on some properties of the data.
 
 `BounceIntersectionIterator`, and the `BOUNCE` strategy, works like the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeUnionIterator.java[`RangeUnionIterator`]
-in that it performs a ``Merge-Join'', however, its nature is similar to
+in that it performs a `Merge-Join`, however, its nature is similar to
 a inner-join, where like values are merged by a data-specific merge
 function (e.g. merging two tokens in a list to lookup in a SSTable
 later). See the
@@ -742,7 +742,7 @@ for more details on its implementation.
 
 `LookupIntersectionIterator`, and the `LOOKUP` strategy, performs a
 different operation, more similar to a lookup in an associative data
-structure, or ``hash lookup'' in database terminology. Once again,
+structure, or `hash lookup` in database terminology. Once again,
 details on the implementation can be found in the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeIntersectionIterator.java#L199-L208[javadoc].
 
@@ -794,7 +794,7 @@ The following are items that can be addressed in future updates but are
 not available in this repository or are not currently implemented.
 
 * The cluster must be configured to use a partitioner that produces
-`LongToken`s, e.g. `Murmur3Partitioner`. Other existing partitioners
+``LongToken``s, e.g. `Murmur3Partitioner`. Other existing partitioners
 which don't produce LongToken e.g. `ByteOrderedPartitioner` and
 `RandomPartitioner` will not work with SASI.
 * Not Equals and OR support have been removed in this release while
