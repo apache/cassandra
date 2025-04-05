@@ -579,7 +579,7 @@ public class ASTGenerators
                 if (SourceDSL.booleans().all().generate(rnd))
                 {
                     builder.value(s, columnExpressions.get(s).build().generate(rnd));
-                    return;
+                    continue;
                 }
                 var valueGen = columnExpressions.get(s).build();
                 builder.in(s, SourceDSL.lists().of(valueGen).ofSizeBetween(1, 3).generate(rnd));
