@@ -71,7 +71,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void checkCanRun(RepairType repairType)
     {
         if (!config.isAutoRepairSchedulingEnabled())
-            throw new ConfigurationException("Auto-repair scheduller is disabled.");
+            throw new ConfigurationException("Auto-repair scheduler is disabled.");
 
         if (repairType != RepairType.INCREMENTAL)
             return;

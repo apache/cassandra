@@ -37,6 +37,8 @@ import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.apache.cassandra.cql3.CQLTester.Fuzzed.setupSeed;
@@ -78,7 +80,7 @@ public class FixedSplitTokenRangeSplitterHelper
     {
         int numberOfSplits = calcSplits(numTokens, numberOfSubRanges);
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, false);
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
+        Collection<Range<Token>> tokens = TokenRingUtils.getPrimaryRangesForEndpoint(KEYSPACE, FBUtilities.getBroadcastAddressAndPort());
         assertEquals(numTokens, tokens.size());
         List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
         List<Range<Token>> expectedToken = new ArrayList<>();
@@ -123,7 +125,7 @@ public class FixedSplitTokenRangeSplitterHelper
     {
         int numberOfSplits = calcSplits(numTokens, numberOfSubRanges);
         AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, true);
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
+        Collection<Range<Token>> tokens = TokenRingUtils.getPrimaryRangesForEndpoint(KEYSPACE, FBUtilities.getBroadcastAddressAndPort());
         assertEquals(numTokens, tokens.size());
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (Range<Token> range : tokens)
@@ -153,7 +155,7 @@ public class FixedSplitTokenRangeSplitterHelper
     public static void testTokenRangesWithDefaultSplit(int numTokens, AutoRepairConfig.RepairType repairType)
     {
         int numberOfSplits = calcSplits(numTokens, DEFAULT_NUMBER_OF_SUBRANGES);
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
+        Collection<Range<Token>> tokens = TokenRingUtils.getPrimaryRangesForEndpoint(KEYSPACE, FBUtilities.getBroadcastAddressAndPort());
         assertEquals(numTokens, tokens.size());
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (Range<Token> range : tokens)
