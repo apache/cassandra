@@ -68,14 +68,12 @@ public class AutoRepairTest extends CQLTester
     @Test
     public void testSetup()
     {
-        AutoRepair instance = new AutoRepair();
-        instance.setup();
-
-        assertEquals(RepairType.values().length, instance.repairExecutors.size());
-        for (RepairType repairType : instance.repairExecutors.keySet())
+        AutoRepair.instance.setup();
+        assertEquals(RepairType.values().length, AutoRepair.instance.repairExecutors.size());
+        for (RepairType repairType : AutoRepair.instance.repairExecutors.keySet())
         {
-            int expectedTasks = instance.repairExecutors.get(repairType).getPendingTaskCount()
-                    + instance.repairExecutors.get(repairType).getActiveTaskCount();
+            int expectedTasks = AutoRepair.instance.repairExecutors.get(repairType).getPendingTaskCount()
+                    + AutoRepair.instance.repairExecutors.get(repairType).getActiveTaskCount();
             assertTrue(String.format("Expected > 0 task in queue for %s but was %s", repairType, expectedTasks),
                          expectedTasks > 0);
         }
@@ -84,18 +82,16 @@ public class AutoRepairTest extends CQLTester
     @Test
     public void testSafeGuardSetupCall()
     {
-        AutoRepair instance = new AutoRepair();
-
         // only one should be setup, and rest should be ignored
-        instance.setup();
-        instance.setup();
-        instance.setup();
+        AutoRepair.instance.setup();
+        AutoRepair.instance.setup();
+        AutoRepair.instance.setup();
 
-        assertEquals(RepairType.values().length, instance.repairExecutors.size());
-        for (RepairType repairType : instance.repairExecutors.keySet())
+        assertEquals(RepairType.values().length, AutoRepair.instance.repairExecutors.size());
+        for (RepairType repairType : AutoRepair.instance.repairExecutors.keySet())
         {
-            int expectedTasks = instance.repairExecutors.get(repairType).getPendingTaskCount()
-                                + instance.repairExecutors.get(repairType).getActiveTaskCount();
+            int expectedTasks = AutoRepair.instance.repairExecutors.get(repairType).getPendingTaskCount()
+                                + AutoRepair.instance.repairExecutors.get(repairType).getActiveTaskCount();
             assertTrue(String.format("Expected > 0 task in queue for %s but was %s", repairType, expectedTasks),
                        expectedTasks > 0);
         }
@@ -108,9 +104,8 @@ public class AutoRepairTest extends CQLTester
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
         DatabaseDescriptor.setCDCEnabled(true);
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
-
-        AutoRepair instance = new AutoRepair();
-        instance.setup();
+        AutoRepair.instance.isSetupDone = false;
+        AutoRepair.instance.setup();
     }
 
     @Test
@@ -120,8 +115,7 @@ public class AutoRepairTest extends CQLTester
         DatabaseDescriptor.getAutoRepairConfig().setMaterializedViewRepairEnabled(RepairType.INCREMENTAL, false);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
-        AutoRepair instance = new AutoRepair();
-        instance.setup();
+        AutoRepair.instance.setup();
     }
 
     @Test(expected = ConfigurationException.class)
@@ -131,8 +125,8 @@ public class AutoRepairTest extends CQLTester
         DatabaseDescriptor.getAutoRepairConfig().setMaterializedViewRepairEnabled(RepairType.INCREMENTAL, true);
         DatabaseDescriptor.setCDCOnRepairEnabled(false);
         DatabaseDescriptor.setMaterializedViewsOnRepairEnabled(true);
-        AutoRepair instance = new AutoRepair();
-        instance.setup();
+        AutoRepair.instance.isSetupDone = false;
+        AutoRepair.instance.setup();
     }
 
     @Test

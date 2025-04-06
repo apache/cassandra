@@ -320,16 +320,6 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.token_range_splitter);
     }
 
-    /**
-     * Set a new token range splitter, this is not meant to be used other than for testing.
-     */
-    @VisibleForTesting
-    void setTokenRangeSplitter(RepairType repairType, ParameterizedClass tokenRangeSplitter)
-    {
-        getOptions(repairType).token_range_splitter = tokenRangeSplitter;
-        tokenRangeSplitters.remove(repairType);
-    }
-
     public IAutoRepairTokenRangeSplitter getTokenRangeSplitterInstance(RepairType repairType)
     {
         return tokenRangeSplitters.computeIfAbsent(repairType,
@@ -530,7 +520,7 @@ public class AutoRepairConfig implements Serializable
         public volatile ParameterizedClass token_range_splitter;
         // After a node restart, wait for this much delay before scheduler starts running repair; this is to avoid starting repair immediately after a node restart.
         public volatile DurationSpec.IntSecondsBound initial_scheduler_delay;
-        // Timeout for resuming stuck repair sessions.
+        // Timeout for retrying stuck repair sessions.
         public volatile DurationSpec.IntSecondsBound repair_session_timeout;
         // Maximum number of retries for a repair session.
         public volatile Integer repair_max_retries = 3;

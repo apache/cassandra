@@ -2493,7 +2493,7 @@ storage_compatibility_mode: NONE
 #     materialized_view_repair_enabled: false
 #     # Delay before starting repairs after a node restarts to avoid repairs starting immediately after a restart.
 #     initial_scheduler_delay: 5m
-#     # Timeout for resuming stuck repair sessions.
+#     # Timeout for retrying stuck repair sessions.
 #     repair_session_timeout: 3h
 #     # Force immediate repair on new nodes after they join the ring.
 #     force_repair_new_node: false

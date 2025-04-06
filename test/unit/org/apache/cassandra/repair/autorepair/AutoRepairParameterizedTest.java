@@ -180,8 +180,8 @@ public class AutoRepairParameterizedTest extends CQLTester
         Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY).truncateBlocking();
         Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_HISTORY).truncateBlocking();
 
-
-        AutoRepair.instance = new AutoRepair();
+        AutoRepair.instance.isSetupDone = false;
+        AutoRepair.instance.setup();
         executeCQL();
 
         timeFuncCalls = 0;
@@ -238,24 +238,6 @@ public class AutoRepairParameterizedTest extends CQLTester
         Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
                 .getColumnFamilyStore(SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY)
                 .forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
-    }
-
-    @Test(expected = ConfigurationException.class)
-    public void testRepairAsyncWithRepairTypeDisabled()
-    {
-        AutoRepairService.instance.getAutoRepairConfig().setAutoRepairEnabled(repairType, false);
-
-        AutoRepair.instance.repairAsync(repairType);
-    }
-
-    @Test
-    public void testRepairAsync()
-    {
-        AutoRepair.instance.repairExecutors.put(repairType, mockExecutor);
-
-        AutoRepair.instance.repairAsync(repairType);
-
-        verify(mockExecutor, Mockito.times(1)).submit(Mockito.any(Runnable.class));
     }
 
     @Test

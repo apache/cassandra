@@ -1143,8 +1143,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.info("Enabling auto-repair scheduling");
             AutoRepair.instance.setup();
+            logger.info("AutoRepair setup complete!");
         }
-        logger.info("AutoRepair setup complete!");
     }
 
 
