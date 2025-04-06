@@ -205,7 +205,7 @@ node. Defaults to true and is only evaluated when allow_parallel_replica_repair 
 | materialized_view_repair_enabled | false | Repairs materialized views if true.
 | initial_scheduler_delay | 5m | Delay before starting repairs after a node restarts to avoid repairs starting
 immediately after a restart.
-| repair_session_timeout | 3h | Timeout for resuming stuck repair sessions.
+| repair_session_timeout | 3h | Timeout for retrying stuck repair sessions.
 | force_repair_new_node | false | Force immediate repair on new nodes after they join the ring.
 | sstable_upper_threshold | 10000 | Threshold to skip repairing tables with too many SSTables.
 | table_max_repair_time | 6h | Maximum time allowed for repairing one table on a given node. If exceeded, the repair
