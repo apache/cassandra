@@ -1313,7 +1313,7 @@
   <macrodef name="testlist">
     <attribute name="test.file.list"/>
     <sequential>
-      <condition property="maxMemory" value="8G" else="4G">
+      <condition property="maxMemory" value="4G" else="2G">
           <equals arg1="${test.classlistprefix}" arg2="distributed"/>
       </condition>
       <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" exclude="**/*.java" timeout="${test.timeout}" maxmemory="${maxMemory}">
