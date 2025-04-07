@@ -1,21 +1,21 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.cassandra.service;
 
 import java.net.UnknownHostException;
@@ -40,6 +40,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Condition;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -229,12 +230,12 @@ public class ActiveRepairServiceTest
         }
 
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
-        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(),expected.get(0).getHostAddressAndPort());
+        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(), expected.get(0).getHostAddressAndPort());
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).ranges();
 
         assertEquals(expected.get(0), ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges,
-                                                                       ranges.iterator().next(),
-                                                                       null, hosts).endpoints().iterator().next());
+                                                                                  ranges.iterator().next(),
+                                                                                  null, hosts).endpoints().iterator().next());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -264,7 +265,6 @@ public class ActiveRepairServiceTest
         List<String> failed = StorageService.instance.getParentRepairStatus(3);
         assertNotNull(failed);
         assertEquals(ActiveRepairService.ParentRepairStatus.FAILED, ActiveRepairService.ParentRepairStatus.valueOf(failed.get(0)));
-
     }
 
     Set<InetAddressAndPort> addTokens(int max) throws Throwable
@@ -339,10 +339,10 @@ public class ActiveRepairServiceTest
     {
         assert params.length % 2 == 0 : "unbalanced key value pairs";
         Map<String, String> opt = new HashMap<>();
-        for (int i=0; i<(params.length >> 1); i++)
+        for (int i = 0; i < (params.length >> 1); i++)
         {
             int idx = i << 1;
-            opt.put(params[idx], params[idx+1]);
+            opt.put(params[idx], params[idx + 1]);
         }
         return RepairOption.parse(opt, DatabaseDescriptor.getPartitioner());
     }
@@ -362,19 +362,19 @@ public class ActiveRepairServiceTest
         Assert.assertNotEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true)), false));
         // subrange incremental repair
         Assert.assertNotEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                      RANGES_KEY, "1:2"), false));
+                                                                                                     RANGES_KEY, "1:2"), false));
 
         // hosts incremental repair
         Assert.assertEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                   HOSTS_KEY, "127.0.0.1"), false));
+                                                                                                  HOSTS_KEY, "127.0.0.1"), false));
         // dc incremental repair
         Assert.assertEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                   DATACENTERS_KEY, "DC2"), false));
+                                                                                                  DATACENTERS_KEY, "DC2"), false));
         // forced incremental repair
         Assert.assertNotEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                      FORCE_REPAIR_KEY, b2s(true)), false));
+                                                                                                     FORCE_REPAIR_KEY, b2s(true)), false));
         Assert.assertEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
-                                                                      FORCE_REPAIR_KEY, b2s(true)), true));
+                                                                                                  FORCE_REPAIR_KEY, b2s(true)), true));
 
         // full repair
         Assert.assertEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(false)), false));
@@ -420,7 +420,8 @@ public class ActiveRepairServiceTest
 
             // Submission is unblocked
             Thread.sleep(250);
-            validationExecutor.submit(() -> {});
+            validationExecutor.submit(() -> {
+            });
         }
         finally
         {
@@ -457,8 +458,8 @@ public class ActiveRepairServiceTest
             allSubmitted.await(TASK_SECONDS + 1, TimeUnit.SECONDS);
 
             // Give the tasks we expect to execute immediately chance to be scheduled
-            Util.spinAssertEquals(2 , ((ExecutorPlus) validationExecutor)::getActiveTaskCount, 1);
-            Util.spinAssertEquals(3 , ((ExecutorPlus) validationExecutor)::getPendingTaskCount, 1);
+            Util.spinAssertEquals(2, ((ExecutorPlus) validationExecutor)::getActiveTaskCount, 1);
+            Util.spinAssertEquals(3, ((ExecutorPlus) validationExecutor)::getPendingTaskCount, 1);
 
             // verify that we've reached a steady state with 2 threads actively processing and 3 queued tasks
             Assert.assertEquals(2, ((ExecutorPlus) validationExecutor).getActiveTaskCount());
