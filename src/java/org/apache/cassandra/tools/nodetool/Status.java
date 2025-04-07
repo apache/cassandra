@@ -35,6 +35,8 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
@@ -42,6 +44,7 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -59,6 +62,9 @@ public class Status extends NodeToolCmd
 
     @Option(title = "resolve_ip", name = { "-r", "--resolve-ip" }, description = "Show node domain names instead of IPs")
     private boolean resolveIp = false;
+
+    @Option(title = "cms node", name = { "-c", "--cms" }, description = "Show a node whether is a cms node")
+    private boolean hasCms = false;
 
     @Option(title = "sort",
     name = { "-s", "--sort" },
@@ -79,6 +85,7 @@ public class Status extends NodeToolCmd
     private Collection<String> joiningNodes, leavingNodes, movingNodes, liveNodes, unreachableNodes;
     private Map<String, String> loadMap, hostIDMap;
     private EndpointSnitchInfoMBean epSnitchInfo;
+    private CMSOperationsMBean cmsProxy;
 
     @Override
     public void execute(NodeProbe probe)
@@ -98,6 +105,7 @@ public class Status extends NodeToolCmd
         unreachableNodes = probe.getUnreachableNodes(true);
         hostIDMap = probe.getHostIdMap(true);
         epSnitchInfo = probe.getEndpointSnitchInfoProxy();
+        cmsProxy = hasCms ? probe.getCMSOperationsProxy() : null;
 
         StringBuilder errors = new StringBuilder();
         TableBuilder.SharedTable sharedTable = new TableBuilder.SharedTable("  ");
@@ -158,7 +166,7 @@ public class Status extends NodeToolCmd
         for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
         {
             TableBuilder tableBuilder = sharedTable.next();
-            addNodesHeader(hasEffectiveOwns, tableBuilder);
+            addNodesHeader(hasEffectiveOwns, hasCms, tableBuilder);
 
             ArrayListMultimap<InetAddressAndPort, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
             for (HostStatWithPort stat : dc.getValue())
@@ -172,7 +180,7 @@ public class Status extends NodeToolCmd
 
                 HostStatWithPort hostStatWithPort = tokens.get(0);
                 String epDns = hostStatWithPort.ipOrDns(printPort);
-                List<Object> nodeData = addNode(epDns, endpoint, owns, hostStatWithPort, tokens.size(), hasEffectiveOwns);
+                List<Object> nodeData = addNode(epDns, endpoint, owns, hostStatWithPort, tokens.size(), hasEffectiveOwns, hasCms);
                 data.put(epDns, nodeData);
             }
 
@@ -214,18 +222,24 @@ public class Status extends NodeToolCmd
         out.printf("%n" + errors);
     }
 
-    private void addNodesHeader(boolean hasEffectiveOwns, TableBuilder tableBuilder)
+    private void addNodesHeader(boolean hasEffectiveOwns, boolean hasCms, TableBuilder tableBuilder)
     {
         String owns = hasEffectiveOwns ? "Owns (effective)" : "Owns";
 
+        List<String> headers;
+
         if (isTokenPerNode)
-            tableBuilder.add("--", "Address", "Load", owns, "Host ID", "Token", "Rack");
+            headers = Lists.newArrayList("--", "Address", "Load", owns, "Host ID", "Token", "Rack");
         else
-            tableBuilder.add("--", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
+            headers = Lists.newArrayList("--", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
+
+        if (hasCms)
+            headers.add("CMS");
+        tableBuilder.add(headers);
     }
 
     private List<Object> addNode(String epDns, InetAddressAndPort addressAndPort, Float owns,
-                                 HostStatWithPort hostStat, int size, boolean hasEffectiveOwns)
+                                 HostStatWithPort hostStat, int size, boolean hasEffectiveOwns, boolean hasCms)
     {
         String endpoint = addressAndPort.getHostAddressAndPort();
         String status, state, load, strOwns, hostID, rack;
@@ -251,10 +265,14 @@ public class Status extends NodeToolCmd
             throw new RuntimeException(e);
         }
 
+        List<Object> result;
         if (isTokenPerNode)
-            return List.of(addressAndPort, statusAndState, epDns, load, strOwns, hostID, hostStat.token, rack);
+            result = Lists.newArrayList(addressAndPort, statusAndState, epDns, load, strOwns, hostID, hostStat.token, rack);
         else
-            return List.of(addressAndPort, statusAndState, epDns, load, String.valueOf(size), strOwns, hostID, rack);
+            result = Lists.newArrayList(addressAndPort, statusAndState, epDns, load, String.valueOf(size), strOwns, hostID, rack);
+        if (hasCms)
+            result.add(String.valueOf(cmsProxy.isCurrentMember(addressAndPort)));
+        return ImmutableList.copyOf(result);
     }
 
     public enum SortOrder

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.Arrays;
 import java.util.regex.Pattern;
 
 import org.junit.BeforeClass;
@@ -27,6 +28,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -43,8 +45,77 @@ public class StatusTest extends CQLTester
     {
         requireNetwork();
         startJMXServer();
+        CMSOperations.initJmx();
+
         localHostId = StorageService.instance.getLocalHostId();
         token = StorageService.instance.getTokens().get(0);
+    }
+
+    @Test
+    @SuppressWarnings("SingleCharacterStringConcatenation")
+    public void testMaybeChangeDocs()
+    {
+        // If you added, modified options or help, please update docs if necessary
+
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "status");
+        tool.assertOnCleanExit();
+
+        String help = "NAME\n" +
+                      "        nodetool status - Print cluster information (state, load, IDs, ...)\n" +
+                      "\n" +
+                      "SYNOPSIS\n" +
+                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
+                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
+                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
+                      "                [(-u <username> | --username <username>)] status [(-c | --cms)]\n" +
+                      "                [(-o <sort_order> | --order <sort_order>)] [(-r | --resolve-ip)]\n" +
+                      "                [(-s <sort> | --sort <sort>)] [--] [<keyspace>]\n" +
+                      "\n" +
+                      "OPTIONS\n" +
+                      "        -c, --cms\n" +
+                      "            Show a node whether is a cms node\n" +
+                      "\n" +
+                      "        -h <host>, --host <host>\n" +
+                      "            Node hostname or ip address\n" +
+                      "\n" +
+                      "        -o <sort_order>, --order <sort_order>\n" +
+                      "            Sorting order: 'asc' for ascending, 'desc' for descending.\n" +
+                      "\n" +
+                      "        -p <port>, --port <port>\n" +
+                      "            Remote jmx agent port number\n" +
+                      "\n" +
+                      "        -pp, --print-port\n" +
+                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
+                      "\n" +
+                      "        -pw <password>, --password <password>\n" +
+                      "            Remote jmx agent password\n" +
+                      "\n" +
+                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
+                      "            Path to the JMX password file\n" +
+                      "\n" +
+                      "        -r, --resolve-ip\n" +
+                      "            Show node domain names instead of IPs\n" +
+                      "\n" +
+                      "        -s <sort>, --sort <sort>\n" +
+                      "            Sort by one of 'ip', 'host', 'load', 'owns', 'id', 'rack', 'state'\n" +
+                      "            or 'token'. Default ordering is ascending for 'ip', 'host', 'id',\n" +
+                      "            'token', 'rack' and descending for 'load', 'owns', 'state'. Sorting\n" +
+                      "            by token is possible only when cluster does not use vnodes. When\n" +
+                      "            using vnodes, default sorting is by id otherwise by token.\n" +
+                      "\n" +
+                      "        -u <username>, --username <username>\n" +
+                      "            Remote jmx agent username\n" +
+                      "\n" +
+                      "        --\n" +
+                      "            This option can be used to separate command-line options from the\n" +
+                      "            list of argument, (useful when arguments might be mistaken for\n" +
+                      "            command-line options\n" +
+                      "\n" +
+                      "        [<keyspace>]\n" +
+                      "            The keyspace name\n"
+                      + "\n"
+                      + "\n";
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     /**
@@ -93,7 +164,7 @@ public class StatusTest extends CQLTester
                 .contains("probably still bootstrapping. Effective ownership information is meaningless.");
     }
 
-    private void validateStatusOutput(String hostForm, String... args)
+    private void validateStatusOutputBasic(String hostForm, String expectedEndsWith, String... args)
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
         tool.assertOnCleanExit();
@@ -114,7 +185,20 @@ public class StatusTest extends CQLTester
         assertThat(hostStatus).containsPattern("\\d+\\.\\d+%");
         assertThat(hostStatus).contains(localHostId);
         assertThat(hostStatus).contains(token);
-        assertThat(hostStatus).endsWith(SimpleLocationProvider.LOCATION.rack);
+        assertThat(hostStatus).endsWith(expectedEndsWith);
         assertThat(hostStatus).doesNotContain("?");
+    }
+
+    private void validateStatusOutput(String hostForm, String... args)
+    {
+        validateStatusOutputBasic(hostForm, SimpleLocationProvider.LOCATION.rack, args);
+    }
+
+    @Test
+    public void testStatusOutputWithCmsOption()
+    {
+        HostStatWithPort host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(), false, null);
+        Arrays.asList("-c", "--cms").forEach(arg -> validateStatusOutputBasic(host.ipOrDns(false),
+                                                                            Boolean.TRUE.toString(), "status", arg));
     }
 }

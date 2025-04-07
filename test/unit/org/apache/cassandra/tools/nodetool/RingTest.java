@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -41,6 +42,8 @@ public class RingTest extends CQLTester
     {
         requireNetwork();
         startJMXServer();
+        CMSOperations.initJmx();
+
         token = StorageService.instance.getTokens().get(0);
     }
 
@@ -53,17 +56,17 @@ public class RingTest extends CQLTester
         final HostStatWithPort host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
                                                            false, null);
         validateRingOutput(host.ipOrDns(false), "ring");
-        Arrays.asList("-pp", "--print-port").forEach(arg -> validateRingOutput(host.ipOrDns(true), "-pp", "ring"));
+        Arrays.asList("-pp", "--print-port").forEach(arg -> validateRingOutput(host.ipOrDns(true), arg, "ring"));
 
         final HostStatWithPort hostResolved = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
                                                                    true, null);
         Arrays.asList("-r", "--resolve-ip").forEach(arg ->
-                validateRingOutput(hostResolved.ipOrDns(false), "ring", "-r"));
+                validateRingOutput(hostResolved.ipOrDns(false), "ring", arg));
         validateRingOutput(hostResolved.ipOrDns(true), "-pp", "ring", "-r");
     }
 
     @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
-    private void validateRingOutput(String hostForm, String... args)
+    private void validateRingOutputBasic(String hostForm, String expectedEndsWith, String... args)
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
         tool.assertOnCleanExit();
@@ -85,8 +88,13 @@ public class RingTest extends CQLTester
         assertThat(hostRing).contains("Normal");
         assertThat(hostRing).containsPattern("\\d+\\.?\\d+ KiB");
         assertThat(hostRing).containsPattern("\\d+\\.\\d+%");
-        assertThat(hostRing).endsWith(token);
+        assertThat(hostRing).endsWith(expectedEndsWith);
         assertThat(hostRing).doesNotContain("?");
+    }
+
+    private void validateRingOutput(String hostForm, String... args)
+    {
+        validateRingOutputBasic(hostForm, token, args);
     }
 
     @Test
@@ -107,45 +115,49 @@ public class RingTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "ring");
         tool.assertOnCleanExit();
 
-        String help = "NAME\n" + "        nodetool ring - Print information about the token ring\n"
-                      + "\n"
-                      + "SYNOPSIS\n"
-                      + "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n"
-                      + "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n"
-                      + "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n"
-                      + "                [(-u <username> | --username <username>)] ring [(-r | --resolve-ip)]\n"
-                      + "                [--] [<keyspace>]\n"
-                      + "\n"
-                      + "OPTIONS\n"
-                      + "        -h <host>, --host <host>\n"
-                      + "            Node hostname or ip address\n"
-                      + "\n"
-                      + "        -p <port>, --port <port>\n"
-                      + "            Remote jmx agent port number\n"
-                      + "\n"
-                      + "        -pp, --print-port\n"
-                      + "            Operate in 4.0 mode with hosts disambiguated by port number\n"
-                      + "\n"
-                      + "        -pw <password>, --password <password>\n"
-                      + "            Remote jmx agent password\n"
-                      + "\n"
-                      + "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n"
-                      + "            Path to the JMX password file\n"
-                      + "\n"
-                      + "        -r, --resolve-ip\n"
-                      + "            Show node domain names instead of IPs\n"
-                      + "\n"
-                      + "        -u <username>, --username <username>\n"
-                      + "            Remote jmx agent username\n"
-                      + "\n"
-                      + "        --\n"
-                      + "            This option can be used to separate command-line options from the\n"
-                      + "            list of argument, (useful when arguments might be mistaken for\n"
-                      + "            command-line options\n"
-                      + "\n"
-                      + "        <keyspace>\n"
-                      + "            Specify a keyspace for accurate ownership information (topology\n"
-                      + "            awareness)\n"
+        String help = "NAME\n" +
+                      "        nodetool ring - Print information about the token ring\n" +
+                      "\n" +
+                      "SYNOPSIS\n" +
+                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
+                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
+                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
+                      "                [(-u <username> | --username <username>)] ring [(-c | --cms)]\n" +
+                      "                [(-r | --resolve-ip)] [--] [<keyspace>]\n" +
+                      "\n" +
+                      "OPTIONS\n" +
+                      "        -c, --cms\n" +
+                      "            Show a node whether is a cms node\n" +
+                      "\n" +
+                      "        -h <host>, --host <host>\n" +
+                      "            Node hostname or ip address\n" +
+                      "\n" +
+                      "        -p <port>, --port <port>\n" +
+                      "            Remote jmx agent port number\n" +
+                      "\n" +
+                      "        -pp, --print-port\n" +
+                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
+                      "\n" +
+                      "        -pw <password>, --password <password>\n" +
+                      "            Remote jmx agent password\n" +
+                      "\n" +
+                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
+                      "            Path to the JMX password file\n" +
+                      "\n" +
+                      "        -r, --resolve-ip\n" +
+                      "            Show node domain names instead of IPs\n" +
+                      "\n" +
+                      "        -u <username>, --username <username>\n" +
+                      "            Remote jmx agent username\n" +
+                      "\n" +
+                      "        --\n" +
+                      "            This option can be used to separate command-line options from the\n" +
+                      "            list of argument, (useful when arguments might be mistaken for\n" +
+                      "            command-line options\n" +
+                      "\n" +
+                      "        <keyspace>\n" +
+                      "            Specify a keyspace for accurate ownership information (topology\n" +
+                      "            awareness)\n"
                       + "\n"
                       + "\n";
         assertThat(tool.getStdout()).isEqualTo(help);
@@ -163,5 +175,14 @@ public class RingTest extends CQLTester
         tool = ToolRunner.invokeNodetool("ring", "system_schema");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Datacenter: datacenter1");
+    }
+
+    @Test
+    public void testStatusOutputWithCmsOption()
+    {
+        final HostStatWithPort host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
+                                                           false, null);
+        Arrays.asList("-c", "--cms").forEach(arg -> validateRingOutputBasic(host.ipOrDns(false),
+                                                                            Boolean.TRUE.toString(),"ring", arg));
     }
 }
