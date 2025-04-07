@@ -525,23 +525,23 @@ public interface ValueAccessor<V>
                 break;
             case 3:
                 accessor.putShort(dst, offset, (short)(register >>> 8));
-                accessor.putByte(dst, offset, (byte)register);
+                accessor.putByte(dst, offset + 2, (byte)register);
                 break;
             case 4:
                 accessor.putInt(dst, offset, (int)register);
                 break;
             case 5:
                 accessor.putInt(dst, offset, (int)(register >>> 8));
-                accessor.putByte(dst, offset, (byte)register);
+                accessor.putByte(dst, offset + 4, (byte)register);
                 break;
             case 6:
                 accessor.putInt(dst, offset, (int)(register >>> 16));
-                accessor.putShort(dst, offset, (short)register);
+                accessor.putShort(dst, offset + 4, (short)register);
                 break;
             case 7:
                 accessor.putInt(dst, offset, (int)(register >>> 24));
-                accessor.putShort(dst, offset, (short)(register >> 8));
-                accessor.putByte(dst, offset, (byte)register);
+                accessor.putShort(dst, offset + 4, (short)(register >> 8));
+                accessor.putByte(dst, offset + 6, (byte)register);
                 break;
             case 8:
                 accessor.putLong(dst, offset, register);
@@ -557,23 +557,23 @@ public interface ValueAccessor<V>
         switch (bytes)
         {
             case 0: return 0;
-            case 1: return accessor.getByte(dst, offset);
-            case 2: return accessor.getShort(dst, offset);
+            case 1: return accessor.getByte(dst, offset) & 0xffL;
+            case 2: return accessor.getShort(dst, offset) & 0xffffL;
             case 3:
-                return ((long)accessor.getShort(dst, offset) << 8)
-                     |  (long)accessor.getByte(dst, offset + 2);
+                return ((accessor.getShort(dst, offset) & 0xffffL) << 8)
+                     |  (accessor.getByte(dst, offset + 2) & 0xffL);
             case 4:
-                return accessor.getInt(dst, offset);
+                return accessor.getInt(dst, offset) & 0xffffffffL;
             case 5:
-                return ((long)accessor.getInt(dst, offset) << 8)
-                     |  (long)accessor.getByte(dst, offset + 4);
+                return ((accessor.getInt(dst, offset) & 0xffffffffL) << 8)
+                     |  (accessor.getByte(dst, offset + 4) & 0xffL);
             case 6:
-                return ((long)accessor.getInt(dst, offset) << 16)
-                     |  (long)accessor.getShort(dst, offset + 4);
+                return ((accessor.getInt(dst, offset) & 0xffffffffL) << 16)
+                     |  (accessor.getShort(dst, offset + 4) & 0xffffL);
             case 7:
-                return ((long)accessor.getInt(dst, offset) << 24)
-                     | ((long)accessor.getShort(dst, offset + 4) << 8)
-                     |  (long)accessor.getByte(dst, offset + 6);
+                return ((accessor.getInt(dst, offset) & 0xffffffffL) << 24)
+                     | ((accessor.getShort(dst, offset + 4) & 0xffffL) << 8)
+                     |  (accessor.getByte(dst, offset + 6) & 0xffL);
             case 8: return accessor.getLong(dst, offset);
             default: throw new IllegalArgumentException();
         }

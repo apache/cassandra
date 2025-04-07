@@ -56,7 +56,7 @@ public abstract class AccordRoutableKey implements RoutableKey
     static final int PREFIX_MASK = 0xF0;
     static final int SUFFIX_MASK = 0x0F;
 
-    final TableId table; // TODO (desired): use an id (TrM)
+    final TableId table; // TODO (desired): use a long id (TrM)
 
     protected AccordRoutableKey(TableId table)
     {

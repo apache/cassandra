@@ -74,7 +74,7 @@ public class SSTableIndex extends SharedCloseableImpl
         Map<IndexComponent, FileHandle> files = new EnumMap<>(IndexComponent.class);
         for (IndexComponent c : id.getLiveComponents())
             files.put(c, new FileHandle.Builder(id.fileFor(c)).mmapped(true).complete());
-        List<Segment> segments = RouteIndexFormat.readSegements(files);
+        List<Segment> segments = RouteIndexFormat.readSegments(files);
         files.remove(IndexComponent.SEGMENT).close();
         files.remove(IndexComponent.METADATA).close();
         Cleanup cleanup = new Cleanup(files);

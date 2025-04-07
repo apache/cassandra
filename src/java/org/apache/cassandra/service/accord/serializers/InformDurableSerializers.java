@@ -38,7 +38,7 @@ public class InformDurableSerializers
         {
             out.writeVInt(msg.minEpoch - msg.waitForEpoch);
             out.writeVInt(msg.maxEpoch - msg.waitForEpoch);
-            CommandSerializers.nullableTimestamp.serialize(msg.executeAt, out);
+            CommandSerializers.timestamp.serialize(msg.executeAt, out);
             CommandSerializers.durability.serialize(msg.durability, out);
         }
 
@@ -47,7 +47,7 @@ public class InformDurableSerializers
         {
             long minEpoch = waitForEpoch + in.readVInt();
             long maxEpoch = waitForEpoch + in.readVInt();
-            Timestamp executeAt = CommandSerializers.nullableTimestamp.deserialize(in);
+            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in);
             Status.Durability durability = CommandSerializers.durability.deserialize(in);
             return InformDurable.SerializationSupport.create(txnId, scope, executeAt, minEpoch, waitForEpoch, maxEpoch, durability);
         }
@@ -57,7 +57,7 @@ public class InformDurableSerializers
         {
             return   TypeSizes.sizeofVInt(msg.minEpoch - msg.waitForEpoch)
                    + TypeSizes.sizeofVInt(msg.maxEpoch - msg.waitForEpoch)
-                   + CommandSerializers.nullableTimestamp.serializedSize(msg.executeAt)
+                   + CommandSerializers.timestamp.serializedSize(msg.executeAt)
                    + CommandSerializers.durability.serializedSize(msg.durability);
         }
     };

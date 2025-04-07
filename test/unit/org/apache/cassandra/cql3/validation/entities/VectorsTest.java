@@ -25,8 +25,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 
-import static org.apache.cassandra.ServerTestUtils.daemonInitialization;
-
 public class VectorsTest extends CQLTester
 {
     @BeforeClass

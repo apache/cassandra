@@ -27,7 +27,6 @@ import accord.primitives.Ballot;
 import accord.primitives.Participants;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -63,6 +62,11 @@ public class BeginInvalidationSerializers
 
     public static final UnversionedSerializer<InvalidateReply> reply = new UnversionedSerializer<>()
     {
+        private static final int ACCEPTED_FAST_PATH = 0x1;
+        private static final int HAS_TRUNCATED = 0x2;
+        private static final int HAS_ROUTE = 0x4;
+        private static final int HAS_HOME_KEY = 0x8;
+
         @Override
         public void serialize(InvalidateReply reply, DataOutputPlus out) throws IOException
         {
@@ -70,24 +74,28 @@ public class BeginInvalidationSerializers
             CommandSerializers.ballot.serialize(reply.accepted, out);
             CommandSerializers.saveStatus.serialize(reply.maxStatus, out);
             CommandSerializers.saveStatus.serialize(reply.maxKnowledgeStatus, out);
-            out.writeBoolean(reply.acceptedFastPath);
-            KeySerializers.nullableParticipants.serialize(reply.truncated, out);
-            KeySerializers.nullableRoute.serialize(reply.route, out);
-            KeySerializers.nullableRoutingKey.serialize(reply.homeKey, out);
+            int flags =   (reply.acceptedFastPath ? ACCEPTED_FAST_PATH : 0)
+                        | (reply.truncated != null ? HAS_TRUNCATED : 0)
+                        | (reply.route != null ? HAS_ROUTE : 0)
+                        | (reply.homeKey != null && reply.route == null ? HAS_HOME_KEY : 0);
+            out.writeByte(flags);
+            if (reply.truncated != null) KeySerializers.participants.serialize(reply.truncated, out);
+            if (reply.route != null) KeySerializers.route.serialize(reply.route, out);
+            else if (reply.homeKey != null) KeySerializers.routingKey.serialize(reply.homeKey, out);
         }
 
         @Override
         public InvalidateReply deserialize(DataInputPlus in) throws IOException
         {
-            // TODO (expected): use headers instead of nullable+bool serializers
             Ballot supersededBy = CommandSerializers.ballot.deserialize(in);
             Ballot accepted = CommandSerializers.ballot.deserialize(in);
             SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in);
             SaveStatus maxKnowledgeStatus = CommandSerializers.saveStatus.deserialize(in);
-            boolean acceptedFastPath = in.readBoolean();
-            Participants<?> truncated = KeySerializers.nullableParticipants.deserialize(in);
-            Route<?> route = KeySerializers.nullableRoute.deserialize(in);
-            RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in);
+            byte flags = in.readByte();
+            boolean acceptedFastPath = (flags & ACCEPTED_FAST_PATH) != 0;
+            Participants<?> truncated = (flags & HAS_TRUNCATED) != 0 ? KeySerializers.participants.deserialize(in) : null;
+            Route<?> route = (flags & HAS_ROUTE) != 0 ? KeySerializers.route.deserialize(in) : null;
+            RoutingKey homeKey = (flags & HAS_HOME_KEY) != 0 ? KeySerializers.routingKey.deserialize(in) : route != null ? route.homeKey() : null;
             return new InvalidateReply(supersededBy, accepted, maxStatus, maxKnowledgeStatus, acceptedFastPath, truncated, route, homeKey);
         }
 
@@ -98,10 +106,10 @@ public class BeginInvalidationSerializers
                  + CommandSerializers.ballot.serializedSize(reply.accepted)
                  + CommandSerializers.saveStatus.serializedSize(reply.maxStatus)
                  + CommandSerializers.saveStatus.serializedSize(reply.maxKnowledgeStatus)
-                 + TypeSizes.BOOL_SIZE
-                 + KeySerializers.nullableParticipants.serializedSize(reply.truncated)
-                 + KeySerializers.nullableRoute.serializedSize(reply.route)
-                 + KeySerializers.nullableRoutingKey.serializedSize(reply.homeKey);
+                 + 1
+                 + (reply.truncated != null ? KeySerializers.participants.serializedSize(reply.truncated) : 0)
+                 + (reply.route != null ? KeySerializers.route.serializedSize(reply.route) : 0)
+                 + (reply.homeKey != null && reply.route == null ? KeySerializers.routingKey.serializedSize(reply.homeKey) : 0);
         }
     };
 }

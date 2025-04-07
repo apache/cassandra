@@ -71,10 +71,10 @@ public class AccordDataStore implements DataStore
     }
 
     @Override
-    public AsyncResult<Void> snapshot(Ranges ranges, TxnId before) // TODO: does this have to go to journal, too?
+    public AsyncResult<Void> snapshot(Ranges ranges, TxnId before)
     {
         AsyncResults.SettableResult<Void> result = new AsyncResults.SettableResult<>();
-        // TODO: maintain a list of Accord tables, perhaps in ClusterMetadata?
+        // TODO (desired): maintain a list of Accord tables, perhaps in ClusterMetadata?
         ClusterMetadata metadata = ClusterMetadata.current();
         Object2ObjectHashMap<TableId, SnapshotBounds> tables = new Object2ObjectHashMap<>();
         for (Range range : ranges)

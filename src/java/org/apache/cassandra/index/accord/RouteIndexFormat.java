@@ -249,7 +249,7 @@ public class RouteIndexFormat
         }
     }
 
-    static List<Segment> readSegements(Map<IndexComponent, FileHandle> index) throws IOException
+    static List<Segment> readSegments(Map<IndexComponent, FileHandle> index) throws IOException
     {
         List<Segment> segments = new ArrayList<>();
 

@@ -19,21 +19,28 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.local.Node;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.utils.FastByteOperations;
+import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
@@ -69,6 +76,58 @@ public class CommandSerializersTest
     public void txnIdSerde()
     {
         DataOutputBuffer output = new DataOutputBuffer();
-        qt().forAll(AccordGens.txnIds()).check(txnId -> Serializers.testSerde(output, CommandSerializers.txnId, txnId));
+        qt().forAll(AccordGens.txnIds()).check(txnId -> {
+            Serializers.testSerde(output, CommandSerializers.txnId, txnId);
+            ByteBuffer tmp = output.buffer();
+            tmp.clear();
+            CommandSerializers.txnId.serialize(txnId, tmp);
+            tmp.flip();
+            TxnId rt = CommandSerializers.txnId.deserialize(tmp);
+            Assertions.assertThat(rt).isEqualTo(txnId);
+        });
+    }
+
+    @Test
+    public void txnIdComparable()
+    {
+        qt().forAll(AccordGens.txnIds(), AccordGens.txnIds()).check(CommandSerializersTest::testComparable);
+        qt().forAll(AccordGens.txnIds()).check((a) -> {
+            ByteBuffer abb = ByteBuffer.allocate((int) CommandSerializers.txnId.serializedSize(a));
+            CommandSerializers.txnId.serializeComparable(a, abb, ByteBufferAccessor.instance, 0);
+            if (a.epoch() < Timestamp.MAX_EPOCH)
+                testComparable(a, TxnId.fromValues(a.epoch() + 1, a.hlc(), a.flags(), a.node));
+            if (a.epoch() > 0)
+                testComparable(a, TxnId.fromValues(a.epoch() - 1, a.hlc(), a.flags(), a.node));
+            if (a.hlc() < Timestamp.MAX.hlc())
+                testComparable(a, TxnId.fromValues(a.epoch(), a.hlc() + 1, a.flags(), a.node));
+            if (a.hlc() > 0)
+                testComparable(a, TxnId.fromValues(a.epoch(), a.hlc() - 1, a.flags(), a.node));
+            if (a.flags() < Timestamp.MAX.flags())
+                testComparable(a, TxnId.fromValues(a.epoch(), a.hlc(), a.flags() + 1, a.node));
+            if (a.flags() != 0)
+                testComparable(a, TxnId.fromValues(a.epoch(), a.hlc(), a.flags() - 1, a.node));
+            if (a.node.id > 0)
+                testComparable(a, TxnId.fromValues(a.epoch(), a.hlc(), a.flags(), new Node.Id(a.node.id - 1)));
+            if (a.node.id < Integer.MAX_VALUE)
+                testComparable(a, TxnId.fromValues(a.epoch(), a.hlc(), a.flags(), new Node.Id(a.node.id + 1)));
+        });
+    }
+
+    private static void testComparable(TxnId a, TxnId b)
+    {
+        ByteBuffer abb = ByteBuffer.allocate((int) CommandSerializers.txnId.serializedSize(a));
+        CommandSerializers.txnId.serializeComparable(a, abb, ByteBufferAccessor.instance, 0);
+        TxnId art = CommandSerializers.txnId.deserializeComparable(abb, ByteBufferAccessor.instance, 0);
+        Assertions.assertThat(art).isEqualTo(a);
+        testComparable(abb, a, b);
+    }
+
+    private static void testComparable(ByteBuffer abb, TxnId a, TxnId b)
+    {
+        ByteBuffer bbb = ByteBuffer.allocate((int) CommandSerializers.txnId.serializedSize(b));
+        CommandSerializers.txnId.serializeComparable(b, bbb, ByteBufferAccessor.instance, 0);
+        Assertions.assertThat(FastByteOperations.compareUnsigned(abb, bbb)).isEqualTo(a.compareTo(b));
+        TxnId brt = CommandSerializers.txnId.deserializeComparable(bbb, ByteBufferAccessor.instance, 0);
+        Assertions.assertThat(brt).isEqualTo(b);
     }
 }

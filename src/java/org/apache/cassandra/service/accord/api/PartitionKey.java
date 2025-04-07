@@ -21,14 +21,10 @@ package org.apache.cassandra.service.accord.api;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import com.google.common.base.Preconditions;
-
 import accord.api.Key;
-import accord.primitives.Routable;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.Partition;
@@ -39,6 +35,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
@@ -115,23 +112,16 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         return partitionKey().toString();
     }
 
-    // TODO: callers to this method are not correctly handling ranges
-    public static PartitionKey toPartitionKey(Routable routable)
-    {
-        return (PartitionKey) routable;
-    }
-
     public static final Serializer serializer = new Serializer();
     public static class Serializer implements AccordKeySerializer<PartitionKey>
     {
-        // TODO: add vint to value accessor and use vints
         private Serializer() {}
 
         @Override
         public void serialize(PartitionKey key, DataOutputPlus out) throws IOException
         {
             key.table().serializeCompact(out);
-            ByteBufferUtil.writeWithShortLength(key.partitionKey().getKey(), out);
+            ByteBufferUtil.writeWithVIntLength(key.partitionKey().getKey(), out);
         }
 
         public <V> int serialize(PartitionKey key, V dst, ValueAccessor<V> accessor, int offset)
@@ -140,9 +130,8 @@ public final class PartitionKey extends AccordRoutableKey implements Key
             position += key.table().serializeCompact(dst, accessor, position);
             ByteBuffer bytes = key.partitionKey().getKey();
             Invariants.require(key.partitionKey().getPartitioner() == getPartitioner());
-            int numBytes = ByteBufferAccessor.instance.size(bytes);
-            Preconditions.checkState(numBytes <= Short.MAX_VALUE);
-            position += accessor.putShort(dst, position, (short) numBytes);
+            int numBytes = bytes.remaining();
+            position += accessor.putUnsignedVInt32(dst, position, numBytes);
             position += accessor.copyByteBufferTo(bytes, 0, dst, position, numBytes);
             return position - offset;
 
@@ -152,14 +141,14 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         public void skip(DataInputPlus in) throws IOException
         {
             TableId.skipCompact(in);
-            ByteBufferUtil.skipShortLength(in);
+            ByteBufferUtil.skipWithVIntLength(in);
         }
 
         @Override
         public PartitionKey deserialize(DataInputPlus in) throws IOException
         {
             TableId tableId = TableId.deserializeCompact(in).intern();
-            DecoratedKey key = getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
+            DecoratedKey key = getPartitioner().decorateKey(ByteBufferUtil.readWithVIntLength(in));
             return new PartitionKey(tableId, key);
         }
 
@@ -167,8 +156,8 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         {
             TableId tableId = TableId.deserializeCompact(src, accessor, offset).intern();
             offset += tableId.serializedCompactSize();
-            int numBytes = accessor.getShort(src, offset);
-            offset += TypeSizes.SHORT_SIZE;
+            int numBytes = accessor.getUnsignedVInt32(src, offset);
+            offset += VIntCoding.readLengthOfVInt(src, accessor, offset);
             ByteBuffer bytes = ByteBuffer.allocate(numBytes);
             accessor.copyTo(src, offset, bytes, ByteBufferAccessor.instance, 0, numBytes);
             DecoratedKey key = getPartitioner().decorateKey(bytes);
@@ -178,7 +167,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         @Override
         public long serializedSize(PartitionKey key)
         {
-            return key.table().serializedCompactSize() + ByteBufferUtil.serializedSizeWithShortLength(key.partitionKey().getKey());
+            return key.table().serializedCompactSize() + ByteBufferUtil.serializedSizeWithVIntLength(key.partitionKey().getKey());
         }
     }
 }

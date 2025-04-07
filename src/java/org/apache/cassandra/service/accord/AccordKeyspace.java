@@ -63,9 +63,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TupleType;
@@ -113,6 +111,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
@@ -140,14 +139,12 @@ public class AccordKeyspace
         TableMetadata.Builder builder = parse(tableName,
                                                      "accord journal",
                                                      "CREATE TABLE %s ("
-                                                     + "store_id int,"
-                                                     + "type tinyint,"
-                                                     + "id blob,"
+                                                     + "key blob,"
                                                      + "descriptor bigint,"
                                                      + "offset int,"
                                                      + "user_version int,"
                                                      + "record blob,"
-                                                     + "PRIMARY KEY((store_id, type, id), descriptor, offset)"
+                                                     + "PRIMARY KEY((key), descriptor, offset)"
                                                      + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC)" +
                                                      " WITH compression = {'class':'NoopCompressor'};")
                                                .compaction(CompactionParams.lcs(emptyMap()))
@@ -417,9 +414,7 @@ public class AccordKeyspace
          */
         private static CloseableIterator<DecoratedKey> keyIterator(Memtable memtable, AbstractBounds<PartitionPosition> range)
         {
-            // TODO (required): why are we replacing the right bound with max bound?
-            AbstractBounds<PartitionPosition> memtableRange = range.withNewRight(memtable.metadata().partitioner.getMinimumToken().maxKeyBound());
-            DataRange dataRange = new DataRange(memtableRange, new ClusteringIndexSliceFilter(Slices.ALL, false));
+            DataRange dataRange = new DataRange(range, new ClusteringIndexSliceFilter(Slices.ALL, false));
             UnfilteredPartitionIterator iter = memtable.partitionIterator(ColumnFilter.NONE, dataRange, SSTableReadsListener.NOOP_LISTENER);
 
             int rangeStartCmpMin = range.isStartInclusive() ? 0 : 1;
@@ -537,7 +532,7 @@ public class AccordKeyspace
         return cell.accessor().toBuffer(cell.value());
     }
 
-    // TODO: convert to byte array
+    // TODO (desired): convert to byte array
     private static ByteBuffer cellValue(Row row, ColumnMetadata column)
     {
         Cell<?> cell = row.getCell(column);
@@ -546,60 +541,38 @@ public class AccordKeyspace
 
     public static class JournalColumns
     {
-        static final ClusteringComparator keyComparator = Journal.partitionKeyAsClusteringComparator();
-        static final CompositeType partitionKeyType = (CompositeType) Journal.partitionKeyType;
-        public static final ColumnMetadata store_id = getColumn(Journal, "store_id");
-        public static final ColumnMetadata type = getColumn(Journal, "type");
-        public static final ColumnMetadata id = getColumn(Journal, "id");
+        public static final ColumnMetadata key = getColumn(Journal, "key");
         public static final ColumnMetadata record = getColumn(Journal, "record");
         public static final ColumnMetadata user_version = getColumn(Journal, "user_version");
         public static final RegularAndStaticColumns regular = new RegularAndStaticColumns(Columns.NONE, Columns.from(Arrays.asList(record, user_version)));
 
         public static DecoratedKey decorate(JournalKey key)
         {
-            ByteBuffer id = ByteBuffer.allocate(CommandSerializers.txnId.serializedSize());
-            CommandSerializers.txnId.serialize(key.id, id);
-            id.flip();
-            ByteBuffer pk = keyComparator.make(key.commandStoreId, (byte)key.type.id, id).serializeAsPartitionKey();
-            Invariants.require(getTxnId(splitPartitionKey(pk)).equals(key.id));
+            int commandStoreIdBytes = VIntCoding.computeUnsignedVIntSize(key.commandStoreId);
+            int length = commandStoreIdBytes + 1;
+            if (key.type == JournalKey.Type.COMMAND_DIFF)
+                length += CommandSerializers.txnId.serializedSize(key.id);
+            ByteBuffer pk = ByteBuffer.allocate(length);
+            ByteBufferAccessor.instance.putUnsignedVInt32(pk, 0, key.commandStoreId);
+            pk.put(commandStoreIdBytes, (byte)key.type.id);
+            if (key.type == JournalKey.Type.COMMAND_DIFF)
+                CommandSerializers.txnId.serializeComparable(key.id, pk, ByteBufferAccessor.instance, commandStoreIdBytes + 1);
             return Journal.partitioner.decorateKey(pk);
-        }
-
-        public static ByteBuffer[] splitPartitionKey(DecoratedKey key)
-        {
-            return JournalColumns.partitionKeyType.split(key.getKey());
-        }
-
-        public static ByteBuffer[] splitPartitionKey(ByteBuffer key)
-        {
-            return JournalColumns.partitionKeyType.split(key);
         }
 
         public static int getStoreId(DecoratedKey pk)
         {
-            return getStoreId(splitPartitionKey(pk));
-        }
-
-        public static int getStoreId(ByteBuffer[] partitionKeyComponents)
-        {
-            return Int32Type.instance.compose(partitionKeyComponents[store_id.position()]);
-        }
-
-        public static JournalKey.Type getType(ByteBuffer[] partitionKeyComponents)
-        {
-            return JournalKey.Type.fromId(ByteType.instance.compose(partitionKeyComponents[type.position()]));
-        }
-
-        public static TxnId getTxnId(ByteBuffer[] partitionKeyComponents)
-        {
-            ByteBuffer buffer = partitionKeyComponents[id.position()];
-            return CommandSerializers.txnId.deserialize(buffer, buffer.position());
+            return VIntCoding.readUnsignedVInt32(pk.getKey(), 0);
         }
 
         public static JournalKey getJournalKey(DecoratedKey key)
         {
-            ByteBuffer[] parts = splitPartitionKey(key);
-            return new JournalKey(getTxnId(parts), getType(parts), getStoreId(parts));
+            ByteBuffer bb = key.getKey();
+            int storeId = ByteBufferAccessor.instance.getUnsignedVInt32(bb, 0);
+            int offset = VIntCoding.readLengthOfVInt(bb, 0);
+            JournalKey.Type type = JournalKey.Type.fromId(bb.get(offset));
+            TxnId txnId = type != JournalKey.Type.COMMAND_DIFF ? TxnId.NONE : CommandSerializers.txnId.deserializeComparable(bb, ByteBufferAccessor.instance, offset + 1);
+            return new JournalKey(txnId, type, storeId);
         }
     }
 

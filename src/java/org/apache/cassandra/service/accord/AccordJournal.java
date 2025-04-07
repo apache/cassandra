@@ -384,7 +384,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     private <BUILDER extends FlyweightImage> BUILDER readAll(JournalKey key)
     {
         BUILDER builder = (BUILDER) key.type.serializer.mergerFor();
-        // TODO: this can be further improved to avoid allocating lambdas
+        // TODO (expected): this can be further improved to avoid allocating lambdas
         AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
         journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
@@ -572,7 +572,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         CommandSerializers.ballot.serialize(command.promised(), out);
                         break;
                     case PARTICIPANTS:
-                        CommandSerializers.participants.serialize(command.participants(), out, userVersion);
+                        CommandSerializers.participants.serialize(command.participants(), out);
                         break;
                     case PARTIAL_TXN:
                         CommandSerializers.partialTxn.serialize(command.partialTxn(), out, userVersion);
@@ -705,7 +705,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         break;
                     case PARTICIPANTS:
                         Invariants.require(participants != null);
-                        CommandSerializers.participants.serialize(participants, out, userVersion);
+                        CommandSerializers.participants.serialize(participants, out);
                         break;
                     case PARTIAL_TXN:
                         Invariants.require(partialTxn != null);
@@ -783,7 +783,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     promised = CommandSerializers.ballot.deserialize(in);
                     break;
                 case PARTICIPANTS:
-                    participants = CommandSerializers.participants.deserialize(in, userVersion);
+                    participants = CommandSerializers.participants.deserialize(in);
                     break;
                 case PARTIAL_TXN:
                     partialTxn = CommandSerializers.partialTxn.deserialize(in, userVersion);
@@ -832,7 +832,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     CommandSerializers.ballot.skip(in);
                     break;
                 case PARTICIPANTS:
-                    CommandSerializers.participants.deserialize(in, userVersion);
+                    CommandSerializers.participants.deserialize(in);
                     break;
                 case PARTIAL_TXN:
                     CommandSerializers.partialTxn.deserialize(in, userVersion);
