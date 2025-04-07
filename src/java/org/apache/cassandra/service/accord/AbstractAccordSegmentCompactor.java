@@ -106,7 +106,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         }
 
         // nothing to compact (all segments empty, should never happen, but it is theoretically possible?) - exit early
-        // TODO: investigate how this comes to be, check if there is a cleanup issue
+        // TODO (required): investigate how this comes to be, check if there is a cleanup issue
         if (readers.isEmpty())
             return Collections.emptyList();
 

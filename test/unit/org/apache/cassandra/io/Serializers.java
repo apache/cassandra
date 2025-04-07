@@ -19,6 +19,7 @@
 package org.apache.cassandra.io;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import accord.utils.LazyToString;
 import accord.utils.ReflectionUtils;
@@ -37,9 +38,14 @@ public class Serializers
         long expectedSize = serializer.serializedSize(input);
         serializer.serialize(input, output);
         Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(expectedSize);
-        DataInputBuffer in = new DataInputBuffer(output.unsafeGetBufferAndFlip(), false);
+        ByteBuffer buffer = output.unsafeGetBufferAndFlip();
+        DataInputBuffer in = new DataInputBuffer(buffer, false);
         T read = serializer.deserialize(in);
         Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read, input).toString())).isEqualTo(input);
+        Assertions.assertThat(buffer.remaining()).describedAs("deserialize did not consume all the serialized input").isEqualTo(0);
+        buffer.flip();
+        serializer.skip(in);
+        Assertions.assertThat(buffer.remaining()).describedAs("skip did not consume all the serialized input").isEqualTo(0);
     }
 
     public static <T> void testSerde(AsymmetricUnversionedSerializer<T, T> serializer, T input) throws IOException

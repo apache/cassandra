@@ -196,7 +196,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public NodeCommandStoreService node()
     {
-        // TODO: safe command store should not have arbitrary time
         return commandStore.node();
     }
 

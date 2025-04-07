@@ -129,7 +129,6 @@ public class AccordInteropReadRepair extends ReadData
 
     public AccordInteropReadRepair(TxnId txnId, Participants<?> scope, long executeAtEpoch, Mutation mutation)
     {
-        // TODO (review): remove followup read - Is there anything left to be done for this or can I remove it?
         super(txnId, scope, executeAtEpoch);
         this.mutation = mutation;
     }

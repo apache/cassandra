@@ -58,6 +58,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.utils.ImmutableBitSet;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -116,9 +117,12 @@ public class AccordObjectSizes
     public static long ranges(Ranges ranges)
     {
         long size = EMPTY_RANGES_SIZE;
-        size += ObjectSizes.sizeOfReferenceArray(ranges.size());
-        // TODO: many ranges are fixed size, can compute by multiplication
-        for (int i = 0, mi = ranges.size() ; i < mi ; i++)
+        int numberOfRanges = ranges.size();
+        size += ObjectSizes.sizeOfReferenceArray(numberOfRanges);
+        if (numberOfRanges > 1 && DatabaseDescriptor.getPartitioner().isFixedLength())
+            return size + numberOfRanges * range(ranges.get(0));
+
+        for (int i = 0 ; i < numberOfRanges ; i++)
             size += range(ranges.get(i));
         return size;
     }
@@ -145,9 +149,12 @@ public class AccordObjectSizes
 
     private static long routingKeysOnly(AbstractKeys<RoutingKey> keys)
     {
-        // TODO: many routing keys are fixed size, can compute by multiplication
-        long size = ObjectSizes.sizeOfReferenceArray(keys.size());
-        for (int i=0, mi=keys.size(); i<mi; i++)
+        int numberOfKeys = keys.size();
+        long size = ObjectSizes.sizeOfReferenceArray(numberOfKeys);
+        if (numberOfKeys > 1 && DatabaseDescriptor.getPartitioner().isFixedLength())
+            return size + numberOfKeys * key(keys.get(0));
+
+        for (int i=0 ; i < numberOfKeys; i++)
             size += key(keys.get(i));
         return size;
     }
@@ -163,7 +170,7 @@ public class AccordObjectSizes
     {
         return EMPTY_FULL_KEY_ROUTE_SIZE
                + routingKeysOnly(route)
-               + key(route.homeKey()); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
+               + key(route.homeKey()); // TODO (desired): we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
     }
 
     private static final long EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE = measure(new PartialKeyRoute(new TokenKey(null, null), new RoutingKey[0]));
@@ -187,7 +194,7 @@ public class AccordObjectSizes
     {
         return EMPTY_FULL_RANGE_ROUTE_SIZE
                + ranges(route)
-               + key(route.homeKey()); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
+               + key(route.homeKey()); // TODO (desired): we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
     }
 
     private static final long EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE = measure(new PartialRangeRoute(new TokenKey(null, null), new Range[0]));

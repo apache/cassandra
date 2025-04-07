@@ -42,6 +42,11 @@ public interface AsymmetricUnversionedSerializer<In, Out>
         }
     }
 
+    default void skip(DataInputPlus in) throws IOException
+    {
+        deserialize(in);
+    }
+
     default ByteBuffer serializeUnchecked(In t)
     {
         try

@@ -92,7 +92,7 @@ public class FetchSerializers
             FetchResponse response = (FetchResponse) reply;
             serializeNullable(response.unavailable, out, KeySerializers.ranges);
             serializeNullable(response.data, out, streamDataSerializer);
-            CommandSerializers.nullableTimestamp.serialize(response.safeToReadAfter, out);
+            CommandSerializers.timestamp.serialize(response.safeToReadAfter, out);
         }
 
         @Override
@@ -104,7 +104,7 @@ public class FetchSerializers
 
             return new FetchResponse(deserializeNullable(in, KeySerializers.ranges),
                                      deserializeNullable(in, streamDataSerializer),
-                                     CommandSerializers.nullableTimestamp.deserialize(in));
+                                     CommandSerializers.timestamp.deserialize(in));
         }
 
         @Override
@@ -117,7 +117,7 @@ public class FetchSerializers
             return TypeSizes.BYTE_SIZE
                    + serializedNullableSize(response.unavailable, KeySerializers.ranges)
                    + serializedNullableSize(response.data, streamDataSerializer)
-                   + CommandSerializers.nullableTimestamp.serializedSize(response.safeToReadAfter);
+                   + CommandSerializers.timestamp.serializedSize(response.safeToReadAfter);
         }
     };
 

@@ -57,8 +57,7 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
         T request = message.payload;
 
         /*
-         * TODO (desired): messages without side-effects don't go through the journal,
-         *  and as such are retained on heap until the node catches up to waitForEpoch,
+         * TODO (desired): messages are retained on heap until the node catches up to waitForEpoch,
          *  which can be problematic in absense of proper Accord<->Messaging backpressure
          */
         Node.Id fromNodeId = endpointMapper.mappedId(message.from());

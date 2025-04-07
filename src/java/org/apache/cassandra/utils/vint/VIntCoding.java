@@ -308,6 +308,17 @@ public class VIntCoding
         return retval;
     }
 
+    public static <V> int readLengthOfVInt(V input, ValueAccessor<V> accessor, int position)
+    {
+        byte firstByte = accessor.getByte(input, position);
+        if (firstByte >= 0)
+            return 1;
+
+        int extraBytes = accord.utils.VIntCoding.numberOfExtraBytesToRead(firstByte);
+        return 1 + extraBytes;
+    }
+
+
     /**
      * Computes size of an unsigned vint that starts at readerIndex of the provided ByteBuf.
      *
@@ -378,6 +389,16 @@ public class VIntCoding
     public static int readUnsignedVInt32(ByteBuffer input, int position)
     {
         return checkedCast(readUnsignedVInt(input, position));
+    }
+
+    public static int readLengthOfVInt(ByteBuffer in, int position)
+    {
+        byte firstByte = in.get(position);
+        if (firstByte >= 0)
+            return 1;
+
+        int extraBytes = numberOfExtraBytesToRead(firstByte);
+        return 1 + extraBytes;
     }
 
     // & this with the first byte to give the value part for a given extraBytesToRead encoded in the byte

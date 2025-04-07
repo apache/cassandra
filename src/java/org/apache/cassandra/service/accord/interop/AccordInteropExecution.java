@@ -228,9 +228,9 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     public void sendReadCommand(Message<ReadCommand> message, InetAddressAndPort to, RequestCallback<ReadResponse> callback)
     {
         Node.Id id = endpointMapper.mappedId(to);
-        // TODO (nicetohave): It would be better to use the re-use the command from the transaction but it's fragile
-        // to try and figure out exactly what changed for things like read repair and short read protection
-        // Also this read scope doesn't reflect the contents of this particular read and is larger than it needs to be
+        // TODO (desired): It would be better to use the re-use the command from the transaction but it's fragile
+        //  to try and figure out exactly what changed for things like read repair and short read protection
+        //  Also this read scope doesn't reflect the contents of this particular read and is larger than it needs to be
         // TODO (required): understand interop and whether StableFastPath is appropriate
         AccordInteropStableThenRead commit = new AccordInteropStableThenRead(id, allTopologies, txnId, Kind.StableFastPath, executeAt, txn, deps, route, message.payload);
         node.send(id, commit, executor, new AccordInteropRead.ReadCallback(id, to, message, callback, this));

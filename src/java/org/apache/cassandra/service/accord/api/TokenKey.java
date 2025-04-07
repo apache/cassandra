@@ -182,15 +182,11 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
 
     public boolean isMin()
     {
-        //TODO (review): some code paths don't care if before/after are used, but some are not fully correct (range.isFullRange)
-//        return sentinel == MIN_TABLE_SENTINEL;
         return (sentinel & PREFIX_MASK) == (MIN_TABLE_SENTINEL & PREFIX_MASK);
     }
 
     public boolean isMax()
     {
-        //TODO (review): some code paths don't care if before/after are used, but some are not fully correct (range.isFullRange)
-//        return sentinel == MAX_TABLE_SENTINEL;
         return (sentinel & PREFIX_MASK) == (MAX_TABLE_SENTINEL & PREFIX_MASK);
     }
 

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
@@ -59,6 +60,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.accord.AccordService;
@@ -114,13 +116,12 @@ public class AccordAgent implements Agent
     @Override
     public void onRecover(Node node, Result success, Throwable fail)
     {
-        // TODO: this
     }
 
     @Override
     public void onInconsistentTimestamp(Command command, Timestamp prev, Timestamp next)
     {
-        // TODO: this
+        // TODO (expected): better reporting
         AssertionError error = new AssertionError("Inconsistent execution timestamp detected for txnId " + command.txnId() + ": " + prev + " != " + next);
         onUncaughtException(error);
         throw error;
@@ -142,6 +143,8 @@ public class AccordAgent implements Agent
     @Override
     public void onUncaughtException(Throwable t)
     {
+        if (t instanceof RequestTimeoutException || t instanceof CancellationException)
+            return;
         logger.error("Uncaught accord exception", t);
         JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }

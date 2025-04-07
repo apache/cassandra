@@ -781,7 +781,7 @@ public class AccordService implements IAccordService, Shutdownable
         CommandStoreTxnBlockedGraph.TxnState cmdTxnState = populate(state, safeCommand.current());
         if (cmdTxnState.notBlocked())
             return null;
-        //TODO (safety): check depth
+        //TODO (expected): check depth
         List<AsyncChain<Void>> chains = new ArrayList<>();
         for (TxnId blockedBy : cmdTxnState.blockedBy)
         {

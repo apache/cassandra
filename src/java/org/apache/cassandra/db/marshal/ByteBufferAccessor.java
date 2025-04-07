@@ -318,13 +318,13 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     @Override
     public int putLeastSignificantBytes(ByteBuffer dst, int offset, long register, int bytes)
     {
-        if (dst.remaining() < Long.BYTES)
+        int pos = dst.position() + offset;
+        if (dst.limit() - pos < Long.BYTES)
         {
             return ValueAccessor.putLeastSignificantBytes(this, dst, offset, register, bytes);
         }
         else
         {
-            int pos = dst.position() + offset;
             dst.putLong(pos, register << (64 - (bytes * 8)));
         }
         return bytes;
@@ -333,13 +333,13 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     @Override
     public long getLeastSignificantBytes(ByteBuffer dst, int offset, int bytes)
     {
-        if (dst.remaining() < Long.BYTES)
+        int pos = dst.position() + offset;
+        if (dst.limit() - pos < Long.BYTES)
         {
             return ValueAccessor.getLeastSignificantBytes(this, dst, offset, bytes);
         }
         else
         {
-            int pos = dst.position() + offset;
             return dst.getLong(pos) >>> (64 - (bytes * 8));
         }
     }

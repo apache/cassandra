@@ -24,8 +24,7 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import accord.utils.Invariants;
-
-import io.netty.util.collection.LongObjectHashMap;
+import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.service.accord.AccordExecutor.Mode;
 import org.apache.cassandra.utils.concurrent.Condition;
 
@@ -37,7 +36,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 class AccordExecutorLoops
 {
-    private final LongObjectHashMap<Thread> loops;
+    private final Long2ObjectHashMap<Thread> loops;
 
     private final AtomicInteger running = new AtomicInteger();
     private final Condition terminated = Condition.newOneTimeCondition();
@@ -46,7 +45,7 @@ class AccordExecutorLoops
     {
         Invariants.require(mode == RUN_WITH_LOCK ? threads == 1 : threads >= 1);
         running.addAndGet(threads);
-        loops = new LongObjectHashMap<>(threads);
+        loops = new Long2ObjectHashMap<>(threads, 0.65f);
         for (int i = 0; i < threads; ++i)
         {
             Thread thread = executorFactory().startThread(name.apply(i), wrap(loopFactory.apply(mode)), NON_DAEMON, INFINITE_LOOP);

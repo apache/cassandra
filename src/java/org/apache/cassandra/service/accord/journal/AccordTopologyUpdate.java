@@ -111,7 +111,7 @@ public interface AccordTopologyUpdate
                 out.writeUnsignedVInt32(e.getKey());
                 RangesForEpochSerializer.instance.serialize(e.getValue(), out);
             }
-            //TODO (performance): local to what?  Rather than serializing local we can serialize the node its relative too?  that why when we deserialize we do globa.forNode(node)
+            //TODO (desired): local to what?  Rather than serializing local we can serialize the node its relative too?  that why when we deserialize we do globa.forNode(node)
             // this also decreases the size as we don't have redundent shards
             TopologySerializers.topology.serialize(from.local, out);
             TopologySerializers.topology.serialize(from.global, out);

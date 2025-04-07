@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer.Context;
 import net.nicoulaj.compilecommand.annotations.DontInline;
-import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.config.Config.DiskAccessMode;

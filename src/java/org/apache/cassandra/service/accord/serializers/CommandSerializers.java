@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
 import accord.api.Query;
 import accord.api.Read;
@@ -36,6 +35,7 @@ import accord.primitives.Known;
 import accord.primitives.Known.KnownDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
+import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Seekables;
@@ -45,9 +45,11 @@ import accord.primitives.Timestamp;
 import accord.primitives.TimestampWithUniqueHlc;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
@@ -67,9 +69,8 @@ public class CommandSerializers
     {
     }
 
-    public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
-    public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
-    public static final UnversionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
+    public static final VariableWidthTimestampSerializer<TxnId> txnId = new VariableWidthTimestampSerializer<>(TxnId::fromValues);
+    public static final VariableWidthTimestampSerializer<Timestamp> timestamp = new VariableWidthTimestampSerializer<>(Timestamp::fromValues);
     public static final BallotSerializer ballot = new BallotSerializer(); // permits null
     public static final UnversionedSerializer<Txn.Kind> kind = EncodeAsVInt32.of(Txn.Kind.class);
     public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
@@ -314,95 +315,202 @@ public class CommandSerializers
         }
     }
 
-    // TODO (expected): optimise using subset serializers, or perhaps simply with some deduping key serializer
-    public static class StoreParticipantsSerializer implements IVersionedSerializer<StoreParticipants>
+    public static class StoreParticipantsSerializer implements UnversionedSerializer<StoreParticipants>
     {
         static final int HAS_ROUTE = 0x1;
-        static final int HAS_TOUCHED_EQUALS_ROUTE = 0x2;
-        static final int TOUCHES_EQUALS_HAS_TOUCHED = 0x4;
-        static final int OWNS_EQUALS_TOUCHES = 0x8;
-        static final int EXECUTES_IS_NULL = 0x10;
-        static final int EXECUTES_IS_OWNS = 0x20;
-        static final int WAITSON_IS_OWNS = 0x40;
+        static final int ROUTE_EQUALS_SUPERSET = 0x2;
+        static final int HAS_TOUCHED_EQUALS_SUPERSET = 0x4;
+        static final int TOUCHES_EQUALS_HAS_TOUCHED = 0x8;
+        static final int OWNS_EQUALS_TOUCHES = 0x10;
+        static final int EXECUTES_IS_NULL = 0x20;
+        static final int EXECUTES_IS_OWNS = 0x40;
+        static final int WAITSON_IS_OWNS = 0x80;
 
         @Override
-        public void serialize(StoreParticipants t, DataOutputPlus out, Version version) throws IOException
+        public void serialize(StoreParticipants t, DataOutputPlus out) throws IOException
         {
-            boolean hasRoute = t.route() != null;
-            boolean hasTouchedEqualsRoute = t.route() == t.hasTouched();
-            boolean touchesEqualsHasTouched = t.touches() == t.hasTouched();
-            boolean ownsEqualsTouches = t.owns() == t.touches();
-            boolean executesIsNull = t.executes() == null;
-            boolean executesIsOwns = !executesIsNull && t.executes() == t.owns();
-            boolean waitsOnIsOwns = !executesIsNull && t.waitsOn() == t.owns();
+            Participants<?> hasTouched = t.hasTouched();
+            Route<?> route = t.route();
+            Participants<?> owns = t.owns();
+            Participants<?> executes = t.executes();
+            Participants<?> touches = t.touches();
+            boolean hasRoute = route != null;
+            boolean touchesEqualsHasTouched = touches == hasTouched;
+            boolean ownsEqualsTouches = owns == touches;
+            boolean executesIsNull = executes == null;
+            boolean executesIsOwns = !executesIsNull && executes == owns;
+            boolean waitsOnIsOwns = !executesIsNull && t.waitsOn() == owns;
+            boolean encodeSubsets = hasTouched.domain() == Routable.Domain.Key;
+            Participants<?> superset = !hasRoute ? hasTouched : encodeSubsets ? route.with((Participants)hasTouched) : route;
+            boolean routeEqualsSuperset = route == superset;
+            boolean hasTouchedEqualsSuperset = hasTouched == superset;
             out.writeByte((hasRoute ? HAS_ROUTE : 0)
-                          | (hasTouchedEqualsRoute ? HAS_TOUCHED_EQUALS_ROUTE : 0)
+                          | (routeEqualsSuperset ? ROUTE_EQUALS_SUPERSET : 0)
+                          | (hasTouchedEqualsSuperset ? HAS_TOUCHED_EQUALS_SUPERSET : 0)
                           | (touchesEqualsHasTouched ? TOUCHES_EQUALS_HAS_TOUCHED : 0)
                           | (ownsEqualsTouches ? OWNS_EQUALS_TOUCHES : 0)
                           | (executesIsNull ? EXECUTES_IS_NULL : 0)
                           | (executesIsOwns ? EXECUTES_IS_OWNS : 0)
                           | (waitsOnIsOwns ? WAITSON_IS_OWNS : 0)
             );
-            if (hasRoute) KeySerializers.route.serialize(t.route(), out);
-            if (!hasTouchedEqualsRoute) KeySerializers.participants.serialize(t.hasTouched(), out);
-            if (!touchesEqualsHasTouched) KeySerializers.participants.serialize(t.touches(), out);
-            if (!ownsEqualsTouches) KeySerializers.participants.serialize(t.owns(), out);
-            if (!executesIsNull && !executesIsOwns) KeySerializers.participants.serialize(t.executes(), out);
-            if (!executesIsNull && !waitsOnIsOwns) KeySerializers.participants.serialize(t.waitsOn(), out);
+
+            KeySerializers.participants.serialize(superset, out);
+            if (encodeSubsets)
+            {
+                if (hasRoute && !routeEqualsSuperset) KeySerializers.route.serializeSubset(route, superset, out);
+                if (!hasTouchedEqualsSuperset) KeySerializers.participants.serializeSubset(hasTouched, superset, out);
+                if (!touchesEqualsHasTouched) KeySerializers.participants.serializeSubset(touches, superset, out);
+                if (!ownsEqualsTouches) KeySerializers.participants.serializeSubset(owns, superset, out);
+                if (!executesIsNull && !executesIsOwns) KeySerializers.participants.serializeSubset(executes, superset, out);
+                if (!executesIsNull && !waitsOnIsOwns) KeySerializers.participants.serializeSubset(t.waitsOn(), superset, out);
+            }
+            else
+            {
+                if (hasRoute && !routeEqualsSuperset) KeySerializers.route.serialize(route, out);
+                if (!hasTouchedEqualsSuperset) KeySerializers.participants.serialize(hasTouched, out);
+                if (!touchesEqualsHasTouched) KeySerializers.participants.serialize(touches, out);
+                if (!ownsEqualsTouches) KeySerializers.participants.serialize(owns, out);
+                if (!executesIsNull && !executesIsOwns) KeySerializers.participants.serialize(executes, out);
+                if (!executesIsNull && !waitsOnIsOwns) KeySerializers.participants.serialize(t.waitsOn(), out);
+            }
         }
 
-        public void skip(DataInputPlus in, Version version) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
             int flags = in.readByte();
-            if (0 != (flags & HAS_ROUTE)) KeySerializers.route.skip(in);
-            if (0 == (flags & HAS_TOUCHED_EQUALS_ROUTE)) KeySerializers.participants.skip(in);
-            if (0 == (flags & TOUCHES_EQUALS_HAS_TOUCHED)) KeySerializers.participants.skip(in);
-            if (0 == (flags & OWNS_EQUALS_TOUCHES)) KeySerializers.participants.skip(in);
-            if (0 == (flags & (EXECUTES_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in);
-            if (0 == (flags & (WAITSON_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in);
+            Unseekables.UnseekablesKind kind = KeySerializers.participants.readKind(in);
+            int supersetCount = KeySerializers.participants.countAndSkip(kind, in);
+            boolean skipSubset = kind.domain() == Routable.Domain.Key;
+            if (skipSubset)
+            {
+                if (0 != (flags & HAS_ROUTE) && 0 == (flags & ROUTE_EQUALS_SUPERSET)) KeySerializers.route.skipSubset(supersetCount, in);
+                if (0 == (flags & HAS_TOUCHED_EQUALS_SUPERSET)) KeySerializers.participants.skipSubset(supersetCount, in);
+                if (0 == (flags & TOUCHES_EQUALS_HAS_TOUCHED)) KeySerializers.participants.skipSubset(supersetCount, in);
+                if (0 == (flags & OWNS_EQUALS_TOUCHES)) KeySerializers.participants.skipSubset(supersetCount, in);
+                if (0 == (flags & (EXECUTES_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skipSubset(supersetCount, in);
+                if (0 == (flags & (WAITSON_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skipSubset(supersetCount, in);
+            }
+            else
+            {
+                if (0 != (flags & HAS_ROUTE) && 0 == (flags & ROUTE_EQUALS_SUPERSET)) KeySerializers.route.skip(in);
+                if (0 == (flags & HAS_TOUCHED_EQUALS_SUPERSET)) KeySerializers.participants.skip(in);
+                if (0 == (flags & TOUCHES_EQUALS_HAS_TOUCHED)) KeySerializers.participants.skip(in);
+                if (0 == (flags & OWNS_EQUALS_TOUCHES)) KeySerializers.participants.skip(in);
+                if (0 == (flags & (EXECUTES_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in);
+                if (0 == (flags & (WAITSON_IS_OWNS | EXECUTES_IS_NULL))) KeySerializers.participants.skip(in);
+            }
         }
 
         @Override
-        public StoreParticipants deserialize(DataInputPlus in, Version version) throws IOException
+        public StoreParticipants deserialize(DataInputPlus in) throws IOException
         {
             int flags = in.readByte();
-            Route<?> route = 0 == (flags & HAS_ROUTE) ? null : KeySerializers.route.deserialize(in);
-            Participants<?> hasTouched = 0 != (flags & HAS_TOUCHED_EQUALS_ROUTE) ? route : KeySerializers.participants.deserialize(in);
-            Participants<?> touches = 0 != (flags & TOUCHES_EQUALS_HAS_TOUCHED) ? hasTouched : KeySerializers.participants.deserialize(in);
-            Participants<?> owns = 0 != (flags & OWNS_EQUALS_TOUCHES) ? touches : KeySerializers.participants.deserialize(in);
-            Participants<?> executes = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & EXECUTES_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in);
-            Participants<?> waitsOn = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & WAITSON_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in);
-            return StoreParticipants.create(route, owns, executes, waitsOn, touches, hasTouched);
+            Participants<?> superset = KeySerializers.participants.deserialize(in);
+            boolean decodeSubset = superset.domain() == Routable.Domain.Key;
+            if (decodeSubset)
+            {
+                Route<?> route = 0 == (flags & HAS_ROUTE) ? null : 0 != (flags & ROUTE_EQUALS_SUPERSET) ? (Route<?>)superset : KeySerializers.route.deserializeSubset(superset, in);
+                Participants<?> hasTouched = 0 != (flags & HAS_TOUCHED_EQUALS_SUPERSET) ? superset : KeySerializers.participants.deserializeSubset(superset, in);
+                Participants<?> touches = 0 != (flags & TOUCHES_EQUALS_HAS_TOUCHED) ? hasTouched : KeySerializers.participants.deserializeSubset(superset, in);
+                Participants<?> owns = 0 != (flags & OWNS_EQUALS_TOUCHES) ? touches : KeySerializers.participants.deserializeSubset(superset, in);
+                Participants<?> executes = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & EXECUTES_IS_OWNS) ? owns : KeySerializers.participants.deserializeSubset(superset, in);
+                Participants<?> waitsOn = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & WAITSON_IS_OWNS) ? owns : KeySerializers.participants.deserializeSubset(superset, in);
+                return StoreParticipants.create(route, owns, executes, waitsOn, touches, hasTouched);
+            }
+            else
+            {
+                Route<?> route = 0 == (flags & HAS_ROUTE) ? null : 0 != (flags & ROUTE_EQUALS_SUPERSET) ? (Route<?>)superset : KeySerializers.route.deserialize(in);
+                Participants<?> hasTouched = 0 != (flags & HAS_TOUCHED_EQUALS_SUPERSET) ? superset : KeySerializers.participants.deserialize(in);
+                Participants<?> touches = 0 != (flags & TOUCHES_EQUALS_HAS_TOUCHED) ? hasTouched : KeySerializers.participants.deserialize(in);
+                Participants<?> owns = 0 != (flags & OWNS_EQUALS_TOUCHES) ? touches : KeySerializers.participants.deserialize(in);
+                Participants<?> executes = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & EXECUTES_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in);
+                Participants<?> waitsOn = 0 != (flags & EXECUTES_IS_NULL) ? null : 0 != (flags & WAITSON_IS_OWNS) ? owns : KeySerializers.participants.deserialize(in);
+                return StoreParticipants.create(route, owns, executes, waitsOn, touches, hasTouched);
+            }
         }
 
         @Override
-        public long serializedSize(StoreParticipants t, Version version)
+        public long serializedSize(StoreParticipants t)
         {
-            boolean hasRoute = t.route() != null;
-            boolean hasTouchedEqualsRoute = t.route() == t.hasTouched();
-            boolean touchesEqualsHasTouched = t.touches() == t.hasTouched();
-            boolean ownsEqualsTouches = t.owns() == t.touches();
-            boolean executesIsNotNullAndNotOwns = t.executes() != null && t.owns() != t.executes();
-            long size = 1;
-            if (hasRoute) size += KeySerializers.route.serializedSize(t.route());
-            if (!hasTouchedEqualsRoute) size += KeySerializers.participants.serializedSize(t.hasTouched());
-            if (!touchesEqualsHasTouched) size += KeySerializers.participants.serializedSize(t.touches());
-            if (!ownsEqualsTouches) size += KeySerializers.participants.serializedSize(t.owns());
-            if (executesIsNotNullAndNotOwns) size += KeySerializers.participants.serializedSize(t.executes());
+            Participants<?> hasTouched = t.hasTouched();
+            Route<?> route = t.route();
+            Participants<?> owns = t.owns();
+            Participants<?> executes = t.executes();
+            Participants<?> touches = t.touches();
+            boolean hasRoute = route != null;
+            boolean touchesEqualsHasTouched = touches == hasTouched;
+            boolean ownsEqualsTouches = owns == touches;
+            boolean executesIsNull = executes == null;
+            boolean executesIsOwns = !executesIsNull && executes == owns;
+            boolean waitsOnIsOwns = !executesIsNull && t.waitsOn() == owns;
+            boolean encodeSubsets = hasTouched.domain() == Routable.Domain.Key;
+            Participants<?> superset = !hasRoute ? hasTouched : encodeSubsets ? route.with((Participants)hasTouched) : route;
+            boolean routeEqualsSuperset = route == superset;
+            boolean hasTouchedEqualsSuperset = hasTouched == superset;
+            long size = 1 + KeySerializers.participants.serializedSize(superset);
+            if (encodeSubsets)
+            {
+                if (hasRoute && !routeEqualsSuperset) size += KeySerializers.route.serializedSubsetSize(route, superset);
+                if (!hasTouchedEqualsSuperset) size += KeySerializers.participants.serializedSubsetSize(hasTouched, superset);
+                if (!touchesEqualsHasTouched) size += KeySerializers.participants.serializedSubsetSize(touches, superset);
+                if (!ownsEqualsTouches) size += KeySerializers.participants.serializedSubsetSize(owns, superset);
+                if (!executesIsNull && !executesIsOwns) size += KeySerializers.participants.serializedSubsetSize(executes, superset);
+                if (!executesIsNull && !waitsOnIsOwns) size += KeySerializers.participants.serializedSubsetSize(t.waitsOn(), superset);
+            }
+            else
+            {
+                if (hasRoute && !routeEqualsSuperset) size += KeySerializers.route.serializedSize(route);
+                if (!hasTouchedEqualsSuperset) size += KeySerializers.participants.serializedSize(hasTouched);
+                if (!touchesEqualsHasTouched) size += KeySerializers.participants.serializedSize(touches);
+                if (!ownsEqualsTouches) size += KeySerializers.participants.serializedSize(owns);
+                if (!executesIsNull && !executesIsOwns) size += KeySerializers.participants.serializedSize(executes);
+                if (!executesIsNull && !waitsOnIsOwns) size += KeySerializers.participants.serializedSize(t.waitsOn());
+            }
             return size;
         }
     }
 
-    public static class TimestampSerializer<T extends Timestamp> implements UnversionedSerializer<T>
+    public static class VariableWidthTimestampSerializer<T extends Timestamp> implements UnversionedSerializer<T>
     {
-        interface Factory<T extends Timestamp>
+        private static final int NODE_SHIFT = 0;
+        private static final int NODE_MASK = 0x3;
+        private static final int NODE_MIN_LENGTH = 1;
+        private static final int FLAGS_SHIFT = NODE_SHIFT + Integer.bitCount(NODE_MASK);
+        private static final int FLAGS_MASK = 0x1;
+        private static final int FLAGS_MIN_LENGTH = 1;
+        private static final int HLC_SHIFT = FLAGS_SHIFT + Integer.bitCount(FLAGS_MASK);
+        private static final int HLC_MASK = 0x3;
+        private static final int HLC_MIN_LENGTH = 5;
+        private static final int EPOCH_SHIFT = HLC_SHIFT + Integer.bitCount(HLC_MASK);
+        private static final int EPOCH_MASK = 0x3;
+        private static final int EPOCH_MIN_LENGTH = 3;
+        static final byte NULL_BYTE = (byte) 0x80;
+        static
         {
-            T create(long msb, long lsb, Node.Id node);
+            Invariants.require(EPOCH_MASK << EPOCH_SHIFT >= 0);
         }
 
-        private final TimestampSerializer.Factory<T> factory;
+        interface Factory<T extends Timestamp>
+        {
+            T create(long epoch, long hlc, int flags, Node.Id node);
+        }
 
-        private TimestampSerializer(TimestampSerializer.Factory<T> factory)
+        private final VariableWidthTimestampSerializer.Factory<T> factory;
+
+        T decodeSpecial(int encodingFlags)
+        {
+            Invariants.require(encodingFlags == NULL_BYTE);
+            return null;
+        }
+
+        byte encodeSpecial(T value)
+        {
+            if (value != null)
+                return 0;
+            return NULL_BYTE;
+        }
+
+        private VariableWidthTimestampSerializer(VariableWidthTimestampSerializer.Factory<T> factory)
         {
             this.factory = factory;
         }
@@ -410,121 +518,271 @@ public class CommandSerializers
         @Override
         public void serialize(T ts, DataOutputPlus out) throws IOException
         {
-            out.writeLong(ts.msb);
-            out.writeLong(ts.lsb);
-            TopologySerializers.nodeId.serialize(ts.node, out);
+            {
+                byte specialByte = encodeSpecial(ts);
+                if (specialByte != 0)
+                {
+                    Invariants.require(specialByte < 0);
+                    out.writeByte(specialByte);
+                    return;
+                }
+            }
+            long epoch = ts.epoch();
+            long hlc = ts.hlc();
+            int flags = ts.flags();
+            int epochLength = length(epoch, EPOCH_MIN_LENGTH);
+            int hlcLength = length(hlc, HLC_MIN_LENGTH);
+            int flagsLength = length(flags, FLAGS_MIN_LENGTH);
+            int nodeLength = length(ts.node.id, NODE_MIN_LENGTH);
+            int encodingFlags = encodeLength(epochLength, EPOCH_SHIFT, EPOCH_MIN_LENGTH, EPOCH_MASK)
+                              | encodeLength(hlcLength,   HLC_SHIFT,   HLC_MIN_LENGTH,   HLC_MASK)
+                              | encodeLength(flagsLength, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK)
+                              | encodeLength(nodeLength,  NODE_SHIFT,  NODE_MIN_LENGTH,  NODE_MASK);
+            out.writeByte(encodingFlags);
+            out.writeLeastSignificantBytes(epoch, epochLength);
+            out.writeLeastSignificantBytes(hlc, hlcLength);
+            out.writeLeastSignificantBytes(flags, flagsLength);
+            out.writeLeastSignificantBytes(ts.node.id, nodeLength);
+        }
+
+        // exactly the same fundamental format as serialize(), only we interleave the length bits with the values, maintaining ordering
+        public <V> int serializeComparable(T ts, V dst, ValueAccessor<V> accessor, int offset)
+        {
+            int position = offset;
+            Invariants.require(encodeSpecial(ts) == 0);
+            long epoch = ts.epoch();
+            long hlc = ts.hlc();
+            int flags = ts.flags();
+            int epochLength = length(epoch, EPOCH_MIN_LENGTH);
+            int hlcLength = length(hlc, HLC_MIN_LENGTH);
+            int flagsLength = length(flags, FLAGS_MIN_LENGTH);
+            int nodeLength = length(ts.node.id, NODE_MIN_LENGTH);
+
+            long pack = packLength(epochLength, epochLength * 8, EPOCH_MIN_LENGTH, EPOCH_MASK);
+            pack |= epoch;
+            pack <<= 5;
+            pack |= packLength(hlcLength, 3, HLC_MIN_LENGTH, HLC_MASK);
+            pack |= hlc >>> ((hlcLength*8)-3);
+            accessor.putLeastSignificantBytes(dst, position, pack, epochLength + 1);
+            position += epochLength + 1;
+
+            hlc <<= 3;
+            hlc |= packLength(flagsLength, 2, FLAGS_MIN_LENGTH, FLAGS_MASK);
+            hlc |= flags >>> ((flagsLength * 8) - 2);
+            accessor.putLeastSignificantBytes(dst, position, hlc, hlcLength);
+            position += hlcLength;
+
+            pack = (long)flags << (2 + nodeLength * 8);
+            pack |= packLength(nodeLength, nodeLength * 8, NODE_MIN_LENGTH, NODE_MASK);
+            pack |= ts.node.id & 0xffffffffL;
+            accessor.putLeastSignificantBytes(dst, position, pack, flagsLength + nodeLength);
+            position += flagsLength + nodeLength;
+            return position - offset;
         }
 
         public <V> int serialize(T ts, V dst, ValueAccessor<V> accessor, int offset)
         {
+            {
+                byte specialByte = encodeSpecial(ts);
+                if (specialByte != 0)
+                {
+                    Invariants.require(specialByte < 0);
+                    accessor.putByte(dst, offset, specialByte);
+                    return 1;
+                }
+            }
+
+            long epoch = ts.epoch();
+            long hlc = ts.hlc();
+            int flags = ts.flags();
+            int epochLength = length(epoch, EPOCH_MIN_LENGTH);
+            int hlcLength = length(hlc, HLC_MIN_LENGTH);
+            int flagsLength = length(flags, FLAGS_MIN_LENGTH);
+            int nodeLength = length(ts.node.id, NODE_MIN_LENGTH);
+            int encodingFlags = encodeLength(epochLength, EPOCH_SHIFT, EPOCH_MIN_LENGTH, EPOCH_MASK)
+                              | encodeLength(hlcLength,   HLC_SHIFT,   HLC_MIN_LENGTH,   HLC_MASK)
+                              | encodeLength(flagsLength, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK)
+                              | encodeLength(nodeLength,  NODE_SHIFT,  NODE_MIN_LENGTH,  NODE_MASK);
+
             int position = offset;
-            position += accessor.putLong(dst, position, ts.msb);
-            position += accessor.putLong(dst, position, ts.lsb);
-            position += TopologySerializers.nodeId.serialize(ts.node, dst, accessor, position);
-            int size = position - offset;
-            Preconditions.checkState(size == serializedSize());
-            return size;
+            position += accessor.putByte(dst, position, (byte)encodingFlags);
+            position += accessor.putLeastSignificantBytes(dst, position, epoch, epochLength);
+            position += accessor.putLeastSignificantBytes(dst, position, hlc, hlcLength);
+            position += accessor.putLeastSignificantBytes(dst, position, flags, flagsLength);
+            position += accessor.putLeastSignificantBytes(dst, position, ts.node.id, nodeLength);
+            return position - offset;
+        }
+
+        public ByteBuffer serialize(T ts)
+        {
+            int size = Math.toIntExact(serializedSize(ts));
+            ByteBuffer result = ByteBuffer.allocate(size);
+            serialize(ts, result, ByteBufferAccessor.instance, 0);
+            return result;
         }
 
         public void serialize(T ts, ByteBuffer out)
         {
-            out.putLong(ts.msb);
-            out.putLong(ts.lsb);
-            TopologySerializers.nodeId.serialize(ts.node, out);
+            int position = out.position();
+            position += serialize(ts, out, ByteBufferAccessor.instance, 0);
+            out.position(position);
         }
 
         public void skip(DataInputPlus in) throws IOException
         {
-            in.skipBytesFully(serializedSize());
+            int encodingFlags = in.readByte();
+            if (encodingFlags < 0)
+                return;
+            int epochLength = decodeLength(encodingFlags, EPOCH_SHIFT, EPOCH_MIN_LENGTH, EPOCH_MASK);
+            int hlcLength = decodeLength(encodingFlags, HLC_SHIFT, HLC_MIN_LENGTH, HLC_MASK);
+            int flagsLength = decodeLength(encodingFlags, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK);
+            int nodeLength = decodeLength(encodingFlags, NODE_SHIFT, NODE_MIN_LENGTH, NODE_MASK);
+            in.skipBytesFully(epochLength + hlcLength + flagsLength + nodeLength);
         }
 
         @Override
         public T deserialize(DataInputPlus in) throws IOException
         {
-            return factory.create(in.readLong(),
-                                  in.readLong(),
-                                  TopologySerializers.nodeId.deserialize(in));
+            int encodingFlags = in.readByte();
+            if (encodingFlags < 0)
+                return decodeSpecial(encodingFlags);
+            int epochLength = decodeLength(encodingFlags, EPOCH_SHIFT, EPOCH_MIN_LENGTH, EPOCH_MASK);
+            int hlcLength = decodeLength(encodingFlags, HLC_SHIFT, HLC_MIN_LENGTH, HLC_MASK);
+            int flagsLength = decodeLength(encodingFlags, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK);
+            int nodeLength = decodeLength(encodingFlags, NODE_SHIFT, NODE_MIN_LENGTH, NODE_MASK);
+            long epoch = in.readLeastSignificantBytes(epochLength);
+            long hlc = in.readLeastSignificantBytes(hlcLength);
+            int flags = Math.toIntExact(in.readLeastSignificantBytes(flagsLength));
+            int nodeId = (int)in.readLeastSignificantBytes(nodeLength);
+            return factory.create(epoch, hlc, flags, new Node.Id(nodeId));
         }
 
         public <V> T deserialize(V src, ValueAccessor<V> accessor, int offset)
         {
-            long msb = accessor.getLong(src, offset);
-            offset += TypeSizes.LONG_SIZE;
-            long lsb = accessor.getLong(src, offset);
-            offset += TypeSizes.LONG_SIZE;
-            Node.Id node = TopologySerializers.nodeId.deserialize(src, accessor, offset);
-            return factory.create(msb, lsb, node);
+            int encodingFlags = accessor.getByte(src, offset);
+            if (encodingFlags < 0)
+                return decodeSpecial(encodingFlags);
+            ++offset;
+            int epochLength = decodeLength(encodingFlags, EPOCH_SHIFT, EPOCH_MIN_LENGTH, EPOCH_MASK);
+            int hlcLength = decodeLength(encodingFlags, HLC_SHIFT, HLC_MIN_LENGTH, HLC_MASK);
+            int flagsLength = decodeLength(encodingFlags, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK);
+            int nodeLength = decodeLength(encodingFlags, NODE_SHIFT, NODE_MIN_LENGTH, NODE_MASK);
+            long epoch = accessor.getLeastSignificantBytes(src, offset, epochLength);
+            offset += epochLength;
+            long hlc = accessor.getLeastSignificantBytes(src, offset, hlcLength);
+            offset += hlcLength;
+            int flags = Math.toIntExact(accessor.getLeastSignificantBytes(src, offset, flagsLength));
+            offset += flagsLength;
+            int nodeId = (int)accessor.getLeastSignificantBytes(src, offset, nodeLength);
+            return factory.create(epoch, hlc, flags, new Node.Id(nodeId));
         }
 
         public T deserialize(ByteBuffer buffer, int position)
         {
-            long msb = buffer.getLong(position);
-            position += TypeSizes.LONG_SIZE;
-            long lsb = buffer.getLong(position);
-            position += TypeSizes.LONG_SIZE;
-            Node.Id node = TopologySerializers.nodeId.deserialize(buffer, position);
-            return factory.create(msb, lsb, node);
+            return deserialize(buffer, ByteBufferAccessor.instance, position);
+        }
+
+        public T deserialize(ByteBuffer buffer)
+        {
+            return deserialize(buffer, ByteBufferAccessor.instance, 0);
+        }
+
+        // exactly the same fundamental format as deserialize(), only we interleave the length bits with the values, maintaining ordering
+        public <V> T deserializeComparable(V src, ValueAccessor<V> accessor, int offset)
+        {
+            int b = accessor.getByte(src, offset++);
+            int epochLength = decodeLength(b, 5, EPOCH_MIN_LENGTH, EPOCH_MASK);
+            long bits64 = accessor.getLeastSignificantBytes(src, offset, epochLength);
+            offset += epochLength;
+            long epoch = (b&0x1fL) << (epochLength*8 - 5);
+            epoch |= bits64 >>> 5;
+
+            int hlcLength = decodeLength((int)bits64, 3, HLC_MIN_LENGTH, HLC_MASK);
+            long hlc = (bits64 & 0x7L) << (hlcLength*8 - 3);
+            bits64 = accessor.getLeastSignificantBytes(src, offset, hlcLength);
+            offset += hlcLength;
+            hlc |= bits64 >>> 3;
+
+            int flagsLength = decodeLength((int)bits64, 2, FLAGS_MIN_LENGTH, FLAGS_MASK);
+            int flags = ((int)bits64 & 0x3) << (flagsLength*8-2);
+            int bits32 = (int) accessor.getLeastSignificantBytes(src, offset, flagsLength);
+            offset += flagsLength;
+            flags |= bits32 >>> 2;
+
+            int nodeLength = decodeLength(bits32, 0, NODE_MIN_LENGTH, NODE_MASK);
+            int node = (int) accessor.getLeastSignificantBytes(src, offset, nodeLength);
+            return factory.create(epoch, hlc, flags, new Node.Id(node));
         }
 
         @Override
         public long serializedSize(T ts)
         {
-            return serializedSize();
+            if (encodeSpecial(ts) != 0)
+                return 1;
+            int epochLength = length(ts.epoch(), EPOCH_MIN_LENGTH);
+            int hlcLength = length(ts.hlc(), HLC_MIN_LENGTH);
+            int flagsLength = length(ts.flags(), FLAGS_MIN_LENGTH);
+            int nodeLength = length(ts.node.id, NODE_MIN_LENGTH);
+            return 1 + epochLength + hlcLength + flagsLength + nodeLength;
         }
 
-        public int serializedSize()
+        private static int length(long value, int minLength)
         {
-            return Math.toIntExact(TypeSizes.LONG_SIZE +  // ts.msb
-                                   TypeSizes.LONG_SIZE +  // ts.lsb
-                                   TopologySerializers.nodeId.serializedSize(null)); // ts.node
+            int length = ((64 + 7) - Long.numberOfLeadingZeros(value))/8;
+            return Math.max(length, minLength);
+        }
+
+        private static int length(int value, int minLength)
+        {
+            int length = ((32 + 7) - Integer.numberOfLeadingZeros(value))/8;
+            return Math.max(length, minLength);
+        }
+
+        private static int encodeLength(int length, int shift, int minLength, int mask)
+        {
+            int encoded = length - minLength;
+            Invariants.require(encoded <= mask);
+            return encoded << shift;
+        }
+
+        private static long packLength(int length, int shift, int minLength, int mask)
+        {
+            int encoded = length - minLength;
+            Invariants.require(encoded <= mask);
+            return (long)encoded << shift;
+        }
+
+        private static int decodeLength(int encodingFlags, int shift, int minLength, int mask)
+        {
+            return minLength + ((encodingFlags >>> shift) & mask);
         }
     }
 
-    public static class BallotSerializer implements UnversionedSerializer<Ballot>
+    public static class BallotSerializer extends VariableWidthTimestampSerializer<Ballot>
     {
-        final TimestampSerializer<Ballot> wrapped = new TimestampSerializer<>(Ballot::fromBits);
-
-        @Override
-        public void serialize(Ballot t, DataOutputPlus out) throws IOException
+        private static final byte ZERO_BYTE = (byte) 0x81;
+        private static final byte MAX_BYTE = (byte) 0x82;
+        private BallotSerializer()
         {
-            if (t == null || t.equals(Ballot.ZERO) || t.equals(Ballot.MAX))
-            {
-                out.writeByte(t == null ? 1 : t.equals(Ballot.ZERO) ? 2 : 3);
-            }
-            else
-            {
-                out.writeByte(0);
-                wrapped.serialize(t, out);
-            }
+            super(Ballot::fromValues);
         }
 
         @Override
-        public Ballot deserialize(DataInputPlus in) throws IOException
+        byte encodeSpecial(Ballot value)
         {
-            int flags = in.readByte();
-            switch (flags)
-            {
-                default: throw new IOException("Corrupted input: expected [0..3], received: " + flags);
-                case 0: return wrapped.deserialize(in);
-                case 1: return null;
-                case 2: return Ballot.ZERO;
-                case 3: return Ballot.MAX;
-            }
-        }
-
-        public void skip(DataInputPlus in) throws IOException
-        {
-            int flags = in.readByte();
-            if (flags == 0)
-                wrapped.skip(in);
+            if (value == null) return NULL_BYTE;
+            if (value == Ballot.ZERO) return ZERO_BYTE;
+            if (value == Ballot.MAX) return MAX_BYTE;
+            return 0;
         }
 
         @Override
-        public long serializedSize(Ballot t)
+        Ballot decodeSpecial(int specialByte)
         {
-            if (t == null || t.equals(Ballot.ZERO) || t.equals(Ballot.MAX))
-                return 1;
-            return 1 + wrapped.serializedSize();
+            if (specialByte == NULL_BYTE) return null;
+            if (specialByte == ZERO_BYTE) return Ballot.ZERO;
+            if (specialByte == MAX_BYTE) return Ballot.MAX;
+            throw new IllegalArgumentException("Unexpected specialByte: " + specialByte);
         }
     }
 

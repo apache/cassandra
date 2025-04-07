@@ -263,6 +263,6 @@ public class AccordCommandStores extends CommandStores implements CacheSize
                 throw new RuntimeException(e);
             }
         }
-        //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
+        //TODO (expected): shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
     }
 }
