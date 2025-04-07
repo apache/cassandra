@@ -145,7 +145,7 @@
       <artifactId>logback-classic</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.datastax.cassandra</groupId>
+      <groupId>org.apache.cassandra</groupId>
       <artifactId>cassandra-driver-core</artifactId>
       <classifier>shaded</classifier>
     </dependency>
