@@ -50,15 +50,23 @@ public class SSTableRepairedSetTest
     private SSTableRepairedSet cmd;
 
     @Before
-    public void setUp() {
+    public void setUp()
+    {
         MockitoAnnotations.initMocks(this);
-        PrintStream noopStream = new PrintStream(new OutputStream() {@Override public void write(int b) {}});
+        PrintStream noopStream = new PrintStream(new OutputStream()
+        {
+            @Override
+            public void write(int b)
+            {
+            }
+        });
         when(probe.output()).thenReturn(new Output(noopStream, noopStream));
         cmd = new SSTableRepairedSet();
     }
 
     @Test
-    public void testNoKeyspace() {
+    public void testNoKeyspace()
+    {
         when(probe.getNonLocalStrategyKeyspaces()).thenReturn(new ArrayList<>(Arrays.asList("ks1", "ks2")));
         when(probe.getKeyspaces()).thenReturn(new ArrayList<>(Arrays.asList("ks1", "ks2")));
         when(probe.getAutoRepairTablesForKeyspace("ks1")).thenReturn(new ArrayList<>(Arrays.asList("table1", "table2")));
@@ -73,7 +81,8 @@ public class SSTableRepairedSetTest
     }
 
     @Test
-    public void testBothRepairedAndUnrepaired() {
+    public void testBothRepairedAndUnrepaired()
+    {
         cmd.args = Arrays.asList("keyspace");
         cmd.isRepaired = true;
         cmd.isUnrepaired = true;
@@ -82,14 +91,16 @@ public class SSTableRepairedSetTest
     }
 
     @Test
-    public void testNeitherRepairedNorUnrepaired() {
+    public void testNeitherRepairedNorUnrepaired()
+    {
         cmd.args = Arrays.asList("keyspace");
         cmd.execute(probe);
         verify(probe, never()).mutateSSTableRepairedState(anyBoolean(), anyBoolean(), anyString(), anyList());
     }
 
     @Test
-    public void testRepairedPreview() {
+    public void testRepairedPreview()
+    {
         cmd.args = Arrays.asList("keyspace");
         when(probe.getKeyspaces()).thenReturn(new ArrayList<>(Arrays.asList("keyspace")));
         cmd.isRepaired = true;
@@ -98,7 +109,8 @@ public class SSTableRepairedSetTest
     }
 
     @Test
-    public void testUnrepairedReallySet() {
+    public void testUnrepairedReallySet()
+    {
         cmd.args = Arrays.asList("keyspace");
         when(probe.getKeyspaces()).thenReturn(new ArrayList<>(Arrays.asList("keyspace")));
         cmd.isUnrepaired = true;
@@ -108,7 +120,8 @@ public class SSTableRepairedSetTest
     }
 
     @Test
-    public void testExecuteWithTableNames() {
+    public void testExecuteWithTableNames()
+    {
         cmd.args = Arrays.asList("keyspace", "table1", "table2");
         when(probe.getKeyspaces()).thenReturn(new ArrayList<>(Arrays.asList("keyspace")));
         cmd.isRepaired = true;

@@ -185,7 +185,9 @@ public class AutoRepairStateTest extends CQLTester
         try
         {
             assertEquals(0, state.getLongestUnrepairedSec());
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             assertNull(e);
         }
     }
@@ -201,7 +203,9 @@ public class AutoRepairStateTest extends CQLTester
         try
         {
             assertEquals(1, state.getLongestUnrepairedSec());
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             assertNull(e);
         }
     }
