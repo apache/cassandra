@@ -164,6 +164,7 @@ public class FastByteOperations
         static final long BYTE_ARRAY_BASE_OFFSET;
         static final long DIRECT_BUFFER_ADDRESS_OFFSET;
         static final long HEAP_HB_FIELD_OFFSET;
+        static final long HEAP_ARRAY_FIELD_OFFSET;
 
         static
         {
@@ -197,6 +198,7 @@ public class FastByteOperations
                 BYTE_ARRAY_BASE_OFFSET = theUnsafe.arrayBaseOffset(byte[].class);
                 DIRECT_BUFFER_ADDRESS_OFFSET = theUnsafe.objectFieldOffset(Buffer.class.getDeclaredField("address"));
                 HEAP_HB_FIELD_OFFSET = theUnsafe.objectFieldOffset(ByteBuffer.class.getDeclaredField("hb"));
+                HEAP_ARRAY_FIELD_OFFSET = theUnsafe.objectFieldOffset(ByteBuffer.class.getDeclaredField("offset"));
             }
             catch (Exception e)
             {
@@ -227,16 +229,20 @@ public class FastByteOperations
         {
             Object obj1;
             long offset1;
+
+            // Heap ByteBuffer (Mutable)
             if (buffer1.hasArray())
             {
                 obj1 = buffer1.array();
                 offset1 = BYTE_ARRAY_BASE_OFFSET + buffer1.arrayOffset() + position1;
             }
+            // Read-Only Heap ByteBuffer (Still has hb but read-only)
             else if (buffer1.isReadOnly() && !buffer1.isDirect())
             {
                 obj1 = theUnsafe.getObject(buffer1, HEAP_HB_FIELD_OFFSET);
-                offset1 = BYTE_ARRAY_BASE_OFFSET;
+                offset1 = BYTE_ARRAY_BASE_OFFSET  + position1;
             }
+            // Direct ByteBuffer
             else
             {
                 obj1 = null;
@@ -287,7 +293,8 @@ public class FastByteOperations
             else if (srcBuf.isReadOnly() && !srcBuf.isDirect())
             {
                 src = theUnsafe.getObject(srcBuf, HEAP_HB_FIELD_OFFSET);
-                srcOffset = BYTE_ARRAY_BASE_OFFSET;
+                int arrayOffset = theUnsafe.getInt(srcBuf, HEAP_ARRAY_FIELD_OFFSET);
+                srcOffset = BYTE_ARRAY_BASE_OFFSET + arrayOffset ;
             }
             // Direct ByteBuffer
             else
@@ -343,16 +350,20 @@ public class FastByteOperations
             Object obj1;
             long offset1;
             int length1;
+
+            // Heap ByteBuffer (Mutable)
             if (buffer1.hasArray())
             {
                 obj1 = buffer1.array();
                 offset1 = BYTE_ARRAY_BASE_OFFSET + buffer1.arrayOffset();
             }
+            // Read-Only Heap ByteBuffer (Still has hb but read-only)
             else if (buffer1.isReadOnly() && !buffer1.isDirect())
             {
                 obj1 = theUnsafe.getObject(buffer1, HEAP_HB_FIELD_OFFSET);
                 offset1 = BYTE_ARRAY_BASE_OFFSET;
             }
+            // Direct ByteBuffer
             else
             {
                 obj1 = null;
@@ -372,16 +383,20 @@ public class FastByteOperations
 
             int position = buffer.position();
             int limit = buffer.limit();
+
+            // Heap ByteBuffer (Mutable)
             if (buffer.hasArray())
             {
                 obj2 = buffer.array();
                 offset2 = BYTE_ARRAY_BASE_OFFSET + buffer.arrayOffset();
             }
+            // Read-Only Heap ByteBuffer (Still has hb but read-only)
             else if (buffer.isReadOnly() && !buffer.isDirect())
             {
                 obj2 = theUnsafe.getObject(buffer, HEAP_HB_FIELD_OFFSET);
                 offset2 = BYTE_ARRAY_BASE_OFFSET;
             }
+            // Direct ByteBuffer
             else
             {
                 obj2 = null;
