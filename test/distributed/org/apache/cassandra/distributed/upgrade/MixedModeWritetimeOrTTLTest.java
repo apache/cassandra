@@ -20,9 +20,11 @@ package org.apache.cassandra.distributed.upgrade;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.Test;
 
+import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.assertj.core.api.Assertions;
@@ -40,9 +42,14 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  */
 public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
 {
+    private static final String CANNOT_USE_SELECTION_FUNCTION_WRITE_TIME_ON_NON_FROZEN_COLLECTION_S = "Cannot use selection function writeTime on non-frozen collection s";
+    private static final String CANNOT_USE_SELECTION_FUNCTION_TTL_ON_NON_FROZEN_COLLECTION_S = "Cannot use selection function ttl on non-frozen collection s";
+    private static final String MAXWRITETIME_UNKNOWN = "Unknown function 'maxwritetime'";
+
     @Test
     public void testWritetimeOrTTLDuringUpgrade() throws Throwable
     {
+        AllowedErrors allowedErrors = new AllowedErrors();
         new TestCase()
         .nodes(2)
         .nodesToUpgradeOrdered(1, 2)
@@ -51,6 +58,8 @@ public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
         .singleUpgradeToCurrentFrom(v41)
         .withConfig(c -> c.with(Feature.GOSSIP))
         .setup(cluster -> {
+            allowedErrors.clear();
+            cluster.setUncaughtExceptionsFilter(allowedErrors::uncaughtExceptionsFilter);
 
             ICoordinator coordinator = cluster.coordinator(1);
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int PRIMARY KEY, v int, s set<int>, fs frozen<set<int>>)"));
@@ -61,6 +70,7 @@ public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
             assertPre42Behaviour(cluster.coordinator(2));
         })
         .runAfterNodeUpgrade((cluster, node) -> {
+            allowedErrors.upgraded(node);
             if (node == 1) // only node1 is upgraded, and the cluster is in mixed mode
             {
                 assertPost42Behaviour(cluster.coordinator(1));
@@ -80,24 +90,24 @@ public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
         // regular column, supported except for maxwritetime
         assertRows(coordinator.execute(withKeyspace("SELECT writetime(v) FROM %s.t"), ALL), row(2L));
         Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT maxwritetime(v) FROM %s.t"), ALL))
-                  .hasMessageContaining("Unknown function 'maxwritetime'");
+                  .hasMessageContaining(MAXWRITETIME_UNKNOWN);
         Assertions.assertThat((Integer) coordinator.execute(withKeyspace("SELECT ttl(v) FROM %s.t"), ALL)[0][0])
                   .isLessThanOrEqualTo(2000).isGreaterThan(2000 - 300); // margin of error of 5 minutes since TTLs decrease
 
         // frozen collection, supported except for maxwritetime
         assertRows(coordinator.execute(withKeyspace("SELECT writetime(fs) FROM %s.t"), ALL), row(1L));
         Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT maxwritetime(fs) FROM %s.t"), ALL))
-                  .hasMessageContaining("Unknown function 'maxwritetime'");
+                  .hasMessageContaining(MAXWRITETIME_UNKNOWN);
         Assertions.assertThat((Integer) coordinator.execute(withKeyspace("SELECT ttl(fs) FROM %s.t"), ALL)[0][0])
                   .isLessThanOrEqualTo(1000).isGreaterThan(1000 - 300); // margin of error of 5 minutes since TTLs decrease
 
         // not-frozen collection, not supported
         Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT writetime(s) FROM %s.t"), ALL))
-                  .hasMessageContaining("Cannot use selection function writeTime on non-frozen collection s");
+                  .hasMessageContaining(CANNOT_USE_SELECTION_FUNCTION_WRITE_TIME_ON_NON_FROZEN_COLLECTION_S);
         Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT maxwritetime(s) FROM %s.t"), ALL))
-                  .hasMessageContaining("Unknown function 'maxwritetime'");
+                  .hasMessageContaining(MAXWRITETIME_UNKNOWN);
         Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("SELECT ttl(s) FROM %s.t"), ALL))
-                  .hasMessageContaining("Cannot use selection function ttl on non-frozen collection s");
+                  .hasMessageContaining(CANNOT_USE_SELECTION_FUNCTION_TTL_ON_NON_FROZEN_COLLECTION_S);
     }
 
     private void assertPost42Behaviour(ICoordinator coordinator)
@@ -119,5 +129,35 @@ public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
         assertRows(coordinator.execute(withKeyspace("SELECT maxwritetime(s) FROM %s.t"), ALL), row(2L));
         Assertions.assertThat(coordinator.execute(withKeyspace("SELECT ttl(s) FROM %s.t"), ALL)[0][0])
                   .matches(l -> l instanceof List && ((List<?>) l).size() == 4);
+    }
+
+    private static class AllowedErrors
+    {
+        private static final Set<String> EXPECTED_ERRORS = Set.of(MAXWRITETIME_UNKNOWN,
+                                                                  CANNOT_USE_SELECTION_FUNCTION_WRITE_TIME_ON_NON_FROZEN_COLLECTION_S,
+                                                                  CANNOT_USE_SELECTION_FUNCTION_TTL_ON_NON_FROZEN_COLLECTION_S);
+
+        private final IntHashSet upgraded = new IntHashSet();
+
+        private void clear()
+        {
+            upgraded.clear();
+        }
+
+        private void upgraded(int node)
+        {
+            upgraded.add(node);
+        }
+
+        private boolean uncaughtExceptionsFilter(int node, Throwable t)
+        {
+            String message = t.getMessage();
+            if (message != null && EXPECTED_ERRORS.contains(message))
+            {
+                // upgraded nodes should not produce these errors
+                return !upgraded.contains(node);
+            }
+            return false;
+        }
     }
 }
