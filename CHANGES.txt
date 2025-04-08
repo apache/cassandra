@@ -1,5 +1,8 @@
 cep-45-mutation-tracking
+ * Fix mutation tracking startup (CASSANDRA-20540)
  * Mutation tracking journal integration, read, and write path (CASSANDRA-20304, CASSANDRA-20305, CASSANDRA-20308)
+ * Introduce MutationJournal for coordinator logs (CASSANDRA-20353)
+ * Copy over Journal and dependencies from cep-15-accord (CASSANDRA-20321)
 
 5.1
  * Optimize MessagingService.getVersionOrdinal (CASSANDRA-20816)

@@ -26,11 +26,15 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public abstract class CoordinatorLog
 {
+    private static final Logger logger = LoggerFactory.getLogger(CoordinatorLog.class);
+
     protected final int localHostId;
     protected final CoordinatorLogId logId;
     protected final Participants participants;
@@ -68,6 +72,7 @@ public abstract class CoordinatorLog
 
     void witnessedRemoteMutation(MutationId mutationId, int onHostId)
     {
+        logger.trace("witnessed remote mutation {} from {}", mutationId, onHostId);
         lock.writeLock().lock();
         try
         {
@@ -88,6 +93,7 @@ public abstract class CoordinatorLog
 
             if (allOtherReplicasWitnessed)
             {
+                logger.trace("marking mutation {} as fully reconciled", mutationId);
                 // if all replicas have now witnessed the id, remove it from the index
                 unreconciledMutations.remove(mutationId.offset());
                 reconciledIds.add(mutationId.offset());
@@ -117,6 +123,7 @@ public abstract class CoordinatorLog
 
     void finishWriting(Mutation mutation)
     {
+        logger.trace("witnessed local mutation {}", mutation.id());
         lock.writeLock().lock();
         try
         {
