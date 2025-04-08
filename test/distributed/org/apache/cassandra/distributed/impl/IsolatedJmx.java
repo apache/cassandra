@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorServer;
@@ -76,6 +77,8 @@ public class IsolatedJmx
     {
         try
         {
+            Objects.requireNonNull(wrapper, "Must call setupMBeanWrapper before use");
+
             // Several RMI threads hold references to in-jvm dtest objects, and are, by default, kept
             // alive for long enough (minutes) to keep classloaders from being collected.
             // Set these two system properties to a low value to allow cleanup to occur fast enough
@@ -88,8 +91,6 @@ public class IsolatedJmx
             int jmxPort = config.jmxPort();
 
             String hostname = addr.getHostAddress();
-            wrapper = new MBeanWrapper.InstanceMBeanWrapper(hostname + ":" + jmxPort);
-            ((MBeanWrapper.DelegatingMbeanWrapper) MBeanWrapper.instance).setDelegate(wrapper);
 
             // CASSANDRA-18508: Sensitive JMX SSL configuration options can be easily exposed
             Map<String, Object> jmxServerOptionsMap = (Map<String, Object>) config.getParams().get("jmx_server_options");
@@ -156,6 +157,15 @@ public class IsolatedJmx
         {
             throw new RuntimeException("Feature.JMX was enabled but could not be started.", t);
         }
+    }
+
+    public void setupMBeanWrapper()
+    {
+        InetAddress addr = config.broadcastAddress().getAddress();
+        int jmxPort = config.jmxPort();
+        String hostname = addr.getHostAddress();
+        wrapper = new MBeanWrapper.InstanceMBeanWrapper(hostname + ':' + jmxPort);
+        ((MBeanWrapper.DelegatingMbeanWrapper) MBeanWrapper.instance).setDelegate(wrapper);
     }
 
     /**
