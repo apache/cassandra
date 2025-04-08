@@ -86,9 +86,7 @@ public class HarryCompactionTest extends CQLTester
     }
 
     private final Generator<SchemaSpec> simple_schema = rng -> {
-        return new SchemaSpec(rng.next(),
-                              1000,
-                              keyspace,
+        return new SchemaSpec(keyspace,
                               table,
                               Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.asciiType),
                                             ColumnSpec.pk("pk2", ColumnSpec.int64Type)),
@@ -149,7 +147,7 @@ public class HarryCompactionTest extends CQLTester
             schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", schema.keyspace));
             createTable(schema.compile());
 
-            HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+            HistoryBuilder history = HistoryBuilder.fromSchema(schema, rng.next(), 1000);
             history.customThrowing(() -> {
                 ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
                 cfs.disableAutoCompaction();
@@ -211,9 +209,9 @@ public class HarryCompactionTest extends CQLTester
 
     public CQLVisitExecutor create(SchemaSpec schema, HistoryBuilder historyBuilder, Supplier<HarrySSTableWriter> writer)
     {
-        DataTracker tracker = new DataTracker.SequentialDataTracker();
-        return new CQLTesterVisitExecutor(schema, tracker,
-                                          new QuiescentChecker(schema.valueGenerators, tracker, historyBuilder),
+        DataTracker.SequentialDataTracker tracker = new DataTracker.SequentialDataTracker();
+        return new CQLTesterVisitExecutor(schema, historyBuilder.valueGenerators(), tracker,
+                                          new QuiescentChecker(historyBuilder.valueGenerators(), tracker),
                                           statement -> {
                                               if (logger.isTraceEnabled())
                                                   logger.trace(statement.toString());
@@ -242,7 +240,7 @@ public class HarryCompactionTest extends CQLTester
             @Override
             public void execute(Visit visit)
             {
-                if (visit.visitedPartitions.size() > 1)
+                if (visit.visitedPartitions.length > 1)
                     throw new IllegalStateException("SSTable Generator does not support batch statements and transactions");
 
                 super.execute(visit);

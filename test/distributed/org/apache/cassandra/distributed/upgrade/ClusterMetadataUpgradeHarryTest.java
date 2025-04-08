@@ -89,9 +89,7 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
             .upgradesToCurrentFrom(v41)
             .withUpgradeListener(listener)
             .setup((cluster) -> {
-                SchemaSpec schema = new SchemaSpec(rng.next(),
-                                                   10_000,
-                                                   "harry", "test_table",
+                SchemaSpec schema = new SchemaSpec("harry", "test_table",
                                                    asList(pk("pk1", asciiType), pk("pk2", int64Type)),
                                                    asList(ck("ck1", asciiType, false), ck("ck2", int64Type, false)),
                                                    asList(regularColumn("regular1", asciiType), regularColumn("regular2", int64Type)),
@@ -99,7 +97,7 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
                 cluster.schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d};", schema.keyspace, 3));
                 cluster.schemaChange(schema.compile());
 
-                HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+                HistoryBuilder history = new ReplayingHistoryBuilder(HistoryBuilder.valueGenerators(schema, rng.next()),
                                                                      hb -> InJvmDTestVisitExecutor.builder()
                                                                                                   .retryPolicy(retry -> true)
                                                                                                   .nodeSelector(lts -> {
@@ -112,9 +110,9 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
                                                                                                       }
                                                                                                   })
                                                                                                   .consistencyLevel(ConsistencyLevel.QUORUM)
-                                                                                                  .build(schema, hb, cluster));
+                                                                                                  .build(schema, hb.valueGenerators(), cluster));
 
-                Generator<Integer> pkIdxGen = Generators.int32(0, Math.min(10_000, schema.valueGenerators.ckPopulation()));
+                Generator<Integer> pkIdxGen = Generators.adaptLongToInt(Generators.int64(0, Math.min(10_000, history.valueGenerators().pkGen().population())));
 
                 executor.set(executorFactory().infiniteLoop("R/W Worload",
                                                             () -> {

@@ -55,7 +55,7 @@ import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
-import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.ClusteringOrderBy;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AssertionUtils;
 
@@ -135,8 +135,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
                 schemaGen = SchemaGenerators.schemaSpecGen("harry", "table", 1000);
 
             schema = schemaGen.generate(rng);
-
-            HistoryBuilder harry = new ReplayingHistoryBuilder(schema.valueGenerators,
+            HistoryBuilder harry = new ReplayingHistoryBuilder(HistoryBuilder.valueGenerators(schema, rng.next(), 1000),
                     hb -> {
                         InJvmDTestVisitExecutor.Builder builder = InJvmDTestVisitExecutor.builder();
                         if (mode.kind == AccordMode.Kind.Direct)
@@ -182,7 +181,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
                                     }
                                     return false;
                                 })
-                                .build(schema, hb, cluster);
+                                .build(schema, hb.valueGenerators(), cluster);
                     });
             cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};", schema.keyspace));
             cluster.schemaChange(schema.compile());
@@ -239,7 +238,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
 
             TransactionalMode transationalMode = spec.schema.options.transactionalMode();
             if (TransactionalMode.full == transationalMode)
-                reads.add(new HarryCommand(s -> String.format("Harry Reverse Validate pd=%d%s", pd, state.commandNamePostfix()), s -> spec.harry.selectPartition(pkIdx, Operations.ClusteringOrderBy.DESC)));
+                reads.add(new HarryCommand(s -> String.format("Harry Reverse Validate pd=%d%s", pd, state.commandNamePostfix()), s -> spec.harry.selectPartition(pkIdx, ClusteringOrderBy.DESC)));
         }
         reads.add(new HarryCommand(s -> "Reset Harry Write State" + state.commandNamePostfix(), s -> ((HarryState) s).numInserts = 0));
         return Property.multistep(reads);
@@ -255,7 +254,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         {
             this.harry = harry;
             this.schema = schema;
-            this.pkGen = Generators.tracking(Generators.int32(0, schema.valueGenerators.pkPopulation()));
+            this.pkGen = Generators.tracking(Generators.adaptLongToInt(harry.valueGenerators().pkIdxGen()));
         }
 
         @Override

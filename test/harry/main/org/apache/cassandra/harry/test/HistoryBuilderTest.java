@@ -25,20 +25,18 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
-import org.apache.cassandra.harry.execution.CQLTesterVisitExecutor;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.execution.CQLVisitExecutor;
-import org.apache.cassandra.harry.execution.DataTracker;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
-import org.apache.cassandra.harry.model.QuiescentChecker;
+import org.apache.cassandra.harry.op.ClusteringOrderBy;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 
@@ -47,18 +45,22 @@ import static org.apache.cassandra.harry.Relations.RelationKind.LTE;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 import static org.apache.cassandra.harry.dsl.SingleOperationBuilder.IdxRelation;
 
-public class HistoryBuilderTest extends CQLTester
+public abstract class HistoryBuilderTest
 {
+    protected static final Logger logger = LoggerFactory.getLogger(HistoryBuilderTest.class);
+
+    protected abstract String keyspace();
+    protected abstract void createTable(String schema);
+    protected abstract void flush(String keyspace, String table);
+
+    public abstract CQLVisitExecutor create(SchemaSpec schema, HistoryBuilder historyBuilder);
+
     // TODO: go through all basic features of History builder here and test them!!!
     // TODO: for example, inverse
     private static final int STEPS_PER_ITERATION = 1_000;
 
-    private static final Logger logger = LoggerFactory.getLogger(HistoryBuilderTest.class);
-
-    private final Generator<SchemaSpec> simple_schema = rng -> {
-        return new SchemaSpec(rng.next(),
-                              1000,
-                              KEYSPACE,
+    public final Generator<SchemaSpec> simple_schema = rng -> {
+        return new SchemaSpec(keyspace(),
                               "harry" + rng.nextLong(0, Long.MAX_VALUE),
                               Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.asciiType),
                                             ColumnSpec.pk("pk2", ColumnSpec.int64Type)),
@@ -72,10 +74,8 @@ public class HistoryBuilderTest extends CQLTester
                                             ColumnSpec.staticColumn("s3", ColumnSpec.asciiType)));
     };
 
-    private final Generator<SchemaSpec> simple_schema_with_desc_ck = rng -> {
-        return new SchemaSpec(rng.next(),
-                              1000,
-                              KEYSPACE,
+    public final Generator<SchemaSpec> simple_schema_with_desc_ck = rng -> {
+        return new SchemaSpec(keyspace(),
                               "harry" + rng.nextLong(0, Long.MAX_VALUE),
                               Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.asciiType),
                                             ColumnSpec.pk("pk2", ColumnSpec.int64Type)),
@@ -98,13 +98,13 @@ public class HistoryBuilderTest extends CQLTester
                 SchemaSpec schema = gen.generate(rng);
                 createTable(schema.compile());
 
-                HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+                HistoryBuilder history = HistoryBuilder.fromSchema(schema, rng.next(), 1000);
                 for (int i = 0; i < 100; i++)
                     history.insert(1);
 
                 history.custom((lts, opId) -> new Operations.SelectPartition(lts,
                                                                              history.valueGenerators().pkGen().descriptorAt(1),
-                                                                             Operations.ClusteringOrderBy.DESC));
+                                                                             ClusteringOrderBy.DESC));
 
                 replay(schema, history);
             }
@@ -120,7 +120,7 @@ public class HistoryBuilderTest extends CQLTester
                 SchemaSpec schema = gen.generate(rng);
                 createTable(schema.compile());
 
-                HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+                HistoryBuilder history = HistoryBuilder.fromSchema(schema, rng.next(), 1000);
                 for (int i = 0; i < 100; i++)
                     history.insert(1, i, values(i, i, i), values(i, i, i));
 
@@ -140,7 +140,7 @@ public class HistoryBuilderTest extends CQLTester
                 SchemaSpec schema = gen.generate(rng);
                 createTable(schema.compile());
 
-                HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+                HistoryBuilder history = HistoryBuilder.fromSchema(schema, rng.next(), 1000);
                 for (int i = 0; i < 100; i++)
                 {
                     int v = i % 2 == 0 ? MagicConstants.UNSET_IDX : i;
@@ -165,7 +165,7 @@ public class HistoryBuilderTest extends CQLTester
                     SchemaSpec schema = gen.generate(rng);
                     createTable(schema.compile());
 
-                    HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+                    HistoryBuilder history = HistoryBuilder.fromSchema(schema, rng.next(), 1000);
                     for (int i = 0; i < 100; i++)
                     {
                         int v = (useUnset && i % 2 == 0) ? MagicConstants.UNSET_IDX : i;
@@ -192,38 +192,39 @@ public class HistoryBuilderTest extends CQLTester
     @Test
     public void testSimpleFuzz()
     {
-        Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "harry", 100);
+        Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(keyspace(), "harry", 100);
         withRandom(rng -> {
             SchemaSpec schema = schemaGen.generate(rng);
-            // Generate at most X values, but not more than entropy allows
-            int maxPartitions = Math.min(1, schema.valueGenerators.pkPopulation());
-            int maxPartitionSize = Math.min(100, schema.valueGenerators.ckPopulation());
-
-            Generator<Integer> partitionPicker = Generators.pick(0, maxPartitions);
-            Generator<Integer> rowPicker = Generators.int32(0, maxPartitionSize);
+            IndexedValueGenerators valueGenerators = HistoryBuilder.valueGenerators(schema, rng.next(), 1000);
+            HistoryBuilder historyBuilder = new HistoryBuilder(valueGenerators);
+            Generator<Integer> partitionPicker = Generators.adaptLongToInt(valueGenerators.pkIdxGen());
             ModelChecker<HistoryBuilder, Void> modelChecker = new ModelChecker<>();
-            HistoryBuilder historyBuilder = new HistoryBuilder(schema.valueGenerators);
             modelChecker.init(historyBuilder)
                         .step((history, rng_) -> {
-                            HistoryBuilderHelper.insertRandomData(schema, partitionPicker.generate(rng), rowPicker.generate(rng), rng, history);
+                            int pdIdx = partitionPicker.generate(rng);
+                            history.insert(pdIdx);
+                            history.selectPartition(pdIdx);
+                        })
+                        .step((history, rng_) -> {
+                            int pdIdx = partitionPicker.generate(rng);
+                            history.deleteRow(pdIdx, valueGenerators.forPdIdx(pdIdx).ckIdxGen().generate(rng));
+                            history.selectPartition(pdIdx);
+                        })
+                        .step((history, rng_) -> {
+                            int pdIdx = partitionPicker.generate(rng);
+                            history.deletePartition(pdIdx);
+                            history.selectPartition(pdIdx);
+                        })
+                        .step((history, rng_) -> {
+                            int pdIdx = partitionPicker.generate(rng);
+                            HistoryBuilderHelper.deleteRandomColumns(schema, pdIdx, valueGenerators.forPdIdx(pdIdx).ckIdxGen().generate(rng), rng, history);
                             history.selectPartition(partitionPicker.generate(rng));
                         })
                         .step((history, rng_) -> {
-                            history.deleteRow(partitionPicker.generate(rng), rowPicker.generate(rng));
-                            history.selectPartition(partitionPicker.generate(rng));
-                        })
-                        .step((history, rng_) -> {
-                            history.deletePartition(partitionPicker.generate(rng));
-                            history.selectPartition(partitionPicker.generate(rng));
-                        })
-                        .step((history, rng_) -> {
-                            HistoryBuilderHelper.deleteRandomColumns(schema, partitionPicker.generate(rng), rowPicker.generate(rng), rng, history);
-                            history.selectPartition(partitionPicker.generate(rng));
-                        })
-                        .step((history, rng_) -> {
-                            history.deleteRowRange(partitionPicker.generate(rng),
-                                                   rowPicker.generate(rng),
-                                                   rowPicker.generate(rng),
+                            int pdIdx = partitionPicker.generate(rng);
+                            history.deleteRowRange(pdIdx,
+                                                   valueGenerators.forPdIdx(pdIdx).ckIdxGen().generate(rng),
+                                                   valueGenerators.forPdIdx(pdIdx).ckIdxGen().generate(rng),
                                                    rng.nextInt(schema.clusteringKeys.size()),
                                                    rng.nextBoolean(),
                                                    rng.nextBoolean()
@@ -231,12 +232,14 @@ public class HistoryBuilderTest extends CQLTester
                             history.selectPartition(partitionPicker.generate(rng));
                         })
                         .step((history, rng_) -> {
-                            history.selectRow(partitionPicker.generate(rng), rowPicker.generate(rng));
+                            int pdIdx = partitionPicker.generate(rng);
+                            history.selectRow(pdIdx, valueGenerators.forPdIdx(pdIdx).ckIdxGen().generate(rng));
                         })
                         .step((history, rng_) -> {
-                            history.selectRowRange(partitionPicker.generate(rng),
-                                                   rowPicker.generate(rng),
-                                                   rowPicker.generate(rng),
+                            int pdIdx = partitionPicker.generate(rng);
+                            history.selectRowRange(pdIdx,
+                                                   valueGenerators.forPdIdx(pdIdx).ckIdxGen().generate(rng),
+                                                   valueGenerators.forPdIdx(pdIdx).ckIdxGen().generate(rng),
                                                    rng.nextInt(schema.clusteringKeys.size()),
                                                    rng.nextBoolean(),
                                                    rng.nextBoolean());
@@ -260,30 +263,26 @@ public class HistoryBuilderTest extends CQLTester
     @Test
     public void fuzzFiltering()
     {
-        Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "fuzz_filtering", 100);
+        Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(keyspace(), "fuzz_filtering", 100);
         withRandom(rng -> {
             SchemaSpec schema = schemaGen.generate(rng);
-            // Generate at most X values, but not more than entropy allows
-            int maxPartitions = Math.min(1, schema.valueGenerators.ckPopulation());
-            int maxPartitionSize = Math.min(100, schema.valueGenerators.ckPopulation());
-
-            Generator<Integer> pkGen = Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), maxPartitionSize));
-            Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), maxPartitionSize));
+            IndexedValueGenerators valueGenerators = HistoryBuilder.valueGenerators(schema, rng.next(), 1000);
 
             ModelChecker<HistoryBuilder, Void> modelChecker = new ModelChecker<>();
-            HistoryBuilder historyBuilder = new HistoryBuilder(schema.valueGenerators);
+            HistoryBuilder historyBuilder = new HistoryBuilder(valueGenerators);
 
             modelChecker.init(historyBuilder)
-                        .step((history, rng_) -> HistoryBuilderHelper.insertRandomData(schema, pkGen, ckGen, rng, history))
+                        .step((history, rng_) -> history.insert())
                         .step((history, rng_) -> {
                             for (int i = 0; i < 10; i++)
                             {
-                                List<IdxRelation> ckRelations = HistoryBuilderHelper.generateClusteringRelations(rng, schema.clusteringKeys.size(), ckGen);
+                                long pdIdx = valueGenerators.pkIdxGen().generate(rng);
+                                List<IdxRelation> ckRelations = HistoryBuilderHelper.generateClusteringRelations(rng, schema.clusteringKeys.size(), valueGenerators.forPd(pdIdx).ckIdxGen());
                                 List<IdxRelation> regularRelations = HistoryBuilderHelper.generateValueRelations(rng, schema.regularColumns.size(),
-                                                                                                                 column -> Math.min(schema.valueGenerators.regularPopulation(column), maxPartitionSize));
+                                                                                                                 column -> Math.toIntExact(valueGenerators.forPdIdx(pdIdx).regularColumnGen(column).population()));
                                 List<IdxRelation> staticRelations = HistoryBuilderHelper.generateValueRelations(rng, schema.staticColumns.size(),
-                                                                                                                column -> Math.min(schema.valueGenerators.staticPopulation(column), maxPartitionSize));
-                                history.select(rng.nextInt(maxPartitions),
+                                                                                                                column -> Math.toIntExact(valueGenerators.forPdIdx(pdIdx).staticColumnGen(column).population()));
+                                history.select((int) pdIdx,
                                                ckRelations.toArray(new IdxRelation[0]),
                                                regularRelations.toArray(new IdxRelation[0]),
                                                staticRelations.toArray(new IdxRelation[0]));
@@ -309,19 +308,7 @@ public class HistoryBuilderTest extends CQLTester
             executor.execute(visit);
     }
 
-    public CQLVisitExecutor create(SchemaSpec schema, HistoryBuilder historyBuilder)
-    {
-        DataTracker tracker = new DataTracker.SequentialDataTracker();
-        return new CQLTesterVisitExecutor(schema, tracker,
-                                          new QuiescentChecker(schema.valueGenerators, tracker, historyBuilder),
-                                          statement -> {
-                                              if (logger.isTraceEnabled())
-                                                  logger.trace(statement.toString());
-                                              return execute(statement.cql(), statement.bindings());
-                                          });
-    }
-
-    public int[] values(int... values)
+    public static int[] values(int... values)
     {
         return values;
     }

@@ -1795,7 +1795,7 @@ public abstract class CQLSSTableWriterTest
         }
     }
 
-    protected static void loadSSTables(File dataDir, final String ks, final String tb) throws ExecutionException, InterruptedException
+    public static void loadSSTables(File dataDir, final String ks, final String tb) throws ExecutionException, InterruptedException
     {
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
         {

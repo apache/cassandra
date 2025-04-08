@@ -36,6 +36,8 @@ import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 import org.apache.cassandra.harry.util.BitSet;
 
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 import static org.apache.cassandra.harry.dsl.HistoryBuilderHelper.generateClusteringRelations;
 import static org.apache.cassandra.harry.dsl.HistoryBuilderHelper.generateValueRelations;
 import static org.apache.cassandra.harry.dsl.SingleOperationBuilder.IdxRelation;
@@ -45,7 +47,7 @@ public class StaticsTortureTest extends IntegrationTestBase
     private static final int MAX_PARTITION_SIZE = 10_000;
     private static final int NUM_PARTITIONS = 100;
     private static final int UNIQUE_CELL_VALUES = 5;
-
+    private static final int POPULATION = 1000;
     @Test
     public void staticsTortureTest()
     {
@@ -64,9 +66,7 @@ public class StaticsTortureTest extends IntegrationTestBase
 
     public void staticsTortureTest(List<ColumnSpec<?>> cks, int idx)
     {
-        SchemaSpec schema = new SchemaSpec(idx,
-                                           10_000,
-                                           KEYSPACE,
+        SchemaSpec schema = new SchemaSpec(KEYSPACE,
                                            "tbl" + idx,
                                            Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.int64Type, Generators.int64()),
                                                          ColumnSpec.pk("pk2", ColumnSpec.asciiType, Generators.ascii(4, 1000)),
@@ -124,8 +124,9 @@ public class StaticsTortureTest extends IntegrationTestBase
         Generator<BitSet> staticColumnBitSet = Generators.bitSet(schema.staticColumns.size());
         EntropySource rng = new JdkRandomEntropySource(1l);
 
-        ReplayingHistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators, hb -> {
-            return InJvmDTestVisitExecutor.builder().pageSizeSelector(i -> rng.nextInt(1, 10)).build(schema, hb, cluster);
+        IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), POPULATION);
+        ReplayingHistoryBuilder history = new ReplayingHistoryBuilder(valueGenerators, hb -> {
+            return InJvmDTestVisitExecutor.builder().pageSizeSelector(i -> rng.nextInt(1, 10)).build(schema, hb.valueGenerators(), cluster);
         });
 
 
@@ -175,10 +176,8 @@ public class StaticsTortureTest extends IntegrationTestBase
             for (int i = 0; i < 10; i++)
             {
                 List<IdxRelation> ckRelations = generateClusteringRelations(rng, schema.clusteringKeys.size(), ckIdxGen);
-                List<IdxRelation> regularRelations = generateValueRelations(rng, schema.regularColumns.size(),
-                                                                            column -> Math.min(schema.valueGenerators.regularPopulation(column), MAX_PARTITION_SIZE));
-                List<IdxRelation> staticRelations = generateValueRelations(rng, schema.staticColumns.size(),
-                                                                           column -> Math.min(schema.valueGenerators.staticPopulation(column), MAX_PARTITION_SIZE));
+                List<IdxRelation> regularRelations = generateValueRelations(rng, schema.regularColumns.size(),column -> POPULATION);
+                List<IdxRelation> staticRelations = generateValueRelations(rng, schema.staticColumns.size(),column -> POPULATION);
                 history.select(pdx,
                                ckRelations.toArray(new IdxRelation[0]),
                                regularRelations.toArray(new IdxRelation[0]),

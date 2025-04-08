@@ -40,7 +40,7 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
-import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.execution.CQLVisitExecutor;
 import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
@@ -53,6 +53,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 import static org.junit.Assert.fail;
 import static org.psjava.util.AssertStatus.assertTrue;
 
@@ -75,8 +76,9 @@ public class BounceGossipTest extends TestBaseImpl
 
             withRandom(rng -> {
                 SchemaSpec schema = schemaGen.generate(rng);
-                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
-                Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), 1000));
+                IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), 1000);
+
+                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.adaptLongToInt(valueGenerators.pkIdxGen()));
 
                 cluster.schemaChange("CREATE KEYSPACE " + schema.keyspace +
                                      " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};");
@@ -84,12 +86,12 @@ public class BounceGossipTest extends TestBaseImpl
 
                 Future<?> f = es.submit(new Runnable()
                 {
-                    final HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+                    final HistoryBuilder history = new HistoryBuilder(valueGenerators);
                     final Iterator<Visit> iterator = history.iterator();
                     final CQLVisitExecutor executor = InJvmDTestVisitExecutor.builder()
                                                                              .nodeSelector(lts -> 1)
                                                                              .retryPolicy(InJvmDTestVisitExecutor.RetryPolicy.RETRY_ON_TIMEOUT)
-                                                                             .build(schema, history, cluster);
+                                                                             .build(schema, history.valueGenerators(), cluster);
                     @Override
                     public void run()
                     {
@@ -97,7 +99,7 @@ public class BounceGossipTest extends TestBaseImpl
                         {
                             // Rate limit to ~10 per second
                             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(500));
-                            HistoryBuilderHelper.insertRandomData(schema, pkGen, ckGen, rng, history);
+                            history.insert();
                             history.selectPartition(pkGen.generate(rng));
 
                             while (iterator.hasNext() && !stop.get())

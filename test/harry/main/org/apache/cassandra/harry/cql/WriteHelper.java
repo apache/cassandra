@@ -18,30 +18,34 @@
 
 package org.apache.cassandra.harry.cql;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import accord.utils.Invariants;
-
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.execution.CompiledStatement;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.op.Operations;
 
 public class WriteHelper
 {
     public static CompiledStatement inflateInsert(Operations.WriteOp op,
                                                   SchemaSpec schema,
+                                                  ValueGenerators<Object[], Object[]> gens,
                                                   long timestamp)
     {
         assert op.vds().length == schema.regularColumns.size();
         assert op.sds().length == schema.staticColumns.size();
-        assert op.vds().length == schema.valueGenerators.regularColumnCount();
-        assert op.sds().length == schema.valueGenerators.staticColumnCount();
+        ValueGenerators.PartitionValues<Object[]> valueGenerators = gens.forPd(op.pd);
+        assert op.vds().length == valueGenerators.regularColumnCount();
+        assert op.sds().length == valueGenerators.staticColumnCount();
 
-        Object[] partitionKey = schema.valueGenerators.pkGen().inflate(op.pd());
+        Object[] partitionKey = gens.pkGen().inflate(op.pd());
         assert partitionKey.length == schema.partitionKeys.size();
-        Object[] clusteringKey = schema.valueGenerators.ckGen().inflate(op.cd());
+        Object[] clusteringKey = valueGenerators.ckGen().inflate(op.cd());
         assert clusteringKey.length == schema.clusteringKeys.size();
         Object[] regularColumns = new Object[op.vds().length];
         Object[] staticColumns = new Object[op.sds().length];
@@ -52,7 +56,7 @@ public class WriteHelper
             if (descriptor == MagicConstants.UNSET_DESCR)
                 regularColumns[i] = MagicConstants.UNSET_VALUE;
             else
-                regularColumns[i] = schema.valueGenerators.regularColumnGen(i).inflate(descriptor);
+                regularColumns[i] = valueGenerators.regularColumnGen(i).inflate(descriptor);
         }
 
         for (int i = 0; i < op.sds().length; i++)
@@ -61,7 +65,7 @@ public class WriteHelper
             if (descriptor == MagicConstants.UNSET_DESCR)
                 staticColumns[i] = MagicConstants.UNSET_VALUE;
             else
-                staticColumns[i] = schema.valueGenerators.staticColumnGen(i).inflate(descriptor);
+                staticColumns[i] = valueGenerators.staticColumnGen(i).inflate(descriptor);
         }
 
         Object[] bindings = new Object[schema.allColumnInSelectOrder.size()];
@@ -96,7 +100,15 @@ public class WriteHelper
         }
 
         b.append(";");
-        return new CompiledStatement(b.toString(), adjustArraySize(bindings, bindingsCount));
+
+        CompiledStatement compiled = new CompiledStatement(false, b.toString(), adjustArraySize(bindings, bindingsCount));
+        {
+            ByteBuffer[] pkBuffers = new ByteBuffer[partitionKey.length];
+            for (int i = 0; i < partitionKey.length; i++)
+                pkBuffers[i] = ((AbstractType)schema.partitionKeys.get(i).type.asServerType()).decompose(partitionKey[i]);
+            compiled.setPk(pkBuffers);
+        }
+        return compiled;
     }
 
     public static Object[] adjustArraySize(Object[] bindings, int bindingsCount)
@@ -112,25 +124,28 @@ public class WriteHelper
 
     public static CompiledStatement inflateUpdate(Operations.WriteOp op,
                                                   SchemaSpec schema,
+                                                  ValueGenerators<Object[], Object[]> gens,
                                                   long timestamp)
     {
         assert op.vds().length == schema.regularColumns.size();
         assert op.sds().length == schema.staticColumns.size();
-        assert op.vds().length == schema.valueGenerators.regularColumnCount();
-        assert op.sds().length == schema.valueGenerators.staticColumnCount();
 
-        Object[] partitionKey = schema.valueGenerators.pkGen().inflate(op.pd);
+        ValueGenerators.PartitionValues<Object[]> valueGenerators = gens.forPd(op.pd);
+        assert op.vds().length == valueGenerators.regularColumnCount();
+        assert op.sds().length == valueGenerators.staticColumnCount();
+
+        Object[] partitionKey = gens.pkGen().inflate(op.pd);
         assert partitionKey.length == schema.partitionKeys.size();
-        Object[] clusteringKey = schema.valueGenerators.ckGen().inflate(op.cd());
+        Object[] clusteringKey = valueGenerators.ckGen().inflate(op.cd());
         assert clusteringKey.length == schema.clusteringKeys.size();
         Object[] regularColumns = new Object[op.vds().length];
         Object[] staticColumns = new Object[op.sds().length];
 
         for (int i = 0; i < op.vds().length; i++)
-            regularColumns[i] = schema.valueGenerators.regularColumnGen(i).inflate(op.vds()[i]);
+            regularColumns[i] = valueGenerators.regularColumnGen(i).inflate(op.vds()[i]);
 
         for (int i = 0; i < op.sds().length; i++)
-            staticColumns[i] = schema.valueGenerators.staticColumnGen(i).inflate(op.sds()[i]);
+            staticColumns[i] = valueGenerators.staticColumnGen(i).inflate(op.sds()[i]);
 
         Object[] bindings = new Object[schema.allColumnInSelectOrder.size()];
 
@@ -143,9 +158,10 @@ public class WriteHelper
         if (timestamp != -1 && schema.options.addWriteTimestamps())
         {
             b.append(" USING TIMESTAMP ")
-             .append(timestamp)
-             .append(" SET ");
+             .append(timestamp);
         }
+
+        b.append(" SET ");
 
         int bindingsCount = 0;
         bindingsCount += addSetStatements(b, bindings, schema.regularColumns, regularColumns, bindingsCount);
@@ -158,7 +174,15 @@ public class WriteHelper
         bindingsCount += addWhereStatements(b, bindings, schema.partitionKeys, partitionKey, bindingsCount, true);
         bindingsCount += addWhereStatements(b, bindings, schema.clusteringKeys, clusteringKey, bindingsCount, false);
         b.append(";");
-        return new CompiledStatement(b.toString(), adjustArraySize(bindings, bindingsCount));
+
+        CompiledStatement compiled = new CompiledStatement(false, b.toString(), adjustArraySize(bindings, bindingsCount));
+        {
+            ByteBuffer[] pkBuffers = new ByteBuffer[partitionKey.length];
+            for (int i = 0; i < partitionKey.length; i++)
+                pkBuffers[i] = ((AbstractType)schema.partitionKeys.get(i).type.asServerType()).decompose(partitionKey[i]);
+            compiled.setPk(pkBuffers);
+        }
+        return compiled;
     }
 
     private static int addSetStatements(StringBuilder b,

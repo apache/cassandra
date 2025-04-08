@@ -18,16 +18,19 @@
 
 package org.apache.cassandra.harry.cql;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.Relations;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.execution.CompiledStatement;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.util.BitSet;
 
@@ -35,6 +38,7 @@ public class DeleteHelper
 {
     public static CompiledStatement inflateDelete(Operations.DeletePartition delete,
                                                   SchemaSpec schema,
+                                                  ValueGenerators<Object[], Object[]> valueGenerators,
                                                   long timestamp)
     {
         StringBuilder b = new StringBuilder();
@@ -50,7 +54,7 @@ public class DeleteHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
+        Object[] pk = valueGenerators.pkGen().inflate(delete.pd());
 
         RelationWriter writer = new RelationWriter(b, bindings::add) ;
 
@@ -61,11 +65,19 @@ public class DeleteHelper
 
         Object[] bindingsArr = bindings.toArray(new Object[bindings.size()]);
 
-        return new CompiledStatement(b.toString(), bindingsArr);
+        CompiledStatement compiled = new CompiledStatement(false, b.toString(), bindingsArr);
+        {
+            ByteBuffer[] pkBuffers = new ByteBuffer[pk.length];
+            for (int i = 0; i < pk.length; i++)
+                pkBuffers[i] = ((AbstractType)schema.partitionKeys.get(i).type.asServerType()).decompose(pk[i]);
+            compiled.setPk(pkBuffers);
+        }
+        return compiled;
     }
 
     public static CompiledStatement inflateDelete(Operations.DeleteRow delete,
                                                   SchemaSpec schema,
+                                                  ValueGenerators<Object[], Object[]> generators,
                                                   long timestamp)
     {
         StringBuilder b = new StringBuilder();
@@ -81,8 +93,9 @@ public class DeleteHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
-        Object[] ck = schema.valueGenerators.ckGen().inflate(delete.cd());
+        Object[] pk = generators.pkGen().inflate(delete.pd());
+        ValueGenerators.PartitionValues<Object[]> valueGenerators = generators.forPd(delete.pd);
+        Object[] ck = valueGenerators.ckGen().inflate(delete.cd());
 
         RelationWriter writer = new RelationWriter(b, bindings::add);
 
@@ -95,11 +108,19 @@ public class DeleteHelper
 
         Object[] bindingsArr = bindings.toArray(new Object[bindings.size()]);
 
-        return new CompiledStatement(b.toString(), bindingsArr);
+        CompiledStatement compiled = new CompiledStatement(false, b.toString(), bindingsArr);
+        {
+            ByteBuffer[] pkBuffers = new ByteBuffer[pk.length];
+            for (int i = 0; i < pk.length; i++)
+                pkBuffers[i] = ((AbstractType)schema.partitionKeys.get(i).type.asServerType()).decompose(pk[i]);
+            compiled.setPk(pkBuffers);
+        }
+        return compiled;
     }
 
     public static CompiledStatement inflateDelete(Operations.DeleteColumns delete,
                                                   SchemaSpec schema,
+                                                  ValueGenerators<Object[], Object[]> generators,
                                                   long timestamp)
     {
         StringBuilder b = new StringBuilder();
@@ -139,8 +160,9 @@ public class DeleteHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
-        Object[] ck = schema.valueGenerators.ckGen().inflate(delete.cd());
+        Object[] pk = generators.pkGen().inflate(delete.pd());
+        ValueGenerators.PartitionValues<Object[]> valueGenerators = generators.forPd(delete.pd);
+        Object[] ck = valueGenerators.ckGen().inflate(delete.cd());
 
         RelationWriter writer = new RelationWriter(b, bindings::add);
 
@@ -153,11 +175,19 @@ public class DeleteHelper
 
         Object[] bindingsArr = bindings.toArray(new Object[bindings.size()]);
 
-        return new CompiledStatement(b.toString(), bindingsArr);
+        CompiledStatement compiled = new CompiledStatement(false, b.toString(), bindingsArr);
+        {
+            ByteBuffer[] pkBuffers = new ByteBuffer[pk.length];
+            for (int i = 0; i < pk.length; i++)
+                pkBuffers[i] = ((AbstractType)schema.partitionKeys.get(i).type.asServerType()).decompose(pk[i]);
+            compiled.setPk(pkBuffers);
+        }
+        return compiled;
     }
 
     public static CompiledStatement inflateDelete(Operations.DeleteRange delete,
                                                   SchemaSpec schema,
+                                                  ValueGenerators<Object[], Object[]> generators,
                                                   long timestamp)
     {
         StringBuilder b = new StringBuilder();
@@ -173,9 +203,10 @@ public class DeleteHelper
 
         List<Object> bindings = new ArrayList<>();
 
-        Object[] pk = schema.valueGenerators.pkGen().inflate(delete.pd());
-        Object[] lowBound = schema.valueGenerators.ckGen().inflate(delete.lowerBound());
-        Object[] highBound = schema.valueGenerators.ckGen().inflate(delete.upperBound());
+        Object[] pk = generators.pkGen().inflate(delete.pd());
+        ValueGenerators.PartitionValues<Object[]> valueGenerators = generators.forPd(delete.pd);
+        Object[] lowBound = valueGenerators.ckGen().inflate(delete.lowerBound());
+        Object[] highBound = valueGenerators.ckGen().inflate(delete.upperBound());
 
         RelationWriter writer = new RelationWriter(b, bindings::add);
 
@@ -196,7 +227,14 @@ public class DeleteHelper
 
         Object[] bindingsArr = bindings.toArray(new Object[bindings.size()]);
 
-        return new CompiledStatement(b.toString(), bindingsArr);
+        CompiledStatement compiled = new CompiledStatement(false, b.toString(), bindingsArr);
+        {
+            ByteBuffer[] pkBuffers = new ByteBuffer[pk.length];
+            for (int i = 0; i < pk.length; i++)
+                pkBuffers[i] = ((AbstractType)schema.partitionKeys.get(i).type.asServerType()).decompose(pk[i]);
+            compiled.setPk(pkBuffers);
+        }
+        return compiled;
     }
 
     private static final class RelationWriter

@@ -23,42 +23,13 @@ import java.util.List;
 
 import org.apache.cassandra.harry.gen.Bijections.Bijection;
 
-public class ValueGenerators<PartitionKey, ClusteringKey>
+public abstract class ValueGenerators<PartitionKey, ClusteringKey>
 {
     protected final Bijection<PartitionKey> pkGen;
-    protected final Bijection<ClusteringKey> ckGen;
 
-    protected final Accessor<ClusteringKey> ckAccessor;
-
-    protected final List<? extends Bijection<? extends Object>> regularColumnGens;
-    protected final List<? extends Bijection<? extends Object>> staticColumnGens;
-
-    protected final List<Comparator<Object>> pkComparators;
-    protected final List<Comparator<Object>> ckComparators;
-    protected final List<Comparator<Object>> regularComparators;
-    protected final List<Comparator<Object>> staticComparators;
-
-    public ValueGenerators(Bijection<PartitionKey> pkGen,
-                           Bijection<ClusteringKey> ckGen,
-                           Accessor<ClusteringKey> ckAccessor,
-
-                           List<? extends Bijection<? extends Object>> regularColumnGens,
-                           List<? extends Bijection<? extends Object>> staticColumnGens,
-
-                           List<Comparator<Object>> pkComparators,
-                           List<Comparator<Object>> ckComparators,
-                           List<Comparator<Object>> regularComparators,
-                           List<Comparator<Object>> staticComparators)
+    public ValueGenerators(Bijection<PartitionKey> pkGen)
     {
         this.pkGen = pkGen;
-        this.ckGen = ckGen;
-        this.ckAccessor = ckAccessor;
-        this.regularColumnGens = regularColumnGens;
-        this.staticColumnGens = staticColumnGens;
-        this.pkComparators = pkComparators;
-        this.ckComparators = ckComparators;
-        this.regularComparators = regularComparators;
-        this.staticComparators = staticComparators;
     }
 
     public Bijection<PartitionKey> pkGen()
@@ -66,79 +37,105 @@ public class ValueGenerators<PartitionKey, ClusteringKey>
         return pkGen;
     }
 
-    public Bijection<ClusteringKey> ckGen()
-    {
-        return ckGen;
-    }
+    public abstract PartitionValues<ClusteringKey> forPd(long pd);
 
-    public Bijection regularColumnGen(int idx)
+    public static class PartitionValues<CK>
     {
-        return regularColumnGens.get(idx);
-    }
+        protected final Bijection<CK> ckGen;
 
-    public Bijection staticColumnGen(int idx)
-    {
-        return staticColumnGens.get(idx);
-    }
+        protected final Accessor<CK> ckAccessor;
 
-    public int ckColumnCount()
-    {
-        return ckComparators.size();
-    }
+        protected final List<? extends Bijection<? extends Object>> regularColumnGens;
+        protected final List<? extends Bijection<? extends Object>> staticColumnGens;
 
-    public int regularColumnCount()
-    {
-        return regularColumnGens.size();
-    }
+        protected final List<Comparator<Object>> ckComparators;
+        protected final List<Comparator<Object>> regularComparators;
+        protected final List<Comparator<Object>> staticComparators;
 
-    public int staticColumnCount()
-    {
-        return staticColumnGens.size();
-    }
+        public PartitionValues(Bijection<CK> ckGen,
+                               Accessor<CK> ckAccessor,
 
-    public Comparator<Object> pkComparator(int idx)
-    {
-        return pkComparators.get(idx);
-    }
+                               List<? extends Bijection<? extends Object>> regularColumnGens,
+                               List<? extends Bijection<? extends Object>> staticColumnGens,
 
-    public Comparator<Object> ckComparator(int idx)
-    {
-        return ckComparators.get(idx);
-    }
+                               List<Comparator<Object>> ckComparators,
+                               List<Comparator<Object>> regularComparators,
+                               List<Comparator<Object>> staticComparators)
+        {
 
-    public Comparator<Object> regularComparator(int idx)
-    {
-        return regularComparators.get(idx);
-    }
+            this.ckGen = ckGen;
+            this.ckAccessor = ckAccessor;
+            this.regularColumnGens = regularColumnGens;
+            this.staticColumnGens = staticColumnGens;
+            this.ckComparators = ckComparators;
+            this.regularComparators = regularComparators;
+            this.staticComparators = staticComparators;
+        }
 
-    public Comparator<Object> staticComparator(int idx)
-    {
-        return staticComparators.get(idx);
-    }
+        public Bijection<CK> ckGen()
+        {
+            return ckGen;
+        }
 
-    public Accessor<ClusteringKey> ckAccessor()
-    {
-        return ckAccessor;
-    }
+        public Bijection regularColumnGen(int idx)
+        {
+            return regularColumnGens.get(idx);
+        }
 
-    public int pkPopulation()
-    {
-        return pkGen.population();
-    }
+        public Bijection staticColumnGen(int idx)
+        {
+            return staticColumnGens.get(idx);
+        }
 
-    public int ckPopulation()
-    {
-        return ckGen.population();
-    }
+        public int ckColumnCount()
+        {
+            return ckComparators.size();
+        }
 
-    public int regularPopulation(int i)
-    {
-        return regularColumnGens.get(i).population();
-    }
+        public int regularColumnCount()
+        {
+            return regularColumnGens.size();
+        }
 
-    public int staticPopulation(int i)
-    {
-        return staticColumnGens.get(i).population();
+        public int staticColumnCount()
+        {
+            return staticColumnGens.size();
+        }
+
+        public Comparator<Object> ckComparator(int idx)
+        {
+            return ckComparators.get(idx);
+        }
+
+        public Comparator<Object> regularComparator(int idx)
+        {
+            return regularComparators.get(idx);
+        }
+
+        public Comparator<Object> staticComparator(int idx)
+        {
+            return staticComparators.get(idx);
+        }
+
+        public Accessor<CK> ckAccessor()
+        {
+            return ckAccessor;
+        }
+
+        public int ckPopulation()
+        {
+            return Math.toIntExact(ckGen.population());
+        }
+
+        public int regularPopulation(int i)
+        {
+            return Math.toIntExact(regularColumnGens.get(i).population());
+        }
+
+        public int staticPopulation(int i)
+        {
+            return Math.toIntExact(staticColumnGens.get(i).population());
+        }
     }
 
     public interface Accessor<T>

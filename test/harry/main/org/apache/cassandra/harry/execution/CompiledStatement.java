@@ -18,18 +18,22 @@
 
 package org.apache.cassandra.harry.execution;
 
-import java.net.InetAddress;
-import java.util.UUID;
-
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+
+import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.util.UUID;
 
 public class CompiledStatement
 {
+    public final boolean validating;
     private final String cql;
     private final Object[] bindings;
+    private ByteBuffer[] pk;
 
-    public CompiledStatement(String cql, Object... bindings)
+    public CompiledStatement(boolean validating, String cql, Object... bindings)
     {
+        this.validating = validating;
         this.cql = cql;
         this.bindings = bindings;
     }
@@ -41,26 +45,33 @@ public class CompiledStatement
 
     public CompiledStatement withSchema(String oldKs, String oldTable, String newKs, String newTable)
     {
-        return new CompiledStatement(cql.replace(oldKs + "." + oldTable,
-                                                 newKs + "." + newTable),
-                                     bindings);
+        CompiledStatement statement = new CompiledStatement(validating, cql.replace(oldKs + "." + oldTable,
+                newKs + "." + newTable),
+                bindings);
+        statement.setPk(pk);
+        return statement;
     }
 
     public CompiledStatement withFiltering()
     {
-        return new CompiledStatement(cql.replace(";",
+        return new CompiledStatement(validating, cql.replace(";",
                                                  " ALLOW FILTERING;"),
                                      bindings);
+    }
+
+    public void setPk(ByteBuffer[] pk)
+    {
+        this.pk = pk;
+    }
+
+    public ByteBuffer[] pk()
+    {
+        return pk;
     }
 
     public Object[] bindings()
     {
         return bindings;
-    }
-
-    public static CompiledStatement create(String cql, Object... bindings)
-    {
-        return new CompiledStatement(cql, bindings);
     }
 
     public String toString()

@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +63,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
@@ -81,6 +81,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
@@ -106,6 +107,11 @@ public class HarrySSTableWriter implements Closeable
     private HarrySSTableWriter(AbstractSSTableSimpleWriter writer)
     {
         this.writer = writer;
+    }
+
+    public void setListener(Consumer<String> listener)
+    {
+        writer.setSSTableProducedListener((writer, readers) -> listener.accept(writer.getFilename()));
     }
 
     public static Builder builder()
@@ -262,6 +268,8 @@ public class HarrySSTableWriter implements Closeable
         private boolean buildIndexes = true;
         private Consumer<Collection<SSTableReader>> sstableProducedListener;
         private boolean openSSTableOnProduced = false;
+        private int sstableLevel = 0;
+        private long repairedAtMillis = ActiveRepairService.UNREPAIRED_SSTABLE;
 
         protected Builder()
         {
@@ -479,6 +487,30 @@ public class HarrySSTableWriter implements Closeable
             return this;
         }
 
+        /**
+         * Set the SSTable level for the produced SSTables.
+         * This is used to simulate LeveledCompactionStrategy layouts where
+         * SSTables are assigned to specific levels (L0, L1, L2, etc.).
+         *
+         * By default, SSTables are written at level 0.
+         *
+         * @param level the SSTable level (0-8)
+         * @return this builder.
+         */
+        public Builder withSSTableLevel(int level)
+        {
+            if (level < 0 || level >= 9)
+                throw new IllegalArgumentException("SSTable level must be between 0 and 8, got: " + level);
+            this.sstableLevel = level;
+            return this;
+        }
+
+        public Builder withRepairedAtMillis(long repairedAtMillis)
+        {
+            this.repairedAtMillis = repairedAtMillis;
+            return this;
+        }
+
         public HarrySSTableWriter build()
         {
             if (directory == null)
@@ -570,6 +602,8 @@ public class HarrySSTableWriter implements Closeable
 
                 if (format != null)
                     writer.setSSTableFormatType(format);
+                writer.setSSTableLevel(sstableLevel);
+                writer.setReparedAtMillis(repairedAtMillis);
 
                 if (buildIndexes && !indexStatements.isEmpty() && cfs != null)
                 {
@@ -630,7 +664,7 @@ public class HarrySSTableWriter implements Closeable
                 @Override
                 public boolean compatibleWith(ClusterMetadata metadata)
                 {
-                    return true;
+                    return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
                 }
             };
             ClusterMetadataService.instance().commit(new AlterSchema(schemaTransformation));

@@ -33,6 +33,7 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.model.QuiescentChecker;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
@@ -52,6 +53,7 @@ public class RingAwareInJvmDTestVisitExecutor extends InJvmDTestVisitExecutor
     private final TokenPlacementModel.ReplicationFactor rf;
 
     private RingAwareInJvmDTestVisitExecutor(SchemaSpec schema,
+                                             ValueGenerators<Object[], Object[]> valueGenerators,
                                              DataTracker dataTracker,
                                              Model model,
                                              ICluster<?> cluster,
@@ -62,7 +64,7 @@ public class RingAwareInJvmDTestVisitExecutor extends InJvmDTestVisitExecutor
                                              TokenPlacementModel.ReplicationFactor rf,
                                              QueryBuildingVisitExecutor.WrapQueries wrapQueries)
     {
-        super(schema, dataTracker, model, cluster, nodeSelector, pageSizeSelector, retryPolicy, consistencyLevel, QueryBuildingVisitExecutor.WrapQueries.UNLOGGED_BATCH);
+        super(schema, valueGenerators, dataTracker, model, cluster, nodeSelector, pageSizeSelector, retryPolicy, consistencyLevel, wrapQueries);
         this.rf = rf;
     }
 
@@ -86,7 +88,7 @@ public class RingAwareInJvmDTestVisitExecutor extends InJvmDTestVisitExecutor
 
     protected long token(long pd)
     {
-        return TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(schema.valueGenerators.pkGen().inflate(pd))));
+        return TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(valueGenerators.pkGen().inflate(pd))));
     }
 
     @Override
@@ -120,9 +122,10 @@ public class RingAwareInJvmDTestVisitExecutor extends InJvmDTestVisitExecutor
     {
         try
         {
-            Invariants.require(visit.visitedPartitions.size() == 1,
+            Invariants.require(visit.visitedPartitions.length == 1,
                                   "Ring aware executor can only read and write one partition at a time");
-            for (TokenPlacementModel.Replica replica : getReplicasFor(visit.visitedPartitions.iterator().next().longValue()))
+
+            for (TokenPlacementModel.Replica replica : getReplicasFor(visit.visitedPartitions[0]))
             {
                 IInstance instance = cluster
                                      .stream()
@@ -198,17 +201,17 @@ public class RingAwareInJvmDTestVisitExecutor extends InJvmDTestVisitExecutor
             }
         }
 
-        public RingAwareInJvmDTestVisitExecutor build(SchemaSpec schema, Model.Replay replay, ICluster<?> cluster)
+        public RingAwareInJvmDTestVisitExecutor build(SchemaSpec schema, ValueGenerators<Object[], Object[]> valueGenerators, ICluster<?> cluster)
         {
-            DataTracker tracker = new DataTracker.SequentialDataTracker();
-            Model model = new QuiescentChecker(schema.valueGenerators, tracker, replay);
-            return build(schema, tracker, model, cluster);
+            DataTracker.SequentialDataTracker tracker = new DataTracker.SequentialDataTracker();
+            Model model = new QuiescentChecker(valueGenerators, tracker);
+            return build(schema, valueGenerators, tracker, model, cluster);
         }
 
-        public RingAwareInJvmDTestVisitExecutor build(SchemaSpec schema, DataTracker tracker, Model model, ICluster<?> cluster)
+        public RingAwareInJvmDTestVisitExecutor build(SchemaSpec schema, ValueGenerators<Object[], Object[]> valueGenerators, DataTracker tracker, Model model, ICluster<?> cluster)
         {
             setDefaults(schema, cluster);
-            return new RingAwareInJvmDTestVisitExecutor(schema, tracker, model, cluster,
+            return new RingAwareInJvmDTestVisitExecutor(schema, valueGenerators, tracker, model, cluster,
                                                         nodeSelector, pageSizeSelector, retryPolicy, consistencyLevel, rf, wrapQueries);
         }
     }

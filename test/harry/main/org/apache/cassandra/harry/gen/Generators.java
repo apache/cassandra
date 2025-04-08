@@ -25,14 +25,18 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Supplier;
 
 import accord.utils.Invariants;
-
+import org.apache.cassandra.harry.stress.distribution.Distribution;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.TimeUUID;
@@ -229,6 +233,19 @@ public class Generators
         return new TrackingGenerator<>(delegate);
     }
 
+    public static Generator<Integer> adaptLongToInt(Generator<Long> orig)
+    {
+        return new Generator<Integer>()
+        {
+            final Generator<Long> longGen = orig;
+            @Override
+            public Integer generate(EntropySource rng)
+            {
+                return Math.toIntExact(longGen.generate(rng));
+            }
+        };
+    }
+
     public static class TrackingGenerator<T> implements Generator<T>
     {
         private final Set<T> generated;
@@ -325,6 +342,60 @@ public class Generators
         }
     }
 
+    public static final class VariableSizeStringGenerator implements Generator<String>
+    {
+        final char[] chars;
+        final Distribution sizeDistribution;
+
+        public VariableSizeStringGenerator(char[] chars, Distribution sizeDistribution)
+        {
+            this.chars = chars;
+            this.sizeDistribution = sizeDistribution;
+        }
+
+        public VariableSizeStringGenerator(int minChar, int maxChar, Distribution sizeDistribution)
+        {
+            int range = maxChar - minChar + 1;
+            this.chars = new char[range];
+            for (int i = 0; i < range; i++)
+                chars[i] = (char) (minChar + i);
+            this.sizeDistribution = sizeDistribution;
+        }
+
+        @Override
+        public String generate(EntropySource rng)
+        {
+            int length = Math.toIntExact(sizeDistribution.next(rng.next()));
+            char[] buf = new char[length];
+            for (int i = 0; i < length; i++)
+                buf[i] = chars[rng.nextInt(chars.length)];
+            return new String(buf);
+        }
+    }
+
+    public static final class VariableSizeByteBufferGenerator implements Generator<ByteBuffer>
+    {
+        final Distribution sizeDistribution;
+
+        public VariableSizeByteBufferGenerator(Distribution sizeDistribution)
+        {
+            this.sizeDistribution = sizeDistribution;
+        }
+
+        @Override
+        public ByteBuffer generate(EntropySource rng)
+        {
+            int size = Math.toIntExact(sizeDistribution.next(rng.next()));
+            byte[] bytes = new byte[size];
+            for (int i = 0; i < size; )
+                for (long v = rng.next(),
+                     n = Math.min(size - i, Long.SIZE / Byte.SIZE);
+                     n-- > 0; v >>= Byte.SIZE)
+                    bytes[i++] = (byte) v;
+            return ByteBuffer.wrap(bytes);
+        }
+    }
+
     public static final class LongGenerator implements Generator<Long>
     {
         @Override
@@ -391,7 +462,7 @@ public class Generators
     {
         if (ts.isEmpty())
             throw new IllegalStateException("Can't pick from an empty list");
-        return (rng) -> ts.get(rng.nextInt(0, ts.size()));
+        return (rng) -> ts.get(rng.nextInt(ts.size()));
     }
 
     public static <T> Generator<T> pick(T... ts)
@@ -466,4 +537,38 @@ public class Generators
     {
         return (random) -> constant.get();
     }
+
+
+    public static <T> Map<T, Integer> normalize(Map<T, Integer> weights)
+    {
+        Map<T, Integer> normalized = new HashMap<>();
+        int sum = 0;
+        for (Integer value : weights.values())
+            sum += value;
+
+        for (T kind : weights.keySet())
+        {
+            double dbl = (sum * ((double) weights.get(kind)) / sum);
+            normalized.put(kind, (int) Math.round(dbl));
+        }
+
+        return normalized;
+    }
+    public static <T> Generator<T> weighted(Map<T, Integer> weights)
+    {
+        NavigableMap<Integer, T> weightMap = weights instanceof NavigableMap ? (TreeMap<Integer, T>) weights : new TreeMap<Integer, T>();
+        int sum = 0;
+        for (Map.Entry<T, Integer> entry : weights.entrySet())
+        {
+            sum += entry.getValue();
+            weightMap.put(sum, entry.getKey());
+        }
+
+        int max = sum;
+        return (rng) -> {
+            int weight = rng.nextInt(max);
+            return weightMap.ceilingEntry(weight).getValue();
+        };
+    }
+
 }

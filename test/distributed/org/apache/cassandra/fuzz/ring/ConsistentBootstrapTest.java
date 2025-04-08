@@ -39,7 +39,7 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
-import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
 import org.apache.cassandra.harry.execution.DataTracker;
 import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
@@ -59,6 +59,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCo
 import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 
 public class ConsistentBootstrapTest extends FuzzTestBase
 {
@@ -83,13 +84,16 @@ public class ConsistentBootstrapTest extends FuzzTestBase
 
             withRandom(rng -> {
                 SchemaSpec schema = schemaGen.generate(rng);
-                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
-                Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), 1000));
+                IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), 1000);
+                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.adaptLongToInt(valueGenerators.pkIdxGen()));
 
-                HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+                HistoryBuilder history = new HistoryBuilder(valueGenerators);
                 Runnable writeAndValidate = () -> {
                     for (int i = 0; i < WRITES; i++)
-                        HistoryBuilderHelper.insertRandomData(schema, pkGen, ckGen, rng, history);
+                    {
+                        int pkIdx = pkGen.generate(rng);
+                        history.insert(pkIdx, valueGenerators.forPdIdx(pkIdx).ckIdxGen().generate(rng));
+                    }
 
                     for (int pk : pkGen.generated())
                         history.selectPartition(pk);
@@ -134,7 +138,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                 RingAwareInJvmDTestVisitExecutor.replay(RingAwareInJvmDTestVisitExecutor.builder()
                                                                                         .replicationFactor(new TokenPlacementModel.SimpleReplicationFactor(2))
                                                                                         .consistencyLevel(ConsistencyLevel.ALL)
-                                                                                        .build(schema, history, cluster),
+                                                                                        .build(schema, history.valueGenerators(), cluster),
                                                         history);
             });
         }
@@ -178,13 +182,13 @@ public class ConsistentBootstrapTest extends FuzzTestBase
 
             withRandom(rng -> {
                 SchemaSpec schema = schemaGen.generate(rng);
-                Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), 1000));
+                IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), 1000);
 
-                HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+                HistoryBuilder history = new ReplayingHistoryBuilder(valueGenerators,
                                                                      hb -> RingAwareInJvmDTestVisitExecutor.builder()
                                                                                                            .replicationFactor(new TokenPlacementModel.SimpleReplicationFactor(3))
                                                                                                            .consistencyLevel(ConsistencyLevel.ALL)
-                                                                                                           .build(schema, hb, cluster));
+                                                                                                           .build(schema, hb.valueGenerators(), cluster));
 
                 cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};", KEYSPACE));
                 cluster.schemaChange(schema.compile());
@@ -198,15 +202,16 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                        .drop()
                        .on();
 
-                DataTracker tracker = new DataTracker.SequentialDataTracker();
+                DataTracker.SequentialDataTracker tracker = new DataTracker.SequentialDataTracker();
                 RingAwareInJvmDTestVisitExecutor executor = RingAwareInJvmDTestVisitExecutor.builder()
                                                                                             .replicationFactor(new TokenPlacementModel.SimpleReplicationFactor(2))
                                                                                             .nodeSelector(i -> 2)
                                                                                             .consistencyLevel(ConsistencyLevel.ALL)
                                                                                             .retryPolicy(InJvmDTestVisitExecutor.RetryPolicy.NO_RETRY)
                                                                                             .build(schema,
+                                                                                                   history.valueGenerators(),
                                                                                                    tracker,
-                                                                                                   new QuiescentChecker(schema.valueGenerators, tracker, history),
+                                                                                                   new QuiescentChecker(valueGenerators, tracker),
                                                                                                    cluster);
 
                 // Prime the CMS node to pause before the finish join event is committed
@@ -231,7 +236,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                 boolean triggered = false;
 
                 outer:
-                for (int i = 0; i < history.valueGenerators().pkPopulation(); i++)
+                for (int i = 0; i < history.valueGenerators().pkGen().population(); i++)
                 {
                     long pd = history.valueGenerators().pkGen().descriptorAt(i);
                     for (TokenPlacementModel.Replica replica : executor.getReplicasFor(pd))
@@ -240,7 +245,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                         {
                             try
                             {
-                                HistoryBuilderHelper.insertRandomData(schema, i, ckGen.generate(rng), rng, history);
+                                history.insert(i, valueGenerators.forPdIdx(i).ckIdxGen().generate(rng));
                             }
                             catch (Throwable t)
                             {

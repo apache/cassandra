@@ -25,11 +25,10 @@ import java.util.List;
 import java.util.NavigableMap;
 
 import accord.utils.Invariants;
-
-import org.apache.cassandra.harry.execution.DataTracker;
-import org.apache.cassandra.harry.execution.ResultSetRow;
 import org.apache.cassandra.harry.gen.ValueGenerators;
+import org.apache.cassandra.harry.op.ClusteringOrderBy;
 import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.execution.ResultSetRow;
 
 import static org.apache.cassandra.harry.MagicConstants.LTS_UNKNOWN;
 import static org.apache.cassandra.harry.MagicConstants.NIL_DESCR;
@@ -41,19 +40,15 @@ import static org.apache.cassandra.harry.MagicConstants.UNSET_DESCR;
  * Unfortunately model is not reducible to a simple interface of apply/validate, at least not if
  * we intend to support concurrent validation and in-flight/timed out queries. Validation needs to
  * know which queries might have been applied.
- *
- *
  */
 public class QuiescentChecker implements Model
 {
-    private final DataTracker tracker;
-    private final Replay replay;
-    private final ValueGenerators valueGenerators;
+    private final PartialReplay replay;
+    private final ValueGenerators<Object[], Object[]> valueGenerators;
 
-    public QuiescentChecker(ValueGenerators valueGenerators, DataTracker tracker, Replay replay)
+    public QuiescentChecker(ValueGenerators<Object[], Object[]> valueGenerators, PartialReplay replay)
     {
         this.valueGenerators = valueGenerators;
-        this.tracker = tracker;
         this.replay = replay;
     }
 
@@ -64,20 +59,19 @@ public class QuiescentChecker implements Model
         PartitionStateBuilder stateBuilder = new PartitionStateBuilder(valueGenerators, partitionState);
 
         long prevLts = -1;
-        for (LtsOperationPair potentialVisit : tracker.potentialVisits(select.pd()))
+
+        // In case of quiescent checkers, all potential visits have to be finished
+        for (Operations.Operation potentialVisit : replay.potentialVisits(select.pd()))
         {
-            if (tracker.isFinished(potentialVisit.lts))
+            if (potentialVisit.lts() != prevLts)
             {
-                if (potentialVisit.lts != prevLts)
-                {
-                    if (prevLts != -1)
-                        stateBuilder.endLts(prevLts);
-                    stateBuilder.beginLts(potentialVisit.lts);
-                    prevLts = potentialVisit.lts;
-                }
-                Operations.Operation op = replay.replay(potentialVisit.lts, potentialVisit.opId);
-                stateBuilder.operation(op);
+                if (prevLts != -1)
+                    stateBuilder.endLts(prevLts);
+                stateBuilder.beginLts(potentialVisit.lts());
+                prevLts = potentialVisit.lts();
             }
+
+            stateBuilder.operation(potentialVisit);
         }
 
         // Close last open LTS
@@ -85,7 +79,7 @@ public class QuiescentChecker implements Model
             stateBuilder.endLts(prevLts);
 
         partitionState.filter(select);
-        if (select.orderBy() == Operations.ClusteringOrderBy.DESC)
+        if (select.orderBy() == ClusteringOrderBy.DESC)
         {
             partitionState.reverse();
         }
@@ -94,7 +88,7 @@ public class QuiescentChecker implements Model
     }
 
     // TODO: reverse
-    public static void validate(ValueGenerators valueGenerators, PartitionState partitionState, List<ResultSetRow> actualRows)
+    public static void validate(ValueGenerators<Object[], Object[]> valueGenerators, PartitionState partitionState, List<ResultSetRow> actualRows)
     {
         Iterator<ResultSetRow> actual = actualRows.iterator();
         NavigableMap<Long, PartitionState.RowState> expectedRows = partitionState.rows();
@@ -148,7 +142,7 @@ public class QuiescentChecker implements Model
                                               "Found a row in the model that is not present in the resultset:" +
                                               "\nExpected: %s" +
                                               "\nActual: %s",
-                                              expectedRowState.toString(valueGenerators),
+                                              expectedRowState.toString(),
                                               actualRowState.toString(valueGenerators));
             }
 
@@ -158,7 +152,7 @@ public class QuiescentChecker implements Model
                                               "Returned row state doesn't match the one predicted by the model:" +
                                               "\nExpected: %s" +
                                               "\nActual:   %s.",
-                                              expectedRowState.toString(valueGenerators),
+                                              expectedRowState.toString(),
                                               actualRowState.toString(valueGenerators));
 
             if (!ltsEqual(expectedRowState.lts, actualRowState.lts))
@@ -167,7 +161,7 @@ public class QuiescentChecker implements Model
                                               "Timestamps in the row state don't match ones predicted by the model:" +
                                               "\nExpected: %s" +
                                               "\nActual:   %s.",
-                                              expectedRowState.toString(valueGenerators),
+                                              expectedRowState.toString(),
                                               actualRowState.toString(valueGenerators));
 
             if (partitionState.staticRow() != null || actualRowState.hasStaticColumns())
@@ -242,7 +236,7 @@ public class QuiescentChecker implements Model
                                           "Returned static row state doesn't match the one predicted by the model:" +
                                           "\nExpected: %s (%s)" +
                                           "\nActual:   %s (%s).",
-                                          descriptorsToString(staticRow.vds), staticRow.toString(valueGenerators),
+                                          descriptorsToString(staticRow.vds), staticRow.toString(),
                                           descriptorsToString(actualRowState.sds), actualRowState);
 
         if (!ltsEqual(staticRow.lts, actualRowState.slts))
@@ -251,7 +245,7 @@ public class QuiescentChecker implements Model
                                           "Timestamps in the static row state don't match ones predicted by the model:" +
                                           "\nExpected: %s (%s)" +
                                           "\nActual:   %s (%s).",
-                                          Arrays.toString(staticRow.lts), staticRow.toString(valueGenerators),
+                                          Arrays.toString(staticRow.lts), staticRow.toString(),
                                           Arrays.toString(actualRowState.slts), actualRowState);
     }
 
@@ -277,7 +271,7 @@ public class QuiescentChecker implements Model
         StringBuilder builder = new StringBuilder();
 
         for (PartitionState.RowState rowState : collection)
-            builder.append(rowState.toString(valueGenerators)).append("\n");
+            builder.append(rowState.toString()).append("\n");
         return builder.toString();
     }
 

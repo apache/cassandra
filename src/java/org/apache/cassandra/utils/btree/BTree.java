@@ -1611,6 +1611,11 @@ public class BTree
             return new Builder<>(this);
         }
 
+        public int count()
+        {
+            return count;
+        }
+
         public Builder<V> setQuickResolver(QuickResolver<V> quickResolver)
         {
             this.quickResolver = quickResolver;

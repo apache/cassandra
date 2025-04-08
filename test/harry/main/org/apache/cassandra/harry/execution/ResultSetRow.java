@@ -118,10 +118,10 @@ public class ResultSetRow
     {
         return "resultSetRow("
                + valueGenerators.pkGen().toString(pd)
-               + ", " + descrToIdx(valueGenerators.ckGen(), cd) +
-               (sds == null ? "" : ", statics(" + toString(sds, valueGenerators::staticColumnGen) + ")") +
+               + ", " + descrToIdx(valueGenerators.forPd(pd).ckGen(), cd) +
+               (sds == null ? "" : ", statics(" + toString(sds, valueGenerators.forPd(pd)::staticColumnGen) + ")") +
                (slts == null ? "" : ", slts(" + StringUtils.toString(slts) + ")") +
-               ", values(" + toString(vds, valueGenerators::regularColumnGen) + ")" +
+               ", values(" + toString(vds, valueGenerators.forPd(pd)::regularColumnGen) + ")" +
                ", lts(" + StringUtils.toString(lts) + ")" +
                ")";
     }

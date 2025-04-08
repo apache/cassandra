@@ -53,7 +53,7 @@ public class Bijections
 
         // TODO: byteSize is great, but you know what's better? Bit size! For example, for `boolean`, we only need a single bit.
         int byteSize();
-        default int population()
+        default long population()
         {
             return byteSize() * Byte.SIZE;
         }

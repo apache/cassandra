@@ -49,41 +49,32 @@ public class HistoryBuilderHelper
     /**
      * Perform a random insert to any row
      */
-    public static void insertRandomData(SchemaSpec schema, Generator<Integer> pkGen, Generator<Integer> ckGen, EntropySource rng, HistoryBuilder history)
-    {
-        insertRandomData(schema, pkGen.generate(rng), ckGen.generate(rng), rng, history);
-    }
+    // TODO: bring back
+//    public static void insertRandomData(SchemaSpec schema, Generator<Integer> pkGen, Generator<Integer> ckGen, EntropySource rng, HistoryBuilder history)
+//    {
+//        insertRandomData(schema, pkGen.generate(rng), ckGen.generate(rng), rng, history);
+//    }
 
-    public static void insertRandomData(SchemaSpec schema, int partitionIdx, int rowIdx, EntropySource rng, HistoryBuilder history)
+//    public static void insertRandomData(SchemaSpec schema, int partitionIdx, int rowIdx, EntropySource rng, HistoryBuilder history)
+//    {
+//        int[] vIdxs = new int[schema.regularColumns.size()];
+//        for (int i = 0; i < schema.regularColumns.size(); i++)
+//            vIdxs[i] = rng.nextInt(history.valueGenerators().regularPopulation(i));
+//        int[] sIdxs = new int[schema.staticColumns.size()];
+//        for (int i = 0; i < schema.staticColumns.size(); i++)
+//            sIdxs[i] = rng.nextInt(history.valueGenerators().staticPopulation(i));
+//        history.insert(partitionIdx, rowIdx, vIdxs, sIdxs);
+//    }
+
+    public static void insertRandomData(SchemaSpec schema, int pdIdx, int rowIdx, EntropySource rng, double chanceOfUnset, HistoryBuilder history)
     {
         int[] vIdxs = new int[schema.regularColumns.size()];
         for (int i = 0; i < schema.regularColumns.size(); i++)
-            vIdxs[i] = rng.nextInt(history.valueGenerators().regularPopulation(i));
+            vIdxs[i] = rng.nextDouble() <= chanceOfUnset ? MagicConstants.UNSET_IDX : rng.nextInt(history.valueGenerators().forPdIdx(pdIdx).regularPopulation(i));
         int[] sIdxs = new int[schema.staticColumns.size()];
         for (int i = 0; i < schema.staticColumns.size(); i++)
-            sIdxs[i] = rng.nextInt(history.valueGenerators().staticPopulation(i));
-        history.insert(partitionIdx, rowIdx, vIdxs, sIdxs);
-    }
-
-    public static void insertRandomData(SchemaSpec schema, int pkIdx, EntropySource rng, HistoryBuilder history)
-    {
-        insertRandomData(schema,
-                         pkIdx,
-                         rng.nextInt(0, history.valueGenerators().ckPopulation()),
-                         rng,
-                         0,
-                         history);
-    }
-
-    public static void insertRandomData(SchemaSpec schema, int partitionIdx, int rowIdx, EntropySource rng, double chanceOfUnset, HistoryBuilder history)
-    {
-        int[] vIdxs = new int[schema.regularColumns.size()];
-        for (int i = 0; i < schema.regularColumns.size(); i++)
-            vIdxs[i] = rng.nextDouble() <= chanceOfUnset ? MagicConstants.UNSET_IDX : rng.nextInt(history.valueGenerators().regularPopulation(i));
-        int[] sIdxs = new int[schema.staticColumns.size()];
-        for (int i = 0; i < schema.staticColumns.size(); i++)
-            sIdxs[i] = rng.nextDouble() <= chanceOfUnset ? MagicConstants.UNSET_IDX : rng.nextInt(history.valueGenerators().staticPopulation(i));
-        history.insert(partitionIdx, rowIdx, vIdxs, sIdxs);
+            sIdxs[i] = rng.nextDouble() <= chanceOfUnset ? MagicConstants.UNSET_IDX : rng.nextInt(history.valueGenerators().forPdIdx(pdIdx).staticPopulation(i));
+        history.insert(pdIdx, rowIdx, vIdxs, sIdxs);
     }
 
     public static void deleteRandomColumns(SchemaSpec schema, int partitionIdx, int rowIdx, EntropySource rng, SingleOperationBuilder history)

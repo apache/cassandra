@@ -21,7 +21,6 @@ package org.apache.cassandra.harry.test;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -44,7 +43,6 @@ import org.apache.cassandra.harry.execution.CompiledStatement;
 import org.apache.cassandra.harry.execution.DataTracker;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.model.QuiescentChecker;
-import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.harry.util.ThrowingRunnable;
 import org.apache.cassandra.io.sstable.HarrySSTableWriter;
@@ -56,11 +54,9 @@ import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 public class HarrySSTableWriterTest extends CQLTester
 {
     private static final AtomicInteger idGen = new AtomicInteger(0);
-    private static final int NUMBER_WRITES_IN_RUNNABLE = 10;
 
     private String keyspace;
     private String table;
-    private String qualifiedTable;
     private File dataDir;
 
     @Rule
@@ -71,7 +67,6 @@ public class HarrySSTableWriterTest extends CQLTester
     {
         keyspace = "cql_keyspace" + idGen.incrementAndGet();
         table = "table" + idGen.incrementAndGet();
-        qualifiedTable = keyspace + '.' + table;
         dataDir = new File(tempFolder.newFolder().getAbsolutePath() + File.pathSeparator() + keyspace + File.pathSeparator() + table);
         assert dataDir.tryCreateDirectories();
 
@@ -81,9 +76,7 @@ public class HarrySSTableWriterTest extends CQLTester
     }
 
     private final Generator<SchemaSpec> simple_schema = rng -> {
-        return new SchemaSpec(rng.next(),
-                              1000,
-                              keyspace,
+        return new SchemaSpec(keyspace,
                               table,
                               Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.asciiType),
                                             ColumnSpec.pk("pk2", ColumnSpec.int64Type)),
@@ -106,7 +99,7 @@ public class HarrySSTableWriterTest extends CQLTester
             schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", schema.keyspace));
             createTable(schema.compile());
 
-            HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+            HistoryBuilder history = HistoryBuilder.fromSchema(schema, rng.next(), 1000);
             for (int i = 0; i < 100; i++)
                 history.insert(1);
 
@@ -150,9 +143,9 @@ public class HarrySSTableWriterTest extends CQLTester
 
     public CQLVisitExecutor create(SchemaSpec schema, HistoryBuilder historyBuilder, Supplier<HarrySSTableWriter> writer)
     {
-        DataTracker tracker = new DataTracker.SequentialDataTracker();
-        return new CQLTesterVisitExecutor(schema, tracker,
-                                          new QuiescentChecker(schema.valueGenerators, tracker, historyBuilder),
+        DataTracker.SequentialDataTracker tracker = new DataTracker.SequentialDataTracker();
+        return new CQLTesterVisitExecutor(schema, historyBuilder.valueGenerators(), tracker,
+                                          new QuiescentChecker(historyBuilder.valueGenerators(), tracker),
                                           statement -> {
                                               if (logger.isTraceEnabled())
                                                   logger.trace(statement.toString());
@@ -173,15 +166,9 @@ public class HarrySSTableWriterTest extends CQLTester
             }
 
             @Override
-            protected void executeValidatingVisit(Visit visit, List<Operations.SelectStatement> selects, CompiledStatement compiledStatement)
-            {
-                super.executeValidatingVisit(visit, selects, compiledStatement);
-            }
-
-            @Override
             public void execute(Visit visit)
             {
-                if (visit.visitedPartitions.size() > 1)
+                if (visit.visitedPartitions.length > 1)
                     throw new IllegalStateException("SSTable Generator does not support batch statements and transactions");
 
                 super.execute(visit);

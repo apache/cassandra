@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
 import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.execution.QueryBuildingVisitExecutor;
@@ -45,6 +46,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 
 public class AccordBounceTest extends FuzzTestBase
 {
@@ -67,7 +69,7 @@ public class AccordBounceTest extends FuzzTestBase
                                                                                      {
                                                                                          return "bootstrap_fuzz" + (i++);
                                                                                      }
-                                                                                 }, POPULATION,
+                                                                                 },
                                                                                  SchemaSpec.optionsBuilder()
                                                                                          .addWriteTimestamps(false)
                                                                                          .withTransactionalMode(TransactionalMode.full)
@@ -78,12 +80,13 @@ public class AccordBounceTest extends FuzzTestBase
                 {
                     SchemaSpec schema = schemaGen.generate(rng);
                     cluster.schemaChange(schema.compile());
-                    historyBuilders.add(new ReplayingHistoryBuilder(schema.valueGenerators,
+                    IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), POPULATION);
+                    historyBuilders.add(new ReplayingHistoryBuilder(valueGenerators,
                                                                     hb -> InJvmDTestVisitExecutor.builder()
                                                                             .consistencyLevel(ConsistencyLevel.QUORUM)
                                                                             .wrapQueries(QueryBuildingVisitExecutor.WrapQueries.TRANSACTION)
                                                                             .pageSizeSelector(p -> InJvmDTestVisitExecutor.PageSizeSelector.NO_PAGING)
-                                                                            .build(schema, hb, cluster)));
+                                                                            .build(schema, valueGenerators, cluster)));
                 }
 
                 for (HistoryBuilder hb : historyBuilders)
@@ -125,7 +128,7 @@ public class AccordBounceTest extends FuzzTestBase
                                                                                      {
                                                                                          return  "bootstrap_fuzz" + (i++);
                                                                                      }
-                                                                                 }, POPULATION,
+                                                                                 },
                                                                                  SchemaSpec.optionsBuilder()
                                                                                          .addWriteTimestamps(false)
                                                                                          .withTransactionalMode(TransactionalMode.full)
@@ -136,12 +139,13 @@ public class AccordBounceTest extends FuzzTestBase
                 {
                     SchemaSpec schema = schemaGen.generate(rng);
                     cluster.schemaChange(schema.compile());
-                    historyBuilders.add(new ReplayingHistoryBuilder(schema.valueGenerators,
+                    IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), POPULATION);
+                    historyBuilders.add(new ReplayingHistoryBuilder(valueGenerators,
                                                                     hb -> InJvmDTestVisitExecutor.builder()
                                                                             .consistencyLevel(ConsistencyLevel.QUORUM)
                                                                             .wrapQueries(QueryBuildingVisitExecutor.WrapQueries.TRANSACTION)
                                                                             .pageSizeSelector(p -> InJvmDTestVisitExecutor.PageSizeSelector.NO_PAGING)
-                                                                            .build(schema, hb, cluster)));
+                                                                            .build(schema, valueGenerators, cluster)));
                 }
 
                 Runnable writeAndValidate = () -> {

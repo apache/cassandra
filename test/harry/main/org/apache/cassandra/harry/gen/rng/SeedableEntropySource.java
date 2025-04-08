@@ -27,19 +27,30 @@ import io.netty.util.concurrent.FastThreadLocal;
 
 public class SeedableEntropySource
 {
+    // TODO (required): forbid reentrancy
     private static final FastThreadLocal<EntropySource> THREAD_LOCAL = new FastThreadLocal<>();
+
+    public static <T> T computeWithSeed(long seed, long stream, Function<EntropySource, T> fn)
+    {
+        return fn.apply(entropySource(seed, stream));
+    }
 
     public static <T> T computeWithSeed(long seed, Function<EntropySource, T> fn)
     {
-        return fn.apply(entropySource(seed));
+        return fn.apply(entropySource(seed, seed));
+    }
+
+    public static long computeLongWithSeed(long seed, ToLong<EntropySource> fn)
+    {
+        return fn.apply(entropySource(seed, seed));
     }
 
     public static void doWithSeed(long seed, Consumer<EntropySource> fn)
     {
-        fn.accept(entropySource(seed));
+        fn.accept(entropySource(seed, seed));
     }
 
-    private static EntropySource entropySource(long seed)
+    public static EntropySource entropySource(long seed, long stream)
     {
         EntropySource entropySource = THREAD_LOCAL.get();
         if (entropySource == null)
@@ -47,7 +58,15 @@ public class SeedableEntropySource
             entropySource = new JdkRandomEntropySource(0);
             THREAD_LOCAL.set(entropySource);
         }
+        // scramble seed even more, since it seems to be not enough entropy for small cardinality values, such as rng.nextInt(2)
+        // in default JDK scrambler
+        seed = PCGFastPure.shuffle(PCGFastPure.advanceState(seed, stream, 100));
         entropySource.seed(seed);
         return entropySource;
+    }
+
+    public static interface ToLong<T>
+    {
+        long apply(T value);
     }
 }

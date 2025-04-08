@@ -38,6 +38,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.execution.DataTracker;
 import org.apache.cassandra.harry.execution.RingAwareInJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
@@ -79,10 +80,10 @@ public class ResumableStartupTest extends FuzzTestBase
 
             withRandom(rng -> {
                 SchemaSpec schema = schemaGen.generate(rng);
-                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
-                Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), 1000));
+                IndexedValueGenerators valueGenerators = HistoryBuilder.valueGenerators(schema, rng.next(), 1000);
+                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.adaptLongToInt(Generators.int64(0, Math.min(valueGenerators.pkGen().population(), 1000))));
 
-                HistoryBuilder history = new HistoryBuilder(schema.valueGenerators);
+                HistoryBuilder history = new HistoryBuilder(valueGenerators);
                 history.customThrowing(() -> {
                     cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 2};", schema.keyspace));
                     cluster.schemaChange(schema.compile());
@@ -91,7 +92,10 @@ public class ResumableStartupTest extends FuzzTestBase
 
                 Runnable writeAndValidate = () -> {
                     for (int i = 0; i < WRITES; i++)
-                        history.insert(pkGen.generate(rng), ckGen.generate(rng));
+                    {
+                        int pdIdx = pkGen.generate(rng);
+                        history.insert(pdIdx, history.valueGenerators().forPdIdx(pdIdx).ckIdxGen().generate(rng));
+                    }
 
                     for (int pk : pkGen.generated())
                         history.selectPartition(pk);
@@ -100,15 +104,15 @@ public class ResumableStartupTest extends FuzzTestBase
 
                 // First write with ONE, as we only have 1 node
                 TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
-                DataTracker tracker = new DataTracker.SequentialDataTracker();
-                QuiescentChecker checker = new QuiescentChecker(schema.valueGenerators, tracker, history);
+                DataTracker.SequentialDataTracker tracker = new DataTracker.SequentialDataTracker();
+                QuiescentChecker checker = new QuiescentChecker(valueGenerators, tracker);
 
                 RingAwareInJvmDTestVisitExecutor executor;
                 // RF is ONE here since we have no pending nodes
                 executor = RingAwareInJvmDTestVisitExecutor.builder()
                                                            .replicationFactor(rf)
                                                            .consistencyLevel(ConsistencyLevel.ONE)
-                                                           .build(schema, tracker, checker, cluster);
+                                                           .build(schema, valueGenerators, tracker, checker, cluster);
                 Iterator<Visit> iterator = history.iterator();
                 while (iterator.hasNext())
                     executor.execute(iterator.next());
@@ -130,7 +134,7 @@ public class ResumableStartupTest extends FuzzTestBase
                 executor = RingAwareInJvmDTestVisitExecutor.builder()
                                                            .replicationFactor(rf)
                                                            .consistencyLevel(ConsistencyLevel.ONE)
-                                                           .build(schema, tracker, checker, cluster);
+                                                           .build(schema, valueGenerators, tracker, checker, cluster);
                 while (iterator.hasNext())
                     executor.execute(iterator.next());
 

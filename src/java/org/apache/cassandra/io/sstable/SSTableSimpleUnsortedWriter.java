@@ -54,13 +54,14 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  *
  * @see SSTableSimpleWriter
  */
-class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
+public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 {
     private static final Buffer SENTINEL = new Buffer();
 
     private Buffer buffer = new Buffer();
     private final long maxSStableSizeInBytes;
     private long currentSize;
+    private boolean syncPending;
 
     // Used to compute the row serialized size
     private final SerializationHeader header;
@@ -91,6 +92,18 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         PartitionUpdate.Builder previous = buffer.get(key);
         if (previous == null)
         {
+            if (syncPending)
+            {
+                syncPending = false;
+                try
+                {
+                    sync();
+                }
+                catch (IOException e)
+                {
+                    throw new SyncException(e);
+                }
+            }
             // todo: inefficient - we create and serialize a PU just to get its size, then recreate it
             // todo: either allow PartitionUpdateBuilder to have .build() called several times or pre-calculate the size
             currentSize += PartitionUpdate.serializer.serializedSize(createPartitionUpdateBuilder(key).build(), format.getLatestVersion().correspondingMessagingVersion());
@@ -110,19 +123,10 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         currentSize += UnfilteredSerializer.serializer.serializedSize(row, helper, 0, format.getLatestVersion().correspondingMessagingVersion());
     }
 
-    private void maybeSync() throws SyncException
+    private void maybeSync()
     {
-        try
-        {
-            if (currentSize > maxSStableSizeInBytes)
-                sync();
-        }
-        catch (IOException e)
-        {
-            // addColumn does not throw IOException but we want to report this to the user,
-            // so wrap it in a temporary RuntimeException that we'll catch in rawAddRow above.
-            throw new SyncException(e);
-        }
+        if (currentSize > maxSStableSizeInBytes)
+            syncPending = true;
     }
 
     private PartitionUpdate.Builder createPartitionUpdateBuilder(DecoratedKey key)
@@ -132,8 +136,11 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             @Override
             public void add(Row row)
             {
+                int before = rowCount();
                 super.add(row);
-                countRow(row);
+
+                if (rowCount() > before)
+                    countRow(row);
                 maybeSync();
             }
         };
@@ -229,7 +236,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                         for (Map.Entry<DecoratedKey, PartitionUpdate.Builder> entry : b.entrySet())
                             writer.append(entry.getValue().build().unfilteredIterator());
                         Collection<SSTableReader> finished = writer.finish(shouldOpenSSTables());
-                        notifySSTableProduced(finished);
+                        notifySSTableProduced(writer, finished);
                     }
                 }
                 catch (Throwable e)

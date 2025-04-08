@@ -34,6 +34,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
 import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
@@ -54,6 +55,7 @@ import static java.time.Duration.ofSeconds;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 import static org.junit.Assert.assertEquals;
 
 public class AlterTopologyTest extends FuzzTestBase
@@ -75,13 +77,13 @@ public class AlterTopologyTest extends FuzzTestBase
 
             withRandom(rng -> {
                 SchemaSpec schema = schemaGen.generate(rng);
-                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
-                Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), 1000));
+                IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), 1000);
+                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.adaptLongToInt(Generators.int64(0, Math.min(valueGenerators.pkGen().population(), 1000))));
 
-                HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+                HistoryBuilder history = new ReplayingHistoryBuilder(valueGenerators,
                                                                      (hb) -> InJvmDTestVisitExecutor.builder()
                                                                                                     .nodeSelector(i -> 1)
-                                                                                                    .build(schema, hb, cluster));
+                                                                                                    .build(schema, valueGenerators, cluster));
                 history.custom(() -> {
                     cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE +
                                          " WITH replication = {'class': 'NetworkTopologyStrategy', 'dc1' : 3 };");
@@ -92,7 +94,10 @@ public class AlterTopologyTest extends FuzzTestBase
 
                 Runnable writeAndValidate = () -> {
                     for (int i = 0; i < 2000; i++)
-                        history.insert(pkGen.generate(rng), ckGen.generate(rng));
+                    {
+                        int pdIdx = pkGen.generate(rng);
+                        history.insert(pdIdx, valueGenerators.forPdIdx(pdIdx).ckIdxGen().generate(rng));
+                    }
 
                     for (int pk : pkGen.generated())
                         history.selectPartition(pk);

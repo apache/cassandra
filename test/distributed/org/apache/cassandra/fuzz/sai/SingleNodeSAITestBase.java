@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.fuzz.sai;
 
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -43,6 +42,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
 import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.EntropySource;
@@ -55,6 +55,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 import static org.apache.cassandra.harry.dsl.SingleOperationBuilder.IdxRelation;
 
 // TODO: "WITH OPTIONS = {'case_sensitive': 'false', 'normalize': 'true', 'ascii': 'true'};",
@@ -135,7 +136,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     public void simplifiedSaiTest()
     {
         withRandom(rng -> saiTest(rng,
-                                  SchemaGenerators.trivialSchema(KEYSPACE, "simplified", 1000).generate(rng),
+                                  SchemaGenerators.trivialSchema(KEYSPACE, "simplified").generate(rng),
                                   () -> true,
                                   DEFAULT_REPAIR_SKIP));
     }
@@ -169,9 +170,8 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     private void saiTest(EntropySource rng, SchemaSpec schema, Supplier<Boolean> createIndex, int repairSkip)
     {
         logger.info(schema.compile());
-
-        Generator<Integer> globalPkGen = Generators.int32(0, Math.min(NUM_PARTITIONS, schema.valueGenerators.pkPopulation()));
-        Generator<Integer> ckGen = Generators.int32(0, schema.valueGenerators.ckPopulation());
+        IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), MAX_PARTITION_SIZE);
+        Generator<Integer> globalPkGen = Generators.adaptLongToInt(Generators.int64(0, Math.min(NUM_PARTITIONS, valueGenerators.pkGen().population())));
 
         beforeEach();
         cluster.forEach(i -> i.nodetool("disableautocompaction"));
@@ -201,11 +201,11 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
             CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.setInt(indexCount.get());
             waitForIndexesQueryable(schema);
 
-            HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+            HistoryBuilder history = new ReplayingHistoryBuilder(valueGenerators,
                                                                  (hb) -> InJvmDTestVisitExecutor.builder()
                                                                                                 .pageSizeSelector(pageSizeSelector(rng))
                                                                                                 .consistencyLevel(consistencyLevelSelector())
-                                                                                                .doubleWriting(schema, hb, cluster, "debug_table"));
+                                                                                                .doubleWriting(schema, hb.valueGenerators(), cluster, "debug_table"));
             Set<Integer> partitions = new HashSet<>();
             int attempts = 0;
             while (partitions.size() < NUM_VISITED_PARTITIONS && attempts < NUM_VISITED_PARTITIONS * 10)
@@ -237,14 +237,15 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
 
             for (int i = 0; i < OPERATIONS_PER_RUN; i++)
             {
-                int partitionIndex = pkGen.generate(rng);
-                HistoryBuilderHelper.insertRandomData(schema, partitionIndex, ckGen.generate(rng), rng, 0.5d, history);
+                int pdIdx = pkGen.generate(rng);
+                IndexedValueGenerators.IndexedPartitionValues partitionValues = valueGenerators.forPdIdx(pdIdx);
+                HistoryBuilderHelper.insertRandomData(schema, pdIdx, partitionValues.ckIdxGen().generate(rng), rng, 0.5d, history);
 
                 if (rng.nextFloat() > 0.99f)
                 {
-                    int row1 = ckGen.generate(rng);
-                    int row2 = ckGen.generate(rng);
-                    history.deleteRowRange(partitionIndex,
+                    int row1 = partitionValues.ckIdxGen().generate(rng);
+                    int row2 = partitionValues.ckIdxGen().generate(rng);
+                    history.deleteRowRange(pdIdx,
                                            Math.min(row1, row2),
                                            Math.max(row1, row2),
                                            rng.nextInt(schema.clusteringKeys.size()),
@@ -253,10 +254,10 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
                 }
 
                 if (rng.nextFloat() > 0.995f)
-                    HistoryBuilderHelper.deleteRandomColumns(schema, partitionIndex, ckGen.generate(rng), rng, history);
+                    HistoryBuilderHelper.deleteRandomColumns(schema, pdIdx, partitionValues.ckIdxGen().generate(rng), rng, history);
 
                 if (rng.nextFloat() > 0.9995f)
-                    history.deletePartition(partitionIndex);
+                    history.deletePartition(pdIdx);
 
                 if (i % FLUSH_SKIP == 0)
                     history.custom(() -> flush(schema), "Flush");
@@ -272,13 +273,13 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
                         List<IdxRelation> regularRelations =
                         HistoryBuilderHelper.generateValueRelations(rng,
                                                                     schema.regularColumns.size(),
-                                                                    column -> Math.min(schema.valueGenerators.regularPopulation(column), UNIQUE_CELL_VALUES),
+                                                                    column -> Math.min(partitionValues.regularPopulation(column), UNIQUE_CELL_VALUES),
                                                                     eqOnlyRegularColumns::contains);
 
                         List<IdxRelation> staticRelations =
                         HistoryBuilderHelper.generateValueRelations(rng,
                                                                     schema.staticColumns.size(),
-                                                                    column -> Math.min(schema.valueGenerators.staticPopulation(column), UNIQUE_CELL_VALUES),
+                                                                    column -> Math.min(partitionValues.staticPopulation(column), UNIQUE_CELL_VALUES),
                                                                     eqOnlyStaticColumns::contains);
 
                         Integer pk = pkGen.generate(rng);
@@ -286,7 +287,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
                         IdxRelation[] ckRelations =
                         HistoryBuilderHelper.generateClusteringRelations(rng,
                                                                          schema.clusteringKeys.size(),
-                                                                         ckGen,
+                                                                         partitionValues.ckIdxGen(),
                                                                          eqOnlyClusteringColumns).toArray(new IdxRelation[0]);
 
                         IdxRelation[] regularRelationsArray = regularRelations.toArray(new IdxRelation[regularRelations.size()]);
@@ -353,7 +354,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     protected InJvmDTestVisitExecutor.ConsistencyLevelSelector consistencyLevelSelector()
     {
         return visit -> {
-            if (visit.selectOnly)
+            if (visit.validating)
                 return ConsistencyLevel.ALL;
 
             // The goal here is to make replicas as out of date as possible, modulo the efforts of repair

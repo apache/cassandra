@@ -25,10 +25,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.ast.Symbol;
-import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
-import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.IteratorsUtil;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteArrayUtil;
@@ -46,25 +44,20 @@ public class SchemaSpec
     public final List<ColumnSpec<?>> staticColumns;
 
     public final List<ColumnSpec<?>> allColumnInSelectOrder;
-    public final ValueGenerators<Object[], Object[]> valueGenerators;
     public final Options options;
 
-    public SchemaSpec(long seed,
-                      int populationPerColumn,
-                      String keyspace,
+    public SchemaSpec(String keyspace,
                       String table,
                       List<ColumnSpec<?>> partitionKeys,
                       List<ColumnSpec<?>> clusteringKeys,
                       List<ColumnSpec<?>> regularColumns,
                       List<ColumnSpec<?>> staticColumns)
     {
-        this(seed, populationPerColumn, keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, optionsBuilder());
+        this(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, optionsBuilder());
     }
 
     @SuppressWarnings({ "unchecked" })
-    public SchemaSpec(long seed,
-                      int populationPerColumn,
-                      String keyspace,
+    public SchemaSpec(String keyspace,
                       String table,
                       List<ColumnSpec<?>> partitionKeys,
                       List<ColumnSpec<?>> clusteringKeys,
@@ -93,11 +86,11 @@ public class SchemaSpec
                                                          regularSelectOrder))
             selectOrder.add(column);
         this.allColumnInSelectOrder = Collections.unmodifiableList(selectOrder);
-
-        // TODO: empty gen
-        this.valueGenerators = HistoryBuilder.valueGenerators(this, seed, populationPerColumn);
     }
 
+    /**
+     * A number of unique values that can be generated for a given combination of columns.
+     */
     public static /* unsigned */ long cumulativeEntropy(List<ColumnSpec<?>> columns)
     {
         if (columns.isEmpty())
@@ -383,7 +376,6 @@ public class SchemaSpec
         private boolean trackLts = false;
         private boolean compactStorage = false;
         private String speculativeRetry = null;
-
         private OptionsBuilder()
         {
         }

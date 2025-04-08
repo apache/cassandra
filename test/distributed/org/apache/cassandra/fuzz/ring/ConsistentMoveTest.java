@@ -40,6 +40,7 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
 import org.apache.cassandra.harry.execution.RingAwareInJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
@@ -83,17 +84,20 @@ public class ConsistentMoveTest extends FuzzTestBase
 
             withRandom(rng -> {
                 SchemaSpec schema = schemaGen.generate(rng);
-                Generators.TrackingGenerator<Integer > pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
-                Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), 1000));
+                IndexedValueGenerators valueGenerators = HistoryBuilder.valueGenerators(schema, rng.next(), 1000);
+                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.adaptLongToInt(valueGenerators.pkIdxGen()));
 
-                HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+                HistoryBuilder history = new ReplayingHistoryBuilder(valueGenerators,
                                                                      (hb) -> RingAwareInJvmDTestVisitExecutor.builder()
                                                                                                              .replicationFactor(new TokenPlacementModel.SimpleReplicationFactor(2))
                                                                                                              .consistencyLevel(ConsistencyLevel.ALL)
-                                                                                                             .build(schema, hb, cluster));
+                                                                                                             .build(schema, hb.valueGenerators(), cluster));
                 Runnable writeAndValidate = () -> {
                     for (int i = 0; i < WRITES; i++)
-                        history.insert(pkGen.generate(rng), ckGen.generate(rng));
+                    {
+                        int pkIdx = pkGen.generate(rng);
+                        history.insert(pkIdx, valueGenerators.forPdIdx(pkIdx).ckIdxGen().generate(rng));
+                    }
 
                     for (int pk : pkGen.generated())
                         history.selectPartition(pk);

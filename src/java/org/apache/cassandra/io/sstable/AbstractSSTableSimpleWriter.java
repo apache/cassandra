@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -56,10 +57,12 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
     protected final Collection<Index.Group> indexGroups;
-    protected Consumer<Collection<SSTableReader>> sstableProducedListener;
+    protected BiConsumer<SSTableTxnWriter, Collection<SSTableReader>> sstableProducedListener;
     protected boolean openSSTableOnProduced = false;
     protected CompressionDictionary compressionDictionary;
     protected SSTable.Owner owner;
+    protected int sstableLevel = 0;
+    protected long reparedAtMillis = ActiveRepairService.UNREPAIRED_SSTABLE;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
@@ -69,9 +72,19 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         indexGroups = new ArrayList<>();
     }
 
+    protected  void setReparedAtMillis(long reparedAtMillis)
+    {
+        this.reparedAtMillis = reparedAtMillis;
+    }
+
     protected void setSSTableFormatType(SSTableFormat<?, ?> type)
     {
         this.format = type;
+    }
+
+    protected void setSSTableLevel(int level)
+    {
+        this.sstableLevel = level;
     }
 
     protected void setRangeAwareWriting(boolean makeRangeAware)
@@ -91,6 +104,12 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
 
     protected void setSSTableProducedListener(Consumer<Collection<SSTableReader>> listener)
     {
+        Objects.requireNonNull(listener, "sstableProducedListener cannot be null");
+        this.sstableProducedListener = (writer, readers) -> listener.accept(readers);
+    }
+
+    protected void setSSTableProducedListener(BiConsumer<SSTableTxnWriter, Collection<SSTableReader>> listener)
+    {
         this.sstableProducedListener = Objects.requireNonNull(listener, "sstableProducedListener cannot be null");
     }
 
@@ -107,12 +126,12 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         return openSSTableOnProduced;
     }
 
-    protected void notifySSTableProduced(Collection<SSTableReader> sstables)
+    protected void notifySSTableProduced(SSTableTxnWriter writer, Collection<SSTableReader> sstables)
     {
         if (sstableProducedListener == null)
             return;
 
-        sstableProducedListener.accept(sstables);
+        sstableProducedListener.accept(writer, sstables);
     }
 
     protected SSTableTxnWriter createWriter(SSTable.Owner owner) throws IOException
@@ -120,7 +139,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
 
         if (makeRangeAware)
-            return SSTableTxnWriter.createRangeAware(metadata, 0, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, format, header);
+            return SSTableTxnWriter.createRangeAware(metadata, 0, reparedAtMillis, ActiveRepairService.NO_PENDING_REPAIR, false, format, header);
 
 
         SSTable.Owner effectiveOwner;
@@ -139,9 +158,10 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         return SSTableTxnWriter.create(metadata,
                                        createDescriptor(directory, metadata.keyspace, metadata.name, format),
                                        0,
-                                       ActiveRepairService.UNREPAIRED_SSTABLE,
+                                       reparedAtMillis,
                                        ActiveRepairService.NO_PENDING_REPAIR,
                                        false,
+                                       sstableLevel,
                                        header,
                                        indexGroups,
                                        effectiveOwner);

@@ -1097,6 +1097,17 @@ public class PartitionUpdate extends AbstractBTreePartition
             return metadata;
         }
 
+        /**
+         * Returns the number of non-static rows accumulated so far.
+         * Accurate when rows are added in clustering order; may overcount with unordered input.
+         */
+        public int rowCount()
+        {
+            if (rowBuilder != null)
+                return rowBuilder.count();
+            return firstRow != null ? 1 : 0;
+        }
+
         private static final UpdateFunction<Row, Row> ROWS_MERGE_FUNCTION = UpdateFunction.Simple.of(Rows::merge);
 
         public PartitionUpdate build()

@@ -44,7 +44,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
  * The output will be a series of SSTables that do not exceed a specified size.
  * By default, all sorted data are written into a single SSTable.
  */
-class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
+public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
 {
     private final long maxSSTableSizeInBytes;
 
@@ -161,7 +161,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
                 return;
 
             Collection<SSTableReader> finished = writer.finish(shouldOpenSSTables());
-            notifySSTableProduced(finished);
+            notifySSTableProduced(writer, finished);
         }
         catch (Throwable t)
         {

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test.log;
 
-
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Random;
@@ -38,11 +37,13 @@ import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.ValueGeneratorHelper;
 import org.apache.cassandra.harry.cql.WriteHelper;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.execution.CompiledStatement;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.harry.model.TokenPlacementModel.Replica;
+import org.apache.cassandra.harry.op.Kind;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.util.ByteUtils;
 import org.apache.cassandra.harry.util.TokenUtil;
@@ -77,12 +78,12 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
 
             withRandom(rng -> {
                 SchemaSpec schema = schemaGen.generate(rng);
+                IndexedValueGenerators valueGenerators = HistoryBuilder.valueGenerators(schema, rng.next(), 1000);
                 cluster.schemaChange("CREATE KEYSPACE " + schema.keyspace +
                                      " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};");
                 cluster.schemaChange(schema.compile());
 
-                HistoryBuilder.IndexedValueGenerators valueGenerators = (HistoryBuilder.IndexedValueGenerators) schema.valueGenerators;
-                for (int i = 0; i < valueGenerators.pkPopulation(); i++)
+                for (int i = 0; i < valueGenerators.pkGen().population(); i++)
                 {
                     long pd = valueGenerators.pkGen().descriptorAt(i);
 
@@ -102,12 +103,12 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
 
                     long lts = 1L;
                     Future<?> writeQuery = async(() -> {
-
                         CompiledStatement s = WriteHelper.inflateInsert(new Operations.WriteOp(lts, pd, 0,
-                                                                                               ValueGeneratorHelper.randomDescriptors(rng, valueGenerators::regularColumnGen, valueGenerators.regularColumnCount()),
-                                                                                               ValueGeneratorHelper.randomDescriptors(rng, valueGenerators::staticColumnGen, valueGenerators.staticColumnCount()),
-                                                                                               Operations.Kind.INSERT),
+                                                                                               ValueGeneratorHelper.randomDescriptors(rng, valueGenerators.forPd(pd)::regularColumnGen, valueGenerators.forPd(pd).regularColumnCount()),
+                                                                                               ValueGeneratorHelper.randomDescriptors(rng, valueGenerators.forPd(pd)::staticColumnGen, valueGenerators.forPd(pd).staticColumnCount()),
+                                                                                               Kind.INSERT),
                                                                         schema,
+                                                                        valueGenerators,
                                                                         lts);
                         cluster.coordinator(1).execute(s.cql(), ConsistencyLevel.QUORUM, s.bindings());
                         return null;

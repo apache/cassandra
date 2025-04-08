@@ -76,7 +76,7 @@ public class BijectionCache<T> implements Bijections.Bijection<T>
     }
 
     @Override
-    public int population()
+    public long population()
     {
         throw new UnsupportedOperationException();
     }

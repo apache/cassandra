@@ -43,6 +43,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.gen.BijectionCache;
 import org.apache.cassandra.harry.gen.Bijections;
+import org.apache.cassandra.harry.gen.SharedValueGenerators;
 import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -598,10 +599,9 @@ public class BytesPartitionState
             clusteringCache = new BijectionCache<>(clusteringComparator);
 
             ValueGenerators.Accessor<Clustering<ByteBuffer>> clusteringAccessor = (offset, clustering) -> clustering.bufferAt(offset);
-            valueGenerators = new ValueGenerators<>(partitionCache, clusteringCache, clusteringAccessor,
-                                                    regularColumnGens, staticColumnGens,
-                                                    pkComparators, ckComparators,
-                                                    regularComparators, staticComparators);
+            valueGenerators = new SharedValueGenerators<>(partitionCache, clusteringCache, clusteringAccessor,
+                                                          regularColumnGens, staticColumnGens, ckComparators,
+                                                          regularComparators, staticComparators);
         }
 
         private Comparator<Object> compareValue(AbstractType<?> type)

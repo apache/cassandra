@@ -44,6 +44,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.harry.stress.distribution.Distribution;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
@@ -109,6 +110,41 @@ public class TypeAdapters
     public static Generator<Object> forValues(AbstractType type)
     {
         return forValues(type, defaults);
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static Generator<Object> forValues(AbstractType<?> type, Distribution distribution)
+    {
+        return forValues(type, distribution, 0xdeadbeefcafeL);
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static Generator<Object> forValues(AbstractType<?> type, Distribution distribution, long seed)
+    {
+        if (distribution == null)
+            return forValues(type, defaults);
+
+        AbstractType<?> baseType = type instanceof ReversedType ? ((ReversedType<?>) type).baseType : type;
+
+        if (baseType == AsciiType.instance)
+        {
+            char[] asciiChars = new char[128];
+            for (int i = 0; i < 128; i++)
+                asciiChars[i] = (char) i;
+            return (Generator<Object>) (Generator<?>) new UnorderedBijections.UnorderedStringBijection(0xaabbccddeeffL, seed, distribution, asciiChars);
+        }
+        else if (baseType == UTF8Type.instance)
+        {
+            int range = 0xD7FF + 1;
+            char[] utf8Chars = new char[range];
+            for (int i = 0; i < range; i++)
+                utf8Chars[i] = (char) i;
+            return (Generator<Object>) (Generator<?>) new UnorderedBijections.UnorderedStringBijection(0xaabbccddeeffL, seed, distribution, utf8Chars);
+        }
+        else if (baseType == BytesType.instance)
+            return (Generator<Object>) (Generator<?>) new UnorderedBijections.UnorderedBytesBijection(0xaabbccddeeffL, seed, distribution);
+        else
+            throw new IllegalArgumentException(String.format("Distribution-based generator is not supported for type %s", type));
     }
 
     private static Generator<Object> forValues(AbstractType type, Map<AbstractType<?>, Generator<?>> typeToGen)

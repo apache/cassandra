@@ -22,9 +22,11 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.execution.CompiledStatement;
 import org.apache.cassandra.harry.execution.QueryBuildingVisitExecutor;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 
@@ -36,8 +38,10 @@ public class QueryBuilderTest
     public void testQueryBuilder()
     {
         withRandom(rng -> {
-            SchemaSpec schemaSpec = SchemaGenerators.trivialSchema("harry", "simplified", 10).generate(rng);
-            QueryBuildingVisitExecutor queryBuilder = new QueryBuildingVisitExecutor(schemaSpec, (v, q) -> String.format("__START__\n%s\n__END__;", q));
+            SchemaSpec schemaSpec = SchemaGenerators.trivialSchema("harry", "simplified").generate(rng);
+            QueryBuildingVisitExecutor queryBuilder = new QueryBuildingVisitExecutor(schemaSpec,
+                                                                                     (v, q) -> String.format("__START__\n%s\n__END__;", q),
+                                                                                     HistoryBuilder.valueGenerators(schemaSpec, rng.next(), 1000));
             CompiledStatement compiled = queryBuilder.compile(new Visit(1,
                                                                         new Operations.Operation[]{ new Operations.SelectPartition(1, 1L) }));
             Assert.assertTrue(compiled.cql().contains("SELECT"));

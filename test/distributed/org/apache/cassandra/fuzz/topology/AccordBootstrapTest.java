@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
 import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.execution.QueryBuildingVisitExecutor;
@@ -48,6 +49,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 
 public class AccordBootstrapTest extends FuzzTestBase
 {
@@ -77,16 +79,17 @@ public class AccordBootstrapTest extends FuzzTestBase
 
             HashSet<Integer> downInstances = new HashSet<>();
             withRandom(rng -> {
-                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "bootstrap_fuzz", POPULATION,
+                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "bootstrap_fuzz",
                                                                                  SchemaSpec.optionsBuilder()
                                                                                            .addWriteTimestamps(false)
                                                                                            .withTransactionalMode(TransactionalMode.full)
                 );
 
                 SchemaSpec schema = schemaGen.generate(rng);
-                TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), POPULATION)));
-                Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), POPULATION));
-                HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+
+                IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), 1000);
+                TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.adaptLongToInt(Generators.int64(0, Math.min(valueGenerators.pkGen().population(), POPULATION))));
+                HistoryBuilder history = new ReplayingHistoryBuilder(valueGenerators,
                                                                      hb -> InJvmDTestVisitExecutor.builder()
                                                                                                   .consistencyLevel(ConsistencyLevel.QUORUM)
                                                                                                   .wrapQueries(QueryBuildingVisitExecutor.WrapQueries.TRANSACTION)
@@ -100,11 +103,15 @@ public class AccordBootstrapTest extends FuzzTestBase
 
                                                                                                       }
                                                                                                   })
-                                                                                                  .build(schema, hb, cluster));
+                                                                                                  .build(schema, valueGenerators, cluster));
 
                 Runnable writeAndValidate = () -> {
                     for (int i = 0; i < WRITES; i++)
-                        HistoryBuilderHelper.insertRandomData(schema, pkGen, ckGen, rng, history);
+                    {
+                        int pdIdx = pkGen.generate(rng);
+                        IndexedValueGenerators.IndexedPartitionValues partitionValues = valueGenerators.forPdIdx(pdIdx);
+                        HistoryBuilderHelper.insertRandomData(schema, pdIdx, partitionValues.ckIdxGen.generate(rng), rng, 0.5d, history);
+                    }
 
                     for (int pk : pkGen.generated())
                         history.selectPartition(pk);

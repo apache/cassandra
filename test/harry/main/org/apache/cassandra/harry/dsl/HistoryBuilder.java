@@ -27,16 +27,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.gen.Bijections;
 import org.apache.cassandra.harry.gen.EntropySource;
-import org.apache.cassandra.harry.gen.IndexGenerators;
 import org.apache.cassandra.harry.gen.InvertibleGenerator;
-import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 import org.apache.cassandra.harry.model.Model;
+import org.apache.cassandra.harry.op.ClusteringOrderBy;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.harry.util.BitSet;
@@ -47,33 +47,25 @@ import static org.apache.cassandra.harry.SchemaSpec.forKeys;
 import static org.apache.cassandra.harry.gen.InvertibleGenerator.fromType;
 
 // TODO: either create or replay timestamps out of order
-public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
+public class HistoryBuilder implements SingleOperationBuilder, Model.FullReplay
 {
     protected final IndexedValueGenerators valueGenerators;
-    protected final IndexGenerators indexGenerators;
 
     protected int nextOpIdx = 0;
 
-    // TODO: would be great to have a very simple B-Tree here
-    protected final Map<Long, Visit> log;
+    // TODO: would be great to have a very simple B-Tree here, potentially append-only
+    protected final ArrayList<Visit> log;
 
     public static HistoryBuilder fromSchema(SchemaSpec schemaSpec, long seed, int population)
     {
         IndexedValueGenerators generators = valueGenerators(schemaSpec, seed, population);
-        return new HistoryBuilder(generators, IndexGenerators.withDefaults(generators));
+        return new HistoryBuilder(generators);
     }
 
-    public HistoryBuilder(ValueGenerators generators)
+    public HistoryBuilder(IndexedValueGenerators valueGenerators)
     {
-        this((IndexedValueGenerators) generators, IndexGenerators.withDefaults(generators));
-    }
-
-    public HistoryBuilder(IndexedValueGenerators valueGenerators,
-                          IndexGenerators indexGenerators)
-    {
-        this.log = new HashMap<>();
+        this.log = new ArrayList<>(1024);
         this.valueGenerators = valueGenerators;
-        this.indexGenerators = indexGenerators;
     }
 
     public IndexedValueGenerators valueGenerators()
@@ -86,12 +78,11 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
         return log.size();
     }
 
-    @Override
     public Iterator<Visit> iterator()
     {
         return new Iterator<>()
         {
-            long replayed = 0;
+            int replayed = 0;
 
             public boolean hasNext()
             {
@@ -105,25 +96,13 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
         };
     }
 
-    @Override
-    public Visit replay(long lts)
-    {
-        return log.get(lts);
-    }
-
-    @Override
-    public Operations.Operation replay(long lts, int opId)
-    {
-        return replay(lts).operations[opId];
-    }
-
     SingleOperationVisitBuilder singleOpVisitBuilder()
     {
         long visitLts = nextOpIdx++;
+        Invariants.require(visitLts == log.size());
         return new SingleOperationVisitBuilder(visitLts,
                                                valueGenerators,
-                                               indexGenerators,
-                                               (visit) -> log.put(visit.lts, visit));
+                                               log::add);
     }
 
     ;
@@ -133,8 +112,7 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
         long visitLts = nextOpIdx++;
         return new MultiOperationVisitBuilder(visitLts,
                                               valueGenerators,
-                                              indexGenerators,
-                                              visit -> log.put(visit.lts, visit));
+                                              log::add);
     }
 
     @Override
@@ -240,7 +218,7 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
     }
 
     @Override
-    public SingleOperationBuilder selectPartition(int pdIdx, Operations.ClusteringOrderBy orderBy)
+    public SingleOperationBuilder selectPartition(int pdIdx, ClusteringOrderBy orderBy)
     {
         singleOpVisitBuilder().selectPartition(pdIdx, orderBy);
         return this;
@@ -313,21 +291,23 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
      */
     public interface IndexedBijection<T> extends Bijections.Bijection<T>
     {
-        int idxFor(long descriptor);
+        long idxFor(long descriptor);
 
-        long descriptorAt(int idx);
+        long descriptorAt(long idx);
 
         @Override
         default String toString(long pd)
         {
             if (pd == MagicConstants.UNSET_DESCR)
-                return Integer.toString(MagicConstants.UNSET_IDX);
+                return Long.toString(MagicConstants.UNSET_IDX);
 
             if (pd == MagicConstants.NIL_DESCR)
-                return Integer.toString(MagicConstants.NIL_IDX);
+                return Long.toString(MagicConstants.NIL_IDX);
 
-            return Integer.toString(idxFor(pd));
+            return Long.toString(idxFor(pd));
         }
+
+        default void discard(){}
     }
 
     public static IndexedValueGenerators valueGenerators(SchemaSpec schema, long seed)
@@ -358,64 +338,20 @@ public class HistoryBuilder implements SingleOperationBuilder, Model.Replay
             map.computeIfAbsent(column, (a) -> (InvertibleGenerator<Object>) fromType(rng, populationPerColumn, column));
 
         // TODO: empty gen
-        return new IndexedValueGenerators(new InvertibleGenerator<>(rng, cumulativeEntropy(schema.partitionKeys), populationPerColumn, forKeys(schema.partitionKeys), keyComparator(schema.partitionKeys)),
-                                          new InvertibleGenerator<>(rng, cumulativeEntropy(schema.clusteringKeys), populationPerColumn, forKeys(schema.clusteringKeys), keyComparator(schema.clusteringKeys)),
-                                          schema.regularColumns.stream()
-                                                               .map(map::get)
-                                                               .collect(Collectors.toList()),
-                                          schema.staticColumns.stream()
-                                                              .map(map::get)
-                                                              .collect(Collectors.toList()),
-                                          pkComparators,
-                                          ckComparators,
-                                          regularComparators,
-                                          staticComparators);
+        return new IndexedValueGenerators.Shared(new InvertibleGenerator<>(rng, cumulativeEntropy(schema.partitionKeys), populationPerColumn, forKeys(schema.partitionKeys), keyComparator(schema.partitionKeys)),
+                                                 new InvertibleGenerator<>(rng, cumulativeEntropy(schema.clusteringKeys), populationPerColumn, forKeys(schema.clusteringKeys), keyComparator(schema.clusteringKeys)),
+                                                 schema.regularColumns.stream()
+                                                                      .map(map::get)
+                                                                      .collect(Collectors.toList()),
+                                                 schema.staticColumns.stream()
+                                                                     .map(map::get)
+                                                                     .collect(Collectors.toList()),
+                                                 ckComparators,
+                                                 regularComparators,
+                                                 staticComparators);
     }
 
-    public static class IndexedValueGenerators extends ValueGenerators<Object[], Object[]>
-    {
-        public IndexedValueGenerators(IndexedBijection<Object[]> pkGen,
-                                      IndexedBijection<Object[]> ckGen,
-                                      List<IndexedBijection<Object>> regularColumnGens,
-                                      List<IndexedBijection<Object>> staticColumnGens,
-                                      List<Comparator<Object>> pkComparators,
-                                      List<Comparator<Object>> ckComparators,
-                                      List<Comparator<Object>> regularComparators,
-                                      List<Comparator<Object>> staticComparators)
-        {
-            super(pkGen, ckGen, ArrayAccessor.instance,
-                  (List<Bijections.Bijection<Object>>) (List<?>) regularColumnGens,
-                  (List<Bijections.Bijection<Object>>) (List<?>) staticColumnGens,
-                  pkComparators, ckComparators, regularComparators, staticComparators);
-        }
-
-        @Override
-        public IndexedBijection<Object[]> pkGen()
-        {
-            return (IndexedBijection<Object[]>) super.pkGen();
-        }
-
-        @Override
-        public IndexedBijection<Object[]> ckGen()
-        {
-            return (IndexedBijection<Object[]>) super.ckGen();
-        }
-
-        @Override
-        public IndexedBijection<Object> regularColumnGen(int idx)
-        {
-            return (IndexedBijection<Object>) super.regularColumnGen(idx);
-        }
-
-        @Override
-        public IndexedBijection<Object> staticColumnGen(int idx)
-        {
-            return (IndexedBijection<Object>) super.staticColumnGen(idx);
-        }
-    }
-
-
-    private static Comparator<Object[]> keyComparator(List<ColumnSpec<?>> columns)
+    public static Comparator<Object[]> keyComparator(List<ColumnSpec<?>> columns)
     {
         return (o1, o2) -> compareKeys(columns, o1, o2);
     }

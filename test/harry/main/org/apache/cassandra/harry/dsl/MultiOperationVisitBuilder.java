@@ -21,17 +21,14 @@ package org.apache.cassandra.harry.dsl;
 import java.io.Closeable;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.harry.gen.IndexGenerators;
 import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.harry.util.BitSet;
 
-import static org.apache.cassandra.harry.dsl.HistoryBuilder.IndexedValueGenerators;
-
 public class MultiOperationVisitBuilder extends SingleOperationVisitBuilder implements Closeable
 {
-    MultiOperationVisitBuilder(long lts, IndexedValueGenerators valueGenerators, IndexGenerators indexGenerators, Consumer<Visit> appendToLog)
+    MultiOperationVisitBuilder(long lts, IndexedValueGenerators valueGenerators, Consumer<Visit> appendToLog)
     {
-        super(lts, valueGenerators, indexGenerators, appendToLog);
+        super(lts, valueGenerators, appendToLog);
     }
 
     @Override

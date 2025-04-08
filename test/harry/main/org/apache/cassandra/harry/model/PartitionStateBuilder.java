@@ -32,7 +32,7 @@ import org.apache.cassandra.harry.gen.ValueGenerators;
 import static org.apache.cassandra.harry.op.Operations.DeleteColumnsOp;
 import static org.apache.cassandra.harry.op.Operations.DeleteRange;
 import static org.apache.cassandra.harry.op.Operations.DeleteRow;
-import static org.apache.cassandra.harry.op.Operations.Kind.INSERT;
+import static org.apache.cassandra.harry.op.Kind.INSERT;
 import static org.apache.cassandra.harry.op.Operations.Operation;
 import static org.apache.cassandra.harry.op.Operations.WriteOp;
 
@@ -46,9 +46,9 @@ class PartitionStateBuilder extends VisitExecutor
     private final List<Operation> rangeDeletes;
     private final List<Operation> writes;
     private final List<Operation> columnDeletes;
-    private final ValueGenerators valueGenerators;
+    private final ValueGenerators<Object[], Object[]> valueGenerators;
 
-    PartitionStateBuilder(ValueGenerators valueGenerators,
+    PartitionStateBuilder(ValueGenerators<Object[], Object[]> valueGenerators,
                           PartitionState partitionState)
     {
         this.valueGenerators = valueGenerators;
@@ -122,7 +122,7 @@ class PartitionStateBuilder extends VisitExecutor
 
             if (hadTrackingRowWrite)
             {
-                long[] statics = new long[valueGenerators.staticColumnCount()];
+                long[] statics = new long[valueGenerators.forPd(writeOp.pd).staticColumnCount()];
                 Arrays.fill(statics, MagicConstants.UNSET_DESCR);
                 partitionState.writeStatic(statics, lts);
             }

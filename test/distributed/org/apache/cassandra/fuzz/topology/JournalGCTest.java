@@ -22,6 +22,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -47,11 +48,10 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 
 public class JournalGCTest extends FuzzTestBase
 {
-    private static final int POPULATION = 1000;
-
     @Test
     public void journalGCTest() throws Throwable
     {
@@ -70,19 +70,20 @@ public class JournalGCTest extends FuzzTestBase
                     Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL).disableAutoCompaction();
                 });
 
-                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "bootstrap_fuzz", POPULATION,
+                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "bootstrap_fuzz",
                                                                                  SchemaSpec.optionsBuilder()
                                                                                          .addWriteTimestamps(false)
                                                                                          .withTransactionalMode(TransactionalMode.full));
 
                 SchemaSpec schema = schemaGen.generate(rng);
                 cluster.schemaChange(schema.compile());
-                HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+                IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), 1000);
+                HistoryBuilder history = new ReplayingHistoryBuilder(valueGenerators,
                                                                      hb -> InJvmDTestVisitExecutor.builder()
                                                                              .consistencyLevel(ConsistencyLevel.QUORUM)
                                                                              .wrapQueries(QueryBuildingVisitExecutor.WrapQueries.TRANSACTION)
                                                                              .pageSizeSelector(p -> InJvmDTestVisitExecutor.PageSizeSelector.NO_PAGING)
-                                                                             .build(schema, hb, cluster));
+                                                                             .build(schema, valueGenerators, cluster));
 
                 for (int pk = 0; pk <= 500; pk++) {
                     for (int i = 0; i < 100; i++)

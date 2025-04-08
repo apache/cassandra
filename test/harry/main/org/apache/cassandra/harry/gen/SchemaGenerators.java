@@ -46,9 +46,7 @@ public class SchemaGenerators
             public SchemaSpec generate(EntropySource rng)
             {
                 int idx = counter++;
-                return new SchemaSpec(rng.next(),
-                                      expectedValues,
-                                      ks,
+                return new SchemaSpec(ks,
                                       prefix + idx,
                                       pkGen.generate(rng),
                                       ckGen.generate(rng),
@@ -97,17 +95,25 @@ public class SchemaGenerators
         };
     }
 
-    public static Generator<SchemaSpec> trivialSchema(String ks, String table, int population)
+    public static Generator<SchemaSpec> trivialSchema(String ks, String table)
     {
-        return trivialSchema(ks, () -> table, population, SchemaSpec.optionsBuilder().build());
+        return trivialSchema(ks, table, SchemaSpec.optionsBuilder().build());
+    }
+
+    public static Generator<SchemaSpec> trivialSchema(String ks, String table, SchemaSpec.Options options)
+    {
+        return trivialSchema(ks, () -> table, options);
+    }
+
+    public static Generator<SchemaSpec> trivialSchema(String ks, Supplier<String> table, SchemaSpec.Options options)
+    {
+        return trivialSchema(ks, table, 1000, options);
     }
 
     public static Generator<SchemaSpec> trivialSchema(String ks, Supplier<String> table, int population, SchemaSpec.Options options)
     {
         return (rng) -> {
-            return new SchemaSpec(rng.next(),
-                                  population,
-                                  ks, table.get(),
+            return new SchemaSpec(ks, table.get(),
                                   Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.int64Type, Generators.int64())),
                                   Arrays.asList(ColumnSpec.ck("ck1", ColumnSpec.int64Type, Generators.int64(), false)),
                                   Arrays.asList(ColumnSpec.regularColumn("v1", ColumnSpec.int64Type)),

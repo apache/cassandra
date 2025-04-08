@@ -21,40 +21,48 @@ package org.apache.cassandra.harry.op;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.junit.Assert;
-
+import accord.utils.Invariants;
 import org.apache.cassandra.harry.op.Operations.Operation;
 
 public class Visit
 {
     public final long lts;
+    // TODO: specialize single-op visits
     public final Operation[] operations;
-    public final Set<Long> visitedPartitions;
+    public final long[] visitedPartitions;
 
-    public final boolean selectOnly;
+    public final boolean validating;
     public final boolean hasCustom;
 
     public Visit(long lts, Operation[] operations)
     {
-        Assert.assertTrue(operations.length > 0);
+        Invariants.require(operations.length > 0);
         this.lts = lts;
         this.operations = operations;
-        this.visitedPartitions = new HashSet<>();
         boolean selectOnly = true;
         boolean hasCustom = false;
+        Set<Long> visitedPartitions = new HashSet<>();
         for (Operation operation : operations)
         {
-            if (operation.kind() == Operations.Kind.CUSTOM)
+            if (operation.kind() == Kind.CUSTOM)
                 hasCustom = true;
             if (selectOnly && !(operation instanceof Operations.SelectStatement))
                 selectOnly = false;
 
             if (operation instanceof Operations.PartitionOperation)
                 visitedPartitions.add(((Operations.PartitionOperation) operation).pd());
-
         }
-        this.selectOnly = selectOnly;
+        this.visitedPartitions = new long[visitedPartitions.size()];
+        int idx = 0;
+        for (Long partition : visitedPartitions)
+            this.visitedPartitions[idx++] = partition;
+        this.validating = selectOnly;
         this.hasCustom = hasCustom;
+    }
+
+    public boolean validating()
+    {
+        return validating;
     }
 
     public String toString()

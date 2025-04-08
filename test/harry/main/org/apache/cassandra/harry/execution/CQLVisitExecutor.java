@@ -19,6 +19,7 @@
 package org.apache.cassandra.harry.execution;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -30,13 +31,10 @@ import accord.utils.Invariants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.model.Model;
+import org.apache.cassandra.harry.op.Kind;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 
-/**
- *
- * TODO: Transactional results ; LET
- */
 public abstract class CQLVisitExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryBuildingVisitExecutor.class);
@@ -54,7 +52,7 @@ public abstract class CQLVisitExecutor
         this.queryBuilder = queryBuilder;
     }
 
-    public static void replay(CQLVisitExecutor executor, Model.Replay replay)
+    public static void replay(CQLVisitExecutor executor, Model.FullReplay replay)
     {
         for (Visit visit : replay)
         {
@@ -64,7 +62,7 @@ public abstract class CQLVisitExecutor
         }
     }
 
-    public static void executeVisit(Visit visit, CQLVisitExecutor executor, Model.Replay replay)
+    public static void executeVisit(Visit visit, CQLVisitExecutor executor, Model.FullReplay replay)
     {
         try
         {
@@ -88,7 +86,7 @@ public abstract class CQLVisitExecutor
         LAST_50
     }
 
-    public static void replayAfterFailure(Visit visit, CQLVisitExecutor executor, Model.Replay replay)
+    public static void replayAfterFailure(Visit visit, CQLVisitExecutor executor, Model.FullReplay replay)
     {
         QueryBuildingVisitExecutor queryBuilder = executor.queryBuilder;
         if (!visit.hasCustom)
@@ -123,9 +121,12 @@ public abstract class CQLVisitExecutor
         }
     }
 
-    private static boolean intersects(Set<?> set1, Set<?> set2)
+    private static boolean intersects(long[] v1, long[] v2)
     {
-        for (Object o : set1)
+        Set<Long> set2 = new HashSet<>();
+        for (Long l : v2)
+            set2.add(l);
+        for (long o : v1)
         {
             if (set2.contains(o))
                 return true;
@@ -136,25 +137,31 @@ public abstract class CQLVisitExecutor
     public void execute(Visit visit)
     {
         dataTracker.begin(visit);
-        QueryBuildingVisitExecutor.BuiltQuery compiledStatement = queryBuilder.compile(visit);
-        // All operations are not touching any data
-        if (compiledStatement == null)
+        try
         {
-            Invariants.requireArgument(Arrays.stream(visit.operations).allMatch(op -> op.kind() == Operations.Kind.CUSTOM));
-            return;
-        }
+            QueryBuildingVisitExecutor.BuiltQuery compiledStatement = queryBuilder.compile(visit);
+            // All operations are not touching any data
+            if (compiledStatement == null)
+            {
+                Invariants.requireArgument(Arrays.stream(visit.operations).allMatch(op -> op.kind() == Kind.CUSTOM));
+                return;
+            }
 
-        List<Operations.SelectStatement> selects = compiledStatement.selects;
-        if (selects.isEmpty())
-        {
-            executeMutatingVisit(visit, compiledStatement);
+            List<Operations.SelectStatement> selects = compiledStatement.selects;
+            if (selects.isEmpty())
+            {
+                executeMutatingVisit(visit, compiledStatement);
+            }
+            else
+            {
+                Invariants.require(selects.size() == 1);
+                executeValidatingVisit(visit, selects, compiledStatement);
+            }
         }
-        else
+        finally
         {
-            Invariants.require(selects.size() == 1);
-            executeValidatingVisit(visit, selects, compiledStatement);
+            dataTracker.end(visit);
         }
-        dataTracker.end(visit);
     }
 
     // Lives in a separate method so that it is easier to override it

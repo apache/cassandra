@@ -20,24 +20,26 @@ package org.apache.cassandra.harry.execution;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import accord.utils.Invariants;
-
 import org.apache.cassandra.harry.model.Model;
-import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.Kind;
 import org.apache.cassandra.harry.op.Visit;
 
-import static org.apache.cassandra.harry.op.Operations.Kind.CUSTOM;
-import static org.apache.cassandra.harry.op.Operations.Kind.SELECT_CUSTOM;
-import static org.apache.cassandra.harry.op.Operations.Kind.SELECT_PARTITION;
-import static org.apache.cassandra.harry.op.Operations.Kind.SELECT_RANGE;
-import static org.apache.cassandra.harry.op.Operations.Kind.SELECT_ROW;
+import static org.apache.cassandra.harry.op.Kind.CUSTOM;
+import static org.apache.cassandra.harry.op.Kind.SELECT_CUSTOM;
+import static org.apache.cassandra.harry.op.Kind.SELECT_PARTITION;
+import static org.apache.cassandra.harry.op.Kind.SELECT_RANGE;
+import static org.apache.cassandra.harry.op.Kind.SELECT_ROW;
+import static org.apache.cassandra.harry.op.Operations.Operation;
+import static org.apache.cassandra.harry.op.Operations.PartitionOperation;
 
 /**
  * Data tracker tracks every operation that was started and finished.
@@ -50,22 +52,21 @@ public interface DataTracker
 {
     void begin(Visit visit);
     void end(Visit visit);
+    default void gc(long pd) {}
 
-    Iterable<Model.LtsOperationPair> potentialVisits(long pd);
-    boolean isFinished(long lts);
-    boolean allFinished();
-
-    Set<Operations.Kind> OPS_WITHOUT_EFFECT = Set.of(SELECT_CUSTOM, SELECT_PARTITION, SELECT_ROW, SELECT_RANGE, CUSTOM);
+    Set<Kind> OPS_WITHOUT_EFFECT = Set.of(SELECT_CUSTOM, SELECT_PARTITION, SELECT_ROW, SELECT_RANGE, CUSTOM);
 
     /**
-     * Data tracker that only allows partition visits to be done _in sequence_
+     * Data tracker that only allows partition visits to be done _in sequence_.
+     *
+     * This data tracker is _not_ thread safe.
      */
-    class SequentialDataTracker implements DataTracker
+    class SequentialDataTracker implements DataTracker, Model.PartialReplay
     {
         private final AtomicLong started = new AtomicLong();
         private final AtomicLong finished = new AtomicLong();
 
-        private Map<Long, List<Model.LtsOperationPair>> partitionVisits = new HashMap<>();
+        private Map<Long, List<Operation>> partitionVisits = new HashMap<>();
 
         public void begin(Visit visit)
         {
@@ -74,15 +75,15 @@ public interface DataTracker
             started.set(visit.lts);
             for (int i = 0; i < visit.operations.length; i++)
             {
-                Operations.Operation operation = visit.operations[i];
+                Operation operation = visit.operations[i];
 
                 // SELECT statements have no effect on the model
                 if (OPS_WITHOUT_EFFECT.contains(operation.kind()))
                     continue;
 
-                Operations.PartitionOperation partitionOp = (Operations.PartitionOperation) operation;
+                PartitionOperation partitionOp = (PartitionOperation) operation;
                 partitionVisits.computeIfAbsent(partitionOp.pd, pd_ -> new ArrayList<>())
-                               .add(new Model.LtsOperationPair(visit.lts, i));
+                               .add(operation);
             }
         }
 
@@ -93,79 +94,91 @@ public interface DataTracker
             finished.set(visit.lts);
         }
 
-        public Iterable<Model.LtsOperationPair> potentialVisits(long pd)
+        @Override
+        public Iterable<Operation> potentialVisits(long pd)
         {
-            Iterable<Model.LtsOperationPair> res = partitionVisits.get(pd);
+            Iterable<Operation> res = partitionVisits.get(pd);
             if (res != null)
                 return res;
 
             return Collections.emptyList();
         }
+    }
 
-        public boolean isFinished(long lts)
+    public static interface ReplayingDataTracker extends DataTracker, Model.PartialReplay {}
+
+    public static class NoOpDataTracker implements ReplayingDataTracker
+    {
+
+        @Override
+        public void begin(Visit visit)
         {
-            return finished.get() >= lts;
         }
 
         @Override
-        public boolean allFinished()
+        public void end(Visit visit)
         {
-            return started.get() == finished.get();
+        }
+
+        @Override
+        public Iterable<Operation> potentialVisits(long pd)
+        {
+            return Collections.emptyList();
         }
     }
-
-    // TODO: optimize for sequential accesses
-
     /**
-     * Data tracker able to track LTS out of order
+     * Data tracker able to track LTS out of order.
+     *
+     * Intended to be used either in a single-threaded environment, or in conjuction with a locking/concurrent tracker
      */
-    class SimpleDataTracker implements DataTracker
+    // TODO: optimize for sequential accesses
+    class SimpleDataTracker implements ReplayingDataTracker
     {
-        private final Set<Long> started = new HashSet<>();
-        private final Set<Long> finished = new HashSet<>();
-
-        private Map<Long, List<Model.LtsOperationPair>> partitionVisits = new HashMap<>();
+        // WARNING: you can access partitions concurrently, but make sure to use locking tracker to guard the op list
+        private Map<Long, List<Operation>> partitionVisits = new ConcurrentHashMap<>();
 
         public void begin(Visit visit)
         {
-            started.add(visit.lts);
             for (int i = 0; i < visit.operations.length; i++)
             {
-                Operations.Operation operation = visit.operations[i];
+                Operation operation = visit.operations[i];
 
                 // SELECT statements have no effect on the model
                 if (OPS_WITHOUT_EFFECT.contains(operation.kind()))
                     continue;
 
-                Operations.PartitionOperation partitionOp = (Operations.PartitionOperation) operation;
+                PartitionOperation partitionOp = (PartitionOperation) operation;
                 partitionVisits.computeIfAbsent(partitionOp.pd, pd_ -> new ArrayList<>())
-                               .add(new Model.LtsOperationPair(visit.lts, i));
+                               .add(operation);
             }
+        }
+
+        @Override
+        public void gc(long pd)
+        {
+            partitionVisits.remove(pd);
         }
 
         public void end(Visit visit)
         {
-            finished.add(visit.lts);
-        }
-
-        public Iterable<Model.LtsOperationPair> potentialVisits(long pd)
-        {
-            Iterable<Model.LtsOperationPair> res = partitionVisits.get(pd);
-            if (res != null)
-                return res;
-
-            return Collections.emptyList();
-        }
-
-        public boolean isFinished(long lts)
-        {
-            return finished.contains(lts);
         }
 
         @Override
-        public boolean allFinished()
+        public Iterable<Operation> potentialVisits(long pd)
         {
-            return started.size() == finished.size();
+            List<Operation> res = partitionVisits.get(pd);
+            if (res == null)
+                return Collections.emptyList();
+
+            // TODO: this won't hold for Accord or Paxos, so we will need to also have a separate wall clock
+            //       tracker for operations.
+            // Operations are appended in begin() order, which under concurrent execution is not logical-timestamp
+            // order. The quiescent checker requires them grouped and applied in increasing lts (matching the DB's
+            // last-write-wins by USING TIMESTAMP lts), so return an lts-sorted copy. The caller holds the partition
+            // read lock, so no writer is appending to the underlying list while we copy it.
+            List<Operation> sorted = new ArrayList<>(res);
+            sorted.sort(Comparator.comparingLong(Operation::lts));
+            return sorted;
         }
     }
 }

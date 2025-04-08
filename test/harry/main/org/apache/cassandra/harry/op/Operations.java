@@ -28,11 +28,11 @@ import accord.utils.Invariants;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.Relations;
-import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.util.BitSet;
 
 public class Operations
 {
+    // TODO: remove lts from every op; leave only for descriptor
     public static class WriteOp extends PartitionOperation
     {
         private final long cd;
@@ -381,34 +381,6 @@ public class Operations
         }
     }
 
-    public enum Kind
-    {
-        /**
-         * Custom operation such as flush
-         */
-        CUSTOM(false),
-
-        UPDATE(true),
-        INSERT(true),
-
-        DELETE_PARTITION(true),
-        DELETE_ROW(false),
-        DELETE_COLUMNS(true),
-        DELETE_RANGE(false),
-
-        SELECT_PARTITION(true),
-        SELECT_ROW(false),
-        SELECT_RANGE(true),
-        SELECT_CUSTOM(true);
-        public final boolean partititonLevel;
-
-        Kind(boolean partitionLevel)
-        {
-            this.partititonLevel = partitionLevel;
-        }
-
-    }
-
     public static class CustomRunnableOperation implements Operation
     {
         public final long lts;
@@ -438,126 +410,6 @@ public class Operations
         public Kind kind()
         {
             return Kind.CUSTOM;
-        }
-    }
-
-    /**
-     * ClusteringOrder by should be understood in terms of how we're going to iterate through this partition
-     * (in other words, if first clustering component order is DESC, we'll iterate in ASC order)
-     */
-    public enum ClusteringOrderBy
-    {
-        ASC, DESC
-    }
-
-    public interface Selection
-    {
-        // TODO: allow expressions here
-        Collection<ColumnSpec<?>> columns();
-        boolean includeTimestamps();
-        boolean isWildcard();
-
-        boolean selects(ColumnSpec<?> column);
-        boolean selectsAllOf(List<ColumnSpec<?>> subSelection);
-        int indexOf(ColumnSpec<?> column);
-
-        static Selection fromBitSet(BitSet bitSet, SchemaSpec schema)
-        {
-            if (bitSet == MagicConstants.ALL_COLUMNS)
-            {
-                Map<ColumnSpec<?>, Integer> columns = new HashMap<>();
-                for (int i = 0; i < schema.allColumnInSelectOrder.size(); i++)
-                    columns.put(schema.allColumnInSelectOrder.get(i), i);
-                return new Wildcard(columns);
-            }
-            else
-            {
-                Invariants.require(schema.allColumnInSelectOrder.size() == bitSet.size());
-                Map<ColumnSpec<?>, Integer> columns = new HashMap<>();
-                for (int i = 0; i < schema.allColumnInSelectOrder.size(); i++)
-                {
-                    if (bitSet.isSet(i))
-                        columns.put(schema.allColumnInSelectOrder.get(i), i);
-                }
-                // TODO: timestamp
-                return new Columns(columns, false);
-            }
-        }
-    }
-
-    public static class Wildcard extends Columns
-    {
-        private Wildcard(Map<ColumnSpec<?>, Integer> columns)
-        {
-            super(columns, false);
-        }
-
-        @Override
-        public Collection<ColumnSpec<?>> columns()
-        {
-            return columns.keySet();
-        }
-
-        @Override
-        public boolean includeTimestamps()
-        {
-            return false;
-        }
-
-        @Override
-        public boolean isWildcard()
-        {
-            return true;
-        }
-    }
-
-    public static class Columns implements Selection
-    {
-        final Map<ColumnSpec<?>, Integer> columns;
-        final boolean includeTimestamp;
-
-        public Columns(Map<ColumnSpec<?>, Integer> columns, boolean includeTimestamp)
-        {
-            this.columns = columns;
-            this.includeTimestamp = includeTimestamp;
-        }
-
-        @Override
-        public Collection<ColumnSpec<?>> columns()
-        {
-            return columns.keySet();
-        }
-
-        @Override
-        public boolean includeTimestamps()
-        {
-            return includeTimestamp;
-        }
-
-        @Override
-        public boolean isWildcard()
-        {
-            return false;
-        }
-
-        public boolean selects(ColumnSpec<?> column)
-        {
-            return columns.containsKey(column);
-        }
-
-        public boolean selectsAllOf(List<ColumnSpec<?>> subSelection)
-        {
-            for (ColumnSpec<?> column : subSelection)
-            {
-                if (!selects(column))
-                    return false;
-            }
-            return true;
-        }
-
-        public int indexOf(ColumnSpec<?> column)
-        {
-            return columns.get(column);
         }
     }
 }

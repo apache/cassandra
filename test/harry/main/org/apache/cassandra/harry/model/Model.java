@@ -28,22 +28,21 @@ public interface Model
 {
     void validate(Operations.SelectStatement select, List<ResultSetRow> actual);
 
-    class LtsOperationPair
+    interface FullReplay extends Iterable<Visit>
     {
-        final long lts;
-        final int opId;
+    }
 
-        public LtsOperationPair(long lts, int opId)
+    interface PartialReplay
+    {
+        Iterable<Operations.Operation> potentialVisits(long pd);
+    }
+
+    public Model NO_OP = new Model()
+    {
+        @Override
+        public void validate(Operations.SelectStatement select, List<ResultSetRow> actual)
         {
-            this.lts = lts;
-            this.opId = opId;
+
         }
-    }
-
-    interface Replay extends Iterable<Visit>
-    {
-        Visit replay(long lts);
-        Operations.Operation replay(long lts, int opId);
-    }
-
+    };
 }

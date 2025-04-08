@@ -32,6 +32,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
 import org.apache.cassandra.harry.execution.RingAwareInJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
@@ -43,6 +44,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.*;
 
 public class AccordHostReplacementTest extends TestBaseImpl
 {
@@ -72,9 +74,10 @@ public class AccordHostReplacementTest extends TestBaseImpl
                         SchemaSpec.optionsBuilder().withTransactionalMode(transactionalModeGen.generate(rng))
                                 .withSpeculativeRetry("ALWAYS"));
                 SchemaSpec schema = schemaGen.generate(rng);
-                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
+                IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), 1000);
+                Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.adaptLongToInt(Generators.int64(0, Math.min(valueGenerators.pkGen().population(), 1000))));
 
-                HistoryBuilder history = historyBuilder(schema, cluster);
+                HistoryBuilder history = historyBuilder(schema, valueGenerators, cluster);
                 waitForCMSToQuiesce(cluster, cluster.get(1));
 
                 for (int i = 0; i < 1000; i++)
@@ -93,13 +96,13 @@ public class AccordHostReplacementTest extends TestBaseImpl
         }
     }
 
-    private static HistoryBuilder historyBuilder(SchemaSpec schema, Cluster cluster)
+    private static HistoryBuilder historyBuilder(SchemaSpec schema, IndexedValueGenerators valueGenerators, Cluster cluster)
     {
-        HistoryBuilder history = new ReplayingHistoryBuilder(schema.valueGenerators,
+        HistoryBuilder history = new ReplayingHistoryBuilder(valueGenerators,
                 hb -> RingAwareInJvmDTestVisitExecutor.builder()
                         .replicationFactor(new TokenPlacementModel.SimpleReplicationFactor(3))
                         .consistencyLevel(ConsistencyLevel.ALL)
-                        .build(schema, hb, cluster));
+                        .build(schema, hb.valueGenerators(), cluster));
         history.customThrowing(() -> cluster.schemaChange(schema.compile()), "Setup");
         return history;
     }

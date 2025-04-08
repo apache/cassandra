@@ -19,6 +19,7 @@
 package org.apache.cassandra.harry.dsl;
 
 import org.apache.cassandra.harry.Relations;
+import org.apache.cassandra.harry.op.ClusteringOrderBy;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.harry.util.ThrowingRunnable;
@@ -46,7 +47,7 @@ public interface SingleOperationBuilder
     SingleOperationBuilder selectRowRange(int pdIdx, int lowerBoundRowIdx, int upperBoundRowIdx,
                                           int nonEqFrom, boolean includeLowBound, boolean includeHighBound);
     SingleOperationBuilder selectPartition(int pdIdx);
-    SingleOperationBuilder selectPartition(int pdIdx, Operations.ClusteringOrderBy orderBy);
+    SingleOperationBuilder selectPartition(int pdIdx, ClusteringOrderBy orderBy);
     SingleOperationBuilder selectRow(int pdIdx, int cdIdx);
     SingleOperationBuilder selectRowSliceByLowerBound(int pdIdx, int lowerBoundRowIdx, int nonEqFrom, boolean isEq);
     SingleOperationBuilder selectRowSliceByUpperBound(int pdIdx, int upperBoundRowIdx, int nonEqFrom, boolean isEq);

@@ -70,10 +70,12 @@ public class StringBijection implements Bijections.Bijection<String>
             builder.append(nibbles[idx]);
         }
 
-        appendRandomBytes(builder, descriptor);
+        appendSuffix(builder, descriptor);
 
-        // everything after this point can be just random, since strings are guaranteed
-        // to have unique prefixes
+        // everything after the nibble prefix is just random padding, since strings are guaranteed
+        // to have unique prefixes. Subclasses may append additional content after this.
+        appendExtra(builder, descriptor);
+
         return builder.toString();
     }
 
@@ -85,7 +87,7 @@ public class StringBijection implements Bijections.Bijection<String>
         return b;
     }
 
-    private void appendRandomBytes(StringBuilder builder, long descriptor)
+    protected void appendSuffix(StringBuilder builder, long descriptor)
     {
         long rnd = RngUtils.next(descriptor);
         int remaining = RngUtils.asInt(rnd, 0, maxRandomBytes);
@@ -99,6 +101,14 @@ public class StringBijection implements Bijections.Bijection<String>
                 remaining--;
             }
         }
+    }
+
+    /**
+     * Hook for subclasses to append additional content after the nibble prefix and suffix.
+     * By default, does nothing.
+     */
+    protected void appendExtra(StringBuilder builder, long descriptor)
+    {
     }
 
     public long deflate(String descriptor)

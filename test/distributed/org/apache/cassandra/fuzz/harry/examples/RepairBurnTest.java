@@ -26,7 +26,7 @@ import org.apache.cassandra.distributed.test.IntegrationTestBase;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
-import org.apache.cassandra.harry.dsl.HistoryBuilderHelper;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
@@ -47,19 +47,19 @@ public class RepairBurnTest extends IntegrationTestBase
     public void repairBurnTest()
     {
         int maxPartitionSize = 10;
-        int partitions = 1000;
         Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "repair_burn", 1000);
 
         withRandom(rng -> {
             SchemaSpec schema = schemaGen.generate(rng);
+            IndexedValueGenerators valueGenerators = HistoryBuilder.valueGenerators(schema, rng.next(), 1000);
 
-            Generators.TrackingGenerator<Integer > pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), partitions)));
-            Generator<Integer> ckGen = Generators.int32(0, Math.min(schema.valueGenerators.ckPopulation(), maxPartitionSize));
+            Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.adaptLongToInt(valueGenerators.pkIdxGen()));
+            Generator<Integer> ckGen = Generators.int32(0, maxPartitionSize);
 
             ModelChecker<HistoryBuilder, Void> modelChecker = new ModelChecker<>();
 
-            modelChecker.init(new HistoryBuilder(schema.valueGenerators))
-                        .step((history, rng_) -> HistoryBuilderHelper.insertRandomData(schema, pkGen, ckGen, rng, history))
+            modelChecker.init(new HistoryBuilder(valueGenerators))
+                        .step((history, rng_) -> history.insert(pkGen.generate(rng)))
                         .step((history, rng_) -> history.deleteRow(pkGen.generate(rng), ckGen.generate(rng)))
                         .exitCondition((history) -> {
                             if (history.size() < 10_000)
@@ -73,7 +73,7 @@ public class RepairBurnTest extends IntegrationTestBase
 
                             cluster.schemaChange(schema.compile());
 
-                            InJvmDTestVisitExecutor.replay(InJvmDTestVisitExecutor.builder().build(schema, history, cluster),
+                            InJvmDTestVisitExecutor.replay(InJvmDTestVisitExecutor.builder().build(schema, history.valueGenerators(), cluster),
                                                            history);
 
                             return true;

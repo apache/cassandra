@@ -37,9 +37,12 @@ import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.model.QuiescentChecker;
 import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.Selection;
 import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.utils.AssertionUtils;
 
@@ -61,18 +64,24 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
     protected final PageSizeSelector pageSizeSelector;
     protected final RetryPolicy retryPolicy;
 
-    protected InJvmDTestVisitExecutor(SchemaSpec schema,
-                                      DataTracker dataTracker,
-                                      Model model,
-                                      ICluster<?> cluster,
+    protected final ValueGenerators<Object[], Object[]> valueGenerators;
 
-                                      NodeSelector nodeSelector,
-                                      PageSizeSelector pageSizeSelector,
-                                      RetryPolicy retryPolicy,
-                                      ConsistencyLevelSelector consistencyLevel,
-                                      WrapQueries wrapQueries)
+    public InJvmDTestVisitExecutor(SchemaSpec schema,
+
+                                   ValueGenerators<Object[], Object[]> valueGenerators,
+                                   DataTracker dataTracker,
+                                   Model model,
+                                   ICluster<?> cluster,
+
+                                   NodeSelector nodeSelector,
+                                   PageSizeSelector pageSizeSelector,
+                                   RetryPolicy retryPolicy,
+                                   ConsistencyLevelSelector consistencyLevel,
+                                   WrapQueries wrapQueries)
     {
-        super(schema, dataTracker, model, new QueryBuildingVisitExecutor(schema, wrapQueries));
+        super(schema, dataTracker, model, new QueryBuildingVisitExecutor(schema, wrapQueries, valueGenerators));
+
+        this.valueGenerators = valueGenerators;
         this.cluster = cluster;
         this.consistencyLevel = consistencyLevel;
 
@@ -121,7 +130,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
         if (logger.isTraceEnabled())
             logger.trace("{} returned {} results", statement, rows.length);
 
-        return rowsToResultSet(schema, (Operations.SelectStatement) visit.operations[0], rows);
+        return rowsToResultSet(schema, valueGenerators, (Operations.SelectStatement) visit.operations[0], rows);
     }
 
     protected static Object[][] iterToArr(Iterator<Object[]> iter)
@@ -160,15 +169,20 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
             cluster.coordinator(node).execute(statement.cql(), consistencyLevel, statement.bindings());
     }
 
-    public static List<ResultSetRow> rowsToResultSet(SchemaSpec schema, Operations.SelectStatement select, Object[][] result)
+    public static List<ResultSetRow> rowsToResultSet(SchemaSpec schema,
+                                                     ValueGenerators<Object[], Object[]> generators,
+                                                     Operations.SelectStatement select, Object[][] result)
     {
         List<ResultSetRow> rs = new ArrayList<>();
         for (Object[] res : result)
-            rs.add(rowToResultSet(schema, select, res));
+            rs.add(rowToResultSet(schema, generators, select, res));
         return rs;
     }
 
-    public static ResultSetRow rowToResultSet(SchemaSpec schema, Operations.SelectStatement select, Object[] result)
+    public static ResultSetRow rowToResultSet(SchemaSpec schema,
+                                              ValueGenerators<Object[], Object[]> generators,
+                                              Operations.SelectStatement select,
+                                              Object[] result)
     {
         long[] staticColumns = new long[schema.staticColumns.size()];
         long[] regularColumns = new long[schema.regularColumns.size()];
@@ -179,16 +193,18 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
         long[] regularLts = LTS_UNKNOWN;
 
         long pd = UNKNOWN_DESCR;
-        Operations.Selection selection = Operations.Selection.fromBitSet(select.selection(), schema);
+        Selection selection = Selection.fromBitSet(select.selection(), schema);
+        Invariants.require(selection.selectsAllOf(schema.partitionKeys));
         if (selection.selectsAllOf(schema.partitionKeys))
         {
             Object[] partitionKey = new Object[schema.partitionKeys.size()];
             for (int i = 0; i < schema.partitionKeys.size(); i++)
                 partitionKey[i] = result[selection.indexOf(schema.partitionKeys.get(i))];
 
-            pd = schema.valueGenerators.pkGen().deflate(partitionKey);
+            pd = generators.pkGen().deflate(partitionKey);
         }
 
+        ValueGenerators.PartitionValues<Object[]> valueGenerators = generators.forPd(pd);
         // Deflate logic for clustering key is a bit more involved, since CK can be nil in case of a single static row.
         long cd = UNKNOWN_DESCR;
         if (selection.selectsAllOf(schema.clusteringKeys))
@@ -214,7 +230,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
             if (clusteringKey == NIL_KEY)
                 cd = UNSET_DESCR;
             else
-                cd = schema.valueGenerators.ckGen().deflate(clusteringKey);
+                cd = valueGenerators.ckGen().deflate(clusteringKey);
         }
 
         for (int i = 0; i < schema.regularColumns.size(); i++)
@@ -226,7 +242,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
                 if (v == null)
                     regularColumns[i] = NIL_DESCR;
                 else
-                    regularColumns[i] = schema.valueGenerators.regularColumnGen(i).deflate(v);
+                    regularColumns[i] = valueGenerators.regularColumnGen(i).deflate(v);
             }
             else
             {
@@ -243,7 +259,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
                 if (v == null)
                     staticColumns[i] = NIL_DESCR;
                 else
-                    staticColumns[i] = schema.valueGenerators.staticColumnGen(i).deflate(v);
+                    staticColumns[i] = valueGenerators.staticColumnGen(i).deflate(v);
             }
             else
             {
@@ -371,12 +387,12 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
             }
         }
 
-        public InJvmDTestVisitExecutor build(SchemaSpec schema, Model.Replay replay, ICluster<?> cluster)
+        public InJvmDTestVisitExecutor build(SchemaSpec schema, IndexedValueGenerators valueGenerators, ICluster<?> cluster)
         {
             setDefaults(schema, cluster);
-            DataTracker tracker = new DataTracker.SequentialDataTracker();
-            Model model = new QuiescentChecker(schema.valueGenerators, tracker, replay);
-            return new InJvmDTestVisitExecutor(schema, tracker, model, cluster,
+            DataTracker.SequentialDataTracker tracker = new DataTracker.SequentialDataTracker();
+            Model model = new QuiescentChecker(valueGenerators, tracker);
+            return new InJvmDTestVisitExecutor(schema, valueGenerators, tracker, model, cluster,
                                                nodeSelector, pageSizeSelector, retryPolicy, consistencyLevel, wrapQueries);
         }
 
@@ -389,12 +405,12 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
         /**
          * WARNING: highly experimental
          */
-        public InJvmDTestVisitExecutor doubleWriting(SchemaSpec schema, Model.Replay replay, ICluster<?> cluster, String secondTable)
+        public InJvmDTestVisitExecutor doubleWriting(SchemaSpec schema, IndexedValueGenerators valueGens, ICluster<?> cluster, String secondTable)
         {
             setDefaults(schema, cluster);
-            DataTracker tracker = new DataTracker.SequentialDataTracker();
-            Model model = new QuiescentChecker(schema.valueGenerators, tracker, replay);
-            return new InJvmDTestVisitExecutor(schema, tracker, model, cluster,
+            DataTracker.SequentialDataTracker tracker = new DataTracker.SequentialDataTracker();
+            Model model = new QuiescentChecker(valueGens, tracker);
+            return new InJvmDTestVisitExecutor(schema, valueGens, tracker, model, cluster,
                                                nodeSelector, pageSizeSelector, retryPolicy, consistencyLevel, wrapQueries)
             {
                 @Override
@@ -408,7 +424,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
                     {
                         logger.debug("Second opinion: ");
                         for (ResultSetRow resultSetRow : secondOpinion)
-                            logger.debug(resultSetRow.toString(schema.valueGenerators));
+                            logger.debug(resultSetRow.toString(valueGens));
                     }
                     return rows;
                 }

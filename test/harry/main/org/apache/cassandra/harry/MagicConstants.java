@@ -55,6 +55,11 @@ public class MagicConstants
     public static final long UNSET_DESCR = Long.MIN_VALUE + 3;
     public static final long NIL_DESCR = Long.MIN_VALUE;
     public static final Set<Long> MAGIC_DESCRIPTOR_VALS = Set.of(UNKNOWN_DESCR, EMPTY_VALUE_DESCR, UNSET_DESCR, NIL_DESCR);
+
+    public static boolean isMagicDescriptor(long val)
+    {
+        return val <= UNSET_DESCR;
+    }
     /**
      * For LTS
      */

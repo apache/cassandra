@@ -30,8 +30,10 @@ import accord.utils.Invariants;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.Selection;
 import org.apache.cassandra.harry.op.Visit;
 
 import static org.apache.cassandra.harry.MagicConstants.LTS_UNKNOWN;
@@ -43,15 +45,20 @@ import static org.apache.cassandra.harry.MagicConstants.UNSET_DESCR;
 public class CQLTesterVisitExecutor extends CQLVisitExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(CQLTesterVisitExecutor.class);
+
     private final Function<CompiledStatement, UntypedResultSet> execute;
+    private final ValueGenerators<Object[], Object[]> valueGenerators;
 
     public CQLTesterVisitExecutor(SchemaSpec schema,
+                                  ValueGenerators<Object[], Object[]> valueGenerators,
                                   DataTracker dataTracker,
                                   Model model,
                                   Function<CompiledStatement, UntypedResultSet> execute)
     {
-        super(schema, dataTracker, model, new QueryBuildingVisitExecutor(schema, QueryBuildingVisitExecutor.WrapQueries.UNLOGGED_BATCH));
+        super(schema, dataTracker, model,
+              new QueryBuildingVisitExecutor(schema, QueryBuildingVisitExecutor.WrapQueries.UNLOGGED_BATCH, valueGenerators));
         this.execute = execute;
+        this.valueGenerators = valueGenerators;
     }
 
     @Override
@@ -60,8 +67,9 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
         List<ResultSetRow> actual = new ArrayList<>();
         // TODO: Have never tested with multiple
         Invariants.require(visit.operations.length == 1);
+        // TODO: for now, cql tester only supports "global" value gens
         for (UntypedResultSet.Row row : execute.apply(statement))
-            actual.add(resultSetToRow(schema, (Operations.SelectStatement) visit.operations[0], row));
+            actual.add(resultSetToRow(schema, valueGenerators, (Operations.SelectStatement) visit.operations[0], row));
         return actual;
     }
 
@@ -70,10 +78,12 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
         execute.apply(statement);
     }
 
-    public static ResultSetRow resultSetToRow(SchemaSpec schema, Operations.SelectStatement select, UntypedResultSet.Row row)
+    public static ResultSetRow resultSetToRow(SchemaSpec schema,
+                                              ValueGenerators<Object[], Object[]> generators,
+                                              Operations.SelectStatement select, UntypedResultSet.Row row)
     {
         // TODO: do we want to use selection?
-        Operations.Selection selection = Operations.Selection.fromBitSet(select.selection(), schema);
+        Selection selection = Selection.fromBitSet(select.selection(), schema);
 
         long pd = UNKNOWN_DESCR;
         if (selection.selectsAllOf(schema.partitionKeys))
@@ -85,10 +95,10 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
                 partitionKey[i] = column.type.asServerType().compose(row.getBytes(column.name));
             }
 
-            pd = schema.valueGenerators.pkGen().deflate(partitionKey);
+            pd = generators.pkGen().deflate(partitionKey);
         }
 
-
+        ValueGenerators.PartitionValues<Object[]> valueGenerators = Invariants.nonNull(generators.forPd(pd));
         long cd = UNKNOWN_DESCR;
         if (selection.selectsAllOf(schema.clusteringKeys))
         {
@@ -116,7 +126,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
             if (clusteringKey == NIL_KEY)
                 cd = UNSET_DESCR;
             else
-                cd = schema.valueGenerators.ckGen().deflate(clusteringKey);
+                cd = valueGenerators.ckGen().deflate(clusteringKey);
         }
 
         long[] regularColumns = new long[schema.regularColumns.size()];
@@ -128,7 +138,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
                 if (row.has(column.name))
                 {
                     Object value = column.type.asServerType().compose(row.getBytes(column.name));
-                    regularColumns[i] = schema.valueGenerators.regularColumnGen(i).deflate(value);
+                    regularColumns[i] = valueGenerators.regularColumnGen(i).deflate(value);
                 }
                 else
                 {
@@ -150,7 +160,7 @@ public class CQLTesterVisitExecutor extends CQLVisitExecutor
                 if (row.has(column.name))
                 {
                     Object value = column.type.asServerType().compose(row.getBytes(column.name));
-                    staticColumns[i] = schema.valueGenerators.staticColumnGen(i).deflate(value);
+                    staticColumns[i] = valueGenerators.staticColumnGen(i).deflate(value);
                 }
                 else
                 {

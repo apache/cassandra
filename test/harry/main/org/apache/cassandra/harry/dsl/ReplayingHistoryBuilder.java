@@ -20,28 +20,28 @@ package org.apache.cassandra.harry.dsl;
 
 import java.util.function.Function;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.harry.execution.CQLVisitExecutor;
-import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.op.Visit;
 
 public class ReplayingHistoryBuilder extends HistoryBuilder
 {
     private final CQLVisitExecutor executor;
 
-    public ReplayingHistoryBuilder(ValueGenerators generators, Function<HistoryBuilder, CQLVisitExecutor> executorFactory)
+    public ReplayingHistoryBuilder(IndexedValueGenerators generators, Function<HistoryBuilder, CQLVisitExecutor> executorFactory)
     {
-        super((IndexedValueGenerators) generators);
+        super(generators);
         this.executor = executorFactory.apply(this);
-     }
+    }
 
     SingleOperationVisitBuilder singleOpVisitBuilder()
     {
         long visitLts = nextOpIdx++;
         HistoryBuilder this_ = this;
+        Invariants.require(visitLts == log.size());
         return new SingleOperationVisitBuilder(visitLts,
                                                valueGenerators,
-                                               indexGenerators,
-                                               (visit) -> log.put(visit.lts, visit)) {
+                                               log::add) {
             @Override
             Visit build()
             {
@@ -59,8 +59,7 @@ public class ReplayingHistoryBuilder extends HistoryBuilder
         HistoryBuilder this_ = this;
         return new MultiOperationVisitBuilder(visitLts,
                                               valueGenerators,
-                                              indexGenerators,
-                                              visit -> log.put(visit.lts, visit)) {
+                                              log::add) {
             @Override
             Visit buildInternal()
             {

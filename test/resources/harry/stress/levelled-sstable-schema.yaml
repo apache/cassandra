@@ -1,0 +1,61 @@
+# Schema used by org.apache.cassandra.fuzz.harry.sstable.LevelledSSTableGeneratorTest.
+# Copied from default-stress-schema.yaml, but kept small (fixed row population) and using
+# LeveledCompactionStrategy so the imported, level-tagged SSTables are placed on a real LCS table.
+keyspace: harry_levelled
+table: levelled_sstables
+
+table_definition: |
+  CREATE TABLE IF NOT EXISTS harry_levelled.levelled_sstables (
+      pk1 text,
+      pk2 bigint,
+      pk3 bigint,
+      pk4 text,
+      ck1 text,
+      ck2 text,
+      ck3 bigint,
+      ck4 text,
+      ck5 blob,
+      val1 blob,
+      val2 blob,
+      PRIMARY KEY((pk1,pk2,pk3,pk4),ck1,ck2,ck3,ck4,ck5)
+  ) WITH compaction = {'class': 'LeveledCompactionStrategy'};
+
+rows: "fixed(100)"
+
+# Rotation strategy used both to build the token index and to rebuild the validation model.
+# fixed with replace_with_new=0/replace_with_visited=0 means no rotation: the active set is the
+# first `target` partitions for the whole run, which keeps offline generation and validation a
+# single coherent deterministic history.
+rotation:
+  strategy: fixed
+  target: 100
+  replace_with_new: 0
+  replace_with_visited: 0
+
+columnspec:
+  - name: pk1
+    size: uniform(10..20)
+  - name: pk2
+  - name: pk3
+  - name: pk4
+    size: uniform(10..20)
+  - name: ck1
+    population: fixed(1000)
+    size: uniform(10..90)
+  - name: ck2
+    population: fixed(1000)
+    size: uniform(10..90)
+  - name: ck3
+    population: fixed(1000)
+  - name: ck4
+    population: fixed(1000)
+    size: uniform(10..90)
+  - name: ck5
+    population: fixed(1000)
+    size: uniform(10..90)
+  - name: val1
+    population: fixed(1000)
+    size: uniform(10..90)
+  - name: val2
+    population: fixed(1000)
+    size: uniform(10..90)

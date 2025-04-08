@@ -98,7 +98,7 @@ public class HarryValidatingQuery extends SimulatedAction
                         {
                             CompiledStatement compiled = queryBuilder.compile(visit);
                             Object[][] objects = executeNodeLocal(compiled.cql(), replica.node(), compiled.bindings());
-                            List<ResultSetRow> actualRows = InJvmDTestVisitExecutor.rowsToResultSet(simulation.schema, select, objects);
+                            List<ResultSetRow> actualRows = InJvmDTestVisitExecutor.rowsToResultSet(simulation.schema, simulation.valueGenerators, select, objects);
                             simulation.model.validate(select, actualRows);
                         }
                     }
@@ -107,7 +107,7 @@ public class HarryValidatingQuery extends SimulatedAction
                         Operations.SelectStatement select = (Operations.SelectStatement) visit.operations[0];
                         CompiledStatement compiled = queryBuilder.compile(visit);
                         Object[][] objects = execute(compiled.cql(),   rng.nextInt(cluster.size()) + 1, compiled.bindings());
-                        List<ResultSetRow> actualRows = InJvmDTestVisitExecutor.rowsToResultSet(simulation.schema, select, objects);
+                        List<ResultSetRow> actualRows = InJvmDTestVisitExecutor.rowsToResultSet(simulation.schema, simulation.valueGenerators, select, objects);
                         simulation.model.validate(select, actualRows);
                     }
                 }
@@ -123,7 +123,7 @@ public class HarryValidatingQuery extends SimulatedAction
 
     protected long token(long pd)
     {
-        return TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(simulation.schema.valueGenerators.pkGen().inflate(pd))));
+        return TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(simulation.valueGenerators.pkGen().inflate(pd))));
     }
 
     protected Object[][] executeNodeLocal(String statement, TokenPlacementModel.Node node, Object... bindings)

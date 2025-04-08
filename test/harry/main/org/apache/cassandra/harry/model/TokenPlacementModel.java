@@ -981,19 +981,36 @@ public class TokenPlacementModel
         private final int dcIdx;
         private final int rackIdx;
         private final Lookup lookup;
+        private final String fqdn;
 
         public Node(int tokenIdx, int idx, int dcIdx, int rackIdx, Lookup lookup)
+        {
+            this(tokenIdx, idx, dcIdx, rackIdx, lookup, null);
+        }
+
+        public Node(int tokenIdx, int idx, int dcIdx, int rackIdx, Lookup lookup, String fqdn)
         {
             this.tokenIdx = tokenIdx;
             this.nodeIdx = idx;
             this.dcIdx = dcIdx;
             this.rackIdx = rackIdx;
             this.lookup = lookup;
+            this.fqdn = fqdn;
         }
 
         public String id()
         {
             return lookup.id(nodeIdx);
+        }
+
+        public String fqdn()
+        {
+            return fqdn != null ? fqdn : id();
+        }
+
+        public Node overrideFQDN(String fqdn)
+        {
+            return new Node(tokenIdx, nodeIdx, dcIdx, rackIdx, lookup, fqdn);
         }
 
         public int idx()
@@ -1033,22 +1050,22 @@ public class TokenPlacementModel
 
         public Node withNewToken()
         {
-            return new Node(tokenIdx + 100_000, nodeIdx, dcIdx, rackIdx, lookup);
+            return new Node(tokenIdx + 100_000, nodeIdx, dcIdx, rackIdx, lookup, fqdn);
         }
 
         public Node withToken(int tokenIdx)
         {
-            return new Node(tokenIdx, nodeIdx, dcIdx, rackIdx, lookup);
+            return new Node(tokenIdx, nodeIdx, dcIdx, rackIdx, lookup, fqdn);
         }
 
         public Node overrideToken(long override)
         {
-            return new Node(tokenIdx, nodeIdx, dcIdx, rackIdx, lookup.forceToken(tokenIdx, override));
+            return new Node(tokenIdx, nodeIdx, dcIdx, rackIdx, lookup.forceToken(tokenIdx, override), fqdn);
         }
 
         public Node withNewRack(String newRack)
         {
-            return new Node(tokenIdx, nodeIdx, dcIdx, lookup.rackIdx(newRack), lookup);
+            return new Node(tokenIdx, nodeIdx, dcIdx, lookup.rackIdx(newRack), lookup, fqdn);
         }
 
         public Murmur3Partitioner.LongToken longToken()

@@ -152,9 +152,24 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
                                           Collection<Index.Group> indexGroups,
                                           SSTable.Owner owner)
     {
+        return create(metadata, descriptor, keyCount, repairedAt, pendingRepair, isTransient, 0, header, indexGroups, owner);
+    }
+
+    @SuppressWarnings({"resource", "RedundantSuppression"}) // log and writer closed during doPostCleanup
+    public static SSTableTxnWriter create(TableMetadataRef metadata,
+                                          Descriptor descriptor,
+                                          long keyCount,
+                                          long repairedAt,
+                                          TimeUUID pendingRepair,
+                                          boolean isTransient,
+                                          int sstableLevel,
+                                          SerializationHeader header,
+                                          Collection<Index.Group> indexGroups,
+                                          SSTable.Owner owner)
+    {
         // if the column family store does not exist, we create a new default SSTableMultiWriter to use:
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
-        SSTableMultiWriter writer = SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, null, 0, header, indexGroups, txn, owner);
+        SSTableMultiWriter writer = SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, null, sstableLevel, header, indexGroups, txn, owner);
         return new SSTableTxnWriter(txn, writer);
     }
 }

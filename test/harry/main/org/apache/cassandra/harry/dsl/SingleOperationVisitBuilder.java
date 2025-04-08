@@ -27,23 +27,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
-
 import org.apache.cassandra.harry.MagicConstants;
 import org.apache.cassandra.harry.Relations;
-import org.apache.cassandra.harry.gen.IndexGenerators;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;
 import org.apache.cassandra.harry.gen.rng.PureRng;
 import org.apache.cassandra.harry.gen.rng.SeedableEntropySource;
+import org.apache.cassandra.harry.op.ClusteringOrderBy;
+import org.apache.cassandra.harry.op.Kind;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.harry.util.BitSet;
 
-import static org.apache.cassandra.harry.dsl.HistoryBuilder.IndexedValueGenerators;
-import static org.apache.cassandra.harry.op.Operations.Kind;
+import static org.apache.cassandra.harry.dsl.IndexedValueGenerators.IndexedPartitionValues;
 import static org.apache.cassandra.harry.op.Operations.Operation;
 import static org.apache.cassandra.harry.op.Operations.WriteOp;
 
-class SingleOperationVisitBuilder implements SingleOperationBuilder
+// TODO: make package-private again
+public class SingleOperationVisitBuilder implements SingleOperationBuilder
 {
     private static final Logger logger = LoggerFactory.getLogger(SingleOperationVisitBuilder.class);
 
@@ -59,11 +59,9 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     protected int opIdCounter;
 
     protected final IndexedValueGenerators valueGenerators;
-    protected final IndexGenerators indexGenerators;
 
     SingleOperationVisitBuilder(long lts,
                                 IndexedValueGenerators valueGenerators,
-                                IndexGenerators indexGenerators,
                                 Consumer<Visit> appendToLog)
     {
         this.operations = new ArrayList<>();
@@ -73,7 +71,6 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         this.opIdCounter = 0;
 
         this.valueGenerators = valueGenerators;
-        this.indexGenerators = indexGenerators;
 
         this.seedSelector = new PureRng.PCGFast(lts);
     }
@@ -84,7 +81,8 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         int opId = opIdCounter++;
         long seed = PCGFastPure.shuffle(PCGFastPure.advanceState(lts, opId, lts));
         return rngSupplier.computeWithSeed(seed, rng -> {
-            int pdIdx = indexGenerators.pkIdxGen.generate(rng);
+            long pdIdx = valueGenerators.pkIdxGen().generate(rng);
+            IndexedPartitionValues indexGenerators = valueGenerators.forPdIdx(pdIdx);
             int cdIdx = indexGenerators.ckIdxGen.generate(rng);
 
             int[] valueIdxs = new int[indexGenerators.regularIdxGens.length];
@@ -93,7 +91,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
             int[] sValueIdxs = new int[indexGenerators.staticIdxGens.length];
             for (int i = 0; i < sValueIdxs.length; i++)
                 sValueIdxs[i] = indexGenerators.staticIdxGens[i].generate(rng);
-            return insert(pdIdx, cdIdx, valueIdxs, sValueIdxs);
+            return write(pdIdx, cdIdx, valueIdxs, sValueIdxs, Kind.INSERT);
         });
     }
 
@@ -102,6 +100,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         int opId = opIdCounter++;
         long seed = PCGFastPure.shuffle(PCGFastPure.advanceState(lts, opId, lts));
+        IndexedPartitionValues indexGenerators = valueGenerators.forPdIdx(pdIdx);
         return rngSupplier.computeWithSeed(seed, rng -> {
             int cdIdx = indexGenerators.ckIdxGen.generate(rng);
 
@@ -120,6 +119,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         int opId = opIdCounter++;
         long seed = PCGFastPure.shuffle(PCGFastPure.advanceState(lts, opId, lts));
+        IndexedPartitionValues indexGenerators = valueGenerators.forPdIdx(pdIdx);
         return rngSupplier.computeWithSeed(seed, rng -> {
             int[] valueIdxs = new int[indexGenerators.regularIdxGens.length];
             for (int i = 0; i < valueIdxs.length; i++)
@@ -166,7 +166,8 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         int opId = opIdCounter++;
         long seed = PCGFastPure.shuffle(PCGFastPure.advanceState(lts, opId, lts));
         return rngSupplier.computeWithSeed(seed, rng -> {
-            int pdIdx = indexGenerators.pkIdxGen.generate(rng);
+            long pdIdx = valueGenerators.pkIdxGen().generate(rng);
+            IndexedPartitionValues indexGenerators = valueGenerators.forPdIdx(pdIdx);
             int cdIdx = indexGenerators.ckIdxGen.generate(rng);
 
             int[] valueIdxs = new int[indexGenerators.regularIdxGens.length];
@@ -175,7 +176,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
             int[] sValueIdxs = new int[indexGenerators.staticIdxGens.length];
             for (int i = 0; i < sValueIdxs.length; i++)
                 sValueIdxs[i] = indexGenerators.staticIdxGens[i].generate(rng);
-            return update(pdIdx, cdIdx, valueIdxs, sValueIdxs);
+            return write(pdIdx, cdIdx, valueIdxs, sValueIdxs, Kind.UPDATE);
         });
     }
 
@@ -184,6 +185,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         int opId = opIdCounter++;
         long seed = PCGFastPure.shuffle(PCGFastPure.advanceState(lts, opId, lts));
+        IndexedPartitionValues indexGenerators = valueGenerators.forPdIdx(pdIdx);
         return rngSupplier.computeWithSeed(seed, rng -> {
             int cdIdx = indexGenerators.ckIdxGen.generate(rng);
 
@@ -202,6 +204,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         int opId = opIdCounter++;
         long seed = PCGFastPure.shuffle(PCGFastPure.advanceState(lts, opId, lts));
+        IndexedPartitionValues indexGenerators = valueGenerators.forPdIdx(pdIdx);
         return rngSupplier.computeWithSeed(seed, rng -> {
             int[] valueIdxs = new int[indexGenerators.regularIdxGens.length];
             for (int i = 0; i < valueIdxs.length; i++)
@@ -219,15 +222,25 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         return write(pdIdx, cdIdx, valueIdxs, sValueIdxs, Kind.UPDATE);
     }
 
-    private SingleOperationBuilder write(int pdIdx, int cdIdx, int[] valueIdxs, int[] sValueIdxs, Kind kind)
+    public SingleOperationBuilder write(long pdIdx, int cdIdx, int[] valueIdxs, int[] sValueIdxs, Kind kind)
+    {
+        WriteOp op = write(valueGenerators.pkGen(), valueGenerators.forPdIdx(pdIdx), lts, pdIdx, cdIdx, valueIdxs, sValueIdxs, kind);
+        opIdCounter++;
+        operations.add(op);
+        build();
+        return this;
+    }
+
+    // TODO: extract
+    public static WriteOp write(HistoryBuilder.IndexedBijection<Object[]> pkGen, IndexedPartitionValues valueGenerators,
+                                long lts, long pdIdx, int cdIdx, int[] valueIdxs, int[] sValueIdxs, Kind kind)
     {
         assert valueIdxs.length == valueGenerators.regularColumnCount();
         assert sValueIdxs.length == valueGenerators.staticColumnCount();
 
-        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        long pd = pkGen.descriptorAt(pdIdx);
         long cd = valueGenerators.ckGen().descriptorAt(cdIdx);
 
-        opIdCounter++;
         long[] vds = new long[valueIdxs.length];
         for (int i = 0; i < valueGenerators.regularColumnCount(); i++)
         {
@@ -248,24 +261,23 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
                 sds[i] = valueGenerators.staticColumnGen(i).descriptorAt(valueIdx);
         }
 
-        operations.add(new WriteOp(lts, pd, cd, vds, sds, kind) {
+        return new WriteOp(lts, pd, cd, vds, sds, kind) {
             @Override
             public String toString()
             {
                 return String.format("%s (%d, %d, %s, %s)",
                                      kind, pdIdx, cdIdx, Arrays.toString(valueIdxs), Arrays.toString(sValueIdxs));
             }
-        });
-        build();
-        return this;
+        };
     }
 
     @Override
     public SingleOperationVisitBuilder deleteRowRange(int pdIdx, int lowerBoundRowIdx, int upperBoundRowIdx,
                                                       int nonEqFrom, boolean includeLowerBound, boolean includeUpperBound)
     {
-        long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        long pd = this.valueGenerators.pkGen().descriptorAt(pdIdx);
 
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long lowerBoundCd = valueGenerators.ckGen().descriptorAt(lowerBoundRowIdx);
         long upperBoundCd = valueGenerators.ckGen().descriptorAt(upperBoundRowIdx);
 
@@ -325,6 +337,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long cd = valueGenerators.ckGen().descriptorAt(rowIdx);
         operations.add(new Operations.DeleteRow(lts, pd, cd) {
             @Override
@@ -342,6 +355,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long cd = valueGenerators.ckGen().descriptorAt(rowIdx);
         operations.add(new Operations.DeleteColumns(lts, pd, cd, regularSelection, staticSelection)  {
             @Override
@@ -358,6 +372,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     public SingleOperationBuilder deleteRowSliceByLowerBound(int pdIdx, int lowerBoundRowIdx, int nonEqFrom, boolean includeBound)
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long lowerBoundCd = valueGenerators.ckGen().descriptorAt(lowerBoundRowIdx);
 
         Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
@@ -391,6 +406,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     public SingleOperationBuilder deleteRowSliceByUpperBound(int pdIdx, int upperBoundRowIdx, int nonEqFrom, boolean includeBound)
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long upperBoundCd = valueGenerators.ckGen().descriptorAt(upperBoundRowIdx);
 
         Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
@@ -426,6 +442,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
                                                       int nonEqFrom, boolean includeLowerBound, boolean includeUpperBound)
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long lowerBoundCd = valueGenerators.ckGen().descriptorAt(lowerBoundRowIdx);
         long upperBoundCd = valueGenerators.ckGen().descriptorAt(upperBoundRowIdx);
 
@@ -459,6 +476,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
 
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         Relations.Relation[] ckRelations = new Relations.Relation[ckIdxRelations.length];
         for (int i = 0; i < ckRelations.length; i++)
         {
@@ -503,7 +521,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     }
 
     @Override
-    public SingleOperationBuilder selectPartition(int pdIdx, Operations.ClusteringOrderBy orderBy)
+    public SingleOperationBuilder selectPartition(int pdIdx, ClusteringOrderBy orderBy)
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
@@ -518,6 +536,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
         opIdCounter++;
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long cd = valueGenerators.ckGen().descriptorAt(rowIdx);
         operations.add(new Operations.SelectRow(lts, pd, cd));
         build();
@@ -528,6 +547,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     public SingleOperationBuilder selectRowSliceByLowerBound(int pdIdx, int lowerBoundRowIdx, int nonEqFrom, boolean includeBound)
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long lowerBoundCd = valueGenerators.ckGen().descriptorAt(lowerBoundRowIdx);
 
         Relations.RelationKind[] lowerBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];
@@ -554,6 +574,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     public SingleOperationBuilder selectRowSliceByUpperBound(int pdIdx, int upperBoundRowIdx, int nonEqFrom, boolean includeBound)
     {
         long pd = valueGenerators.pkGen().descriptorAt(pdIdx);
+        IndexedPartitionValues valueGenerators = this.valueGenerators.forPd(pd);
         long upperBoundCd = valueGenerators.ckGen().descriptorAt(upperBoundRowIdx);
 
         Relations.RelationKind[] upperBoundRelations = new Relations.RelationKind[valueGenerators.ckColumnCount()];

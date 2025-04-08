@@ -56,16 +56,22 @@ public class PartitionState implements Iterable<PartitionState.RowState>
     NavigableMap<Long, RowState> rows;
 
     final ValueGenerators valueGenerators;
-
+    final ValueGenerators.PartitionValues partitionValues;
     public PartitionState(long pd, ValueGenerators valueGenerators)
     {
         this.pd = pd;
-        this.rows = new TreeMap<>(valueGenerators.ckGen().descriptorsComparator());
         this.valueGenerators = valueGenerators;
+        this.partitionValues = valueGenerators.forPd(pd);
+        // TODO: ideally, we want to switch to ck _indexes_ here, since they are still in the value order.
+        //       this is just an unfortunate consequence of going from index to value t descriptor.
+        // Order rows by clustering value rather than by the raw clustering descriptor: for indexed bijections
+        // the descriptor is only a seed and is not monotonic with value, so a natural-ordered map would not
+        // match the clustering order the database returns.
+        this.rows = new TreeMap<Long, RowState>(partitionValues.ckGen()::compare);
         this.staticRow = new RowState(this,
                                       STATIC_CLUSTERING,
-                                      arr(valueGenerators.staticColumnCount(), MagicConstants.NIL_DESCR),
-                                      arr(valueGenerators.staticColumnCount(), MagicConstants.NO_TIMESTAMP));
+                                      arr(partitionValues.staticColumnCount(), MagicConstants.NIL_DESCR),
+                                      arr(partitionValues.staticColumnCount(), MagicConstants.NO_TIMESTAMP));
     }
 
     /**
@@ -78,20 +84,21 @@ public class PartitionState implements Iterable<PartitionState.RowState>
 
     public void writeStatic(long[] sds, long lts)
     {
-        staticRow = updateRowState(staticRow, valueGenerators::staticColumnGen, STATIC_CLUSTERING, sds, lts, false);
+        staticRow = updateRowState(staticRow, partitionValues::staticColumnGen, STATIC_CLUSTERING, sds, lts, false);
     }
 
     public void writeRegular(long cd, long[] vds, long lts, boolean writePrimaryKeyLiveness)
     {
-        rows.compute(cd, (cd_, current) -> updateRowState(current, valueGenerators::regularColumnGen, cd, vds, lts, writePrimaryKeyLiveness));
+        rows.compute(cd, (cd_, current) -> updateRowState(current, partitionValues::regularColumnGen, cd, vds, lts, writePrimaryKeyLiveness));
     }
 
+    // TODO: Make sure to use LTS, as writes can be propagated out of order!
     public void delete(Operations.DeleteRange delete, long lts)
     {
         // TODO: inefficient; need to search for lower/higher bounds
-        rows.entrySet().removeIf(e -> Relations.matchRange(valueGenerators.ckGen(),
-                                                           valueGenerators::ckComparator,
-                                                           valueGenerators.ckColumnCount(),
+        rows.entrySet().removeIf(e -> Relations.matchRange(partitionValues.ckGen(),
+                                                           partitionValues::ckComparator,
+                                                           partitionValues.ckColumnCount(),
                                                            delete.lowerBound(),
                                                            delete.upperBound(),
                                                            delete.lowerBoundRelation(),
@@ -134,9 +141,9 @@ public class PartitionState implements Iterable<PartitionState.RowState>
     private void filterInternal(Operations.SelectRange select)
     {
         // TODO: inefficient; need to search for lower/higher bounds
-        rows.entrySet().removeIf(e -> !Relations.matchRange(valueGenerators.ckGen(),
-                                                            valueGenerators::ckComparator,
-                                                            valueGenerators.ckColumnCount(),
+        rows.entrySet().removeIf(e -> !Relations.matchRange(partitionValues.ckGen(),
+                                                            partitionValues::ckComparator,
+                                                            partitionValues.ckColumnCount(),
                                                             select.lowerBound(),
                                                             select.upperBound(),
                                                             select.lowerBoundRelation(),
@@ -151,10 +158,10 @@ public class PartitionState implements Iterable<PartitionState.RowState>
             Map<Long, Object> cache = new HashMap<>();
             for (Relations.Relation relation : select.ckRelations())
             {
-                Object query = cache.computeIfAbsent(relation.descriptor, valueGenerators.ckGen()::inflate);
-                Object match = cache.computeIfAbsent(e.getValue().cd, valueGenerators.ckGen()::inflate);
-                var accessor = valueGenerators.ckAccessor();
-                if (!relation.kind.match(valueGenerators.ckComparator(relation.column),
+                Object query = cache.computeIfAbsent(relation.descriptor, partitionValues.ckGen()::inflate);
+                Object match = cache.computeIfAbsent(e.getValue().cd, partitionValues.ckGen()::inflate);
+                var accessor = partitionValues.ckAccessor();
+                if (!relation.kind.match(partitionValues.ckComparator(relation.column),
                                          accessor.access(relation.column, match),
                                          accessor.access(relation.column, query)))
                     return true; // true means "no match", so remove from resultset
@@ -162,23 +169,23 @@ public class PartitionState implements Iterable<PartitionState.RowState>
 
             for (Relations.Relation relation : select.regularRelations())
             {
-                Object query = valueGenerators.regularColumnGen(relation.column).inflate(relation.descriptor);
+                Object query = partitionValues.regularColumnGen(relation.column).inflate(relation.descriptor);
                 long descriptor = e.getValue().vds[relation.column];
                 if (MagicConstants.MAGIC_DESCRIPTOR_VALS.contains(descriptor)) // TODO: do we allow UNSET queries?
                     return true;
-                Object match = valueGenerators.regularColumnGen(relation.column).inflate(e.getValue().vds[relation.column]);
-                if (!relation.kind.match(valueGenerators.regularComparator(relation.column), match, query))
+                Object match = partitionValues.regularColumnGen(relation.column).inflate(e.getValue().vds[relation.column]);
+                if (!relation.kind.match(partitionValues.regularComparator(relation.column), match, query))
                     return true;
             }
 
             for (Relations.Relation relation : select.staticRelations())
             {
-                Object query = valueGenerators.staticColumnGen(relation.column).inflate(relation.descriptor);
+                Object query = partitionValues.staticColumnGen(relation.column).inflate(relation.descriptor);
                 long descriptor = e.getValue().partitionState.staticRow.vds[relation.column];
                 if (MagicConstants.MAGIC_DESCRIPTOR_VALS.contains(descriptor)) // TODO: do we allow UNSET queries?
                     return true;
-                Object match = valueGenerators.staticColumnGen(relation.column).inflate(e.getValue().partitionState.staticRow.vds[relation.column]);
-                if (!relation.kind.match(valueGenerators.staticComparator(relation.column), match, query))
+                Object match = partitionValues.staticColumnGen(relation.column).inflate(e.getValue().partitionState.staticRow.vds[relation.column]);
+                if (!relation.kind.match(partitionValues.staticComparator(relation.column), match, query))
                     return true;
             }
 
@@ -239,7 +246,8 @@ public class PartitionState implements Iterable<PartitionState.RowState>
                 if (vds[i] == MagicConstants.UNSET_DESCR)
                     continue;
 
-                assert lts >= currentState.lts[i] : String.format("Out-of-order LTS: %d. Max seen: %s", lts, currentState.lts[i]); // sanity check; we're iterating in lts order
+                // TODO: lts could be out of order with accord, but these asserts could still be useful
+                //assert lts >= currentState.lts[i] : String.format("Out-of-order LTS: %d. Max seen: %s", lts, currentState.lts[i]); // sanity check; we're iterating in lts order
 
                 if (lts != MagicConstants.NO_TIMESTAMP && currentState.lts[i] == lts)
                 {
@@ -254,7 +262,7 @@ public class PartitionState implements Iterable<PartitionState.RowState>
                 }
                 else
                 {
-                    assert lts == MagicConstants.NO_TIMESTAMP || lts > currentState.lts[i];
+                    // assert lts == MagicConstants.NO_TIMESTAMP || lts > currentState.lts[i];
                     currentState.vds[i] = vds[i];
                     currentState.lts[i] = lts;
                 }
@@ -345,12 +353,12 @@ public class PartitionState implements Iterable<PartitionState.RowState>
 
         if (staticRow != null)
         {
-            sb.append("Static row:\n" + staticRow.toString(valueGenerators)).append("\n");
+            sb.append("Static row:\n" + staticRow).append("\n");
             sb.append("\n");
         }
 
         for (RowState row : rows.values())
-            sb.append(row.toString(valueGenerators)).append("\n");
+            sb.append(row.toString()).append("\n");
 
         return sb.toString();
     }
@@ -400,30 +408,25 @@ public class PartitionState implements Iterable<PartitionState.RowState>
             return gen.toString(descr);
         }
 
-        public String toString(ValueGenerators valueGenerators)
+        @Override
+        public String toString()
         {
             if (cd == STATIC_CLUSTERING)
             {
                 return " rowStateRow("
-                       +  valueGenerators.pkGen().toString(partitionState.pd) +
+                       +  partitionState.valueGenerators.pkGen().toString(partitionState.pd) +
                        ", STATIC" +
-                       ", statics(" + toString(partitionState.staticRow.vds, valueGenerators::staticColumnGen) + ")" +
+                       ", statics(" + toString(partitionState.staticRow.vds, partitionState.partitionValues::staticColumnGen) + ")" +
                        ", lts(" + StringUtils.toString(partitionState.staticRow.lts) + ")";
             }
             else
             {
                 return " rowStateRow("
-                       + valueGenerators.pkGen().toString(partitionState.pd) +
-                       ", " + descrToIdxForToString(valueGenerators.ckGen(), cd) +
-                       ", vds(" + toString(vds, valueGenerators::regularColumnGen) + ")" +
+                       + partitionState.valueGenerators.pkGen().toString(partitionState.pd) +
+                       ", " + descrToIdxForToString(partitionState.partitionValues.ckGen(), cd) +
+                       ", vds(" + toString(vds, partitionState.partitionValues::regularColumnGen) + ")" +
                        ", lts(" + StringUtils.toString(lts) + ")";
             }
-        }
-
-        @Override
-        public String toString()
-        {
-            return toString(partitionState.valueGenerators);
         }
     }
 

@@ -1,0 +1,48 @@
+keyspace: harry_stress
+table: default_table_2
+
+table_definition: |
+  CREATE TABLE IF NOT EXISTS harry_stress.default_table_2 (
+      pk1 text,
+      pk2 bigint,
+      pk3 bigint,
+      pk4 text,
+      ck1 text,
+      ck2 text,
+      ck3 bigint,
+      ck4 text,
+      ck5 blob,
+      val1 blob,
+      val2 blob,
+      PRIMARY KEY((pk1,pk2,pk3,pk4),ck1,ck2,ck3,ck4,ck5)
+  ) WITH transactional_mode = 'full';
+
+rows: "cdf(0:1,0.1:2,0.5:2,0.75:20,0.9:200,0.99:2000,0.999:15000,1:90000)"
+
+columnspec:
+  - name: pk1
+    size: uniform(10..20)
+  - name: pk2
+  - name: pk3
+  - name: pk4
+    size: uniform(10..20)
+  - name: ck1
+    population: fixed(10000)
+    size: uniform(10..90)
+  - name: ck2
+    population: fixed(10000)
+    size: uniform(10..90)
+  - name: ck3
+    population: fixed(10000)
+  - name: ck4
+    population: fixed(10000)
+    size: uniform(10..90)
+  - name: ck5
+    population: fixed(10000)
+    size: uniform(10..90)
+  - name: val1
+    population: fixed(10000)
+    size: uniform(10..90)
+  - name: val2
+    population: fixed(10000)
+    size: uniform(10..90)

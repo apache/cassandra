@@ -33,10 +33,14 @@ import org.apache.cassandra.harry.gen.SchemaGenerators;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
+
 public class RangeTombstoneBurnTest extends IntegrationTestBase
 {
     private final int ITERATIONS = 10;
     private final int STEPS_PER_ITERATION = 1000;
+    private final int POPULATION = 1000;
 
     @Test
     public void rangeTombstoneBurnTest()
@@ -47,8 +51,9 @@ public class RangeTombstoneBurnTest extends IntegrationTestBase
             cluster.get(1).nodetool("disableautocompaction");
             cluster.schemaChange(schema.compile());
 
-            int perIteration = Math.min(10, schema.valueGenerators.pkPopulation());;
-            int maxPartitions = Math.max(perIteration, schema.valueGenerators.pkPopulation());
+            IndexedValueGenerators valueGenerators = valueGenerators(schema, rng.next(), POPULATION);
+            int perIteration = 10;
+            int maxPartitions = Math.toIntExact(Math.max(perIteration, valueGenerators.pkGen().population()));
 
             for (int iteration = 0; iteration < ITERATIONS; iteration++)
             {
@@ -61,13 +66,13 @@ public class RangeTombstoneBurnTest extends IntegrationTestBase
                 float deleteColumnsChance = rng.nextFloat(0.95f, 1.0f);
                 float deleteRangeChance = rng.nextFloat(0.95f, 1.0f);
                 float flushChance = rng.nextFloat(0.999f, 1.0f);
-                int maxPartitionSize = Math.min(rng.nextInt(1, 1 << rng.nextInt(5, 11)), schema.valueGenerators.ckPopulation());
+                int maxPartitionSize = Math.min(rng.nextInt(1, 1 << rng.nextInt(5, 11)), POPULATION);
 
                 Generator<Integer> partitionPicker = Generators.pick(partitions);
                 Generator<Integer> rowPicker = Generators.int32(0, maxPartitionSize);
                 ModelChecker<SingleOperationBuilder, Void> model = new ModelChecker<>();
-                ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(schema.valueGenerators,
-                                                                                     (hb) -> InJvmDTestVisitExecutor.builder().build(schema, hb, cluster));
+                ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(valueGenerators,
+                                                                                     (hb) -> InJvmDTestVisitExecutor.builder().build(schema, hb.valueGenerators(), cluster));
 
                 model.init(historyBuilder)
                      .step((history, rng_) -> {

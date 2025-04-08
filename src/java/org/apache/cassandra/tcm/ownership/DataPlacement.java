@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -62,6 +63,9 @@ public class DataPlacement
             this.writes = reads; // performance optimization for a typical case, to not search for endpoints twice
         else
             this.writes = writes;
+
+        Preconditions.checkArgument(reads.ranges.equals(writes.ranges),
+                                    "Read ranges (%s) are not the same as write ranges (%s)", reads.ranges, writes.ranges);
     }
 
     /**

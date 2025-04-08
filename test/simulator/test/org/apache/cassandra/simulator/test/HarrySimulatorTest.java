@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,6 +51,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.harry.SchemaSpec;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
 import org.apache.cassandra.harry.execution.CompiledStatement;
 import org.apache.cassandra.harry.execution.DataTracker;
 import org.apache.cassandra.harry.execution.QueryBuildingVisitExecutor;
@@ -60,7 +60,6 @@ import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.OperationsGenerators;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
-import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.model.QuiescentChecker;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.harry.op.Operations;
@@ -110,6 +109,7 @@ import picocli.CommandLine.Option;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
+import static org.apache.cassandra.harry.dsl.HistoryBuilder.valueGenerators;
 import static org.apache.cassandra.harry.model.TokenPlacementModel.constantLookup;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noActions;
@@ -381,13 +381,14 @@ public class HarrySimulatorTest implements Runnable
 
         protected final EntropySource rng;
         protected final SchemaSpec schema;
+        protected final IndexedValueGenerators valueGenerators;
         protected final Generator<OperationsGenerators.ToOp> insertGen;
         protected final QueryBuildingVisitExecutor queryBuilder;
         protected final QuiescentChecker model;
 
         protected final Map<Long, Visit> log;
         protected final Generator<Long> ltsGen;
-        protected final DataTracker tracker;
+        protected final DataTracker.SimpleDataTracker tracker;
 
         private HarrySimulation(SchemaSpec schema,
                                 EntropySource rng,
@@ -398,49 +399,14 @@ public class HarrySimulatorTest implements Runnable
                                 Function<HarrySimulation, ActionSchedule.Work[]> schedule,
                                 Map<Long, Visit> log,
                                 Generator<Long> ltsGen,
-                                DataTracker tracker)
+                                DataTracker.SimpleDataTracker tracker)
         {
             this.rng = rng;
             this.schema = schema;
-            this.insertGen = OperationsGenerators.writeOp(schema);
-            this.queryBuilder = new QueryBuildingVisitExecutor(schema, QueryBuildingVisitExecutor.WrapQueries.UNLOGGED_BATCH);
-            this.model = new QuiescentChecker(schema.valueGenerators, tracker, new Model.Replay()
-            {
-                @Override
-                public Visit replay(long lts)
-                {
-                    return log.get(lts);
-                }
-
-                @Override
-                public Operations.Operation replay(long lts, int opId)
-                {
-                    return log.get(lts).operations[opId];
-                }
-
-                @Override
-                public Iterator<Visit> iterator()
-                {
-                    List<Long> visited = new ArrayList<>(log.keySet());
-                    visited.sort(Long::compare);
-                    return new Iterator<>()
-                    {
-                        int idx = 0;
-
-                        @Override
-                        public boolean hasNext()
-                        {
-                            return idx < visited.size();
-                        }
-
-                        @Override
-                        public Visit next()
-                        {
-                            return replay(visited.get(idx++));
-                        }
-                    };
-                }
-            });
+            this.valueGenerators = valueGenerators(schema, rng.next(), 1000);
+            this.insertGen = OperationsGenerators.writeOp(schema, valueGenerators);
+            this.queryBuilder = new QueryBuildingVisitExecutor(schema, QueryBuildingVisitExecutor.WrapQueries.UNLOGGED_BATCH, valueGenerators);
+            this.model = new QuiescentChecker(valueGenerators, tracker);
 
             this.simulated = simulated;
             this.scheduler = scheduler;
@@ -859,9 +825,6 @@ public class HarrySimulatorTest implements Runnable
     {
         return new Actions.LambdaAction("Validate", Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                         () -> {
-                                            if (!simulation.tracker.allFinished())
-                                                throw new IllegalStateException("Can not begin validation, as writing has not quiesced yet: " + simulation.tracker);
-
                                             logger.warn("Starting validation. Ring view: {}", simulation.nodeState);
                                             Set<Long> pds = visitedPds(simulation);
                                             List<Action> actions = new ArrayList<>();

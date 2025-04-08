@@ -45,8 +45,7 @@ public class SimpleBijectionTest
                 for (ColumnSpec.DataType type : new ColumnSpec.DataType[]{ t, ColumnSpec.ReversedType.cache.get(t) })
                 {
                     ColumnSpec<Object> column = (ColumnSpec<Object>) ColumnSpec.regularColumn("regular", type);
-                    InvertibleGenerator<Object> generator = InvertibleGenerator.fromType(rng,100, column);
-
+                    HistoryBuilder.IndexedBijection<Object> generator = InvertibleGenerator.fromType(rng, 100, column);
 
                     Object previous = null;
                     for (int i = 0; i < generator.population(); i++)

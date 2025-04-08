@@ -19,7 +19,8 @@
 package org.apache.cassandra.harry.gen;
 
 import org.apache.cassandra.harry.SchemaSpec;
-import org.apache.cassandra.harry.dsl.HistoryBuilder;
+import org.apache.cassandra.harry.dsl.IndexedValueGenerators;
+import org.apache.cassandra.harry.op.Kind;
 import org.apache.cassandra.harry.op.Operations;
 
 public class OperationsGenerators
@@ -38,16 +39,14 @@ public class OperationsGenerators
         };
     }
 
-    // TODO: distributions
-    public static Generator<Long> sequentialPd(SchemaSpec schema)
+    // TODO: can we use this, it is not functionally pure
+    public static Generator<Long> sequentialPd(IndexedValueGenerators valueGenerators)
     {
-        // TODO: switch away from Indexed generators here
-        HistoryBuilder.IndexedValueGenerators valueGenerators = (HistoryBuilder.IndexedValueGenerators) schema.valueGenerators;
-        int population = valueGenerators.pkPopulation();
+        long population = valueGenerators.pkGen.population();
 
         return new Generator<>()
         {
-            int counter = 0;
+            long counter = 0;
 
             @Override
             public Long generate(EntropySource rng)
@@ -57,53 +56,43 @@ public class OperationsGenerators
         };
     }
 
-    public static Generator<Long> sequentialCd(SchemaSpec schema)
-    {
-        // TODO: switch away from Indexed generators here
-        HistoryBuilder.IndexedValueGenerators valueGenerators = (HistoryBuilder.IndexedValueGenerators) schema.valueGenerators;
-        int population = valueGenerators.ckPopulation();
-
-        return new Generator<>()
-        {
-            int counter = 0;
-
-            @Override
-            public Long generate(EntropySource rng)
-            {
-                return valueGenerators.ckGen().descriptorAt(counter++ % population);
-            }
-        };
-    }
-
-    public static Generator<ToOp> writeOp(SchemaSpec schema)
-    {
-        return writeOp(schema, sequentialPd(schema), sequentialCd(schema));
-    }
+    // TODO: useful?
+//    public static Generator<Long> sequentialCd(IndexedValueGenerators valueGenerators)
+//    {
+//        int population = valueGenerators.ckPopulation();
+//
+//        return new Generator<>()
+//        {
+//            int counter = 0;
+//
+//            @Override
+//            public Long generate(EntropySource rng)
+//            {
+//                return valueGenerators.ckGen().descriptorAt(counter++ % population);
+//            }
+//        };
+//    }
 
     // TODO: chance of unset
     public static Generator<ToOp> writeOp(SchemaSpec schema,
-                                          Generator<Long> pdGen,
-                                          Generator<Long> cdGen)
+                                          IndexedValueGenerators valueGenerators)
     {
-        // TODO: switch away from Indexed generators here
-        HistoryBuilder.IndexedValueGenerators valueGenerators = (HistoryBuilder.IndexedValueGenerators) schema.valueGenerators;
-
         return (rng) -> {
-            long pd = pdGen.generate(rng);
-            long cd = cdGen.generate(rng);
+            long pd = valueGenerators.pkIdxGen().generate(rng);
+            long cd = valueGenerators.forPd(pd).ckIdxGen().generate(rng);
             long[] vds = new long[schema.regularColumns.size()];
             for (int i = 0; i < schema.regularColumns.size(); i++)
             {
-                int idx = rng.nextInt(valueGenerators.regularPopulation(i));
-                vds[i] = valueGenerators.regularColumnGen(i).descriptorAt(idx);
+                long idx = rng.nextInt(valueGenerators.forPd(pd).regularPopulation(i));
+                vds[i] = valueGenerators.forPd(pd).regularColumnGen(i).descriptorAt(idx);
             }
             long[] sds = new long[schema.staticColumns.size()];
             for (int i = 0; i < schema.staticColumns.size(); i++)
             {
-                int idx = rng.nextInt(valueGenerators.staticPopulation(i));
-                sds[i] = valueGenerators.staticColumnGen(i).descriptorAt(idx);
+                long idx = rng.nextInt(valueGenerators.forPd(pd).staticPopulation(i));
+                sds[i] = valueGenerators.forPd(pd).staticColumnGen(i).descriptorAt(idx);
             }
-            return lts -> new Operations.WriteOp(lts, pd, cd, vds, sds, Operations.Kind.INSERT);
+            return lts -> new Operations.WriteOp(lts, pd, cd, vds, sds, Kind.INSERT);
         };
     }
 

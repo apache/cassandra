@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.harry.execution;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -33,6 +34,7 @@ import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.cql.DeleteHelper;
 import org.apache.cassandra.harry.cql.SelectHelper;
 import org.apache.cassandra.harry.cql.WriteHelper;
+import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
 
@@ -42,11 +44,13 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
     private static final Logger logger = LoggerFactory.getLogger(QueryBuildingVisitExecutor.class);
     protected final SchemaSpec schema;
     protected final WrapQueries wrapQueries;
+    protected final ValueGenerators<Object[], Object[]> valueGenerators;
 
-    public QueryBuildingVisitExecutor(SchemaSpec schema, WrapQueries wrapQueries)
+    public QueryBuildingVisitExecutor(SchemaSpec schema, WrapQueries wrapQueries, ValueGenerators<Object[], Object[]> valueGenerators)
     {
         this.schema = schema;
         this.wrapQueries = wrapQueries;
+        this.valueGenerators = valueGenerators;
     }
 
     public BuiltQuery compile(Visit visit)
@@ -66,9 +70,11 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
         {
             Object[] bindingsArray = new Object[bindings.size()];
             bindings.toArray(bindingsArray);
-            BuiltQuery query = new BuiltQuery(selects,
+            BuiltQuery query = new BuiltQuery(selects, visit.validating,
                                    wrapQueries.wrap(visit, String.join("\n ", statements)),
                                    bindingsArray);
+            if (pks.size() == 1)
+                query.setPk(pks.get(0));
             clear();
             return query;
         }
@@ -80,9 +86,9 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
     public static class BuiltQuery extends CompiledStatement
     {
         protected final List<Operations.SelectStatement> selects;
-        public BuiltQuery(List<Operations.SelectStatement> selects, String cql, Object... bindings)
+        public BuiltQuery(List<Operations.SelectStatement> selects, boolean mutates, String cql, Object... bindings)
         {
-            super(cql, bindings);
+            super(mutates, cql, bindings);
             this.selects = selects;
         }
     }
@@ -93,14 +99,13 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
     private final List<String> statements = new ArrayList<>();
     private final List<Object> bindings = new ArrayList<>();
     private final Set<Long> visitedPds = new HashSet<>();
+    private final List<ByteBuffer[]> pks = new ArrayList<>();
 
     private List<Operations.SelectStatement> selects = null;
 
     protected void beginLts(long lts)
     {
-        statements.clear();
-        bindings.clear();
-        visitedPds.clear();
+        clear();
         selects = new ArrayList<>();
     }
 
@@ -120,9 +125,11 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
         statements.clear();
         bindings.clear();
         visitedPds.clear();
+        pks.clear();
         selects = null;
     }
 
+    @SuppressWarnings("unchecked")
     protected void operation(Operations.Operation operation)
     {
         if (operation instanceof Operations.PartitionOperation)
@@ -131,37 +138,47 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
         switch (operation.kind())
         {
             case UPDATE:
-                statement = WriteHelper.inflateUpdate((Operations.WriteOp) operation, schema, operation.lts());
+            {
+                Operations.WriteOp write = (Operations.WriteOp) operation;
+                statement = WriteHelper.inflateUpdate(write, schema, valueGenerators, operation.lts());
                 break;
+            }
             case INSERT:
-                statement = WriteHelper.inflateInsert((Operations.WriteOp) operation, schema, operation.lts());
+            {
+                Operations.WriteOp write = (Operations.WriteOp) operation;
+                statement = WriteHelper.inflateInsert(write, schema, valueGenerators, operation.lts());
                 break;
+            }
             case DELETE_RANGE:
-                statement = DeleteHelper.inflateDelete((Operations.DeleteRange) operation, schema, operation.lts());
+                // TODO: unroll
+                statement = DeleteHelper.inflateDelete((Operations.DeleteRange) operation, schema, valueGenerators, operation.lts());
                 break;
             case DELETE_PARTITION:
-                statement = DeleteHelper.inflateDelete((Operations.DeletePartition) operation, schema, operation.lts());
+                statement = DeleteHelper.inflateDelete((Operations.DeletePartition) operation, schema, valueGenerators, operation.lts());
                 break;
             case DELETE_ROW:
-                statement = DeleteHelper.inflateDelete((Operations.DeleteRow) operation, schema, operation.lts());
+                statement = DeleteHelper.inflateDelete((Operations.DeleteRow) operation, schema, valueGenerators, operation.lts());
                 break;
             case DELETE_COLUMNS:
-                statement = DeleteHelper.inflateDelete((Operations.DeleteColumns) operation, schema, operation.lts());
+                statement = DeleteHelper.inflateDelete((Operations.DeleteColumns) operation, schema, valueGenerators, operation.lts());
                 break;
             case SELECT_PARTITION:
-                statement = SelectHelper.select((Operations.SelectPartition) operation, schema);
+            {
+                Operations.SelectPartition select = (Operations.SelectPartition) operation;
+                statement = SelectHelper.select(select, schema, valueGenerators);
                 selects.add((Operations.SelectStatement) operation);
                 break;
+            }
             case SELECT_ROW:
-                statement = SelectHelper.select((Operations.SelectRow) operation, schema);
+                statement = SelectHelper.select((Operations.SelectRow) operation, schema, valueGenerators);
                 selects.add((Operations.SelectStatement) operation);
                 break;
             case SELECT_RANGE:
-                statement = SelectHelper.select((Operations.SelectRange) operation, schema);
+                statement = SelectHelper.select((Operations.SelectRange) operation, schema, valueGenerators);
                 selects.add((Operations.SelectStatement) operation);
                 break;
             case SELECT_CUSTOM:
-                statement = SelectHelper.select((Operations.SelectCustom) operation, schema);
+                statement = SelectHelper.select((Operations.SelectCustom) operation, schema, valueGenerators);
                 selects.add((Operations.SelectStatement) operation);
                 break;
 
@@ -172,6 +189,7 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
                 throw new IllegalArgumentException();
         }
         statements.add(statement.cql());
+        pks.add(statement.pk());
         Collections.addAll(bindings, statement.bindings());
     }
 
@@ -192,6 +210,8 @@ public class QueryBuildingVisitExecutor extends VisitExecutor
         };
 
         WrapQueries TRANSACTION = (visit, compiled) -> String.format(wrapInTxnFormat, compiled);
+
+        WrapQueries EMPTY = (visit, compiled) -> compiled;
 
 
         String wrap(Visit visit, String compiled);
