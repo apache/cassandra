@@ -378,6 +378,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
             Data data = new Data(0, command, dataNode, dataResponse, Collections.emptySet(), resultConsumer);
             Preconditions.checkState(data.isComplete());
             state = new State.Complete(data);
+            logger.trace("Mutation summaries matched: {}", replicaPlan);
             return;
         }
 
@@ -386,7 +387,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
 
         long expiresAt = requestTime.computeDeadline(command.getTimeout(TimeUnit.NANOSECONDS));
         long reconciliationId = MutationTrackingService.instance.reconciliations().newReconciliation(this, expiresAt);
-        logger.trace("New reconciliation {} with timeout {}", reconciliationId, command.timeoutNanos());
+        logger.trace("Starting new reconciliation {}", reconciliationId);
 
         state = new State.Pending(reconciliationId, plans, command, dataNode, dataResponse, resultConsumer);
         state.asPending().sendSyncMessages();

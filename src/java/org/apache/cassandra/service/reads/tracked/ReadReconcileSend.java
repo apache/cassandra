@@ -129,7 +129,7 @@ public class ReadReconcileSend
         @Override
         public void doVerb(Message<ReadReconcileSend> message)
         {
-            logger.trace("Received {} from {}", message.payload, message.from());
+            logger.trace("Received ReadReconcileSend from {}: {}", message.from(), message.payload);
             // TODO: check epoch and tokens?
             ReadReconcileSend payload = message.payload;
             for (PeerSync sync : message.payload.syncTasks)

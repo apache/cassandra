@@ -102,7 +102,8 @@ public class ReadReconciliations implements Shutdownable
                     n++;
             }
         }
-        logger.trace("Expired {} entries", n);
+        if (n > 0)
+            logger.trace("Expired {} entries", n);
     }
 
     public ReadReconciliations()

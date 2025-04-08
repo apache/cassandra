@@ -37,11 +37,14 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.tracked.ReadReconciliations;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // TODO (expected): persistence (handle restarts)
 // TODO (expected): handle topology changes
 public class MutationTrackingService
 {
+    private static final Logger logger = LoggerFactory.getLogger(MutationTrackingService.class);
     public static final MutationTrackingService instance = new MutationTrackingService();
 
     private final ReadReconciliations reconciliations = new ReadReconciliations();
@@ -56,6 +59,8 @@ public class MutationTrackingService
     {
         if (started)
             return;
+
+        logger.info("Starting replication tracking service");
 
         for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
             if (keyspace.useMutationTracking())
@@ -80,7 +85,9 @@ public class MutationTrackingService
 
     public MutationId nextMutationId(String keyspace, Token token)
     {
-        return getOrCreate(keyspace).nextMutationId(token);
+        MutationId id = getOrCreate(keyspace).nextMutationId(token);
+        logger.trace("Created new mutation id {}", id);
+        return id;
     }
 
     public void witnessedRemoteMutation(String keyspace, Token token, MutationId mutationId, InetAddressAndPort onHost)

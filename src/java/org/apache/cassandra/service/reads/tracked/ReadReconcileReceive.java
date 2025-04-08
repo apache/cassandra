@@ -182,7 +182,7 @@ public class ReadReconcileReceive
         {
             // TODO: check epoch and tokens?
             ReadReconcileReceive receive = message.payload;
-            logger.trace("Received read reconciliation {} from", receive, message.from());
+            logger.trace("Received read reconciliation from {}: {}", message.from(), receive);
             if (receive.kind.writeLocally())
             {
                 receive.mutations.forEach(Mutation::apply);

@@ -32,9 +32,12 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.ResponseResolver;
 import org.apache.cassandra.transport.Dispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TrackedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
+    private static final Logger logger = LoggerFactory.getLogger(TrackedResolver.class);
     private volatile Message<IReadResponse> dataResponse;
 
     public TrackedResolver(ReadCommand command, Supplier<? extends P> replicaPlan, Dispatcher.RequestTime requestTime)
@@ -52,6 +55,12 @@ public class TrackedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRe
     @Override
     public void onResponseReceived(Message<IReadResponse> message)
     {
+        if (logger.isTraceEnabled())
+        {
+            TrackedReadResponse response = TrackedReadResponse.fromResponse(message.payload);
+            logger.trace("Received response summary from {}: {}", message.from(), response.summary);
+        }
+
         if (dataResponse == null && message.payload instanceof TrackedReadResponse.Data)
             dataResponse = message;
     }
@@ -83,6 +92,7 @@ public class TrackedResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRe
 
             first = false;
         }
+        logger.trace("All mutation summaries match");
         return true;
     }
 

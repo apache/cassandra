@@ -45,6 +45,13 @@ public class ReconciliationPlan
             this.coordinatorIds = coordinatorIds;
         }
 
+        @Override
+        public String toString() {
+            return "PeerReconciliation{" +
+                    "coordinatorIds=" + coordinatorIds +
+                    '}';
+        }
+
         public Set<ShortMutationId> ids()
         {
             int size = 0;
