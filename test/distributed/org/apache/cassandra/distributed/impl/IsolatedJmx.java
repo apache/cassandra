@@ -88,8 +88,6 @@ public class IsolatedJmx
             int jmxPort = config.jmxPort();
 
             String hostname = addr.getHostAddress();
-            wrapper = new MBeanWrapper.InstanceMBeanWrapper(hostname + ":" + jmxPort);
-            ((MBeanWrapper.DelegatingMbeanWrapper) MBeanWrapper.instance).setDelegate(wrapper);
 
             // CASSANDRA-18508: Sensitive JMX SSL configuration options can be easily exposed
             Map<String, Object> jmxServerOptionsMap = (Map<String, Object>) config.getParams().get("jmx_server_options");
@@ -156,6 +154,15 @@ public class IsolatedJmx
         {
             throw new RuntimeException("Feature.JMX was enabled but could not be started.", t);
         }
+    }
+
+    public void setupMBeanWrapper()
+    {
+        InetAddress addr = config.broadcastAddress().getAddress();
+        int jmxPort = config.jmxPort();
+        String hostname = addr.getHostAddress();
+        wrapper = new MBeanWrapper.InstanceMBeanWrapper(hostname + ':' + jmxPort);
+        ((MBeanWrapper.DelegatingMbeanWrapper) MBeanWrapper.instance).setDelegate(wrapper);
     }
 
     /**
