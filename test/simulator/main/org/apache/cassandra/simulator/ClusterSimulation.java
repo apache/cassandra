@@ -784,7 +784,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
                                    .set("commitlog_sync", "batch")
-                                   .set("accord.journal.flush_mode", "BATCH");
+                                   .set("accord.journal.flush_mode", "BATCH")
+                                   .set("accord.command_store_shard_count", "4");
                              // TODO: Add remove() to IInstanceConfig
                              if (config instanceof InstanceConfig)
                              {

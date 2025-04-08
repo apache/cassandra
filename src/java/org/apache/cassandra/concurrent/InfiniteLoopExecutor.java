@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag;
+import org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -52,14 +54,6 @@ public class InfiniteLoopExecutor implements Interruptible
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum SimulatorSafe { SAFE, UNSAFE }
 
-    /**
-     * Does this loop always block on some external work provision that is going to be simulator-controlled, or does
-     * it loop periodically? If the latter, it may prevent simulation making progress between phases, and should be
-     * marked as a DAEMON process.
-     */
-    @Shared(scope = Shared.Scope.SIMULATION)
-    public enum Daemon        { DAEMON, NON_DAEMON }
-
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum Interrupts    { SYNCHRONIZED, UNSYNCHRONIZED }
 
@@ -70,20 +64,20 @@ public class InfiniteLoopExecutor implements Interruptible
     private final Consumer<Thread> interruptHandler;
     private final Condition isTerminated = newOneTimeCondition();
 
-    public InfiniteLoopExecutor(String name, Task task, Daemon daemon)
+    public InfiniteLoopExecutor(String name, Task task, SystemThreadTag systemTag)
     {
-        this(ExecutorFactory.Global.executorFactory(), name, task, daemon, UNSYNCHRONIZED);
+        this(ExecutorFactory.Global.executorFactory(), name, task, systemTag, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, SystemThreadTag systemTag)
     {
-        this(factory, name, task, daemon, UNSYNCHRONIZED);
+        this(factory, name, task, systemTag, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon, Interrupts interrupts)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, SystemThreadTag systemTag, Interrupts interrupts)
     {
         this.task = task;
-        this.thread = factory.startThread(name, this::loop, daemon);
+        this.thread = factory.startThread(name, this::loop, systemTag, SimulatorThreadTag.INFINITE_LOOP);
         this.interruptHandler = interrupts == SYNCHRONIZED
                                 ? interruptHandler(task)
                                 : Thread::interrupt;

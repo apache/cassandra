@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
@@ -60,6 +61,11 @@ public class AccordHarrySimulationTest extends HarrySimulatorTest
                 schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .1f, .15f));
         }
         return schedulers;
+    }
+
+    protected ConsistencyLevel validateQueryConsistency()
+    {
+        return ConsistencyLevel.QUORUM;
     }
 
     public Generator<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
