@@ -52,7 +52,7 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.ForwardedWriteResponseHandler;
+import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -152,7 +152,7 @@ public class ForwardedWriteRequest
         return proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints).get(0);
     }
 
-    public void sendToLeader(ForwardedWriteResponseHandler handler)
+    public void sendToLeader(AbstractWriteResponseHandler<?> handler)
     {
         Replica leader = getLeader();
         if (logger.isTraceEnabled())

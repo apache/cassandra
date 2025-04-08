@@ -54,7 +54,6 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
-import org.apache.cassandra.service.ForwardedWriteResponseHandler;
 import org.apache.cassandra.service.TrackedWriteResponseHandler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -94,7 +93,7 @@ public class TrackedWriteRequest
             if (logger.isTraceEnabled())
                 logger.trace("Remote tracked request {} {}", mutation, plan);
             writeMetrics.remoteRequests.mark();
-            ForwardedWriteResponseHandler handler = ForwardedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime));
+            AbstractWriteResponseHandler<Object> handler = rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
             new ForwardedWriteRequest(Verb.MUTATION_REQ, mutation, plan).sendToLeader(handler);
             return handler;
         }
