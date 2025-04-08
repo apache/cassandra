@@ -18,11 +18,10 @@
 
 package org.apache.cassandra.service;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -32,8 +31,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IMutation;
@@ -49,17 +46,17 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMRules;
+import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 @RunWith(BMUnitRunner.class)
+@BMUnitConfig(verbose=true, bmunitVerbose=true)
 public class StorageProxyTest
 {
     @BeforeClass
@@ -72,14 +69,14 @@ public class StorageProxyTest
     @Test
     public void testSetGetPaxosVariant()
     {
-        Assert.assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
-        Assert.assertEquals("v1", StorageProxy.instance.getPaxosVariant());
+        assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
+        assertEquals("v1", StorageProxy.instance.getPaxosVariant());
         StorageProxy.instance.setPaxosVariant("v2");
-        Assert.assertEquals("v2", StorageProxy.instance.getPaxosVariant());
-        Assert.assertEquals(Config.PaxosVariant.v2, DatabaseDescriptor.getPaxosVariant());
+        assertEquals("v2", StorageProxy.instance.getPaxosVariant());
+        assertEquals(Config.PaxosVariant.v2, DatabaseDescriptor.getPaxosVariant());
         DatabaseDescriptor.setPaxosVariant(Config.PaxosVariant.v1);
-        Assert.assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
-        Assert.assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
+        assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
+        assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
     }
 
     @Test
@@ -165,45 +162,24 @@ public class StorageProxyTest
         }
     }
 
-    private void setExecutors(ExecutorPlus mockHintExecutor, ExecutorPlus mockMutationExecutor) throws Exception {
-        Field executorField = Stage.class.getDeclaredField("executor");
-        executorField.setAccessible(true);
-
-        // Replace the HINT and MUTATION executors with the mocked ones
-        executorField.set(Stage.HINT, mockHintExecutor);
-        executorField.set(Stage.MUTATION, mockMutationExecutor);
-    }
-
-    private Replica createRealReplica() throws UnknownHostException {
-        InetAddressAndPort inetAddress = InetAddressAndPort.getByName("127.0.0.1");
-        // Create a Token and Range<Token>
-        IPartitioner partitioner = Murmur3Partitioner.instance;
-        Token startToken = partitioner.getMinimumToken();
-        Token endToken = partitioner.getRandomToken();
-        Range<Token> tokenRange = new Range<>(startToken, endToken);
-
-        return Replica.fullReplica(inetAddress, tokenRange);
-    }
-
-    private void invokeSubmitHint(Mutation mockMutation, Replica realReplica, AbstractWriteResponseHandler<IMutation> mockResponseHandler) throws Exception {
-        // Use reflection to access the private method submitHint
-        Method submitHintMethod = StorageProxy.class.getDeclaredMethod(
-        "submitHint", Mutation.class, Replica.class, AbstractWriteResponseHandler.class);
-        submitHintMethod.setAccessible(true);
-
-        // Invoke the private `submitHint` method via reflection
-        submitHintMethod.invoke(StorageProxy.instance, mockMutation, realReplica, mockResponseHandler);
-    }
-
+    public static AtomicBoolean hintsHit = new AtomicBoolean(false);
+    public static AtomicBoolean mutationsHit = new AtomicBoolean(false);
     @Test
+    @BMRules(rules = {
+        @BMRule(name = "Separate hints",
+        targetClass = "org.apache.cassandra.concurrent.Stage",
+        targetLocation = "ENTRY",
+        targetMethod = "submit(Runnable)",
+        condition = "$0.name().equals(Stage.HINT.name())",
+        action = "org.apache.cassandra.service.StorageProxyTest.hintsHit.set(true);"),
+        @BMRule(name = "Separate mutations",
+        targetClass = "org.apache.cassandra.concurrent.Stage",
+        targetLocation = "ENTRY",
+        targetMethod = "submit(Runnable)",
+        condition = "$0.name().equals(Stage.MUTATION.name())",
+        action = "org.apache.cassandra.service.StorageProxyTest.mutationsHit.set(true);")
+    })
     public void testHintIsPutByDefaultInHintQueueAndNotMutationQueue() throws Exception {
-        // Mock the executors for both HINT and MUTATION stages
-        ExecutorPlus mockHintExecutor = mock(ExecutorPlus.class);
-        ExecutorPlus mockMutationExecutor = mock(ExecutorPlus.class);
-
-        // Set the mocked executors
-        setExecutors(mockHintExecutor, mockMutationExecutor);
-
         // Mock mutation and create a real replica
         Mutation mockMutation = mock(Mutation.class);
         Replica realReplica = createRealReplica();
@@ -215,14 +191,25 @@ public class StorageProxyTest
         long hintsBefore = StorageMetrics.totalHintsInProgress.getCount();
 
         // Invoke the submitHint method
-        invokeSubmitHint(mockMutation, realReplica, mockResponseHandler);
+        StorageProxy.submitHint(mockMutation, realReplica, mockResponseHandler);
 
         // Capture the metrics after the method call
         long hintsAfter = StorageMetrics.totalHintsInProgress.getCount();
 
         // Assertions
-        Assert.assertEquals(1, hintsAfter - hintsBefore);
-        verify(mockHintExecutor, times(1)).submit(any(Runnable.class));
-        verify(mockMutationExecutor, never()).submit(any(Runnable.class));
+        assertEquals(1, hintsAfter - hintsBefore);
+        assertEquals(true, hintsHit.get());
+        assertEquals(false, mutationsHit.get());
+    }
+
+    private Replica createRealReplica() throws UnknownHostException {
+        InetAddressAndPort inetAddress = InetAddressAndPort.getByName("127.0.0.1");
+        // Create a Token and Range<Token>
+        IPartitioner partitioner = Murmur3Partitioner.instance;
+        Token startToken = partitioner.getMinimumToken();
+        Token endToken = partitioner.getRandomToken();
+        Range<Token> tokenRange = new Range<>(startToken, endToken);
+
+        return Replica.fullReplica(inetAddress, tokenRange);
     }
 }
