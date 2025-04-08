@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
@@ -59,6 +60,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.accord.AccordService;
@@ -142,6 +144,8 @@ public class AccordAgent implements Agent
     @Override
     public void onUncaughtException(Throwable t)
     {
+        if (t instanceof RequestTimeoutException || t instanceof CancellationException)
+            return;
         logger.error("Uncaught accord exception", t);
         JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }

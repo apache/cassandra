@@ -43,6 +43,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -367,7 +368,7 @@ public final class KeyspaceMetadata implements SchemaElement
             builder.append("  AND durable_writes = ")
                    .append(params.durableWrites);
 
-            if (params.fastPath != null)
+            if (params.fastPath != null && params.fastPath != FastPathStrategy.simple())
             {
                 builder.append("  AND fast_path = '")
                        .append(toLowerCaseLocalized(params.fastPath.toString()))
