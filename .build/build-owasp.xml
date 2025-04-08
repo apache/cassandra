@@ -105,7 +105,7 @@
         </dependency-check>
     </target>
 
-    <target name="dependency-check" depends="resolver-dist-lib">
+    <target name="dependency-check" depends="resolver-dist-lib,generate-snyk-file">
         <fileset dir="lib" id="dependencies_to_check">
             <include name="**/*.jar"/>
         </fileset>
