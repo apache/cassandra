@@ -232,6 +232,8 @@ public class ASTSingleTableModel
         var partition = partitions.get(referencePartition(mutation));
         var cd = cdOrNull(mutation);
         BytesPartitionState.Row row = partition == null ? null : partition.get(cd);
+        boolean touchesStaticColumns = !factory.staticColumns.isEmpty()
+                                       && symbols(mutation).anyMatch(factory.staticColumns::contains);
         ImmutableUniqueList<Symbol> columns;
         ByteBuffer[][] expected;
         if (partition == null)
@@ -241,40 +243,42 @@ public class ASTSingleTableModel
         }
         else if (condition instanceof CasCondition.IfCondition)
         {
-            if (cd != null && partition.staticRow().isEmpty() && row == null)
+            if (touchesStaticColumns
+                && cd == null
+                && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW))
             {
-                // row based mutation and static/row doesn't exist
+                if (!partition.staticRow().isEmpty()
+                    || !partition.rows().isEmpty())
+                {
+                    // if the static row exists, we can match the col condition
+                    // if the static row doesn't exist, and there are rows, then we can return null
+                    List<Symbol> conditionReferencedColumns = conditionReferencedColumns(mutation);
+                    columns = ImmutableUniqueList.<Symbol>builder(conditionReferencedColumns.size() + 1)
+                                                 .add(CAS_APPLIED)
+                                                 .addAll(conditionReferencedColumns)
+                                                 .build();
+                    ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
+                    result[0] = FALSE;
+
+                    expected = new ByteBuffer[][]{ result };
+                }
+                else
+                {
+                    // static/row don't exist, so can't return a current state
+                    columns = CAS_APPLIED_COLUMNS;
+                    expected = CAS_REJECTION_RESULT;
+                }
+            }
+            else if (partition.staticRow().isEmpty()
+                && (cd == null || row == null))
+            {
+                // static/row don't exist, so can't return a current state
                 columns = CAS_APPLIED_COLUMNS;
                 expected = CAS_REJECTION_RESULT;
             }
             else
             {
-                List<Symbol> conditionReferencedColumns;
-                {
-                    //TODO (correctness): does ast.AND support the correct "order" as seen from CAS?
-                    LinkedHashSet<Symbol> regularCols = null, staticCols = null;
-                    for (var c : (Iterable<Symbol>) () -> symbols(mutation.casCondition().get()).distinct().iterator())
-                    {
-                        if (factory.staticColumns.contains(c))
-                        {
-                            if (staticCols == null)
-                                staticCols = new LinkedHashSet<>();
-                            staticCols.add(c);
-                        }
-                        else
-                        {
-                            if (regularCols == null)
-                                regularCols = new LinkedHashSet<>();
-                            regularCols.add(c);
-                        }
-                    }
-                    List<Symbol> ordered = new ArrayList<>();
-                    if (regularCols != null)
-                        ordered.addAll(regularCols);
-                    if (staticCols != null)
-                        ordered.addAll(staticCols);
-                    conditionReferencedColumns = ordered;
-                }
+                List<Symbol> conditionReferencedColumns = conditionReferencedColumns(mutation);
                 columns = ImmutableUniqueList.<Symbol>builder(conditionReferencedColumns.size() + 1)
                                              .add(CAS_APPLIED)
                                              .addAll(conditionReferencedColumns)
@@ -287,11 +291,8 @@ public class ASTSingleTableModel
         }
         else if (condition == CasCondition.Simple.Exists)
         {
-            boolean touchesStaticColumns = !factory.staticColumns.isEmpty()
-                                           && symbols(mutation).anyMatch(factory.staticColumns::contains);
-
             if (touchesStaticColumns
-                && cd == null // partition level, aka deleting static columns (as of this writing delete partition in CAS isn't supported)
+                && cd == null
                 && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW))
             {
                 if (!partition.rows().isEmpty())
@@ -336,12 +337,10 @@ public class ASTSingleTableModel
         }
         else if (condition == CasCondition.Simple.NotExists)
         {
-            if (cd == null // partition level, aka deleting static columns (as of this writing delete partition in CAS isn't supported)
+            if (cd == null
                 && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW)
                 && !partition.rows().isEmpty())
                 row = partition.rows().get(0);
-            boolean touchesStaticColumns = !factory.staticColumns.isEmpty()
-                                           && symbols(mutation).anyMatch(factory.staticColumns::contains);
             columns = ImmutableUniqueList.<Symbol>builder(factory.selectionOrder.size() + 1)
                                          .add(CAS_APPLIED)
                                          .addAll(factory.selectionOrder)
@@ -372,6 +371,32 @@ public class ASTSingleTableModel
         validate(columns, actual, expected);
     }
 
+    private List<Symbol> conditionReferencedColumns(Mutation mutation)
+    {
+        //TODO (correctness): does ast.AND support the correct "order" as seen from CAS?
+        LinkedHashSet<Symbol> regularCols = null, staticCols = null;
+        for (var c : (Iterable<Symbol>) () -> symbols(mutation.casCondition().get()).distinct().iterator())
+        {
+            if (factory.staticColumns.contains(c))
+            {
+                if (staticCols == null)
+                    staticCols = new LinkedHashSet<>();
+                staticCols.add(c);
+            }
+            else
+            {
+                if (regularCols == null)
+                    regularCols = new LinkedHashSet<>();
+                regularCols.add(c);
+            }
+        }
+        List<Symbol> ordered = new ArrayList<>();
+        if (regularCols != null)
+            ordered.addAll(regularCols);
+        if (staticCols != null)
+            ordered.addAll(staticCols);
+        return ordered;
+    }
 
     private void updateInternal(Mutation mutation)
     {
