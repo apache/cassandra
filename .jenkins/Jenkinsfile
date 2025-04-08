@@ -337,7 +337,7 @@ def build(command, cell) {
               test -f .jenkins/Jenkinsfile || { echo "Invalid git fork/branch"; exit 1; }
               grep -q "Jenkins CI declaration" .jenkins/Jenkinsfile || { echo "Only Cassandra 5.0+ supported"; exit 1; }
              """
-          fetchDockerImages(['almalinux-build', 'bullseye-build'])
+          fetchDockerImages("redhat" == cell.step ? ['almalinux-build'] : ['bullseye-build'])
           def cell_suffix = "_jdk${cell.jdk}_${cell.arch}"
           def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${attempt}.log.xz"
           def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
