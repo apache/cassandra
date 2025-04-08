@@ -247,8 +247,7 @@ public class ASTSingleTableModel
                 && cd == null
                 && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW))
             {
-                if (!partition.staticRow().isEmpty()
-                    || !partition.rows().isEmpty())
+                if (casOnStaticRowCouldReturnData(partition))
                 {
                     // if the static row exists, we can match the col condition
                     // if the static row doesn't exist, and there are rows, then we can return null
@@ -295,28 +294,37 @@ public class ASTSingleTableModel
                 && cd == null
                 && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW))
             {
-                if (!partition.rows().isEmpty())
-                    row = partition.rows().get(0);
-                // Partition level IF EXISTS checks if the static row exists (which is defined as notEmpty), so its known that the static row is empty!
-                // One would expect that the DELETE just returns [[applied]] but it actually returns a row... but we are not working with rows, we are working with partitions...
-                // This is a leaky implementation detail!  Checking for the partition to exist is the following ReadCommand:
-                // SELECT s0, s1 WHERE pk = ? LIMIT 1
-                // this doesn't include the row columns, only the static columns... but the LIMIT returned a row and not
-                // the static row (because the static row is empty)!
-                columns = ImmutableUniqueList.<Symbol>builder(factory.selectionOrder.size() + 1)
-                                             .add(CAS_APPLIED)
-                                             .addAll(factory.selectionOrder)
-                                             .build();
-                ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
-                result[0] = FALSE;
-                if (row != null)
+                if (casOnStaticRowCouldReturnData(partition))
                 {
-                    for (var c : factory.regularColumns)
-                        // null out the row columns....
-                        result[columns.indexOf(c)] = null;
-                }
+                    if (!partition.rows().isEmpty())
+                        row = partition.rows().get(0);
+                    // Partition level IF EXISTS checks if the static row exists (which is defined as notEmpty), so its known that the static row is empty!
+                    // One would expect that the DELETE just returns [[applied]] but it actually returns a row... but we are not working with rows, we are working with partitions...
+                    // This is a leaky implementation detail!  Checking for the partition to exist is the following ReadCommand:
+                    // SELECT s0, s1 WHERE pk = ? LIMIT 1
+                    // this doesn't include the row columns, only the static columns... but the LIMIT returned a row and not
+                    // the static row (because the static row is empty)!
+                    columns = ImmutableUniqueList.<Symbol>builder(factory.selectionOrder.size() + 1)
+                                                 .add(CAS_APPLIED)
+                                                 .addAll(factory.selectionOrder)
+                                                 .build();
+                    ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
+                    result[0] = FALSE;
+                    if (row != null)
+                    {
+                        for (var c : factory.regularColumns)
+                            // null out the row columns....
+                            result[columns.indexOf(c)] = null;
+                    }
 
-                expected = new ByteBuffer[][]{ result };
+                    expected = new ByteBuffer[][]{ result };
+                }
+                else
+                {
+                    // static/row don't exist, so can't return a current state
+                    columns = CAS_APPLIED_COLUMNS;
+                    expected = CAS_REJECTION_RESULT;
+                }
             }
             else if (!touchesStaticColumns || partition.staticRow().isEmpty())
             {
@@ -371,6 +379,11 @@ public class ASTSingleTableModel
         validate(columns, actual, expected);
     }
 
+    private static boolean casOnStaticRowCouldReturnData(BytesPartitionState partition)
+    {
+        return !partition.staticRow().isEmpty()
+               || !partition.rows().isEmpty();
+    }
     private List<Symbol> conditionReferencedColumns(Mutation mutation)
     {
         //TODO (correctness): does ast.AND support the correct "order" as seen from CAS?
