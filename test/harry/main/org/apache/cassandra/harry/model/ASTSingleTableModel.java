@@ -345,7 +345,8 @@ public class ASTSingleTableModel
         }
         else if (condition == CasCondition.Simple.NotExists)
         {
-            if (cd == null
+            if (touchesStaticColumns
+                && cd == null
                 && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW)
                 && !partition.rows().isEmpty())
                 row = partition.rows().get(0);
