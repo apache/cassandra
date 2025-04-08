@@ -294,6 +294,8 @@ public class ASTSingleTableModel
                 && cd == null // partition level, aka deleting static columns (as of this writing delete partition in CAS isn't supported)
                 && ignoredIssues.contains(KnownIssue.CAS_ON_STATIC_ROW))
             {
+                if (!partition.rows().isEmpty())
+                    row = partition.rows().get(0);
                 // Partition level IF EXISTS checks if the static row exists (which is defined as notEmpty), so its known that the static row is empty!
                 // One would expect that the DELETE just returns [[applied]] but it actually returns a row... but we are not working with rows, we are working with partitions...
                 // This is a leaky implementation detail!  Checking for the partition to exist is the following ReadCommand:
@@ -304,11 +306,14 @@ public class ASTSingleTableModel
                                              .add(CAS_APPLIED)
                                              .addAll(factory.selectionOrder)
                                              .build();
-                ByteBuffer[] result = getRowAsByteBuffer(columns, partition, partition.rows().get(0));
+                ByteBuffer[] result = getRowAsByteBuffer(columns, partition, row);
                 result[0] = FALSE;
-                for (var c : factory.regularColumns)
-                    // null out the row columns....
-                    result[columns.indexOf(c)] = null;
+                if (row != null)
+                {
+                    for (var c : factory.regularColumns)
+                        // null out the row columns....
+                        result[columns.indexOf(c)] = null;
+                }
 
                 expected = new ByteBuffer[][]{ result };
             }
