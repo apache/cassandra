@@ -97,7 +97,7 @@ public class TrackedWriteRequest
     {
         Tracing.trace("Determining replicas for mutation");
 
-        assert mutation.id().isNone();
+        Preconditions.checkArgument(mutation.id().isNone());
         String keyspaceName = mutation.getKeyspaceName();
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token token = mutation.key().getToken();
@@ -107,15 +107,16 @@ public class TrackedWriteRequest
 
         if (plan.lookup(FBUtilities.getBroadcastAddressAndPort()) == null)
         {
-            assert mutation.id().isNone();
-            logger.debug("Remote tracked request {} {}", mutation, plan);
+            if (logger.isTraceEnabled())
+                logger.trace("Remote tracked request {} {}", mutation, plan);
             writeMetrics.remoteRequests.mark();
             ForwardedWriteResponseHandler handler = ForwardedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime));
             new ForwardedWriteRequest(Verb.MUTATION_REQ, mutation, plan).sendToLeader(handler);
             return handler;
         }
 
-        logger.debug("Local tracked request {} {}", mutation, plan);
+        if (logger.isTraceEnabled())
+            logger.trace("Local tracked request {} {}", mutation, plan);
         writeMetrics.localRequests.mark();
         MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
         mutation = mutation.withMutationId(id);
@@ -131,7 +132,7 @@ public class TrackedWriteRequest
     public void performForwarding(ForwardedWriteRequest request)
     {
         Mutation mutation = request.message.mutation;
-        assert mutation.id().isNone();
+        Preconditions.checkArgument(mutation.id().isNone());
         String keyspaceName = mutation.getKeyspaceName();
         Token token = mutation.key().getToken();
 
@@ -320,7 +321,7 @@ public class TrackedWriteRequest
 
     private void applyMutationLocally(Mutation mutation, RequestCallback<NoPayload> handler)
     {
-        assert handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteHandler.Leader;
+        Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteHandler.Leader);
         Stage.MUTATION.maybeExecuteImmediately(new LocalMutationRunnable(mutation, handler));
     }
 
@@ -331,7 +332,7 @@ public class TrackedWriteRequest
 
         LocalMutationRunnable(Mutation mutation, RequestCallback<NoPayload> handler)
         {
-            assert handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteHandler.Leader;
+            Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteHandler.Leader);
             this.mutation = mutation;
             this.handler = handler;
         }

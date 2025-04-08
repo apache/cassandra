@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -452,8 +453,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
     public void sendForwardedWriteWithCallback(Message message, Replica to, ForwardedWriteHandler.Leader handler)
     {
-        assert message.verb() == Verb.MUTATION_REQ;
-        assert message.callBackOnFailure();
+        Preconditions.checkArgument(message.verb() == Verb.MUTATION_REQ);
+        Preconditions.checkArgument(message.callBackOnFailure());
         callbacks.addWithExpiration(handler, message, to.endpoint());
         send(message, to.endpoint(), null);
     }

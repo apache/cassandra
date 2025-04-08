@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,7 +134,8 @@ public class ForwardedWriteRequest
         Token token = message.mutation.key().getToken();
         Keyspace keyspace = Keyspace.open(message.mutation.getKeyspaceName());
         EndpointsForRange endpoints = cm.placements.get(keyspace.getMetadata().params.replication).writes.forRange(token).get();
-        logger.debug("Finding best leader from replicas {}", endpoints);
+        if (logger.isTraceEnabled())
+            logger.trace("Finding best leader from replicas {}", endpoints);
 
         // TODO: Should match ReplicaPlans.findCounterLeaderReplica, including DC-local priority, current health, severity, etc.
         return proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints).get(0);
@@ -142,7 +144,8 @@ public class ForwardedWriteRequest
     public void sendToLeader(ForwardedWriteResponseHandler handler)
     {
         Replica leader = getLeader();
-        logger.debug("Selected {} as leader for mutation with key {}", leader.endpoint(), message.mutation.key());
+        if (logger.isTraceEnabled())
+            logger.trace("Selected {} as leader for mutation with key {}", leader.endpoint(), message.mutation.key());
         Token token = message.mutation.key().getToken();
         Keyspace keyspace = Keyspace.open(message.mutation.getKeyspaceName());
         EndpointsForRange endpoints = ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).writes.forRange(token).get();
@@ -151,7 +154,8 @@ public class ForwardedWriteRequest
         Message<ForwardedWriteRequest> toLeader = Message.out(Verb.FORWARDING_WRITE, this);
         for (Replica endpoint : endpoints)
         {
-            logger.debug("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
+            if (logger.isTraceEnabled())
+                logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
             MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
         }
 
@@ -194,9 +198,10 @@ public class ForwardedWriteRequest
         @Override
         public void doVerb(Message<ForwardedWriteRequest> incoming)
         {
-            logger.debug("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
+            if (logger.isTraceEnabled())
+                logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
             Mutation mutation = incoming.payload.message.mutation;
-            assert mutation.id().isNone();
+            Preconditions.checkState(mutation.id().isNone());
 
             Stage.REQUEST_RESPONSE.submit(() -> {
                 // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
@@ -206,7 +211,7 @@ public class ForwardedWriteRequest
                 }
                 catch (Exception e)
                 {
-                    logger.error("Exception while executing {} on leader", this, e);
+                    logger.error("Exception while executing forwarded write with key {} on leader", mutation.key(), e);
                     MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
                 }
             });
