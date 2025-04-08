@@ -272,7 +272,7 @@ public class TrackedWriteRequest
     static void sendMessagesToRemoteDC(Message<? extends IMutation> message,
                                         EndpointsForToken targets,
                                         RequestCallback<NoPayload> handler,
-                                        ForwardedWriteRequest.DirectAcknowledge ackTo)
+                                        ForwardedWriteRequest.DirectAcknowledgementInfo ackTo)
     {
         final Replica target;
 
@@ -298,7 +298,7 @@ public class TrackedWriteRequest
             target = targets.get(0);
         }
         if (ackTo != null)
-            message = message.withParam(ParamType.TRACKED_MUTATION_FORWARDING, ackTo);
+            message = message.withParam(ParamType.DIRECT_ACKNOWLEDGEMENT_INFO, ackTo);
 
         Tracing.trace("Sending mutation to remote replica {}", target);
         if (handler instanceof ForwardedWriteHandler.Leader)

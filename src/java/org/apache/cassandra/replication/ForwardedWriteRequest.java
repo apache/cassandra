@@ -118,7 +118,7 @@ public class ForwardedWriteRequest
         };
     }
 
-    private volatile DirectAcknowledge ackTo = null;
+    private volatile DirectAcknowledgementInfo ackTo = null;
 
     // For now, just supporting a single mutation to multiple recipients. This will develop in the future for different
     // kinds of mutations that each go to different recipients (see PaxosCommit).
@@ -234,7 +234,7 @@ public class ForwardedWriteRequest
                 message = Message.builder(MUTATION_REQ, mutation)
                                  .withRequestTime(handler.getRequestTime())
                                  .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
-                                 .withParam(ParamType.TRACKED_MUTATION_FORWARDING, ackTo)
+                                 .withParam(ParamType.DIRECT_ACKNOWLEDGEMENT_INFO, ackTo)
                                  .withId(ackTo.id)
                                  .build();
 
@@ -308,7 +308,7 @@ public class ForwardedWriteRequest
             if (logger.isTraceEnabled())
                 logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
             Mutation mutation = incoming.payload.message.mutation;
-            incoming.payload.ackTo = DirectAcknowledge.toCoordinator(incoming.from(), incoming.id());
+            incoming.payload.ackTo = DirectAcknowledgementInfo.toCoordinator(incoming.from(), incoming.id());
             Preconditions.checkState(mutation.id().isNone());
 
             // The bulk of the work here is applying the mutation locally on the leader. Run entire task on that stage
@@ -329,27 +329,27 @@ public class ForwardedWriteRequest
         }
     }
 
-    public static class DirectAcknowledge
+    public static class DirectAcknowledgementInfo
     {
-        public static IVersionedSerializer<DirectAcknowledge> serializer = new IVersionedSerializer<>()
+        public static IVersionedSerializer<DirectAcknowledgementInfo> serializer = new IVersionedSerializer<>()
         {
             @Override
-            public void serialize(DirectAcknowledge ackTo, DataOutputPlus out, int version) throws IOException
+            public void serialize(DirectAcknowledgementInfo ackTo, DataOutputPlus out, int version) throws IOException
             {
                 InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(ackTo.coordinator, out, version);
                 out.writeLong(ackTo.id);
             }
 
             @Override
-            public DirectAcknowledge deserialize(DataInputPlus in, int version) throws IOException
+            public DirectAcknowledgementInfo deserialize(DataInputPlus in, int version) throws IOException
             {
                 InetAddressAndPort coordinator = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version);
                 long id = in.readLong();
-                return new DirectAcknowledge(coordinator, id);
+                return new DirectAcknowledgementInfo(coordinator, id);
             }
 
             @Override
-            public long serializedSize(DirectAcknowledge ackTo, int version)
+            public long serializedSize(DirectAcknowledgementInfo ackTo, int version)
             {
                 long size = 0;
                 size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(ackTo.coordinator, version);
@@ -361,15 +361,15 @@ public class ForwardedWriteRequest
         public final InetAddressAndPort coordinator;
         public final long id;
 
-        private DirectAcknowledge(InetAddressAndPort coordinator, long id)
+        private DirectAcknowledgementInfo(InetAddressAndPort coordinator, long id)
         {
             this.coordinator = coordinator;
             this.id = id;
         }
 
-        private static DirectAcknowledge toCoordinator(InetAddressAndPort coordinator, long messageId)
+        private static DirectAcknowledgementInfo toCoordinator(InetAddressAndPort coordinator, long messageId)
         {
-            return new DirectAcknowledge(coordinator, messageId);
+            return new DirectAcknowledgementInfo(coordinator, messageId);
         }
     }
 }

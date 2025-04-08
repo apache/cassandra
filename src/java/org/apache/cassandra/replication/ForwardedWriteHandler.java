@@ -43,10 +43,10 @@ public abstract class ForwardedWriteHandler implements RequestCallback<NoPayload
         private final String keyspace;
         private final Token token;
         private final MutationId id;
-        private final ForwardedWriteRequest.DirectAcknowledge ackTo;
+        private final ForwardedWriteRequest.DirectAcknowledgementInfo ackTo;
         private final Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
 
-        public Leader(String keyspace, Token token, MutationId id, ForwardedWriteRequest.DirectAcknowledge ackTo)
+        public Leader(String keyspace, Token token, MutationId id, ForwardedWriteRequest.DirectAcknowledgementInfo ackTo)
         {
             this.keyspace = keyspace;
             this.token = token;
@@ -61,7 +61,7 @@ public abstract class ForwardedWriteHandler implements RequestCallback<NoPayload
             if (msg != null)
                 MutationTrackingService.instance.witnessedRemoteMutation(keyspace, token, id, msg.from());
 
-            // Local write needs to be ack'd to client-coordinator
+            // Local write needs to be ack'd to coordinator
             if (msg == null && ackTo != null)
             {
                 Message<NoPayload> message = Message.builder(Verb.MUTATION_RSP, NoPayload.noPayload)
