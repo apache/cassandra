@@ -47,7 +47,6 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
-import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;
@@ -56,7 +55,6 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
 @RunWith(BMUnitRunner.class)
-@BMUnitConfig(verbose=true, bmunitVerbose=true)
 public class StorageProxyTest
 {
     @BeforeClass
