@@ -389,8 +389,7 @@ public class StatefulASTBase extends TestBaseImpl
             Mutation finalMutation = mutation;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
                 var result = s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
-                if (finalMutation.isCas())  s.model.updateAndValidate(result, finalMutation);
-                else                        s.model.update(finalMutation);
+                s.model.updateAndValidate(result, finalMutation);
                 s.mutation();
             });
         }

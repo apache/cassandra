@@ -214,14 +214,14 @@ public class ASTSingleTableModel
 
     public void updateAndValidate(ByteBuffer[][] actual, Mutation mutation)
     {
-        if (!mutation.isCas())
-            throw new IllegalArgumentException("Mutation isn't a CAS operation; given " + mutation.toCQL());
         if (!shouldApply(mutation))
         {
-            validateCasNotApplied(actual, mutation);
+            if (mutation.isCas())
+                validateCasNotApplied(actual, mutation);
             return;
         }
-        validate(CAS_APPLIED_COLUMNS, actual, CAS_SUCCESS_RESULT);
+        if (mutation.isCas())
+            validate(CAS_APPLIED_COLUMNS, actual, CAS_SUCCESS_RESULT);
         updateInternal(mutation);
     }
 
