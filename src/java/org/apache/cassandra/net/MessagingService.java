@@ -44,7 +44,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.MessagingMetrics;
-import org.apache.cassandra.replication.ForwardedWriteHandler;
+import org.apache.cassandra.replication.ForwardedWriteLeaderHandler;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -451,7 +451,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         send(message, to.endpoint(), null);
     }
 
-    public void sendForwardedWriteWithCallback(Message message, Replica to, ForwardedWriteHandler.Leader handler)
+    public void sendForwardedWriteWithCallback(Message message, Replica to, ForwardedWriteLeaderHandler handler)
     {
         Preconditions.checkArgument(message.verb() == Verb.MUTATION_REQ);
         Preconditions.checkArgument(message.callBackOnFailure());

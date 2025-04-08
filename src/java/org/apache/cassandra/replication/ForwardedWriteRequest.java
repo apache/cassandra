@@ -184,12 +184,12 @@ public class ForwardedWriteRequest
         MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
         mutation = mutation.withMutationId(id);
         // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
-        ForwardedWriteHandler.Leader handler = new ForwardedWriteHandler.Leader(keyspaceName, mutation.key().getToken(), id, ackTo);
+        ForwardedWriteLeaderHandler handler = new ForwardedWriteLeaderHandler(keyspaceName, mutation.key().getToken(), id, ackTo);
         applyLocallyAndForwardToReplicas(mutation, message.recipients, handler);
     }
 
     // TODO: refactor common with applyLocallyAndSendToReplicas
-    private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, ForwardedWriteHandler.Leader handler)
+    private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, ForwardedWriteLeaderHandler handler)
     {
         Preconditions.checkState(ackTo != null);
         ClusterMetadata cm = ClusterMetadata.current();

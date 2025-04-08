@@ -194,7 +194,7 @@ public class TrackedWriteRequest
 
     static void applyMutationLocally(Mutation mutation, RequestCallback<NoPayload> handler)
     {
-        Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteHandler.Leader);
+        Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteLeaderHandler);
         Stage.MUTATION.maybeExecuteImmediately(new LocalMutationRunnable(mutation, handler));
     }
 
@@ -205,7 +205,7 @@ public class TrackedWriteRequest
 
         LocalMutationRunnable(Mutation mutation, RequestCallback<NoPayload> handler)
         {
-            Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteHandler.Leader);
+            Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteLeaderHandler);
             this.mutation = mutation;
             this.handler = handler;
         }
@@ -214,8 +214,8 @@ public class TrackedWriteRequest
         {
             if (handler instanceof TrackedWriteResponseHandler)
                 return ((TrackedWriteResponseHandler) handler).getRequestTime();
-            if (handler instanceof ForwardedWriteHandler.Leader)
-                return ((ForwardedWriteHandler.Leader) handler).getRequestTime();
+            if (handler instanceof ForwardedWriteLeaderHandler)
+                return ((ForwardedWriteLeaderHandler) handler).getRequestTime();
             throw new IllegalStateException();
         }
 
@@ -301,8 +301,8 @@ public class TrackedWriteRequest
             message = message.withParam(ParamType.DIRECT_ACKNOWLEDGEMENT_INFO, ackTo);
 
         Tracing.trace("Sending mutation to remote replica {}", target);
-        if (handler instanceof ForwardedWriteHandler.Leader)
-            MessagingService.instance().sendForwardedWriteWithCallback(message, target, (ForwardedWriteHandler.Leader) handler);
+        if (handler instanceof ForwardedWriteLeaderHandler)
+            MessagingService.instance().sendForwardedWriteWithCallback(message, target, (ForwardedWriteLeaderHandler) handler);
         else
             MessagingService.instance().sendWriteWithCallback(message, target, (AbstractWriteResponseHandler<?>) handler);
         logger.trace("Sending message to {}@{}", message.id(), target);

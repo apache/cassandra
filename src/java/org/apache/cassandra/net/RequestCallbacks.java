@@ -36,7 +36,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.InternodeOutboundMetrics;
-import org.apache.cassandra.replication.ForwardedWriteHandler;
+import org.apache.cassandra.replication.ForwardedWriteLeaderHandler;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 
 import static java.lang.String.format;
@@ -98,7 +98,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
     public void addWithExpiration(RequestCallback<?> cb, Message<?> message, InetAddressAndPort to)
     {
         // mutations need to call the overload
-        Preconditions.checkArgument((message.verb() != Verb.MUTATION_REQ && message.verb() != Verb.COUNTER_MUTATION_REQ) || (cb instanceof ForwardedWriteHandler.Leader));
+        Preconditions.checkArgument((message.verb() != Verb.MUTATION_REQ && message.verb() != Verb.COUNTER_MUTATION_REQ) || (cb instanceof ForwardedWriteLeaderHandler));
         CallbackInfo previous = callbacks.put(key(message.id(), to), new CallbackInfo(message, to, cb));
         assert previous == null : format("Callback already exists for id %d/%s! (%s)", message.id(), to, previous);
     }
