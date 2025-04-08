@@ -367,6 +367,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                      .withoutTtl()
                                      .withoutTimestamp()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
+                                     .withIgnoreIssues(IGNORED_ISSUES)
                                      .build());
         }
 

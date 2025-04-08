@@ -61,6 +61,7 @@ import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -376,6 +377,7 @@ public class ASTGenerators
         private boolean allowPartitionOnlyUpdate = true;
         private boolean allowPartitionOnlyInsert = true;
         private boolean allowUpdateMultipleClusteringKeys = true;
+        private EnumSet<KnownIssue> ignoreIssues = IGNORE_ISSUES;
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -392,6 +394,12 @@ public class ASTGenerators
 
             for (Symbol symbol : allColumns)
                 columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder withIgnoreIssues(EnumSet<KnownIssue> ignoreIssues)
+        {
+            this.ignoreIssues = Objects.requireNonNull(ignoreIssues);
+            return this;
         }
 
         public MutationGenBuilder withAllowPartitionOnlyUpdate(boolean value)
@@ -590,6 +598,10 @@ public class ASTGenerators
         {
             Gen<Boolean> bool = SourceDSL.booleans().all();
             Map<? extends AbstractType<?>, List<Reference>> typeToReference = references.stream().collect(Collectors.groupingBy(Reference::type));
+            if (allowUpdateMultipleClusteringKeys
+                && ignoreIssues.contains(KnownIssue.STATIC_LIST_APPEND_WITH_CLUSTERING_IN)
+                && staticColumns.stream().anyMatch(s -> s.type().isMultiCell() && s.type().getClass() == ListType.class))
+                allowUpdateMultipleClusteringKeys = false;
             return rnd -> {
                 Mutation.Kind kind = kindGen.generate(rnd);
                 // when there are not non-primary-columns then can't support UPDATE
