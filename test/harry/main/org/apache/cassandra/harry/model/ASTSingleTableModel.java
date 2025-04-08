@@ -774,21 +774,21 @@ public class ASTSingleTableModel
         return Pair.create(partitionKeys, other);
     }
 
-    private static List<Clustering<ByteBuffer>> keys(Collection<Symbol> columns, Map<Symbol, List<ByteBuffer>> columnValues)
+    private static ImmutableUniqueList<Clustering<ByteBuffer>> keys(Collection<Symbol> columns, Map<Symbol, List<ByteBuffer>> columnValues)
     {
         return keys(columns, columnValues, Function.identity());
     }
 
-    private static List<Clustering<ByteBuffer>> keys(Map<Symbol, List<? extends Expression>> values, Collection<Symbol> columns)
+    private static ImmutableUniqueList<Clustering<ByteBuffer>> keys(Map<Symbol, List<? extends Expression>> values, Collection<Symbol> columns)
     {
         return keys(columns, values, ASTSingleTableModel::eval);
     }
 
-    private static <T> List<Clustering<ByteBuffer>> keys(Collection<Symbol> columns,
-                                                         Map<Symbol, ? extends List<? extends T>> columnValues,
-                                                         Function<T, ByteBuffer> eval)
+    private static <T> ImmutableUniqueList<Clustering<ByteBuffer>> keys(Collection<Symbol> columns,
+                                                                        Map<Symbol, ? extends List<? extends T>> columnValues,
+                                                                        Function<T, ByteBuffer> eval)
     {
-        if (columns.isEmpty()) return Collections.singletonList(Clustering.EMPTY);
+        if (columns.isEmpty()) return ImmutableUniqueList.empty();
         List<ByteBuffer[]> current = new ArrayList<>();
         current.add(new ByteBuffer[columns.size()]);
         int idx = 0;
@@ -815,7 +815,10 @@ public class ASTSingleTableModel
                 }
             }
         }
-        return current.stream().map(BufferClustering::new).collect(Collectors.toList());
+        var builder = ImmutableUniqueList.<Clustering<ByteBuffer>>builder();
+        for (var row : current)
+            builder.add(new BufferClustering(row));
+        return builder.build();
     }
 
     private Clustering<ByteBuffer> pd(Mutation mutation)
