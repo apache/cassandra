@@ -329,6 +329,9 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
 
     public Thread startThread(String name, Runnable runnable, Daemon daemon)
     {
+        if (daemon == Daemon.INFINITE_LOOP)
+            return simulatedExecution.intercept().start(INFINITE_LOOP, factory(name)::newThread, runnable);
+
         return simulatedExecution.intercept().start(SimulatedAction.Kind.THREAD, factory(name)::newThread, runnable);
     }
 

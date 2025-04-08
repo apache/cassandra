@@ -27,6 +27,7 @@ import org.apache.cassandra.utils.Shared;
 import static java.lang.Thread.*;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.DAEMON;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.INFINITE_LOOP;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.createThread;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.setupThread;
@@ -138,6 +139,11 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
     default Thread startThread(String name, Runnable runnable)
     {
         return startThread(name, runnable, DAEMON);
+    }
+
+    default Thread startInfiniteLoopThread(String name, Runnable runnable)
+    {
+        return startThread(name, runnable, INFINITE_LOOP);
     }
 
     /**

@@ -58,7 +58,7 @@ public class InfiniteLoopExecutor implements Interruptible
      * marked as a DAEMON process.
      */
     @Shared(scope = Shared.Scope.SIMULATION)
-    public enum Daemon        { DAEMON, NON_DAEMON }
+    public enum Daemon        { DAEMON, NON_DAEMON, INFINITE_LOOP }
 
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum Interrupts    { SYNCHRONIZED, UNSYNCHRONIZED }
