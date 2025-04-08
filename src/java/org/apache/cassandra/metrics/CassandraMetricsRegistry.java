@@ -18,20 +18,38 @@
 package org.apache.cassandra.metrics;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.github.jamm.Unmetered;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.*;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metered;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Throwables;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Makes integrating 3.0 metrics API with 2.0.
@@ -41,14 +59,30 @@ import org.apache.cassandra.utils.MBeanWrapper;
  */
 public class CassandraMetricsRegistry extends MetricRegistry
 {
-    public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry();
+    private static final Logger logger = LoggerFactory.getLogger(CassandraMetricsRegistry.class);
+
+    public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry(TimeUnit.DAYS.toMicros(1));
     private final Map<String, ThreadPoolMetrics> threadPoolMetrics = new ConcurrentHashMap<>();
 
+    /**
+     * {@link org.apache.cassandra.repair.RepairJobTest#testNoTreesRetainedAfterDifference() RepairJobTest#testNoTreesRetainedAfterDifference()}
+     * calls {@link org.apache.cassandra.utils.ObjectSizes#measureDeep(Object) ObjectSizes.measureDeep(Object)} on
+     * {@link org.apache.cassandra.repair.RepairSession RepairSession} which reachs the {@link #mBeanServer} reference
+     * to {@link org.apache.cassandra.utils.MBeanWrapper#instance} via the lambda in {@link #periodicMeterTicker} which
+     * then attempts to private final fields accessible that can't be changed. We didn't want to measure that stuff
+     * anyways, but the executor tasks actualy really do need to be measured for that test to work so make this @Unmetered.
+     */
+    @Unmetered
     private final MBeanWrapper mBeanServer = MBeanWrapper.instance;
 
-    private CassandraMetricsRegistry()
+    final ScheduledFuture<?> periodicMeterTicker;
+
+    CassandraMetricsRegistry(long tickMetersPeriodMicros)
     {
         super();
+        checkArgument(tickMetersPeriodMicros >= 0);
+        long initialDelay = ThreadLocalRandom.current().nextLong(tickMetersPeriodMicros);
+        periodicMeterTicker = ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(this::tickMeters, initialDelay, tickMetersPeriodMicros, TimeUnit.MICROSECONDS);
     }
 
     public Counter counter(MetricName name)
@@ -218,6 +252,43 @@ public class CassandraMetricsRegistry extends MetricRegistry
     {
         if (mBeanServer.isRegistered(name.getMBeanName()))
             MBeanWrapper.instance.unregisterMBean(name.getMBeanName(), MBeanWrapper.OnException.IGNORE);
+    }
+
+    /**
+     * Very infrequently used meters generate a linear amount of tick work based on how long it has been
+     * since the meter was last marked or read. On scales of a year this can be enough to cause the first request
+     * that needs to mark the meter to time out. Once a day read every meter to force them to run Meter.tickIfNecessary
+     * so we only ever run at most one day worth of tick work per meter in the request path.
+     *
+     * This can be removed if we ever upgrade and switch the default MovingAverage from EWMA to SlidingWindowTimeAverages
+     */
+    private void tickMeters()
+    {
+        List<Throwable> failures = new ArrayList<>();
+        int droppedFailures = 0;
+        for (Meter meter : getMeters().values())
+        {
+            try
+            {
+                meter.getOneMinuteRate();
+            }
+            catch (Throwable t)
+            {
+                if (failures.size() < 10)
+                    failures.add(t);
+                else
+                    droppedFailures++;
+            }
+        }
+        if (!failures.isEmpty())
+        {
+            Throwable failure = null;
+            for (Throwable t : failures)
+                failure = Throwables.merge(failure, t);
+            // To avoid the scheduled task being cancelled don't leak exceptions
+            // Runs only once a day so noise is not an issue
+            logger.error(String.format("Had error(s) attempting to tick meter. Dropped %d exceptions.", droppedFailures), failure);
+        }
     }
     
     /**
