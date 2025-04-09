@@ -72,6 +72,7 @@ public class ForwardedWrite
 {
     private static final Logger logger = LoggerFactory.getLogger(ForwardedWrite.class);
 
+
     public static class Request
     {
 
@@ -195,12 +196,12 @@ public class ForwardedWrite
             MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
             mutation = mutation.withMutationId(id);
             // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
-            LeaderHandler handler = new LeaderHandler(keyspaceName, mutation.key().getToken(), id, ackTo);
+            LeaderCallback handler = new LeaderCallback(keyspaceName, mutation.key().getToken(), id, ackTo);
             applyLocallyAndForwardToReplicas(mutation, message.recipients, handler);
         }
 
         // TODO: refactor common with applyLocallyAndSendToReplicas
-        private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderHandler handler)
+        private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderCallback handler)
         {
             Preconditions.checkState(ackTo != null);
             ClusterMetadata cm = ClusterMetadata.current();
@@ -334,7 +335,7 @@ public class ForwardedWrite
 
     // Leader just needs to acknowledge propagation for its own log, not for client consistency level
     // See org.apache.cassandra.service.TrackedWriteResponseHandler.onResponse, this class should probably merge with that one
-    public static class LeaderHandler implements RequestCallback<NoPayload>
+    public static class LeaderCallback implements RequestCallback<NoPayload>
     {
         private final String keyspace;
         private final Token token;
@@ -342,7 +343,7 @@ public class ForwardedWrite
         private final DirectAcknowledgementInfo ackTo;
         private final Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
 
-        public LeaderHandler(String keyspace, Token token, MutationId id, DirectAcknowledgementInfo ackTo)
+        public LeaderCallback(String keyspace, Token token, MutationId id, DirectAcknowledgementInfo ackTo)
         {
             this.keyspace = keyspace;
             this.token = token;

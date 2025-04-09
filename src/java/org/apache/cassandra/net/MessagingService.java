@@ -451,7 +451,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         send(message, to.endpoint(), null);
     }
 
-    public void sendForwardedWriteWithCallback(Message message, Replica to, ForwardedWrite.LeaderHandler handler)
+    public void sendForwardedWriteWithCallback(Message message, Replica to, ForwardedWrite.LeaderCallback handler)
     {
         Preconditions.checkArgument(message.verb() == Verb.MUTATION_REQ);
         Preconditions.checkArgument(message.callBackOnFailure());
