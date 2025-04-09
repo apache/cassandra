@@ -62,6 +62,11 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 
+/**
+ * For a forwarded write there are 2 nodes involved in coordination, a coordinator and a leader. The coordinator is the
+ * node that the client is communicating with, and the leader is the mutation replica that is handling the mutation
+ * tracking for that write.
+ */
 public class ForwardedWrite
 {
     public static class Request
