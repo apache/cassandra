@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.After;
@@ -41,6 +44,7 @@ import org.apache.cassandra.db.virtual.walker.PartitionEntryTestRowWalker;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.METRIC_SCOPE_UNDEFINED;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test that verifies the functionality of the collection virtual table adapter, which is used to expose internal
@@ -53,18 +57,20 @@ public class CollectionVirtualTableAdapterTest extends CQLTester
     private static final String VT_NAME = "collection_virtual_table";
     private static final String VT_NAME_1 = "map_key_filter_virtual_table";
     private static final String VT_NAME_2 = "map_value_filter_virtual_table";
+    private static final String VT_NAME_3 = "filterable_virtual_table";
     private final List<VirtualTable> tables = new ArrayList<>();
     private final List<CollectionEntry> internalTestCollection = new ArrayList<>();
     private final Map<String, CollectionEntry> internalTestMap = new HashMap<>();
+    private final Set<Map.Entry<String, Object>> seenFilterableKeys = new HashSet<>();
 
     private static void addSinglePartitionData(Collection<CollectionEntry> list)
     {
         list.add(new CollectionEntry("1984", "key", 3, "value",
                                      1, 1, 1, (short) 1, (byte) 1, true));
         list.add(new CollectionEntry("1984", "key", 2, "value",
-                                     1, 1, 1, (short) 1, (byte) 1, true));
+                                     1, 2, 1, (short) 1, (byte) 1, true));
         list.add(new CollectionEntry("1984", "key", 1, "value",
-                                     1, 1, 1, (short) 1, (byte) 1, true));
+                                     1, 3, 1, (short) 1, (byte) 1, true));
     }
 
     private static void addMultiPartitionData(Collection<CollectionEntry> list)
@@ -104,6 +110,16 @@ public class CollectionVirtualTableAdapterTest extends CQLTester
             internalTestMap,
             value -> value instanceof CollectionEntryExt,
             PartitionEntryTestRow::new));
+        tables.add(CollectionVirtualTableAdapter.createFilterable(
+            KS_NAME,
+            VT_NAME_3,
+            "The partition value filtered virtual table",
+            new CollectionEntryTestRowWalker(),
+            filer -> {
+                seenFilterableKeys.addAll(filer);
+                return internalTestCollection;
+            },
+            CollectionEntryTestRow::new));
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, tables));
     }
 
@@ -112,6 +128,7 @@ public class CollectionVirtualTableAdapterTest extends CQLTester
     {
         internalTestCollection.clear();
         internalTestMap.clear();
+        seenFilterableKeys.clear();
     }
 
     @Test
@@ -220,6 +237,29 @@ public class CollectionVirtualTableAdapterTest extends CQLTester
     {
         internalTestCollection.clear();
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.%s", KS_NAME, VT_NAME)));
+    }
+
+    @Test
+    public void testSelectFromFilterablePartition()
+    {
+        addSinglePartitionData(internalTestCollection);
+        ResultSet req = executeNet(
+            String.format("SELECT * FROM %s.%s WHERE primary_key = ? AND secondary_key = ?", KS_NAME, VT_NAME_3),
+            "1984", "key");
+        assertEquals(3, req.all().size());
+        assertEquals(2, seenFilterableKeys.size());
+        assertTrue(seenFilterableKeys.contains(new AbstractMap.SimpleEntry<>("primary_key", "1984")));
+        assertTrue(seenFilterableKeys.contains(new AbstractMap.SimpleEntry<>("secondary_key", "key")));
+    }
+
+    @Test
+    public void testSelectFromFilterableRegular()
+    {
+        addSinglePartitionData(internalTestCollection);
+        ResultSet req = executeNet(String.format("SELECT * FROM %s.%s WHERE long_value = ?", KS_NAME, VT_NAME_3), 1L);
+        assertEquals(1, req.all().size());
+        assertEquals(1, seenFilterableKeys.size());
+        assertTrue(seenFilterableKeys.contains(new AbstractMap.SimpleEntry<>("long_value", 1L)));
     }
 
     private static class CollectionEntryExt extends CollectionEntry

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.virtual.model;
 
+import java.util.Map;
+
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
@@ -36,10 +38,10 @@ public class MetricRow
     private final String key;
     private final Metric metricEntry;
 
-    public MetricRow(String key, Metric metricEntry)
+    public MetricRow(Map.Entry<String, Metric> metricEntry)
     {
-        this.key = key;
-        this.metricEntry = metricEntry;
+        this.key = metricEntry.getKey();
+        this.metricEntry = metricEntry.getValue();
     }
 
     @Column(type = Column.Type.PARTITION_KEY)

@@ -1231,7 +1231,7 @@ public class TableMetrics
 
     static class TableMetricNameFactory implements MetricNameFactory
     {
-        public static final String GROUP_NAME = TableMetrics.class.getPackage().getName();
+        public static final String GROUP_NAME = DefaultNameFactory.GROUP_NAME;
         private final String keyspaceName;
         private final String tableName;
         private final String type;
@@ -1267,7 +1267,7 @@ public class TableMetrics
 
     static class AllTableMetricNameFactory implements MetricNameFactory
     {
-        private static final String GROUP_NAME = TableMetrics.class.getPackage().getName();
+        private static final String GROUP_NAME = DefaultNameFactory.GROUP_NAME;
         private final String type;
         public AllTableMetricNameFactory(String type)
         {

@@ -21,6 +21,7 @@
 package org.apache.cassandra.metrics;
 
 import java.lang.management.ManagementFactory;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -29,23 +30,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
+import org.apache.cassandra.db.virtual.walker.MetricRowWalker;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
 import static com.codahale.metrics.MetricRegistry.name;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.resolveShortMetricName;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -253,8 +258,105 @@ public class CassandraMetricsRegistryTest
         assertTrue(registry.getNames().containsAll(aliases));
     }
 
+    @Test
+    public void testTrieMetricsRegistry()
+    {
+        TrieCassandraMetricsRegistry registry = new TrieCassandraMetricsRegistry();
+        ConcurrentMap<String, Metric> root = registry.root();
+
+        MetricNameFactory typeTable = new DefaultNameFactory("Table", "CustomScope");
+        registry.counter(typeTable.createMetricName("TestCounter"));
+        registry.meter(typeTable.createMetricName("TestMeter"));
+        registry.histogram(typeTable.createMetricName("TestHistogram"), false);
+        assertEquals(3, registry.getMetrics().size());
+        assertEquals(3, root.size());
+
+        String fullName = typeTable.createMetricName("CustomMetric").getMetricName();
+        root.putIfAbsent(fullName, new Metric() {});
+        assertEquals(4, registry.getMetrics().size());
+        assertEquals(4, root.size());
+        assertTrue(root.containsKey(fullName));
+
+        MetricNameFactory typeKeyspace = new DefaultNameFactory("MemtablePool", "CustomScope");
+        root.putIfAbsent(typeKeyspace.createMetricName("CustomMetric").getMetricName(), new Metric() {});
+        assertEquals(5, registry.getMetrics().size());
+        assertEquals(5, root.size());
+
+        MetricNameFactory typeCql = new DefaultNameFactory("CQL");
+        root.putIfAbsent(typeCql.createMetricName("CustomMetric").getMetricName(), new Metric() {});
+        assertEquals(6, registry.getMetrics().size());
+        assertEquals(6, root.size());
+
+        root.remove(fullName);
+        assertEquals(5, registry.getMetrics().size());
+        assertEquals(5, root.size());
+
+        // Verify that the registry can handle custom metric names.
+        String jvmCustomName = "jvm.custom";
+        Meter meter = registry.meter(jvmCustomName);
+        assertEquals(6, registry.getMetrics().size());
+        assertEquals(6, root.size());
+        assertNotNull(meter);
+
+        Metric removed = root.remove(jvmCustomName);
+        assertEquals(5, registry.getMetrics().size());
+        assertEquals(5, root.size());
+        assertEquals(meter, removed);
+
+        assertThatThrownBy(() -> root.put("InvalidName", new Metric() {}))
+            .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> root.remove("InvalidName", new Metric() {}))
+            .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> root.replace("InvalidName", new Metric() {}, new Metric() {}))
+            .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    public void testMetricFindByScopeAndType()
+    {
+        CassandraMetricsRegistry registry = CassandraMetricsRegistry.Metrics;
+
+        String metricName = "org.apache.cassandra.metrics.ClientRequestSize.RowsRead";
+        registry.register(MetricName.from(metricName), (Gauge<String>) () -> "test");
+        assertEquals(1, registry.getMetrics().size());
+
+        List<String> names = registry.findMetricsByType("ClientRequestSize")
+                                     .stream()
+                                     .flatMap(map -> map.entrySet().stream())
+                                     .map(Map.Entry::getKey)
+                                     .collect(Collectors.toList());
+        assertEquals(1, names.size());
+
+        MetricNameFactory typeKeyspace = new DefaultNameFactory("MemtablePool", "CustomScope");
+        registry.register(typeKeyspace.createMetricName("CustomMetric"), (Gauge<String>) () -> "test");
+        List<String> scopes = registry.findMetricsByScope("MemtablePool",
+                                                          List.of(new AbstractMap.SimpleEntry<>(MetricRowWalker.SCOPE_COLUMN_FILTER, "CustomScope")))
+                                      .stream()
+                                      .flatMap(map -> map.entrySet().stream())
+                                      .map(Map.Entry::getKey)
+                                      .collect(Collectors.toList());
+        assertEquals(2, registry.getMetrics().size());
+        assertEquals(1, scopes.size());
+    }
+
     private boolean inRange(long anchor, long input, double range)
     {
         return input / ((double) anchor) < range;
+    }
+
+    private static class TrieCassandraMetricsRegistry extends CassandraMetricsRegistry
+    {
+        private ConcurrentMap<String, Metric> root;
+
+        @Override
+        protected ConcurrentMap<String, Metric> buildMap()
+        {
+            return root = super.buildMap();
+        }
+
+        public ConcurrentMap<String, Metric> root()
+        {
+            return root;
+        }
     }
 }
