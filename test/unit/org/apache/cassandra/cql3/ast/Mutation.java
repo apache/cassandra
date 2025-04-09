@@ -27,10 +27,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -50,6 +50,23 @@ public abstract class Mutation implements Statement
         this.table = table;
     }
 
+    public Insert asInsert()
+    {
+        return (Insert) this;
+    }
+
+    public Update asUpdate()
+    {
+        return (Update) this;
+    }
+
+    public Delete asDelete()
+    {
+        return (Delete) this;
+    }
+
+    public abstract long timestampOrDefault(long defaultValue);
+
     public abstract boolean isCas();
 
     public abstract Mutation withoutTimestamp();
@@ -60,6 +77,9 @@ public abstract class Mutation implements Statement
     }
 
     public abstract Mutation withTimestamp(Timestamp timestamp);
+
+
+    public abstract Optional<? extends CasCondition> casCondition();
 
     public final Kind mutationKind()
     {
@@ -161,6 +181,13 @@ public abstract class Mutation implements Statement
         {
             return Stream.of(value);
         }
+
+        public long get()
+        {
+            if (value.value() instanceof Long)
+                return (long) value.value();
+            return LongType.instance.compose(value.valueEncoded());
+        }
     }
 
     public static class Using implements Element
@@ -168,15 +195,24 @@ public abstract class Mutation implements Statement
         public final Optional<TTL> ttl;
         public final Optional<Timestamp> timestamp;
 
-        public Using(Optional<TTL> ttl, Optional<Timestamp> timestamp)
+        private Using(Optional<TTL> ttl, Optional<Timestamp> timestamp)
         {
             this.ttl = ttl;
             this.timestamp = timestamp;
+            if (ttl.isEmpty() && timestamp.isEmpty())
+                throw new IllegalStateException("Empty USING isnt allowed");
         }
 
-        public Using withoutTimestamp()
+        public static Optional<Using> create(Optional<TTL> ttl, Optional<Timestamp> timestamp)
         {
-            return new Using(ttl, Optional.empty());
+            if (ttl.isEmpty() && timestamp.isEmpty()) return Optional.empty();
+            return Optional.of(new Using(ttl, timestamp));
+        }
+
+        public Optional<Using> withoutTimestamp()
+        {
+            if (ttl.isEmpty()) return Optional.empty();
+            return Optional.of(new Using(ttl, Optional.empty()));
         }
 
         public Using withTimestamp(Timestamp timestamp)
@@ -187,8 +223,6 @@ public abstract class Mutation implements Statement
         @Override
         public void toCQL(StringBuilder sb, CQLFormatter formatter)
         {
-            if (ttl.isEmpty() && timestamp.isEmpty())
-                return;
             sb.append("USING ");
             if (ttl.isPresent())
                 ttl.get().toCQL(sb, formatter);
@@ -225,6 +259,16 @@ public abstract class Mutation implements Statement
             this.values = values;
             this.ifNotExists = ifNotExists;
             this.using = using;
+        }
+
+        @Override
+        public long timestampOrDefault(long defaultValue)
+        {
+            if (using.isEmpty()) return defaultValue;
+            var opt = using.get().timestamp;
+            if (opt.isEmpty()) return defaultValue;
+            var timestamp = opt.get();
+            return timestamp.get();
         }
 
         @Override
@@ -311,7 +355,7 @@ public abstract class Mutation implements Statement
         {
             return new Insert(table, values, ifNotExists, using.isEmpty()
                                                           ? using
-                                                          : using.map(u -> u.withoutTimestamp()));
+                                                          : using.flatMap(u -> u.withoutTimestamp()));
         }
 
         @Override
@@ -320,6 +364,12 @@ public abstract class Mutation implements Statement
             return new Insert(table, values, ifNotExists, using.isEmpty()
                                                           ? Optional.of(new Using(Optional.empty(), Optional.of(timestamp)))
                                                           : using.map(u -> u.withTimestamp(timestamp)));
+        }
+
+        @Override
+        public Optional<? extends CasCondition> casCondition()
+        {
+            return ifNotExists ? Optional.of(CasCondition.Simple.NotExists) : Optional.empty();
         }
     }
 
@@ -337,6 +387,16 @@ public abstract class Mutation implements Statement
             this.set = set;
             this.where = where;
             this.casCondition = casCondition;
+        }
+
+        @Override
+        public long timestampOrDefault(long defaultValue)
+        {
+            if (using.isEmpty()) return defaultValue;
+            var opt = using.get().timestamp;
+            if (opt.isEmpty()) return defaultValue;
+            var timestamp = opt.get();
+            return timestamp.get();
         }
 
         @Override
@@ -444,7 +504,7 @@ public abstract class Mutation implements Statement
         @Override
         public Mutation withoutTimestamp()
         {
-            return new Update(table, using.isEmpty() ? using : using.map(u -> u.withoutTimestamp()), set, where, casCondition);
+            return new Update(table, using.isEmpty() ? using : using.flatMap(u -> u.withoutTimestamp()), set, where, casCondition);
         }
 
         @Override
@@ -454,6 +514,12 @@ public abstract class Mutation implements Statement
                           ? Optional.of(new Using(Optional.empty(), Optional.of(timestamp)))
                           : using.map(u -> u.withTimestamp(timestamp));
             return new Update(table, updated, set, where, casCondition);
+        }
+
+        @Override
+        public Optional<? extends CasCondition> casCondition()
+        {
+            return casCondition;
         }
     }
 
@@ -475,6 +541,15 @@ public abstract class Mutation implements Statement
             this.timestamp = timestamp;
             this.where = where;
             this.casCondition = casCondition;
+        }
+
+        @Override
+        public long timestampOrDefault(long defaultValue)
+        {
+            var opt = timestamp;
+            if (opt.isEmpty()) return defaultValue;
+            var timestamp = opt.get();
+            return timestamp.get();
         }
 
         /*
@@ -585,6 +660,12 @@ WHERE PK_column_conditions
         {
             return new Delete(columns, table, Optional.of(timestamp), where, casCondition);
         }
+
+        @Override
+        public Optional<? extends CasCondition> casCondition()
+        {
+            return casCondition;
+        }
     }
 
     public static abstract class BaseBuilder<T, B extends BaseBuilder<T, B>> implements Conditional.EqBuilderPlus<B>
@@ -610,6 +691,11 @@ WHERE PK_column_conditions
             this.regularAndStatic.addAll(toSet(table.regularAndStaticColumns()));
             this.allColumns = toSet(table.columnsInFixedOrder());
             neededPks.addAll(partitionColumns);
+        }
+
+        protected Symbol find(String name)
+        {
+            return allColumns.stream().filter(s -> s.symbol.equals(name)).findAny().get();
         }
 
         public abstract T build();
@@ -678,6 +764,11 @@ WHERE PK_column_conditions
             return this;
         }
 
+        public InsertBuilder timestamp(long value)
+        {
+            return timestamp(Literal.of(value));
+        }
+
         public InsertBuilder timestamp(Value value)
         {
             this.timestamp = new Timestamp(value);
@@ -727,6 +818,11 @@ WHERE PK_column_conditions
             super(Kind.UPDATE, table);
         }
 
+        public UpdateBuilder timestamp(long value)
+        {
+            return timestamp(Literal.of(value));
+        }
+
         public UpdateBuilder timestamp(Value value)
         {
             this.timestamp = new Timestamp(value);
@@ -766,18 +862,32 @@ WHERE PK_column_conditions
 
         public UpdateBuilder set(String column, int value)
         {
-            return set(new Symbol(column, Int32Type.instance), Bind.of(value));
+            Symbol symbol = find(column);
+            if (!symbol.type().equals(Int32Type.instance))
+                throw new AssertionError("Expected int type but given " + symbol.type().asCQL3Type());
+            return set(symbol, Bind.of(value));
+        }
+
+        public UpdateBuilder set(String column, Object value)
+        {
+            Symbol symbol = find(column);
+            return set(symbol, new Bind(value, symbol.type()));
         }
 
         public UpdateBuilder set(String column, Expression expression)
         {
-            Symbol symbol = new Symbol(metadata.getColumn(new ColumnIdentifier(column, true)));
-            return set(symbol, expression);
+            return set(find(column), expression);
+        }
+
+        public UpdateBuilder set(String column, Function<Symbol, Expression> fn)
+        {
+            Symbol symbol = find(column);
+            return set(symbol, fn.apply(symbol));
         }
 
         public UpdateBuilder set(String column, String value)
         {
-            Symbol symbol = new Symbol(metadata.getColumn(new ColumnIdentifier(column, true)));
+            Symbol symbol = find(column);
             return set(symbol, new Bind(symbol.type().asCQL3Type().fromCQLLiteral(value), symbol.type()));
         }
 
@@ -857,9 +967,15 @@ WHERE PK_column_conditions
             return Collections.unmodifiableList(columns);
         }
 
+        public DeleteBuilder columns(String... names)
+        {
+            Stream.of(names).map(this::find).forEach(this::column);
+            return this;
+        }
+
         public DeleteBuilder column(String columnName)
         {
-            return column(Symbol.from(metadata.getColumn(new ColumnIdentifier(columnName, true))));
+            return column(find(columnName));
         }
 
         public DeleteBuilder column(Symbol symbol)
@@ -879,6 +995,11 @@ WHERE PK_column_conditions
         {
             symbols.forEach(this::column);
             return this;
+        }
+
+        public DeleteBuilder timestamp(long value)
+        {
+            return timestamp(Literal.of(value));
         }
 
         public DeleteBuilder timestamp(Value value)

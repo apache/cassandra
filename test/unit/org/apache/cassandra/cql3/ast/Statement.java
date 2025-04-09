@@ -51,11 +51,16 @@ public interface Statement extends Element
     {
         Object[] binds = binds();
         return "CQL:\n" + toCQL() + "\nBinds:\n" + IntStream.range(0, binds.length)
-                                                            .mapToObj(i -> i + " -> " + binds[i].getClass().getCanonicalName() + "(" + normalize(binds[i]) + ")")
+                                                            .mapToObj(i -> i + " -> " + binds[i] == null ? "null" : binds[i].getClass().getCanonicalName() + "(" + normalize(binds[i]) + ")")
                                                             .collect(Collectors.joining("\n"));
     }
 
     Statement visit(Visitor v);
+
+    default String debugCQL()
+    {
+        return visit(StandardVisitors.DEBUG).toCQL();
+    }
 
     static boolean hasByteBuffer(Object value)
     {

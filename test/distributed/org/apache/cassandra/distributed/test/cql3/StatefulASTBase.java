@@ -269,7 +269,7 @@ public class StatefulASTBase extends TestBaseImpl
 
             this.metadata = metadata;
             this.tableRef = TableReference.from(metadata);
-            this.model = new ASTSingleTableModel(metadata);
+            this.model = new ASTSingleTableModel(metadata, IGNORED_ISSUES);
             createTable(metadata);
         }
 
@@ -388,8 +388,8 @@ public class StatefulASTBase extends TestBaseImpl
             else                  annotate += ", " + postfix;
             Mutation finalMutation = mutation;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
-                s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
-                s.model.update(finalMutation);
+                var result = s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
+                s.model.updateAndValidate(result, finalMutation);
                 s.mutation();
             });
         }
@@ -451,7 +451,7 @@ public class StatefulASTBase extends TestBaseImpl
                 SimpleStatement ss = new SimpleStatement(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
                 if (fetchSize != Integer.MAX_VALUE)
                     ss.setFetchSize(fetchSize);
-                if (stmt instanceof Mutation)
+                if (stmt.kind() == Statement.Kind.MUTATION)
                 {
                     switch (cl)
                     {

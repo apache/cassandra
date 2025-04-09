@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.StringType;
 
 public class Literal implements Value
@@ -39,6 +40,11 @@ public class Literal implements Value
     public static Literal of(int value)
     {
         return new Literal(value, Int32Type.instance);
+    }
+
+    public static Literal of(long value)
+    {
+        return new Literal(value, LongType.instance);
     }
 
     @Override

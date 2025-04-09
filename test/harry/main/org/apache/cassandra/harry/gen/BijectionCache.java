@@ -41,6 +41,8 @@ public class BijectionCache<T> implements Bijections.Bijection<T>
     @Override
     public T inflate(long descriptor)
     {
+        if (MagicConstants.NIL_DESCR == descriptor)
+            throw new IllegalArgumentException("Asked for NIL_DESCR");
         T value = valueToDescriptor.inverse().get(descriptor);
         if (value == null)
             throw new IllegalArgumentException(String.format("Attempted to inflate %d, but it is undefined", descriptor));
@@ -124,6 +126,8 @@ public class BijectionCache<T> implements Bijections.Bijection<T>
     @Override
     public int compare(long l, long r)
     {
-        throw new UnsupportedOperationException();
+        T lhs = inflate(l);
+        T rhs = inflate(r);
+        return comparator.compare(lhs, rhs);
     }
 }

@@ -458,7 +458,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                   .withoutTtl()
                                                                   .withoutTimestamp()
                                                                   .withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
-                                                                  .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))));
+                                                                  .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
+                                                                  .withIgnoreIssues(IGNORED_ISSUES);
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
             {
                 model.factory.regularAndStaticColumns.stream()

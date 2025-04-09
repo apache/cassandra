@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ImmutableUniqueList;
 
 public class Select implements Statement
 {
@@ -479,17 +480,31 @@ FROM [keyspace_name.] table_name
     public static class TableBasedBuilder extends BaseBuilder<TableBasedBuilder> implements Conditional.ConditionalBuilderPlus<TableBasedBuilder>
     {
         private final TableMetadata metadata;
+        private final ImmutableUniqueList<Symbol> columns;
 
         public TableBasedBuilder(TableMetadata metadata)
         {
             this.metadata = metadata;
             source = Optional.of(TableReference.from(metadata));
+            var builder = ImmutableUniqueList.<Symbol>builder();
+            metadata.allColumnsInSelectOrder().forEachRemaining(c -> builder.add(Symbol.from(c)));
+            columns = builder.buildAndClear();
         }
 
         @Override
         public TableMetadata metadata()
         {
             return metadata;
+        }
+
+        private Symbol find(String name)
+        {
+            return columns.stream().filter(s -> s.symbol.equals(name)).findAny().get();
+        }
+
+        public TableBasedBuilder columnSelection(String name)
+        {
+            return selection(find(name));
         }
     }
 }

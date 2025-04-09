@@ -335,9 +335,9 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                 this.neighbors = rs.nextBoolean() ? Collections.emptyList() : extractNeighbors(pkValues);
                 // in case neighbors conflicts with pkValues or tokenValues, use ImmutableUniqueList which will ignore rather than fail
                 this.pkValues = ImmutableUniqueList.<ByteBuffer>builder()
-                                                   .mayAddAll(pkValues)
-                                                   .mayAddAll(tokenValues)
-                                                   .mayAddAll(neighbors)
+                                                   .addAll(pkValues)
+                                                   .addAll(tokenValues)
+                                                   .addAll(neighbors)
                                                    .build();
                 this.pkGen = Gens.pick(pkValues);
                 this.order = new TreeSet<>(PK_TYPE);
@@ -367,6 +367,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                      .withoutTtl()
                                      .withoutTimestamp()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
+                                     .withIgnoreIssues(IGNORED_ISSUES)
                                      .build());
         }
 

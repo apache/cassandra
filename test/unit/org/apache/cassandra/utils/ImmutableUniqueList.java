@@ -26,8 +26,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.RandomAccess;
 
-import com.google.common.collect.Iterators;
-
 import org.agrona.collections.Object2IntHashMap;
 
 public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAccess
@@ -41,6 +39,12 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
     {
         values = (T[]) builder.values.toArray(Object[]::new);
         indexLookup = new Object2IntHashMap<>(builder.indexLookup);
+    }
+
+    public static <T> ImmutableUniqueList<T> copyOf(Collection<T> collection)
+    {
+        if (collection instanceof ImmutableUniqueList) return (ImmutableUniqueList<T>) collection;
+        return ImmutableUniqueList.<T>builder().addAll(collection).build();
     }
 
     public static <T> Builder<T> builder()
@@ -95,7 +99,7 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
         return values.length;
     }
 
-    public static final class Builder<T> extends AbstractSet<T>
+    public static final class Builder<T>
     {
         private final List<T> values;
         private final Object2IntHashMap<T> indexLookup = new Object2IntHashMap<>(-1);
@@ -111,58 +115,26 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
             this.values = new ArrayList<>(expectedSize);
         }
 
-        public Builder<T> mayAddAll(Collection<? extends T> values)
+        public Builder<T> add(T t)
         {
-            addAll(values);
-            return this;
-        }
-
-        @Override
-        public boolean add(T t)
-        {
-            if (indexLookup.containsKey(t)) return false;
+            if (indexLookup.containsKey(t)) return this;
             int idx = this.idx++;
             indexLookup.put(t, idx);
             values.add(t);
-            return true;
+            return this;
         }
 
-        @Override
-        public boolean remove(Object o)
+        public Builder<T> addAll(Collection<? extends T> c)
         {
-            throw new UnsupportedOperationException();
+            c.forEach(this::add);
+            return this;
         }
 
-        @Override
         public void clear()
         {
             values.clear();
             indexLookup.clear();
             idx = 0;
-        }
-
-        @Override
-        public boolean isEmpty()
-        {
-            return values.isEmpty();
-        }
-
-        @Override
-        public boolean contains(Object o)
-        {
-            return indexLookup.containsKey(o);
-        }
-
-        @Override
-        public Iterator<T> iterator()
-        {
-            return Iterators.unmodifiableIterator(values.iterator());
-        }
-
-        @Override
-        public int size()
-        {
-            return values.size();
         }
 
         public ImmutableUniqueList<T> build()

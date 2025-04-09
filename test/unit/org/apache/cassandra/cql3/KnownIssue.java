@@ -43,6 +43,10 @@ public enum KnownIssue
                            "When doing an SAI query, if the where clause also contains a vector column bad results can be produced"),
     CAS_CONDITION_ON_UDT_W_EMPTY_BYTES("https://issues.apache.org/jira/browse/CASSANDRA-20479",
                                        "WHERE clause blocks operations on UDTs but CAS allows in IF clause.  During this path empty can be confused with null which allows non-existing rows to match empty bytes"),
+    CAS_ON_STATIC_ROW("",
+                      "When you do a CAS to the partition level the read is SELECT statics LIMIT 1, if the CAS doesn't apply the response includes the first row in the partition with its values redacted... this statement is partition level and not row level, would expect just the applied column like the other cases where the static row isn't present"),
+    STATIC_LIST_APPEND_WITH_CLUSTERING_IN("",
+                                          "When an 'UPDATE SET s += [0] WHERE pk = ? AND ck IN (?, ?)' happens the static operation happens twice, so the list append adds 2 elements!"),
     ;
 
     KnownIssue(String url, String description)

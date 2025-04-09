@@ -30,6 +30,16 @@ public class StandardVisitors
             return new Literal(b.value(), b.type());
         }
     };
+    public static final Visitor LITERAL_TO_BIND = new Visitor()
+    {
+        @Override
+        public Value visit(Value v)
+        {
+            if (!(v instanceof Literal)) return v;
+            Literal b = (Literal) v;
+            return new Bind(b.value(), b.type());
+        }
+    };
 
     public static final Visitor UNWRAP_TYPE_HINT = new Visitor()
     {

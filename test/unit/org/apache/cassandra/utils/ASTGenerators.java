@@ -61,6 +61,7 @@ import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -373,6 +374,10 @@ public class ASTGenerators
         private BiFunction<RandomnessSource, List<Symbol>, List<Symbol>> ifConditionFilter = (rnd, symbols) -> symbols;
         private Gen<DeleteKind> deleteKindGen = SourceDSL.arbitrary().enumValues(DeleteKind.class);
         private Map<Symbol, ExpressionBuilder> columnExpressions = new LinkedHashMap<>();
+        private boolean allowPartitionOnlyUpdate = true;
+        private boolean allowPartitionOnlyInsert = true;
+        private boolean allowUpdateMultipleClusteringKeys = true;
+        private EnumSet<KnownIssue> ignoreIssues = IGNORE_ISSUES;
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -389,6 +394,30 @@ public class ASTGenerators
 
             for (Symbol symbol : allColumns)
                 columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder withIgnoreIssues(EnumSet<KnownIssue> ignoreIssues)
+        {
+            this.ignoreIssues = Objects.requireNonNull(ignoreIssues);
+            return this;
+        }
+
+        public MutationGenBuilder withAllowPartitionOnlyUpdate(boolean value)
+        {
+            this.allowPartitionOnlyUpdate = value;
+            return this;
+        }
+
+        public MutationGenBuilder withAllowPartitionOnlyInsert(boolean value)
+        {
+            this.allowPartitionOnlyInsert = value;
+            return this;
+        }
+
+        public MutationGenBuilder withAllowUpdateMultipleClusteringKeys(boolean allowUpdateMultipleClusteringKeys)
+        {
+            this.allowUpdateMultipleClusteringKeys = allowUpdateMultipleClusteringKeys;
+            return this;
         }
 
         public MutationGenBuilder withColumnExpressions(Consumer<ExpressionBuilder> fn)
@@ -534,9 +563,34 @@ public class ASTGenerators
             }
             else
             {
-                //TODO (coverage): support IN rather than just EQ
                 for (Symbol s : columns)
                     builder.value(s, columnExpressions.get(s).build().generate(rnd));
+            }
+        }
+
+        private static void where(RandomnessSource rnd,
+                                  Map<Symbol, ExpressionBuilder> columnExpressions,
+                                  Conditional.ConditionalBuilder<?> builder,
+                                  LinkedHashSet<Symbol> columns,
+                                  @Nullable Gen<? extends Map<Symbol, Object>> gen)
+        {
+            if (gen != null)
+            {
+                Map<Symbol, Object> map = gen.generate(rnd);
+                for (Map.Entry<Symbol, ?> e : assertDeterministic(map).entrySet())
+                    builder.value(e.getKey(), valueGen(e.getValue(), e.getKey().type()).generate(rnd));
+                return;
+            }
+
+            for (Symbol s : columns)
+            {
+                if (SourceDSL.booleans().all().generate(rnd))
+                {
+                    builder.value(s, columnExpressions.get(s).build().generate(rnd));
+                    continue;
+                }
+                var valueGen = columnExpressions.get(s).build();
+                builder.in(s, SourceDSL.lists().of(valueGen).ofSizeBetween(1, 3).generate(rnd));
             }
         }
 
@@ -544,6 +598,10 @@ public class ASTGenerators
         {
             Gen<Boolean> bool = SourceDSL.booleans().all();
             Map<? extends AbstractType<?>, List<Reference>> typeToReference = references.stream().collect(Collectors.groupingBy(Reference::type));
+            if (allowUpdateMultipleClusteringKeys
+                && ignoreIssues.contains(KnownIssue.STATIC_LIST_APPEND_WITH_CLUSTERING_IN)
+                && staticColumns.stream().anyMatch(s -> s.type().isMultiCell() && s.type().getClass() == ListType.class))
+                allowUpdateMultipleClusteringKeys = false;
             return rnd -> {
                 Mutation.Kind kind = kindGen.generate(rnd);
                 // when there are not non-primary-columns then can't support UPDATE
@@ -572,6 +630,12 @@ public class ASTGenerators
                         if (timestamp.isPresent())
                             builder.timestamp(valueGen(timestamp.getAsLong(), LongType.instance).generate(rnd));
                         values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+                        if (!staticColumns.isEmpty() && allowPartitionOnlyInsert && bool.generate(rnd))
+                        {
+                            var columnsToGenerate = new LinkedHashSet<>(subset(rnd, staticColumns));
+                            generateRemaining(rnd, bool, Mutation.Kind.INSERT, isTransaction, typeToReference, builder, columnsToGenerate);
+                            return builder.build();
+                        }
                         values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
                         LinkedHashSet<Symbol> columnsToGenerate;
                         if (regularAndStaticColumns.isEmpty())
@@ -601,6 +665,35 @@ public class ASTGenerators
                         var timestamp = timestampGen.generate(rnd);
                         if (timestamp.isPresent())
                             builder.timestamp(valueGen(timestamp.getAsLong(), LongType.instance).generate(rnd));
+                        if (allowUpdateMultipleClusteringKeys)
+                            where(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+                        else
+                            values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+
+                        if (!staticColumns.isEmpty() && allowPartitionOnlyUpdate && bool.generate(rnd))
+                        {
+                            var columnsToGenerate = new LinkedHashSet<>(subset(rnd, staticColumns));
+                            Conditional.EqBuilder<Mutation.UpdateBuilder> setBuilder = builder::set;
+                            generateRemaining(rnd, bool, Mutation.Kind.UPDATE, isTransaction, typeToReference, setBuilder, columnsToGenerate);
+
+                            if (isCas)
+                            {
+                                if (useCasIf.generate(rnd))
+                                {
+                                    ifGen(new ArrayList<>(staticColumns)).generate(rnd).ifPresent(c -> builder.ifCondition(c));
+                                }
+                                else
+                                {
+                                    builder.ifExists();
+                                }
+                            }
+                            return builder.build();
+                        }
+                        if (allowUpdateMultipleClusteringKeys)
+                            where(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
+                        else
+                            values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
+
                         if (isCas)
                         {
                             if (useCasIf.generate(rnd))
@@ -612,8 +705,6 @@ public class ASTGenerators
                                 builder.ifExists();
                             }
                         }
-                        values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
-                        values(rnd, columnExpressions, builder, clusteringColumns, clusteringValueGen);
 
                         LinkedHashSet<Symbol> columnsToGenerate;
                         if (regularAndStaticColumns.size() == 1 || bool.generate(rnd))

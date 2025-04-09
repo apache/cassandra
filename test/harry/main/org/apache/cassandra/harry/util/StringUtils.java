@@ -35,7 +35,7 @@ public class StringUtils
         for (int i = 0; i < input.length(); i++)
         {
             char c = input.charAt(i);
-            if (Character.isISOControl(c))
+            if (Character.isISOControl(c) && c != '\n')
                 result.append(String.format("\\u%04X", (int) c));
             else
                 result.append(c);
