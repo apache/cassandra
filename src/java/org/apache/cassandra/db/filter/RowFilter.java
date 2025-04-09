@@ -257,7 +257,10 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             @Override
             public Row applyToRow(Row row)
             {
-                Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+                // If we purge deletions when reconciliation is required, we hide information replica filtering
+                // protection would require to filter rows that are no longer matches are the coordinator.
+                Row purged = needsReconciliation() ? row : row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+
                 if (purged == null)
                     return null;
 
