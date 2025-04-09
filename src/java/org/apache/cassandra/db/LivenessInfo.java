@@ -220,7 +220,11 @@ public class LivenessInfo implements IMeasurableMemory
         if (isExpired() ^ other.isExpired())
             return isExpired();
         if (isExpiring() == other.isExpiring())
-            return localExpirationTime() > other.localExpirationTime();
+        {
+            return localExpirationTime() > other.localExpirationTime() ||
+                    (localExpirationTime() == other.localExpirationTime() && ttl() < other.ttl());
+        }
+
         return isExpiring();
     }
 
