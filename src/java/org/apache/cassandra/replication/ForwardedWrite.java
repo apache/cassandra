@@ -30,7 +30,6 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -316,21 +315,16 @@ public class ForwardedWrite
                 incoming.payload.ackTo = DirectAcknowledgementInfo.toCoordinator(incoming.from(), incoming.id());
                 Preconditions.checkState(mutation.id().isNone());
 
-                // The bulk of the work here is applying the mutation locally on the leader. Run entire task on that stage
-                // to avoid queuing on two separate stages. Leader does not need to block here for responses, those will be
-                // handled async via RequestCallbacks.
-                Stage.MUTATION.submit(() -> {
-                    // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
-                    try
-                    {
-                        incoming.payload.executeOnLeader();
-                    }
-                    catch (Exception e)
-                    {
-                        logger.error("Exception while executing forwarded write with key {} on leader", mutation.key(), e);
-                        MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
-                    }
-                });
+                // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
+                try
+                {
+                    incoming.payload.executeOnLeader();
+                }
+                catch (Exception e)
+                {
+                    logger.error("Exception while executing forwarded write with key {} on leader", mutation.key(), e);
+                    MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
+                }
             }
         }
     }
