@@ -350,12 +350,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected Cluster createCluster() throws IOException
     {
-        return createCluster(1, this::clusterConfig);
-    }
-
-    protected void clusterConfig(IInstanceConfig config)
-    {
-
+        return createCluster(1);
     }
 
     @Test

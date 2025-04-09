@@ -240,7 +240,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
 
     protected Cluster createCluster() throws IOException
     {
-        return createCluster(1, i -> {});
+        return createCluster(1);
     }
 
     @Test
