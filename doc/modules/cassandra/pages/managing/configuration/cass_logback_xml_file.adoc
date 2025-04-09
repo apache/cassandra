@@ -80,7 +80,7 @@ Specify the format of the message. Part of the rolling policy.
 <pattern>%-5level [%thread] %date\{ISO8601} %F:%L - %msg%n</pattern>
 </encoder>
 
-=== Logging to Cassandra virtual table
+=== Logging system logs to Cassandra virtual table
 
 It is possible to configure logback.xml in such a way that logs would appear in `system_views.system_log` table.
 This is achieved by appender implemented in class `VirtualTableAppender` which is called `CQLLOG` in the
@@ -100,6 +100,72 @@ It is recommended to set filter to at least `WARN` level so this table holds onl
 each message will occupy memory.
 
 The appender to virtual table is commented out by default so logging to virtual table is not active.
+
+=== Logging slow queries to Cassandra virual table
+
+It is possible to log slow queries into `system_views.slow_queries` table. A query is evaluated to be slow
+if it takes more than `slow_query_log_timeout` in `cassandra.yaml`.
+
+To log messages to `system_views.slow_queries` you need to:
+
+1. uncomment `SLOW_QUERIES_APPENDER` log appender
+2. uncomment `appender-ref` pointing to `SLOW_QUERIES_APPENDER` in `slow_queries` logger:
+
+The respective configuration in `logback.xml` looks like this:
+
+[source,XML]
+----
+  <!-- Uncomment below configuration and corresponding appender-ref in slow_queries logger to activate
+       logging into system_views.slow_queries virtual table. -->
+  <!-- <appender name="SLOW_QUERIES_APPENDER" class="org.apache.cassandra.utils.logging.SlowQueriesAppender"/> -->
+
+  <!-- Log slow queries to system_views.slow_queries virtual table -->
+  <logger name="slow_queries" additivity="false" level="DEBUG">
+    <appender-ref ref="DEBUGLOG"/>
+    <!-- uncomment this appender reference together with appender definition above
+         to start to put slow queries into system_views.slow_queries virtual table
+    <appender-ref ref="SLOW_QUERIES_APPENDER"/>
+    -->
+  </logger>
+----
+
+By default, slow queries will be logged to `debug.log`. By uncommenting virtual table appender, it will be
+logged to `debug.log` as well as to `system_views.slow_queries`. If you want to log it to `system_views.slow_queries` only, you need to comment out `DEBUGLOG` `appender-ref` in `slow_queries` logger declaration.
+
+If you want to log slow queries to a dedicated log file (which is e.g. rotated), that is also possible
+by pointing `slow_queries` logger to a respective file appender of a given reference, similar to `DEBUGLOG` where all logs go by default.
+
+The structure of a table looks like this:
+
+[source,cql]
+----
+cassandra@cqlsh> DESCRIBE system_views.slow_queries ;
+
+/*
+Warning: Table system_views.slow_queries is a virtual table and cannot be recreated with CQL.
+Structure, for reference:
+VIRTUAL TABLE system_views.slow_queries (
+    keyspace_name text,
+    table_name text,
+    timestamp timestamp,
+    query text,
+    avg_ms bigint,
+    cross_node boolean,
+    max_ms bigint,
+    min_ms bigint,
+    times_reported int,
+    PRIMARY KEY (keyspace_name, table_name, timestamp, query)
+) WITH CLUSTERING ORDER BY (table_name ASC, timestamp ASC, query ASC)
+    AND comment = 'Slow queries';
+----
+
+By having slow queries in a virtual table, an operator can check if there are slow queries for some table, see if
+some queries violate some time threshold etc. The rows in this table are same data as one would get in `debug.log`, they
+are just way more convenient to parse and query.
+
+`system_views.slow_queries` table is limited on number of rows it can hold, by default 10 000, configurable by `cassandra.virtual.slow_queries.max.rows` system property. If this table is full, the oldest entry is removed and the newest is inserted. This virtual table can be truncated by CQL and deletion on partition key (`keyspace_name` column) is allowed.
+
+A reader noticed that by placing custom appender implementation of `SLOW_QUERIES_APPENDER` appender on a class path and referencing it in `logback.xml`, it is possible to log slow queries wherever we have an appender for it.
 
 === Contents of default `logback.xml`
 

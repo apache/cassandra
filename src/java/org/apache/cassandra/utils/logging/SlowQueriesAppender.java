@@ -18,35 +18,28 @@
 
 package org.apache.cassandra.utils.logging;
 
-import java.util.Set;
-
-import com.google.common.collect.ImmutableSet;
-
 import ch.qos.logback.classic.spi.LoggingEvent;
-import org.apache.cassandra.audit.FileAuditLogger;
 import org.apache.cassandra.db.virtual.AbstractLoggerVirtualTable;
-import org.apache.cassandra.db.virtual.LogMessagesTable;
+import org.apache.cassandra.db.virtual.SlowQueriesTable;
 
-/**
- * Appends Cassandra logs to virtual table system_views.system_logs
- */
-public final class VirtualTableAppender extends AbstractVirtualTableAppender
+public final class SlowQueriesAppender extends AbstractVirtualTableAppender
 {
-    public static final String APPENDER_NAME = "CQLLOG";
+    public static final String APPENDER_NAME = "SLOW_QUERIES_APPENDER";
 
-    private static final Set<String> forbiddenLoggers = ImmutableSet.of(FileAuditLogger.class.getName());
+    private AbstractLoggerVirtualTable<?> slowQueries;
 
-    private AbstractLoggerVirtualTable<?> logs;
-
-    public VirtualTableAppender()
+    public SlowQueriesAppender()
     {
-        super(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS);
+        super(SlowQueriesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS);
     }
 
     @Override
     protected void append(LoggingEvent eventObject)
     {
-        if (!forbiddenLoggers.contains(eventObject.getLoggerName()))
-            logs = appendToVirtualTable(logs, eventObject, LogMessagesTable.TABLE_NAME);
+        // slowQueries will be null as long as virtual tables
+        // are not registered, and we already try to put queries there.
+        // As soon as vtable is registered (as part of node's startup / initialisation),
+        // slow queries will never be null again
+        slowQueries = appendToVirtualTable(slowQueries, eventObject, SlowQueriesTable.TABLE_NAME);
     }
 }

@@ -1396,6 +1396,10 @@ request_timeout: 10000ms
 # How long before a node logs slow queries. Select queries that take longer than
 # this timeout to execute, will generate an aggregated log message, so that slow queries
 # can be identified. Set this value to zero to disable slow query logging.
+#
+# It is possible to log slow queries into system_views.slow_queries virtual table.
+# Consult logback.xml to uncomment specific appender and logger to enable this functionality.
+#
 # Min unit: ms
 slow_query_log_timeout: 500ms
 

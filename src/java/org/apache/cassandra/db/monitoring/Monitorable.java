@@ -20,6 +20,8 @@ package org.apache.cassandra.db.monitoring;
 
 public interface Monitorable
 {
+    Monitorable NO_OP = new NoOp();
+
     String name();
     long creationTimeNanos();
     long timeoutNanos();
@@ -33,4 +35,76 @@ public interface Monitorable
 
     boolean abort();
     boolean complete();
+
+    default String monitoredOnKeyspace() { return null; };
+    default String monitoredOnTable() { return null; };
+
+    class NoOp implements Monitorable
+    {
+        @Override
+        public String name()
+        {
+            return null;
+        }
+
+        @Override
+        public long creationTimeNanos()
+        {
+            return 0;
+        }
+
+        @Override
+        public long timeoutNanos()
+        {
+            return 0;
+        }
+
+        @Override
+        public long slowTimeoutNanos()
+        {
+            return 0;
+        }
+
+        @Override
+        public boolean isInProgress()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean isAborted()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean isCompleted()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean isSlow()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean isCrossNode()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean abort()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean complete()
+        {
+            return false;
+        }
+    }
 }
