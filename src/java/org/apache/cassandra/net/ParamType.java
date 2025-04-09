@@ -20,7 +20,7 @@ package org.apache.cassandra.net;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.replication.ForwardedWriteRequest;
+import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.Int64Serializer;
@@ -57,7 +57,7 @@ public enum ParamType
     TOO_MANY_REFERENCED_INDEXES_WARN (16, Int32Serializer.serializer),
     TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer),
     // Different from RESPOND_TO because it's an additional recipient of the acknowledgement
-    DIRECT_ACKNOWLEDGEMENT_INFO      (18, ForwardedWriteRequest.DirectAcknowledgementInfo.serializer);
+    DIRECT_ACKNOWLEDGEMENT_INFO      (18, ForwardedWrite.DirectAcknowledgementInfo.serializer);
 
     final int id;
     final IVersionedSerializer serializer;

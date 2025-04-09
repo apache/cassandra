@@ -94,7 +94,7 @@ public class TrackedWriteRequest
                 logger.trace("Remote tracked request {} {}", mutation, plan);
             writeMetrics.remoteRequests.mark();
             AbstractWriteResponseHandler<Object> handler = rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
-            new ForwardedWriteRequest(Verb.MUTATION_REQ, mutation, plan).sendToLeader(handler);
+            new ForwardedWrite.Request(Verb.MUTATION_REQ, mutation, plan).sendToLeader(handler);
             return handler;
         }
 
@@ -194,7 +194,7 @@ public class TrackedWriteRequest
 
     static void applyMutationLocally(Mutation mutation, RequestCallback<NoPayload> handler)
     {
-        Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteLeaderHandler);
+        Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWrite.LeaderHandler);
         Stage.MUTATION.maybeExecuteImmediately(new LocalMutationRunnable(mutation, handler));
     }
 
@@ -205,7 +205,7 @@ public class TrackedWriteRequest
 
         LocalMutationRunnable(Mutation mutation, RequestCallback<NoPayload> handler)
         {
-            Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWriteLeaderHandler);
+            Preconditions.checkArgument(handler instanceof TrackedWriteResponseHandler || handler instanceof ForwardedWrite.LeaderHandler);
             this.mutation = mutation;
             this.handler = handler;
         }
@@ -214,8 +214,8 @@ public class TrackedWriteRequest
         {
             if (handler instanceof TrackedWriteResponseHandler)
                 return ((TrackedWriteResponseHandler) handler).getRequestTime();
-            if (handler instanceof ForwardedWriteLeaderHandler)
-                return ((ForwardedWriteLeaderHandler) handler).getRequestTime();
+            if (handler instanceof ForwardedWrite.LeaderHandler)
+                return ((ForwardedWrite.LeaderHandler) handler).getRequestTime();
             throw new IllegalStateException();
         }
 
@@ -272,7 +272,7 @@ public class TrackedWriteRequest
     static void sendMessagesToRemoteDC(Message<? extends IMutation> message,
                                         EndpointsForToken targets,
                                         RequestCallback<NoPayload> handler,
-                                        ForwardedWriteRequest.DirectAcknowledgementInfo ackTo)
+                                        ForwardedWrite.DirectAcknowledgementInfo ackTo)
     {
         final Replica target;
 
@@ -301,8 +301,8 @@ public class TrackedWriteRequest
             message = message.withParam(ParamType.DIRECT_ACKNOWLEDGEMENT_INFO, ackTo);
 
         Tracing.trace("Sending mutation to remote replica {}", target);
-        if (handler instanceof ForwardedWriteLeaderHandler)
-            MessagingService.instance().sendForwardedWriteWithCallback(message, target, (ForwardedWriteLeaderHandler) handler);
+        if (handler instanceof ForwardedWrite.LeaderHandler)
+            MessagingService.instance().sendForwardedWriteWithCallback(message, target, (ForwardedWrite.LeaderHandler) handler);
         else
             MessagingService.instance().sendWriteWithCallback(message, target, (AbstractWriteResponseHandler<?>) handler);
         logger.trace("Sending message to {}@{}", message.id(), target);

@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.replication.ForwardedWriteRequest;
+import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -44,7 +44,7 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         logger.trace("Enqueuing response to {}", respondToAddress);
         MessagingService.instance().send(response, respondToAddress);
 
-        ForwardedWriteRequest.DirectAcknowledgementInfo ackTo = (ForwardedWriteRequest.DirectAcknowledgementInfo) incoming.header.params().get(ParamType.DIRECT_ACKNOWLEDGEMENT_INFO);
+        ForwardedWrite.DirectAcknowledgementInfo ackTo = (ForwardedWrite.DirectAcknowledgementInfo) incoming.header.params().get(ParamType.DIRECT_ACKNOWLEDGEMENT_INFO);
         if (ackTo != null)
         {
             logger.trace("Enqueuing response for direct acknowledgement of forwarded tracked mutation to coordinator {}", ackTo.coordinator);
