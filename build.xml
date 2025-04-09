@@ -1313,9 +1313,8 @@
   <macrodef name="testlist">
     <attribute name="test.file.list"/>
     <sequential>
-      <condition property="maxMemory" value="8G" else="4G">
-          <equals arg1="${test.classlistprefix}" arg2="distributed"/>
-      </condition>
+      <!-- CI normally runs in containers, so bumping this value is not always safe; bumping can cause the JVM to crash due to inability to allocate memory! All changes here must be coordinated with CI memory improvements -->
+      <property name="maxMemory" value="2G" />
       <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" exclude="**/*.java" timeout="${test.timeout}" maxmemory="${maxMemory}">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
