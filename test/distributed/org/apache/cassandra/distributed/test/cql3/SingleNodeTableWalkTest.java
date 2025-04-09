@@ -59,7 +59,6 @@ import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -350,12 +349,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected Cluster createCluster() throws IOException
     {
-        return createCluster(1, this::clusterConfig);
-    }
-
-    protected void clusterConfig(IInstanceConfig config)
-    {
-
+        return createCluster(1);
     }
 
     @Test

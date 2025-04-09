@@ -24,6 +24,7 @@ import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
@@ -47,15 +48,19 @@ public class MultiNodeTokenConflictTest extends SingleNodeTokenConflictTest
     }
 
     @Override
+    protected void clusterConfig(IInstanceConfig c)
+    {
+        c.set("range_request_timeout", "180s")
+         .set("read_request_timeout", "180s")
+         .set("write_request_timeout", "180s")
+         .set("native_transport_timeout", "180s")
+         .set("slow_query_log_timeout", "180s");
+    }
+
+    @Override
     protected Cluster createCluster() throws IOException
     {
-        return createCluster(3, c -> {
-            c.set("range_request_timeout", "180s")
-             .set("read_request_timeout", "180s")
-             .set("write_request_timeout", "180s")
-             .set("native_transport_timeout", "180s")
-             .set("slow_query_log_timeout", "180s");
-        });
+        return createCluster(3);
     }
 
     @Override

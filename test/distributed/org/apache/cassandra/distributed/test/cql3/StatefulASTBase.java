@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -137,9 +138,25 @@ public class StatefulASTBase extends TestBaseImpl
         return "ks" + COUNTER.incrementAndGet();
     }
 
-    protected static Cluster createCluster(int nodeCount, Consumer<IInstanceConfig> config) throws IOException
+    protected void clusterConfig(IInstanceConfig config)
+    {
+
+    }
+
+    protected void clusterInitializer(ClassLoader cl, int node)
+    {
+
+    }
+
+    protected Cluster createCluster(int nodeCount) throws IOException
+    {
+        return createCluster(nodeCount, this::clusterConfig, this::clusterInitializer);
+    }
+
+    protected static Cluster createCluster(int nodeCount, Consumer<IInstanceConfig> config, BiConsumer<ClassLoader, Integer> instanceInitializer) throws IOException
     {
         Cluster cluster = Cluster.build(nodeCount)
+                                 .withInstanceInitializer(instanceInitializer)
                                  .withConfig(c -> {
                                      c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP)
                                       // When drop tables or truncate are performed, we attempt to take snapshots.  This can be costly and isn't needed by these tests
