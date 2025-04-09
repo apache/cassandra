@@ -117,12 +117,15 @@ def trim_if_present(s, prefix):
 def is_file_secure(filename):
     try:
         st = os.stat(filename)
+        uid = os.getuid()
     except OSError as e:
         if e.errno != errno.ENOENT:
             raise
         # the file doesn't exist, the security of it is irrelevant
         return True
-    uid = os.getuid()
+    except AttributeError as e:
+        # not-Unix os
+        return True
 
     # Skip enforcing the file owner and UID matching for the root user (uid == 0).
     # This is to allow "sudo cqlsh" to work with user owned credentials file.
