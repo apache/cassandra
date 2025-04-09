@@ -117,15 +117,15 @@ public class ForwardingExecutorFactory implements ExecutorFactory
     }
 
     @Override
-    public Thread startThread(String name, Runnable runnable, InfiniteLoopExecutor.Daemon daemon)
+    public Thread startThread(String name, Runnable runnable, InfiniteLoopExecutor.SimulatorTag simulatorTag)
     {
-        return delegate().startThread(name, runnable, daemon);
+        return delegate().startThread(name, runnable, simulatorTag);
     }
 
     @Override
-    public Interruptible infiniteLoop(String name, Interruptible.Task task, InfiniteLoopExecutor.SimulatorSafe simulatorSafe, InfiniteLoopExecutor.Daemon daemon, InfiniteLoopExecutor.Interrupts interrupts)
+    public Interruptible infiniteLoop(String name, Interruptible.Task task, InfiniteLoopExecutor.SimulatorSafe simulatorSafe, InfiniteLoopExecutor.Interrupts interrupts)
     {
-        return delegate().infiniteLoop(name, task, simulatorSafe, daemon, interrupts);
+        return delegate().infiniteLoop(name, task, simulatorSafe, interrupts);
     }
 
     @Override

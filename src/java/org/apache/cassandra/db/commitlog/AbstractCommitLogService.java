@@ -38,7 +38,6 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
@@ -152,7 +151,7 @@ public abstract class AbstractCommitLogService
                                                              syncIntervalNanos * 1e-6));
 
         SyncRunnable sync = new SyncRunnable(preciseTime);
-        executor = executorFactory().infiniteLoop(name, sync, SAFE, NON_DAEMON, SYNCHRONIZED);
+        executor = executorFactory().infiniteLoop(name, sync, SAFE, SYNCHRONIZED);
     }
 
     class SyncRunnable implements Interruptible.Task

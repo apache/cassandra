@@ -39,7 +39,6 @@ import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
@@ -97,7 +96,7 @@ final class Flusher<K, V>
     {
         String flushExecutorName = journal.name + "-disk-flusher-" + toLowerCaseLocalized(params.flushMode().toString());
         flushStartedAt = clock.now();
-        flushExecutor = executorFactory().infiniteLoop(flushExecutorName, new FlushRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
+        flushExecutor = executorFactory().infiniteLoop(flushExecutorName, new FlushRunnable(), SAFE, SYNCHRONIZED);
     }
 
     void shutdown() throws InterruptedException
@@ -378,7 +377,7 @@ final class Flusher<K, V>
         private FSyncRunnable newFsyncRunnable()
         {
             final FSyncRunnable fSyncRunnable = new FSyncRunnable();
-            fsyncExecutor = executorFactory().infiniteLoop(journal.name + "-fsync", fSyncRunnable, SAFE, NON_DAEMON, SYNCHRONIZED);
+            fsyncExecutor = executorFactory().infiniteLoop(journal.name + "-fsync", fSyncRunnable, SAFE, SYNCHRONIZED);
             return fSyncRunnable;
         }
     }

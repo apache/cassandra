@@ -27,10 +27,12 @@ import accord.utils.Invariants;
 
 import io.netty.util.collection.LongObjectHashMap;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
+import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorTag;
 import org.apache.cassandra.service.accord.AccordExecutor.Mode;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorTag.*;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -48,7 +50,7 @@ class AccordExecutorLoops
         loops = new LongObjectHashMap<>(threads);
         for (int i = 0; i < threads; ++i)
         {
-            Thread thread = executorFactory().startInfiniteLoopThread(name.apply(i), wrap(loopFactory.apply(mode)));
+            Thread thread = executorFactory().startThread(name.apply(i), wrap(loopFactory.apply(mode)), INFINITE_LOOP);
             Thread conflict = loops.putIfAbsent(thread.getId(), thread);
             Invariants.require(conflict == null || !conflict.isAlive(), "Allocated two threads with the same threadId!");
         }

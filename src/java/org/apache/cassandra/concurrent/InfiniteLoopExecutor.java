@@ -53,12 +53,17 @@ public class InfiniteLoopExecutor implements Interruptible
     public enum SimulatorSafe { SAFE, UNSAFE }
 
     /**
-     * Does this loop always block on some external work provision that is going to be simulator-controlled, or does
-     * it loop periodically? If the latter, it may prevent simulation making progress between phases, and should be
-     * marked as a DAEMON process.
+     * Simulator Tag specifies the nature of the created thread:
+     * 
+     *   * JOB threads are short-lived, and simulation will wait for them to terminate before completing an enclosing Work unit
+     *   * DAEMON threads can outlive the enclosing work unit during simulation; and will also
+     *   * INFINITE_LOOP threads are intended for looping "forever", and are explicitly marked as such to distinguish them from
+     *     other long-lived threads.
+     *
+     * DAEMON and INFINITE_LOOP threads are marked as daemon threads in JVM.
      */
     @Shared(scope = Shared.Scope.SIMULATION)
-    public enum Daemon        { DAEMON, NON_DAEMON, INFINITE_LOOP }
+    public enum SimulatorTag  { JOB, DAEMON, INFINITE_LOOP }
 
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum Interrupts    { SYNCHRONIZED, UNSYNCHRONIZED }
@@ -70,20 +75,20 @@ public class InfiniteLoopExecutor implements Interruptible
     private final Consumer<Thread> interruptHandler;
     private final Condition isTerminated = newOneTimeCondition();
 
-    public InfiniteLoopExecutor(String name, Task task, Daemon daemon)
+    public InfiniteLoopExecutor(String name, Task task)
     {
-        this(ExecutorFactory.Global.executorFactory(), name, task, daemon, UNSYNCHRONIZED);
+        this(ExecutorFactory.Global.executorFactory(), name, task, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task)
     {
-        this(factory, name, task, daemon, UNSYNCHRONIZED);
+        this(factory, name, task, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Daemon daemon, Interrupts interrupts)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Interrupts interrupts)
     {
         this.task = task;
-        this.thread = factory.startThread(name, this::loop, daemon);
+        this.thread = factory.startThread(name, this::loop, SimulatorTag.INFINITE_LOOP);
         this.interruptHandler = interrupts == SYNCHRONIZED
                                 ? interruptHandler(task)
                                 : Thread::interrupt;
