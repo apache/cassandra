@@ -44,7 +44,7 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         logger.trace("Enqueuing response to {}", respondToAddress);
         MessagingService.instance().send(response, respondToAddress);
 
-        ForwardedWrite.DirectAcknowledgementInfo ackTo = (ForwardedWrite.DirectAcknowledgementInfo) incoming.header.params().get(ParamType.DIRECT_ACKNOWLEDGEMENT_INFO);
+        ForwardedWrite.CoordinatorAckInfo ackTo = (ForwardedWrite.CoordinatorAckInfo) incoming.header.params().get(ParamType.COORDINATOR_ACK_INFO);
         if (ackTo != null)
         {
             logger.trace("Enqueuing response for direct acknowledgement of forwarded tracked mutation to coordinator {}", ackTo.coordinator);

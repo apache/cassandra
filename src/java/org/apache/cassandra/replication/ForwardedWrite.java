@@ -120,7 +120,7 @@ public class ForwardedWrite
 
         Kind kind();
         DecoratedKey key();
-        void execute(DirectAcknowledgementInfo ackTo);
+        void execute(CoordinatorAckInfo ackTo);
 
         IVersionedSerializer<Request> serializer = new IVersionedSerializer<>()
         {
@@ -187,7 +187,7 @@ public class ForwardedWrite
         }
 
         @Override
-        public void execute(DirectAcknowledgementInfo ackTo)
+        public void execute(CoordinatorAckInfo ackTo)
         {
             Preconditions.checkState(ackTo != null);
             Preconditions.checkArgument(mutation.id().isNone());
@@ -201,7 +201,7 @@ public class ForwardedWrite
         }
 
         // TODO: refactor common with applyLocallyAndSendToReplicas
-        private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderCallback handler, DirectAcknowledgementInfo ackTo)
+        private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderCallback handler, CoordinatorAckInfo ackTo)
         {
             Preconditions.checkState(ackTo != null);
             ClusterMetadata cm = ClusterMetadata.current();
@@ -246,7 +246,7 @@ public class ForwardedWrite
                     message = Message.builder(MUTATION_REQ, mutation)
                                      .withRequestTime(handler.getRequestTime())
                                      .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
-                                     .withParam(ParamType.DIRECT_ACKNOWLEDGEMENT_INFO, ackTo)
+                                     .withParam(ParamType.COORDINATOR_ACK_INFO, ackTo)
                                      .withId(ackTo.id)
                                      .build();
 
@@ -363,7 +363,7 @@ public class ForwardedWrite
         {
             if (logger.isTraceEnabled())
                 logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
-            DirectAcknowledgementInfo ackTo = DirectAcknowledgementInfo.toCoordinator(incoming.from(), incoming.id());
+            CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());
             Request request = incoming.payload;
 
             // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
@@ -386,10 +386,10 @@ public class ForwardedWrite
         private final String keyspace;
         private final Token token;
         private final MutationId id;
-        private final DirectAcknowledgementInfo ackTo;
+        private final CoordinatorAckInfo ackTo;
         private final Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
 
-        public LeaderCallback(String keyspace, Token token, MutationId id, DirectAcknowledgementInfo ackTo)
+        public LeaderCallback(String keyspace, Token token, MutationId id, CoordinatorAckInfo ackTo)
         {
             this.keyspace = keyspace;
             this.token = token;
@@ -433,27 +433,27 @@ public class ForwardedWrite
         }
     }
 
-    public static class DirectAcknowledgementInfo
+    public static class CoordinatorAckInfo
     {
-        public static IVersionedSerializer<DirectAcknowledgementInfo> serializer = new IVersionedSerializer<>()
+        public static IVersionedSerializer<CoordinatorAckInfo> serializer = new IVersionedSerializer<>()
         {
             @Override
-            public void serialize(DirectAcknowledgementInfo ackTo, DataOutputPlus out, int version) throws IOException
+            public void serialize(CoordinatorAckInfo ackTo, DataOutputPlus out, int version) throws IOException
             {
                 InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(ackTo.coordinator, out, version);
                 out.writeLong(ackTo.id);
             }
 
             @Override
-            public DirectAcknowledgementInfo deserialize(DataInputPlus in, int version) throws IOException
+            public CoordinatorAckInfo deserialize(DataInputPlus in, int version) throws IOException
             {
                 InetAddressAndPort coordinator = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version);
                 long id = in.readLong();
-                return new DirectAcknowledgementInfo(coordinator, id);
+                return new CoordinatorAckInfo(coordinator, id);
             }
 
             @Override
-            public long serializedSize(DirectAcknowledgementInfo ackTo, int version)
+            public long serializedSize(CoordinatorAckInfo ackTo, int version)
             {
                 long size = 0;
                 size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(ackTo.coordinator, version);
@@ -465,15 +465,15 @@ public class ForwardedWrite
         public final InetAddressAndPort coordinator;
         public final long id;
 
-        private DirectAcknowledgementInfo(InetAddressAndPort coordinator, long id)
+        private CoordinatorAckInfo(InetAddressAndPort coordinator, long id)
         {
             this.coordinator = coordinator;
             this.id = id;
         }
 
-        private static DirectAcknowledgementInfo toCoordinator(InetAddressAndPort coordinator, long messageId)
+        private static CoordinatorAckInfo toCoordinator(InetAddressAndPort coordinator, long messageId)
         {
-            return new DirectAcknowledgementInfo(coordinator, messageId);
+            return new CoordinatorAckInfo(coordinator, messageId);
         }
     }
 }

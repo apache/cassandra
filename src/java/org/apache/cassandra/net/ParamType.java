@@ -57,7 +57,7 @@ public enum ParamType
     TOO_MANY_REFERENCED_INDEXES_WARN (16, Int32Serializer.serializer),
     TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer),
     // Different from RESPOND_TO because it's an additional recipient of the acknowledgement
-    DIRECT_ACKNOWLEDGEMENT_INFO      (18, ForwardedWrite.DirectAcknowledgementInfo.serializer);
+    COORDINATOR_ACK_INFO             (18, ForwardedWrite.CoordinatorAckInfo.serializer);
 
     final int id;
     final IVersionedSerializer serializer;
