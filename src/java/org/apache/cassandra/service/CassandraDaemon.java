@@ -59,6 +59,8 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
+import org.apache.cassandra.db.virtual.LogMessagesTable;
+import org.apache.cassandra.db.virtual.SlowQueriesTable;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
@@ -94,6 +96,7 @@ import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
+import org.apache.cassandra.utils.logging.SlowQueriesAppender;
 import org.apache.cassandra.utils.logging.VirtualTableAppender;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -436,7 +439,6 @@ public class CassandraDaemon
         {
             exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
-
     }
 
     /**
@@ -555,11 +557,17 @@ public class CassandraDaemon
         if (DatabaseDescriptor.getAccord().enable_virtual_debug_only_keyspace)
             VirtualKeyspaceRegistry.instance.register(AccordDebugKeyspace.instance);
 
-        // flush log messages to system_views.system_logs virtual table as there were messages already logged
-        // before that virtual table was instantiated
+        // Flush log messages to system_views.system_logs virtual table as there were messages already logged
+        // before that virtual table was instantiated.
+        // In general, there is no need to do same treatment for slow queries as by the time queries are processed
+        // the logging framework if fully setup already but for the sake of it and to be sure, just do it as well.
         LoggingSupportFactory.getLoggingSupport()
                              .getAppender(VirtualTableAppender.class, VirtualTableAppender.APPENDER_NAME)
-                             .ifPresent(appender -> ((VirtualTableAppender) appender).flushBuffer());
+                             .ifPresent(appender -> appender.flushBuffer(LogMessagesTable.class, LogMessagesTable.TABLE_NAME));
+
+        LoggingSupportFactory.getLoggingSupport()
+                             .getAppender(SlowQueriesAppender.class, SlowQueriesAppender.APPENDER_NAME)
+                             .ifPresent(appender -> appender.flushBuffer(SlowQueriesTable.class, SlowQueriesTable.TABLE_NAME));
     }
 
     public synchronized void initializeClientTransports()

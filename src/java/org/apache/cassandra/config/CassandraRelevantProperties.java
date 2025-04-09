@@ -27,6 +27,7 @@ import com.google.common.primitives.Ints;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
+import org.apache.cassandra.db.virtual.SlowQueriesTable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
@@ -363,6 +364,8 @@ public enum CassandraRelevantProperties
     LOG4J2_DISABLE_JMX_LEGACY("log4j2.disable.jmx"),
     LOG4J_SHUTDOWN_HOOK_ENABLED("log4j.shutdownHookEnabled"),
     LOGBACK_CONFIGURATION_FILE("logback.configurationFile"),
+    /** Maximum number of rows in system_views.slow_queries */
+    LOGS_SLOW_QUERIES_VIRTUAL_TABLE_MAX_ROWS("cassandra.virtual.slow_queries.max.rows", convertToString(SlowQueriesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS)),
     /** Maximum number of rows in system_views.logs table */
     LOGS_VIRTUAL_TABLE_MAX_ROWS("cassandra.virtual.logs.max.rows", convertToString(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS)),
     /**

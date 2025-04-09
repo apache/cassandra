@@ -119,6 +119,18 @@ appender reference in the root level section below.
     </filter>
   </appender> -->
 
+  <!-- Uncomment below configuration and corresponding appender-ref in slow_queries logger to activate
+       logging into system_views.slow_queries virtual table. -->
+  <!-- <appender name="SLOW_QUERIES_APPENDER" class="org.apache.cassandra.utils.logging.SlowQueriesAppender"/> -->
+
+  <!-- Log slow queries to system_views.slow_queries virtual table -->
+  <logger name="slow_queries" additivity="false" level="DEBUG">
+    <appender-ref ref="DEBUGLOG"/>
+    <!-- uncomment this appender reference together with appender definition above
+         to start to put slow queries into system_views.slow_queries virtual table -->
+    <!-- <appender-ref ref="SLOW_QUERIES_APPENDER"/> -->
+  </logger>
+
   <root level="INFO">
     <appender-ref ref="SYSTEMLOG" />
     <appender-ref ref="STDOUT" />

@@ -60,7 +60,8 @@ public class LogbackLoggingSupport implements LoggingSupport
     @Override
     public void onStartup()
     {
-        checkOnlyOneVirtualTableAppender();
+        checkOnlyOneVirtualTableAppender(VirtualTableAppender.class);
+        checkOnlyOneVirtualTableAppender(SlowQueriesAppender.class);
 
         // The default logback configuration in conf/logback.xml allows reloading the
         // configuration when the configuration file has changed (every 60 seconds by default).
@@ -138,7 +139,20 @@ public class LogbackLoggingSupport implements LoggingSupport
     }
 
     @Override
-    public Optional<Appender<?>> getAppender(Class<?> appenderClass, String name)
+    public Optional<Logger> getLogger(String loggerName)
+    {
+        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+        for (Logger logBackLogger : lc.getLoggerList())
+        {
+            if (logBackLogger.getName().equals(loggerName))
+                return Optional.of(logBackLogger);
+        }
+
+        return Optional.empty();
+    }
+
+    @Override
+    public <T extends Appender<?>> Optional<T> getAppender(Class<T> appenderClass, String appenderName)
     {
         LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
         for (Logger logBackLogger : lc.getLoggerList())
@@ -146,15 +160,15 @@ public class LogbackLoggingSupport implements LoggingSupport
             for (Iterator<Appender<ILoggingEvent>> iterator = logBackLogger.iteratorForAppenders(); iterator.hasNext();)
             {
                 Appender<ILoggingEvent> appender = iterator.next();
-                if (appender.getClass() == appenderClass && appender.getName().equals(name))
-                    return Optional.of(appender);
+                if (appender.getClass() == appenderClass && appender.getName().equals(appenderName))
+                    return Optional.of(appenderClass.cast(appender));
             }
         }
 
         return Optional.empty();
     }
 
-    private void checkOnlyOneVirtualTableAppender()
+    private void checkOnlyOneVirtualTableAppender(Class<?> appenderClass)
     {
         int count = 0;
         LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -164,7 +178,7 @@ public class LogbackLoggingSupport implements LoggingSupport
             for (Iterator<Appender<ILoggingEvent>> iterator = logBackLogger.iteratorForAppenders(); iterator.hasNext();)
             {
                 Appender<?> appender = iterator.next();
-                if (appender instanceof VirtualTableAppender)
+                if (appenderClass.isAssignableFrom(appender.getClass()))
                 {
                     virtualAppenderNames.add(appender.getName());
                     count += 1;
@@ -174,7 +188,7 @@ public class LogbackLoggingSupport implements LoggingSupport
 
         if (count > 1)
             throw new IllegalStateException(String.format("There are multiple appenders of class %s of names %s. There is only one appender of such class allowed.",
-                                                          VirtualTableAppender.class.getName(), String.join(",", virtualAppenderNames)));
+                                                          appenderClass.getName(), String.join(",", virtualAppenderNames)));
     }
 
     private boolean hasAppenders(Logger logBackLogger)
