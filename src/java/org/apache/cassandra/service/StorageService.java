@@ -7771,16 +7771,4 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setClearSnapshotFilesLogEnabled(enabled);
     }
-
-    @Override
-    public void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
-    {
-        DatabaseDescriptor.setPaxosRepairRaceWait(paxosRepairRaceWait);
-    }
-
-    @Override
-    public boolean getPaxosRepairRaceWait()
-    {
-        return DatabaseDescriptor.getPaxosRepairRaceWait();
-    }
 }

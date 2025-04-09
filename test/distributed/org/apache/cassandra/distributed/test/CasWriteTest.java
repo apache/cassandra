@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -65,6 +66,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.service.paxos.TablePaxosRepairHistory;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.hamcrest.BaseMatcher;
@@ -72,6 +74,7 @@ import org.hamcrest.Description;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.INTERNALLY_FORCED;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.fail;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -421,6 +424,77 @@ public class CasWriteTest extends TestBaseImpl
         // we must first perform a write as the read has proposal stability and so responds async
         cluster.coordinator(1).execute("UPDATE " + KEYSPACE + ".tbl SET v = 2 WHERE ck = 1 AND pk = " + pk + " IF EXISTS", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM);
         Assert.assertArrayEquals(new Object[0], cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = " + pk, ConsistencyLevel.SERIAL));
+    }
+
+    @Test
+    public void testPrepareFilterCommitsBasedOnLowBound()
+    {
+        cluster.filters().reset();
+        int extraKeys = 10;
+        int pk = pkGen.getAndAdd(extraKeys + 1);
+
+        cluster.coordinator(1).execute(mkCasInsertQuery((a) -> pk, 1, 1), ConsistencyLevel.ALL);
+        for (int k = 1 ; k <= 3 ; ++k)
+        {
+            ((IInvokableInstance)cluster.get(k)).runOnInstance(() -> {
+                ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("paxos");
+                cfs.forceFlush(INTERNALLY_FORCED).awaitUninterruptibly();
+                ColumnFamilyStore cfs2 = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+                cfs2.forceFlush(INTERNALLY_FORCED).awaitUninterruptibly();
+            });
+        }
+
+        long preRepairLowBoundOn1 = ((IInvokableInstance)cluster.get(1)).applyOnInstance(pk_ -> {
+            TablePaxosRepairHistory paxosRepairHistory = TablePaxosRepairHistory.load(KEYSPACE, "tbl");
+            return paxosRepairHistory.getHistory().maxLowBound().uuidTimestamp();
+        }, pk);
+
+        long preRepairLowBoundOn3 = ((IInvokableInstance)cluster.get(3)).applyOnInstance(pk_ -> {
+            TablePaxosRepairHistory paxosRepairHistory = TablePaxosRepairHistory.load(KEYSPACE, "tbl");
+            return paxosRepairHistory.getHistory().maxLowBound().uuidTimestamp();
+        }, pk);
+
+        cluster.filters().verbs(Verb.PAXOS2_CLEANUP_COMPLETE_REQ.id).from(1,2).to(3).drop().on();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<?> future = executor.submit(() -> {
+            cluster.get(1).nodetool("repair", "--paxos-only", KEYSPACE, "tbl");
+        });
+
+        try
+        {
+            future.get(5, TimeUnit.SECONDS);
+        }
+        catch (TimeoutException e)
+        {
+            // expected
+        }
+        catch (Exception e)
+        {
+            fail("unexpected exception");
+        }
+        finally
+        {
+            executor.shutdownNow();
+        }
+
+        long postRepairLowBoundOn1 = ((IInvokableInstance)cluster.get(1)).applyOnInstance(pk_ -> {
+            TablePaxosRepairHistory paxosRepairHistory = TablePaxosRepairHistory.load(KEYSPACE, "tbl");
+            return paxosRepairHistory.getHistory().maxLowBound().uuidTimestamp();
+        }, pk);
+
+        long postRepairLowBoundOn3 = ((IInvokableInstance)cluster.get(3)).applyOnInstance(pk_ -> {
+            TablePaxosRepairHistory paxosRepairHistory = TablePaxosRepairHistory.load(KEYSPACE, "tbl");
+            return paxosRepairHistory.getHistory().maxLowBound().uuidTimestamp();
+        }, pk);
+
+        // node3 missed a PAXOS2_CLEANUP_COMPLETE_REQ hence local low bound is not updated
+        Assert.assertEquals(preRepairLowBoundOn3, postRepairLowBoundOn3);
+        Assert.assertNotEquals(preRepairLowBoundOn1, postRepairLowBoundOn1);
+
+        // propose a new ballot in (1,2,3)
+        // here node 3 will see a local committed ballot but would invalidate because it's lower than the witnessed lowBound
+        cluster.coordinator(3).execute(mkCasDeleteQuery((a) -> pk, 1, 1), ConsistencyLevel.ALL);
+        Assert.assertArrayEquals(new Object[0], cluster.coordinator(3).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = " + pk, ConsistencyLevel.SERIAL));
     }
 
     private static boolean isPaxosVariant2()

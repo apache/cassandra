@@ -65,6 +65,7 @@ import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static org.apache.cassandra.streaming.StreamTestUtils.channelFactory;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -461,7 +462,7 @@ public class StreamReaderTest
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
         IStreamReader reader = streamReader(header, streamHeader, session);
         StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, 1, 0);
-        session.prepareReceiving(streamSummary,  new org.apache.cassandra.utils.concurrent.CountDownLatch.Sync(0));
+        session.prepareReceiving(streamSummary, new CountDownLatch.Sync(0));
         try (SSTableMultiWriter ignored = reader.read(incomingStream(tokens)))
         {
             assertEquals(isOutOfRange, StorageMetrics.totalOpsForInvalidToken.getCount() > startMetricCount);
@@ -475,7 +476,7 @@ public class StreamReaderTest
         CassandraStreamHeader streamHeader = streamMessageHeader(tokens);
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
         StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, 1, 0);
-        session.prepareReceiving(streamSummary, new org.apache.cassandra.utils.concurrent.CountDownLatch.Sync(0));
+        session.prepareReceiving(streamSummary, new CountDownLatch.Sync(0));
         try
         {
             IStreamReader reader = streamReader(header, streamHeader, session);

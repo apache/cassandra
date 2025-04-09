@@ -1541,5 +1541,4 @@ public class Config
     public boolean enable_custom_payload_logging = false;
 
     public volatile boolean enable_get_natural_endpoints_for_all_token_ranges = true;
-    public boolean paxos_repair_race_wait = true;
 }
