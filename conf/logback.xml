@@ -23,8 +23,6 @@ appender reference in the root level section below.
 -->
 
 <configuration scan="true" scanPeriod="60 seconds">
-  <jmxConfigurator />
-
   <!-- No shutdown hook; we run it ourselves in StorageService after shutdown -->
 
   <!-- SYSTEMLOG rolling file appender to system.log (INFO level) -->
@@ -43,7 +41,7 @@ appender reference in the root level section below.
       <totalSizeCap>5GB</totalSizeCap>
     </rollingPolicy>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -60,7 +58,7 @@ appender reference in the root level section below.
       <totalSizeCap>5GB</totalSizeCap>
     </rollingPolicy>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -80,7 +78,7 @@ appender reference in the root level section below.
       <level>INFO</level>
     </filter>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -98,7 +96,7 @@ appender reference in the root level section below.
       <totalSizeCap>5GB</totalSizeCap>
     </rollingPolicy>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender> -->
 

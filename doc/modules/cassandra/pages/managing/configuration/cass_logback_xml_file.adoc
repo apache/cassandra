@@ -76,8 +76,8 @@ the rolling policy.
 
 Specify the format of the message. Part of the rolling policy.
 
-*Example:* <maxHistory>7</maxHistory> *Example:* <encoder>
-<pattern>%-5level [%thread] %date\{ISO8601} %F:%L - %msg%n</pattern>
+*Example:* <encoder>
+<pattern>%-5level [%thread] %date\{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
 </encoder>
 
 === Logging system logs to Cassandra virtual table
@@ -172,7 +172,6 @@ A reader noticed that by placing custom appender implementation of `SLOW_QUERIES
 [source,XML]
 ----
 <configuration scan="true" scanPeriod="60 seconds">
-  <jmxConfigurator />
 
   <!-- No shutdown hook; we run it ourselves in StorageService after shutdown -->
 
@@ -192,7 +191,7 @@ A reader noticed that by placing custom appender implementation of `SLOW_QUERIES
       <totalSizeCap>5GB</totalSizeCap>
     </rollingPolicy>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -209,7 +208,7 @@ A reader noticed that by placing custom appender implementation of `SLOW_QUERIES
       <totalSizeCap>5GB</totalSizeCap>
     </rollingPolicy>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -229,7 +228,7 @@ A reader noticed that by placing custom appender implementation of `SLOW_QUERIES
       <level>INFO</level>
     </filter>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
