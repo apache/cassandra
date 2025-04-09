@@ -201,7 +201,7 @@ public class ForwardedWrite
         }
 
         // TODO: refactor common with applyLocallyAndSendToReplicas
-        private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderCallback handler, CoordinatorAckInfo ackTo)
+        private static void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderCallback handler, CoordinatorAckInfo ackTo)
         {
             Preconditions.checkState(ackTo != null);
             ClusterMetadata cm = ClusterMetadata.current();
