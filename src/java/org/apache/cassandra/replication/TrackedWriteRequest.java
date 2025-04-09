@@ -93,9 +93,7 @@ public class TrackedWriteRequest
             if (logger.isTraceEnabled())
                 logger.trace("Remote tracked request {} {}", mutation, plan);
             writeMetrics.remoteRequests.mark();
-            AbstractWriteResponseHandler<Object> handler = rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
-            new ForwardedWrite.Request(Verb.MUTATION_REQ, mutation, plan).sendToLeader(handler);
-            return handler;
+            return ForwardedWrite.forwardMutation(mutation, plan, rs, requestTime);
         }
 
         if (logger.isTraceEnabled())

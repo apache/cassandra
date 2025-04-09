@@ -28,24 +28,17 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.locator.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.NodeProximity;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
@@ -57,7 +50,6 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -72,136 +64,144 @@ public class ForwardedWrite
 {
     private static final Logger logger = LoggerFactory.getLogger(ForwardedWrite.class);
 
-
-    public static class Request
+    public interface Request
     {
-
-        private static class FanOutMessage
+        enum Kind
         {
-            final Verb verb;
-            final Mutation mutation;
-            final Set<NodeId> recipients;
+            MUTATION(0);
 
-            public FanOutMessage(Verb verb, Mutation mutation, Set<NodeId> recipients)
+            private final byte id;
+
+            Kind(int id)
             {
-                this.verb = verb;
-                this.mutation = mutation;
-                this.recipients = recipients;
+                this.id = (byte) id;
             }
 
-            private static final IVersionedSerializer<FanOutMessage> serializer = new IVersionedSerializer<>()
+            IVersionedSerializer<Request> serializer()
+            {
+                switch (this)
+                {
+                    case MUTATION:
+                        return MutationRequest.serializer;
+                    default:
+                        throw new IllegalStateException("Unhandled kind " + this);
+                }
+            }
+
+            static final IVersionedSerializer<Kind> serializer = new IVersionedSerializer<Request.Kind>()
             {
                 @Override
-                public void serialize(FanOutMessage t, DataOutputPlus out, int version) throws IOException
+                public void serialize(Kind kind, DataOutputPlus out, int version) throws IOException
                 {
-                    Version v = Version.minCommonSerializationVersion();
-                    out.writeInt(t.verb.id);
-                    Mutation.serializer.serialize(t.mutation, out, version);
-                    out.writeInt(t.recipients.size());
-                    for (NodeId recipient : t.recipients)
-                        NodeId.serializer.serialize(recipient, out, v);
+                    out.writeByte(kind.id);
+
                 }
 
                 @Override
-                public FanOutMessage deserialize(DataInputPlus in, int version) throws IOException
+                public Kind deserialize(DataInputPlus in, int version) throws IOException
                 {
-                    Version v = Version.minCommonSerializationVersion();
-                    Verb verb = Verb.fromId(in.readInt());
-                    Mutation mutation = Mutation.serializer.deserialize(in, version);
-                    int numRecipients = in.readInt();
-                    Set<NodeId> recipients = Sets.newHashSetWithExpectedSize(numRecipients);
-                    for (int i = 0; i < numRecipients; i++)
-                        recipients.add(NodeId.serializer.deserialize(in, v));
-                    return new FanOutMessage(verb, mutation, recipients);
+                    byte id = in.readByte();
+                    switch (id)
+                    {
+                        case 0:
+                            return MUTATION;
+                        default:
+                            throw new IllegalStateException("Unknown kind: " + id);
+                    }
                 }
 
                 @Override
-                public long serializedSize(FanOutMessage t, int version)
+                public long serializedSize(Kind kind, int version)
                 {
-                    long size = 0;
-                    Version v = Version.minCommonSerializationVersion();
-                    size += TypeSizes.INT_SIZE;
-                    size += Mutation.serializer.serializedSize(t.mutation, version);
-                    size += TypeSizes.INT_SIZE;
-                    for (NodeId recipient : t.recipients)
-                        size += NodeId.serializer.serializedSize(recipient, v);
-                    return size;
+                    return TypeSizes.BYTE_SIZE;
                 }
             };
         }
 
-        private volatile DirectAcknowledgementInfo ackTo = null;
+        Kind kind();
+        DecoratedKey key();
+        void execute(DirectAcknowledgementInfo ackTo);
 
-        // For now, just supporting a single mutation to multiple recipients. This will develop in the future for different
-        // kinds of mutations that each go to different recipients (see PaxosCommit).
-        private final FanOutMessage message;
-
-        private Request(FanOutMessage message)
+        IVersionedSerializer<Request> serializer = new IVersionedSerializer<>()
         {
-            this.message = message;
-        }
+            @Override
+            public void serialize(Request request, DataOutputPlus out, int version) throws IOException
+            {
+                Kind.serializer.serialize(request.kind(), out, version);
+                request.kind().serializer().serialize(request, out, version);
+            }
 
-        Request(Verb verb, Mutation mutation, ReplicaPlan.ForWrite plan)
+            @Override
+            public Request deserialize(DataInputPlus in, int version) throws IOException
+            {
+                Kind kind = Kind.serializer.deserialize(in, version);
+                return kind.serializer().deserialize(in, version);
+            }
+
+            @Override
+            public long serializedSize(Request request, int version)
+            {
+                long size = Kind.serializer.serializedSize(request.kind(), version);
+                size += request.kind().serializer().serializedSize(request, version);
+                return size;
+            }
+        };
+    }
+
+    public static class MutationRequest implements Request
+    {
+        private final Mutation mutation;
+        private final Set<NodeId> recipients;
+
+        private static Set<NodeId> nodeIds(ReplicaPlan.ForWrite plan)
         {
             ClusterMetadata cm = ClusterMetadata.current();
             Set<NodeId> recipients = new HashSet<>(plan.liveAndDown().size());
             for (Replica replica : plan.liveAndDown())
                 recipients.add(cm.directory.peerId(replica.endpoint()));
-            this.message = new FanOutMessage(verb, mutation, recipients);
+            return recipients;
         }
 
-        private Replica getLeader()
+        MutationRequest(Mutation mutation, ReplicaPlan.ForWrite plan)
         {
-            NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
-            ClusterMetadata cm = ClusterMetadata.current();
-            Token token = message.mutation.key().getToken();
-            Keyspace keyspace = Keyspace.open(message.mutation.getKeyspaceName());
-            EndpointsForRange endpoints = cm.placements.get(keyspace.getMetadata().params.replication).writes.forRange(token).get();
-            if (logger.isTraceEnabled())
-                logger.trace("Finding best leader from replicas {}", endpoints);
-
-            // TODO: Should match ReplicaPlans.findCounterLeaderReplica, including DC-local priority, current health, severity, etc.
-            return proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints).get(0);
+            this(mutation, nodeIds(plan));
         }
 
-        public void sendToLeader(AbstractWriteResponseHandler<?> handler)
+        public MutationRequest(Mutation mutation, Set<NodeId> recipients)
         {
-            Replica leader = getLeader();
-            if (logger.isTraceEnabled())
-                logger.trace("Selected {} as leader for mutation with key {}", leader.endpoint(), message.mutation.key());
-            Token token = message.mutation.key().getToken();
-            Keyspace keyspace = Keyspace.open(message.mutation.getKeyspaceName());
-            EndpointsForRange endpoints = ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).writes.forRange(token).get();
-
-            // Add callbacks for replicas to respond directly to coordinator
-            Message<Request> toLeader = Message.out(Verb.FORWARDING_WRITE, this);
-            for (Replica endpoint : endpoints)
-            {
-                if (logger.isTraceEnabled())
-                    logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
-                MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
-            }
-
-            MessagingService.instance().send(toLeader, leader.endpoint());
+            Preconditions.checkArgument(mutation.id().isNone());
+            this.mutation = mutation;
+            this.recipients = recipients;
         }
 
-        private void executeOnLeader()
+        @Override
+        public Kind kind()
+        {
+            return Kind.MUTATION;
+        }
+
+        @Override
+        public DecoratedKey key()
+        {
+            return mutation.key();
+        }
+
+        @Override
+        public void execute(DirectAcknowledgementInfo ackTo)
         {
             Preconditions.checkState(ackTo != null);
-            Mutation mutation = message.mutation;
             Preconditions.checkArgument(mutation.id().isNone());
             String keyspaceName = mutation.getKeyspaceName();
             Token token = mutation.key().getToken();
 
             MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
-            mutation = mutation.withMutationId(id);
             // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
             LeaderCallback handler = new LeaderCallback(keyspaceName, mutation.key().getToken(), id, ackTo);
-            applyLocallyAndForwardToReplicas(mutation, message.recipients, handler);
+            applyLocallyAndForwardToReplicas(mutation.withMutationId(id), recipients, handler, ackTo);
         }
 
         // TODO: refactor common with applyLocallyAndSendToReplicas
-        private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderCallback handler)
+        private void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderCallback handler, DirectAcknowledgementInfo ackTo)
         {
             Preconditions.checkState(ackTo != null);
             ClusterMetadata cm = ClusterMetadata.current();
@@ -289,24 +289,71 @@ public class ForwardedWrite
         public static final IVersionedSerializer<Request> serializer = new IVersionedSerializer<>()
         {
             @Override
-            public void serialize(Request request, DataOutputPlus out, int version) throws IOException
+            public void serialize(Request r, DataOutputPlus out, int version) throws IOException
             {
-                FanOutMessage.serializer.serialize(request.message, out, version);
+                MutationRequest request = (MutationRequest) r;
+                Mutation.serializer.serialize(request.mutation, out, version);
+                out.writeInt(request.recipients.size());
+                for (NodeId recipient : request.recipients)
+                    NodeId.messagingSerializer.serialize(recipient, out, version);
             }
 
             @Override
             public Request deserialize(DataInputPlus in, int version) throws IOException
             {
-                FanOutMessage message = FanOutMessage.serializer.deserialize(in, version);
-                return new Request(message);
+                Mutation mutation = Mutation.serializer.deserialize(in, version);
+                int numRecipients = in.readInt();
+                Set<NodeId> recipients = Sets.newHashSetWithExpectedSize(numRecipients);
+                for (int i = 0; i < numRecipients; i++)
+                    recipients.add(NodeId.messagingSerializer.deserialize(in, version));
+                return new MutationRequest(mutation, recipients);
             }
 
             @Override
-            public long serializedSize(Request request, int version)
+            public long serializedSize(Request r, int version)
             {
-                return FanOutMessage.serializer.serializedSize(request.message, version);
+                MutationRequest request = (MutationRequest) r;
+                long size = Mutation.serializer.serializedSize(request.mutation, version);
+                size += TypeSizes.INT_SIZE;
+                for (NodeId recipient : request.recipients)
+                    size += NodeId.messagingSerializer.serializedSize(recipient, version);
+                return size;
             }
         };
+    }
+
+    public static AbstractWriteResponseHandler<Object> forwardMutation(Mutation mutation, ReplicaPlan.ForWrite plan, AbstractReplicationStrategy strategy, Dispatcher.RequestTime requestTime)
+    {
+        // find leader
+        NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
+        ClusterMetadata cm = ClusterMetadata.current();
+        Token token = mutation.key().getToken();
+        Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
+        EndpointsForRange endpoints = cm.placements.get(keyspace.getMetadata().params.replication).writes.forRange(token).get();
+        if (logger.isTraceEnabled())
+            logger.trace("Finding best leader from replicas {}", endpoints);
+
+        // TODO: Should match ReplicaPlans.findCounterLeaderReplica, including DC-local priority, current health, severity, etc.
+        Replica leader = proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints).get(0);
+
+        // create callback and forward to leader
+        if (logger.isTraceEnabled())
+            logger.trace("Selected {} as leader for mutation with key {}", leader.endpoint(), mutation.key());
+
+        AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
+
+        // Add callbacks for replicas to respond directly to coordinator
+        Message<Request> toLeader = Message.out(Verb.FORWARDING_WRITE, new MutationRequest(mutation, plan));
+        for (Replica endpoint : endpoints)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
+            MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
+        }
+
+        MessagingService.instance().send(toLeader, leader.endpoint());
+
+        return handler;
     }
 
     public static final IVerbHandler<Request> verbHandler = new IVerbHandler<>()
@@ -316,18 +363,17 @@ public class ForwardedWrite
         {
             if (logger.isTraceEnabled())
                 logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
-            Mutation mutation = incoming.payload.message.mutation;
-            incoming.payload.ackTo = DirectAcknowledgementInfo.toCoordinator(incoming.from(), incoming.id());
-            Preconditions.checkState(mutation.id().isNone());
+            DirectAcknowledgementInfo ackTo = DirectAcknowledgementInfo.toCoordinator(incoming.from(), incoming.id());
+            Request request = incoming.payload;
 
             // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
             try
             {
-                incoming.payload.executeOnLeader();
+                request.execute(ackTo);
             }
             catch (Exception e)
             {
-                logger.error("Exception while executing forwarded write with key {} on leader", mutation.key(), e);
+                logger.error("Exception while executing forwarded write with key {} on leader", request.key(), e);
                 MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
             }
         }
