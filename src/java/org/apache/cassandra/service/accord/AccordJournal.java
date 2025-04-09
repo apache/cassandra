@@ -166,13 +166,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return journal.currentActiveSegment().index().size();
     }
 
-    public AccordJournal start(Node node)
+    public void start(Node node)
     {
         Invariants.require(status == Status.INITIALIZED);
         this.node = node;
         status = Status.STARTING;
         journal.start();
-        return this;
     }
 
     public boolean started()

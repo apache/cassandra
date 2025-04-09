@@ -411,7 +411,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         if (results.size() == 1)
             return results.get(0).flatMap(o -> Writes.SUCCESS);
 
-        return AsyncChains.all(results).flatMap(objects -> Writes.SUCCESS);
+        return AsyncChains.allOf(results).flatMap(objects -> Writes.SUCCESS);
     }
 
     public long estimatedSizeOnHeap()

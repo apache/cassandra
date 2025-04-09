@@ -246,7 +246,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                                                                .map(e -> tcmIdToAccord(e.getKey()))
                                                                .collect(Collectors.toSet());
         if (epochs.lastAcknowledged() >= topology.epoch()) checkIfNodesRemoved(topology, stillLiveNodes);
-        else epochs.acknowledgeFuture(topology.epoch()).addCallback(() -> checkIfNodesRemoved(topology, stillLiveNodes));
+        else epochs.acknowledgeFuture(topology.epoch()).invokeIfSuccess(() -> checkIfNodesRemoved(topology, stillLiveNodes));
     }
 
     private void checkIfNodesRemoved(Topology topology, Set<Node.Id> stillLiveNodes)
@@ -336,7 +336,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             }
         }
 
-        getOrCreateEpochState(epoch - 1).acknowledged().addCallback(() -> reportMetadata(metadata));
+        getOrCreateEpochState(epoch - 1).acknowledged().invokeIfSuccess(() -> reportMetadata(metadata));
     }
 
     private final Map<Long, Future<Void>> pendingTopologies = new ConcurrentHashMap<>();
@@ -635,7 +635,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     public Future<Void> unsafeLocalSyncNotified(long epoch)
     {
         AsyncPromise<Void> promise = new AsyncPromise<>();
-        getOrCreateEpochState(epoch).localSyncNotified().addCallback((result, failure) -> {
+        getOrCreateEpochState(epoch).localSyncNotified().invoke((result, failure) -> {
             if (failure != null) promise.tryFailure(failure);
             else promise.trySuccess(result);
         });

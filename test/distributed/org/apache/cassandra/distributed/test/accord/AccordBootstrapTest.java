@@ -296,7 +296,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                 for (long epoch = topologyManager.minEpoch() ; epoch <= topologyManager.epoch() ; ++epoch)
                 {
                     CountDownLatch latch = new CountDownLatch(1);
-                    topologyManager.epochReady(epoch).data.addCallback(latch::countDown);
+                    topologyManager.epochReady(epoch).data.invokeIfSuccess(latch::countDown);
                     while (true)
                     {
                         try

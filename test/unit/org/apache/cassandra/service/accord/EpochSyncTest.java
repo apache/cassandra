@@ -695,7 +695,7 @@ public class EpochSyncTest
                         EpochReady ready = new EpochReady(topology.epoch(), metadata, coordination, data, reads);
 
                         topology().onTopologyUpdate(topology, () -> ready, e -> {});
-                        ready.coordinate.addCallback(() -> topology().onEpochSyncComplete(id, topology.epoch()));
+                        ready.coordinate.invokeIfSuccess(() -> topology().onEpochSyncComplete(id, topology.epoch()));
                         if (topology().minEpoch() == topology.epoch() && topology().epoch() != topology.epoch())
                             return ready.coordinate;
                         config.acknowledgeEpoch(ready, startSync);

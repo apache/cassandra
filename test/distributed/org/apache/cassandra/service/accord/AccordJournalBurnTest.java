@@ -182,11 +182,10 @@ public class AccordJournalBurnTest extends BurnTestBase
                          }, directory, cfs)
                          {
                              @Override
-                             public AccordJournal start(Node node)
+                             public void start(Node node)
                              {
                                  super.start(node);
                                  unsafeSetStarted();
-                                 return this;
                              }
 
                              @Override

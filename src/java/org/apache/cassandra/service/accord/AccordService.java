@@ -744,7 +744,7 @@ public class AccordService implements IAccordService, Shutdownable
         List<AsyncChain<CommandStoreTxnBlockedGraph>> chains = new ArrayList<>(ids.length);
         for (int id : ids)
             chains.add(loadDebug(original, commandStores.forId(id)));
-        return AsyncChains.all(chains);
+        return AsyncChains.allOf(chains);
     }
 
     private AsyncChain<CommandStoreTxnBlockedGraph> loadDebug(TxnId txnId, CommandStore store)
@@ -816,7 +816,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
         if (chains.isEmpty())
             return null;
-        return AsyncChains.all(chains).map(ignore -> null);
+        return AsyncChains.allOf(chains).map(ignore -> null);
     }
 
     private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TokenKey pk, TxnId txnId, Timestamp executeAt)
