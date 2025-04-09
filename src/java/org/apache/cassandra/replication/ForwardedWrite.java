@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,9 +70,10 @@ import static org.apache.cassandra.net.Verb.MUTATION_REQ;
  */
 public class ForwardedWrite
 {
+    private static final Logger logger = LoggerFactory.getLogger(ForwardedWrite.class);
+
     public static class Request
     {
-        private static final Logger logger = LoggerFactory.getLogger(Request.class);
 
         private static class FanOutMessage
         {
@@ -106,7 +108,7 @@ public class ForwardedWrite
                     Verb verb = Verb.fromId(in.readInt());
                     Mutation mutation = Mutation.serializer.deserialize(in, version);
                     int numRecipients = in.readInt();
-                    Set<NodeId> recipients = new HashSet<>(numRecipients);
+                    Set<NodeId> recipients = Sets.newHashSetWithExpectedSize(numRecipients);
                     for (int i = 0; i < numRecipients; i++)
                         recipients.add(NodeId.serializer.deserialize(in, v));
                     return new FanOutMessage(verb, mutation, recipients);
@@ -283,9 +285,7 @@ public class ForwardedWrite
             }
         }
 
-        public static final Serializer serializer = new Serializer();
-
-        public static class Serializer implements IVersionedSerializer<Request>
+        public static final IVersionedSerializer<Request> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Request request, DataOutputPlus out, int version) throws IOException
@@ -305,41 +305,37 @@ public class ForwardedWrite
             {
                 return FanOutMessage.serializer.serializedSize(request.message, version);
             }
-        }
+        };
+    }
 
-        public static final VerbHandler verbHandler = new VerbHandler();
-
-        public static class VerbHandler implements IVerbHandler<Request>
+    public static final IVerbHandler<Request> verbHandler = new IVerbHandler<>()
+    {
+        @Override
+        public void doVerb(Message<Request> incoming)
         {
-            @Override
-            public void doVerb(Message<Request> incoming)
-            {
-                if (logger.isTraceEnabled())
-                    logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
-                Mutation mutation = incoming.payload.message.mutation;
-                incoming.payload.ackTo = DirectAcknowledgementInfo.toCoordinator(incoming.from(), incoming.id());
-                Preconditions.checkState(mutation.id().isNone());
+            if (logger.isTraceEnabled())
+                logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
+            Mutation mutation = incoming.payload.message.mutation;
+            incoming.payload.ackTo = DirectAcknowledgementInfo.toCoordinator(incoming.from(), incoming.id());
+            Preconditions.checkState(mutation.id().isNone());
 
-                // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
-                try
-                {
-                    incoming.payload.executeOnLeader();
-                }
-                catch (Exception e)
-                {
-                    logger.error("Exception while executing forwarded write with key {} on leader", mutation.key(), e);
-                    MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
-                }
+            // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
+            try
+            {
+                incoming.payload.executeOnLeader();
+            }
+            catch (Exception e)
+            {
+                logger.error("Exception while executing forwarded write with key {} on leader", mutation.key(), e);
+                MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
             }
         }
-    }
+    };
 
     // Leader just needs to acknowledge propagation for its own log, not for client consistency level
     // See org.apache.cassandra.service.TrackedWriteResponseHandler.onResponse, this class should probably merge with that one
     public static class LeaderHandler implements RequestCallback<NoPayload>
     {
-        private static final Logger logger = LoggerFactory.getLogger(LeaderHandler.class);
-
         private final String keyspace;
         private final Token token;
         private final MutationId id;
