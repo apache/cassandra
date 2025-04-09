@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import accord.api.Data;
 import accord.api.Update;
 import accord.primitives.Keys;
@@ -58,6 +60,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import static accord.utils.Invariants.requireArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
 import static com.google.common.base.Preconditions.checkState;
+import static java.lang.Boolean.FALSE;
 import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
@@ -266,6 +269,8 @@ public class TxnUpdate extends AccordUpdate
         @Override
         public void serialize(TxnUpdate update, TableMetadatasAndKeys tablesAndKeys, DataOutputPlus out, Version version) throws IOException
         {
+            // Serializing it with the condition result set shouldn't be needed
+            checkState(update.conditionResult == null, "Can't serialize if conditionResult is set without adding it to serialization");
             out.writeByte(update.preserveTimestamps ? FLAG_PRESERVE_TIMESTAMPS : 0);
             tablesAndKeys.serializeKeys(update.keys, out);
             writeWithVIntLength(update.condition.bytes(), out);
@@ -374,6 +379,12 @@ public class TxnUpdate extends AccordUpdate
     }
 
     @Override
+    public void failCondition()
+    {
+        conditionResult = FALSE;
+    }
+
+    @Override
     public boolean checkCondition(Data data)
     {
         // Assert data that was memoized is same as data that is provided?
@@ -395,5 +406,11 @@ public class TxnUpdate extends AccordUpdate
     public ConsistencyLevel cassandraCommitCL()
     {
         return cassandraCommitCL;
+    }
+
+    @VisibleForTesting
+    public void unsafeResetCondition()
+    {
+        conditionResult = null;
     }
 }

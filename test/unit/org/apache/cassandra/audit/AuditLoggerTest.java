@@ -34,7 +34,6 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -45,6 +44,8 @@ import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.exceptions.SyntaxError;
 import net.openhft.chronicle.queue.RollCycles;
@@ -65,7 +66,9 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JMXServerUtils;
+import org.assertj.core.api.Assertions;
 
+import static com.datastax.driver.core.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
@@ -453,8 +456,9 @@ public class AuditLoggerTest extends CQLTester
                        "      INSERT INTO " + fqTableName + " (key, val) VALUES (0, 0);\n" +
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
-
-        session.execute(query);
+        Statement statement = new SimpleStatement(query);
+        statement.setConsistencyLevel(QUORUM);
+        session.execute(statement);
         AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
         assertLogEntry(query, AuditLogEntryType.TRANSACTION, logEntry, true, null);
     }

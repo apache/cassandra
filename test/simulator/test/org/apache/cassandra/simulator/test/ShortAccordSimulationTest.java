@@ -71,7 +71,6 @@ import org.apache.cassandra.simulator.paxos.AccordSimulationRunner;
  -XX:Tier4CompileThreshold=1000
  -XX:ReservedCodeCacheSize=256M
  -Xmx16G
- -Xmx4G
  --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
  --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
  --add-exports java.base/sun.nio.ch=ALL-UNNAMED

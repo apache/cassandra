@@ -63,6 +63,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosPropose.Superseded;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -281,7 +282,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                 // If ballots with same timestamp have been both accepted and rejected by different nodes,
                 // to avoid a livelock we simply try to poison, knowing we will fail but use a new ballot
                 // (note there are alternative approaches but this is conservative)
-                return PaxosPropose.propose(latestAccepted, participants, false, true,
+                return PaxosPropose.propose(latestAccepted, participants, false,
                         new ProposingRepair(latestAccepted));
             }
             else if (isAcceptedButNotCommitted || isPromisedButNotAccepted || latestWitnessed.compareTo(latestPreviouslyWitnessed) < 0)
@@ -342,7 +343,7 @@ public class PaxosRepair extends AbstractPaxosRepair
 
                     Proposal propose = new Proposal(incomplete.ballot, incomplete.accepted.update);
                     logger.trace("PaxosRepair of {} found incomplete {}", partitionKey(), incomplete.accepted);
-                    return PaxosPropose.propose(propose, participants, false, true,
+                    return PaxosPropose.propose(propose, participants, false,
                             new ProposingRepair(propose)); // we don't know if we're done, so we must restart
                 }
 
@@ -360,7 +361,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                     // propose the empty ballot
                     logger.trace("PaxosRepair of {} submitting empty proposal", partitionKey());
                     Proposal proposal = Proposal.empty(input.success().ballot, partitionKey(), table);
-                    return PaxosPropose.propose(proposal, participants, false, true,
+                    return PaxosPropose.propose(proposal, participants, false,
                             new ProposingRepair(proposal));
                 }
 
@@ -385,10 +386,8 @@ public class PaxosRepair extends AbstractPaxosRepair
             {
                 case MAYBE_FAILURE:
                     return retry(this);
-
                 case SUPERSEDED:
                     Superseded superseded = input.superseded();
-                    checkState(!superseded.needsConsensusMigration, "Repair should not encounter consensus migration rejection");
                     if (isAfter(superseded.by, prevSupersededBy))
                         prevSupersededBy = input.superseded().by;
                     return retry(this);
@@ -490,6 +489,12 @@ public class PaxosRepair extends AbstractPaxosRepair
     {
         checkState(paxosConsistency.isSerialConsistency());
         return paxosConsistency.isDatacenterLocal() ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
+    }
+
+    public long maxHlc()
+    {
+        checkState(successCriteria != null);
+        return successCriteria.unixMicros();
     }
 
     static class Request
@@ -601,6 +606,11 @@ public class PaxosRepair extends AbstractPaxosRepair
                 MessagingService.instance().respondWithFailure(UNKNOWN, message);
                 return;
             }
+
+            // The epoch has to propagate before checking the state to ensure that acquiring the lock on the paxos state
+            // creates a happens before relationship with any future paxos requests that should be rejected because of migration
+            // away from Paxos that is known to the process running this prepare
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
 
             Ballot latestWitnessed;
             Accepted acceptedButNotCommited;

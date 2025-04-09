@@ -57,7 +57,7 @@ public class AccordReadRepairTest extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupCluster(builder -> builder, 2);
-        SHARED_CLUSTER.setMessageSink(new MessageCountingSink(SHARED_CLUSTER));
+        SHARED_CLUSTER.setMessageSink(new MessageCountingSink(SHARED_CLUSTER, MessageCountingSink.EXCLUDE_SYNC_POINT_MESSAGES));
     }
 
     /*

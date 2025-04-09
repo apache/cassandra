@@ -523,7 +523,7 @@ public class HarrySimulatorTest
         }
 
         @Override
-        public Map<Verb, FutureActionScheduler> perVerbFutureActionSchedulers(int nodeCount, SimulatedTime time, RandomSource random)
+        public Map<Verb, FutureActionScheduler> perVerbFutureActionSchedulers(int nodeCount, SimulatedTime time, RandomSource random, FutureActionScheduler defaultScheduler)
         {
             return networkSchedulers(nodeCount, time, random);
         }

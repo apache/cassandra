@@ -51,36 +51,34 @@ public class SimulatorUtils
         FastThreadLocal.destroy();
     }
 
-    public static void verifyAndlogSimulatorArgs(Logger logger, String[] args)
+    public static void verifyAndlogSimulatorArgs(String[] args)
     {
         RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
         final List<String> jvmArgs = runtimeMxBean.getInputArguments();
-        logger.error("JVM Args: {}", jvmArgs.stream().collect(Collectors.joining("\" \"", "\"", "\"")));
-        logger.error("Command Args: {}", Arrays.stream(args).collect(Collectors.joining("\" \"", "\"", "\"")));
+        System.err.printf("JVM Args: %s%n", jvmArgs.stream().collect(Collectors.joining("\" \"", "\"", "\"")));
+        System.err.printf("Command Args: %s%n", Arrays.stream(args).collect(Collectors.joining("\" \"", "\"", "\"")));
 
         assert jvmArgs.stream().anyMatch(arg -> arg.startsWith("-Xbootclasspath/a") && arg.endsWith("simulator-bootstrap.jar")) :
         "must launch JVM with -Xbootclasspath/a:simulator-bootstrap.jar";
         assert jvmArgs.stream().anyMatch(arg -> arg.startsWith("-javaagent:") && arg.endsWith("simulator-asm.jar")) :
         "must launch JVM with -javaagent:simulator-asm.jar";
         if (!jvmArgs.stream().anyMatch(arg -> arg.equals("-XX:-BackgroundCompilation")))
-            logger.warn("JVM Argument -XX:-BackgroundCompilation not set, non-determinism possible");
+            System.err.println("JVM Argument -XX:-BackgroundCompilation not set, non-determinism possible");
         if (!jvmArgs.stream().anyMatch(arg -> arg.equals("-XX:-TieredCompilation")))
-            logger.warn("JVM Argument -XX:-TieredCompilation not set, non-determinism possible");
+            System.err.println("JVM Argument -XX:-TieredCompilation not set, non-determinism possible");
         if (!jvmArgs.stream().anyMatch(arg -> arg.equals("-XX:CICompilerCount=1")))
-            logger.warn("JVM Argument -XX:CICompilerCount=1 not set, non-determinism possible");
+            System.err.println("JVM Argument -XX:CICompilerCount=1 not set, non-determinism possible");
         if (!jvmArgs.stream().anyMatch(arg -> arg.startsWith("-XX:Tier4CompileThreshold=")))
-            logger.warn("JVM Argument -XX:Tier4CompileThreshold not set, non-determinism possible. Typically set -XX:Tier4CompileThreshold=1000");
+            System.err.println("JVM Argument -XX:Tier4CompileThreshold not set, non-determinism possible.");
         if (!jvmArgs.stream().anyMatch(arg -> arg.equals("-Dcassandra.disable_tcactive_openssl=true")))
-            logger.warn("JVM Argument -Dcassandra.disable_tcactive_openssl=true not set, non-determinism possible. Typically set -XX:Tier4CompileThreshold=1000");
+            System.err.println("JVM Argument -Dcassandra.disable_tcactive_openssl=true not set, non-determinism possible. Typically set -XX:Tier4CompileThreshold=1000");
 
         // log4j support
         if (!jvmArgs.stream().anyMatch(arg -> arg.equals("-Dlog4j2.disableJmx=true")))
-            logger.warn("JVM Argument -Dlog4j2.disableJmx=true not set, non-determinism possible");
-        if (!jvmArgs.stream().anyMatch(arg -> arg.equals("-Dlog4j2.disable.jmx=true")))
-            logger.warn("JVM Argument -Dlog4j2.disable.jmx=true not set, non-determinism possible");
+            System.err.println("JVM Argument -Dlog4j2.disableJmx=true not set, non-determinism possible");
         if (!jvmArgs.stream().anyMatch(arg -> arg.equals("-Dlog4j.shutdownHookEnabled=false")))
-            logger.warn("JVM Argument -Dlog4j.shutdownHookEnabled=false not set, non-determinism possible");
+            System.err.println("JVM Argument -Dlog4j.shutdownHookEnabled=false not set, non-determinism possible");
         if (!jvmArgs.stream().anyMatch(arg -> arg.equals("-Dcassandra.simulator.skiplog4jreload=true")))
-            logger.warn("JVM Argument -Dcassandra.simulator.skiplog4jreload=true not set, non-determinism possible");
+            System.err.println("JVM Argument -Dcassandra.simulator.skiplog4jreload=true not set, non-determinism possible");
     }
 }

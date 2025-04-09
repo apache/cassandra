@@ -41,6 +41,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slice;
@@ -248,12 +249,13 @@ public class CQL3CasRequest implements CASRequest
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.
         if (conditions.isEmpty())
             return SinglePartitionReadCommand.create(metadata,
-                                                   nowInSec,
-                                                   columnFilter,
-                                                   RowFilter.none(),
-                                                   DataLimits.cqlLimits(1),
-                                                   key,
-                                                   new ClusteringIndexSliceFilter(Slices.ALL, false));
+                                                     nowInSec,
+                                                     columnFilter,
+                                                     RowFilter.none(),
+                                                     DataLimits.cqlLimits(1),
+                                                     key,
+                                                     new ClusteringIndexSliceFilter(Slices.ALL, false),
+                                                     PotentialTxnConflicts.ALLOW);
 
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(conditions.navigableKeySet(), false);
         return SinglePartitionReadCommand.create(metadata, nowInSec, key, columnFilter, filter);

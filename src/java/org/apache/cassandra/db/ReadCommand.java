@@ -489,6 +489,12 @@ public abstract class ReadCommand extends AbstractReadQuery
                                   // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
     {
+        return executeLocally(executionController, null);
+    }
+
+    // ClusterMetadata is null on startup when there are local reads from system tables before it's initialized
+    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController, @Nullable ClusterMetadata cm)
+    {
         long startTimeNanos = nanoTime();
 
         COMMAND.set(this);
@@ -496,7 +502,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
             if (!potentialTxnConflicts.allowed)
-                ConsensusRequestRouter.validateSafeToReadNonTransactionally(this);
+                ConsensusRequestRouter.validateSafeToReadNonTransactionally(this, cm);
             Index.QueryPlan indexQueryPlan = indexQueryPlan();
 
             Index.Searcher searcher = null;

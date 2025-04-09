@@ -24,8 +24,8 @@ import javax.annotation.Nullable;
 import accord.api.Data;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
-import accord.messages.ReadData;
 import accord.messages.MessageType;
+import accord.messages.ReadData;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
@@ -92,9 +92,9 @@ public class AccordInteropReadRepair extends ReadData
 
     static class ReadRepairCallback extends AccordInteropReadCallback<Object>
     {
-        public ReadRepairCallback(Node.Id id, InetAddressAndPort endpoint, Message<?> message, RequestCallback<Object> wrapped, MaximalCommitSender maximalCommitSender)
+        public ReadRepairCallback(Node.Id id, InetAddressAndPort endpoint, Message<?> message, RequestCallback<Object> wrapped, AccordInteropExecution interopExecution)
         {
-            super(id, endpoint, message, wrapped, maximalCommitSender);
+            super(id, endpoint, message, wrapped, interopExecution);
         }
 
         @Override

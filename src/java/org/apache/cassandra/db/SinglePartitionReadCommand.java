@@ -221,6 +221,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @param limits the limits to use for the query.
      * @param partitionKey the partition key for the partition to query.
      * @param clusteringIndexFilter the clustering index filter to use for the query.
+     * @param potentialTxnConflicts Whether to generate an error if this read could potentially conflict with a txn
      *
      * @return a newly created read command.
      */

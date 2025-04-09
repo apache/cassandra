@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord.interop;
 
-import javax.annotation.Nonnull;
-
 import accord.coordinate.Timeout;
 import accord.local.Node;
 import accord.messages.Callback;
@@ -36,24 +34,19 @@ import static accord.messages.ReadData.CommitOrReadNack.Insufficient;
 
 public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply>
 {
-    interface MaximalCommitSender
-    {
-        void sendMaximalCommit(@Nonnull Node.Id to);
-    }
-
     private final Node.Id id;
     private final InetAddressAndPort endpoint;
     private final Message<?> message;
     private final RequestCallback<T> wrapped;
-    private final MaximalCommitSender maximalCommitSender;
+    private final AccordInteropExecution interopExecution;
 
-    public AccordInteropReadCallback(Node.Id id, InetAddressAndPort endpoint, Message<?> message, RequestCallback<T> wrapped, MaximalCommitSender maximalCommitSender)
+    public AccordInteropReadCallback(Node.Id id, InetAddressAndPort endpoint, Message<?> message, RequestCallback<T> wrapped, AccordInteropExecution interopExecution)
     {
         this.id = id;
         this.message = message;
         this.endpoint = endpoint;
         this.wrapped = wrapped;
-        this.maximalCommitSender = maximalCommitSender;
+        this.interopExecution = interopExecution;
     }
 
     abstract T convertResponse(ReadOk ok);
@@ -64,14 +57,16 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
         Invariants.requireArgument(from.equals(id));
         if (reply.isOk())
         {
-            wrapped.onResponse(message.responseWith(convertResponse((ReadOk) reply)).withFrom(endpoint));
+            ReadOk readOk = (ReadOk)reply;
+            interopExecution.maybeUpdateUniqueHlc(readOk.uniqueHlc);
+            wrapped.onResponse(message.responseWith(convertResponse(readOk)).withFrom(endpoint));
         }
         else if (reply == Insufficient)
         {
             // Might still send a response if we send a maximal commit. Accord would tryAlternative and send
             // both the commit and an additional repair, but Cassandra doesn't have tryAlternative unless we add
             // it and instead opts to trigger additional repair messages based on time.
-            maximalCommitSender.sendMaximalCommit(id);
+            interopExecution.sendMaximalCommit(id);
         }
         else
         {

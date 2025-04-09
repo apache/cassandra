@@ -103,6 +103,7 @@ public class KeyspaceMetrics
     public final LatencyMetrics casCommit;
     /** Latency for locally run key migrations **/
     public final LatencyMetrics keyMigration;
+    public final LatencyMetrics accordGetMaxConflicts;
     /** Latency for range migrations run by locally coordinated Accord repairs **/
     public final LatencyMetrics accordRepair;
     public final LatencyMetrics accordPostStreamRepair;
@@ -261,6 +262,7 @@ public class KeyspaceMetrics
         casPropose = createLatencyMetrics("CasPropose");
         casCommit = createLatencyMetrics("CasCommit");
         keyMigration = createLatencyMetrics("KeyMigration");
+        accordGetMaxConflicts = createLatencyMetrics("AccordGetMaxConflicts");
         accordRepair = createLatencyMetrics("AccordRepair");
         accordPostStreamRepair = createLatencyMetrics("AccordPostStreamRepair");
         rangeMigrationUnexpectedFailures = createKeyspaceMeter("RangeMigrationUnexpectedFailures");

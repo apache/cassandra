@@ -56,6 +56,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
@@ -71,9 +72,9 @@ import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.dht.Range.compareRightToken;
 import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.getConsensusMigratedAt;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget.paxos;
-import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.accord;
-import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV1;
-import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingTarget.accord;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingTarget.paxosV1;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingTarget.paxosV2;
 
 /**
  * Helper class to decide where to route a request that requires consensus, migrating a key if necessary
@@ -85,11 +86,50 @@ import static org.apache.cassandra.service.consensus.migration.ConsensusRequestR
  */
 public class ConsensusRequestRouter
 {
-    public enum ConsensusRoutingDecision
+    public enum ConsensusRoutingTarget
     {
         paxosV1,
         paxosV2,
         accord,
+    }
+
+    public static class ConsensusRoutingDecision
+    {
+        public static final ConsensusRoutingDecision PAXOSV1 = new ConsensusRoutingDecision(paxosV1, IAccordService.NO_HLC);
+        public static final ConsensusRoutingDecision PAXOSV2 =  new ConsensusRoutingDecision(paxosV2, IAccordService.NO_HLC);
+        public static final ConsensusRoutingDecision ACCORD = new ConsensusRoutingDecision(accord, IAccordService.NO_HLC);
+
+        public final ConsensusRoutingTarget target;
+        public final long minHLC;
+        public ConsensusRoutingDecision(ConsensusRoutingTarget target, long maxHLC)
+        {
+            this.target = target;
+            this.minHLC = maxHLC + 1;
+        }
+
+        public static final ConsensusRoutingDecision decisionForTarget(ConsensusRoutingTarget target)
+        {
+            switch (target)
+            {
+                default:
+                    throw new IllegalArgumentException("Unhandled target " + target);
+                case paxosV1:
+                    return PAXOSV1;
+                case paxosV2:
+                    return PAXOSV2;
+                case accord:
+                    return ACCORD;
+            }
+        }
+
+        @Override
+        public String toString()
+        {
+            return "ConsensusRoutingDecision{" +
+                   "target=" + target +
+                   ", minHLC=" + minHLC +
+                   '}';
+        }
     }
 
     public static volatile ConsensusRequestRouter instance = new ConsensusRequestRouter();
@@ -111,7 +151,7 @@ public class ConsensusRequestRouter
     ConsensusRoutingDecision decisionFor(TransactionalMode transactionalMode)
     {
         if (transactionalMode.accordIsEnabled)
-            return accord;
+            return ConsensusRoutingDecision.decisionForTarget(accord);
 
         return pickPaxos();
     }
@@ -144,17 +184,7 @@ public class ConsensusRequestRouter
         return tbm;
     }
 
-    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull ClusterMetadata cm, @Nonnull DecoratedKey key, @Nonnull String keyspace, @Nonnull String table, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
-    {
-        TableMetadata metadata = metadata(cm, keyspace, table);
-
-        // Non-distributed tables always take the Paxos path
-        if (metadata == null)
-            return pickPaxos();
-        return routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
-    }
-
-    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull ClusterMetadata cm, @Nonnull DecoratedKey key, @Nonnull TableId tableId, ConsistencyLevel consistencyLevel,  Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
+    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull ClusterMetadata cm, @Nonnull DecoratedKey key, @Nonnull TableId tableId, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
     {
         TableMetadata metadata = getTableMetadata(cm, tableId);
         // Non-distributed tables always take the Paxos path
@@ -181,7 +211,6 @@ public class ConsensusRequestRouter
 
     protected ConsensusRoutingDecision routeAndMaybeMigrate(ClusterMetadata cm, @Nonnull TableMetadata tmd, @Nonnull DecoratedKey key, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
     {
-
         if (!tmd.params.transactionalMigrationFrom.isMigrating())
             return decisionFor(tmd.params.transactionalMode);
 
@@ -191,7 +220,7 @@ public class ConsensusRequestRouter
 
         Token token = key.getToken();
         if (tms.migratedRanges.intersects(token))
-            return pickMigrated(tms.targetProtocol);
+            return pickMigrated(tms.targetProtocol, IAccordService.NO_HLC);
 
         if (tms.migratingRanges.intersects(token))
             return pickBasedOnKeyMigrationStatus(cm, tmd, tms, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
@@ -206,7 +235,7 @@ public class ConsensusRequestRouter
      */
     private static ConsensusRoutingDecision pickBasedOnKeyMigrationStatus(ClusterMetadata cm, TableMetadata tmd, TableMigrationState tms, DecoratedKey key, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, long timeoutNanos, boolean isForWrite)
     {
-        checkState(pickPaxos() != paxosV1, "Can't migrate from PaxosV1 to anything");
+        checkState(pickPaxos() != ConsensusRoutingDecision.PAXOSV1, "Can't migrate from PaxosV1 to anything");
 
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tmd.id);
         if (cfs == null)
@@ -231,7 +260,7 @@ public class ConsensusRequestRouter
             // This ends up still being safe because every single Paxos read (in a migrating range) during migration will check
             // locally to see if repair is necessary
             if (consensusMigratedAt != null && tms.satisfiedByKeyMigrationAtEpoch(key, consensusMigratedAt))
-                return pickMigrated(tms.targetProtocol);
+                return pickMigrated(tms.targetProtocol, consensusMigratedAt.maxHLC);
 
             if (tms.targetProtocol == paxos)
             {
@@ -239,8 +268,8 @@ public class ConsensusRequestRouter
                 // barrier transactions to accomplish the migration
                 // They still might need to go through the fast local path for barrier txns
                 // at each replica, but they won't create their own txn since we created it here
-                ConsensusKeyMigrationState.repairKeyAccord(key, tms.tableId, tms.minMigrationEpoch(token).getEpoch(), requestTime, true, isForWrite);
-                return paxosV2;
+                long maxHLC = ConsensusKeyMigrationState.repairKeyAccord(key, tms.tableId, tms.minMigrationEpoch(token).getEpoch(), requestTime, true, isForWrite);
+                return pickPaxos(maxHLC);
             }
             // Fall through for repairKeyPaxos
         }
@@ -249,20 +278,20 @@ public class ConsensusRequestRouter
         // Accord -> Paxos - Paxos will ask Accord to migrate in the read at each replica if necessary
         // Paxos -> Accord - Paxos needs to be repaired before Accord runs so do it here
         if (tms.targetProtocol == paxos)
-            // TODO (important): Why are these two cases paxosV2 instead of `pickPaxos`?
-            // Because we only supported PaxosV2 for migration?
-            // Eventually we want to support both so just use pickPaxos and error out on migration from paxosV1 elsewhere?
-            return paxosV2;
+            return pickPaxos();
         else
         {
             if (tms.accordSafeToReadRanges.intersects(key.getToken()))
+            {
                 // Should exit exceptionally if the repair is not done
-                ConsensusKeyMigrationState.repairKeyPaxos(naturalReplicas, cm.epoch, key, cfs, consistencyLevel, requestTime, timeoutNanos, isLocallyReplicated, isForWrite);
+                long maxHLC = ConsensusKeyMigrationState.repairKeyPaxos(naturalReplicas, cm.epoch, key, cfs, consistencyLevel, requestTime, timeoutNanos, isLocallyReplicated, isForWrite);
+                return new ConsensusRoutingDecision(accord, maxHLC);
+            }
             else
+            {
                 return pickPaxos();
+            }
         }
-
-        return pickMigrated(tms.targetProtocol);
     }
 
     // Allows tests to inject specific responses
@@ -489,12 +518,12 @@ public class ConsensusRequestRouter
         return Kind.EphemeralRead;
     }
 
-    private static ConsensusRoutingDecision pickMigrated(ConsensusMigrationTarget targetProtocol)
+    private static ConsensusRoutingDecision pickMigrated(ConsensusMigrationTarget targetProtocol, long maxHlc)
     {
         if (targetProtocol.equals(ConsensusMigrationTarget.accord))
-            return accord;
+            return new ConsensusRoutingDecision(accord, maxHlc);
         else
-            return pickPaxos();
+            return pickPaxos(maxHlc);
     }
 
     private static ConsensusRoutingDecision pickNotMigrated(ConsensusMigrationTarget targetProtocol)
@@ -502,15 +531,20 @@ public class ConsensusRequestRouter
         if (targetProtocol.equals(ConsensusMigrationTarget.accord))
             return pickPaxos();
         else
-            return accord;
+            return ConsensusRoutingDecision.decisionForTarget(accord);
     }
 
     private static ConsensusRoutingDecision pickPaxos()
     {
-        return Paxos.useV2() ? paxosV2 : paxosV1;
+        return ConsensusRoutingDecision.decisionForTarget(Paxos.useV2() ? paxosV2 : paxosV1);
     }
 
-    public static void validateSafeToReadNonTransactionally(ReadCommand command)
+    private static ConsensusRoutingDecision pickPaxos(long maxHLC)
+    {
+        return new ConsensusRoutingDecision(Paxos.useV2() ? paxosV2 : paxosV1, maxHLC);
+    }
+
+    public static void validateSafeToReadNonTransactionally(ReadCommand command, @Nullable ClusterMetadata cm)
     {
         if (command.potentialTxnConflicts().allowed)
             return;
@@ -524,7 +558,7 @@ public class ConsensusRequestRouter
         if (Schema.instance.localKeyspaces().containsKeyspace(keyspace))
             return;
 
-        ClusterMetadata cm = ClusterMetadata.current();
+        cm = cm == null ? ClusterMetadata.current() : cm;
         TableId tableId = command.metadata().id;
         TableMetadata tableMetadata = getTableMetadata(cm, tableId);
         // Null for local or dropped tables

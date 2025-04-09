@@ -57,6 +57,7 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
                                                             "|org[/.]apache[/.]cassandra[/.]db[/.]ColumnFamilyStore.*" +
                                                             "|org[/.]apache[/.]cassandra[/.]db[/.]Keyspace.*" +
                                                             "|org[/.]apache[/.]cassandra[/.]db[/.]SystemKeyspace.*" +
+                                                            "|org[/.]apache[/.]cassandra[/.]index[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]streaming[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]db.streaming[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]distributed[/.]impl[/.]DirectStreamingConnectionFactory.*" +

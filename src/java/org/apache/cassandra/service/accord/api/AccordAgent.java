@@ -359,7 +359,7 @@ public class AccordAgent implements Agent
 
         logger.debug("Waiting {} micros for {} to be stale", waitMicros, staleId);
         AsyncResult.Settable<TxnId> result = AsyncResults.settable();
-        node.scheduler().selfRecurring(() -> result.setSuccess(staleId), waitMicros, MICROSECONDS);
+        node.scheduler().once(() -> result.setSuccess(staleId), waitMicros, MICROSECONDS);
         return result;
     }
 

@@ -102,6 +102,8 @@ import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigratedAt;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.Commit.Accepted;
@@ -148,8 +150,6 @@ import static org.apache.cassandra.gms.ApplicationState.RACK;
 import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
 import static org.apache.cassandra.gms.ApplicationState.STATUS_WITH_PORT;
 import static org.apache.cassandra.gms.ApplicationState.TOKENS;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigratedAt;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import static org.apache.cassandra.service.paxos.Commit.latest;
 import static org.apache.cassandra.service.snapshot.SnapshotOptions.systemSnapshot;
 import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
@@ -270,6 +270,7 @@ public final class SystemKeyspace
                   + "row_key blob, "
                   + "cf_id UUID, "
                   + "consensus_migrated_at_epoch bigint, "
+                  + "consensus_max_hlc bigint, "
                   + "consensus_target tinyint, "
                   + "PRIMARY KEY ((row_key), cf_id, consensus_migrated_at_epoch)) "
                   + "WITH CLUSTERING ORDER BY (cf_id ASC, consensus_migrated_at_epoch DESC)")
@@ -1628,13 +1629,13 @@ public final class SystemKeyspace
 
     public static void saveConsensusKeyMigrationState(ByteBuffer partitionKey, UUID cfId, ConsensusMigratedAt consensusMigratedAt)
     {
-        String cql = "UPDATE system." + CONSENSUS_MIGRATION_STATE + " SET consensus_target = ? WHERE row_key = ? AND cf_id = ? AND consensus_migrated_at_epoch = ?";
-        executeInternal(cql, consensusMigratedAt.migratedAtTarget.value, partitionKey, cfId, consensusMigratedAt.migratedAtEpoch.getEpoch());
+        String cql = "UPDATE system." + CONSENSUS_MIGRATION_STATE + " SET consensus_target = ?, consensus_max_hlc = ? WHERE row_key = ? AND cf_id = ? AND consensus_migrated_at_epoch = ?";
+        executeInternal(cql, consensusMigratedAt.migratedAtTarget.value, consensusMigratedAt.maxHLC, partitionKey, cfId, consensusMigratedAt.migratedAtEpoch.getEpoch());
     }
 
     public static ConsensusMigratedAt loadConsensusKeyMigrationState(ByteBuffer partitionKey, UUID cfId)
     {
-        String cql = "SELECT consensus_migrated_at_epoch, consensus_target FROM system." + CONSENSUS_MIGRATION_STATE + " WHERE row_key = ? AND cf_id = ? LIMIT 1";
+        String cql = "SELECT consensus_migrated_at_epoch, consensus_target, consensus_max_hlc FROM system." + CONSENSUS_MIGRATION_STATE + " WHERE row_key = ? AND cf_id = ? LIMIT 1";
         UntypedResultSet results = executeInternal(cql, partitionKey, cfId);
 
         if (results.isEmpty())
@@ -1644,7 +1645,8 @@ public final class SystemKeyspace
         // TODO Period won't be necessary eventually
         Epoch migratedAtEpoch = Epoch.create(row.getLong("consensus_migrated_at_epoch"));
         ConsensusMigrationTarget target = ConsensusMigrationTarget.fromValue(row.getByte("consensus_target"));
-        return new ConsensusMigratedAt(migratedAtEpoch, target);
+        long maxHLC = row.getLong("consensus_max_hlc");
+        return new ConsensusMigratedAt(migratedAtEpoch, maxHLC, target);
     }
 
     /**

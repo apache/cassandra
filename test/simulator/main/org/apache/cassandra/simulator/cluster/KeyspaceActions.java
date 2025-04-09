@@ -268,7 +268,7 @@ public class KeyspaceActions extends ClusterActions
             {
                 case ACCORD_MIGRATE:
                     haveConsensusMigrated = true;
-                    return schedule(new OnClusterMigrateConsensus(this), options.topologyChangeInterval);
+                    return schedule(new OnClusterConsensusMigrations(this, options.consensusChangeLimit), options.topologyChangeInterval);
             }
        }
 
@@ -280,6 +280,7 @@ public class KeyspaceActions extends ClusterActions
         if (options.topologyChangeLimit >= 0 && ++topologyChangeCount > options.topologyChangeLimit)
             return null;
 
+        Set<Integer> dcsWithoutOps = new HashSet<>();
         while (!topologyOps.isEmpty() && (!registered.isEmpty() || joined.size() > sum(minRf)))
         {
             if (options.changePaxosVariantTo != null && !haveChangedVariant && random.decide(1f / (1 + registered.size())))
@@ -296,8 +297,14 @@ public class KeyspaceActions extends ClusterActions
             if (registered.size(dc) > 0 && joined.size(dc) > currentRf[dc]) next = options.allChoices.choose(random);
             else if (registered.size(dc) > 0 && topologyOps.contains(JOIN)) next = options.choicesNoLeave.choose(random);
             else if (joined.size(dc) > currentRf[dc] && topologyOps.contains(LEAVE)) next = options.choicesNoJoin.choose(random);
-            else if (joined.size(dc) > minRf[dc]) next = CHANGE_RF;
-            else continue;
+            else if (joined.size(dc) > minRf[dc] && topologyOps.contains(CHANGE_RF)) next = CHANGE_RF;
+            // Don't loop forever if no DC supports an op right now
+            else if (dcsWithoutOps.size() == currentRf.length) return null;
+            else
+            {
+                dcsWithoutOps.add(dc);
+                continue;
+            }
 
             // TODO (feature): introduce some time period between cluster actions
             switch (next)

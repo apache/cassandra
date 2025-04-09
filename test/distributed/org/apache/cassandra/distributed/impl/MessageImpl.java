@@ -20,6 +20,8 @@ package org.apache.cassandra.distributed.impl;
 
 import java.net.InetSocketAddress;
 
+import com.google.common.primitives.Ints;
+
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.ByteArrayUtil;
@@ -45,21 +47,31 @@ public class MessageImpl implements IMessage
         this.from = from;
     }
 
+    @Override
     public int verb()
     {
         return verb;
     }
 
+    @Override
     public byte[] bytes()
     {
         return bytes;
     }
 
+    @Override
     public int id()
     {
-        return (int) id;
+        return Ints.checkedCast(id);
     }
 
+    @Override
+    public long idAsLong()
+    {
+        return id;
+    }
+
+    @Override
     public int version()
     {
         return version;
@@ -71,6 +83,7 @@ public class MessageImpl implements IMessage
         return expiresAtNanos;
     }
 
+    @Override
     public InetSocketAddress from()
     {
         return from;

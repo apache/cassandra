@@ -85,10 +85,10 @@ public class AccordUpdateParameters
                                        timestamp,
                                        MICROSECONDS.toSeconds(timestamp),
                                        ttl,
-                                       prefetchRow(metadata, dk, rowIndex));
+                                       prefetchRow(dk, rowIndex));
     }
 
-    private Map<DecoratedKey, Partition> prefetchRow(TableMetadata metadata, DecoratedKey dk, int index)
+    private Map<DecoratedKey, Partition> prefetchRow(DecoratedKey dk, int index)
     {
         if (data != null)
         {

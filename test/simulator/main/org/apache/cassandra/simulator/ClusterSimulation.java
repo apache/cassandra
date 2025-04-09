@@ -200,7 +200,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected HeapPool.Logged.Listener memoryListener;
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
-        protected String transactionalMode = "full";
+        protected String transactionalMode = "off";
 
         public Builder<S> failures(Failures failures)
         {
@@ -517,7 +517,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                                       new SchedulerConfig(schedulerDelayChance, schedulerDelayNanos, schedulerLongDelayNanos));
         }
 
-        public Map<Verb, FutureActionScheduler> perVerbFutureActionSchedulers(int nodeCount, SimulatedTime time, RandomSource random)
+        public Map<Verb, FutureActionScheduler> perVerbFutureActionSchedulers(int nodeCount, SimulatedTime time, RandomSource random, FutureActionScheduler defaultScheduler)
         {
             return Collections.emptyMap();
         }
@@ -780,6 +780,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("file_cache_size", "16MiB")
                                    .set("use_deterministic_table_id", true)
                                    .set("accord.queue_submission_model", "ASYNC")
+                                   .set("accord.range_migration", "explicit")
                                    .set("disk_access_mode", "standard")
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
@@ -877,7 +878,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         delivery = new SimulatedMessageDelivery(cluster);
         failureDetector = new SimulatedFailureDetector(cluster);
         FutureActionScheduler futureActionScheduler = builder.futureActionScheduler(numOfNodes, time, random);
-        Map<Verb, FutureActionScheduler> perVerbFutureActionScheduler = builder.perVerbFutureActionSchedulers(numOfNodes, time, random);
+        Map<Verb, FutureActionScheduler> perVerbFutureActionScheduler = builder.perVerbFutureActionSchedulers(numOfNodes, time, random, futureActionScheduler);
         simulated = new SimulatedSystems(random, time, delivery, execution, ballots, failureDetector, snitch, futureActionScheduler, perVerbFutureActionScheduler, builder.debug, failures);
         if (futureActionScheduler instanceof SimulatedFutureActionScheduler)
             simulated.register((SimulatedFutureActionScheduler) futureActionScheduler);

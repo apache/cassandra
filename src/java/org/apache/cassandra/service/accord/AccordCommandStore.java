@@ -66,6 +66,7 @@ import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.utils.Clock;
 
 import static accord.api.Journal.CommandUpdate;
@@ -544,6 +545,13 @@ public class AccordCommandStore extends CommandStore
     {
         if (rangesForEpoch != null)
             loadRangesForEpoch(rangesForEpoch);
+    }
+
+    @Override
+    public void updateRangesForEpoch(SafeCommandStore safeStore)
+    {
+        super.updateRangesForEpoch(safeStore);
+        updateMinHlc(PaxosState.ballotTracker().getLowBound().unixMicros() + 1);
     }
 
     // TODO (expected): handle journal failures, and consider how we handle partial failures.

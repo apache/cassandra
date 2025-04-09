@@ -235,9 +235,9 @@ public class AccordInteropRead extends ReadData
 
     static class ReadCallback extends AccordInteropReadCallback<ReadResponse>
     {
-        public ReadCallback(Node.Id id, InetAddressAndPort endpoint, Message<?> message, RequestCallback<ReadResponse> wrapped, MaximalCommitSender maximalCommitSender)
+        public ReadCallback(Node.Id id, InetAddressAndPort endpoint, Message<?> message, RequestCallback<ReadResponse> wrapped, AccordInteropExecution interopExecution)
         {
-            super(id, endpoint, message, wrapped, maximalCommitSender);
+            super(id, endpoint, message, wrapped, interopExecution);
         }
 
         @Override

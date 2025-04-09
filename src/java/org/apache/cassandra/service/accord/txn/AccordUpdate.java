@@ -67,6 +67,11 @@ public abstract class AccordUpdate implements Update
         return ((AccordUpdate)update).kind();
     }
 
+    public void failCondition()
+    {
+
+    }
+
     public boolean checkCondition(Data data)
     {
         throw new UnsupportedOperationException();

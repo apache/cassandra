@@ -270,7 +270,7 @@ public class SimulationRunner
         @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
         protected String capture;
 
-        @Option(name = { "--transactional-mode" }, title = "off|mixed_reads|full]", description = "What execution strategy to use for CAS and serial read")
+        @Option(name = { "--transactional-mode" }, title = "off|mixed_reads|full]", description = "Starting transactional mode for the created table")
         protected String transactionalMode;
 
         protected void propagate(B builder)

@@ -20,6 +20,8 @@ package org.apache.cassandra.simulator;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 
 /**
@@ -36,27 +38,27 @@ public class AlwaysDeliverNetworkScheduler implements FutureActionScheduler
     {
         this(time, TimeUnit.MILLISECONDS.toNanos(10));
     }
-    public AlwaysDeliverNetworkScheduler(SimulatedTime time, long dealayNanos)
+    public AlwaysDeliverNetworkScheduler(SimulatedTime time, long delayNanos)
     {
         this.time = time;
-        this.delayNanos = dealayNanos;
+        this.delayNanos = delayNanos;
     }
-    public Deliver shouldDeliver(int from, int to)
+    public DeliverResult shouldDeliver(int from, int to, IInvokableInstance invoker, IMessage message)
     {
-        return Deliver.DELIVER;
+        return DELIVER_UNPROTECTED_RESULT;
     }
 
-    public long messageDeadlineNanos(int from, int to)
+    public long messageDeadlineNanos(int from, int to, boolean protectedMessage)
     {
         return time.nanoTime() + delayNanos;
     }
 
-    public long messageTimeoutNanos(long expiresAfterNanos, long expirationIntervalNanos)
+    public long messageTimeoutNanos(long expiresAfterNanos, long expirationIntervalNanos, boolean protectedMessage)
     {
         return expiresAfterNanos + 1;
     }
 
-    public long messageFailureNanos(int from, int to)
+    public long messageFailureNanos(int from, int to, boolean protectedMessage)
     {
         throw new IllegalStateException();
     }

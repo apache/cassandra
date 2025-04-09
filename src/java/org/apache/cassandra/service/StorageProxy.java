@@ -151,6 +151,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitConsumer;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitMutations;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.SplitReads;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -214,7 +215,6 @@ import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.range_read;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
-import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.shouldReadEphemerally;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.splitReadsIntoAccordAndNormal;
@@ -372,13 +372,13 @@ public class StorageProxy implements StorageProxyMBean
                                                             key, keyspaceName, cfName));
         }
 
-        ConsensusAttemptResult lastAttemptResult;
+        ConsensusAttemptResult lastAttemptResult = null;
         do
         {
             ClusterMetadata cm = ClusterMetadata.current();
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
             ConsensusRoutingDecision decision = consensusRouting(cm, metadata, key, consistencyForPaxos, requestTime, true);
-            switch (decision)
+            switch (decision.target)
             {
                 case paxosV2:
                     lastAttemptResult = Paxos.cas(key,
@@ -386,7 +386,8 @@ public class StorageProxy implements StorageProxyMBean
                                                   consistencyForPaxos,
                                                   consistencyForCommit,
                                                   clientState,
-                                                  requestTime);
+                                                  requestTime,
+                                                  decision.minHLC);
                     break;
                 case paxosV1:
                     lastAttemptResult = legacyCas(metadata,
@@ -408,7 +409,8 @@ public class StorageProxy implements StorageProxyMBean
                     TxnResult txnResult = accordService.coordinate(metadata.epoch.getEpoch(),
                                                                    txn,
                                                                    consistencyForPaxos,
-                                                                   requestTime);
+                                                                   requestTime,
+                                                                   decision.minHLC);
                     lastAttemptResult = request.toCasResult(txnResult);
                     break;
                 default:
@@ -2146,7 +2148,7 @@ public class StorageProxy implements StorageProxyMBean
     private static ConsensusRoutingDecision consensusRouting(ClusterMetadata cm, TableMetadata metadata, DecoratedKey partitionKey, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, boolean isForWrite)
     {
         if (metadata.keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-            return ConsensusRoutingDecision.paxosV2;
+            return ConsensusRoutingDecision.PAXOSV2;
         return ConsensusRequestRouter.instance.routeAndMaybeMigrate(cm,
                                                                     partitionKey,
                                                                     metadata.id,
@@ -2165,10 +2167,10 @@ public class StorageProxy implements StorageProxyMBean
             ClusterMetadata cm = ClusterMetadata.current();
             SinglePartitionReadCommand command = group.queries.get(0);
             ConsensusRoutingDecision decision = consensusRouting(cm, group.metadata(), command.partitionKey(), consistencyLevel, requestTime, false);
-            switch (decision)
+            switch (decision.target)
             {
                 case paxosV2:
-                    lastResult = Paxos.read(group, consistencyLevel, requestTime);
+                    lastResult = Paxos.read(group, consistencyLevel, requestTime, decision.minHLC);
                     break;
                 case paxosV1:
                     lastResult = legacyReadWithPaxos(group, consistencyLevel, requestTime);

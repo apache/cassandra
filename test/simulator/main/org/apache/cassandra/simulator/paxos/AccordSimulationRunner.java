@@ -23,9 +23,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.BeforeClass;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -36,8 +33,6 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 public class AccordSimulationRunner extends SimulationRunner
 {
-    private static Logger logger = LoggerFactory.getLogger(AccordSimulationRunner.class);
-
     @BeforeClass
     public static void beforeAll()
     {
@@ -94,7 +89,7 @@ public class AccordSimulationRunner extends SimulationRunner
      */
     public static void main(String[] args) throws IOException
     {
-        SimulatorUtils.verifyAndlogSimulatorArgs(logger, args);
+        SimulatorUtils.verifyAndlogSimulatorArgs(args);
         AccordClusterSimulation.Builder builder = new AccordClusterSimulation.Builder();
         builder.unique(uniqueNum.getAndIncrement());
 

@@ -61,10 +61,11 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializerTest.TestSafeCommandStore;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Pair;
 
@@ -138,7 +139,9 @@ public class AccordCommandStoreTest
                                                      waitingOn, result.left, ResultSerializers.APPLIED);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(expected);
-
+        // In practice we should never need to save it with the condition boolean set
+        // Not sure why this test does that
+        ((TxnUpdate)txn.update()).unsafeResetCondition();
         AccordTestUtils.appendCommandsBlocking(commandStore, null, expected);
 
         logger.info("E: {}", expected);

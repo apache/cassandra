@@ -196,6 +196,7 @@
                                           -Dcassandra.test.messagingService.nonGracefulShutdown=true
                                           -Dcassandra.test.simulator.determinismcheck=strict
                                           -Dcassandra.test.sstableformatdevelopment=true
+                                          -Dcassandra.test.accord.allow_test_modes=true
                                           -Dcassandra.tolerate_sstable_size=true
                                           -Dcassandra.use_nix_recursive_delete=true
                                           -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables

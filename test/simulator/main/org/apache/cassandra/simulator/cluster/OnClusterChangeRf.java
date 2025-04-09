@@ -22,6 +22,7 @@ import java.util.Arrays;
 
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.cluster.OnInstanceRepair.RepairType;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
@@ -58,7 +59,7 @@ class OnClusterChangeRf extends OnClusterChangeTopology
 
         return ActionList.of(
             schemaChange("ALTER KEYSPACE " + description(), actions, on, command.toString()),
-            new OnClusterFullRepair(actions, after, true, false, false),
+            new OnClusterFullRepair(actions, after, RepairType.DATA_AND_PAXOS_FULL, false),
             // TODO: cleanup should clear paxos state tables
             Actions.of("Flush and Cleanup", !increase ? () -> actions.flushAndCleanup(after.membersOfRing) : ActionList::empty),
             Quiesce.all(actions).asAction(STRICT, RELIABLE_NO_TIMEOUTS, "Wait for cluster to quiesce")

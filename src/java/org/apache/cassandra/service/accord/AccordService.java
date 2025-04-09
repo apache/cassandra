@@ -138,6 +138,7 @@ import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Txn.Kind.Write;
+import static accord.primitives.TxnId.Cardinality.cardinality;
 import static accord.topology.TopologyManager.TopologyRange;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -543,9 +544,11 @@ public class AccordService implements IAccordService, Shutdownable
     {
         TxnId txnId = node.nextTxnId(minBound, keys, Write);
         FullRoute<?> route = node.computeRoute(txnId, keys);
-        Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.NONE, TxnUpdate.empty(), new TableMetadatasAndKeys(TableMetadatas.none(), keys));
-        return CoordinateTransaction.coordinate(node, route, txnId, txn)
-                                    .map(ignore -> (Void)null).beginAsResult();
+        return node.withEpochAtLeast(txnId.epoch(), null, () -> {
+            Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.UNSAFE_EMPTY, TxnUpdate.empty(), new TableMetadatasAndKeys(TableMetadatas.none(), keys));
+            return CoordinateTransaction.coordinate(node, route, txnId, txn)
+                                        .map(ignore -> (Void) null).beginAsResult();
+        }).beginAsResult();
     }
 
     @Override
@@ -565,10 +568,9 @@ public class AccordService implements IAccordService, Shutdownable
         async.begin(result);
         return result.awaitAndGet();
     }
-
-    public static void getBlocking(AsyncChain<Void> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline)
+    public static <V> V getBlocking(AsyncChain<V> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline)
     {
-        getBlocking(async, keysOrRanges, bookkeeping, startedAt, deadline, false);
+        return getBlocking(async, keysOrRanges, bookkeeping, startedAt, deadline, false);
     }
 
     public static Keys intersecting(Keys keys)
@@ -642,9 +644,9 @@ public class AccordService implements IAccordService, Shutdownable
      * with non-Accord operations.
      */
     @Override
-    public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime) throws RequestExecutionException
+    public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime, long minHlc) throws RequestExecutionException
     {
-        return coordinateAsync(minEpoch, txn, consistencyLevel, requestTime).awaitAndGet();
+        return coordinateAsync(minEpoch, txn, consistencyLevel, requestTime, minHlc).awaitAndGet();
     }
 
     @Override
@@ -654,9 +656,9 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
+    public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime, long minHlc)
     {
-        TxnId txnId = node.nextTxnId(txn);
+        TxnId txnId = node.nextTxnId(minHlc >= 0 ? minHlc : 0, txn.kind(), txn.keys().domain(), cardinality(txn.keys()));
         long timeout = txnId.isWrite() ? DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) : DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
         ClientRequestBookkeeping bookkeeping = txn.isWrite() ? accordWriteBookkeeping : accordReadBookkeeping;
         bookkeeping.metrics.keySize.update(txn.keys().size());
@@ -898,6 +900,12 @@ public class AccordService implements IAccordService, Shutdownable
     public Node node()
     {
         return node;
+    }
+
+    @Override
+    public void ensureMinHlc(long minHlc)
+    {
+        node.updateMinHlc(minHlc >= 0 ? minHlc : 0);
     }
 
     public AccordJournal journal()

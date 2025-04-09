@@ -21,9 +21,11 @@ package org.apache.cassandra.service.consensus;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -139,21 +141,21 @@ public enum TransactionalMode
 
     public ConsistencyLevel commitCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
     {
+        if (!IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
+            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for write/commit, supported are ANY, ONE, QUORUM, and ALL");
+
         if (ignoresSuppliedCommitCL())
         {
             TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
             checkState(tms != null || fromMode == TransactionalMigrationFromMode.none);
 
-            // Only ignore the supplied consistency level if the token is not migrating
-            // otherwise honor it since there could still be Paxos and non-SERIAL reads racing with migration.
-            // Migrating to Accord, Paxos continues reading during the first phase of migration
-            // Migrating to Paxos, this doesn't really matter since this transaction will get RetryOnDifferentSystemException
-            if (tms == null || tms.migratedRanges.intersects(token))
+            // One the data is repaired there will be no more Paxos reads
+            // so it is no longer necessary to honor the consistency level
+            // We are going to attempt to do the Accord transaction so first key migration will occur or has
+            // occurred which doesn't read, and then it will run on Accord forever because key migration occurred
+            if (tms == null || tms.repairedRanges.intersects(token))
                 return null;
         }
-
-        if (!IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for write/commit, supported are ANY, ONE, QUORUM, and ALL");
 
         return consistencyLevel;
     }
@@ -169,6 +171,9 @@ public enum TransactionalMode
 
     public ConsistencyLevel readCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
     {
+        if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
+            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ONE, QUORUM, and SERIAL");
+
         if (ignoresSuppliedReadCL())
         {
             TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
@@ -178,18 +183,41 @@ public enum TransactionalMode
             // otherwise honor it because we might read through Accord for non-SERIAL reads before repair is run
             // this is OK to do because BRR still works and Accord isn't computing a write so recovery
             // determinism isn't an issue
-            if (tms == null || tms.migratedRanges.intersects(token))
+            if (tms == null)
+                return null;
+            // Fully migrated, Paxos key repair only repairs at QUORUM so need full migration to ignore read CL
+            if (tms.migratedRanges.intersects(token))
                 return null;
         }
+        else if (!accordIsEnabled)
+        {
+            TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
+            checkState(tms != null || fromMode == TransactionalMigrationFromMode.none);
 
-        if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ONE, QUORUM, and SERIAL");
+            // Fully migrated
+            String illegalStateMsg = "Attempting to route transaction to Accord when there is no migration away for this token (" + token + ") and the current transactional mode (" + this + ") doesn't enable Accord";
+            if (tms == null)
+                throw new IllegalStateException(illegalStateMsg);
+
+            if (ConsensusRequestRouter.instance.getClass() == ConsensusRequestRouter.class)
+            {
+                // Migrated or migrating, should not be running on Accord
+                if (tms.migratingAndMigratedRanges.intersects(token))
+                    throw new IllegalStateException(illegalStateMsg);
+            }
+
+            return fromMode.from.ignoresSuppliedReadCL() ? null : consistencyLevel;
+        }
 
         return consistencyLevel;
     }
 
     public ConsistencyLevel readCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, AbstractBounds<PartitionPosition> range)
     {
+        if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
+            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ONE, QUORUM, and SERIAL");
+
+        checkState(range.unwrap().size() == 1);
         if (ignoresSuppliedReadCL())
         {
             TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
@@ -199,12 +227,40 @@ public enum TransactionalMode
             // otherwise honor it because we might read through Accord for non-SERIAL reads before repair is run
             // this is OK to do because BRR still works and Accord isn't computing a write so recovery
             // determinism isn't an issue
-            if (tms == null || range.intersects(tms.migratedRangesAsPartitionPosition()))
+            if (tms == null)
                 return null;
+
+            // Fully migrated, Paxos key repair only repairs at QUORUM so need full migration to ignore read CL
+            for (Range<PartitionPosition> migrated : tms.migratedRangesAsPartitionPosition())
+            {
+                if (migrated.contains(range.left) && migrated.contains(range.right))
+                    return null;
+            }
+
+        }
+        else if (!accordIsEnabled)
+        {
+            TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
+            checkState(tms != null || fromMode == TransactionalMigrationFromMode.none);
+
+            // Fully migrated
+            String illegalStateMsg = "Attempting to route transaction to Accord when there is no migration away for this range (" + range + ") and the current transactional mode (" + this + ") doesn't enable Accord";
+            if (tms == null)
+                throw new IllegalStateException(illegalStateMsg);
+
+            if (ConsensusRequestRouter.instance.getClass() == ConsensusRequestRouter.class)
+            {
+                // Migrated or migrating, should not be running on Accord
+                for (Range<PartitionPosition> migratingAndMigrated : tms.migratingAndMigratedRangesAsPartitionPosition())
+                {
+                    if (migratingAndMigrated.contains(range.left) && migratingAndMigrated.contains(range.right))
+                        throw new IllegalStateException(illegalStateMsg);
+                }
+            }
+
+            return fromMode.from.ignoresSuppliedReadCL() ? null : consistencyLevel;
         }
 
-        if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ONE, QUORUM, and SERIAL");
         return consistencyLevel;
     }
 

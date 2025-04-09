@@ -25,9 +25,13 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-import accord.local.durability.DurabilityService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.Node;
+import accord.local.durability.DurabilityService;
 import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
@@ -45,6 +49,7 @@ import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyReq
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -63,6 +68,8 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordRepairTime
  */
 public class AccordRepair
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordRepair.class);
+
     private final SharedContext ctx;
     private final ColumnFamilyStore cfs;
     private final TimeUUID repairId;
@@ -92,17 +99,34 @@ public class AccordRepair
         return minEpoch;
     }
 
-    public Ranges repair() throws Throwable
+    public static class AccordRepairResult
     {
-        List<accord.primitives.Range> repairedRanges = new ArrayList<>();
-        for (accord.primitives.Range range : ranges)
-            repairedRanges.addAll(repairRange((TokenRange)range));
-        return Ranges.of(repairedRanges.toArray(new accord.primitives.Range[0]));
+        public final Ranges repairedRanges;
+        public final long maxHlc;
+
+        public AccordRepairResult(Ranges ranges, long maxHlc)
+        {
+            this.repairedRanges = ranges;
+            this.maxHlc = maxHlc;
+        }
     }
 
-    public Future<Ranges> repair(Executor executor)
+    public AccordRepairResult repair() throws Throwable
     {
-        AsyncPromise<Ranges> future = new AsyncPromise<>();
+        List<accord.primitives.Range> repairedRanges = new ArrayList<>();
+        long maxHLC = Long.MIN_VALUE;
+        for (accord.primitives.Range range : ranges)
+        {
+            Pair<List<accord.primitives.Range>, Long> rangesAndMaxHLC = repairRange((TokenRange) range);
+            repairedRanges.addAll(rangesAndMaxHLC.left);
+            maxHLC = Math.max(maxHLC, rangesAndMaxHLC.right);
+        }
+        return new AccordRepairResult(Ranges.of(repairedRanges.toArray(new accord.primitives.Range[0])), maxHLC);
+    }
+
+    public Future<AccordRepairResult> repair(Executor executor)
+    {
+        AsyncPromise<AccordRepairResult> future = new AsyncPromise<>();
         executor.execute(() -> {
             try
             {
@@ -124,7 +148,7 @@ public class AccordRepair
             thread.interrupt();
     }
 
-    private List<accord.primitives.Range> repairRange(TokenRange range) throws Throwable
+    private Pair<List<accord.primitives.Range>, Long> repairRange(TokenRange range) throws Throwable
     {
         List<accord.primitives.Range> repairedRanges = new ArrayList<>();
         List<Node.Id> ids = endpoints == null ? null : endpoints.stream().map(AccordService.instance().configService()::mappedId).collect(Collectors.toList());
@@ -151,9 +175,9 @@ public class AccordRepair
             waiting = Thread.currentThread();
             RequestBookkeeping bookkeeping = new LatencyRequestBookkeeping(latency);
             long timeoutNanos = getAccordRepairTimeoutNanos();
-            AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
-                conflict = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
-                return service.sync("[repairId #" + repairId + ']', conflict, Ranges.of(range), ids, NoLocal, syncRemote, timeoutNanos, NANOSECONDS);
+            long maxHlc = AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
+                Timestamp conflictMax = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
+                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), ids, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc());
             }), ranges, bookkeeping, start, start + timeoutNanos);
             waiting = null;
 
@@ -162,6 +186,8 @@ public class AccordRepair
 
             for (accord.primitives.Range r : ranges)
                 repairedRanges.add(r);
+
+            return Pair.create(repairedRanges, maxHlc);
         }
         catch (Throwable t)
         {
@@ -178,7 +204,5 @@ public class AccordRepair
             long end = ctx.clock().nanoTime();
             cfs.metric.accordRepair.addNano(end - start);
         }
-
-        return repairedRanges;
     }
 }

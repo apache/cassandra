@@ -24,64 +24,128 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Random;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.harry.model.TokenPlacementModel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.systems.NonInterceptible;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
+import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 
 class OnClusterMigrateConsensus extends Action
 {
     private final KeyspaceActions actions;
+    private final TransactionalMode fromMode;
+    private final TransactionalMode targetMode;
 
-    OnClusterMigrateConsensus(KeyspaceActions actions)
+    OnClusterMigrateConsensus(KeyspaceActions actions, TransactionalMode fromMode, TransactionalMode targetMode)
     {
-        super("Performing consensus migration", NONE, NONE);
+        super("Performing consensus migration from " + fromMode + " to " + targetMode, NONE, NONE);
         this.actions = actions;
+        this.fromMode = fromMode;
+        this.targetMode = targetMode;
     }
 
+    @Override
     public ActionList performSimple()
     {
-        List<Action> result = new ArrayList<>();
-        List<Pair<Integer, Entry<String, String>>> ranges = new ArrayList<>();
-        ClusterMetadata cm = ClusterMetadata.current();
-        TokenMap tm = cm.tokenMap;
-        IPartitioner partitioner = tm.partitioner();
-        TokenPlacementModel.Lookup lookup = actions.factory.lookup();
-        Map<Integer, NodeId> idToNodeId = new HashMap<>();
-        for (int id : actions.all.toArray())
-            idToNodeId.put(id, lookup.nodeId(id));
-
-        for (int ii = 0; ii < actions.all.size(); ii++)
+        RandomSource rs = actions.random;
+        IInvokableInstance instance1 = actions.cluster.get(1);
+        String keyspace = actions.keyspace;
+        String table = actions.table;
+        for (IInvokableInstance instance : actions.cluster)
         {
-            int nodeIdx = ii + 1;
-            List<Token> tokens = tm.tokens(idToNodeId.get(nodeIdx));
-            checkState(tokens.size() == 1, "Expect only 1, not handling vnodes tokenRanges " + tokens);
-            Token token = tokens.get(0);
-            Range<Token> tokenRange = new Range(tm.getPredecessor(token), token);
-            Range<Token> firstRange = new Range<>(tokenRange.left, partitioner.split(tokenRange.left, tokenRange.right, 0.33));
-            Range<Token> secondRange = new Range<>(firstRange.right, partitioner.split(tokenRange.left, tokenRange.right, 0.66));
-            Range<Token> thirdRange = new Range<>(secondRange.right, tokenRange.right);
-            ranges.add(Pair.create(nodeIdx, new SimpleEntry<>(firstRange.left.toString(), firstRange.right.toString())));
-            ranges.add(Pair.create(nodeIdx, new SimpleEntry<>(secondRange.left.toString(), secondRange.right.toString())));
-            ranges.add(Pair.create(nodeIdx, new SimpleEntry<>(thirdRange.left.toString(), thirdRange.right.toString())));
+            if (instance.isShutdown())
+                continue;
+            TransactionalMigrationFromMode transactionalMigrationFrom = TransactionalMigrationFromMode.valueOf(
+                NonInterceptible.apply(REQUIRED, () -> instance1.unsafeCallOnThisThread(() -> Schema.instance.getTableMetadata(keyspace, table).params.transactionalMigrationFrom.toString())));
+            checkState(transactionalMigrationFrom == TransactionalMigrationFromMode.none);
         }
 
-        Collections.shuffle(ranges);
+        List<Action> result = new ArrayList<>();
+        result.add(ClusterReliableQueryAction.schemaChange("ALTER TABLE " + keyspace + "." + table + " WITH TransactionalModel.full", actions, actions.random.uniform(1, actions.cluster.size() + 1), "ALTER TABLE " + keyspace + "." + table + " WITH " + targetMode.asCqlParam()));
 
-        System.out.println("Ranges to migrate " + ranges);
+        Map<Integer, Token> idToToken = new HashMap<>();
+        List<Token> tokens = new ArrayList<>();
+        IPartitioner partitioner = null;
+        for (int i = 1; i <= actions.cluster.size(); i++)
+        {
+            IInvokableInstance instance = actions.cluster.get(i);
+            String tokenString = instance.config().getString("initial_token");
+            partitioner = FBUtilities.newPartitioner(instance.config().getString("partitioner"));
+            Token token = partitioner.getTokenFactory().fromString(tokenString);
+            tokens.add(token);
+            idToToken.put(i, token);
+        }
 
-        ranges.stream().forEach(p -> result.add(new OnClusterMigrateConsensusOneRange(actions, p.left(), p.right())));
-        return ActionList.of(result);
+        boolean partialMigration = false;//rs.decide(0.25f);
+        List<Integer> subRangesForNode = new ArrayList<>();
+        int totalSubranges = 0;
+        for (int ii = 0; ii < actions.all.size; ii++)
+        {
+            int subRangesThisNode = rs.uniform(1, 4);
+            totalSubranges += subRangesThisNode;
+            subRangesForNode.add(subRangesThisNode);
+        }
+        int stopSubrange = partialMigration ? rs.uniform(0, totalSubranges - 1) : Integer.MAX_VALUE;
+
+        List<Pair<Integer, SimpleEntry<String, String>>> ranges = new ArrayList<>();
+        for (int ii = 0; ii < actions.all.size; ii++)
+        {
+            int nodeIdx = ii + 1;
+            Token token = idToToken.get(nodeIdx);
+            Range<Token> tokenRange = new Range(TokenRingUtils.getPredecessor(tokens, token), token);
+
+            int numSubRanges = subRangesForNode.get(0);
+            List<Range<Token>> subRanges = new ArrayList<>();
+            switch (numSubRanges)
+            {
+                default:
+                    throw new IllegalStateException();
+                case 1:
+                    subRanges.add(tokenRange);
+                    break;
+                case 2:
+                    Range<Token> firstRange = new Range<>(tokenRange.left, partitioner.split(tokenRange.left, tokenRange.right, 0.5));
+                    subRanges.add(firstRange);
+                    subRanges.add(new Range<>(firstRange.right, tokenRange.right));
+                    break;
+                case 3:
+                    firstRange = new Range<>(tokenRange.left, partitioner.split(tokenRange.left, tokenRange.right, 0.33));
+                    Range<Token> secondRange = new Range<>(firstRange.right, partitioner.split(tokenRange.left, tokenRange.right, 0.66));
+                    Range<Token> thirdRange = new Range<>(secondRange.right, tokenRange.right);
+                    subRanges.add(firstRange);
+                    subRanges.add(secondRange);
+                    subRanges.add(thirdRange);
+                    break;
+            }
+            subRanges.stream().map(range -> Pair.create(nodeIdx, new SimpleEntry<>(range.left.toString(), range.right.toString()))).forEach(ranges::add);
+            if (subRanges.size() >= stopSubrange)
+            {
+                ranges = ranges.subList(0, stopSubrange);
+                break;
+            }
+        }
+
+        if (rs.decide(0.5f))
+            Collections.shuffle(ranges, new Random(actions.random.uniform(Long.MIN_VALUE, Long.MAX_VALUE)));
+
+        ranges.stream().forEach(p -> result.add(new OnClusterMigrateConsensusOneRange(actions, p.left(), p.right(), targetMode)));
+        if (!partialMigration)
+            result.add(new OnClusterAssertMigrationComplete(actions));
+        return ActionList.of(result).setStrictlySequential();
     }
 }

@@ -21,6 +21,8 @@ package org.apache.cassandra.service.consensus.migration;
 import javax.annotation.Nullable;
 
 import accord.primitives.Ranges;
+import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.repair.AccordRepair.AccordRepairResult;
 import org.apache.cassandra.tcm.Epoch;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -31,19 +33,25 @@ public class ConsensusMigrationRepairResult
     public final ConsensusMigrationRepairType type;
     public final Epoch minEpoch;
     @Nullable
-    public final Ranges barrieredRanges;
+    public final Ranges accordRepairedRanges;
 
-    private ConsensusMigrationRepairResult(ConsensusMigrationRepairType type, Epoch minEpoch, @Nullable Ranges barrieredRanges)
+    private ConsensusMigrationRepairResult(ConsensusMigrationRepairType type, Epoch minEpoch, @Nullable Ranges accordRepairedRanges)
     {
         this.type = type;
         this.minEpoch = minEpoch;
-        this.barrieredRanges = barrieredRanges;
+        this.accordRepairedRanges = accordRepairedRanges;
     }
 
-    public static ConsensusMigrationRepairResult fromRepair(Epoch minEpoch, Ranges barrieredRanges, boolean dataRepaired, boolean paxosRepaired, boolean accordRepaired, boolean deadNodesExcluded)
+    public static ConsensusMigrationRepairResult fromRepair(Epoch minEpoch, AccordRepairResult accordRepairResult, boolean dataRepaired, boolean paxosRepaired, boolean accordRepaired, boolean deadNodesExcluded, boolean incremental)
     {
         checkArgument(!accordRepaired || minEpoch.isAfter(Epoch.EMPTY), "Epoch should not be empty if Accord repairs was performed");
         if (deadNodesExcluded) return INELIGIBLE;
-        return new ConsensusMigrationRepairResult(new ConsensusMigrationRepairType(dataRepaired, paxosRepaired, accordRepaired), minEpoch, barrieredRanges);
+        boolean eligibleAccordRepair = accordRepaired && accordRepairResult != null && accordRepairResult.maxHlc != IAccordService.NO_HLC;
+        Ranges accordRepairedRanges = eligibleAccordRepair ? accordRepairResult.repairedRanges : null;
+        // Incremental repair won't flush after Paxos repair (which is at QUORUM) and then be picked up in the incremental repair
+        // and thus won't be repaired at ALL which is what Accord needs
+        if (incremental)
+            paxosRepaired = false;
+        return new ConsensusMigrationRepairResult(new ConsensusMigrationRepairType(dataRepaired, paxosRepaired, eligibleAccordRepair), minEpoch, accordRepairedRanges);
     }
 }

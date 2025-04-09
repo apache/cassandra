@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -61,6 +62,11 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
             if (response == null)
                 return;
         }
+        catch (RetryOnDifferentSystemException e)
+        {
+            onFailure(getBroadcastAddressAndPort(), RequestFailure.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
+            return;
+        }
         catch (Exception ex)
         {
             RequestFailure reason = UNKNOWN;
@@ -82,6 +88,11 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
             response = execute.apply(parameter1, parameter2, getBroadcastAddressAndPort());
             if (response == null)
                 return;
+        }
+        catch (RetryOnDifferentSystemException e)
+        {
+            onFailure(getBroadcastAddressAndPort(), RequestFailure.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
+            return;
         }
         catch (Exception ex)
         {

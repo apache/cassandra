@@ -46,6 +46,7 @@ class AccordClusterSimulation extends ClusterSimulation<PaxosSimulation> impleme
               config -> config.set("storage_compatibility_mode", "NONE"),
               (simulated, schedulers, cluster, options) -> {
                   int[] primaryKeys = primaryKeys(seed, builder.primaryKeyCount());
+                  builder.transactionalMode("full");
                   KindOfSequence.Period jitter = RandomSource.Choices.uniform(KindOfSequence.values()).choose(random)
                                                                      .period(builder.schedulerJitterNanos(), random);
                   return new PairOfSequencesAccordSimulation(simulated, cluster, options, builder.transactionalMode(),

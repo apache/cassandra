@@ -92,19 +92,20 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
           --add-opens jdk.management.jfr/jdk.management.jfr=ALL-UNNAMED
           --add-opens java.desktop/com.sun.beans.introspect=ALL-UNNAMED
  */
-public class ShortPaxosSimulationTest
+public class ShortPaxosMigrationToAccordSimulationTest
 {
     @Test
-    public void simulationTest() throws IOException
+    @Ignore
+    public void casOnAccordSimulationTestPaxosStart() throws IOException
     {
-        PaxosSimulationRunner.main(new String[] { "run", "--variant", "v2", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
-    }
-
-    @Test
-    @Ignore("fails due to OOM DirectMemory - unclear why")
-    public void selfReconcileTest() throws IOException
-    {
-        PaxosSimulationRunner.main(new String[] { "reconcile", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30", "--with-self" });
+        PaxosSimulationRunner.main(new String[] { "run",
+                                                  "--transactional-mode", "off",
+                                                  "-n", "3..6",
+                                                  "-t", "1000",
+                                                  "--cluster-action-limit", "-1",
+                                                  "--consensus-action-limit", "1",
+                                                  "--consensus-actions", "ACCORD_MIGRATE",
+                                                  "-c", "2"});
     }
 }
 

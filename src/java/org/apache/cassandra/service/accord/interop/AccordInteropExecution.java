@@ -24,12 +24,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.BiConsumer;
 
 import accord.api.Data;
 import accord.api.Result;
 import accord.coordinate.CoordinationAdapter;
 import accord.coordinate.ExecuteFlag.CoordinationFlags;
+import accord.coordinate.Timeout;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.SequentialAsyncExecutor;
@@ -42,11 +44,13 @@ import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.Participants;
 import accord.primitives.Timestamp;
+import accord.primitives.TimestampWithUniqueHlc;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Shard;
 import accord.topology.Topologies;
 import accord.topology.Topology;
+import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -63,6 +67,8 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ReadFailureException;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -75,7 +81,6 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.interop.AccordInteropReadCallback.MaximalCommitSender;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
@@ -106,8 +111,10 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWri
  * on its inputs.
  *
  */
-public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSender
+public class AccordInteropExecution implements ReadCoordinator
 {
+    private static final AtomicLongFieldUpdater<AccordInteropExecution> UNIQUE_HLC_UPDATER = AtomicLongFieldUpdater.newUpdater(AccordInteropExecution.class, "uniqueHlc");
+
     private final Node node;
     private final TxnId txnId;
     private final Txn txn;
@@ -129,6 +136,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
 
     private final Set<InetAddressAndPort> contacted;
     private final AccordUpdate.Kind updateKind;
+    private volatile long uniqueHlc;
 
     public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Ballot ballot, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
                                   SequentialAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper)
@@ -371,10 +379,38 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
 
         result.begin((data, failure) -> {
             if (failure == null)
+            {
+                long uniqueHlc = this.uniqueHlc;
+                Timestamp executeAt = this.executeAt;
+                if (txnId.is(Txn.Kind.Write) && uniqueHlc != 0)
+                {
+                    Invariants.require(uniqueHlc > executeAt.hlc());
+                    executeAt = new TimestampWithUniqueHlc(executeAt, uniqueHlc);
+                }
                 ((CoordinationAdapter)node.coordinationAdapter(txnId, Standard)).persist(node, executor, executes, route, ballot, CoordinationFlags.none(), txnId, txn, executeAt, deps, txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null, txn.result(txnId, executeAt, data), callback);
+            }
             else
-                callback.accept(null, failure);
+            {
+                callback.accept(null, maybeWrapRequestFailureException(failure));
+            }
         });
+    }
+
+    /**
+     * Interop should expose these exceptions as the appropriate Accord types so AccordService
+     * knows how to handle them
+     */
+    private Throwable maybeWrapRequestFailureException(Throwable failure)
+    {
+        Throwable toCheck = failure;
+        do
+        {
+            // TODO (required): There are probably more exceptions that will have this issue of wanting
+            // to be turned into the top level exception sent back to the client
+            if (toCheck instanceof ReadTimeoutException || toCheck instanceof ReadFailureException)
+                return new Timeout(txnId, route.homeKey(), failure);
+        } while ((toCheck = toCheck.getCause()) != null);
+        return failure;
     }
 
     private AsyncChain<Data> executeUnrecoverableRepairUpdate()
@@ -415,9 +451,17 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     }
 
     // Provide request callbacks with a way to send maximal commits on Insufficient responses
-    @Override
     public void sendMaximalCommit(Id to)
     {
         Commit.stableMaximal(node, to, txn, txnId, executeAt, route, deps);
+    }
+
+    public void maybeUpdateUniqueHlc(long uniqueHlc)
+    {
+        if (txnId.is(Txn.Kind.Write) && uniqueHlc > 0)
+        {
+            Invariants.require(uniqueHlc > executeAt.hlc());
+            UNIQUE_HLC_UPDATER.accumulateAndGet(this, uniqueHlc, Math::max);
+        }
     }
 }

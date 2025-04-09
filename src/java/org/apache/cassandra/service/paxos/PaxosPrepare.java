@@ -44,6 +44,8 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -59,6 +61,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -67,13 +70,12 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.util.Collections.emptyMap;
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_RSP;
 import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.getKeyMigrationState;
-
-import org.apache.cassandra.service.consensus.migration.ConsensusMigratedAt;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.Commit.Accepted;
 import static org.apache.cassandra.service.paxos.Commit.Committed;
@@ -148,7 +150,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
      */
     static class Status
     {
-        enum Outcome { READ_PERMITTED, PROMISED, SUPERSEDED, FOUND_INCOMPLETE_ACCEPTED, FOUND_INCOMPLETE_COMMITTED, MAYBE_FAILURE, ELECTORATE_MISMATCH }
+        enum Outcome { READ_PERMITTED, PROMISED, SUPERSEDED, FOUND_INCOMPLETE_ACCEPTED, FOUND_INCOMPLETE_COMMITTED, MAYBE_FAILURE, ELECTORATE_MISMATCH, RETRY_DIFFERENT_SYSTEM }
 
         final Outcome outcome;
         final Participants participants;
@@ -306,6 +308,16 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
     }
 
+    static class RetryDifferentSystem extends Status
+    {
+        private RetryDifferentSystem(Participants participants)
+        {
+            super(Outcome.RETRY_DIFFERENT_SYSTEM, participants);
+        }
+
+        public String toString() { return "RETRY_DIFFERENT_SYSTEM"; }
+    }
+
     private final boolean acceptEarlyReadPermission;
     private final AbstractRequest<?> request;
     private Ballot supersededBy; // cannot be promised, as a newer promise has been made
@@ -320,6 +332,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     private @Nonnull List<InetAddressAndPort> withLatest; // promised and have latest commit
     private @Nullable List<InetAddressAndPort> needLatest; // promised without having witnessed latest commit, nor yet been refreshed by us
     private int failures; // failed either on initial request or on refresh
+    private int retryDifferentSystemFailures;
     private boolean hasProposalStability = true; // no successful modifying proposal could have raced with us and not been seen
     private boolean hasOnlyPromises = true;
     private long maxLowBound;
@@ -374,7 +387,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     static PaxosPrepare prepareWithBallot(Ballot ballot, Participants participants, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission)
     {
         Tracing.trace("Preparing {} with read", ballot);
-        Request request = new Request(ballot, participants.electorate, readCommand, isWrite, true);
+        Request request = new Request(ballot, participants.electorate, readCommand, isWrite, false);
         return prepareWithBallotInternal(participants, request, acceptEarlyReadPermission, null);
     }
 
@@ -845,9 +858,17 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
         super.onFailureWithMutex(from, reason.reason);
         ++failures;
+        if (reason.reason == RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM)
+            retryDifferentSystemFailures++;
 
         if (failures + participants.sizeOfConsensusQuorum == 1 + participants.sizeOfPoll())
-            signalDone(MAYBE_FAILURE);
+        {
+            // It failed, but retrying on a different system might succeed
+            if (participants.sizeOfConsensusQuorum + failures - retryDifferentSystemFailures < 1 + participants.sizeOfPoll())
+                signalDone(Outcome.RETRY_DIFFERENT_SYSTEM);
+            else
+                signalDone(MAYBE_FAILURE);
+        }
     }
 
     private void signalDone(Outcome kindOfOutcome)
@@ -886,6 +907,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 return Success.read(request.ballot, participants, readResponses, supersededBy);
             case MAYBE_FAILURE:
                 return new MaybeFailure(new Paxos.MaybeFailure(participants, withLatest(), failureReasonsAsMap()), participants);
+            case RETRY_DIFFERENT_SYSTEM:
+                return new RetryDifferentSystem(participants);
             default:
                 throw new IllegalStateException();
         }
@@ -1001,13 +1024,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Nonnull
         final MaybePromise.Outcome outcome;
 
-        @Nullable
-        final ConsensusMigratedAt maybeConsenusMigratedAt;
-
-        Response(@Nonnull  MaybePromise.Outcome outcome, @Nullable ConsensusMigratedAt maybeConsenusMigratedAt)
+        Response(@Nonnull  MaybePromise.Outcome outcome)
         {
             this.outcome = outcome;
-            this.maybeConsenusMigratedAt = maybeConsenusMigratedAt;
         }
         Permitted permitted() { return (Permitted) this; }
         Rejected rejected() { return (Rejected) this; }
@@ -1037,9 +1056,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Nullable final Ballot supersededBy;
         final Epoch electorateEpoch;
 
-        Permitted(MaybePromise.Outcome outcome, @Nullable ConsensusMigratedAt maybeConsensusMigratedAt, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable ReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, Epoch electorateEpoch, @Nullable Ballot supersededBy)
+        Permitted(MaybePromise.Outcome outcome, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable ReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, Epoch electorateEpoch, @Nullable Ballot supersededBy)
         {
-            super(outcome, maybeConsensusMigratedAt);
+            super(outcome);
             this.lowBound = lowBound;
             this.latestAcceptedButNotCommitted = latestAcceptedButNotCommitted;
             this.latestCommitted = latestCommitted;
@@ -1061,9 +1080,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     {
         final Ballot supersededBy;
 
-        Rejected(Ballot supersededBy, @Nullable ConsensusMigratedAt maybeConsensusMigratedAt)
+        Rejected(Ballot supersededBy)
         {
-            super(REJECT, maybeConsensusMigratedAt);
+            super(REJECT);
             this.supersededBy = supersededBy;
         }
 
@@ -1079,13 +1098,20 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Override
         public void doVerb(Message<Request> message)
         {
-            ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(ClusterMetadata.current(), message.from(), message.epoch());
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
 
-            Response response = execute(message.payload, message.from());
-            if (response == null)
-                MessagingService.instance().respondWithFailure(UNKNOWN, message);
-            else
-                MessagingService.instance().respond(response, message);
+            try
+            {
+                Response response = execute(message.payload, message.from());
+                if (response == null)
+                    MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                else
+                    MessagingService.instance().respond(response, message);
+            }
+            catch (RetryOnDifferentSystemException e)
+            {
+                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            }
         }
 
         static Response execute(AbstractRequest<?> request, InetAddressAndPort from)
@@ -1094,9 +1120,27 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 return null;
 
             long start = nanoTime();
-            try (PaxosState state = get(request.partitionKey, request.table))
+
+            try
             {
-                return execute(request, state);
+                // This can be done outside the lock
+                ClusterMetadata cm = ClusterMetadata.current();
+                if (!request.isForRecovery)
+                {
+                    if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromPaxos(request.table.id, request.partitionKey))
+                        throw new RetryOnDifferentSystemException();
+                    KeyMigrationState keyMigrationState = getKeyMigrationState(cm, request.table.id, request.partitionKey);
+                    // Make sure the operation is safe and there is no Accord state that needs application
+                    // Also need to know max HLC in order to accept this ballot
+                    long maxHLC = keyMigrationState.maybePerformAccordToPaxosKeyMigration(request.isForWrite);
+                    if (maxHLC >= request.ballot.unixMicros())
+                        return new Rejected(Ballot.atUnixMicrosWithLsb(maxHLC + 1, 0, request.ballot.flag()));
+                }
+
+                try (PaxosState state = get(request.partitionKey, request.table))
+                {
+                    return execute(request, state, cm);
+                }
             }
             finally
             {
@@ -1104,10 +1148,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             }
         }
 
-        static Response execute(AbstractRequest<?> request, PaxosState state)
+        static Response execute(AbstractRequest<?> request, PaxosState state, ClusterMetadata cm)
         {
             MaybePromise result = state.promiseIfNewer(request.ballot, request.isForWrite);
-            KeyMigrationState keyMigrationState = getKeyMigrationState(request.table.id, request.partitionKey);
             switch (result.outcome)
             {
                 case PROMISE:
@@ -1143,12 +1186,14 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     if (request.read != null)
                     {
-                        // Make sure the read is safe and there is no Accord state that needs application
-                        keyMigrationState.maybePerformAccordToPaxosKeyMigration(request.isForWrite);
-                        try (ReadExecutionController executionController = request.read.executionController();
-                             UnfilteredPartitionIterator iterator = request.read.executeLocally(executionController))
+                        SinglePartitionReadCommand readCommand = request.read;
+                        // Allows txn recovery to read even if it would be blocked by migration away from Paxos
+                        if (request.isForRecovery)
+                            readCommand = readCommand.withTransactionalSettings(false, readCommand.nowInSec());
+                        try (ReadExecutionController executionController = readCommand.executionController();
+                             UnfilteredPartitionIterator iterator = readCommand.executeLocally(executionController, cm))
                         {
-                            readResponse = request.read.createResponse(iterator, executionController.getRepairedDataInfo());
+                            readResponse = readCommand.createResponse(iterator, executionController.getRepairedDataInfo());
                         }
 
                         if (hasProposalStability)
@@ -1166,10 +1211,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(request.table.id);
                     long lowBound = cfs.getPaxosRepairLowBound(request.partitionKey).uuidTimestamp();
-                    return new Permitted(result.outcome, keyMigrationState.consensusMigratedAt, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
+                    return new Permitted(result.outcome, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
 
                 case REJECT:
-                    return new Rejected(result.supersededBy(), keyMigrationState.consensusMigratedAt);
+                    return new Rejected(result.supersededBy());
 
                 default:
                     throw new IllegalStateException();
@@ -1290,8 +1335,6 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 if (promised.outcome == PERMIT_READ)
                     promised.supersededBy.serialize(out);
             }
-            if (version >= MessagingService.VERSION_51)
-                ConsensusMigratedAt.serializer.serialize(response.maybeConsenusMigratedAt, out);
         }
 
         public Response deserialize(DataInputPlus in, int version) throws IOException
@@ -1300,10 +1343,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             if (flags == 0)
             {
                 Ballot supersededBy = Ballot.deserialize(in);
-                ConsensusMigratedAt consensusMigratedAt = null;
-                if (version >= MessagingService.VERSION_51)
-                    consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in);
-                return new Rejected(supersededBy, consensusMigratedAt);
+                return new Rejected(supersededBy);
             }
             else
             {
@@ -1318,10 +1358,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 Ballot supersededBy = null;
                 if (outcome == PERMIT_READ)
                     supersededBy = Ballot.deserialize(in);
-                ConsensusMigratedAt consensusMigratedAt = null;
-                if (version >= MessagingService.VERSION_51)
-                    consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in);
-                return new Permitted(outcome, consensusMigratedAt, lowBound, acceptedNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
+                return new Permitted(outcome, lowBound, acceptedNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, electorateEpoch, supersededBy);
             }
         }
 
@@ -1343,8 +1380,6 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         + (version >= MessagingService.VERSION_51 ? Epoch.messageSerializer.serializedSize(permitted.electorateEpoch, version) : 0)
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);
             }
-            if (version >= MessagingService.VERSION_51)
-                size += ConsensusMigratedAt.serializer.serializedSize(response.maybeConsenusMigratedAt);
 
             return size;
         }

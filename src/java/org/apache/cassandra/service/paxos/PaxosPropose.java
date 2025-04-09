@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -39,11 +40,14 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.service.paxos.PaxosPropose.Status.Outcome;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.concurrent.ConditionAsConsumer;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Collections.emptyMap;
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_PROPOSE_REQ;
 import static org.apache.cassandra.service.paxos.PaxosPropose.Status.SideEffects.MAYBE;
@@ -91,20 +95,14 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         @Nullable
         final Ballot by;
         final SideEffects hadSideEffects;
-        // Consensus migration can occur at the same time that we are superseded
-        // and it's important to preserve returning the uncertainty of the superseded
-        // at the same time as enforcing the need for consensus migration
-        final boolean needsConsensusMigration;
-        Superseded(@Nullable Ballot by, SideEffects hadSideEffects, boolean needsConsensusMigration)
+        Superseded(@Nullable Ballot by, SideEffects hadSideEffects)
         {
             super(Outcome.SUPERSEDED);
-            checkArgument(needsConsensusMigration == true || by != null, "Must be superseded by ballot if not due to consensus migration");
             this.by = by;
             this.hadSideEffects = hadSideEffects;
-            this.needsConsensusMigration = needsConsensusMigration;
         }
 
-        public String toString() { return "Superseded(" + by + ',' + hadSideEffects + ',' + needsConsensusMigration + ')'; }
+        public String toString() { return "Superseded(" + by + ',' + hadSideEffects + ')'; }
     }
 
     private static class MaybeFailure extends Status
@@ -139,9 +137,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     /** Number of accepts required */
     final int required;
 
-    /** Repairing an in flight txn not proposing a new one **/
-    final boolean isForRecovery;
-
     /** Invoke on reaching a terminal status */
     final OnDone onDone;
 
@@ -161,9 +156,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     /** The newest superseding ballot from a refusal; only returned to the caller if we fail to reach a quorum */
     private volatile Ballot supersededBy;
 
-    private volatile boolean needsConsensusMigration = false;
-
-    private PaxosPropose(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, boolean isForRecovery, OnDone onDone)
+    private PaxosPropose(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, OnDone onDone)
     {
         this.proposal = proposal;
         assert required > 0;
@@ -171,7 +164,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         this.participants = participants;
         this.required = required;
         this.onDone = onDone;
-        this.isForRecovery = isForRecovery;
     }
 
     /**
@@ -182,7 +174,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
      * @param isForRecovery if true the value being proposed is not a new value it is a value from an existing in flight proposal
      *                    and will be allowed to proceed even if the key is migrating to a different consensus protocol
      */
-    static Paxos.Async<Status> propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect, boolean isForRecovery)
+    static Paxos.Async<Status> propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect)
     {
         if (waitForNoSideEffect && proposal.update.isEmpty())
             waitForNoSideEffect = false; // by definition this has no "side effects" (besides linearizing the operation)
@@ -190,9 +182,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         // to avoid unnecessary object allocations we extend PaxosPropose to implements Paxos.Async
         class Async extends PaxosPropose<ConditionAsConsumer<Status>> implements Paxos.Async<Status>
         {
-            private Async(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, boolean isForRecovery)
+            private Async(Proposal proposal, int participants, int required, boolean waitForNoSideEffect)
             {
-                super(proposal, participants, required, waitForNoSideEffect, isForRecovery, newConditionAsConsumer());
+                super(proposal, participants, required, waitForNoSideEffect, newConditionAsConsumer());
             }
 
             public Status awaitUntil(long deadline)
@@ -211,24 +203,24 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             }
         }
 
-        Async propose = new Async(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, isForRecovery);
+        Async propose = new Async(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect);
         propose.start(participants);
         return propose;
     }
 
-    static <T extends Consumer<Status>> T propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect, boolean isForRecovery, T onDone)
+    static <T extends Consumer<Status>> T propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect, T onDone)
     {
         if (waitForNoSideEffect && proposal.update.isEmpty())
             waitForNoSideEffect = false; // by definition this has no "side effects" (besides linearizing the operation)
 
-        PaxosPropose<?> propose = new PaxosPropose<>(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, isForRecovery, onDone);
+        PaxosPropose<?> propose = new PaxosPropose<>(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, onDone);
         propose.start(participants);
         return onDone;
     }
 
     void start(Paxos.Participants participants)
     {
-        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal, isForRecovery), participants.isUrgent());
+        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal), participants.isUrgent());
 
         boolean executeOnSelf = false;
         for (int i = 0, size = participants.sizeOfPoll(); i < size ; ++i)
@@ -240,7 +232,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         }
 
         if (executeOnSelf)
-            PAXOS2_PROPOSE_REQ.stage.execute(() -> executeOnSelf(proposal, isForRecovery));
+            PAXOS2_PROPOSE_REQ.stage.execute(() -> executeOnSelf(proposal));
     }
 
     /**
@@ -253,23 +245,22 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         if (isSuccessful(responses))
             return STATUS_SUCCESS;
 
-        if (!canSucceed(responses) && (supersededBy != null || needsConsensusMigration))
+        if (!canSucceed(responses) && (supersededBy != null))
         {
             Superseded.SideEffects sideEffects = hasNoSideEffects(responses) ? NO : MAYBE;
-            return new Superseded(supersededBy, sideEffects, needsConsensusMigration);
+            return new Superseded(supersededBy, sideEffects);
         }
 
         return new MaybeFailure(new Paxos.MaybeFailure(participants, required, accepts(responses), failureReasonsAsMap()));
     }
 
-    private void executeOnSelf(Proposal proposal, boolean isForRecovery)
+    private void executeOnSelf(Proposal proposal)
     {
-        executeOnSelf(proposal, isForRecovery, RequestHandler::execute);
+        executeOnSelf(proposal, RequestHandler::execute);
     }
 
     public void onResponse(AcceptResult acceptResult, InetAddressAndPort from)
     {
-        checkArgument(!isForRecovery || acceptResult.rejectedDueToConsensusMigration == false, "Repair should never be rejected due to consensus migration");
         if (logger.isTraceEnabled())
             logger.trace("{} for {} from {}", acceptResult, proposal, from);
 
@@ -277,12 +268,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         if (supersededBy != null)
             supersededByUpdater.accumulateAndGet(this, supersededBy, (a, b) -> a == null ? b : b.uuidTimestamp() > a.uuidTimestamp() ? b : a);
 
-        long increment = supersededBy == null && !acceptResult.rejectedDueToConsensusMigration
+        long increment = supersededBy == null
                 ? ACCEPT_INCREMENT
                 : REFUSAL_INCREMENT;
-
-        if (acceptResult.rejectedDueToConsensusMigration)
-            needsConsensusMigration = true;
 
         update(increment);
     }
@@ -290,6 +278,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
+        checkArgument(reason.reason != RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, "Repair should never be rejected due to consensus migration");
         if (logger.isTraceEnabled())
             logger.trace("{} {} failure from {}", proposal, reason, from);
 
@@ -400,11 +389,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     static class Request
     {
         final Proposal proposal;
-        final boolean isForRecovery;
-        Request(Proposal proposal, boolean isForRecovery)
+        Request(Proposal proposal)
         {
             this.proposal = proposal;
-            this.isForRecovery = isForRecovery;
         }
 
         @Override
@@ -412,7 +399,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         {
             return "Request{" +
                    "proposal=" + proposal.toString("Propose") +
-                   ", isForRecovery=" + isForRecovery +
                    '}';
         }
     }
@@ -425,15 +411,24 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         @Override
         public void doVerb(Message<Request> message)
         {
-            ClusterMetadataService.instance().fetchLogFromCMS(message.epoch());
-            AcceptResult acceptResult = execute(message.payload.proposal, message.payload.isForRecovery, message.from());
-            if (acceptResult == null)
-                MessagingService.instance().respondWithFailure(UNKNOWN, message);
-            else
-                MessagingService.instance().respond(acceptResult, message);
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
+
+            try
+            {
+                AcceptResult acceptResult = execute(message.payload.proposal, message.from());
+                if (acceptResult == null)
+                    MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                else
+                    MessagingService.instance().respond(acceptResult, message);
+            }
+            catch (RetryOnDifferentSystemException e)
+            {
+                // Should not actually be thrown here, but continue to catch and response with the error just in case
+                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            }
         }
 
-        public static AcceptResult execute(Proposal proposal, boolean isForRecovery, InetAddressAndPort from)
+        public static AcceptResult execute(Proposal proposal, InetAddressAndPort from)
         {
             if (!Paxos.isInRangeAndShouldProcess(from, proposal.update.partitionKey(), proposal.update.metadata(), false))
                 return null;
@@ -441,7 +436,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             long start = nanoTime();
             try (PaxosState state = PaxosState.get(proposal))
             {
-                return state.acceptIfLatest(proposal, isForRecovery);
+                return state.acceptIfLatest(proposal);
             }
             finally
             {
@@ -456,26 +451,19 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         public void serialize(Request request, DataOutputPlus out, int version) throws IOException
         {
             Proposal.serializer.serialize(request.proposal, out, version);
-            if (version >= MessagingService.VERSION_51)
-                out.writeBoolean(request.isForRecovery);
         }
 
         @Override
         public Request deserialize(DataInputPlus in, int version) throws IOException
         {
             Proposal propose = Proposal.serializer.deserialize(in, version);
-            boolean isForRecovery = false;
-            if (version >= MessagingService.VERSION_51)
-                isForRecovery = in.readBoolean();
-            return new Request(propose, isForRecovery);
+            return new Request(propose);
         }
 
         @Override
         public long serializedSize(Request request, int version)
         {
             long size = Proposal.serializer.serializedSize(request.proposal, version);
-            if (version >= MessagingService.VERSION_51)
-                size += TypeSizes.sizeof(request.isForRecovery);
             return size;
         }
     }
@@ -487,8 +475,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             out.writeBoolean(acceptResult.supersededBy != null);
             if (acceptResult.supersededBy != null)
                 acceptResult.supersededBy.serialize(out);
-            if (version >= MessagingService.VERSION_51)
-                out.writeBoolean(acceptResult.rejectedDueToConsensusMigration);
         }
 
         public AcceptResult deserialize(DataInputPlus in, int version) throws IOException
@@ -497,10 +483,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             Ballot supersededBy = null;
             if (isSuperseded)
                 supersededBy = Ballot.deserialize(in);
-            boolean rejectedDueToConsensusMigration = false;
-            if (version >= MessagingService.VERSION_51)
-                rejectedDueToConsensusMigration = in.readBoolean();
-            return new AcceptResult(supersededBy, rejectedDueToConsensusMigration);
+            return new AcceptResult(supersededBy);
         }
 
         public long serializedSize(AcceptResult acceptResult, int version)
@@ -508,8 +491,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             long size = acceptResult.supersededBy != null
                     ? TypeSizes.sizeof(true) + Ballot.sizeInBytes()
                     : TypeSizes.sizeof(false);
-            if (version >= MessagingService.VERSION_51)
-               size += TypeSizes.sizeof(acceptResult.rejectedDueToConsensusMigration);
             return size;
         }
     }
