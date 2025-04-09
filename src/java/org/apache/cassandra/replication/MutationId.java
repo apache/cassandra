@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  */
 public class MutationId extends ShortMutationId
 {
-    private static final long NONE_LOG_ID = Long.MIN_VALUE;
+    private static final long NONE_LOG_ID = CoordinatorLogId.none().asLong();
     private static final long NONE_SEQUENCE_ID = Long.MIN_VALUE;
     private static final int NONE_OFFSET = offset(NONE_SEQUENCE_ID);
     private static final int NONE_TIMESTAMP = timestamp(NONE_SEQUENCE_ID);

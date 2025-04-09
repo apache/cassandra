@@ -52,9 +52,9 @@ public class Shard
         this.sinceEpoch = sinceEpoch;
         this.logs = new NonBlockingHashMapLong<>();
         this.currentLocalLog = startNewLog(localHostId, logIdProvider.getAsInt(), participants);
-        long logId = currentLocalLog.logId.asLong();
-        Preconditions.checkArgument(logId != MutationId.none().logId());
-        logs.put(logId, currentLocalLog);
+        CoordinatorLogId logId = currentLocalLog.logId;
+        Preconditions.checkArgument(!logId.isNone());
+        logs.put(logId.asLong(), currentLocalLog);
     }
 
     MutationId nextId()
