@@ -120,7 +120,7 @@ public class ForwardedWrite
 
         Kind kind();
         DecoratedKey key();
-        void execute(CoordinatorAckInfo ackTo);
+        void applyLocallyAndForwardToReplicas(CoordinatorAckInfo ackTo);
 
         IVersionedSerializer<Request> serializer = new IVersionedSerializer<>()
         {
@@ -187,7 +187,7 @@ public class ForwardedWrite
         }
 
         @Override
-        public void execute(CoordinatorAckInfo ackTo)
+        public void applyLocallyAndForwardToReplicas(CoordinatorAckInfo ackTo)
         {
             Preconditions.checkState(ackTo != null);
             Preconditions.checkArgument(mutation.id().isNone());
@@ -369,7 +369,7 @@ public class ForwardedWrite
             // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
             try
             {
-                request.execute(ackTo);
+                request.applyLocallyAndForwardToReplicas(ackTo);
             }
             catch (Exception e)
             {
