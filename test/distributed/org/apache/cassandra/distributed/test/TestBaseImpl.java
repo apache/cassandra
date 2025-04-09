@@ -212,4 +212,10 @@ public class TestBaseImpl extends DistributedTestBase
         // in real live repair is needed in this case, but in the test case it doesn't matter if the tables loose
         // anything, so ignoring repair to speed up the tests.
     }
+
+    protected static void disableCompaction(Cluster cluster, String keyspace, String table)
+    {
+        for (int i = 1; i < cluster.size() + 1; i++)
+            cluster.get(i).nodetool("disableautocompaction", keyspace, table);
+    }
 }

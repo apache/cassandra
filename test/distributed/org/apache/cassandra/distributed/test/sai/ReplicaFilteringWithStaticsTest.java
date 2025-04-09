@@ -45,6 +45,42 @@ public class ReplicaFilteringWithStaticsTest extends TestBaseImpl
     }
 
     @Test
+    public void testRowFilterDeletePurging()
+    {
+        testRowFilterDeletePurging(false);
+    }
+
+    @Test
+    public void testRowFilterDeletePurgingSAI()
+    {
+        testRowFilterDeletePurging(true);
+    }
+
+    public void testRowFilterDeletePurging(boolean sai)
+    {
+        String table = "row_filtering_delete_purging" + (sai ? "_sai" : "");
+
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s." + table + " (pk0 double, ck0 boolean, s0 ascii static, v0 ascii, " +
+                                          "PRIMARY KEY (pk0, ck0)) WITH CLUSTERING ORDER BY (ck0 DESC) AND read_repair = 'NONE'"));
+        disableCompaction(CLUSTER, KEYSPACE, table);
+
+        if (sai)
+        {
+            CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s." + table + "(s0) USING 'sai'"));
+            SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+        }
+
+        CLUSTER.get(3).executeInternal(withKeyspace("UPDATE %s." + table + " USING TIMESTAMP 1 SET s0='foo', v0='c' WHERE  pk0 = 2.9 AND  ck0 IN (false, true)"));
+        
+        // This delete must be resolved by RFP to eliminate the row with ck0 = true from node 3:
+        CLUSTER.get(1).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 2 WHERE  pk0 = 2.9 AND  ck0 = true"));
+        CLUSTER.get(1).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, ck0, s0, v0) VALUES (2.9, false, 'bar', 'xyz') USING TIMESTAMP 3"));
+
+        String select = withKeyspace("SELECT ck0 FROM %s." + table + " WHERE s0 = 'bar' ALLOW FILTERING");
+        assertRows(CLUSTER.coordinator(1).executeWithPaging(select, ALL, 100), row(false));
+    }
+
+    @Test
     public void testStaticMatchWithPartitionDelete()
     {
         testStaticMatchWithPartitionDelete(false);
