@@ -20,7 +20,7 @@
   <define name="instance_id" class="org.apache.cassandra.distributed.impl.InstanceIDDefiner" />
 
   <!-- Shutdown hook ensures that async appender flushes -->
-  <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+  <shutdownHook class="ch.qos.logback.core.hook.DefaultShutdownHook"/>
 
   <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
 
@@ -36,7 +36,7 @@
     </triggeringPolicy>
 
     <encoder>
-      <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %msg%n</pattern>
+      <pattern>%-5level [%thread] ${instance_id} %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %msg%n</pattern>
     </encoder>
     <immediateFlush>false</immediateFlush>
   </appender>
@@ -51,7 +51,7 @@
 
   <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-      <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] ${instance_id} %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
     <filter class="org.apache.cassandra.net.LogbackFilter"/>
   </appender>

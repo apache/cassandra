@@ -76,8 +76,8 @@ the rolling policy.
 
 Specify the format of the message. Part of the rolling policy.
 
-*Example:* <maxHistory>7</maxHistory> *Example:* <encoder>
-<pattern>%-5level [%thread] %date\{ISO8601} %F:%L - %msg%n</pattern>
+*Example:* <encoder>
+<pattern>%-5level [%thread] %date\{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
 </encoder>
 
 === Logging to Cassandra virtual table
@@ -106,7 +106,6 @@ The appender to virtual table is commented out by default so logging to virtual 
 [source,XML]
 ----
 <configuration scan="true" scanPeriod="60 seconds">
-  <jmxConfigurator />
 
   <!-- No shutdown hook; we run it ourselves in StorageService after shutdown -->
 
@@ -126,7 +125,7 @@ The appender to virtual table is commented out by default so logging to virtual 
       <totalSizeCap>5GB</totalSizeCap>
     </rollingPolicy>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -143,7 +142,7 @@ The appender to virtual table is commented out by default so logging to virtual 
       <totalSizeCap>5GB</totalSizeCap>
     </rollingPolicy>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -163,7 +162,7 @@ The appender to virtual table is commented out by default so logging to virtual 
       <level>INFO</level>
     </filter>
     <encoder>
-      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 
