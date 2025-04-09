@@ -177,7 +177,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             public void insertRow(Row row)
             {
                 // SAI does not index deletions, as these are resolved during post-filtering.
-                if (row.deletion().isLive())
+                if (row.hasLiveData(nowInSec, false))
                     for (Index.Indexer indexer : indexers)
                         indexer.insertRow(row);
             }
@@ -185,8 +185,10 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             @Override
             public void updateRow(Row oldRow, Row newRow)
             {
-                for (Index.Indexer indexer : indexers)
-                    indexer.updateRow(oldRow, newRow);
+                // SAI does not index deletions, as these are resolved during post-filtering.
+                if (newRow.hasLiveData(nowInSec, false))
+                    for (Index.Indexer indexer : indexers)
+                        indexer.updateRow(oldRow, newRow);
             }
         };
     }
