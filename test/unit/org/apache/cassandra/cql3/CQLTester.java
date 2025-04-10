@@ -3557,11 +3557,16 @@ public abstract class CQLTester
 
         protected static void prePrepareServer()
         {
+            setupFileSystem();
+
+            CQLTester.prePrepareServer();
+        }
+
+        protected static void setupFileSystem()
+        {
             fs = FileSystems.newGlobalInMemoryFileSystem();
             CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
             FileSystems.maybeCreateTmp();
-
-            CQLTester.prePrepareServer();
         }
 
         @Before
