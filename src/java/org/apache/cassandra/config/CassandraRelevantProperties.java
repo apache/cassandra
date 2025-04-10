@@ -259,8 +259,13 @@ public enum CassandraRelevantProperties
     /**
      * Number of replicas required to store batchlog for atomicity, only accepts values of 1 or 2.
      */
-    REQUIRED_BATCHLOG_REPLICA_COUNT("cassandra.batchlog.required_replica_count", "2")
-    ;
+    REQUIRED_BATCHLOG_REPLICA_COUNT("cassandra.batchlog.required_replica_count", "2"),
+
+    /**
+     * Do not try to calculate optimal streaming candidates. This can take a lot of time in some configs specially
+     * with vnodes.
+     */
+    SKIP_OPTIMAL_STREAMING_CANDIDATES_CALCULATION("cassandra.skip_optimal_streaming_candidates_calculation", "false");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
