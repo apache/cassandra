@@ -1,9 +1,11 @@
 5.0.5
+ * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)
+ * Upgrade com.datastax.cassandra:cassandra-driver-core:3.11.5 to org.apache.cassandra:cassandra-driver-core:3.12.1 (CASSANDRA-17231)
+Merged from 4.0:
+ * Fix Dropwizard Meter causes timeouts when infrequently used (CASSANDRA-19332)
 
 
 5.0.4
- * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)
- * Upgrade com.datastax.cassandra:cassandra-driver-core:3.11.5 to org.apache.cassandra:cassandra-driver-core:3.12.1 (CASSANDRA-17231)
  * Update netty to 4.1.119.Final and netty-tcnative to 2.0.70.Final (CASSANDRA-20314)
  * Serialization can lose complex deletions in a mutation with multiple collections in a row (CASSANDRA-20449)
  * Improve error messages when initializing auth classes (CASSANDRA-20368)
@@ -29,7 +31,6 @@ Merged from 4.1:
  * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
 Merged from 4.0:
- * Fix Dropwizard Meter causes timeouts when infrequently used (CASSANDRA-19332)
  * Update OWASP dependency checker to version 12.1.0 (CASSANDRA-20501)
  * Suppress CVE-2025-25193 (CASSANDRA-20504)
  * Include in source tree and build packages a Snyk policy file that lists known false positives (CASSANDRA-20319)
