@@ -41,21 +41,29 @@ public enum Version
      *  - Serialize MemtableParams when serializing TableParams
      */
     V2(2),
-
+    /**
+     *  - down nodes serialized in PrepareCMSReconfiguration
+     */
+    V3(3),
+    /**
+     *  - Serialize allowAutoSnapshot and incrementalBackups when serializing TableParams
+     */
+    V4(4),
+    /**
+     *  - AlterSchema includes execution timestamp
+     *  - PreInitialize includes datacenter (affects local serialization on first CMS node only)
+     */
+    V5(5),
+    /**
+     *  - CEP-42 - Constraints framework. New version due to modifications in table metadata serialization.
+     */
+    V6(6),
     /**
      *  - Added AccordFastPath
      *  - Added ConsensusMigrationState
      *  - Added AccordStaleReplicas
      *  - TableParam now has pendingDrop (accord table drop is multistep)
-     */
-    V3(3),
-
-    // Padding
-    V4(4),
-    V5(5),
-    V6(6),
-    /**
-     *  - Accord
+     *  - Column Metadata now stores a unique id
      */
     V7(7),
 
@@ -64,7 +72,7 @@ public enum Version
     /**
      * The version that Accord was added to TCM.
      */
-    public static final Version MIN_ACCORD_VERSION = V3;
+    public static final Version MIN_ACCORD_VERSION = V7;
 
     private static Map<Integer, Version> values = new HashMap<>();
     static

@@ -19,8 +19,9 @@
 package org.apache.cassandra.tools;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+
+import org.apache.cassandra.utils.ReflectionUtils;
 
 public class FieldUtil
 {
@@ -38,32 +39,12 @@ public class FieldUtil
 
     private static void setInstanceUnsafeThrowing(Class<?> klass, Object v, String fieldName) throws Throwable
     {
-        Field field = klass.getDeclaredField(fieldName);
+        Field field = ReflectionUtils.getField(klass, fieldName);
         field.setAccessible(true);
 
-        try
-        {
-            Field modifiers = Field.class.getDeclaredField("modifiers");
-            modifiers.setAccessible(true);
-            modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-        }
-        catch (NoSuchFieldException t)
-        {
-            // jdk17 fallback
-            Method getDeclaredFields0 = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
-            getDeclaredFields0.setAccessible(true);
-            Field[] fields = (Field[]) getDeclaredFields0.invoke(Field.class, false);
-
-            for (Field f : fields)
-            {
-                if ("modifiers".equals(f.getName()))
-                {
-                    f.setAccessible(true);
-                    f.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-                    break;
-                }
-            }
-        }
+        Field modifiers = ReflectionUtils.getModifiersField();
+        modifiers.setAccessible(true);
+        modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
 
         field.set(null, v);
     }

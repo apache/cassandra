@@ -22,14 +22,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.LongUnaryOperator;
 
 import javax.annotation.Nullable;
-
-import org.agrona.collections.Hashing;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -58,8 +53,7 @@ public final class TableId implements Comparable<TableId>
 {
     public static final long MAGIC = 1956074401491665062L;
     public static final long EMPTY_SIZE = ObjectSizes.measureDeep(new UUID(0, 0));
-
-    private static final ConcurrentHashMap<TableId, TableId> internCache = new ConcurrentHashMap<>();
+    private static final int MAGIC_BYTE = (int) ((flipSign(MAGIC) >>> 56) & 0xf0);
 
     final long msb, lsb;
 
@@ -170,7 +164,8 @@ public final class TableId implements Comparable<TableId>
     @Override
     public int hashCode()
     {
-        return Hashing.hash(msb ^ lsb);
+        long hilo = msb ^ lsb;
+        return ((int)(hilo >> 32)) ^ (int) hilo;
     }
 
     @Override
@@ -185,7 +180,7 @@ public final class TableId implements Comparable<TableId>
     @Override
     public String toString()
     {
-        return new UUID(msb, lsb).toString();
+        return asUUID().toString();
     }
 
     public void serialize(DataOutput out) throws IOException
@@ -216,8 +211,6 @@ public final class TableId implements Comparable<TableId>
     {
         return 16;
     }
-
-    private static final int MAGIC_BYTE = (int) ((flipSign(MAGIC) >>> 56) & 0xf0);
 
     public void serializeCompact(DataOutputPlus out) throws IOException
     {
@@ -381,12 +374,6 @@ public final class TableId implements Comparable<TableId>
         else return new TableId(MAGIC, transform.applyAsLong(accessor.getLeastSignificantBytes(src, offset, b & 0x0f)));
     }
 
-    public TableId intern()
-    {
-        TableId interned = internCache.putIfAbsent(this, this);
-        return interned == null ? this : interned;
-    }
-
     @Override
     public int compareTo(TableId that)
     {
@@ -435,9 +422,4 @@ public final class TableId implements Comparable<TableId>
             return t.serializedSize();
         }
     };
-
-    public static void scheduleCachePruning()
-    {
-        ScheduledExecutors.scheduledFastTasks.scheduleSelfRecurring(internCache::clear, 1, TimeUnit.HOURS);
-    }
 }

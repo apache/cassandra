@@ -30,6 +30,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.FailureRecordingCallback;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.utils.TriFunction;
 
 import static org.apache.cassandra.exceptions.RequestFailure.TIMEOUT;
 import static org.apache.cassandra.exceptions.RequestFailure.UNKNOWN;
@@ -69,10 +70,6 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
         }
 
         onResponse(response, getBroadcastAddressAndPort());
-    }
-
-    public interface TriFunction<A, B, C, D> {
-        D apply(A var1, B var2, C var3);
     }
 
     protected <I, J> void executeOnSelf(I parameter1, J parameter2, TriFunction<I, J, InetAddressAndPort, T> execute)

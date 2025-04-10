@@ -424,7 +424,6 @@ public class CassandraDaemon
             logger.info("Prewarming of auth caches is disabled");
 
         PaxosState.startAutoRepairs();
-        TableId.scheduleCachePruning();
         completeSetup();
     }
 

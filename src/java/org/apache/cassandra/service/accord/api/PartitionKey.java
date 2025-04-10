@@ -147,14 +147,14 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         @Override
         public PartitionKey deserialize(DataInputPlus in) throws IOException
         {
-            TableId tableId = TableId.deserializeCompact(in).intern();
+            TableId tableId = TableId.deserializeCompact(in);
             DecoratedKey key = getPartitioner().decorateKey(ByteBufferUtil.readWithVIntLength(in));
             return new PartitionKey(tableId, key);
         }
 
         public <V> PartitionKey deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
         {
-            TableId tableId = TableId.deserializeCompact(src, accessor, offset).intern();
+            TableId tableId = TableId.deserializeCompact(src, accessor, offset);
             offset += tableId.serializedCompactSize();
             int numBytes = accessor.getUnsignedVInt32(src, offset);
             offset += VIntCoding.readLengthOfVInt(src, accessor, offset);

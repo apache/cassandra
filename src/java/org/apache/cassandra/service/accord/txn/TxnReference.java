@@ -194,7 +194,7 @@ public class TxnReference
     {
         UserType userType = (UserType) column.type;
         int field = ByteBufferUtil.getUnsignedShort(path.get(0), 0);
-        return userType.unpack(udt.buffer(), ByteBufferAccessor.instance).get(field);
+        return userType.unpack(udt.buffer()).get(field);
     }
 
     public AbstractType<?> getFieldSelectionType()
