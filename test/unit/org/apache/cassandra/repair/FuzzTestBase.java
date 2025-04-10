@@ -243,16 +243,16 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
 
             @Override
-            public Thread startThread(String name, Runnable runnable, InfiniteLoopExecutor.SimulatorTag simulatorTag)
+            public Thread startThread(String name, Runnable runnable, SystemThreadTag systemTag, SimulatorThreadTag simulatorTag)
             {
                 if (shouldMock()) return new Thread();
-                return delegate.startThread(name, runnable, simulatorTag);
+                return delegate.startThread(name, runnable, systemTag, simulatorTag);
             }
 
             @Override
-            public Interruptible infiniteLoop(String name, Interruptible.Task task, InfiniteLoopExecutor.SimulatorSafe simulatorSafe, InfiniteLoopExecutor.Interrupts interrupts)
+            public Interruptible infiniteLoop(String name, Interruptible.Task task, InfiniteLoopExecutor.SimulatorSafe simulatorSafe, SystemThreadTag systemTag, InfiniteLoopExecutor.Interrupts interrupts)
             {
-                return delegate.infiniteLoop(name, task, simulatorSafe, interrupts);
+                return delegate.infiniteLoop(name, task, simulatorSafe, systemTag, interrupts);
             }
 
             @Override

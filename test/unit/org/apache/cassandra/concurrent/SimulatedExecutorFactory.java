@@ -204,7 +204,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
     }
 
     @Override
-    public Thread startThread(String name, Runnable runnable, InfiniteLoopExecutor.SimulatorTag simulatorTag)
+    public Thread startThread(String name, Runnable runnable, SystemThreadTag systemTag, SimulatorThreadTag simulatorTag)
     {
         throw new UnsupportedOperationException("Thread can't be simualted");
     }
@@ -213,6 +213,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
     public Interruptible infiniteLoop(String name,
                                       Interruptible.Task task,
                                       InfiniteLoopExecutor.SimulatorSafe simulatorSafe,
+                                      SystemThreadTag systemTag,
                                       InfiniteLoopExecutor.Interrupts interrupts)
     {
         var delegate = new UnorderedScheduledExecutorService();

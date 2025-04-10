@@ -20,16 +20,14 @@ package org.apache.cassandra.concurrent;
 
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe;
-import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorTag;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Shared;
 
 import static java.lang.Thread.NORM_PRIORITY;
 import static java.lang.Thread.UncaughtExceptionHandler;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorTag.DAEMON;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorTag.JOB;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.createThread;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.setupThread;
 import static org.apache.cassandra.concurrent.ThreadPoolExecutorBuilder.pooledJmx;
@@ -80,6 +78,17 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
         NORMAL, DISCARD
     }
 
+    /// Simulator Tag specifies the nature of the created thread:
+    ///   - JOB threads are short-lived and simulation treats them as sub tasks of the task that creates them,
+    ///     so that the strictly ordered property of the simulator ensures the thread terminates before the next
+    ///     task of its parent is scheduled.
+    ///   - DAEMON threads are treated as background tasks, and are neither linked to their parent task or the Work phase that creates them.
+    ///   - INFINITE_LOOP threads detach from their parent task as they are expected to run forever, but unlike DAEMON threads must have
+    ///     no active work for a given Work phase to complete.
+    public enum SimulatorThreadTag  { JOB, DAEMON, INFINITE_LOOP }
+
+    public enum SystemThreadTag  { DAEMON, NON_DAEMON }
+
     /**
      * @return a factory that configures executors that propagate {@link ExecutorLocals} to the executing thread
      */
@@ -126,10 +135,10 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * Create and start a new thread to execute {@code runnable}
      * @param name the name of the thread
      * @param runnable the task to execute
-     * @param simulatorTag flag to indicate whether the thread should be a daemon or not
+     * @param simulatorTag flag to indicate how the
      * @return the new thread
      */
-    Thread startThread(String name, Runnable runnable, SimulatorTag simulatorTag);
+    Thread startThread(String name, Runnable runnable, SystemThreadTag systemTag, SimulatorThreadTag simulatorTag);
 
     /**
      * Create and start a new thread to execute {@code runnable}; this thread will be a daemon thread.
@@ -139,7 +148,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      */
     default Thread startThread(String name, Runnable runnable)
     {
-        return startThread(name, runnable, DAEMON);
+        return startThread(name, runnable, DAEMON, SimulatorThreadTag.JOB);
     }
 
     /**
@@ -150,13 +159,14 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param name the name of the thread used to invoke the task repeatedly
      * @param task the task to execute repeatedly
      * @param simulatorSafe flag indicating if the loop thread can be intercepted / rescheduled during cluster simulation
+     * @param systemTag flag to indicate whether the loop thread should be a daemon thread or not
      * @param interrupts flag to indicate whether to synchronize interrupts of the task execution thread
      *                   using the task's monitor this can be used to prevent interruption while performing
      *                   IO operations which forbid interrupted threads.
      *                   See: {@link org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager#start}
      * @return the new thread
      */
-    Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Interrupts interrupts);
+    Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, SystemThreadTag systemTag, Interrupts interrupts);
 
     /**
      * Create and start a new InfiniteLoopExecutor to repeatedly invoke {@code runnable}.
@@ -170,7 +180,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      */
     default Interruptible infiniteLoop(String name, Interruptible.SimpleTask task, SimulatorSafe simulatorSafe)
     {
-        return infiniteLoop(name, Interruptible.Task.from(task), simulatorSafe, UNSYNCHRONIZED);
+        return infiniteLoop(name, Interruptible.Task.from(task), simulatorSafe, DAEMON, UNSYNCHRONIZED);
     }
 
     /**
@@ -292,9 +302,9 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
         }
 
         @Override
-        public Thread startThread(String name, Runnable runnable, SimulatorTag simulatorTag)
+        public Thread startThread(String name, Runnable runnable, SystemThreadTag systemTag, SimulatorThreadTag simulatorTag)
         {
-            Thread thread = setupThread(createThread(threadGroup, runnable, name, simulatorTag != JOB),
+            Thread thread = setupThread(createThread(threadGroup, runnable, name, systemTag == DAEMON),
                                         Thread.NORM_PRIORITY,
                                         contextClassLoader,
                                         uncaughtExceptionHandler);
@@ -303,9 +313,9 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
         }
 
         @Override
-        public Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Interrupts interrupts)
+        public Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, SystemThreadTag systemTag, Interrupts interrupts)
         {
-            return new InfiniteLoopExecutor(this, name, task, interrupts);
+            return new InfiniteLoopExecutor(this, name, task, systemTag, interrupts);
         }
 
         @Override

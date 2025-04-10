@@ -64,7 +64,7 @@ import org.jctools.queues.MpscUnboundedArrayQueue;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorTag.JOB;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
@@ -218,7 +218,7 @@ public class Journal<K, V> implements Shutdownable
         segments.set(Segments.of(StaticSegment.open(descriptors, keySupport)));
         closer = executorFactory().sequential(name + "-closer");
         releaser = executorFactory().sequential(name + "-releaser");
-        allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, SYNCHRONIZED);
+        allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
         advanceSegment(null);
         Invariants.require(state.compareAndSet(State.INITIALIZING, State.NORMAL),
                               "Unexpected journal state after initialization", state);

@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag;
+import org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -52,19 +54,6 @@ public class InfiniteLoopExecutor implements Interruptible
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum SimulatorSafe { SAFE, UNSAFE }
 
-    /**
-     * Simulator Tag specifies the nature of the created thread:
-     * 
-     *   * JOB threads are short-lived, and simulation will wait for them to terminate before completing an enclosing Work unit
-     *   * DAEMON threads can outlive the enclosing work unit during simulation; and will also
-     *   * INFINITE_LOOP threads are intended for looping "forever", and are explicitly marked as such to distinguish them from
-     *     other long-lived threads.
-     *
-     * DAEMON and INFINITE_LOOP threads are marked as daemon threads in JVM.
-     */
-    @Shared(scope = Shared.Scope.SIMULATION)
-    public enum SimulatorTag  { JOB, DAEMON, INFINITE_LOOP }
-
     @Shared(scope = Shared.Scope.SIMULATION)
     public enum Interrupts    { SYNCHRONIZED, UNSYNCHRONIZED }
 
@@ -75,20 +64,20 @@ public class InfiniteLoopExecutor implements Interruptible
     private final Consumer<Thread> interruptHandler;
     private final Condition isTerminated = newOneTimeCondition();
 
-    public InfiniteLoopExecutor(String name, Task task)
+    public InfiniteLoopExecutor(String name, Task task, SystemThreadTag systemTag)
     {
-        this(ExecutorFactory.Global.executorFactory(), name, task, UNSYNCHRONIZED);
+        this(ExecutorFactory.Global.executorFactory(), name, task, systemTag, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, SystemThreadTag systemTag)
     {
-        this(factory, name, task, UNSYNCHRONIZED);
+        this(factory, name, task, systemTag, UNSYNCHRONIZED);
     }
 
-    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, Interrupts interrupts)
+    public InfiniteLoopExecutor(ExecutorFactory factory, String name, Task task, SystemThreadTag systemTag, Interrupts interrupts)
     {
         this.task = task;
-        this.thread = factory.startThread(name, this::loop, SimulatorTag.INFINITE_LOOP);
+        this.thread = factory.startThread(name, this::loop, systemTag, SimulatorThreadTag.INFINITE_LOOP);
         this.interruptHandler = interrupts == SYNCHRONIZED
                                 ? interruptHandler(task)
                                 : Thread::interrupt;
