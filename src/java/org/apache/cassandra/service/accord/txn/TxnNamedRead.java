@@ -235,9 +235,6 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand, TableMetadatas
         if (command == null)
             return AsyncResults.success(TxnData.NOOP_DATA);
 
-        // TODO (required, safety): before release, double check reasoning that this is safe
-//        AccordCommandsForKey cfk = ((SafeAccordCommandStore)safeStore).commandsForKey(key);
-//        int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
         // It's fine for our nowInSeconds to lag slightly our insertion timestamp, as to the user
         // this simply looks like the transaction witnessed TTL'd data and the data then expired
         // immediately after the transaction executed, and this simplifies things a great deal

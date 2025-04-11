@@ -238,7 +238,7 @@ public final class ServerTestUtils
     {
         if (directory.exists())
         {
-            Arrays.stream(directory.tryList()).forEach(File::deleteRecursive);
+            Arrays.stream(directory.tryList()).forEach(File::tryDeleteRecursive);
         }
     }
 

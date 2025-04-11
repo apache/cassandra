@@ -90,7 +90,9 @@ public class FetchLogFromPeers2Test extends TestBaseImpl
                 cluster.coordinator(coordinator).execute(withKeyspace(query), ConsistencyLevel.QUORUM);
                 fail("should fail");
             }
-            catch (Exception ignored) {}
+            catch (Exception ignored)
+            {
+            }
 
             boolean metricBumped = false;
             for (int i = 1; i <= cluster.size(); i++)

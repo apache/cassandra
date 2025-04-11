@@ -38,6 +38,7 @@ import accord.primitives.Ranges;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.Invariants;
+import accord.utils.SortedListSet;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.agrona.collections.LongArrayList;
@@ -449,8 +450,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             epochState.setSyncStatus(SyncStatus.NOTIFYING);
         }
 
-        // TODO (required): replace with SortedArraySet when it is available
-        Set<Node.Id> notify = new HashSet<>(topology.nodes());
+        Set<Node.Id> notify = SortedListSet.allOf(topology.nodes());
         notify.remove(localId);
         syncPropagator.reportSyncComplete(epoch, notify, localId);
     }

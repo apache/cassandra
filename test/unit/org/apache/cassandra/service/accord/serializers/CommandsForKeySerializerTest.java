@@ -479,7 +479,6 @@ public class CommandsForKeySerializerTest
                 }
             }
 
-            // TODO (expected): we currently don't explore TruncatedApply statuses because we don't transition through all phases and therefore don't adopt the Applied status
             Choices<SaveStatus> saveStatusChoices = Choices.uniform(EnumSet.complementOf(EnumSet.of(SaveStatus.TruncatedApply, SaveStatus.TruncatedUnapplied, SaveStatus.TruncatedApplyWithOutcome)).toArray(SaveStatus[]::new));
             Supplier<SaveStatus> saveStatusSupplier = () -> {
                 SaveStatus result = saveStatusChoices.choose(source);
