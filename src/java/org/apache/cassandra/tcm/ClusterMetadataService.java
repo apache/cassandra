@@ -809,6 +809,24 @@ public class ClusterMetadataService
         return metadata;
     }
 
+    /**
+     * Combines {@link #fetchLogFromPeer} with {@link #fetchLogFromCMS} to synchronously fetch and apply log entries
+     * up to the requested epoch. The supplied peer will be contacted first and if after doing so, the current local
+     * metadata is not caught up to at least the required epoch, a further request is made to the CMS.
+     * The returned ClusterMetadata is guaranteed to have been published, though it may have also been superceded by
+     * further updates.
+     * If the requested epoch is not reached even after fetching from the CMS, an IllegalStateException is thrown.
+     * @param from Initial peer to contact. Usually this is the sender of a message containing the requested epoch,
+     *             which means it can be assumed that this peer (if available) can supply any missing log entries.
+     * @param awaitAtLeast The requested epoch.
+     * @return A published ClusterMetadata with all entries up to (at least) the requested epoch enacted.
+     * @throws IllegalStateException if the requested epoch could not be reached, even after falling back to CMS catchup
+     */
+    public ClusterMetadata fetchLogFromPeerOrCMS(InetAddressAndPort from, Epoch awaitAtLeast)
+    {
+        return fetchLogFromPeerOrCMS(metadata(), from, awaitAtLeast);
+    }
+
     public ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException
     {
         return log.awaitAtLeast(epoch);
