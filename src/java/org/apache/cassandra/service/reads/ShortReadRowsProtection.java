@@ -221,7 +221,7 @@ abstract class ShortReadRowsProtection extends Transformation implements MoreRow
         @Override
         UnfilteredRowIterator fetchAdditionalRows(int lastQueried)
         {
-            throw new RuntimeException("TODO: replace with retry exception");
+            throw new ShortReadException();
         }
     }
 }

@@ -242,7 +242,7 @@ public abstract class ShortReadPartitionsProtection extends Transformation<Unfil
         @Override
         UnfilteredPartitionIterator fetchAdditionalPartitions(DataLimits.Counter mergedResultCounter)
         {
-            throw new RuntimeException("TODO: replace with retry exception");
+            throw new ShortReadException();
         }
     }
 }
