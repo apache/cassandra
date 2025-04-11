@@ -38,7 +38,6 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.utils.Clock;
 
@@ -84,12 +83,12 @@ public class AutoRepair
     public static DurationSpec.IntSecondsBound SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("5s");
 
     @VisibleForTesting
-    public final Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
+    public Map<AutoRepairConfig.RepairType, AutoRepairState> repairStates;
 
     @VisibleForTesting
-    protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
+    protected Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairExecutors;
 
-    protected final Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairRunnableExecutors;
+    protected Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> repairRunnableExecutors;
 
     @VisibleForTesting
     // Auto-repair is likely to be run on multiple nodes independently, we want to avoid running multiple repair
@@ -99,21 +98,13 @@ public class AutoRepair
     @VisibleForTesting
     protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
 
-    private boolean isSetupDone = false;
+    @VisibleForTesting
+    public boolean isSetupDone = false;
     public static AutoRepair instance = new AutoRepair();
 
-    @VisibleForTesting
-    protected AutoRepair()
+    private AutoRepair()
     {
-        repairExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
-        repairRunnableExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
-        repairStates = new EnumMap<>(AutoRepairConfig.RepairType.class);
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
-        {
-            repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
-            repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
-            repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
-        }
+        // Private constructor to prevent instantiation
     }
 
     public void setup()
@@ -126,6 +117,16 @@ public class AutoRepair
             {
                 return;
             }
+            repairExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
+            repairRunnableExecutors = new EnumMap<>(AutoRepairConfig.RepairType.class);
+            repairStates = new EnumMap<>(AutoRepairConfig.RepairType.class);
+            for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+            {
+                repairExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-Repair-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
+                repairRunnableExecutors.put(repairType, executorFactory().scheduled(false, "AutoRepair-RepairRunnable-" + repairType.getConfigName(), Thread.NORM_PRIORITY));
+                repairStates.put(repairType, AutoRepairConfig.RepairType.getAutoRepairState(repairType));
+            }
+
             AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
             AutoRepairUtils.setup();
 
@@ -142,16 +143,6 @@ public class AutoRepair
             }
             isSetupDone = true;
         }
-    }
-
-    // repairAsync runs a repair session of the given type asynchronously.
-    public void repairAsync(AutoRepairConfig.RepairType repairType)
-    {
-        if (!AutoRepairService.instance.getAutoRepairConfig().isAutoRepairEnabled(repairType))
-        {
-            throw new ConfigurationException("Auto-repair is disabled for repair type " + repairType);
-        }
-        repairExecutors.get(repairType).submit(() -> repair(repairType));
     }
 
     /**
@@ -554,7 +545,7 @@ public class AutoRepair
         public void progress(String tag, ProgressEvent event)
         {
             ProgressEventType type = event.getType();
-            String message = String.format("[%s] %s", format.format(Clock.Global.currentTimeMillis()), event.getMessage());
+            String message = String.format("[%s] %s", format.format(timeFunc.get()), event.getMessage());
             if (type == ProgressEventType.ERROR)
             {
                 logger.error("Repair failure for repair {}: {}", repairType.toString(), message);
