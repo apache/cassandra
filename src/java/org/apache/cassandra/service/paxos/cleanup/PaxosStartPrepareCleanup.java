@@ -184,15 +184,22 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
 
     public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
     {
-        return in -> {
-            ClusterMetadataService.instance().fetchLogFromCMS(in.epoch());
-            ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
-            // Note: pre-5.1 we would use gossip state included in the request payload to update topology
-            // prior to cleanup. Topology is no longer derived from gossip state, so this has been removed.
-            Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);
-            PaxosRepairHistory history = table.getPaxosRepairHistoryForRanges(in.payload.ranges);
-            Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history));
-            ctx.messaging().send(out, in.respondTo());
+        return new IVerbHandler<>()
+        {
+            @Override
+            public void doVerb(Message<Request> in)
+            {
+                if (ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), in, () -> this.doVerb(in)))
+                    return;
+                ClusterMetadataService.instance().fetchLogFromCMS(in.epoch());
+                ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
+                // Note: pre-5.1 we would use gossip state included in the request payload to update topology
+                // prior to cleanup. Topology is no longer derived from gossip state, so this has been removed.
+                Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);
+                PaxosRepairHistory history = table.getPaxosRepairHistoryForRanges(in.payload.ranges);
+                Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history));
+                ctx.messaging().send(out, in.respondTo());
+            }
         };
     }
 
