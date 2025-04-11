@@ -41,6 +41,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
@@ -48,6 +49,8 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
@@ -739,7 +742,7 @@ public class ClusterMetadataService
         ScheduledExecutors.optionalTasks.submit(() -> {
             try
             {
-                future.setSuccess(ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, from, awaitAtLeast));
+                future.setSuccess(fetchLogFromPeerOrCMS(metadata, from, awaitAtLeast));
             }
             catch (Throwable t)
             {
@@ -749,6 +752,19 @@ public class ClusterMetadataService
             }
         });
         return future;
+    }
+
+    public boolean maybeFetchLogFromPeerOrCMSAsync(MessageDelivery messaging, Message<?> message, Runnable onFetchSuccess)
+    {
+        ClusterMetadata metadata = metadata();
+        if (metadata.epoch.isEqualOrAfter(metadata.epoch))
+            return false;
+        Future<ClusterMetadata> f = fetchLogFromPeerOrCMSAsync(metadata, message.from(), message.epoch());
+        f.addCallback((success, failure) -> {
+            if (failure != null) messaging.respondWithFailure(RequestFailure.UNKNOWN, message);
+            else                 onFetchSuccess.run();
+        });
+        return true;
     }
 
     /**
