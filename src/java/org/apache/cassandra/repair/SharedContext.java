@@ -88,6 +88,7 @@ public interface SharedContext
     {
         return TimeUUID.Generator::nextTimeUUID;
     }
+
     default ClusterMetadataService cms()
     {
         return ClusterMetadataService.instance();
