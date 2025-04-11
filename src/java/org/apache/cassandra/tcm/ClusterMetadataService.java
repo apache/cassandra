@@ -762,7 +762,7 @@ public class ClusterMetadataService
         Future<ClusterMetadata> f = fetchLogFromPeerOrCMSAsync(metadata, message.from(), message.epoch());
         f.addCallback((success, failure) -> {
             if (failure != null) messaging.respondWithFailure(RequestFailure.UNKNOWN, message);
-            else                 onFetchSuccess.run();
+            else                 message.verb().stage.execute(onFetchSuccess);
         });
         return true;
     }
