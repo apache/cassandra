@@ -130,6 +130,8 @@ public class RouteIndexTest extends CQLTester.InMemory
         // this flag disables that flush
         CassandraRelevantProperties.UNSAFE_SYSTEM.setBoolean(true);
 
+        setupFileSystem();
+
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setAccordTransactionsEnabled(true);
         // disable journal compaction so the test can control when it happens
@@ -137,7 +139,7 @@ public class RouteIndexTest extends CQLTester.InMemory
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
         DatabaseDescriptor.setAutoSnapshot(false);
 
-        CQLTester.InMemory.prePrepareServer();
+        CQLTester.prePrepareServer();
 
         // Journal will async release segment references and close files... this adds possible race condition issues with truncate
         // so make these steps happen inline.
