@@ -104,12 +104,9 @@ public class ShortReadProtection
 
     }
 
-    public static UnfilteredPartitionIterator detectAndThrow(UnfilteredPartitionIterator partitions,
-                                                             ReadCommand command,
-                                                             DataLimits.Counter mergedResultCounter,
-                                                             Dispatcher.RequestTime requestTime,
-                                                             boolean enforceStrictLiveness)
+    public static UnfilteredPartitionIterator detectAndThrow(UnfilteredPartitionIterator partitions, ReadCommand command, DataLimits.Counter mergedResultCounter)
     {
+        boolean enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                              false,
                                                                              command.selectsFullPartition(),
