@@ -28,6 +28,7 @@ import accord.coordinate.tracking.RequestStatus;
 import accord.coordinate.tracking.ResponseTracker;
 import accord.local.Node;
 import accord.messages.Apply;
+import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
 import accord.primitives.Route;
@@ -108,9 +109,9 @@ public class AccordInteropPersist extends Persist
     private final ConsistencyLevel consistencyLevel;
     private CallbackHolder callback;
 
-    public AccordInteropPersist(Node node, Topologies topologies, TxnId txnId, Route<?> sendTo, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, BiConsumer<? super Result, Throwable> clientCallback)
+    public AccordInteropPersist(Node node, Topologies topologies, TxnId txnId, Route<?> sendTo, Ballot ballot, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, BiConsumer<? super Result, Throwable> clientCallback)
     {
-        super(node, topologies, txnId, sendTo, txn, executeAt, deps, writes, result, fullRoute, AccordInteropApply.FACTORY);
+        super(node, topologies, txnId, ballot, sendTo, txn, executeAt, deps, writes, result, fullRoute, AccordInteropApply.FACTORY);
         Invariants.requireArgument(consistencyLevel == ConsistencyLevel.QUORUM || consistencyLevel == ConsistencyLevel.ALL || consistencyLevel == ConsistencyLevel.SERIAL || consistencyLevel == ConsistencyLevel.ONE);
         this.consistencyLevel = consistencyLevel;
         registerClientCallback(result, clientCallback);

@@ -40,11 +40,17 @@ import accord.impl.TopologyFactory;
 import accord.impl.basic.Cluster;
 import accord.impl.basic.RandomDelayQueue;
 import accord.local.CommandStores;
+import accord.local.DurableBefore;
 import accord.local.Node;
+import accord.local.RedundantBefore;
 import accord.primitives.EpochSupplier;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
+import accord.utils.PersistentField;
 import accord.utils.RandomSource;
+import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
@@ -308,6 +314,13 @@ public class AccordJournalBurnTest extends BurnTestBase
                                  this.closeCurrentSegmentForTestingIfNonEmpty();
                                  super.replay(commandStores);
                              }
+
+                             @Override
+                             public PersistentField.Persister<DurableBefore, DurableBefore> durableBeforePersister()
+                             {
+                                 // TODO (required): we should be persisting in the journal, but this currently causes the burn test to take far too long
+                                 return DurableBefore.NOOP_PERSISTER;
+                             }
                          };
 
                          return journal;
@@ -330,9 +343,15 @@ public class AccordJournalBurnTest extends BurnTestBase
     {
         IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(node.durableBefore(), node.topology().minEpoch());
         node.commandStores().forEachCommandStore(commandStore -> {
+            RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
+            if (redundantBefore == null)
+                redundantBefore = RedundantBefore.EMPTY;
+            CommandStores.RangesForEpoch rangesForEpoch = commandStore.unsafeGetRangesForEpoch();
+            if (rangesForEpoch == null)
+                rangesForEpoch = CommandStores.RangesForEpoch.EMPTY;
             compactionInfos.put(commandStore.id(), new IAccordService.AccordCompactionInfo(commandStore.id(),
-                                                                                           commandStore.unsafeGetRedundantBefore(),
-                                                                                           commandStore.unsafeGetRangesForEpoch(),
+                                                                                           redundantBefore,
+                                                                                           rangesForEpoch,
                                                                                            tableId));
         });
         return compactionInfos;
