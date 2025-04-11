@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang3.NotImplementedException;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -78,7 +77,6 @@ public class DiscoverySimulationTest
         log.readyUnchecked();
     }
 
-    @Ignore
     @Test
     public void discoveryTest() throws Throwable
     {

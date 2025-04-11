@@ -22,6 +22,7 @@ import java.io.IOException;
 
 import accord.api.Result;
 import accord.messages.Apply;
+import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
@@ -65,6 +66,7 @@ public class ApplySerializers
         @Override
         public void serializeBody(A apply, DataOutputPlus out, Version version) throws IOException
         {
+            CommandSerializers.ballot.serialize(apply.ballot, out);
             out.writeVInt(apply.minEpoch - apply.waitForEpoch);
             out.writeUnsignedVInt(apply.maxEpoch - apply.minEpoch);
             kind.serialize(apply.kind, out);
@@ -76,15 +78,16 @@ public class ApplySerializers
                 CommandSerializers.writes.serialize(apply.writes, out, version);
         }
 
-        protected abstract A deserializeApply(TxnId txnId, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind,
+        protected abstract A deserializeApply(TxnId txnId, Ballot ballot, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind,
                                               Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result);
 
         @Override
         public A deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
         {
+            Ballot ballot = CommandSerializers.ballot.deserialize(in);
             long minEpoch = waitForEpoch + in.readVInt();
             long maxEpoch = minEpoch + in.readUnsignedVInt();
-            return deserializeApply(txnId, scope, minEpoch, waitForEpoch, maxEpoch,
+            return deserializeApply(txnId, ballot, scope, minEpoch, waitForEpoch, maxEpoch,
                                     kind.deserialize(in),
                                     ExecuteAtSerializer.deserialize(txnId, in),
                                     DepsSerializers.partialDeps.deserialize(in),
@@ -97,7 +100,8 @@ public class ApplySerializers
         @Override
         public long serializedBodySize(A apply, Version version)
         {
-            return   TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
+            return   CommandSerializers.ballot.serializedSize(apply.ballot)
+                   + TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
                    + TypeSizes.sizeofUnsignedVInt(apply.maxEpoch - apply.minEpoch)
                    + kind.serializedSize(apply.kind)
                    + ExecuteAtSerializer.serializedSize(apply.txnId, apply.executeAt)
@@ -111,10 +115,10 @@ public class ApplySerializers
     public static final IVersionedSerializer<Apply> request = new ApplySerializer<>()
     {
         @Override
-        protected Apply deserializeApply(TxnId txnId, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind,
+        protected Apply deserializeApply(TxnId txnId, Ballot ballot, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind,
                                          Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result)
         {
-            return Apply.SerializationSupport.create(txnId, scope, minEpoch, waitForEpoch, maxEpoch, kind, executeAt, deps, txn, fullRoute, writes, result);
+            return Apply.SerializationSupport.create(txnId, ballot, scope, minEpoch, waitForEpoch, maxEpoch, kind, executeAt, deps, txn, fullRoute, writes, result);
         }
     };
 

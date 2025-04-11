@@ -501,7 +501,9 @@ public class AccordCommandStore extends CommandStore
         RedundantBefore redundantBefore;
         if (safeRedundantBefore == null) redundantBefore = RedundantBefore.EMPTY;
         else redundantBefore = safeRedundantBefore.redundantBefore;
-        return new AccordCompactionInfo(id, redundantBefore, rangesForEpoch, tableId);
+        CommandStores.RangesForEpoch ranges = this.rangesForEpoch;
+        if (ranges == null) ranges = CommandStores.RangesForEpoch.EMPTY;
+        return new AccordCompactionInfo(id, redundantBefore, ranges, tableId);
     }
 
     public RangeSearcher rangeSearcher()

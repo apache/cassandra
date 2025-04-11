@@ -144,6 +144,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     private final TxnId txnId;
     private final Txn txn;
     private final FullRoute<?> route;
+    private final Ballot ballot;
     private final Timestamp executeAt;
     private final Deps deps;
     private final BiConsumer<? super Result, Throwable> callback;
@@ -161,7 +162,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     private final Set<InetAddressAndPort> contacted;
     private final AccordUpdate.Kind updateKind;
 
-    public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
+    public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Ballot ballot, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
                                   AgentExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper)
     {
         requireArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
@@ -169,6 +170,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         this.txnId = txnId;
         this.txn = txn;
         this.route = route;
+        this.ballot = ballot;
         this.executeAt = executeAt;
         this.deps = deps;
         this.callback = callback;
@@ -402,7 +404,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         CommandStore cs = node.commandStores().select(route.homeKey());
         result.beginAsResult().withExecutor(cs).begin((data, failure) -> {
             if (failure == null)
-                ((CoordinationAdapter)node.coordinationAdapter(txnId, Standard)).persist(node, executes, route, txnId, txn, executeAt, deps, txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null, txn.result(txnId, executeAt, data), callback);
+                ((CoordinationAdapter)node.coordinationAdapter(txnId, Standard)).persist(node, executes, route, ballot, txnId, txn, executeAt, deps, txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null, txn.result(txnId, executeAt, data), callback);
             else
                 callback.accept(null, failure);
         });

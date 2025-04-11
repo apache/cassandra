@@ -467,7 +467,6 @@ public class AccordService implements IAccordService, Shutdownable
 
             if (response.current >= from)
                 return response;
-            metadata = ClusterMetadata.current();
         }
         catch (Throwable e)
         {

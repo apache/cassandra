@@ -130,6 +130,7 @@ public class CheckStatusSerializers
             KeySerializers.participants.serialize(check.query, out);
             out.writeUnsignedVInt(check.sourceEpoch);
             out.writeByte(check.includeInfo.ordinal());
+            CommandSerializers.ballot.serialize(check.bumpBallot, out);
         }
 
         @Override
@@ -139,7 +140,8 @@ public class CheckStatusSerializers
             Participants<?> query = KeySerializers.participants.deserialize(in);
             long sourceEpoch = in.readUnsignedVInt();
             CheckStatus.IncludeInfo info = infos[in.readByte()];
-            return new CheckStatus(txnId, query, sourceEpoch, info);
+            Ballot ballot = CommandSerializers.ballot.deserialize(in);
+            return new CheckStatus(txnId, query, sourceEpoch, info, ballot);
         }
 
         @Override
@@ -148,7 +150,8 @@ public class CheckStatusSerializers
             return CommandSerializers.txnId.serializedSize(check.txnId)
                    + KeySerializers.participants.serializedSize(check.query)
                    + TypeSizes.sizeofUnsignedVInt(check.sourceEpoch)
-                   + TypeSizes.BYTE_SIZE;
+                   + TypeSizes.BYTE_SIZE
+                   + CommandSerializers.ballot.serializedSize(check.bumpBallot);
         }
     };
 

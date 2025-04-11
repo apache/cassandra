@@ -69,12 +69,12 @@ public class CheckStatusSerializersTest
             switch (domain)
             {
                 case Key:
-                    // TODO (coverage): don't hard code murmur
+                    // TODO (desired): don't hard code murmur
                     Gen<TokenKey> keyGen = AccordGenerators.routingKeyGen(fromQT(CassandraGenerators.TABLE_ID_GEN), Gens.constant(AccordGenerators.RoutingKeyKind.TOKEN), fromQT(CassandraGenerators.murmurToken()), Murmur3Partitioner.instance);
                     TokenKey homeKey = keyGen.next(rs);
                     List<TokenKey> forOrdering = Gens.lists(keyGen).unique().ofSizeBetween(1, 10).next(rs);
                     forOrdering.sort(Comparator.naturalOrder());
-                    // TODO (coverage): don't hard code keys type
+                    // TODO (desired): don't hard code keys type
                     keysOrRanges = new FullKeyRoute(homeKey, forOrdering.toArray(RoutingKey[]::new));
                     break;
                 case Range:

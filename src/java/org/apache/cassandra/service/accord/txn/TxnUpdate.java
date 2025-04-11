@@ -174,7 +174,7 @@ public class TxnUpdate extends AccordUpdate
     public Update slice(Ranges ranges)
     {
         Keys keys = this.keys.slice(ranges);
-        // TODO: Slice the condition.
+        // TODO (desired): Slice the condition.
         return new TxnUpdate(tables, keys, select(this.keys, keys, fragments), condition, cassandraCommitCL, preserveTimestamps);
     }
 
@@ -182,7 +182,7 @@ public class TxnUpdate extends AccordUpdate
     public Update intersecting(Participants<?> participants)
     {
         Keys keys = this.keys.intersecting(participants);
-        // TODO: Slice the condition.
+        // TODO (desired): Slice the condition.
         return new TxnUpdate(tables, keys, select(this.keys, keys, fragments), condition, cassandraCommitCL, preserveTimestamps);
     }
 
@@ -201,9 +201,9 @@ public class TxnUpdate extends AccordUpdate
     @Override
     public Update merge(Update update)
     {
-        // TODO: special method for linear merging keyed and non-keyed lists simultaneously
         TxnUpdate that = (TxnUpdate) update;
         Keys mergedKeys = this.keys.with(that.keys);
+        // TODO (desired): special method for linear merging keyed and non-keyed lists simultaneously
         ByteBuffer[] mergedFragments = merge(this.keys, that.keys, this.fragments, that.fragments, mergedKeys.size());
         return new TxnUpdate(tables, mergedKeys, mergedFragments, condition, cassandraCommitCL, preserveTimestamps);
     }

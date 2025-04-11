@@ -346,11 +346,22 @@ public final class PathUtils
     private static void deleteRecursiveUsingNixCommand(Path path, boolean quietly)
     {
         String [] cmd = new String[]{ "rm", quietly ? "-rdf" : "-rd", path.toAbsolutePath().toString() };
+        IOException failure = null;
+        if (!quietly && !Files.exists(path))
+            failure = new NoSuchFileException(path.toString());
+
+        if (failure == null)
+            failure = tryDeleteRecursiveUsingNixCommand(path, quietly);
+
+        if (failure != null)
+            throw propagateUnchecked(failure, path, true);
+    }
+
+    private static IOException tryDeleteRecursiveUsingNixCommand(Path path, boolean quietly)
+    {
+        String[] cmd = new String[]{ "rm", quietly ? "-rdf" : "-rd", path.toAbsolutePath().toString() };
         try
         {
-            if (!quietly && !Files.exists(path))
-                throw new NoSuchFileException(path.toString());
-
             Process p = Runtime.getRuntime().exec(cmd);
             int result = p.waitFor();
 
@@ -363,22 +374,37 @@ public final class PathUtils
             }
 
             if (result != 0 && Files.exists(path))
-            {
-                logger.error("{} returned:\nstdout:\n{}\n\nstderr:\n{}", Arrays.toString(cmd), out, err);
-                throw new IOException(String.format("%s returned non-zero exit code: %d%nstdout:%n%s%n%nstderr:%n%s", Arrays.toString(cmd), result, out, err));
-            }
+                return new IOException(String.format("%s returned non-zero exit code: %d%nstdout:%n%s%n%nstderr:%n%s", Arrays.toString(cmd), result, out, err));
 
             onDeletion.accept(path);
+            return null;
         }
         catch (IOException e)
         {
-            throw propagateUnchecked(e, path, true);
+            return e;
         }
         catch (InterruptedException e)
         {
-            Thread.currentThread().interrupt();
-            throw new FSWriteError(e, path);
+            return new IOException("Interrupted while executing command " + Arrays.toString(cmd), e);
         }
+    }
+
+
+    /**
+     * Deletes all files and subdirectories under "path".
+     * @param path file to be deleted
+     * @return false if the root cannot be deleted
+     */
+    public static boolean tryDeleteRecursive(Path path)
+    {
+        if (USE_NIX_RECURSIVE_DELETE.getBoolean() && path.getFileSystem() == java.nio.file.FileSystems.getDefault())
+            return null == tryDeleteRecursiveUsingNixCommand(path, true);
+
+        if (isDirectory(path))
+            forEach(path, PathUtils::tryDeleteRecursive);
+
+        // The directory should now be empty, so now it can be smoked
+        return tryDelete(path);
     }
 
     /**

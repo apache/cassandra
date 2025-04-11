@@ -225,7 +225,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             commandsForRanges.visit(keysOrRanges, startedBefore, testKind, visitor, p1, p2);
     }
 
-    // TODO (expected): instead of accepting a slice, accept the min/max epoch and let implementation handle it
     @Override
     public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Txn.Kind.Kinds testKind, TestStartedAt testStartedAt, Timestamp testStartedAtTimestamp, ComputeIsDep computeIsDep, AllCommandVisitor visit)
     {

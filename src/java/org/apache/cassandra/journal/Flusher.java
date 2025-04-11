@@ -143,10 +143,20 @@ final class Flusher<K, V>
                 }
             }
 
+            private boolean hasWork()
+            {
+                return hasWork(fsyncStartedFor);
+            }
+
+            private boolean hasWork(long lastStartedAt)
+            {
+                return fsyncWaitingSince != lastStartedAt;
+            }
+
             private void awaitWork() throws InterruptedException
             {
                 long lastStartedAt = fsyncStartedFor;
-                if (fsyncWaitingSince != lastStartedAt)
+                if (hasWork(lastStartedAt))
                     return;
 
                 awaitingWork = Thread.currentThread();
@@ -158,7 +168,7 @@ final class Flusher<K, V>
                         throw new InterruptedException();
                     }
 
-                    if (fsyncWaitingSince != lastStartedAt)
+                    if (hasWork(lastStartedAt))
                         break;
 
                     LockSupport.park();
@@ -175,7 +185,9 @@ final class Flusher<K, V>
 
             public void doRun(Interruptible.State state) throws InterruptedException
             {
-                awaitWork();
+                if (state == NORMAL) awaitWork();
+                else if (!hasWork()) return;
+
                 if (fsyncing == null)
                     fsyncing = journal.oldestActiveSegment();
 
