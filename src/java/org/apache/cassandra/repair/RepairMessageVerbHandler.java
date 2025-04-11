@@ -25,6 +25,7 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
@@ -47,7 +48,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -93,9 +93,10 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         return prs != null ? prs.previewKind : PreviewKind.NONE;
     }
 
+    @Override
     public void doVerb(final Message<RepairMessage> message)
     {
-        if (ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
+        if (ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> Stage.ANTI_ENTROPY.execute(() -> doVerb(message))))
             return;
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
