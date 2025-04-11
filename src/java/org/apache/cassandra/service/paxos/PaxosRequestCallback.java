@@ -46,6 +46,8 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
     @Override
     public void onResponse(Message<T> message)
     {
+        if (ClusterMetadataService.instance().maybeFetchLogFromPeerOrCMSAsync(message, () -> onResponse(message)))
+            return;
         ClusterMetadataService.instance().fetchLogFromCMS(message.epoch());
         onResponse(message.payload, message.from());
     }

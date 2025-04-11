@@ -96,9 +96,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     public void doVerb(final Message<RepairMessage> message)
     {
         if (ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
-        {
             return;
-        }
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
         try

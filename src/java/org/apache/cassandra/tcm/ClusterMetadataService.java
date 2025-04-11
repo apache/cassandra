@@ -51,6 +51,7 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
@@ -752,6 +753,11 @@ public class ClusterMetadataService
             }
         });
         return future;
+    }
+
+    public boolean maybeFetchLogFromPeerOrCMSAsync(Message<?> message, Runnable onFetchSuccess)
+    {
+        return maybeFetchLogFromPeerOrCMSAsync(MessagingService.instance(), message, onFetchSuccess);
     }
 
     public boolean maybeFetchLogFromPeerOrCMSAsync(MessageDelivery messaging, Message<?> message, Runnable onFetchSuccess)
