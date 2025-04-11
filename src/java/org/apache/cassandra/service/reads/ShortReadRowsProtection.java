@@ -37,15 +37,12 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 
-class ShortReadRowsProtection extends Transformation implements MoreRows<UnfilteredRowIterator>
+abstract class ShortReadRowsProtection extends Transformation implements MoreRows<UnfilteredRowIterator>
 {
-    private final ReadCommand command;
-    private final Replica source;
+    final ReadCommand command;
     private final DataLimits.Counter singleResultCounter; // unmerged per-source counter
     private final DataLimits.Counter mergedResultCounter; // merged end-result counter
-    private final Function<ReadCommand, UnfilteredPartitionIterator> commandExecutor;
     private final TableMetadata metadata;
-    private final DecoratedKey partitionKey;
 
     private Clustering<?> lastClustering; // clustering of the last observed row
 
@@ -53,17 +50,22 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
     private int lastFetched = 0; // # rows returned by last attempt to get more (or by the original read command)
     private int lastQueried = 0; // # extra rows requested from the replica last time
 
-    ShortReadRowsProtection(DecoratedKey partitionKey, ReadCommand command, Replica source,
-                            Function<ReadCommand, UnfilteredPartitionIterator> commandExecutor,
-                            DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter)
+    ShortReadRowsProtection(ReadCommand command, DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter)
     {
         this.command = command;
-        this.source = source;
-        this.commandExecutor = commandExecutor;
         this.singleResultCounter = singleResultCounter;
         this.mergedResultCounter = mergedResultCounter;
         this.metadata = command.metadata();
-        this.partitionKey = partitionKey;
+    }
+
+    Clustering<?> lastClustering()
+    {
+        return lastClustering;
+    }
+
+    TableMetadata metadata()
+    {
+        return metadata;
     }
 
     @Override
@@ -163,27 +165,63 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
          * See CASSANDRA-13794 for more details.
          */
         lastQueried = Math.min(command.limits().count(), command.limits().perPartitionCount());
-
         ColumnFamilyStore.metricsFor(metadata.id).shortReadProtectionRequests.mark();
-        Tracing.trace("Requesting {} extra rows from {} for short read protection", lastQueried, source);
-
-        SinglePartitionReadCommand cmd = makeFetchAdditionalRowsReadCommand(lastQueried);
-        return UnfilteredPartitionIterators.getOnlyElement(commandExecutor.apply(cmd), cmd);
+        return fetchAdditionalRows(lastQueried);
     }
 
-    private SinglePartitionReadCommand makeFetchAdditionalRowsReadCommand(int toQuery)
-    {
-        ClusteringIndexFilter filter = command.clusteringIndexFilter(partitionKey);
-        if (null != lastClustering)
-            filter = filter.forPaging(metadata.comparator, lastClustering, false);
+    abstract UnfilteredRowIterator fetchAdditionalRows(int lastQueried);
 
-        return SinglePartitionReadCommand.create(command.metadata(),
-                                                 command.nowInSec(),
-                                                 command.columnFilter(),
-                                                 command.rowFilter(),
-                                                 command.limits().forShortReadRetry(toQuery),
-                                                 partitionKey,
-                                                 filter,
-                                                 command.indexQueryPlan());
+    static class Untracked extends ShortReadRowsProtection
+    {
+        private final DecoratedKey partitionKey;
+        private final Replica source;
+        private final Function<ReadCommand, UnfilteredPartitionIterator> commandExecutor;
+
+        public Untracked(DecoratedKey partitionKey, ReadCommand command, Replica source, Function<ReadCommand, UnfilteredPartitionIterator> commandExecutor, DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter)
+        {
+            super(command, singleResultCounter, mergedResultCounter);
+            this.partitionKey = partitionKey;
+            this.source = source;
+            this.commandExecutor = commandExecutor;
+        }
+
+        @Override
+        UnfilteredRowIterator fetchAdditionalRows(int lastQueried)
+        {
+            Tracing.trace("Requesting {} extra rows from {} for short read protection", lastQueried, source);
+
+            SinglePartitionReadCommand cmd = makeFetchAdditionalRowsReadCommand(lastQueried);
+            return UnfilteredPartitionIterators.getOnlyElement(commandExecutor.apply(cmd), cmd);
+        }
+
+        private SinglePartitionReadCommand makeFetchAdditionalRowsReadCommand(int toQuery)
+        {
+            ClusteringIndexFilter filter = command.clusteringIndexFilter(partitionKey);
+            if (null != lastClustering())
+                filter = filter.forPaging(metadata().comparator, lastClustering(), false);
+
+            return SinglePartitionReadCommand.create(command.metadata(),
+                                                     command.nowInSec(),
+                                                     command.columnFilter(),
+                                                     command.rowFilter(),
+                                                     command.limits().forShortReadRetry(toQuery),
+                                                     partitionKey,
+                                                     filter,
+                                                     command.indexQueryPlan());
+        }
+    }
+
+    static class Tracked extends ShortReadRowsProtection
+    {
+        public Tracked(ReadCommand command, DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter)
+        {
+            super(command, singleResultCounter, mergedResultCounter);
+        }
+
+        @Override
+        UnfilteredRowIterator fetchAdditionalRows(int lastQueried)
+        {
+            throw new RuntimeException("TODO: replace with retry exception");
+        }
     }
 }

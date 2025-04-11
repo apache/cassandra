@@ -189,19 +189,6 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
             return replicas.size() > 1;
         }
-
-        private boolean needShortReadProtection()
-        {
-            // SRP doesn't make sense for top-k which needs to re-query replica with larger limit instead of fetching more partitions
-            if (command.isTopK())
-                return false;
-
-            // If we have only one result, there is no read repair to do, and we can't get short reads
-            // Also, so-called "short reads" stems from nodes returning only a subset of the results they have for a
-            // partition due to the limit, but that subset not being enough post-reconciliation. So if we don't have limit,
-            // don't bother protecting against short reads.
-            return replicas.size() > 1 && !command.limits().isUnlimited();
-        }
     }
 
     @FunctionalInterface
@@ -214,7 +201,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     {
         UnfilteredPartitionIterator originalResponse = responses.get(i).payload.makeIterator(command);
 
-        return context.needShortReadProtection()
+        return ShortReadProtection.needShortReadProtection(command, context.replicas)
                ? ShortReadProtection.extend(context.replicas.get(i),
                                             () -> { responses.clearUnsafe(i); if (onShortRead != null) onShortRead.run(); },
                                             originalResponse,
@@ -284,7 +271,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return PartitionIterators.doOnClose(completedPartitions, firstPhasePartitions::close);
     }
 
-    private  UnaryOperator<PartitionIterator> preCountFilterForReplicaFilteringProtection()
+    private UnaryOperator<PartitionIterator> preCountFilterForReplicaFilteringProtection()
     {
         // Key columns are immutable and should never need to participate in replica filtering
         if (!command.rowFilter().hasNonKeyExpression())
