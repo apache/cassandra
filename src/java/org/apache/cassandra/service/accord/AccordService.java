@@ -393,15 +393,14 @@ public class AccordService implements IAccordService, Shutdownable
                 }
             }
 
-            WatermarkCollector.fetchAndReportWatermarksAsync(configService());
-
             int attempt = 0;
             int waitSeconds = 5;
             while (true)
             {
+                Epoch await = Epoch.create(configService.currentEpoch());
                 try
                 {
-                    epochReady(metadata.epoch).get(waitSeconds, SECONDS);
+                    epochReady(await).get(waitSeconds, SECONDS);
                     break;
                 }
                 catch (TimeoutException e)
@@ -419,6 +418,8 @@ public class AccordService implements IAccordService, Shutdownable
         {
             throw new RuntimeException(e);
         }
+
+        WatermarkCollector.fetchAndReportWatermarksAsync(configService());
 
         configService.start();
         fastPathCoordinator.start();
