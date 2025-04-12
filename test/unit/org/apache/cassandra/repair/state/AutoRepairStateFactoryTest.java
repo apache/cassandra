@@ -44,6 +44,10 @@ public class AutoRepairStateFactoryTest
         state = AutoRepairStateFactory.getAutoRepairState(RepairType.paxos_cleanup);
 
         assert state instanceof PaxosCleanupState;
+
+        state = AutoRepairStateFactory.getAutoRepairState(RepairType.bootstrap);
+
+        assert state instanceof BootstrapRepairState;
     }
 
     @Test

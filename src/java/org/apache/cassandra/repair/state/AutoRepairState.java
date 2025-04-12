@@ -90,8 +90,7 @@ public abstract class AutoRepairState
     protected RepairRunnable getRepairRunnable(String keyspace, RepairOption options)
     {
         return new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
-                                                 options, keyspace);
-
+                                  options, keyspace);
     }
 
     public long getLastRepairTime()
@@ -327,6 +326,31 @@ class PaxosCleanupState extends AutoRepairState
         RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
                                                !ranges.isEmpty(), false, false, PreviewKind.NONE, false, true, false, true);
+
+        if (dcGroup != null)
+        {
+            option.getDataCenters().addAll(new ArrayList<>(dcGroup));
+        }
+        option.getColumnFamilies().addAll(tables);
+
+        return getRepairRunnable(keyspace, option);
+    }
+}
+
+class BootstrapRepairState extends AutoRepairState
+{
+    public BootstrapRepairState()
+    {
+        super(RepairType.bootstrap);
+    }
+
+    @Override
+    public RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly, Set<String> dcGroup)
+    {
+        // TODO: configuration to select between full or incremental repair here - for now going with full repair
+        RepairOption option = new RepairOption(RepairParallelism.PARALLEL, primaryRangeOnly, false, false,
+                                               AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), ranges,
+                                               !ranges.isEmpty(), false, true, PreviewKind.NONE, false, true, false, false);
 
         if (dcGroup != null)
         {

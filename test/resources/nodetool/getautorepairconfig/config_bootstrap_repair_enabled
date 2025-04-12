@@ -22,7 +22,7 @@ configuration for repair type: full
 	mv repair enabled: true
 	initial scheduler delay in seconds: 900
 configuration for repair type: incremental
-	enabled: true
+	enabled: false
 	minimum repair interval in hours: 24
 	repair threads: 1
 	number of repair subranges: 16
@@ -31,10 +31,8 @@ configuration for repair type: incremental
 	priority hosts: /127.0.0.1:7000
 	sstable count higher threshold: 10000
 	table max repair time in sec: 21600
-	ignore datacenters: dc3,dc4
+	ignore datacenters: dc1,dc2
 	datacenter groups:
-		dc5|dc6
-		dc7|dc8
 	repair primary token-range: true
 	number of parallel repairs within group: 1
 	percentage of parallel repairs within group: 0
@@ -75,7 +73,7 @@ configuration for repair type: paxos_cleanup
 	mv repair enabled: true
 	initial scheduler delay in seconds: 900
 configuration for repair type: bootstrap
-	enabled: false
+	enabled: true
 	minimum repair interval in hours: 24
 	repair threads: 1
 	number of repair subranges: 16
@@ -84,8 +82,10 @@ configuration for repair type: bootstrap
 	priority hosts: /127.0.0.1:7000
 	sstable count higher threshold: 10000
 	table max repair time in sec: 21600
-	ignore datacenters: dc1,dc2
+	ignore datacenters: dc3,dc4
 	datacenter groups:
+		dc5|dc6
+		dc7|dc8
 	repair primary token-range: true
 	number of parallel repairs within group: 1
 	percentage of parallel repairs within group: 0
