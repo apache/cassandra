@@ -1374,4 +1374,19 @@ public class SelectSingleColumnRelationTest extends CQLTester
                        row(0, 2, 2, "MA"));
         });
     }
+
+    @Test
+    public void testBetweenStartLargerThanEnd() throws Throwable
+    {
+        createTable("CREATE TABLE %s(a int, b int, c int, PRIMARY KEY (a, b))");
+        execute("INSERT INTO %s (a, b, c) VALUES (-1, -1, -1)");
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 0, 0)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 1)");
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 2, 2)");
+
+        assertEmpty(execute("SELECT * FROM %s WHERE a BETWEEN 5 AND -5 ALLOW FILTERING"));
+        assertEmpty(execute("SELECT * FROM %s WHERE b BETWEEN 5 AND -5 ALLOW FILTERING"));
+        assertEmpty(execute("SELECT * FROM %s WHERE c BETWEEN 5 AND -5 ALLOW FILTERING"));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = 0 AND b BETWEEN 5 AND -5"));
+    }
 }

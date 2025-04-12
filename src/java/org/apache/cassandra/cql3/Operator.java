@@ -802,7 +802,6 @@ public enum Operator
         public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 2 : this + " accepts exactly two values";
-            args.sort(ClusteringElements.CQL_COMPARATOR);
             rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
             rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1)));
         }
