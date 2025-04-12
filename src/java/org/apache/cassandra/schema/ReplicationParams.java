@@ -18,6 +18,7 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -61,6 +62,12 @@ public final class ReplicationParams
     {
         this.klass = klass;
         this.options = ImmutableMap.copyOf(options);
+    }
+
+    @VisibleForTesting
+    public static ReplicationParams fromStrategy(AbstractReplicationStrategy strategy)
+    {
+        return new ReplicationParams(strategy.getClass(), strategy.configOptions);
     }
 
     public static ReplicationParams local()
@@ -119,6 +126,11 @@ public final class ReplicationParams
     static ReplicationParams simple(String replicationFactor)
     {
         return new ReplicationParams(SimpleStrategy.class, ImmutableMap.of("replication_factor", replicationFactor));
+    }
+
+    public static ReplicationParams simpleMeta(int replicationFactor, String datacenter)
+    {
+        return simpleMeta(replicationFactor, Collections.singleton(datacenter));
     }
 
     public static ReplicationParams simpleMeta(int replicationFactor, Set<String> knownDatacenters)

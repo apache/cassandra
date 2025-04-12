@@ -245,7 +245,7 @@ Table of Contents
                    representing the port.
     [consistency]  A consistency level specification. This is a [short]
                    representing a consistency level with the following
-                   correspondance:
+                   correspondence:
                      0x0000    ANY
                      0x0001    ONE
                      0x0002    TWO
@@ -366,8 +366,8 @@ Table of Contents
               started (See Section 8 for more details).
         0x10: With serial consistency. If set, <serial_consistency> should be
               present. <serial_consistency> is the [consistency] level for the
-              serial phase of conditional updates. That consitency can only be
-              either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+              serial phase of conditional updates. Consistency can be
+              SERIAL or LOCAL_SERIAL, if not present, it defaults to
               SERIAL. This option will be ignored for anything else other than a
               conditional update/insert.
         0x20: With default timestamp. If set, <timestamp> should be present.
@@ -432,8 +432,8 @@ Table of Contents
       flags are, given their mask:
         0x10: With serial consistency. If set, <serial_consistency> should be
               present. <serial_consistency> is the [consistency] level for the
-              serial phase of conditional updates. That consistency can only be
-              either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+              serial phase of conditional updates. Consistency can be
+              either SERIAL or LOCAL_SERIAL, and if not present, it defaults to
               SERIAL. This option will be ignored for anything else other than a
               conditional update/insert.
         0x20: With default timestamp. If set, <timestamp> should be present.
@@ -467,8 +467,8 @@ Table of Contents
     - <consistency> is the [consistency] level for the operation.
     - <serial_consistency> is only present if the 0x10 flag is set. In that case,
       <serial_consistency> is the [consistency] level for the serial phase of
-      conditional updates. That consitency can only be either SERIAL or
-      LOCAL_SERIAL and if not present will defaults to SERIAL. This option will
+      conditional updates. Consistency can be SERIAL or
+      LOCAL_SERIAL, if not present, it defaults to SERIAL. This option will
       be ignored for anything else other than a conditional update/insert.
 
   The server will respond with a RESULT message.
@@ -493,7 +493,7 @@ Table of Contents
 
   This section describes the content of the frame body for the different
   responses. Please note that to make room for future evolution, clients should
-  support extra informations (that they should simply discard) to the one
+  support extra information (that they should simply discard) to the one
   described in this document at the end of the frame body.
 
 4.2.1. ERROR
@@ -521,7 +521,7 @@ Table of Contents
 
   The authentication is SASL based and thus consists of a number of server
   challenges (AUTH_CHALLENGE, Section 4.2.7) followed by client responses
-  (AUTH_RESPONSE, Section 4.1.2). The initial exchange is however boostrapped
+  (AUTH_RESPONSE, Section 4.1.2). The initial exchange is however bootstrapped
   by an initial client response. The details of that exchange (including how
   many challenge-response pairs are required) are specific to the authenticator
   in use. The exchange ends when the server sends an AUTH_SUCCESS message or
@@ -600,8 +600,8 @@ Table of Contents
           (unique) keyspace name and table name the columns belong to.
         - <col_spec_i> specifies the columns returned in the query. There are
           <column_count> such column specifications that are composed of:
-            (<ksname><tablename>)?<name><type>
-          The initial <ksname> and <tablename> are two [string] and are only present
+            (<ks_name><table_name>)?<name><type>
+          The initial <ks_name> and <table_name> are two [string] and are only present
           if the Global_tables_spec flag is not set. The <column_name> is a
           [string] and <type> is an [option] that corresponds to the description
           (what this description is depends a bit on the context: in results to
@@ -713,8 +713,8 @@ Table of Contents
         - <col_spec_i> specifies the bind markers in the prepared statement.
           There are <column_count> such column specifications, each with the
           following format:
-            (<ksname><tablename>)?<name><type>
-          The initial <ksname> and <tablename> are two [string] that are only
+            (<ks_name><table_name>)?<name><type>
+          The initial <ks_name> and <table_name> are two [string] that are only
           present if the Global_tables_spec flag is not set. The <name> field
           is a [string] that holds the name of the bind marker (if named),
           or the name of the column, field, or expression that the bind marker
@@ -737,7 +737,7 @@ Table of Contents
 
   Note that the prepared query ID returned is global to the node on which the query
   has been prepared. It can be used on any connection to that node
-  until the node is restarted (after which the query must be reprepared).
+  until the node is restarted (after which the query must be re-prepared).
 
 4.2.5.5. Schema_change
 
@@ -754,7 +754,7 @@ Table of Contents
 4.2.6. EVENT
 
   An event pushed by the server. A client will only receive events for the
-  types it has REGISTERed to. The body of an EVENT message will start with a
+  types it has REGISTER-ed to. The body of an EVENT message will start with a
   [string] representing the event type. The rest of the message depends on the
   event type. The valid event types are:
     - "TOPOLOGY_CHANGE": events related to change in the cluster topology.
@@ -842,7 +842,7 @@ Table of Contents
       bytes).
     - snappy (https://code.google.com/p/snappy/). This compression might not be
       available as it depends on a native lib (server-side) that might not be
-      avaivable on some installations.
+      available on some installations.
 
 
 6. Data Type Serialization Formats
@@ -1099,11 +1099,11 @@ Table of Contents
                              - "BATCH_LOG": the timeout occurred during the
                                write to the batch log when a (logged) batch
                                write was requested.
-                             - "CAS": the timeout occured during the Compare And Set write/update.
-                             - "VIEW": the timeout occured when a write involves
-                                VIEW update and failure to acqiure local view(MV)
+                             - "CAS": the timeout occurred during the Compare And Set write/update.
+                             - "VIEW": the timeout occurred when a write involves
+                                VIEW update and failure to acquire local view(MV)
                                 lock for key within timeout
-                             - "CDC": the timeout occured when cdc_total_space is
+                             - "CDC": the timeout occurred when cdc_total_space is
                                 exceeded when doing a write to data tracked by cdc.
     0x1200    Read_timeout: Timeout exception during a read request. The rest
               of the ERROR message body will be
@@ -1124,7 +1124,7 @@ Table of Contents
                                responded. Otherwise, the value is != 0.
     0x1300    Read_failure: A non-timeout exception during a read request. The rest
               of the ERROR message body will be
-                <cl><received><blockfor><numfailures><data_present>
+                <cl><received><blockfor><num_failures><data_present>
               where:
                 <cl> is the [consistency] level of the query having triggered
                      the exception.
@@ -1132,7 +1132,7 @@ Table of Contents
                            answered the request.
                 <blockfor> is an [int] representing the number of replicas whose
                            acknowledgement is required to achieve <cl>.
-                <numfailures> is an [int] representing the number of nodes that
+                <num_failures> is an [int] representing the number of nodes that
                               experience a failure while executing the request.
                 <data_present> is a single byte. If its value is 0, it means
                                the replica that was asked for data had not
@@ -1146,7 +1146,7 @@ Table of Contents
                 <arg_types> [string list] one string for each argument type (as CQL type) of the failed function
     0x1500    Write_failure: A non-timeout exception during a write request. The rest
               of the ERROR message body will be
-                <cl><received><blockfor><numfailures><write_type>
+                <cl><received><blockfor><num_failures><write_type>
               where:
                 <cl> is the [consistency] level of the query having triggered
                      the exception.
@@ -1154,7 +1154,7 @@ Table of Contents
                            answered the request.
                 <blockfor> is an [int] representing the number of replicas whose
                            acknowledgement is required to achieve <cl>.
-                <numfailures> is an [int] representing the number of nodes that
+                <num_failures> is an [int] representing the number of nodes that
                               experience a failure while executing the request.
                 <writeType> is a [string] that describes the type of the write
                             that failed. The value of that string can be one
@@ -1169,14 +1169,14 @@ Table of Contents
                                batch. No batch log write has been attempted.
                              - "COUNTER": the write was a counter write
                                (batched or not).
-                             - "BATCH_LOG": the failure occured during the
+                             - "BATCH_LOG": the failure occurred during the
                                write to the batch log when a (logged) batch
                                write was requested.
-                             - "CAS": the failure occured during the Compare And Set write/update.
-                             - "VIEW": the failure occured when a write involves
-                                VIEW update and failure to acqiure local view(MV)
+                             - "CAS": the failure occurred during the Compare And Set write/update.
+                             - "VIEW": the failure occurred when a write involves
+                                VIEW update and failure to acquire local view(MV)
                                 lock for key within timeout
-                             - "CDC": the failure occured when cdc_total_space is
+                             - "CDC": the failure occurred when cdc_total_space is
                                 exceeded when doing a write to data tracked by cdc.
 
     0x2000    Syntax_error: The submitted query has a syntax error.

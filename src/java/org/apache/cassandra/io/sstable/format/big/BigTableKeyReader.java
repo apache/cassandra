@@ -53,7 +53,12 @@ public class BigTableKeyReader implements KeyReader
 
     public static BigTableKeyReader create(RandomAccessReader indexFileReader, IndexSerializer serializer) throws IOException
     {
-        BigTableKeyReader iterator = new BigTableKeyReader(null, indexFileReader, serializer);
+        return create(null, indexFileReader, serializer);
+    }
+
+    public static BigTableKeyReader create(FileHandle indexFile, RandomAccessReader indexFileReader, IndexSerializer serializer) throws IOException
+    {
+        BigTableKeyReader iterator = new BigTableKeyReader(indexFile, indexFileReader, serializer);
         try
         {
             iterator.advance();

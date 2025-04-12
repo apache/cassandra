@@ -31,6 +31,8 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -43,11 +45,13 @@ public class Unregister implements Transformation
 
     private final NodeId nodeId;
     private final EnumSet<NodeState> allowedNodeStartStates;
+    private final PlacementProvider placementProvider;
 
-    public Unregister(NodeId nodeId, EnumSet<NodeState> allowedNodeStartStates)
+    public Unregister(NodeId nodeId, EnumSet<NodeState> allowedNodeStartStates, PlacementProvider placementProvider)
     {
         this.nodeId = nodeId;
         this.allowedNodeStartStates = allowedNodeStartStates;
+        this.placementProvider = placementProvider;
     }
 
     @Override
@@ -67,6 +71,15 @@ public class Unregister implements Transformation
             return new Transformation.Rejected(INVALID, "Can't unregister " + nodeId + " - node state is " + startState + " not " + allowedNodeStartStates);
 
         ClusterMetadata.Transformer next = prev.transformer().unregister(nodeId);
+        if (!prev.tokenMap.tokens(nodeId).isEmpty())
+        {
+            ClusterMetadata nextMetadata = next.build().metadata;
+            DataPlacements placements = placementProvider.calculatePlacements(nextMetadata.epoch,
+                                                                              nextMetadata.tokenMap.toRanges(),
+                                                                              nextMetadata,
+                                                                              nextMetadata.schema.getKeyspaces());
+            next = next.with(placements);
+        }
 
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
@@ -78,7 +91,7 @@ public class Unregister implements Transformation
     public static void unregister(NodeId nodeId)
     {
         ClusterMetadataService.instance()
-                              .commit(new Unregister(nodeId, EnumSet.allOf(NodeState.class)));
+                              .commit(new Unregister(nodeId, EnumSet.allOf(NodeState.class), ClusterMetadataService.instance().placementProvider()));
     }
 
     public String toString()
@@ -113,7 +126,7 @@ public class Unregister implements Transformation
                     states.add(NodeState.valueOf(in.readUTF()));
             }
             NodeId nodeId = NodeId.serializer.deserialize(in, version);
-            return new Unregister(nodeId, version.isAtLeast(Version.V2) ? states : EnumSet.allOf(NodeState.class));
+            return new Unregister(nodeId, version.isAtLeast(Version.V2) ? states : EnumSet.allOf(NodeState.class), ClusterMetadataService.instance().placementProvider());
         }
 
         public long serializedSize(Transformation t, Version version)

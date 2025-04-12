@@ -77,6 +77,7 @@ public class ColumnFamilyStoreMBeanTest
     public void testInvalidateTokenRangesFormat()
     {
         ColumnFamilyStore store = Mockito.mock(ColumnFamilyStore.class);
+        Mockito.when(store.getPartitioner()).thenReturn(ByteOrderedPartitioner.instance);
         Mockito.doCallRealMethod().when(store).forceCompactionForTokenRanges(Mockito.any());
         IPartitioner previous = DatabaseDescriptor.getPartitioner();
         try

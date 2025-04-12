@@ -165,6 +165,12 @@ public class ReversedType<T> extends AbstractType<T>
     }
 
     @Override
+    public boolean referencesDuration()
+    {
+        return baseType.referencesDuration();
+    }
+
+    @Override
     public ReversedType<?> withUpdatedUserType(UserType udt)
     {
         if (!referencesUserType(udt.name))
@@ -237,5 +243,11 @@ public class ReversedType<T> extends AbstractType<T>
     public AbstractType<T> unwrap()
     {
         return baseType.unwrap();
+    }
+
+    @Override
+    public boolean isConstrainable()
+    {
+        return unwrap().isConstrainable();
     }
 }

@@ -24,16 +24,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,15 +44,14 @@ public class CloudstackSnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
-        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
-        ClusterMetadataTestHelper.setInstanceForTest();
     }
 
     @Before
     public void resetCMS()
     {
-        ServerTestUtils.resetCMS();
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
     }
 
     @Test
@@ -68,18 +64,14 @@ public class CloudstackSnitchTest
 
         doReturn(az).when(spiedConnector).apiCall(any());
 
+        // for registering a new node, location is obtained from the cloud metadata service
+        CloudstackLocationProvider locationProvider = new CloudstackLocationProvider(spiedConnector);
+        assertEquals("ch-gva", locationProvider.initialLocation().datacenter);
+        assertEquals("1", locationProvider.initialLocation().rack);
+
         CloudstackSnitch snitch = new CloudstackSnitch(spiedConnector);
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-        InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
-
-        Token t1 = ClusterMetadata.current().partitioner.getRandomToken();
-        ClusterMetadataTestHelper.addEndpoint(nonlocal, t1, "ch-zrh", "2");
-
-        assertEquals("ch-zrh", snitch.getDatacenter(nonlocal));
-        assertEquals("2", snitch.getRack(nonlocal));
-
-        assertEquals("ch-gva", snitch.getDatacenter(local));
-        assertEquals("1", snitch.getRack(local));
+        assertEquals("ch-gva", snitch.getLocalDatacenter());
+        assertEquals("1", snitch.getLocalRack());
     }
 
     @Test
@@ -92,11 +84,13 @@ public class CloudstackSnitchTest
 
         doReturn(az).when(spiedConnector).apiCall(any());
 
+        // for registering a new node, location is obtained from the cloud metadata service
+        CloudstackLocationProvider locationProvider = new CloudstackLocationProvider(spiedConnector);
+        assertEquals("us-east", locationProvider.initialLocation().datacenter);
+        assertEquals("1a", locationProvider.initialLocation().rack);
+
         CloudstackSnitch snitch = new CloudstackSnitch(spiedConnector);
-
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-
-        assertEquals("us-east", snitch.getDatacenter(local));
-        assertEquals("1a", snitch.getRack(local));
+        assertEquals("us-east", snitch.getLocalDatacenter());
+        assertEquals("1a", snitch.getLocalRack());
     }
 }

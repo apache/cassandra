@@ -28,20 +28,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
-
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -64,18 +56,25 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
@@ -83,6 +82,7 @@ import static org.apache.cassandra.locator.ReplicaPlans.forReadRepair;
 import static org.apache.cassandra.locator.ReplicaUtils.FULL_RANGE;
 import static org.apache.cassandra.net.Verb.INTERNAL_RSP;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 @Ignore
 public abstract  class AbstractReadRepairTest
@@ -226,23 +226,6 @@ public abstract  class AbstractReadRepairTest
     {
         ServerTestUtils.prepareServerNoRegister();
 
-        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
-        {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return "rack1";
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.addressBytes;
-                if (address[1] == 2) {
-                    return "datacenter2";
-                }
-                return "datacenter1";
-            }
-        });
-
         target1 = InetAddressAndPort.getByName("127.1.0.255");
         target2 = InetAddressAndPort.getByName("127.1.0.254");
         target3 = InetAddressAndPort.getByName("127.1.0.253");
@@ -288,7 +271,7 @@ public abstract  class AbstractReadRepairTest
         String ksName = "ks";
 
         String ddl = String.format("CREATE TABLE tbl (k int primary key, v text) WITH read_repair='%s'",
-                                   repairStrategy.toString().toLowerCase());
+                                   toLowerCaseLocalized(repairStrategy.toString()));
 
         cfm = CreateTableStatement.parse(ddl, ksName).build();
         assert cfm.params.readRepair == repairStrategy;
@@ -374,17 +357,18 @@ public abstract  class AbstractReadRepairTest
                                             ReplicaUtils.FULL_BOUNDS,
                                             replicas,
                                             targets,
+                                            replicas,
                                             1,
                                             null,
                                             (self, token) -> forReadRepair(self, ClusterMetadata.current(), keyspace, consistencyLevel, token, (r) -> true),
                                             Epoch.EMPTY);
     }
 
-    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, long queryStartNanoTime);
+    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, Dispatcher.RequestTime requestTime);
 
     public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaPlan.Shared<?, ?> replicaPlan)
     {
-        return createInstrumentedReadRepair(command, replicaPlan, nanoTime());
+        return createInstrumentedReadRepair(command, replicaPlan, Dispatcher.RequestTime.forImmediateExecution());
 
     }
 

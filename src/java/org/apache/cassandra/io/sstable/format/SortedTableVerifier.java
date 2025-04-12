@@ -56,6 +56,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -152,7 +153,8 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
 
         verifyBloomFilter();
 
-        if (options.checkOwnsTokens && !isOffline && !(cfs.getPartitioner() instanceof LocalPartitioner))
+        // TODO: when making it possible to clean up system_cluster_metadata, we should make sure that non-cms members don't have any sstables there
+        if (options.checkOwnsTokens && !isOffline && !(cfs.getPartitioner() instanceof LocalPartitioner) && !(cfs.getPartitioner() == MetaStrategy.partitioner))
         {
             if (verifyOwnedRanges() == 0)
                 return;

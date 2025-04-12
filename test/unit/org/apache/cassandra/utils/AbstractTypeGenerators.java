@@ -26,7 +26,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,6 +40,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
@@ -99,6 +99,7 @@ import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
 
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.COUNTER;
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.filter;
 
@@ -163,12 +164,13 @@ public final class AbstractTypeGenerators
     ).collect(Collectors.toMap(t -> t.type, t -> t));
     // NOTE not supporting reversed as CQL doesn't allow nested reversed types
     // when generating part of the clustering key, it would be good to allow reversed types as the top level
-    private static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN;
-    static
+    private static final Gen<AbstractType<?>> PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary().pick(knownPrimitiveTypes());
+
+    public static List<AbstractType<?>> knownPrimitiveTypes()
     {
         ArrayList<AbstractType<?>> types = new ArrayList<>(PRIMITIVE_TYPE_DATA_GENS.keySet());
         types.sort(Comparator.comparing(a -> a.getClass().getName()));
-        PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary().pick(types);
+        return types;
     }
 
     private static final Set<Class<? extends AbstractType>> NON_PRIMITIVE_TYPES = ImmutableSet.<Class<? extends AbstractType>>builder()
@@ -242,17 +244,30 @@ public final class AbstractTypeGenerators
         return () -> PRIMITIVE_TYPE_DATA_GENS.put(type, original);
     }
 
-    public static TypeGenBuilder withoutUnsafeEquality()
+    public static boolean isUnsafeEquality(AbstractType<?> type)
+    {
+        return type == EmptyType.instance
+               || type == DurationType.instance
+               || type == DecimalType.instance
+               || type == CounterColumnType.instance;
+    }
+
+    public static TypeGenBuilder withoutUnsafeEquality(TypeGenBuilder builder)
     {
         // make sure to keep UNSAFE_EQUALITY in-sync
-        return AbstractTypeGenerators.builder()
-                                     .withoutEmpty()
-                                     .withoutPrimitive(DurationType.instance)
-                                     // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
-                                     // see CASSANDRA-18530
-                                     .withoutPrimitive(DecimalType.instance)
-                                     // counters are only for top level
-                                     .withoutTypeKinds(TypeKind.COUNTER);
+        return builder
+               .withoutEmpty()
+               .withoutPrimitive(DurationType.instance)
+               // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
+               // see CASSANDRA-18530
+               .withoutPrimitive(DecimalType.instance)
+               // counters are only for top level
+               .withoutTypeKinds(TypeKind.COUNTER);
+    }
+
+    public static TypeGenBuilder withoutUnsafeEquality()
+    {
+        return withoutUnsafeEquality(AbstractTypeGenerators.builder());
     }
 
     public interface Releaser extends AutoCloseable
@@ -273,6 +288,8 @@ public final class AbstractTypeGenerators
         private Function<Integer, Gen<AbstractType<?>>> defaultSetKeyFunc;
         private Predicate<AbstractType<?>> typeFilter = null;
         private Gen<String> udtName = null;
+        private Gen<Boolean> multiCellGen = BOOLEAN_GEN;
+        private UserTypeFieldsGen fieldNamesGen = UserTypeFieldsGen.random();
 
         public TypeGenBuilder()
         {
@@ -281,19 +298,38 @@ public final class AbstractTypeGenerators
         public TypeGenBuilder(TypeGenBuilder other)
         {
             maxDepth = other.maxDepth;
-            kinds = other.kinds == null ? null : EnumSet.copyOf(other.kinds);
+            kinds = other.kinds;
             typeKindGen = other.typeKindGen;
             defaultSizeGen = other.defaultSizeGen;
             vectorSizeGen = other.vectorSizeGen;
             tupleSizeGen = other.tupleSizeGen;
-            udtName = other.udtName;
             udtSizeGen = other.udtSizeGen;
+            compositeSizeGen = other.compositeSizeGen;
             primitiveGen = other.primitiveGen;
+            compositeElementGen = other.compositeElementGen;
             userTypeKeyspaceGen = other.userTypeKeyspaceGen;
             defaultSetKeyFunc = other.defaultSetKeyFunc;
-            compositeElementGen = other.compositeElementGen;
-            compositeSizeGen = other.compositeSizeGen;
             typeFilter = other.typeFilter;
+            udtName = other.udtName;
+            multiCellGen = other.multiCellGen;
+            fieldNamesGen = other.fieldNamesGen;
+        }
+
+        public TypeGenBuilder withUserTypeFields(UserTypeFieldsGen fieldNamesGen)
+        {
+            this.fieldNamesGen = fieldNamesGen;
+            return this;
+        }
+
+        public TypeGenBuilder withMultiCell(Gen<Boolean> multiCellGen)
+        {
+            this.multiCellGen = multiCellGen;
+            return this;
+        }
+
+        public TypeGenBuilder withMultiCell(boolean multiCell)
+        {
+            return withMultiCell(i -> multiCell);
         }
 
         public TypeGenBuilder withTypeFilter(Predicate<AbstractType<?>> fn)
@@ -387,6 +423,13 @@ public final class AbstractTypeGenerators
             return this;
         }
 
+        public TypeGenBuilder withPrimitives(Gen<AbstractType<?>> gen)
+        {
+            // any previous filters will be ignored...
+            primitiveGen = Objects.requireNonNull(gen);
+            return this;
+        }
+
         public TypeGenBuilder withMaxDepth(int value)
         {
             this.maxDepth = value;
@@ -455,7 +498,7 @@ public final class AbstractTypeGenerators
             }
             else
                 kindGen = SourceDSL.arbitrary().enumValues(TypeKind.class);
-            return buildRecursive(maxDepth, maxDepth, kindGen, BOOLEAN_GEN);
+            return buildRecursive(maxDepth, maxDepth, kindGen, multiCellGen);
         }
 
         private Gen<AbstractType<?>> buildRecursive(int maxDepth, int level, Gen<TypeKind> typeKindGen, Gen<Boolean> multiCellGen)
@@ -490,7 +533,7 @@ public final class AbstractTypeGenerators
                     case TUPLE:
                         return tupleTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, SourceDSL.arbitrary().constant(false)), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
-                        return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCellGen).generate(rnd);
+                        return userTypeGen(fieldNamesGen, next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCellGen).generate(rnd);
                     case VECTOR:
                     {
                         Gen<Integer> sizeGen = vectorSizeGen != null ? vectorSizeGen : defaultSizeGen;
@@ -515,6 +558,27 @@ public final class AbstractTypeGenerators
     public static TypeGenBuilder builder()
     {
         return new TypeGenBuilder();
+    }
+
+    /**
+     * Similar to {@link #typeGen()} but removes types that are known to be problematic in some cases and limits the depth
+     * of the type tree to avoid cell constratins.
+     */
+    public static Gen<AbstractType<?>> safeTypeGen()
+    {
+        TypeGenBuilder baseline = AbstractTypeGenerators.builder()
+                                                        // neither of these types support the property
+                                                        //   expected == fromComparableBytes(asComparableBytes(expected))
+                                                        // so rather than having tests try to skip... just avoid those types!
+                                                        .withoutEmpty()
+                                                        .withoutTypeKinds(COUNTER)
+                                                        .withoutPrimitive(DecimalType.instance)
+                                                        // its ordering is special...
+                                                        .withoutPrimitive(DurationType.instance);
+        // composite requires all elements fit into Short.MAX_VALUE bytes
+        // so try to limit the possible expansion of types
+        return baseline.withCompositeElementGen(new TypeGenBuilder(baseline).withDefaultSizeGen(1).withMaxDepth(1).build())
+                       .build();
     }
 
     public static Gen<AbstractType<?>> typeGen()
@@ -710,25 +774,59 @@ public final class AbstractTypeGenerators
         return userTypeGen(elementGen, sizeGen, ksGen, nameGen, BOOLEAN_GEN);
     }
 
+    private static ThreadLocal<String> OVERRIDE_KEYSPACE = new ThreadLocal<>();
+
+    public static void overrideUDTKeyspace(String ks)
+    {
+        OVERRIDE_KEYSPACE.set(ks);
+    }
+
+    public static void clearUDTKeyspace()
+    {
+        OVERRIDE_KEYSPACE.remove();
+    }
+
+    public interface UserTypeFieldsGen
+    {
+        List<FieldIdentifier> generate(RandomnessSource rnd, int size);
+
+        static UserTypeFieldsGen random()
+        {
+            Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
+            return (rnd, size) -> Generators.uniqueList(fieldNameGen, i -> size).generate(rnd);
+        }
+
+        static UserTypeFieldsGen simpleNames()
+        {
+            return (rnd, size) -> {
+                List<FieldIdentifier> output = new ArrayList<>(size);
+                for (int i = 0; i < size; i++)
+                    output.add(FieldIdentifier.forUnquoted("f" + i));
+                return output;
+            };
+        }
+    }
+
     public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen, Gen<String> nameGen, Gen<Boolean> multiCellGen)
     {
-        Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
+        return userTypeGen(UserTypeFieldsGen.random(), elementGen, sizeGen, ksGen, nameGen, multiCellGen);
+    }
+
+    public static Gen<UserType> userTypeGen(UserTypeFieldsGen fieldNamesGen, Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen, Gen<String> nameGen, Gen<Boolean> multiCellGen)
+    {
         return rnd -> {
             boolean multiCell = multiCellGen.generate(rnd);
             int numElements = sizeGen.generate(rnd);
             List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
-            LinkedHashSet<FieldIdentifier> fieldNames = new LinkedHashSet<>(numElements);
-            String ks = ksGen.generate(rnd);
+            List<FieldIdentifier> fieldNames = fieldNamesGen.generate(rnd, numElements);
+            String ks = OVERRIDE_KEYSPACE.get();
+            if (ks == null)
+                ks = ksGen.generate(rnd);
             String name = nameGen.generate(rnd);
             ByteBuffer nameBB = AsciiType.instance.decompose(name);
 
-            Gen<FieldIdentifier> distinctNameGen = filter(fieldNameGen, 30, e -> !fieldNames.contains(e));
-            // UDTs don't allow duplicate names, so make sure all names are unique
             for (int i = 0; i < numElements; i++)
             {
-                FieldIdentifier fieldName = distinctNameGen.generate(rnd);
-                fieldNames.add(fieldName);
-
                 AbstractType<?> element = elementGen.generate(rnd);
                 element = multiCell ? element.freeze() : element.unfreeze();
                 // a UDT cannot contain a non-frozen UDT; as defined by CreateType
@@ -736,7 +834,7 @@ public final class AbstractTypeGenerators
                     element = element.freeze();
                 fieldTypes.add(element);
             }
-            return new UserType(ks, nameBB, new ArrayList<>(fieldNames), fieldTypes, multiCell);
+            return new UserType(ks, nameBB, fieldNames, fieldTypes, multiCell);
         };
     }
 
@@ -1067,6 +1165,49 @@ public final class AbstractTypeGenerators
         return Math.min(size, uniq);
     }
 
+    public static boolean contains(AbstractType<?> type, AbstractType<?> searchFor)
+    {
+        return contains(type, searchFor::equals);
+    }
+
+    public static boolean contains(AbstractType<?> type, Predicate<AbstractType<?>> searchFor)
+    {
+        class Found
+        {
+            boolean result = false;
+        }
+        Found found = new Found();
+        visit(type, t -> {
+            if (searchFor.test(t))
+            {
+                found.result = true;
+                return VisitAction.STOP;
+            }
+            return VisitAction.CONTINUE;
+        });
+        return found.result;
+    }
+
+    public enum VisitAction { CONTINUE, STOP}
+
+    public static VisitAction visit(AbstractType<?> type, Function<AbstractType<?>, VisitAction> fn)
+    {
+        VisitAction action = fn.apply(type);
+        if (action == VisitAction.STOP) return action;
+        if (type.isReversed())
+        {
+            type = type.unwrap();
+            action = fn.apply(type);
+            if (action == VisitAction.STOP) return action;
+        }
+        for (AbstractType<?> t : type.subTypes())
+        {
+            action = visit(t, fn);
+            if (action == VisitAction.STOP) return action;
+        }
+        return VisitAction.CONTINUE;
+    }
+
     public static Set<UserType> extractUDTs(AbstractType<?> type)
     {
         Set<UserType> matches = new HashSet<>();
@@ -1076,12 +1217,11 @@ public final class AbstractTypeGenerators
 
     public static void extractUDTs(AbstractType<?> type, Set<UserType> matches)
     {
-        if (type instanceof ReversedType)
-            type = ((ReversedType) type).baseType;
-        if (type instanceof UserType)
-            matches.add((UserType) type);
-        for (AbstractType<?> t : type.subTypes())
-            extractUDTs(t, matches);
+        visit(type, t -> {
+            if (t instanceof UserType)
+                matches.add((UserType) t);
+            return VisitAction.CONTINUE;
+        });
     }
 
     public static String typeTree(AbstractType<?> type)
@@ -1545,6 +1685,34 @@ public final class AbstractTypeGenerators
     private static <T extends AbstractType> void forEachCollectionTypeVariantsPair(T l, T r, BiConsumer<? super T, ? super T> typePairConsumer)
     {
         forEachTypesPair(frozenAndUnfrozen(l), frozenAndUnfrozen(r), typePairConsumer);
+    }
+
+    public static TypeSupport<?> elementAccess(AbstractType<?> type)
+    {
+        type = type.unwrap();
+        Preconditions.checkArgument(type.isCollection() || type.isUDT(), "Unexpected type: %s", type);
+        if (type.isUDT())
+        {
+            // select a field
+            UserType ut = (UserType) type;
+            Gen<ByteBuffer> fieldNameGen = SourceDSL.arbitrary().pick(ut.fieldNames().stream().map(f -> f.bytes).collect(Collectors.toList()));
+            return new TypeSupport<>(BytesType.instance, fieldNameGen, ByteBuffer::compareTo);
+        }
+        else
+        {
+            CollectionType<?> ct = (CollectionType<?>) type;
+            switch (ct.kind)
+            {
+//                case SET: // set does not support element access; see org.apache.cassandra.db.marshal.MultiElementType.getElement
+                case LIST:
+                    // by index
+                    return new TypeSupport<>(Int32Type.instance, SourceDSL.integers().between(0, Integer.MAX_VALUE), Integer::compare);
+                case MAP:
+                    // by key
+                    return getTypeSupport(ct.nameComparator());
+                default: throw new UnsupportedOperationException(ct.kind.name());
+            }
+        }
     }
 
 }

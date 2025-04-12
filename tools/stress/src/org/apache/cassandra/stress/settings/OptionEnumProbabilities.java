@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public final class OptionEnumProbabilities<T> extends OptionMulti
 {
@@ -48,7 +49,7 @@ public final class OptionEnumProbabilities<T> extends OptionMulti
         final T opt;
         OptMatcher(T opt, String defaultValue)
         {
-            super(opt.toString().toLowerCase() + "=", "[0-9]+(\\.[0-9]+)?", defaultValue, "Performs this many " + opt + " operations out of total", false);
+            super(toLowerCaseLocalized(opt.toString()) + "=", "[0-9]+(\\.[0-9]+)?", defaultValue, "Performs this many " + opt + " operations out of total", false);
             this.opt = opt;
         }
     }

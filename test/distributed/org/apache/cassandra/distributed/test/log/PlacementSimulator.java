@@ -30,13 +30,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Assert;
 
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.Range;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.ReplicationFactor;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.toRanges;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.Node;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.Range;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.Replica;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.ReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.toRanges;
 
 /**
  * A small class that helps to avoid doing mental arithmetics on ranges.

@@ -24,7 +24,15 @@ import org.junit.BeforeClass;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.harry.HarryHelper;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_ALLOW_SIMPLE_STRATEGY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_MINIMUM_REPLICATION_FACTOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_TRANSPORT_NONATIVE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J2_DISABLE_JMX;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J2_DISABLE_JMX_LEGACY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J_SHUTDOWN_HOOK_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
 public class FuzzTestBase extends TestBaseImpl
 {
@@ -32,8 +40,22 @@ public class FuzzTestBase extends TestBaseImpl
     public static void beforeClass() throws Throwable
     {
         TestBaseImpl.beforeClass();
-        HarryHelper.init();
+        init();
     }
+
+    public static void init()
+    {
+        // setting both ways as changes between versions
+        LOG4J2_DISABLE_JMX.setBoolean(true);
+        LOG4J2_DISABLE_JMX_LEGACY.setBoolean(true);
+        LOG4J_SHUTDOWN_HOOK_ENABLED.setBoolean(false);
+        CASSANDRA_ALLOW_SIMPLE_STRATEGY.setBoolean(true);
+        CASSANDRA_MINIMUM_REPLICATION_FACTOR.setInt(0);
+        DISABLE_TCACTIVE_OPENSSL.setBoolean(true);
+        IO_NETTY_TRANSPORT_NONATIVE.setBoolean(true);
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+    }
+
 
     @Override
     public Cluster.Builder builder() {

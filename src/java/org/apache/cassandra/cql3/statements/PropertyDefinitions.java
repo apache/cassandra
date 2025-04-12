@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.SyntaxException;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class PropertyDefinitions
 {
@@ -113,7 +114,7 @@ public class PropertyDefinitions
         if (null == value)
             throw new IllegalArgumentException("value argument can't be null");
 
-        String lowerCasedValue = value.toLowerCase();
+        String lowerCasedValue = toLowerCaseLocalized(value);
 
         if (POSITIVE_PATTERN.matcher(lowerCasedValue).matches())
             return true;

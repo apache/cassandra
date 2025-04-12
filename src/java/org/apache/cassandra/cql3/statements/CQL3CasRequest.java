@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.nio.ByteBuffer;
 import java.util.*;
-
-import com.google.common.collect.*;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.index.IndexRegistry;
@@ -37,7 +34,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.TimeUUID;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -53,6 +50,7 @@ public class CQL3CasRequest implements CASRequest
     private final RegularAndStaticColumns conditionColumns;
     private final boolean updatesRegularRows;
     private final boolean updatesStaticRow;
+    private final Dispatcher.RequestTime requestTime;
     private boolean hasExists; // whether we have an exist or if not exist condition
 
     // Conditions on the static row. We keep it separate from 'conditions' as most things related to the static row are
@@ -70,7 +68,8 @@ public class CQL3CasRequest implements CASRequest
                           DecoratedKey key,
                           RegularAndStaticColumns conditionColumns,
                           boolean updatesRegularRows,
-                          boolean updatesStaticRow)
+                          boolean updatesStaticRow,
+                          Dispatcher.RequestTime requestTime)
     {
         this.metadata = metadata;
         this.key = key;
@@ -78,6 +77,13 @@ public class CQL3CasRequest implements CASRequest
         this.conditionColumns = conditionColumns;
         this.updatesRegularRows = updatesRegularRows;
         this.updatesStaticRow = updatesStaticRow;
+        this.requestTime = requestTime;
+    }
+
+    @Override
+    public Dispatcher.RequestTime requestTime()
+    {
+        return requestTime;
     }
 
     void addRowUpdate(Clustering<?> clustering, ModificationStatement stmt, QueryOptions options, long timestamp, long nowInSeconds)
@@ -143,7 +149,7 @@ public class CQL3CasRequest implements CASRequest
         }
         else if (!(condition instanceof ColumnsConditions))
         {
-            throw new InvalidRequestException("Cannot mix IF conditions and IF NOT EXISTS for the same row");
+            throw new InvalidRequestException("Cannot mix IF conditions and " + ((ToCQL) condition).toCQL() + " for the same row");
         }
         ((ColumnsConditions)condition).addConditions(conds, options);
     }
@@ -346,7 +352,12 @@ public class CQL3CasRequest implements CASRequest
         public abstract boolean appliesTo(FilteredPartition current) throws InvalidRequestException;
     }
 
-    private static class NotExistCondition extends RowCondition
+    private interface ToCQL
+    {
+        String toCQL();
+    }
+
+    private static class NotExistCondition extends RowCondition implements ToCQL
     {
         private NotExistCondition(Clustering<?> clustering)
         {
@@ -357,9 +368,15 @@ public class CQL3CasRequest implements CASRequest
         {
             return current.getRow(clustering) == null;
         }
+
+        @Override
+        public String toCQL()
+        {
+            return "IF NOT EXISTS";
+        }
     }
 
-    private static class ExistCondition extends RowCondition
+    private static class ExistCondition extends RowCondition implements ToCQL
     {
         private ExistCondition(Clustering<?> clustering)
         {
@@ -370,11 +387,17 @@ public class CQL3CasRequest implements CASRequest
         {
             return current.getRow(clustering) != null;
         }
+
+        @Override
+        public String toCQL()
+        {
+            return "IF EXISTS";
+        }
     }
 
     private static class ColumnsConditions extends RowCondition
     {
-        private final Multimap<Pair<ColumnIdentifier, ByteBuffer>, ColumnCondition.Bound> conditions = HashMultimap.create();
+        private final Set<ColumnCondition.Bound> conditions = new HashSet<>();
 
         private ColumnsConditions(Clustering<?> clustering)
         {
@@ -385,15 +408,14 @@ public class CQL3CasRequest implements CASRequest
         {
             for (ColumnCondition condition : conds)
             {
-                ColumnCondition.Bound current = condition.bind(options);
-                conditions.put(Pair.create(condition.column.name, current.getCollectionElementValue()), current);
+                conditions.add(condition.bind(options));
             }
         }
 
         public boolean appliesTo(FilteredPartition current) throws InvalidRequestException
         {
             Row row = current.getRow(clustering);
-            for (ColumnCondition.Bound condition : conditions.values())
+            for (ColumnCondition.Bound condition : conditions)
             {
                 if (!condition.appliesTo(row))
                     return false;

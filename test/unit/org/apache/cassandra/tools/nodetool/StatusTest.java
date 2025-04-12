@@ -24,7 +24,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
@@ -86,7 +86,7 @@ public class StatusTest extends CQLTester
         assertThat(hostStatus).containsPattern("\\d+\\.?\\d+ KiB");
         assertThat(hostStatus).contains(localHostId);
         assertThat(hostStatus).contains(token);
-        assertThat(hostStatus).endsWith(SimpleSnitch.RACK_NAME);
+        assertThat(hostStatus).endsWith(SimpleLocationProvider.LOCATION.rack);
 
         String bootstrappingWarn = lines[lines.length-1].trim();
         assertThat(bootstrappingWarn)
@@ -106,7 +106,7 @@ public class StatusTest extends CQLTester
          UN  localhost  45.71 KiB  100.0%            0b1b5e91-ad3b-444e-9c24-50578486978a  1849950853373272258  rack1
          */
         String[] lines = PATTERN.split(tool.getStdout());
-        assertThat(lines[0].trim()).endsWith(SimpleSnitch.DATA_CENTER_NAME);
+        assertThat(lines[0].trim()).endsWith(SimpleLocationProvider.LOCATION.datacenter);
         String hostStatus = lines[lines.length-1].trim();
         assertThat(hostStatus).startsWith("UN");
         assertThat(hostStatus).contains(hostForm);
@@ -114,7 +114,7 @@ public class StatusTest extends CQLTester
         assertThat(hostStatus).containsPattern("\\d+\\.\\d+%");
         assertThat(hostStatus).contains(localHostId);
         assertThat(hostStatus).contains(token);
-        assertThat(hostStatus).endsWith(SimpleSnitch.RACK_NAME);
+        assertThat(hostStatus).endsWith(SimpleLocationProvider.LOCATION.rack);
         assertThat(hostStatus).doesNotContain("?");
     }
 }

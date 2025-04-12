@@ -120,6 +120,12 @@ public class CertificateBuilder
         return this;
     }
 
+    public CertificateBuilder clearSubjectAlternativeNames()
+    {
+        subjectAlternativeNames.clear();
+        return this;
+    }
+
     public CertificateBuilder secureRandom(SecureRandom secureRandom)
     {
         this.random = Objects.requireNonNull(secureRandom);

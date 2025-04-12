@@ -20,9 +20,11 @@ package org.apache.cassandra.tcm;
 
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Meter;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.utils.Clock;
 
 public interface Processor
 {
@@ -37,14 +39,43 @@ public interface Processor
         // submit the STARTUP message. This allows the bounces affecting majority of CMS nodes to finish successfully.
         if (transform.kind() == Transformation.Kind.STARTUP)
         {
-            return commit(entryId, transform, lastKnown,
-                          Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                           TCMMetrics.instance.commitRetries));
+            return commit(entryId, transform, lastKnown, unsafeRetryIndefinitely());
         }
 
         return commit(entryId, transform, lastKnown,
                       Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
                                            new Retry.Jitter(TCMMetrics.instance.commitRetries)));
+    }
+
+    /**
+     * Since we are using message expiration for communicating timeouts to CMS nodes, we have to be careful not
+     * to overflow the long, since messaging is using only 32 bits for deadlines. To achieve that, we are
+     * giving `timeoutNanos` every time we retry, but will retry indefinitely.
+     */
+    private static Retry.Deadline unsafeRetryIndefinitely()
+    {
+        long timeoutNanos = DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS);
+        Meter retryMeter = TCMMetrics.instance.commitRetries;
+        return new Retry.Deadline(Clock.Global.nanoTime() + timeoutNanos,
+                                  new Retry.Jitter(retryMeter))
+        {
+            @Override
+            public boolean reachedMax()
+            {
+                return false;
+            }
+
+            @Override
+            public long remainingNanos()
+            {
+                return timeoutNanos;
+            }
+
+            public String toString()
+            {
+                return String.format("RetryIndefinitely{tries=%d}", currentTries());
+            }
+        };
     }
 
     Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy);

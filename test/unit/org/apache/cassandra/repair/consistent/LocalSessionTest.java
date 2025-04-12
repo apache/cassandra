@@ -210,7 +210,7 @@ public class LocalSessionTest extends AbstractRepairTest
 
         public Map<TimeUUID, Integer> completedSessions = new HashMap<>();
 
-        protected void sessionCompleted(LocalSession session)
+        public void sessionCompleted(LocalSession session)
         {
             TimeUUID sessionID = session.sessionID;
             int calls = completedSessions.getOrDefault(sessionID, 0);
@@ -699,8 +699,11 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
         LocalSession session = sessions.prepareForTest(sessionID);
         session.setState(REPAIRING);
+        long lastUpdatedOriginal = session.getLastUpdate();
+        Thread.sleep(1100);
 
         sessions.handleStatusResponse(PARTICIPANT1, new StatusResponse(sessionID, FINALIZE_PROMISED));
+        Assert.assertNotEquals(lastUpdatedOriginal, session.getLastUpdate());
         Assert.assertEquals(REPAIRING, session.getState());
     }
 

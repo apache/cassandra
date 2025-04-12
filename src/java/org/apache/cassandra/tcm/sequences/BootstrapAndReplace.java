@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.sequences;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -259,10 +260,11 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                 }
                 break;
             case FINISH_REPLACE:
+                ClusterMetadata metadata;
                 try
                 {
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
-                    ClusterMetadataService.instance().commit(finishReplace);
+                    metadata = ClusterMetadataService.instance().commit(finishReplace);
                 }
                 catch (Throwable e)
                 {
@@ -270,6 +272,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                     logger.warn("Got exception committing finishReplace", e);
                     return halted();
                 }
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
+
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with replacement from " + next));
@@ -437,6 +441,17 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
         states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(metadata.tokenMap.tokens(nodeId))));
         states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true)));
         states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
+        Gossiper.instance.addLocalApplicationStates(states);
+    }
+
+    public static void gossipStateToNormal(ClusterMetadata metadata, NodeId nodeId)
+    {
+        List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
+        VersionedValue.VersionedValueFactory valueFactory = StorageService.instance.valueFactory;
+        Collection<Token> tokens = metadata.tokenMap.tokens(nodeId);
+        states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+        states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens)));
+        states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(tokens)));
         Gossiper.instance.addLocalApplicationStates(states);
     }
 

@@ -31,11 +31,11 @@ import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.locator.NodeProximity;
+import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
@@ -102,23 +102,13 @@ public class PagingTest
         String createTableStatement = "CREATE TABLE IF NOT EXISTS " + table + " (id int, id2 int, id3 int, val text, PRIMARY KEY ((id, id2), id3));";
         String dropTableStatement = "DROP TABLE IF EXISTS " + table + ';';
 
-        // custom snitch to avoid merging ranges back together after StorageProxy#getRestrictedRanges splits them up
-        IEndpointSnitch snitch = new AbstractEndpointSnitch()
+        // custom proximity impl to avoid merging ranges back together after StorageProxy#getRestrictedRanges splits them up
+        NodeProximity proximity = new BaseProximity()
         {
-            private IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
+            private final NodeProximity oldProximity = DatabaseDescriptor.getNodeProximity();
             public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
-                return oldSnitch.compareEndpoints(target, a1, a2);
-            }
-
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return oldSnitch.getRack(endpoint);
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                return oldSnitch.getDatacenter(endpoint);
+                return oldProximity.compareEndpoints(target, a1, a2);
             }
 
             @Override
@@ -127,9 +117,7 @@ public class PagingTest
                 return false;
             }
         };
-        DatabaseDescriptor.setEndpointSnitch(snitch);
-//        StorageService.instance.getTokenMetadata().clearUnsafe();
-//        StorageService.instance.getTokenMetadata().updateNormalToken(new LongToken(5097162189738624638L), FBUtilities.getBroadcastAddressAndPort());
+        DatabaseDescriptor.setNodeProximity(proximity);
         session.execute(createTableStatement);
 
         for (int i = 0; i < 110; i++)

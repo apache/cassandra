@@ -44,7 +44,6 @@ public class StubClusterMetadataService extends ClusterMetadataService
 
     public static StubClusterMetadataService forClientTools()
     {
-        DatabaseDescriptor.setLocalDataCenter("DC1");
         KeyspaceMetadata ks = DistributedMetadataLogKeyspace.initialMetadata(Collections.singleton("DC1"));
         DistributedSchema schema = new DistributedSchema(Keyspaces.of(ks));
         return new StubClusterMetadataService(new ClusterMetadata(DatabaseDescriptor.getPartitioner(),
@@ -54,7 +53,6 @@ public class StubClusterMetadataService extends ClusterMetadataService
 
     public static StubClusterMetadataService forClientTools(DistributedSchema initialSchema)
     {
-        DatabaseDescriptor.setLocalDataCenter("DC1");
         ClusterMetadata metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
         metadata = metadata.transformer().with(initialSchema).build().metadata.forceEpoch(Epoch.EMPTY);
         return new StubClusterMetadataService(metadata);
@@ -167,6 +165,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
         public StubClusterMetadataService build()
         {
             if (initial == null)
+            {
                 initial = new ClusterMetadata(Epoch.EMPTY,
                                               partitioner,
                                               DistributedSchema.empty(),
@@ -176,6 +175,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                               LockedRanges.EMPTY,
                                               InProgressSequences.EMPTY,
                                               ImmutableMap.of());
+            }
             return new StubClusterMetadataService(new UniformRangePlacement(),
                                                   snapshots != null ? snapshots : MetadataSnapshots.NO_OP,
                                                   LocalLog.logSpec().withInitialState(initial).createLog(),

@@ -21,7 +21,6 @@ package org.apache.cassandra.config;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
@@ -31,6 +30,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
+
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 
@@ -73,6 +74,7 @@ public enum CassandraRelevantProperties
     BROADCAST_INTERVAL_MS("cassandra.broadcast_interval_ms", "60000"),
     BTREE_BRANCH_SHIFT("cassandra.btree.branchshift", "5"),
     BTREE_FAN_FACTOR("cassandra.btree.fanfactor"),
+    BUILD_DATE("cassandra.buildDate"),
     /** Represents the maximum size (in bytes) of a serialized mutation that can be cached **/
     CACHEABLE_MUTATION_SIZE_LIMIT("cassandra.cacheable_mutation_size_limit_bytes", convertToString(1_000_000)),
     CASSANDRA_ALLOW_SIMPLE_STRATEGY("cassandra.allow_simplestrategy"),
@@ -93,6 +95,10 @@ public enum CassandraRelevantProperties
     CASSANDRA_MAX_HINT_TTL("cassandra.maxHintTTL", convertToString(Integer.MAX_VALUE)),
     CASSANDRA_MINIMUM_REPLICATION_FACTOR("cassandra.minimum_replication_factor"),
     CASSANDRA_NETTY_USE_HEAP_ALLOCATOR("cassandra.netty_use_heap_allocator"),
+    /**
+     * Number of attempts to generate a valid password before giving up.
+     */
+    CASSANDRA_PASSWORD_GENERATOR_ATTEMTPS("cassandra.password.generator.attempts", "100"),
     CASSANDRA_PID_FILE("cassandra-pidfile"),
     CASSANDRA_RACKDC_PROPERTIES("cassandra-rackdc.properties"),
     CASSANDRA_SKIP_AUTOMATIC_UDT_FIX("cassandra.skipautomaticudtfix"),
@@ -101,6 +107,7 @@ public enum CassandraRelevantProperties
     CASSANDRA_VERSION("cassandra.version"),
     /** default heartbeating period is 1 minute */
     CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD("check_data_resurrection_heartbeat_period_milli", "60000"),
+    CHRONICLE_ANALYTICS_DISABLE("chronicle.analytics.disable"),
     CHRONICLE_ANNOUNCER_DISABLE("chronicle.announcer.disable"),
     CLOCK_GLOBAL("cassandra.clock"),
     CLOCK_MONOTONIC_APPROX("cassandra.monotonic_clock.approx"),
@@ -139,6 +146,8 @@ public enum CassandraRelevantProperties
     COM_SUN_MANAGEMENT_JMXREMOTE_PASSWORD_FILE("com.sun.management.jmxremote.password.file"),
     /** Port number to enable JMX RMI connections - com.sun.management.jmxremote.port */
     COM_SUN_MANAGEMENT_JMXREMOTE_PORT("com.sun.management.jmxremote.port"),
+    /** Enables SSL sockets for the RMI registry from which clients obtain the JMX connector stub */
+    COM_SUN_MANAGEMENT_JMXREMOTE_REGISTRY_SSL("com.sun.management.jmxremote.registry.ssl"),
     /**
      * The port number to which the RMI connector will be bound - com.sun.management.jmxremote.rmi.port.
      * An Integer object that represents the value of the second argument is returned
@@ -171,6 +180,7 @@ public enum CassandraRelevantProperties
     CONSISTENT_RANGE_MOVEMENT("cassandra.consistent.rangemovement", "true"),
     CONSISTENT_SIMULTANEOUS_MOVES_ALLOW("cassandra.consistent.simultaneousmoves.allow"),
     CRYPTO_PROVIDER_CLASS_NAME("cassandra.crypto_provider_class_name"),
+    CUSTOM_DISK_ERROR_HANDLER("cassandra.custom_disk_error_handler"),
     CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS("cassandra.custom_guardrails_config_provider_class"),
     CUSTOM_QUERY_HANDLER_CLASS("cassandra.custom_query_handler_class"),
     CUSTOM_TRACING_CLASS("cassandra.custom_tracing_class"),
@@ -280,6 +290,10 @@ public enum CassandraRelevantProperties
     IO_NETTY_EVENTLOOP_THREADS("io.netty.eventLoopThreads"),
     IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT("io.netty.transport.estimateSizeOnSubmit"),
     IO_NETTY_TRANSPORT_NONATIVE("io.netty.transport.noNative"),
+    JAVAX_NET_SSL_KEYSTORE("javax.net.ssl.keyStore"),
+    JAVAX_NET_SSL_KEYSTOREPASSWORD("javax.net.ssl.keyStorePassword"),
+    JAVAX_NET_SSL_TRUSTSTORE("javax.net.ssl.trustStore"),
+    JAVAX_NET_SSL_TRUSTSTOREPASSWORD("javax.net.ssl.trustStorePassword"),
     JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES("javax.rmi.ssl.client.enabledCipherSuites"),
     JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS("javax.rmi.ssl.client.enabledProtocols"),
     /** Java class path. */
@@ -414,6 +428,10 @@ public enum CassandraRelevantProperties
     REPLACE_NODE("cassandra.replace_node"),
     REPLACE_TOKEN("cassandra.replace_token"),
     /**
+     * Number of replicas required to store batchlog for atomicity, only accepts values of 1 or 2.
+     */
+    REQUIRED_BATCHLOG_REPLICA_COUNT("cassandra.batchlog.required_replica_count", "2"),
+    /**
      * Whether we reset any found data from previously run bootstraps.
      */
     RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
@@ -485,6 +503,12 @@ public enum CassandraRelevantProperties
     SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS("cassandra.snapshot.ttl_cleanup_initial_delay_seconds", "5"),
     /** snapshots ttl cleanup period in seconds */
     SNAPSHOT_CLEANUP_PERIOD_SECONDS("cassandra.snapshot.ttl_cleanup_period_seconds", "60"),
+    /**
+     * When there is a snapshot with old / basic format (basically pre-CASSANDRA-16789),
+     * it will enrich it with more metadata upon snapshot's loading at startup.
+     * Defaults to true, when set to false, no enriching will be done.
+     * */
+    SNAPSHOT_MANIFEST_ENRICH_OR_CREATE_ENABLED("cassandra.snapshot.enrich.or.create.enabled", "true"),
     /** minimum allowed TTL for snapshots */
     SNAPSHOT_MIN_ALLOWED_TTL_SECONDS("cassandra.snapshot.min_allowed_ttl_seconds", "60"),
     SSL_ENABLE("ssl.enable"),
@@ -519,15 +543,9 @@ public enum CassandraRelevantProperties
 
     TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES("cassandra.allow_transformations_during_upgrades", "false"),
     /**
-     * for obtaining acknowlegement from peers to make progress in multi-step operations
+     * for testing purposes disable the automatic CMS reconfiguration after a bootstrap/replace/move operation
      */
-    TCM_PROGRESS_BARRIER_BACKOFF_MILLIS("cassandra.progress_barrier_backoff_ms", "1000"),
-    TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS("cassandra.progress_barrier_timeout_ms", "3600000"),
-    /**
-     * size of in-memory index of max epoch -> sealed period
-     */
-    TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.recently_sealed_period_index_size", "10"),
-
+    TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE("cassandra.test.skip_cms_reconfig_after_topology_change", "false"),
     /**
      * should replica groups in data placements be sorted to ensure the primary replica is first in the list
      */
@@ -537,7 +555,7 @@ public enum CassandraRelevantProperties
     TCM_USE_NO_OP_REPLICATOR("cassandra.test.use_no_op_replicator", "false"),
 
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
-    TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed"),
+    TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed", "42"),
     TEST_BYTEMAN_TRANSFORMATIONS_DEBUG("cassandra.test.byteman.transformations.debug"),
     TEST_CASSANDRA_KEEPBRIEFBRIEF("cassandra.keepBriefBrief"),
     TEST_CASSANDRA_RELEVANT_PROPERTIES("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),
@@ -559,6 +577,7 @@ public enum CassandraRelevantProperties
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     TEST_FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
     TEST_HARRY_SWITCH_AFTER("cassandra.test.harry.progression.switch-after", "1"),
+    TEST_INTERVAL_TREE_EXPENSIVE_CHECKS("cassandra.test.interval_tree_expensive_checks"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
     TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY("cassandra.test.messagingService.gracefulShutdown", "false"),
@@ -605,6 +624,7 @@ public enum CassandraRelevantProperties
     UCS_BASE_SHARD_COUNT("unified_compaction.base_shard_count", "4"),
     UCS_MIN_SSTABLE_SIZE("unified_compaction.min_sstable_size", "100MiB"),
     UCS_OVERLAP_INCLUSION_METHOD("unified_compaction.overlap_inclusion_method"),
+    UCS_PARALLELIZE_OUTPUT_SHARDS("unified_compaction.parallelize_output_shards", "true"),
     UCS_SCALING_PARAMETER("unified_compaction.scaling_parameters", "T4"),
     UCS_SSTABLE_GROWTH("unified_compaction.sstable_growth", "0.333"),
     UCS_SURVIVAL_FACTOR("unified_compaction.survival_factor", "1"),
@@ -905,7 +925,7 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Gets the value of a system property as a enum, calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as an enum, calling {@link org.apache.cassandra.utils.LocalizeString#toUpperCaseLocalized(String)} first.
      *
      * @param defaultValue to return when not defined
      * @param <T> type
@@ -917,7 +937,7 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Gets the value of a system property as a enum, optionally calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as an enum, optionally calling {@link org.apache.cassandra.utils.LocalizeString#toUpperCaseLocalized(String)} first.
      *
      * @param toUppercase before converting to enum
      * @param defaultValue to return when not defined
@@ -929,11 +949,11 @@ public enum CassandraRelevantProperties
         String value = System.getProperty(key);
         if (value == null)
             return defaultValue;
-        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? value.toUpperCase() : value);
+        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? toUpperCaseLocalized(value) : value);
     }
 
     /**
-     * Gets the value of a system property as an enum, optionally calling {@link String#toUpperCase()} first.
+     * Gets the value of a system property as an enum, optionally calling {@link org.apache.cassandra.utils.LocalizeString#toLowerCaseLocalized(String)} first.
      * If the value is missing, the default value for this property is used
      *
      * @param toUppercase before converting to enum
@@ -944,7 +964,7 @@ public enum CassandraRelevantProperties
     public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass)
     {
         String value = System.getProperty(key, defaultVal);
-        return Enum.valueOf(enumClass, toUppercase ? value.toUpperCase() : value);
+        return Enum.valueOf(enumClass, toUppercase ? toUpperCaseLocalized(value) : value);
     }
 
     /**

@@ -54,6 +54,7 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -74,12 +75,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_KERNEL_BUG_1057843_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Verifies that the system and environment is in a fit state to be started.
@@ -143,8 +144,6 @@ public class StartupChecks
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
-                                                                      checkDatacenter,
-                                                                      checkRack,
                                                                       checkLegacyAuthTables,
                                                                       new DataResurrectionCheck());
 
@@ -217,7 +216,7 @@ public class StartupChecks
             {
                 try
                 {
-                    if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase()))
+                    if (affectedFileSystemTypes.contains(toLowerCaseLocalized(Files.getFileStore(path).type())))
                         affectedPaths.add(path);
                 }
                 catch (IOException e)
@@ -311,17 +310,21 @@ public class StartupChecks
         {
             if (options.isDisabled(getStartupCheckType()))
                 return;
-            String jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT.getString();
-            if (jmxPort == null)
+
+            JMXServerOptions jmxServerOptions = DatabaseDescriptor.getJmxServerOptions();
+            if (!jmxServerOptions.enabled)
             {
-                logger.warn("JMX is not enabled to receive remote connections. Please see cassandra-env.sh for more info.");
-                jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT.toString();
-                if (jmxPort == null)
-                    logger.error(CASSANDRA_JMX_LOCAL_PORT.getKey() + " missing from cassandra-env.sh, unable to start local JMX service.");
+                logger.warn("JMX connection server is not enabled for either local or remote connections. " +
+                            "Please see jmx_server_options in cassandra.yaml for more info");
+            }
+            if (!jmxServerOptions.remote)
+            {
+                logger.warn("JMX is not enabled to receive remote connections. " +
+                            "Please see jmx_server_options in cassandra.yaml for more info.");
             }
             else
             {
-                logger.info("JMX is enabled to receive remote connections on port: {}", jmxPort);
+                logger.info("JMX is enabled to receive remote connections on port: {}", jmxServerOptions.jmx_port);
             }
         }
     };
@@ -729,46 +732,6 @@ public class StartupChecks
             catch (ConfigurationException e)
             {
                 throw new StartupException(StartupException.ERR_WRONG_CONFIG, "Fatal exception during initialization", e);
-            }
-        }
-    };
-
-    public static final StartupCheck checkDatacenter = new StartupCheck()
-    {
-        @Override
-        public void execute(StartupChecksOptions options) throws StartupException
-        {
-            String storedDc = SystemKeyspace.getDatacenter();
-            if (storedDc != null)
-            {
-                String currentDc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
-                if (!storedDc.equals(currentDc))
-                {
-                    String formatMessage = "Cannot start node if snitch's data center (%s) differs from previous data center (%s). " +
-                                           "Please fix the snitch configuration, decommission and rebootstrap this node";
-
-                    throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentDc, storedDc));
-                }
-            }
-        }
-    };
-
-    public static final StartupCheck checkRack = new StartupCheck()
-    {
-        @Override
-        public void execute(StartupChecksOptions options) throws StartupException
-        {
-            String storedRack = SystemKeyspace.getRack();
-            if (storedRack != null)
-            {
-                String currentRack = DatabaseDescriptor.getEndpointSnitch().getLocalRack();
-                if (!storedRack.equals(currentRack))
-                {
-                    String formatMessage = "Cannot start node if snitch's rack (%s) differs from previous rack (%s). " +
-                                           "Please fix the snitch configuration, decommission and rebootstrap this node";
-
-                    throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentRack, storedRack));
-                }
             }
         }
     };

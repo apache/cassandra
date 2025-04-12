@@ -85,12 +85,6 @@ public class SimpleStrategyTest
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
-    @Before
-    public void resetSnitch()
-    {
-        DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
-    }
-
     @Test
     public void tryValidKeyspace()
     {
@@ -128,8 +122,6 @@ public class SimpleStrategyTest
     public void testMultiDCSimpleStrategyEndpoints() throws UnknownHostException
     {
         withPartitioner(Murmur3Partitioner.instance);
-        IEndpointSnitch snitch = new PropertyFileSnitch();
-        DatabaseDescriptor.setEndpointSnitch(snitch);
 
         // Topology taken directly from the topology_test.test_size_estimates_multidc dtest that regressed
         Multimap<InetAddressAndPort, Token> dc1 = HashMultimap.create();
@@ -275,8 +267,6 @@ public class SimpleStrategyTest
     public void transientReplica() throws Exception
     {
         withPartitioner(Murmur3Partitioner.instance);
-        IEndpointSnitch snitch = new SimpleSnitch();
-        DatabaseDescriptor.setEndpointSnitch(snitch);
 
         List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
                                                                 InetAddressAndPort.getByName("127.0.0.2"),
@@ -320,9 +310,6 @@ public class SimpleStrategyTest
         withPartitioner(Murmur3Partitioner.instance);
         expectedEx.expect(ConfigurationException.class);
         expectedEx.expectMessage("SimpleStrategy requires a replication_factor strategy option.");
-
-        IEndpointSnitch snitch = new SimpleSnitch();
-        DatabaseDescriptor.setEndpointSnitch(snitch);
 
         List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
                                                                 InetAddressAndPort.getByName("127.0.0.2"),

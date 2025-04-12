@@ -23,6 +23,9 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.audit.AuditLogEntry.DEFAULT_FIELD_SEPARATOR;
+import static org.apache.cassandra.audit.AuditLogEntry.DEFAULT_KEY_VALUE_SEPARATOR;
+
 /**
  * Synchronous, file-based audit logger; just uses the standard logging mechansim.
  */
@@ -31,10 +34,18 @@ public class FileAuditLogger implements IAuditLogger
     protected static final Logger logger = LoggerFactory.getLogger(FileAuditLogger.class);
 
     private volatile boolean enabled;
+    private final String keyValueSeparator;
+    private final String fieldSeparator;
 
     public FileAuditLogger(Map<String, String> params)
     {
         enabled = true;
+        keyValueSeparator = params != null
+                            ? params.getOrDefault("key_value_separator", DEFAULT_KEY_VALUE_SEPARATOR)
+                            : DEFAULT_KEY_VALUE_SEPARATOR;
+        fieldSeparator = params != null
+                         ? params.getOrDefault("field_separator", DEFAULT_FIELD_SEPARATOR)
+                         : DEFAULT_FIELD_SEPARATOR;
     }
 
     @Override
@@ -48,7 +59,7 @@ public class FileAuditLogger implements IAuditLogger
     {
         // don't bother with the volatile read of enabled here. just go ahead and log, other components
         // will check the enbaled field.
-        logger.info(auditLogEntry.getLogString());
+        logger.info(auditLogEntry.getLogString(keyValueSeparator, fieldSeparator));
     }
 
     @Override

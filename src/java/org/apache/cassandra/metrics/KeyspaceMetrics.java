@@ -85,6 +85,8 @@ public class KeyspaceMetrics
     public final Histogram sstablesPerRangeReadHistogram;
     /** Tombstones scanned in queries on this Keyspace */
     public final Histogram tombstoneScannedHistogram;
+    /** Purgeable tombstones scanned in queries on this Keyspace */
+    public final Histogram purgeableTombstoneScannedHistogram;
     /** Live cells scanned in queries on this Keyspace */
     public final Histogram liveScannedHistogram;
     /** Column update time delta on this Keyspace */
@@ -181,6 +183,8 @@ public class KeyspaceMetrics
     public final Meter tooManySSTableIndexesReadWarnings;
     public final Meter tooManySSTableIndexesReadAborts;
 
+    public final LatencyMetrics viewSSTableIntervalTree;
+
     public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
     private final KeyspaceMetricNameFactory factory;
@@ -234,6 +238,7 @@ public class KeyspaceMetrics
         sstablesPerReadHistogram = createKeyspaceHistogram("SSTablesPerReadHistogram", true);
         sstablesPerRangeReadHistogram = createKeyspaceHistogram("SSTablesPerRangeReadHistogram", true);
         tombstoneScannedHistogram = createKeyspaceHistogram("TombstoneScannedHistogram", false);
+        purgeableTombstoneScannedHistogram = createKeyspaceHistogram("PurgeableTombstoneScannedHistogram", false);
         liveScannedHistogram = createKeyspaceHistogram("LiveScannedHistogram", false);
         colUpdateTimeDeltaHistogram = createKeyspaceHistogram("ColUpdateTimeDeltaHistogram", false);
         viewLockAcquireTime = createKeyspaceTimer("ViewLockAcquireTime");
@@ -288,6 +293,8 @@ public class KeyspaceMetrics
         outOfRangeTokenReads = createKeyspaceCounter("ReadOutOfRangeToken");
         outOfRangeTokenWrites = createKeyspaceCounter("WriteOutOfRangeToken");
         outOfRangeTokenPaxosRequests = createKeyspaceCounter("PaxosOutOfRangeToken");
+
+        viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree");
     }
 
     /**

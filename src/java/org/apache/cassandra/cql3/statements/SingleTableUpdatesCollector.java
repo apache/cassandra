@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -96,23 +97,34 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
     @Override
     public List<IMutation> toMutations(ClientState state)
     {
+        if (puBuilders.size() == 1)
+        {
+            PartitionUpdate.Builder builder = puBuilders.values().iterator().next();
+            return Collections.singletonList(createMutation(state, builder));
+        }
         List<IMutation> ms = new ArrayList<>(puBuilders.size());
         for (PartitionUpdate.Builder builder : puBuilders.values())
         {
-            IMutation mutation;
-
-            if (metadata.isVirtual())
-                mutation = new VirtualMutation(builder.build());
-            else if (metadata.isCounter())
-                mutation = new CounterMutation(new Mutation(builder.build()), counterConsistencyLevel);
-            else
-                mutation = new Mutation(builder.build());
-
-            mutation.validateIndexedColumns(state);
-            mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
+            IMutation mutation = createMutation(state, builder);
             ms.add(mutation);
         }
 
         return ms;
+    }
+
+    private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder)
+    {
+        IMutation mutation;
+
+        if (metadata.isVirtual())
+            mutation = new VirtualMutation(builder.build());
+        else if (metadata.isCounter())
+            mutation = new CounterMutation(new Mutation(builder.build()), counterConsistencyLevel);
+        else
+            mutation = new Mutation(builder.build());
+
+        mutation.validateIndexedColumns(state);
+        mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
+        return mutation;
     }
 }

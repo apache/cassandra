@@ -18,18 +18,39 @@
 
 package org.apache.cassandra.transport;
 
+import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.net.ssl.SSLException;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.SSLOptions;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.policies.LoadBalancingPolicy;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.util.Auth;
+import org.apache.cassandra.distributed.util.SingleHostLoadBalancingPolicy;
 import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.utils.tls.CertificateBuilder;
+import org.apache.cassandra.utils.tls.CertificateBundle;
+
+import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_NAME;
+import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
 
 public class TlsTestUtils
 {
@@ -37,16 +58,19 @@ public class TlsTestUtils
     public static String SERVER_KEYSTORE_PATH_PEM = "test/conf/cassandra_ssl_test.keystore.pem";
     public static String SERVER_KEYSTORE_PATH_UNENCRYPTED_PEM = "test/conf/cassandra_ssl_test.unencrypted_keystore.pem";
     public static String SERVER_KEYSTORE_PASSWORD = "cassandra";
+    public static String SERVER_KEYSTORE_PASSWORD_FILE = "test/conf/cassandra_ssl_test_keystore_passwordfile.txt";
 
     public static String SERVER_KEYSTORE_ENDPOINT_VERIFY_PATH = "test/conf/cassandra_ssl_test_endpoint_verify.keystore";
     public static String SERVER_KEYSTORE_ENDPOINT_VERIFY_PASSWORD = "cassandra";
 
     public static String SERVER_OUTBOUND_KEYSTORE_PATH = "test/conf/cassandra_ssl_test_outbound.keystore";
     public static String SERVER_OUTBOUND_KEYSTORE_PASSWORD = "cassandra";
+    public static String SERVER_OUTBOUND_KEYSTORE_PASSWORD_FILE = "test/conf/cassandra_ssl_test_outbound_keystore_password.txt";
 
     public static String SERVER_TRUSTSTORE_PATH = "test/conf/cassandra_ssl_test.truststore";
     public static String SERVER_TRUSTSTORE_PEM_PATH = "test/conf/cassandra_ssl_test.truststore.pem";
     public static String SERVER_TRUSTSTORE_PASSWORD = "cassandra";
+    public static String SERVER_TRUSTSTORE_PASSWORD_FILE = "test/conf/cassandra_ssl_test_truststore_passwordfile.txt";
 
     // To regenerate:
     // 1. generate keystore
@@ -82,8 +106,8 @@ public class TlsTestUtils
         config.authenticator = new ParameterizedClass("MutualTlsWithPasswordFallbackAuthenticator", parameters);
         // Configure client encryption such that we can optionally connect with SSL.
         config.client_encryption_options = TlsTestUtils.getClientEncryptionOptions();
-        config.role_manager = "CassandraRoleManager";
-        config.authorizer = "CassandraAuthorizer";
+        config.role_manager = new ParameterizedClass("CassandraRoleManager");
+        config.authorizer = new ParameterizedClass("CassandraAuthorizer");
     }
 
     public static ISslContextFactory getClientSslContextFactory(boolean provideClientCert)
@@ -107,6 +131,95 @@ public class TlsTestUtils
                                                .withSSLContext(getClientSslContextFactory(provideClientCert)
                                                                .createJSSESslContext(EncryptionOptions.ClientAuth.OPTIONAL))
                                                .build();
+    }
+
+    public static SSLOptions getSSLOptions(Path keystorePath, Path truststorePath) throws RuntimeException
+    {
+        try
+        {
+            return RemoteEndpointAwareJdkSSLOptions.builder()
+                                                   .withSSLContext(getClientSslContextFactory(keystorePath, truststorePath)
+                                                                   .createJSSESslContext(EncryptionOptions.ClientAuth.OPTIONAL))
+                                                   .build();
+        }
+        catch (SSLException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static ISslContextFactory getClientSslContextFactory(Path keystorePath, Path truststorePath)
+    {
+        ImmutableMap.Builder<String, Object> params = ImmutableMap.<String, Object>builder()
+                                                                  .put("truststore", truststorePath.toString())
+                                                                  .put("truststore_password", CLIENT_TRUSTSTORE_PASSWORD);
+
+        if (keystorePath != null)
+        {
+            params.put("keystore", keystorePath.toString())
+                  .put("keystore_password", "cassandra");
+        }
+
+        return new SimpleClientSslContextFactory(params.build());
+    }
+
+    public static void configureIdentity(ICluster<IInvokableInstance> cluster, SSLOptions sslOptions)
+    {
+        withAuthenticatedSession(cluster.get(1), DEFAULT_SUPERUSER_NAME, DEFAULT_SUPERUSER_PASSWORD, session -> {
+            session.execute("CREATE ROLE cassandra_ssl_test WITH LOGIN = true");
+            session.execute(String.format("ADD IDENTITY '%s' TO ROLE 'cassandra_ssl_test'", CLIENT_SPIFFE_IDENTITY));
+            // GRANT select to cassandra_ssl_test to be able to query the system_views.clients virtual table
+            session.execute("GRANT SELECT ON system_views.clients to cassandra_ssl_test");
+        }, sslOptions);
+    }
+
+    public static Path generateSelfSignedCertificate(Function<CertificateBuilder, CertificateBuilder> customizeCertificate, File targetDirectory) throws Exception
+    {
+        return generateClientCertificate(customizeCertificate, targetDirectory, null);
+    }
+
+    public static Path generateClientCertificate(Function<CertificateBuilder, CertificateBuilder> customizeCertificate, File targetDirectory, CertificateBundle ca) throws Exception
+    {
+        CertificateBuilder builder = new CertificateBuilder().subject("CN=Apache Cassandra, OU=ssl_test, O=Unknown, L=Unknown, ST=Unknown, C=Unknown")
+                                                             .notBefore(Instant.now().minus(1, ChronoUnit.DAYS))
+                                                             .notAfter(Instant.now().plus(1, ChronoUnit.DAYS))
+                                                             .alias("spiffecert")
+                                                             .addSanUriName(CLIENT_SPIFFE_IDENTITY)
+                                                             .rsa2048Algorithm();
+        if (customizeCertificate != null)
+        {
+            builder = customizeCertificate.apply(builder);
+        }
+        CertificateBundle ssc = ca != null
+                                ? builder.buildIssuedBy(ca)
+                                : builder.buildSelfSigned();
+        return ssc.toTempKeyStorePath(targetDirectory.toPath(), SERVER_KEYSTORE_PASSWORD.toCharArray(), SERVER_KEYSTORE_PASSWORD.toCharArray());
+    }
+
+    public static void withAuthenticatedSession(IInvokableInstance instance,
+                                         String username,
+                                         String password,
+                                         Consumer<Session> consumer,
+                                         SSLOptions sslOptions)
+    {
+        // wait for existing roles
+        Auth.waitForExistingRoles(instance);
+
+        InetSocketAddress nativeInetSocketAddress = ClusterUtils.getNativeInetSocketAddress(instance);
+        InetAddress address = nativeInetSocketAddress.getAddress();
+        LoadBalancingPolicy lbc = new SingleHostLoadBalancingPolicy(address);
+
+        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder()
+                                                                                           .withLoadBalancingPolicy(lbc)
+                                                                                           .withSSL(sslOptions)
+                                                                                           .withAuthProvider(new PlainTextAuthProvider(username, password))
+                                                                                           .addContactPoint(address.getHostAddress())
+                                                                                           .withPort(nativeInetSocketAddress.getPort());
+
+        try (com.datastax.driver.core.Cluster c = builder.build(); Session session = c.connect())
+        {
+            consumer.accept(session);
+        }
     }
 
 }

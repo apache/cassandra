@@ -27,14 +27,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.assertj.core.api.Assertions;
@@ -153,26 +150,11 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
     @Test
     public void testMultipleDatacenter() throws Throwable
     {
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
-        {
-            public static final String RACK1 = ServerTestUtils.RACK1;
-
-            @Override
-            public String getRack(InetAddressAndPort endpoint) { return RACK1; }
-
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint) { return "datacenter2"; }
-
-            @Override
-            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
-        });
-
         List<String> twoWarnings = Arrays.asList(format("The keyspace %s has a replication factor of 2, below the warning threshold of %d.", KS, MINIMUM_REPLICATION_FACTOR_WARN_THRESHOLD),
                                                  format("The keyspace %s has a replication factor of 2, below the warning threshold of %d.", KS, MINIMUM_REPLICATION_FACTOR_WARN_THRESHOLD));
 
         InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0.255");
-        Register.register(new NodeAddresses(ep));
+        Register.register(new NodeAddresses(ep), new Location("datacenter2", "rack1"));
         guardrails().setMinimumReplicationFactorThreshold(MINIMUM_REPLICATION_FACTOR_WARN_THRESHOLD, MINIMUM_REPLICATION_FACTOR_FAIL_THRESHOLD);
         assertValid("CREATE KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 4, 'datacenter2' : 4 }");
         execute("DROP KEYSPACE IF EXISTS ks");
@@ -192,7 +174,6 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 4, 'datacenter2' : 1 }", 1);
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 1, 'datacenter2' : 1 }", 1);
 
-        DatabaseDescriptor.setEndpointSnitch(snitch);
         execute("DROP KEYSPACE IF EXISTS ks1");
     }
 

@@ -156,6 +156,8 @@ public class TableMetrics
     public final Gauge<Long> compressionMetadataOffHeapMemoryUsed;
     /** Tombstones scanned in queries on this CF */
     public final TableHistogram tombstoneScannedHistogram;
+    /** Purgeable tombstones scanned in queries on this CF */
+    public final TableHistogram purgeableTombstoneScannedHistogram;
     /** Live rows scanned in queries on this CF */
     public final TableHistogram liveScannedHistogram;
     /** Column update time delta on this CF */
@@ -286,6 +288,9 @@ public class TableMetrics
     public final TableMeter tooManySSTableIndexesReadAborts;
 
     public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
+
+    // Time spent building SSTableIntervalTree when constructing a new View under the Tracker lock
+    public final LatencyMetrics viewSSTableIntervalTree;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -768,6 +773,7 @@ public class TableMetrics
         additionalWriteLatencyNanos = createTableGauge("AdditionalWriteLatencyNanos", () -> MICROSECONDS.toNanos(cfs.additionalWriteLatencyMicros));
 
         tombstoneScannedHistogram = createTableHistogram("TombstoneScannedHistogram", cfs.keyspace.metric.tombstoneScannedHistogram, false);
+        purgeableTombstoneScannedHistogram = createTableHistogram("PurgeableTombstoneScannedHistogram", cfs.keyspace.metric.purgeableTombstoneScannedHistogram, true);
         liveScannedHistogram = createTableHistogram("LiveScannedHistogram", cfs.keyspace.metric.liveScannedHistogram, false);
         colUpdateTimeDeltaHistogram = createTableHistogram("ColUpdateTimeDeltaHistogram", cfs.keyspace.metric.colUpdateTimeDeltaHistogram, false);
         coordinatorReadLatency = createTableTimer("CoordinatorReadLatency");
@@ -857,6 +863,8 @@ public class TableMetrics
 
         tooManySSTableIndexesReadWarnings = createTableMeter("TooManySSTableIndexesReadWarnings", cfs.keyspace.metric.tooManySSTableIndexesReadWarnings);
         tooManySSTableIndexesReadAborts = createTableMeter("TooManySSTableIndexesReadAborts", cfs.keyspace.metric.tooManySSTableIndexesReadAborts);
+
+        viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree", cfs.keyspace.metric.viewSSTableIntervalTree);
 
         formatSpecificGauges = createFormatSpecificGauges(cfs);
     }

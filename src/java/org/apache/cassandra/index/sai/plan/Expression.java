@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Objects;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
@@ -77,7 +79,7 @@ public abstract class Expression
 
     public enum IndexOperator
     {
-        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN;
+        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN, IN;
 
         public static IndexOperator valueOf(Operator operator)
         {
@@ -96,10 +98,14 @@ public abstract class Expression
                 case GT:
                 case LTE:
                 case GTE:
+                case BETWEEN:
                     return RANGE;
 
                 case ANN:
                     return ANN;
+
+                case IN:
+                    return IN;
 
                 default:
                     return null;
@@ -108,7 +114,7 @@ public abstract class Expression
 
         public boolean isEquality()
         {
-            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE;
+            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE || this == IN;
         }
 
         public boolean isEqualityOrRange()
@@ -166,6 +172,7 @@ public abstract class Expression
             case EQ:
             case CONTAINS:
             case CONTAINS_KEY:
+            case IN:
                 lower = new Bound(value, indexTermType, true);
                 upper = lower;
                 operator = IndexOperator.valueOf(op);
@@ -208,11 +215,32 @@ public abstract class Expression
                 else
                     lower = new Bound(value, indexTermType, lowerInclusive);
                 break;
+
+            case BETWEEN:
+                ListType<?> type = ListType.getInstance(indexTermType.columnMetadata().type, false);
+                List<? extends ByteBuffer> buffers = type.unpack(value);
+
+                operator = IndexOperator.RANGE;
+                this.upperInclusive = true;
+                this.lowerInclusive = true;
+
+                Value first = new Value(buffers.get(0), indexTermType);
+                Value second = new Value(buffers.get(1), indexTermType);
+
+                // SimpleRestriction#addToRowFilter() ensures correct bounds ordering, but SAI enforces a non-arbitrary
+                // ordering between IPv4 and IPv6 addresses, so correction may still be necessary.
+                boolean outOfOrder = indexTermType.compare(first.encoded, second.encoded) > 0;
+                lower = new Bound(outOfOrder ? second : first, true);
+                upper = new Bound(outOfOrder ? first : second, true);
+
+                break;
+
             case ANN:
                 operator = IndexOperator.ANN;
                 lower = new Bound(value, indexTermType, true);
                 upper = lower;
                 break;
+
             default:
                 throw new IllegalArgumentException("Index does not support the " + op + " operator");
         }
@@ -251,6 +279,9 @@ public abstract class Expression
                 // in case of EQ lower == upper
                 if (operator == IndexOperator.EQ || operator == IndexOperator.CONTAINS_KEY || operator == IndexOperator.CONTAINS_VALUE)
                     return cmp == 0;
+
+                if (operator == IndexOperator.IN)
+                    return termMatches(value.raw, lower.value.raw);
 
                 if (cmp > 0 || (cmp == 0 && !lowerInclusive))
                     return false;
@@ -311,6 +342,17 @@ public abstract class Expression
                 break;
             case RANGE:
                 isMatch = isLowerSatisfiedBy(term) && isUpperSatisfiedBy(term);
+                break;
+            case IN:
+                ListType<?> type = ListType.getInstance(indexTermType.columnMetadata().type, true);
+                List<? extends ByteBuffer> buffers = type.unpack(requestedValue);
+                for (ByteBuffer value : buffers)
+                {
+                    if (indexTermType.compare(term, value) == 0)
+                    {
+                        return true;
+                    }
+                }
                 break;
         }
         return isMatch;
@@ -487,10 +529,15 @@ public abstract class Expression
         public final Value value;
         public final boolean inclusive;
 
+        public Bound(Value value, boolean inclusive)
+        {
+            this.value = value;
+            this.inclusive = inclusive;
+        }
+
         public Bound(ByteBuffer value, IndexTermType indexTermType, boolean inclusive)
         {
-            this.value = new Value(value, indexTermType);
-            this.inclusive = inclusive;
+            this(new Value(value, indexTermType), inclusive);
         }
 
         @Override

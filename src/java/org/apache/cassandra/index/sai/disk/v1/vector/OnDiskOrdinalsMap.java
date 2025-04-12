@@ -48,7 +48,7 @@ public class OnDiskOrdinalsMap implements AutoCloseable
         {
             reader.seek(segmentOffset);
             int deletedCount = reader.readInt();
-            for (var i = 0; i < deletedCount; i++)
+            for (int i = 0; i < deletedCount; i++)
             {
                 deletedOrdinals.add(reader.readInt());
             }
@@ -93,7 +93,7 @@ public class OnDiskOrdinalsMap implements AutoCloseable
                 throw new RuntimeException(String.format("Error seeking to index offset for ordinal %d with ordToRowOffset %d",
                                                          vectorOrdinal, ordToRowOffset), e);
             }
-            var offset = reader.readLong();
+            long offset = reader.readLong();
             // seek to and read rowIds
             try
             {
@@ -104,9 +104,9 @@ public class OnDiskOrdinalsMap implements AutoCloseable
                 throw new RuntimeException(String.format("Error seeking to rowIds offset for ordinal %d with ordToRowOffset %d",
                                                          vectorOrdinal, ordToRowOffset), e);
             }
-            var postingsSize = reader.readInt();
-            var rowIds = new int[postingsSize];
-            for (var i = 0; i < rowIds.length; i++)
+            int postingsSize = reader.readInt();
+            int[] rowIds = new int[postingsSize];
+            for (int i = 0; i < rowIds.length; i++)
             {
                 rowIds[i] = reader.readInt();
             }

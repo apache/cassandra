@@ -24,6 +24,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.MD5Digest;
 
@@ -41,13 +42,14 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
         return queryProcessor.parse(query, state, options);
     }
 
+    @Override
     public ResultMessage process(CQLStatement statement,
                                  QueryState state,
                                  QueryOptions options,
                                  Map<String, ByteBuffer> customPayload,
-                                 long queryStartNanoTime)
+                                 Dispatcher.RequestTime requestTime)
     {
-        ResultMessage result = queryProcessor.process(statement, state, options, customPayload, queryStartNanoTime);
+        ResultMessage result = queryProcessor.process(statement, state, options, customPayload, requestTime);
         result.setCustomPayload(customPayload);
         return result;
     }
@@ -64,24 +66,26 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
         return queryProcessor.getPrepared(id);
     }
 
+    @Override
     public ResultMessage processPrepared(CQLStatement statement,
                                          QueryState state,
                                          QueryOptions options,
                                          Map<String, ByteBuffer> customPayload,
-                                         long queryStartNanoTime)
+                                         Dispatcher.RequestTime requestTime)
     {
-        ResultMessage result = queryProcessor.processPrepared(statement, state, options, customPayload, queryStartNanoTime);
+        ResultMessage result = queryProcessor.processPrepared(statement, state, options, customPayload, requestTime);
         result.setCustomPayload(customPayload);
         return result;
     }
 
+    @Override
     public ResultMessage processBatch(BatchStatement statement,
                                       QueryState state,
                                       BatchQueryOptions options,
                                       Map<String, ByteBuffer> customPayload,
-                                      long queryStartNanoTime)
+                                      Dispatcher.RequestTime requestTime)
     {
-        ResultMessage result = queryProcessor.processBatch(statement, state, options, customPayload, queryStartNanoTime);
+        ResultMessage result = queryProcessor.processBatch(statement, state, options, customPayload, requestTime);
         result.setCustomPayload(customPayload);
         return result;
     }

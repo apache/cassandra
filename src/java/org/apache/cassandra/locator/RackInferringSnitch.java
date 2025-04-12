@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.locator;
 
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
-import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -29,7 +27,9 @@ import org.apache.cassandra.utils.FBUtilities;
  * Local location is derived from (broadcast) ip address and added to ClusterMetadata during node
  * registration. Every member of the cluster is required to do this, hence remote peers' Location
  * can always be retrieved, consistently.
+ * @deprecated See CASSANDRA-19488
  */
+@Deprecated(since = "CEP-21")
 public class RackInferringSnitch extends AbstractNetworkTopologySnitch
 {
     final Location local;
@@ -37,31 +37,25 @@ public class RackInferringSnitch extends AbstractNetworkTopologySnitch
     public RackInferringSnitch()
     {
         InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
-        local = new Location(Integer.toString(localAddress.getAddress().getAddress()[1] & 0xFF, 10),
-                             Integer.toString(localAddress.getAddress().getAddress()[2] & 0xFF, 10));
+        local = inferLocation(localAddress);
     }
 
-    public String getDatacenter(InetAddressAndPort endpoint)
+    public static Location inferLocation(InetAddressAndPort address)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return local.datacenter;
+        return new Location(Integer.toString(address.getAddress().getAddress()[1] & 0xFF, 10),
+                             Integer.toString(address.getAddress().getAddress()[2] & 0xFF, 10));
 
-        ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId nodeId = metadata.directory.peerId(endpoint);
-        if (nodeId == null)
-            return Integer.toString(endpoint.getAddress().getAddress()[1] & 0xFF, 10);
-        return metadata.directory.location(nodeId).datacenter;
     }
 
+    @Override
     public String getRack(InetAddressAndPort endpoint)
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return local.rack;
+        return inferLocation(endpoint).rack;
+    }
 
-        ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId nodeId = metadata.directory.peerId(endpoint);
-        if (nodeId == null)
-            return Integer.toString(endpoint.getAddress().getAddress()[2] & 0xFF, 10);
-        return metadata.directory.location(nodeId).rack;
+    @Override
+    public String getDatacenter(InetAddressAndPort endpoint)
+    {
+        return inferLocation(endpoint).datacenter;
     }
 }

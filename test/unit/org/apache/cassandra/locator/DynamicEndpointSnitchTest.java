@@ -87,8 +87,8 @@ public class DynamicEndpointSnitchTest
         // do this because SS needs to be initialized before DES can work properly.
         DatabaseDescriptor.setDynamicBadnessThreshold(0.1);
         StorageService.instance.unsafeInitialize();
-        SimpleSnitch ss = new SimpleSnitch();
-        DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
+        NodeProximity proximity = new NoOpProximity();
+        DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(proximity, String.valueOf(proximity.hashCode()));
         InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort host1 = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort host2 = InetAddressAndPort.getByName("127.0.0.3");

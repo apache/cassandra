@@ -145,7 +145,7 @@ cqlsh_source_cmd_syntax_rules = r'''
 '''
 
 cqlsh_capture_cmd_syntax_rules = r'''
-<captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral>) | "OFF" )?
+<captureCommand> ::= "CAPTURE" ( switch=( <stringLiteral> | "OFF" ) )?
                    ;
 '''
 

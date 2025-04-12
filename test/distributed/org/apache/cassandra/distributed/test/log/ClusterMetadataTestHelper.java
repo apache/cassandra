@@ -52,7 +52,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -61,6 +60,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -136,7 +136,7 @@ public class ClusterMetadataTestHelper
                                                                                         Commit.Replicator.NO_OP,
                                                                                         true);
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        log.unsafeBootstrapForTesting(FBUtilities.getBroadcastAddressAndPort());
         QueryProcessor.registerStatementInvalidatingListener();
         service.mark();
         return service;
@@ -203,7 +203,7 @@ public class ClusterMetadataTestHelper
         CreateKeyspaceStatement createKeyspaceStatement = new CreateKeyspaceStatement(name, attributes, false);
         try
         {
-            commit(new AlterSchema(createKeyspaceStatement, Schema.instance));
+            commit(new AlterSchema(createKeyspaceStatement));
         }
         catch (Throwable e)
         {
@@ -216,7 +216,7 @@ public class ClusterMetadataTestHelper
         CreateKeyspaceStatement createKeyspaceStatement = (CreateKeyspaceStatement) QueryProcessor.parseStatement(statement).prepare(ClientState.forInternalCalls());
         try
         {
-            commit(new AlterSchema(createKeyspaceStatement, Schema.instance));
+            commit(new AlterSchema(createKeyspaceStatement));
         }
         catch (Throwable e)
         {
@@ -252,7 +252,12 @@ public class ClusterMetadataTestHelper
 
     public static NodeId nodeId(int nodeIdx)
     {
-        return ClusterMetadata.current().directory.peerId(addr(nodeIdx));
+        return nodeId(addr(nodeIdx));
+    }
+
+    public static NodeId nodeId(InetAddressAndPort addr)
+    {
+        return ClusterMetadata.current().directory.peerId(addr);
     }
 
     public static InetAddressAndPort addr(int nodeIdx)
@@ -277,11 +282,19 @@ public class ClusterMetadataTestHelper
         return register(addr(nodeIdx), dc, rack);
     }
 
+    public static NodeId register(InetAddressAndPort endpoint, Location location)
+    {
+        return register(endpoint, location.datacenter, location.rack);
+    }
+
     public static NodeId register(InetAddressAndPort endpoint, String dc, String rack)
     {
         try
         {
-            return commit(new Register(addr(endpoint), new Location(dc, rack), NodeVersion.CURRENT)).directory.peerId(endpoint);
+            NodeId id = commit(new Register(addr(endpoint), new Location(dc, rack), NodeVersion.CURRENT)).directory.peerId(endpoint);
+            if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+                RegistrationStatus.instance.onRegistration();
+            return id;
         }
         catch (Throwable e)
         {
@@ -365,10 +378,15 @@ public class ClusterMetadataTestHelper
 
     public static void leave(int nodeIdx)
     {
+            leave(addr(nodeIdx));
+    }
+
+    public static void leave(InetAddressAndPort endpoint)
+    {
         try
         {
-            NodeId nodeId = ClusterMetadata.current().directory.peerId(InetAddressAndPort.getByName("127.0.0." + nodeIdx));
-            LeaveProcess process = lazyLeave(nodeIdx, false);
+            NodeId nodeId = nodeId(endpoint);
+            LeaveProcess process = lazyLeave(endpoint, false);
             process.prepareLeave()
                    .startLeave()
                    .midLeave()
@@ -779,6 +797,11 @@ public class ClusterMetadataTestHelper
         addEndpoint(endpoint, tokens, "dc1", "rack1");
     }
 
+    public static void addEndpoint(InetAddressAndPort endpoint, Collection<Token> tokens, Location location)
+    {
+        addEndpoint(endpoint, tokens, location.datacenter, location.rack);
+    }
+
     public static void addEndpoint(InetAddressAndPort endpoint, Token t, Location location)
     {
         addEndpoint(endpoint, Collections.singleton(t), location.datacenter, location.rack);
@@ -795,6 +818,8 @@ public class ClusterMetadataTestHelper
         {
             Location l = new Location(dc, rack);
             commit(new Register(addr(endpoint), l, NodeVersion.CURRENT));
+            if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+                RegistrationStatus.instance.onRegistration();
             lazyJoin(endpoint, new HashSet<>(t)).prepareJoin()
                                                 .startJoin()
                                                 .midJoin()
@@ -817,7 +842,7 @@ public class ClusterMetadataTestHelper
 
     public static void reconfigureCms(ReplicationParams replication)
     {
-        ClusterMetadata metadata = ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(replication));
+        ClusterMetadata metadata = ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(replication, Collections.emptySet()));
         while (metadata.inProgressSequences.contains(ReconfigureCMS.SequenceKey.instance))
         {
             AdvanceCMSReconfiguration next = ((ReconfigureCMS) metadata.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance)).next;
@@ -829,7 +854,7 @@ public class ClusterMetadataTestHelper
         try
         {
             SchemaTransformation transformation = (cm) -> cm.schema.getKeyspaces().withAddedOrUpdated(keyspace);
-            commit(new AlterSchema(transformation, Schema.instance));
+            commit(new AlterSchema(transformation));
         }
         catch (Exception e)
         {

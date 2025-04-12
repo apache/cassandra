@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +45,6 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
-import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
@@ -157,39 +155,26 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
         return BigTableKeyReader.create(ifile, rowIndexEntrySerializer);
     }
 
-    /**
-     * Direct I/O SSTableScanner over an iterator of bounds.
-     *
-     * @param boundsIterator the keys to cover
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> boundsIterator)
+    @Override
+    public KeyReader keyReader(PartitionPosition key) throws IOException
     {
-        return BigTableScanner.getScanner(this, boundsIterator);
-    }
+        FileHandle iFile = ifile.sharedCopy();
+        RandomAccessReader reader = iFile.createReader();
+        reader.seek(getIndexScanPosition(key));
+        KeyReader keys = BigTableKeyReader.create(iFile, reader, rowIndexEntrySerializer);
 
-    /**
-     * Direct I/O SSTableScanner over the full sstable.
-     *
-     * @return A Scanner for reading the full SSTable.
-     */
-    public ISSTableScanner getScanner()
-    {
-        return BigTableScanner.getScanner(this);
-    }
+        boolean hasMoreKeys = true;
+        while (hasMoreKeys)
+        {
+            ByteBuffer indexKey = keys.key();
+            DecoratedKey indexDecoratedKey = decorateKey(indexKey);
+            if (indexDecoratedKey.compareTo(key) >= 0)
+                break;
 
-    /**
-     * Direct I/O SSTableScanner over a defined collection of ranges of tokens.
-     *
-     * @param ranges the range of keys to cover
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public ISSTableScanner getScanner(Collection<Range<Token>> ranges)
-    {
-        if (ranges != null)
-            return BigTableScanner.getScanner(this, ranges);
-        else
-            return getScanner();
+            // Advance the iterator and check if more keys are available
+            hasMoreKeys = keys.advance();
+        }
+        return keys;
     }
 
     /**

@@ -21,23 +21,55 @@ package org.apache.cassandra.utils;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
 
+import org.apache.cassandra.config.RetrySpec;
+import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.tcm.Retry;
+
 public interface Backoff
 {
-    /**
-     * @return max attempts allowed, {@code == 0} implies no retries are allowed
-     */
-    int maxAttempts();
-    long computeWaitTime(int retryCount);
+    boolean mayRetry(int attempt);
+    long computeWaitTime(int attempt);
     TimeUnit unit();
+
+    static Backoff fromRetry(Retry retry)
+    {
+        return new Backoff()
+        {
+            @Override
+            public boolean mayRetry(int attempt)
+            {
+                return !retry.reachedMax();
+            }
+
+            @Override
+            public long computeWaitTime(int retryCount)
+            {
+                return retry.computeSleepFor();
+            }
+
+            @Override
+            public TimeUnit unit()
+            {
+                return TimeUnit.MILLISECONDS;
+            }
+        };
+    }
+
+    static Backoff fromConfig(SharedContext ctx, RetrySpec spec)
+    {
+        if (!spec.isEnabled())
+            return Backoff.None.INSTANCE;
+        return new Backoff.ExponentialBackoff(spec.maxAttempts.value, spec.baseSleepTime.toMilliseconds(), spec.maxSleepTime.toMilliseconds(), ctx.random().get()::nextDouble);
+    }
 
     enum None implements Backoff
     {
         INSTANCE;
 
         @Override
-        public int maxAttempts()
+        public boolean mayRetry(int attempt)
         {
-            return 0;
+            return false;
         }
 
         @Override
@@ -68,10 +100,15 @@ public interface Backoff
             this.randomSource = randomSource;
         }
 
-        @Override
         public int maxAttempts()
         {
             return maxAttempts;
+        }
+
+        @Override
+        public boolean mayRetry(int attempt)
+        {
+            return attempt < maxAttempts;
         }
 
         @Override

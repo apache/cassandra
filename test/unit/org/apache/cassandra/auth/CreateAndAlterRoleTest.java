@@ -18,12 +18,20 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mindrot.jbcrypt.BCrypt.gensalt;
 import static org.mindrot.jbcrypt.BCrypt.hashpw;
 
@@ -124,5 +132,36 @@ public class CreateAndAlterRoleTest extends CQLTester
         useUser(user2, plainTextPwd2);
 
         executeNet("SELECT key FROM system.local");
+    }
+
+    @Test
+    public void createAlterRoleIfExists()
+    {
+        useSuperUser();
+
+        executeNet("CREATE ROLE IF NOT EXISTS does_not_exist_yet");
+        assertTrue(getAllRoles().contains("does_not_exist_yet"));
+
+        // execute one more time
+        executeNet("CREATE ROLE IF NOT EXISTS does_not_exist_yet");
+
+        assertThatThrownBy(() -> executeNet("CREATE ROLE does_not_exist_yet"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("does_not_exist_yet already exists");
+
+        // alter non-existing is no-op when "if exists" is specified
+        executeNet("ALTER ROLE IF EXISTS also_does_not_exist_yet WITH LOGIN = true");
+        Set<String> roles = getAllRoles();
+        assertTrue(roles.contains("does_not_exist_yet"));
+        // not created - CASSANDRA-19749
+        assertFalse(roles.contains("also_does_not_exist_yet"));
+    }
+
+    private Set<String> getAllRoles()
+    {
+        ResultSet rows = executeNet("SELECT role FROM system_auth.roles");
+        Set<String> roles = new HashSet<>();
+        rows.forEach(row -> roles.add(row.getString(0)));
+        return roles;
     }
 }

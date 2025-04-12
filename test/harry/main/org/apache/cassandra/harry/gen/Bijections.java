@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.harry.gen;
 
+import java.util.Comparator;
 import java.util.Date;
 import java.util.UUID;
 
@@ -52,7 +53,10 @@ public class Bijections
 
         // TODO: byteSize is great, but you know what's better? Bit size! For example, for `boolean`, we only need a single bit.
         int byteSize();
-
+        default int population()
+        {
+            return byteSize() * Byte.SIZE;
+        }
         /**
          * Compare as if we were comparing the values in question
          */
@@ -77,9 +81,19 @@ public class Bijections
         {
             return false;
         }
+
+        default Comparator<Long> descriptorsComparator()
+        {
+            return Long::compare;
+        }
+
+        default String toString(long pd)
+        {
+            return Long.toString(pd);
+        }
     }
 
-    protected static long minForSize(int size)
+    public static long minForSize(int size)
     {
         long min = 1L << (size * Byte.SIZE - 1);
 
@@ -89,7 +103,7 @@ public class Bijections
         return min;
     }
 
-    protected static long maxForSize(int size)
+    public static long maxForSize(int size)
     {
         long max = Bytes.bytePatternFor(size) >>> 1;
 

@@ -31,7 +31,6 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -51,6 +50,7 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.ByteType;
@@ -85,6 +85,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.db.rows.Cell.NO_DELETION_TIME;
 import static org.apache.cassandra.utils.FBUtilities.camelToSnake;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * This is a virtual table that iteratively builds rows using a data set provided by internal collection.
@@ -255,7 +256,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
         Pattern pattern = Pattern.compile("^[A-Z1-9_]+$");
         // Contains only uppercase letters, numbers and underscores, so it's already snake case.
         if (pattern.matcher(camel).matches())
-            return camel.toLowerCase();
+            return toLowerCaseLocalized(camel);
 
         // Some special cases must be handled manually.
         String modifiedCamel = camel;
@@ -306,7 +307,8 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
     @Override
     public UnfilteredPartitionIterator select(DecoratedKey partitionKey,
                                               ClusteringIndexFilter clusteringFilter,
-                                              ColumnFilter columnFilter)
+                                              ColumnFilter columnFilter,
+                                              RowFilter rowFilter)
     {
         if (!data.iterator().hasNext())
             return EmptyIterators.unfilteredPartition(metadata);
@@ -347,7 +349,7 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
     }
 
     @Override
-    public UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter)
+    public UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter)
     {
         return createPartitionIterator(metadata, new AbstractIterator<>()
         {
@@ -363,14 +365,16 @@ public class CollectionVirtualTableAdapter<R> implements VirtualTable
             private Iterator<? extends UnfilteredRowIterator> buildDataRangeIterator(DataRange dataRange,
                                                                                      ColumnFilter columnFilter)
             {
-                NavigableMap<DecoratedKey, NavigableMap<Clustering<?>, Row>> partitionMap = new ConcurrentSkipListMap<>(DecoratedKey.comparator);
-                StreamSupport.stream(data.spliterator(), true)
-                             .map(row -> makeRow(row, columnFilter))
-                             .filter(cr -> dataRange.keyRange().contains(cr.key.get()))
-                             .forEach(cr -> partitionMap.computeIfAbsent(cr.key.get(),
-                                                                         key -> new TreeMap<>(metadata.comparator))
-                                                        .put(cr.clustering, cr.rowSup.get()));
-
+                NavigableMap<DecoratedKey, NavigableMap<Clustering<?>, Row>> partitionMap = new TreeMap<>(DecoratedKey.comparator);
+                for (R row : data)
+                {
+                    CollectionRow cr = makeRow(row, columnFilter);
+                    if (dataRange.keyRange().contains(cr.key.get()))
+                    {
+                        partitionMap.computeIfAbsent(cr.key.get(),
+                                                     key -> new TreeMap<>(metadata.comparator)).put(cr.clustering, cr.rowSup.get());
+                    }
+                }
                 return partitionMap.entrySet().stream().map(
                     e -> new DataRowUnfilteredIterator(e.getKey(), dataRange.clusteringIndexFilter(e.getKey()), columnFilter,
                                                        e.getValue())).iterator();

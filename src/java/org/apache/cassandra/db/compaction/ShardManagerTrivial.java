@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.IPartitioner;
@@ -54,12 +57,20 @@ public class ShardManagerTrivial implements ShardManager
     }
 
     @Override
-    public double calculateCombinedDensity(Set<? extends SSTableReader> sstables)
+    public double calculateCombinedDensity(Collection<SSTableReader> sstables)
     {
         double totalSize = 0;
         for (SSTableReader sstable : sstables)
             totalSize += sstable.onDiskLength();
         return totalSize;
+    }
+
+    @Override
+    public <T> List<T> splitSSTablesInShards(Collection<SSTableReader> sstables,
+                                             int numShardsForDensity,
+                                             BiFunction<Collection<SSTableReader>, Range<Token>, T> maker)
+    {
+        return List.of(maker.apply(sstables, new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())));
     }
 
     @Override

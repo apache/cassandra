@@ -75,6 +75,8 @@ public class HandshakeTest
     {
         DatabaseDescriptor.daemonInitialization();
         ClusterMetadataTestHelper.setInstanceForTest();
+        ClusterMetadataTestHelper.register(TO_ADDR);
+        ClusterMetadataTestHelper.register(FROM_ADDR);
         CommitLog.instance.start();
     }
 

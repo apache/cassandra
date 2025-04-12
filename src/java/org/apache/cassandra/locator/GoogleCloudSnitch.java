@@ -19,21 +19,14 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 
-import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
-
-import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
-
 /**
  * A snitch that assumes an GCE region is a DC and an GCE availability_zone
  * is a rack. This information is available in the config for the node.
+ * @deprecated See CASSANDRA-19488
  */
+@Deprecated(since = "CEP-21")
 public class GoogleCloudSnitch extends AbstractCloudMetadataServiceSnitch
 {
-    static final String DEFAULT_METADATA_SERVICE_URL = "http://metadata.google.internal";
-    static final String ZONE_NAME_QUERY_URL = "/computeMetadata/v1/instance/zone";
-
     public GoogleCloudSnitch() throws IOException
     {
         this(new SnitchProperties());
@@ -41,14 +34,11 @@ public class GoogleCloudSnitch extends AbstractCloudMetadataServiceSnitch
 
     public GoogleCloudSnitch(SnitchProperties properties) throws IOException
     {
-        this(new DefaultCloudMetadataServiceConnector(properties.putIfAbsent(METADATA_URL_PROPERTY,
-                                                                             DEFAULT_METADATA_SERVICE_URL)));
+        super(new GoogleCloudLocationProvider(properties));
     }
 
     public GoogleCloudSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(connector, SnitchUtils.parseDcAndRack(connector.apiCall(ZONE_NAME_QUERY_URL,
-                                                                      ImmutableMap.of("Metadata-Flavor", "Google")),
-                                                    connector.getProperties().getDcSuffix()));
+        super(new GoogleCloudLocationProvider(connector));
     }
 }

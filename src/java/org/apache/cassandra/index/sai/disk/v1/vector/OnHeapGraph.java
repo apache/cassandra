@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,6 +42,7 @@ import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.graph.NeighborSimilarity;
 import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
+import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.pq.CompressedVectors;
 import io.github.jbellis.jvector.pq.ProductQuantization;
 import io.github.jbellis.jvector.util.Bits;
@@ -132,7 +134,7 @@ public class OnHeapGraph<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var vector = vectorType.composeAsFloat(term);
+        float[] vector = vectorType.composeAsFloat(term);
         if (behavior == InvalidVectorBehavior.IGNORE)
         {
             try
@@ -151,7 +153,7 @@ public class OnHeapGraph<T>
             validateIndexable(vector, similarityFunction);
         }
 
-        var bytesUsed = 0L;
+        long bytesUsed = 0L;
         VectorPostings<T> postings = postingsMap.get(vector);
         // if the vector is already in the graph, all that happens is that the postings list is updated
         // otherwise, we add the vector in this order:
@@ -167,7 +169,7 @@ public class OnHeapGraph<T>
             if (postingsMap.putIfAbsent(vector, postings) == null)
             {
                 // we won the race to add the new entry; assign it an ordinal and add to the other structures
-                var ordinal = nextOrdinal.getAndIncrement();
+                int ordinal = nextOrdinal.getAndIncrement();
                 postings.setOrdinal(ordinal);
                 bytesUsed += RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
                 bytesUsed += (vectorValues instanceof ConcurrentVectorValues)
@@ -242,8 +244,8 @@ public class OnHeapGraph<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var vector = vectorType.composeAsFloat(term);
-        var postings = postingsMap.get(vector);
+        float[] vector = vectorType.composeAsFloat(term);
+        VectorPostings<T> postings = postingsMap.get(vector);
         if (postings == null)
         {
             // it's possible for this to be called against a different memtable than the one
@@ -269,11 +271,11 @@ public class OnHeapGraph<T>
 
         Bits bits = hasDeletions ? BitsUtil.bitsIgnoringDeleted(toAccept, postingsByOrdinal) : toAccept;
         GraphIndex<float[]> graph = builder.getGraph();
-        var searcher = new GraphSearcher.Builder<>(graph.getView()).withConcurrentUpdates().build();
+        GraphSearcher<float[]> searcher = new GraphSearcher.Builder<>(graph.getView()).withConcurrentUpdates().build();
         NeighborSimilarity.ExactScoreFunction scoreFunction = node2 -> vectorCompareFunction(queryVector, node2);
-        var result = searcher.search(scoreFunction, null, limit, bits);
+        SearchResult result = searcher.search(scoreFunction, null, limit, bits);
         Tracing.trace("ANN search visited {} in-memory nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
-        var a = result.getNodes();
+        SearchResult.NodeScore[] a = result.getNodes();
         PriorityQueue<T> keyQueue = new PriorityQueue<>();
         for (int i = 0; i < a.length; i++)
             keyQueue.addAll(keysFromOrdinal(a[i].node));
@@ -305,7 +307,7 @@ public class OnHeapGraph<T>
             long pqPosition = writePQ(pqOutput.asSequentialWriter());
             long pqLength = pqPosition - pqOffset;
 
-            var deletedOrdinals = new HashSet<Integer>();
+            Set<Integer> deletedOrdinals = new HashSet<>();
             postingsMap.values().stream().filter(VectorPostings::isEmpty).forEach(vectorPostings -> deletedOrdinals.add(vectorPostings.getOrdinal()));
             // remove ordinals that don't have corresponding row ids due to partition/range deletion
             for (VectorPostings<T> vectorPostings : postingsMap.values())
@@ -371,7 +373,7 @@ public class OnHeapGraph<T>
                                .mapToObj(i -> pq.encode(vectorValues.vectorValue(i)))
                                .toArray(byte[][]::new);
         }
-        var cv = new CompressedVectors(pq, encoded);
+        CompressedVectors cv = new CompressedVectors(pq, encoded);
         // save
         cv.write(writer);
         return writer.position();

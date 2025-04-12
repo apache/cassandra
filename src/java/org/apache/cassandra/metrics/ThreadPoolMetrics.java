@@ -42,6 +42,7 @@ public class ThreadPoolMetrics
     public static final String CORE_POOL_SIZE = "CorePoolSize";
     public static final String MAX_POOL_SIZE = "MaxPoolSize";
     public static final String MAX_TASKS_QUEUED = "MaxTasksQueued";
+    public static final String OLDEST_TASK_QUEUE_TIME = "OldestTaskQueueTime";
 
     /** Number of active tasks. */
     public final Gauge<Integer> activeTasks;
@@ -66,6 +67,9 @@ public class ThreadPoolMetrics
 
     /** Maximum number of threads before it will start queuing tasks */
     public final Gauge<Integer> maxPoolSize;
+
+    /** For how long the oldest task in the queue was queued */
+    public final Gauge<Long> oldestTaskQueueTime;
 
     /** Maximum number of tasks queued before a task get blocked */
     public final Gauge<Integer> maxTasksQueued;
@@ -93,6 +97,7 @@ public class ThreadPoolMetrics
         corePoolSize = executor::getCorePoolSize;
         maxPoolSize = executor::getMaximumPoolSize;
         maxTasksQueued = executor::getMaxTasksQueued;
+        oldestTaskQueueTime = executor::oldestTaskQueueTime;
     }
 
     public ThreadPoolMetrics register()
@@ -105,6 +110,7 @@ public class ThreadPoolMetrics
         Metrics.register(makeMetricName(path, poolName, CORE_POOL_SIZE), corePoolSize);
         Metrics.register(makeMetricName(path, poolName, MAX_POOL_SIZE), maxPoolSize);
         Metrics.register(makeMetricName(path, poolName, MAX_TASKS_QUEUED), maxTasksQueued);
+        Metrics.register(makeMetricName(path, poolName, OLDEST_TASK_QUEUE_TIME), oldestTaskQueueTime);
         return Metrics.register(this);
     }
 
@@ -118,6 +124,7 @@ public class ThreadPoolMetrics
         Metrics.remove(makeMetricName(path, poolName, CORE_POOL_SIZE));
         Metrics.remove(makeMetricName(path, poolName, MAX_POOL_SIZE));
         Metrics.remove(makeMetricName(path, poolName, MAX_TASKS_QUEUED));
+        Metrics.remove(makeMetricName(path, poolName, OLDEST_TASK_QUEUE_TIME));
         Metrics.remove(this);
     }
 

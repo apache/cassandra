@@ -44,7 +44,7 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
      */
     public enum Option
     {
-        SUPERUSER, PASSWORD, LOGIN, OPTIONS, HASHED_PASSWORD
+        SUPERUSER, PASSWORD, LOGIN, OPTIONS, HASHED_PASSWORD, GENERATED_PASSWORD
     }
 
     /**

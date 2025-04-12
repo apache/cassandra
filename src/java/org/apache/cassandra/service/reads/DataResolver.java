@@ -55,6 +55,7 @@ import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static com.google.common.collect.Iterables.*;
 
@@ -64,14 +65,14 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private final ReadRepair<E, P> readRepair;
     private final boolean trackRepairedStatus;
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime)
     {
-        this(command, replicaPlan, readRepair, queryStartNanoTime, false);
+        this(command, replicaPlan, readRepair, requestTime, false);
     }
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime, boolean trackRepairedStatus)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime, boolean trackRepairedStatus)
     {
-        super(command, replicaPlan, queryStartNanoTime);
+        super(command, replicaPlan, requestTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         this.readRepair = readRepair;
         this.trackRepairedStatus = trackRepairedStatus;
@@ -137,7 +138,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             return false;
 
         Index.QueryPlan queryPlan = command.indexQueryPlan();
-        if (queryPlan == null )
+        if (queryPlan == null)
             return true;
 
         return queryPlan.supportsReplicaFilteringProtection(command.rowFilter());
@@ -208,7 +209,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                             originalResponse,
                                             command,
                                             context.mergedResultCounter,
-                                            queryStartNanoTime,
+                                            requestTime,
                                             enforceStrictLiveness)
                : originalResponse;
     }
@@ -251,7 +252,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         ReplicaFilteringProtection<E> rfp = new ReplicaFilteringProtection<>(replicaPlan().keyspace(),
                                                                              command,
                                                                              replicaPlan().consistencyLevel(),
-                                                                             queryStartNanoTime,
+                                                                             requestTime,
                                                                              replicas,
                                                                              DatabaseDescriptor.getCachedReplicaRowsWarnThreshold(),
                                                                              DatabaseDescriptor.getCachedReplicaRowsFailThreshold());
@@ -274,6 +275,10 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     private  UnaryOperator<PartitionIterator> preCountFilterForReplicaFilteringProtection()
     {
+        // Key columns are immutable and should never need to participate in replica filtering
+        if (!command.rowFilter().hasNonKeyExpression())
+            return results -> results;
+
         return results -> {
             Index.Searcher searcher = command.indexSearcher();
             // in case of "ALLOW FILTERING" without index

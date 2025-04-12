@@ -33,13 +33,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -352,22 +349,25 @@ class PendingRepairManager
         return count;
     }
 
-    synchronized AbstractCompactionTask getNextRepairFinishedTask()
+    synchronized Collection<AbstractCompactionTask> getNextRepairFinishedTasks()
     {
+        List<AbstractCompactionTask> tasks = new ArrayList<>();
         for (TimeUUID sessionID : strategies.keySet())
         {
             if (canCleanup(sessionID))
             {
-                return getRepairFinishedCompactionTask(sessionID);
+                RepairFinishedCompactionTask repairFinishedTask = getRepairFinishedCompactionTask(sessionID);
+                if (repairFinishedTask != null)
+                    tasks.add(repairFinishedTask);
             }
         }
-        return null;
+        return tasks;
     }
 
-    synchronized AbstractCompactionTask getNextBackgroundTask(long gcBefore)
+    synchronized Collection<AbstractCompactionTask> getNextBackgroundTasks(long gcBefore)
     {
         if (strategies.isEmpty())
-            return null;
+            return Collections.emptyList();
 
         Map<TimeUUID, Integer> numTasks = new HashMap<>(strategies.size());
         ArrayList<TimeUUID> sessions = new ArrayList<>(strategies.size());
@@ -382,13 +382,13 @@ class PendingRepairManager
         }
 
         if (sessions.isEmpty())
-            return null;
+            return Collections.emptyList();
 
         // we want the session with the most compactions at the head of the list
         sessions.sort((o1, o2) -> numTasks.get(o2) - numTasks.get(o1));
 
         TimeUUID sessionID = sessions.get(0);
-        return get(sessionID).getNextBackgroundTask(gcBefore);
+        return get(sessionID).getNextBackgroundTasks(gcBefore);
     }
 
     synchronized Collection<AbstractCompactionTask> getMaximalTasks(long gcBefore, boolean splitOutput)
@@ -405,7 +405,7 @@ class PendingRepairManager
             }
             else
             {
-                Collection<AbstractCompactionTask> tasks = entry.getValue().getMaximalTask(gcBefore, splitOutput);
+                Collection<AbstractCompactionTask> tasks = entry.getValue().getMaximalTasks(gcBefore, splitOutput);
                 if (tasks != null)
                     maximalTasks.addAll(tasks);
             }
@@ -536,7 +536,8 @@ class PendingRepairManager
             {
                 if (obsoleteSSTables)
                 {
-                    transaction.finish();
+                    transaction.prepareToCommit();
+                    transaction.commit();
                 }
                 else
                 {
@@ -552,15 +553,9 @@ class PendingRepairManager
             }
         }
 
-        public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        protected int executeInternal(ActiveCompactionsTracker activeCompactions)
+        protected void executeInternal(ActiveCompactionsTracker activeCompactions)
         {
             run();
-            return transaction.originals().size();
         }
     }
 

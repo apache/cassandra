@@ -152,6 +152,12 @@ public class Move extends MultiStepOperation<Epoch>
     }
 
     @Override
+    public boolean finishDuringStartup()
+    {
+        return false;
+    }
+
+    @Override
     public Kind kind()
     {
         return MOVE;
@@ -199,7 +205,7 @@ public class Move extends MultiStepOperation<Epoch>
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    return continuable() ;
+                    return continuable();
                 }
                 break;
             case MID_MOVE:
@@ -251,7 +257,13 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 catch (ExecutionException e)
                 {
+                    StorageService.instance.markMoveFailed();
                     throw new RuntimeException("Unable to move", e);
+                }
+                catch (Exception e)
+                {
+                    StorageService.instance.markMoveFailed();
+                    throw e;
                 }
 
                 try
@@ -265,17 +277,18 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 break;
             case FINISH_MOVE:
+                ClusterMetadata metadata;
                 try
                 {
                     SystemKeyspace.updateLocalTokens(tokens);
-                    ClusterMetadataService.instance().commit(finishMove);
+                    metadata = ClusterMetadataService.instance().commit(finishMove);
                 }
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
-
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with join from " + next));
@@ -354,8 +367,9 @@ public class Move extends MultiStepOperation<Epoch>
                 // if we are not running with strict consistency, try to find other sources for streaming
                 if (needsRelaxedSources.get())
                 {
-                    for (Replica source : DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(),
-                                                                                                   oldOwners.forRange(destination.range()).get()))
+                    for (Replica source : DatabaseDescriptor.getNodeProximity()
+                                                            .sortedByProximity(FBUtilities.getBroadcastAddressAndPort(),
+                                                                               oldOwners.forRange(destination.range()).get()))
                     {
                         if (fd.isAlive(source.endpoint()) && !source.endpoint().equals(destination.endpoint()))
                         {

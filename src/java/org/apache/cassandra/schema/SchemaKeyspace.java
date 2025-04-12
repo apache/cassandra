@@ -27,7 +27,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
-import com.google.common.collect.Maps;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +62,8 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FLUSH
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.schema.SchemaKeyspaceTables.*;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
 
 /**
@@ -360,6 +362,34 @@ public final class SchemaKeyspace
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
             ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED)));
+    }
+
+    /**
+     * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
+     * will be converted into UUID which would act as content-based version of the schema.
+     *
+     * Only used when initializing the CMS
+     */
+    public static UUID calculateSchemaDigest()
+    {
+        Digest digest = Digest.forSchema();
+        for (String table : ALL)
+        {
+            ReadCommand cmd = getReadCommandForTableSchema(table);
+            try (ReadExecutionController executionController = cmd.executionController();
+                 PartitionIterator schema = cmd.executeInternal(executionController))
+            {
+                while (schema.hasNext())
+                {
+                    try (RowIterator partition = schema.next())
+                    {
+                        if (!isSystemKeyspaceSchemaPartition(partition.partitionKey()))
+                            RowIterators.digest(partition, digest);
+                    }
+                }
+            }
+        }
+        return UUID.nameUUIDFromBytes(digest.digest());
     }
 
     /**
@@ -694,9 +724,9 @@ public final class SchemaKeyspace
         builder.update(Columns)
                .row(table.name, column.name.toString())
                .add("column_name_bytes", column.name.bytes)
-               .add("kind", column.kind.toString().toLowerCase())
+               .add("kind", toLowerCaseLocalized(column.kind.toString()))
                .add("position", column.position())
-               .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
+               .add("clustering_order", toLowerCaseLocalized(column.clusteringOrder().toString()))
                .add("type", type.asCQL3Type().toString());
 
         ColumnMask mask = column.getMask();
@@ -758,7 +788,7 @@ public final class SchemaKeyspace
                .row(table.name, column.column.name.toString())
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
                .add("type", column.column.type.asCQL3Type().toString())
-               .add("kind", column.column.kind.toString().toLowerCase());
+               .add("kind", toLowerCaseLocalized(column.column.kind.toString()));
     }
 
     private static void dropDroppedColumnFromSchemaMutation(TableMetadata table, DroppedColumn column, Mutation.SimpleBuilder builder)
@@ -1075,10 +1105,10 @@ public final class SchemaKeyspace
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
 
-        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());
+        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(toUpperCaseLocalized(row.getString("kind")));
 
         int position = row.getInt("position");
-        ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase());
+        ClusteringOrder order = ClusteringOrder.valueOf(toUpperCaseLocalized(row.getString("clustering_order")));
 
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
@@ -1159,7 +1189,7 @@ public final class SchemaKeyspace
          */
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), org.apache.cassandra.schema.Types.none());
         ColumnMetadata.Kind kind = row.has("kind")
-                                 ? ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase())
+                                 ? ColumnMetadata.Kind.valueOf(toUpperCaseLocalized(row.getString("kind")))
                                  : ColumnMetadata.Kind.REGULAR;
         assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
             : "Unexpected dropped column kind: " + kind;

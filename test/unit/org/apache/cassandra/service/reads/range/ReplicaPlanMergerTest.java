@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.reads.range;
 
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -27,15 +28,20 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.membership.Location;
 
 import static org.apache.cassandra.ServerTestUtils.markCMS;
 import static org.apache.cassandra.ServerTestUtils.recreateCMS;
@@ -65,14 +71,18 @@ public class ReplicaPlanMergerTest
     private static Keyspace keyspace;
 
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException
+    public static void defineSchema() throws ConfigurationException, UnknownHostException
     {
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         recreateCMS();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(2));
         keyspace = Keyspace.open(KEYSPACE);
+        // ensure all endpoints used in the tests are located in the same DC
+        Location local = DatabaseDescriptor.getLocator().local();
+        for (int i = 1; i <= 3; i++)
+            ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.0.0." + i), local);
         markCMS();
     }
 

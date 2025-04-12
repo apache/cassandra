@@ -290,7 +290,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     {
         long n = 0;
         for (ISSTableScanner scanner : scanners)
-            n += scanner.getCurrentPosition();
+            n += scanner.getBytesScanned();
         bytesRead = n;
     }
 
@@ -636,6 +636,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private class PaxosPurger extends Transformation<UnfilteredRowIterator>
     {
+
         private final long nowInSec;
         private final long paxosPurgeGraceMicros = DatabaseDescriptor.getPaxosPurgeGrace(MICROSECONDS);
         private final Map<TableId, PaxosRepairHistory.Searcher> tableIdToHistory = new HashMap<>();

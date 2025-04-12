@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.locator;
 
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
@@ -26,7 +27,13 @@ public class SnitchUtils
 {
     private SnitchUtils() {}
 
-    static Pair<String, String> parseDcAndRack(String response, String dcSuffix)
+    public static Location parseLocation(String response, String dcSuffix)
+    {
+        Pair<String, String> pair = parseDcAndRack(response, dcSuffix);
+        return new Location(pair.left, pair.right);
+    }
+
+    public static Pair<String, String> parseDcAndRack(String response, String dcSuffix)
     {
         String[] splits = response.split("/");
         String az = splits[splits.length - 1];

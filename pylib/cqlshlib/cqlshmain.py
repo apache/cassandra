@@ -346,7 +346,6 @@ class Shell(cmd.Cmd):
 
         self.statement = StringIO()
         self.lineno = 1
-        self.in_comment = False
 
         self.prompt = ''
         if stdin is None:
@@ -541,7 +540,7 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
         ksmeta = self.get_keyspace_meta(ksname)
         if tablename not in ksmeta.tables:
-            if ksname == 'system_auth' and tablename in ['roles', 'role_permissions']:
+            if ksname == 'system_auth' and tablename in ['roles', 'role_permissions', 'generated_password']:
                 self.get_fake_auth_table_meta(ksname, tablename)
             else:
                 raise ColumnFamilyNotFound("Column family {} not found".format(tablename))
@@ -564,6 +563,10 @@ class Shell(cmd.Cmd):
             table_meta.columns['role'] = ColumnMetadata(table_meta, 'role', cassandra.cqltypes.UTF8Type)
             table_meta.columns['resource'] = ColumnMetadata(table_meta, 'resource', cassandra.cqltypes.UTF8Type)
             table_meta.columns['permission'] = ColumnMetadata(table_meta, 'permission', cassandra.cqltypes.UTF8Type)
+        elif tablename == 'generated_password':
+            ks_meta = KeyspaceMetadata(ksname, True, None, None)
+            table_meta = TableMetadata(ks_meta, 'generated_password')
+            table_meta.columns['generated_password'] = ColumnMetadata(table_meta, 'generated_password', cassandra.cqltypes.UTF8Type)
         else:
             raise ColumnFamilyNotFound("Column family {} not found".format(tablename))
 
@@ -732,29 +735,11 @@ class Shell(cmd.Cmd):
                     self.reset_statement()
                     print('')
 
-    def strip_comment_blocks(self, statementtext):
-        comment_block_in_literal_string = re.search('["].*[/][*].*[*][/].*["]', statementtext)
-        if not comment_block_in_literal_string:
-            result = re.sub('[/][*].*[*][/]', "", statementtext)
-            if '*/' in result and '/*' not in result and not self.in_comment:
-                raise SyntaxError("Encountered comment block terminator without being in comment block")
-            if '/*' in result:
-                result = re.sub('[/][*].*', "", result)
-                self.in_comment = True
-            if '*/' in result:
-                result = re.sub('.*[*][/]', "", result)
-                self.in_comment = False
-            if self.in_comment and not re.findall('[/][*]|[*][/]', statementtext):
-                result = ''
-            return result
-        return statementtext
-
     def onecmd(self, statementtext):
         """
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
         """
-        statementtext = self.strip_comment_blocks(statementtext)
         try:
             statements, endtoken_escaped = ruleset.cql_split_statements(statementtext)
         except pylexotron.LexingError as e:
@@ -932,6 +917,10 @@ class Shell(cmd.Cmd):
             self.print_result(result, self.get_table_meta('system_auth', 'roles'))
         elif statement.query_string.lower().startswith("list"):
             self.print_result(result, self.get_table_meta('system_auth', 'role_permissions'))
+        elif statement.query_string.lower().startswith("create user") or statement.query_string.lower().startswith("create role"):
+            self.print_result(result, self.get_table_meta('system_auth', 'generated_password'))
+        elif statement.query_string.lower().startswith("alter user") or statement.query_string.lower().startswith("alter role"):
+            self.print_result(result, self.get_table_meta('system_auth', 'generated_password'))
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
@@ -1535,7 +1524,8 @@ class Shell(cmd.Cmd):
         To inspect the current capture configuration, use CAPTURE with no
         arguments.
         """
-        fname = parsed.get_binding('fname')
+        fname = parsed.get_binding('switch')
+
         if fname is None:
             if self.shunted_query_out is not None:
                 print("Currently capturing query output to %r." % (self.query_out.name,))

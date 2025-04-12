@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
@@ -52,7 +53,9 @@ import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
 import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.Tag;
 import org.yaml.snakeyaml.parser.ParserImpl;
+import org.yaml.snakeyaml.representer.Representer;
 import org.yaml.snakeyaml.resolver.Resolver;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
@@ -256,6 +259,24 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         if (shouldCheck)
             propertiesChecker.check();
         return value;
+    }
+
+    public static String toYaml(Object map)
+    {
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setExplicitStart(true);
+        class NoTags extends Representer
+        {
+            public NoTags() {
+                super(options);
+                this.multiRepresenters.put(Enum.class, data -> representScalar(Tag.STR, ((Enum<?>) data).name()));
+            }
+        }
+
+        Yaml yaml = new Yaml(new NoTags(), options);
+
+        return yaml.dump(map);
     }
 
     private static Composer getDefaultComposer(Node node)

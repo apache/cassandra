@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils.btree;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Map;
@@ -138,7 +139,10 @@ public class BTreeMultimap<K, V> implements Multimap<K, V>
     {
         if (k == null)
             return null;
-        return map.get(k);
+        Collection<V> value = map.get(k);
+        if (value == null)
+            return Collections.emptySet();
+        return value;
     }
 
     @Override

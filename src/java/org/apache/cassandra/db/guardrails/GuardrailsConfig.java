@@ -280,6 +280,45 @@ public interface GuardrailsConfig
     DataStorageSpec.LongBytesBound getColumnValueSizeFailThreshold();
 
     /**
+     * @return The threshold to warn when writing ascii column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnAsciiValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing ascii column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnAsciiValueSizeFailThreshold();
+
+    /**
+     * @return The threshold to whan when writing blob column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnBlobValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing column blob values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnBlobValueSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when writing text column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing text column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeFailThreshold();
+
+    /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */
     @Nullable
@@ -290,6 +329,42 @@ public interface GuardrailsConfig
      */
     @Nullable
     DataStorageSpec.LongBytesBound getCollectionSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a map collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionMapSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent map collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionMapSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a set collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionSetSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent set collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionSetSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a list collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionListSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent list collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionListSizeFailThreshold();
 
     /**
      * @return The threshold to warn when encountering more elements in a collection than threshold.
@@ -310,6 +385,18 @@ public interface GuardrailsConfig
      * @return The threshold to fail when creating a UDT with more fields than threshold.
      */
     int getFieldsPerUDTFailThreshold();
+
+    /**
+     * @return Whether new columns can be created with vector type
+     */
+    boolean getVectorTypeEnabled();
+
+    /**
+     * Sets whether new columns can be created with vector type
+     *
+     * @param enabled
+     */
+    void setVectorTypeEnabled(boolean enabled);
 
     /**
      * @return The threshold to warn when creating a vector with more dimensions than threshold.
@@ -540,4 +627,9 @@ public interface GuardrailsConfig
      * @param enabled {@code true} if a query without partition key is enabled or not
      */
     void setNonPartitionRestrictedQueryEnabled(boolean enabled);
+
+    /**
+     * @return configuration for password validation guardrail.
+     */
+    CustomGuardrailConfig getPasswordValidatorConfig();
 }

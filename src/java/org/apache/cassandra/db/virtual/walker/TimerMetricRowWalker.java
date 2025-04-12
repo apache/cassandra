@@ -28,10 +28,21 @@ import org.apache.cassandra.db.virtual.model.TimerMetricRow;
  */
 public class TimerMetricRowWalker implements RowWalker<TimerMetricRow>
 {
+    // Note: max & min are defined as doubles here despite Timer itself exposing them as longs,
+    // via its histogram's snapshot. This is because historically, JMXTimerMBean defined these
+    // fields as doubles and the vtable representation should be consistent with that.
     @Override
     public void visitMeta(MetadataVisitor visitor)
     {
         visitor.accept(Column.Type.PARTITION_KEY, "name", String.class);
+        visitor.accept(Column.Type.REGULAR, "max", Double.TYPE);
+        visitor.accept(Column.Type.REGULAR, "mean", Double.TYPE);
+        visitor.accept(Column.Type.REGULAR, "min", Double.TYPE);
+        visitor.accept(Column.Type.REGULAR, "p75th", Double.TYPE);
+        visitor.accept(Column.Type.REGULAR, "p95th", Double.TYPE);
+        visitor.accept(Column.Type.REGULAR, "p98th", Double.TYPE);
+        visitor.accept(Column.Type.REGULAR, "p999th", Double.TYPE);
+        visitor.accept(Column.Type.REGULAR, "p99th", Double.TYPE);
         visitor.accept(Column.Type.REGULAR, "count", Long.TYPE);
         visitor.accept(Column.Type.REGULAR, "fifteen_minute_rate", Double.TYPE);
         visitor.accept(Column.Type.REGULAR, "five_minute_rate", Double.TYPE);
@@ -44,6 +55,14 @@ public class TimerMetricRowWalker implements RowWalker<TimerMetricRow>
     public void visitRow(TimerMetricRow row, RowMetadataVisitor visitor)
     {
         visitor.accept(Column.Type.PARTITION_KEY, "name", String.class, row::name);
+        visitor.accept(Column.Type.REGULAR, "max", Double.TYPE, row::max);
+        visitor.accept(Column.Type.REGULAR, "mean", Double.TYPE, row::mean);
+        visitor.accept(Column.Type.REGULAR, "min", Double.TYPE, row::min);
+        visitor.accept(Column.Type.REGULAR, "p75th", Double.TYPE, row::p75th);
+        visitor.accept(Column.Type.REGULAR, "p95th", Double.TYPE, row::p95th);
+        visitor.accept(Column.Type.REGULAR, "p98th", Double.TYPE, row::p98th);
+        visitor.accept(Column.Type.REGULAR, "p999th", Double.TYPE, row::p999th);
+        visitor.accept(Column.Type.REGULAR, "p99th", Double.TYPE, row::p99th);
         visitor.accept(Column.Type.REGULAR, "count", Long.TYPE, row::count);
         visitor.accept(Column.Type.REGULAR, "fifteen_minute_rate", Double.TYPE, row::fifteenMinuteRate);
         visitor.accept(Column.Type.REGULAR, "five_minute_rate", Double.TYPE, row::fiveMinuteRate);
@@ -62,7 +81,7 @@ public class TimerMetricRowWalker implements RowWalker<TimerMetricRow>
             case CLUSTERING:
                 return 0;
             case REGULAR:
-                return 6;
+                return 14;
             default:
                 throw new IllegalStateException("Unknown column type: " + type);
         }

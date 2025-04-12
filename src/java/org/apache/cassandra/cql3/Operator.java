@@ -22,19 +22,21 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.RangeSet;
 
 import org.apache.cassandra.cql3.restrictions.ClusteringElements;
+import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -42,6 +44,7 @@ import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 public enum Operator
@@ -57,7 +60,26 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+            // Legacy behavior of LWT conditions
+            if (leftOperand == null || rightOperand == null)
+                return leftOperand == rightOperand;
+
             return type.compareForCQL(leftOperand, rightOperand) == 0;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            // Legacy behavior of LWT conditions
+            if (rightOperand == null)
+                return leftOperand == null;
+
+            List<ByteBuffer> elements = type.unpack(rightOperand);
+
+            if (elements.isEmpty())
+                return leftOperand == null;
+
+            return leftOperand != null && type.compareCQL(leftOperand, elements) == 0;
         }
 
         @Override
@@ -82,7 +104,7 @@ public enum Operator
         }
 
         @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
             return true;
         }
@@ -98,7 +120,15 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return type.compareForCQL(leftOperand, rightOperand) < 0;
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
+            return leftOperand != null && type.compareForCQL(leftOperand, rightOperand) < 0;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            List<ByteBuffer> elements = unpackMultiCellElements(type, rightOperand);
+            return leftOperand != null && type.compareCQL(leftOperand, elements) < 0;
         }
 
         @Override
@@ -127,9 +157,10 @@ public enum Operator
         }
 
         @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
-            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+            // this method is used only in restrictions, not in conditions where different rules apply for now
+            return expression.kind() != ColumnsExpression.Kind.ELEMENT;
         }
     },
     LTE(3)
@@ -143,7 +174,15 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return type.compareForCQL(leftOperand, rightOperand) <= 0;
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
+            return leftOperand != null && type.compareForCQL(leftOperand, rightOperand) <= 0;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            List<ByteBuffer> elements = unpackMultiCellElements(type, rightOperand);
+            return leftOperand != null && type.compareCQL(leftOperand, elements) <= 0;
         }
 
         @Override
@@ -172,10 +211,11 @@ public enum Operator
         }
 
         @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
-            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+            return expression.kind() != ColumnsExpression.Kind.ELEMENT;
         }
+
     },
     GTE(1)
     {
@@ -188,7 +228,15 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return type.compareForCQL(leftOperand, rightOperand) >= 0;
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
+            return leftOperand != null && type.compareForCQL(leftOperand, rightOperand) >= 0;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            List<ByteBuffer> elements = unpackMultiCellElements(type, rightOperand);
+            return leftOperand != null && type.compareCQL(leftOperand, elements) >= 0;
         }
 
         @Override
@@ -217,9 +265,9 @@ public enum Operator
         }
 
         @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
-            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+            return expression.kind() != ColumnsExpression.Kind.ELEMENT;
         }
     },
     GT(2)
@@ -233,7 +281,15 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return type.compareForCQL(leftOperand, rightOperand) > 0;
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
+            return leftOperand != null && type.compareForCQL(leftOperand, rightOperand) > 0;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            List<ByteBuffer> elements = unpackMultiCellElements(type, rightOperand);
+            return leftOperand != null && type.compareCQL(leftOperand, elements) > 0;
         }
 
         @Override
@@ -262,22 +318,40 @@ public enum Operator
         }
 
         @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
-            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+            return expression.kind() != ColumnsExpression.Kind.ELEMENT;
         }
     },
     IN(7)
     {
         @Override
-        public Kind kind() {
+        public Kind kind()
+        {
             return Kind.MULTI_VALUE;
         }
 
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
             ListSerializer<?> serializer = ListType.getInstance(type, false).getSerializer();
-            return serializer.anyMatch(rightOperand, r -> type.compareForCQL(leftOperand, r) == 0);
+
+            if (leftOperand == null)
+                return serializer.anyMatch(rightOperand, Objects::isNull);
+
+            return serializer.anyMatch(rightOperand, r -> r != null && type.compareForCQL(leftOperand, r) == 0);
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
+            ListSerializer<?> serializer = ListType.getInstance(type, false).getSerializer();
+
+            if (leftOperand == null)
+                return serializer.anyMatch(rightOperand, Objects::isNull);
+
+            return serializer.anyMatch(rightOperand, r -> r != null && type.compareCQL(leftOperand, type.unpack(r)) == 0);
         }
 
         @Override
@@ -287,9 +361,9 @@ public enum Operator
         }
 
         @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
-            return kind == ColumnsExpression.Kind.SINGLE_COLUMN || kind == ColumnsExpression.Kind.MULTI_COLUMN;
+            return expression.kind() == ColumnsExpression.Kind.SINGLE_COLUMN || expression.kind() == ColumnsExpression.Kind.MULTI_COLUMN;
         }
     },
     CONTAINS(5)
@@ -297,6 +371,11 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
+
+            if (leftOperand == null)
+                return false;
+
             switch(((CollectionType<?>) type).kind)
             {
                 case LIST:
@@ -313,22 +392,10 @@ public enum Operator
         }
 
         @Override
-        public boolean isSatisfiedBy(CollectionType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
         {
-            for (Cell<?> cell : leftOperand)
-            {
-                if (type.kind == CollectionType.Kind.SET)
-                {
-                    if (type.nameComparator().compare(cell.path().get(0), rightOperand) == 0)
-                        return true;
-                }
-                else
-                {
-                    if (type.valueComparator().compare(cell.buffer(), rightOperand) == 0)
-                        return true;
-                }
-            }
-            return false;
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
+            return leftOperand != null && ((CollectionType<?>) type).contains(leftOperand, rightOperand);
         }
 
         @Override
@@ -342,6 +409,12 @@ public enum Operator
         {
             return true;
         }
+
+        @Override
+        public Operator negate()
+        {
+            return NOT_CONTAINS;
+        }
     },
     CONTAINS_KEY(6)
     {
@@ -354,14 +427,16 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
             MapType<?, ?> mapType = (MapType<?, ?>) type;
-            return mapType.compose(leftOperand).containsKey(mapType.getKeysType().compose(rightOperand));
+            return leftOperand != null && mapType.compose(leftOperand).containsKey(mapType.getKeysType().compose(rightOperand));
         }
 
         @Override
-        public boolean isSatisfiedBy(CollectionType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
         {
-            return leftOperand.getCell(CellPath.create(rightOperand)) != null;
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", this);
+            return leftOperand != null && leftOperand.getCell(CellPath.create(rightOperand)) != null;
         }
 
         @Override
@@ -375,6 +450,12 @@ public enum Operator
         {
             return true;
         }
+
+        @Override
+        public Operator negate()
+        {
+            return NOT_CONTAINS_KEY;
+        }
     },
     NEQ(8)
     {
@@ -387,13 +468,41 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
+            // Legacy behavior of LWT conditions
+            if (leftOperand == null || rightOperand == null)
+            {
+                return leftOperand != rightOperand;
+            }
+
             return type.compareForCQL(leftOperand, rightOperand) != 0;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            // Legacy behavior of LWT conditions
+            if (rightOperand == null)
+                return leftOperand != null;
+
+            List<ByteBuffer> elements = type.unpack(rightOperand);
+
+            if (elements.isEmpty())
+                return leftOperand != null;
+
+            return leftOperand == null || type.compareCQL(leftOperand, elements) != 0;
+        }
+
+        @Override
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        {
+            assert args.size() == 1;
+            rangeSet.remove(ClusteringElements.notEqualTo(args.get(0)));
         }
 
         @Override
         public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
         {
-            return !columnKind.isPrimaryKeyKind();
+            return columnKind != ColumnMetadata.Kind.CLUSTERING;
         }
 
         @Override
@@ -403,9 +512,21 @@ public enum Operator
         }
 
         @Override
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
+        {
+            return true;
+        }
+
+        @Override
         protected boolean isSupportedByReadPath()
         {
             return false;
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
         }
     },
     IS_NOT(9)
@@ -439,7 +560,8 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return ByteBufferUtil.startsWith(leftOperand, rightOperand);
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", LIKE);
+            return leftOperand != null && ByteBufferUtil.startsWith(leftOperand, rightOperand);
         }
     },
     LIKE_SUFFIX(11)
@@ -453,7 +575,8 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return ByteBufferUtil.endsWith(leftOperand, rightOperand);
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", LIKE);
+            return leftOperand != null && ByteBufferUtil.endsWith(leftOperand, rightOperand);
         }
     },
     LIKE_CONTAINS(12)
@@ -467,7 +590,8 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return ByteBufferUtil.contains(leftOperand, rightOperand);
+            checkTrue(rightOperand != null, "Invalid comparison with null for operator \"%s\"", LIKE);
+            return leftOperand != null && ByteBufferUtil.contains(leftOperand, rightOperand);
         }
     },
     LIKE_MATCHES(13)
@@ -480,7 +604,7 @@ public enum Operator
 
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return ByteBufferUtil.contains(leftOperand, rightOperand);
+            return leftOperand != null && ByteBufferUtil.contains(leftOperand, rightOperand);
         }
     },
     LIKE(14)
@@ -514,12 +638,143 @@ public enum Operator
             return true;
         }
     },
-    BETWEEN(16)
+    NOT_IN(16)
     {
-        final Comparator<ClusteringElements> comparator = new ClusteringElements.ClusteringElementsComparator(true);
+        @Override
+        public Kind kind()
+        {
+            return Kind.MULTI_VALUE;
+        }
 
         @Override
-        public Kind kind() {
+        public String toString()
+        {
+            return "NOT IN";
+        }
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return !IN.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            return !IN.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
+        {
+            return columnKind != ColumnMetadata.Kind.CLUSTERING;
+        }
+
+        @Override
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        {
+            for (ClusteringElements clustering : args)
+                rangeSet.remove(ClusteringElements.notEqualTo(clustering));
+        }
+
+        @Override
+        public Operator negate()
+        {
+            return IN;
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
+        {
+            return expression.kind() == ColumnsExpression.Kind.SINGLE_COLUMN || expression.kind() == ColumnsExpression.Kind.MULTI_COLUMN;
+        }
+    },
+    NOT_CONTAINS(17)
+    {
+        @Override
+        public String toString()
+        {
+            return "NOT CONTAINS";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return !CONTAINS.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            return !CONTAINS.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean appliesToColumnValues()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean appliesToCollectionElements()
+        {
+            return true;
+        }
+
+        @Override
+        public Operator negate()
+        {
+            return CONTAINS;
+        }
+    },
+    NOT_CONTAINS_KEY(18)
+    {
+        @Override
+        public String toString()
+        {
+            return "NOT CONTAINS KEY";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return !CONTAINS_KEY.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            return !CONTAINS_KEY.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean appliesToColumnValues()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean appliesToMapKeys()
+        {
+            return true;
+        }
+
+        @Override
+        public Operator negate()
+        {
+            return CONTAINS_KEY;
+        }
+    },
+    BETWEEN(19)
+    {
+        @Override
+        public Kind kind()
+        {
             return Kind.TERNARY;
         }
 
@@ -533,8 +788,8 @@ public enum Operator
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             List<ByteBuffer> buffers = ListType.getInstance(type, false).unpack(rightOperand);
-            buffers.sort(type);
-            return type.compareForCQL(leftOperand, buffers.get(1)) <= 0 && type.compareForCQL(leftOperand, buffers.get(0)) >= 0;
+            // We use compare instead of compareForCQL to deal properly with reversed clustering columns
+            return type.compare(leftOperand, buffers.get(0)) >= 0 && type.compare(leftOperand, buffers.get(1)) <= 0;
         }
 
         @Override
@@ -547,7 +802,7 @@ public enum Operator
         public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 2 : this + " accepts exactly two values";
-            args.sort(comparator);
+            args.sort(ClusteringElements.CQL_COMPARATOR);
             rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
             rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1)));
         }
@@ -559,67 +814,9 @@ public enum Operator
         }
 
         @Override
-        public Operator negate()
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
-            return NOT_BETWEEN;
-        }
-
-        @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
-        {
-            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
-        }
-    },
-    NOT_BETWEEN(17)
-    {
-        @Override
-        public Kind kind() {
-            return Kind.TERNARY;
-        }
-
-        @Override
-        public String toString()
-        {
-            return "NOT BETWEEN";
-        }
-
-        @Override
-        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
-        {
-            return !BETWEEN.isSatisfiedBy(type, leftOperand, rightOperand);
-        }
-
-        @Override
-        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
-        {
-            return columnKind != ColumnMetadata.Kind.CLUSTERING;
-        }
-
-        @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
-        {
-            assert args.size() == 2 : this + " accepts exactly two values";
-            RangeSet<ClusteringElements> excludedRanges = ClusteringElements.all();
-            BETWEEN.restrict(excludedRanges, args);
-            rangeSet.removeAll(excludedRanges);
-        }
-
-        @Override
-        public boolean isSlice()
-        {
-            return true;
-        }
-
-        @Override
-        public Operator negate()
-        {
-            return BETWEEN;
-        }
-
-        @Override
-        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
-        {
-            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+            return expression.kind() != ColumnsExpression.Kind.ELEMENT;
         }
     };
 
@@ -703,9 +900,26 @@ public enum Operator
     public abstract boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand);
 
 
-    public boolean isSatisfiedBy(CollectionType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+    public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
     {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Unpack multi-cell elements checking for null value and empty collections
+     *
+     * @param type the {@code MultiElementType}
+     * @param value the value to unpack
+     * @return the multi-cell elements
+     * @throws org.apache.cassandra.exceptions.InvalidRequestException if the value is null or an empty collection
+     */
+    List<ByteBuffer> unpackMultiCellElements(MultiElementType<?> type, ByteBuffer value)
+    {
+        checkTrue(value != null, "Invalid comparison with null for operator \"%s\"", this);
+        List<ByteBuffer> elements = type.unpack(value);
+        if (type.isCollection() && elements.isEmpty())
+            throw  invalidRequest("Invalid comparison with an empty %s for operator \"%s\"", ((CollectionType<?>) type).kind, this);
+        return elements;
     }
 
     public static int serializedSize()
@@ -715,7 +929,8 @@ public enum Operator
 
     public void validateFor(ColumnsExpression expression)
     {
-        if (!canBeUsedWith(expression.kind()))
+        // this method is used only in restrictions, not in conditions where different rules apply for now
+        if (!isSupportedByRestrictionsOn(expression))
             throw invalidRequest("%s cannot be used with %s relations", this, expression);
 
         switch (expression.kind())
@@ -723,7 +938,7 @@ public enum Operator
             case SINGLE_COLUMN:
                 ColumnMetadata firstColumn = expression.firstColumn();
                 AbstractType<?> columnType = firstColumn.type;
-                if (isSlice())
+                if (isSlice() && this != Operator.NEQ)
                 {
                     if (columnType.referencesDuration())
                     {
@@ -739,7 +954,8 @@ public enum Operator
                     checkFalse(appliesToCollectionElements() && !columnType.isCollection(), "Cannot use %s on non-collection column %s", this, firstColumn.name);
                 }
 
-            case MAP_ELEMENT:
+            // intentional fallthrough - missing break statement
+            case ELEMENT:
                 ColumnMetadata column = expression.firstColumn();
                 AbstractType<?> type = column.type;
                 if (type.isMultiCell())
@@ -752,27 +968,27 @@ public enum Operator
 
                     // We don't support relations against entire collections (unless they're frozen), like "numbers = {1, 2, 3}"
                     checkFalse(type.isCollection()
-                                    && !this.appliesToMapKeys()
-                                    && !this.appliesToCollectionElements()
-                                    && expression.kind() != ColumnsExpression.Kind.MAP_ELEMENT,
+                               && !this.appliesToMapKeys()
+                               && !this.appliesToCollectionElements()
+                               && !expression.isCollectionElementExpression(),
                                "Collection column '%s' (%s) cannot be restricted by a '%s' relation",
                                column.name,
                                type.asCQL3Type(),
                                this);
                 }
-                break;
+            break;
         }
     }
 
     /**
-     * Checks if the specified expression kind can be used with this operator.
-     * @param kind the expression kind
-     * @return {@code true} if the specified expression kind can be used with this operator, {@code false} otherwise.
+     * Checks if the specified expression kind can be used with this operator in relation.
+     * @param expression the column expression
+     * @return {@code true} if the specified expression kind can be used with this operator in a relation, {@code false} otherwise.
      */
-    public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+    public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
     {
         // All operators support single columns
-        return kind == ColumnsExpression.Kind.SINGLE_COLUMN;
+        return expression.kind() == ColumnsExpression.Kind.SINGLE_COLUMN;
     }
 
     /**
@@ -898,5 +1114,39 @@ public enum Operator
         return Arrays.stream(values())
                      .filter(o -> o.isSupportedByReadPath() && !o.isLikeVariant() && o.requiresFilteringOrIndexingFor(columnKind))
                      .collect(Collectors.toList());
+    }
+
+    /**
+     * Builds the CQL String representing the operation between the 2 specified operands.
+     *
+     * @param leftOperand the left operand
+     * @param rightOperand the right operand
+     * @return the CQL String representing the operation between the 2 specified operands.
+     */
+    public String buildCQLString(ColumnsExpression leftOperand, Terms rightOperand)
+    {
+        return buildCQLString(leftOperand.toCQLString(), rightOperand, Terms::asList);
+    }
+
+    /**
+     * Builds the CQL String representing the operation between the 2 specified operands.
+     *
+     * @param leftOperand the left operand
+     * @param rightOperand the right operand
+     * @return the CQL String representing the operation between the 2 specified operands.
+     */
+    public String buildCQLString(ColumnsExpression.Raw leftOperand, Terms.Raw rightOperand)
+    {
+        return buildCQLString(leftOperand.toCQLString(), rightOperand, Terms.Raw::asList);
+    }
+
+    private <T> String buildCQLString(String leftOperand, T rightOperand, Function<T, List<?>> asList)
+    {
+        if (isTernary())
+        {
+            List<?> terms = asList.apply(rightOperand);
+            return String.format("%s %s %s AND %s", leftOperand, this, terms.get(0), terms.get(1));
+        }
+        return String.format("%s %s %s", leftOperand, this, rightOperand);
     }
 }

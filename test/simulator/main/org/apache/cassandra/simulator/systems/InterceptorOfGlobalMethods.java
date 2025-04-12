@@ -34,7 +34,6 @@ import org.apache.cassandra.utils.concurrent.BlockingQueues;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Semaphore;
-import org.apache.cassandra.utils.concurrent.Semaphore.Standard;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
@@ -44,6 +43,8 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION, inner = INTERFACES)
 public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, Closeable
 {
+    Semaphore newSemaphore(int count);
+    Semaphore newFairSemaphore(int count);
     WaitQueue newWaitQueue();
     CountDownLatch newCountDownLatch(int count);
     Condition newOneTimeCondition();
@@ -68,6 +69,26 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
     public static class IfInterceptibleThread extends None implements InterceptorOfGlobalMethods
     {
         static LongConsumer threadLocalRandomCheck;
+
+        @Override
+        public Semaphore newSemaphore(int count)
+        {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().newSemaphore(count);
+
+            return Semaphore.newSemaphore(count);
+        }
+
+        @Override
+        public Semaphore newFairSemaphore(int count)
+        {
+            Thread thread = Thread.currentThread();
+            if (thread instanceof InterceptibleThread)
+                return ((InterceptibleThread) thread).interceptorOfGlobalMethods().newFairSemaphore(count);
+
+            return Semaphore.newFairSemaphore(count);
+        }
 
         @Override
         public WaitQueue newWaitQueue()
@@ -370,12 +391,12 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
 
         public static Semaphore newSemaphore(int count)
         {
-            return new Standard(count, false);
+            return methods.newSemaphore(count);
         }
 
         public static Semaphore newFairSemaphore(int count)
         {
-            return new Standard(count, true);
+            return methods.newFairSemaphore(count);
         }
 
         public static Condition newOneTimeCondition()

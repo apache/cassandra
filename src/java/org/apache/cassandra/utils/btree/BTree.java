@@ -68,6 +68,7 @@ public class BTree
     private static final int BRANCH_FACTOR = 1 << BRANCH_SHIFT;
     public static final int MIN_KEYS = BRANCH_FACTOR / 2 - 1;
     public static final int MAX_KEYS = BRANCH_FACTOR - 1;
+    public static final long STOP_SENTINEL_VALUE = Long.MAX_VALUE;
 
     // An empty BTree Leaf - which is the same as an empty BTree
     private static final Object[] EMPTY_LEAF = new Object[1];
@@ -1823,7 +1824,7 @@ public class BTree
 
     private static boolean isStopSentinel(long v)
     {
-        return v == Long.MAX_VALUE;
+        return v == STOP_SENTINEL_VALUE;
     }
 
     private static <V, A> long accumulateLeaf(Object[] btree, BiLongAccumulator<A, V> accumulator, A arg, Comparator<V> comparator, V from, long initialValue)
@@ -1852,7 +1853,7 @@ public class BTree
 
     /**
      * Walk the btree and accumulate a long value using the supplied accumulator function. Iteration will stop if the
-     * accumulator function returns the sentinel values Long.MIN_VALUE or Long.MAX_VALUE
+     * accumulator function returns the sentinel value {@link #STOP_SENTINEL_VALUE}
      * <p>
      * If the optional from argument is not null, iteration will start from that value (or the one after it's insertion
      * point if an exact match isn't found)
@@ -3317,27 +3318,51 @@ public class BTree
         public void close()
         {
             reset();
-            pool.offer(this);
-            pool = null;
+            if (pool != null)
+            {
+                pool.offer(this);
+                pool = null;
+            }
         }
 
         @Override
         void reset()
         {
-            // we clear precisely to leaf().count and branch.count because, in the case of a builder,
-            // if we ever fill the buffer we will consume it entirely for the tree we are building
-            // so the last count should match the number of non-null entries
-            Arrays.fill(leaf().buffer, 0, leaf().count, null);
+            Arrays.fill(leaf().buffer, null);
             leaf().count = 0;
             BranchBuilder branch = leaf().parent;
             while (branch != null && branch.inUse)
             {
-                Arrays.fill(branch.buffer, 0, branch.count, null);
-                Arrays.fill(branch.buffer, MAX_KEYS, MAX_KEYS + 1 + branch.count, null);
+                Arrays.fill(branch.buffer, null);
                 branch.count = 0;
                 branch.inUse = false;
                 branch = branch.parent;
             }
+        }
+
+        public boolean validateEmpty()
+        {
+            LeafOrBranchBuilder cur = leaf();
+            boolean hasOnlyNulls = true;
+            while (hasOnlyNulls && cur != null)
+            {
+                hasOnlyNulls = hasOnlyNulls(cur.buffer) && hasOnlyNulls(cur.savedBuffer) && cur.savedNextKey == null;
+                cur = cur.parent;
+            }
+            return hasOnlyNulls;
+        }
+
+        private static boolean hasOnlyNulls(Object[] buffer)
+        {
+            if (buffer == null)
+                return true;
+
+            for (int i = 0 ; i < buffer.length ; ++i)
+            {
+                if (buffer[i] != null)
+                    return false;
+            }
+            return true;
         }
     }
 

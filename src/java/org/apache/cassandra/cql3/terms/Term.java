@@ -198,6 +198,15 @@ public interface Term
         {
             return this == o || (o instanceof Raw && getText().equals(((Raw) o).getText()));
         }
+
+        /**
+         * Checks if this term is or contains bind markers.
+         * @return {@code true} if this term is or contains bind markers, {@code false} otherwise.
+         */
+        public boolean containsBindMarker()
+        {
+            return false;
+        }
     }
 
     /**

@@ -36,11 +36,15 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.service.ClientState;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthKeyspace.NETWORK_PERMISSIONS;
 import static org.apache.cassandra.auth.AuthTestUtils.auth;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -100,7 +104,7 @@ public class CassandraNetworkAuthorizerTest extends CQLTester
 
     private static String createName()
     {
-        return RandomStringUtils.randomAlphabetic(8).toLowerCase();
+        return toLowerCaseLocalized(RandomStringUtils.randomAlphabetic(8));
     }
 
     private static DCPermissions dcPerms(String username)
@@ -145,6 +149,27 @@ public class CassandraNetworkAuthorizerTest extends CQLTester
         auth("ALTER ROLE %s WITH ACCESS TO ALL DATACENTERS", username);
         Assert.assertEquals(DCPermissions.all(), dcPerms(username));
         assertDcPermRow(username);
+    }
+
+    @Test
+    public void alterAsUser()
+    {
+        String username = createName();
+
+        assertNoDcPermRow(username);
+        auth("CREATE ROLE %s WITH PASSWORD = 'password' AND LOGIN = true AND ACCESS TO DATACENTERS {'dc1'}", username);
+        Assert.assertEquals(DCPermissions.subset("dc1"), dcPerms(username));
+        assertDcPermRow(username, "dc1");
+
+        // try to alter as a user
+        ClientState userState = AuthTestUtils.getClientState(username);
+        Assertions.assertThatThrownBy(() -> auth("ALTER ROLE %s WITH ACCESS TO DATACENTERS {'dc1', 'dc2'}", userState, username))
+        .hasMessage("Only superusers are allowed to alter access to datacenters.")
+        .isInstanceOf(UnauthorizedException.class);
+
+        // nothing changed
+        Assert.assertEquals(DCPermissions.subset("dc1"), dcPerms(username));
+        assertDcPermRow(username, "dc1");
     }
 
     @Test

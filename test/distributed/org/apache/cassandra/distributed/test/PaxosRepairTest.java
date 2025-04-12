@@ -34,7 +34,6 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +48,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -57,6 +57,8 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.SharedContext;
@@ -74,6 +76,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.utils.*;
 
@@ -271,16 +274,49 @@ public class PaxosRepairTest extends TestBaseImpl
         }
     }
 
-    @Ignore
+    @Test
+    public void epochBadDeserializationTest() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.build(3).withConfig(WITH_NETWORK).withoutVNodes().start()))
+        {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk text primary key, v int)");
+            cluster.get(1).runOnInstance(() -> {
+                // just execute transformations to get epoch bumped enough for the bug to occur
+                for (int i = 0; i < 75; i++)
+                    ClusterMetadataService.instance().commit(CustomTransformation.make("x"+i));
+            });
+            // and bump the epoch in the tablemetadata:
+            cluster.schemaChange("ALTER TABLE " + KEYSPACE + '.' + TABLE + " WITH comment='abc'");
+
+            cluster.verbs(PAXOS_COMMIT_REQ).drop();
+            try
+            {
+                cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, v) VALUES ('xyzxyzxyzxyzxyzxyzxyzxyz', 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
+                Assert.fail("expected write timeout");
+            }
+            catch (RuntimeException e)
+            {
+                // exception expected
+            }
+
+            cluster.filters().reset();
+            cluster.get(1).shutdown().get();
+            cluster.get(1).startup();
+        }
+    }
+
+
     @Test
     public void topologyChangePaxosTest() throws Throwable
     {
         // TODO: fails with vnode enabled
-        try (Cluster cluster = Cluster.build(4).withConfig(WITH_NETWORK).withoutVNodes().createWithoutStarting())
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
+                                        .withConfig(WITH_NETWORK)
+                                        .withoutVNodes()
+                                        .start())
         {
-            for (int i=1; i<=3; i++)
-                cluster.get(i).startup();
-
             init(cluster);
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
@@ -300,7 +336,11 @@ public class PaxosRepairTest extends TestBaseImpl
             cluster.filters().reset();
 
             // node 4 starting should repair paxos and inform the other nodes of its gossip state
-            cluster.get(4).startup();
+            IInstanceConfig config = cluster.newInstanceConfig()
+                                            .set("auto_bootstrap", true)
+                                            .set(Constants.KEY_DTEST_FULL_STARTUP, true);
+            IInvokableInstance node4 = cluster.bootstrap(config);
+            node4.startup();
             Assert.assertFalse(hasUncommittedQuorum(cluster, KEYSPACE, TABLE));
         }
     }
@@ -597,7 +637,7 @@ public class PaxosRepairTest extends TestBaseImpl
     {
         ColumnFamilyStore paxos = Keyspace.open(SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.PAXOS);
         FBUtilities.waitOnFuture(paxos.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false, 0));
     }
 
     private static Map<Integer, PaxosRow> getPaxosRows()

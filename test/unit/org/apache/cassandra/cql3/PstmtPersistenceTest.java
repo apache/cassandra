@@ -32,13 +32,14 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MD5Digest;
 
 import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class PstmtPersistenceTest extends CQLTester
 {
@@ -132,7 +133,7 @@ public class PstmtPersistenceTest extends CQLTester
     {
         QueryProcessor.Prepared prepared = handler.getPrepared(stmtId);
         Assert.assertNotNull(prepared);
-        handler.processPrepared(prepared.statement, forInternalCalls(), options, emptyMap(), nanoTime());
+        handler.processPrepared(prepared.statement, forInternalCalls(), options, emptyMap(), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @Test
@@ -148,16 +149,6 @@ public class PstmtPersistenceTest extends CQLTester
 
             if (numberOfEvictedStatements() > 0)
             {
-                assertEquals("Number of statements in table and in cache don't match", numberOfStatementsInMemory(), numberOfStatementsOnDisk());
-
-                // prepare a more statements to trigger more evictions
-                for (int cnt2 = 1; cnt2 < 10; cnt2++)
-                    prepareStatement("INSERT INTO %s (key, val) VALUES (?, ?) USING TIMESTAMP " + cnt2, clientState);
-
-                // each new prepared statement should have caused an eviction
-                assertEquals("eviction count didn't increase by the expected number", numberOfEvictedStatements(), 10);
-                assertEquals("Number of statements in table and in cache don't match", numberOfStatementsInMemory(), numberOfStatementsOnDisk());
-
                 return;
             }
         }

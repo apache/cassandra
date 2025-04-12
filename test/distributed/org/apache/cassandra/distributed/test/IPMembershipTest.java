@@ -34,6 +34,8 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.NoOpProximity;
+import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.tools.ToolRunner;
 import org.assertj.core.api.Assertions;
 
@@ -83,8 +85,9 @@ public class IPMembershipTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
-                                                        // disable DistributedTestSnitch as it tries to query before we setup
-                                                        .set("endpoint_snitch", "org.apache.cassandra.locator.SimpleSnitch"))
+                                                        // disable DistributedTestInitialLocationProvider as it tries to query before we setup
+                                                        .set("node_proximity", NoOpProximity.class.getName())
+                                                        .set("initial_location_provider", SimpleLocationProvider.class.getName()))
                                       .start())
         {
             IInvokableInstance nodeToReplace = cluster.get(3);

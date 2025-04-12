@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.Collection;
 import java.util.Collections;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
@@ -152,8 +153,8 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         LocalSessionAccessor.finalizeUnsafe(repairID);
 
         Assert.assertEquals(2, prm.getSessions().size());
-        Assert.assertNull(prm.getNextBackgroundTask(FBUtilities.nowInSeconds()));
-        AbstractCompactionTask compactionTask = prm.getNextRepairFinishedTask();
+        Assert.assertEquals(0, prm.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
+        AbstractCompactionTask compactionTask = Iterables.getOnlyElement(prm.getNextRepairFinishedTasks());
         try
         {
             Assert.assertNotNull(compactionTask);
@@ -171,7 +172,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
     public void getNextBackgroundTaskNoSessions()
     {
         PendingRepairManager prm = csm.getPendingRepairManagers().get(0);
-        Assert.assertNull(prm.getNextBackgroundTask(FBUtilities.nowInSeconds()));
+        Assert.assertEquals(0, prm.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
     }
 
     /**
@@ -191,7 +192,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         Assert.assertNotNull(prm.get(repairID));
         LocalSessionAccessor.finalizeUnsafe(repairID);
 
-        Assert.assertNull(prm.getNextBackgroundTask(FBUtilities.nowInSeconds()));
+        Assert.assertEquals(0, prm.getNextBackgroundTasks(FBUtilities.nowInSeconds()).size());
 
     }
 
@@ -303,7 +304,7 @@ public class PendingRepairManagerTest extends AbstractPendingRepairTest
         prm.getOrCreate(sstable);
         cfs.truncateBlocking();
         Assert.assertFalse(cfs.getSSTables(SSTableSet.LIVE).iterator().hasNext());
-        Assert.assertNull(cfs.getCompactionStrategyManager().getNextBackgroundTask(0));
+        Assert.assertEquals(0, cfs.getCompactionStrategyManager().getNextBackgroundTasks(0).size());
 
     }
 }

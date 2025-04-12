@@ -345,7 +345,7 @@ public final class StatementRestrictions
             }
             else
             {
-                if (!allowFiltering && requiresAllowFilteringIfNotSpecified())
+                if (!allowFiltering && requiresAllowFilteringIfNotSpecified(table))
                     throw invalidRequest(allowFilteringMessage(state));
             }
 
@@ -356,12 +356,12 @@ public final class StatementRestrictions
             validateSecondaryIndexSelections();
     }
 
-    public boolean requiresAllowFilteringIfNotSpecified()
+    public static boolean requiresAllowFilteringIfNotSpecified(TableMetadata metadata)
     {
-        if (!table.isVirtual())
+        if (!metadata.isVirtual())
             return true;
 
-        VirtualTable tableNullable = VirtualKeyspaceRegistry.instance.getTableNullable(table.id);
+        VirtualTable tableNullable = VirtualKeyspaceRegistry.instance.getTableNullable(metadata.id);
         assert tableNullable != null;
         return !tableNullable.allowFilteringImplicitly();
     }
@@ -568,7 +568,7 @@ public final class StatementRestrictions
             // components must have a EQ. Only the last partition key component can be in IN relation.
             if (partitionKeyRestrictions.needFiltering())
             {
-                if (!allowFiltering && !forView && !hasQueriableIndex && requiresAllowFilteringIfNotSpecified())
+                if (!allowFiltering && !forView && !hasQueriableIndex && requiresAllowFilteringIfNotSpecified(table))
                     throw new InvalidRequestException(allowFilteringMessage(state));
 
                 isKeyRange = true;

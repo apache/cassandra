@@ -56,7 +56,6 @@ import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BATCH_COMMIT_LOG_SYNC_INTERVAL;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
@@ -81,6 +80,7 @@ import static org.apache.cassandra.simulator.debug.Record.record;
 import static org.apache.cassandra.simulator.debug.SelfReconcile.reconcileWithSelf;
 import static org.apache.cassandra.simulator.utils.IntRange.parseRange;
 import static org.apache.cassandra.simulator.utils.LongRange.parseNanosRange;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 @SuppressWarnings({ "ZeroLengthArrayAllocation", "CodeBlock2Expr", "SameParameterValue", "DynamicRegexReplaceableByCompiledPattern", "CallToSystemGC" })
 public class SimulationRunner
@@ -110,7 +110,6 @@ public class SimulationRunner
         for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
             property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Global");
 
-        CASSANDRA_JMX_REMOTE_PORT.setString("");
         RING_DELAY.setInt(0);
         PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS.setLong(NANOSECONDS.toMillis(Long.MAX_VALUE));
         SHUTDOWN_ANNOUNCE_DELAY_IN_MS.setInt(0);
@@ -281,7 +280,7 @@ public class SimulationRunner
             Optional.ofNullable(topologyChanges).ifPresent(topologyChanges -> {
                 builder.topologyChanges(stream(topologyChanges.split(","))
                                         .filter(v -> !v.isEmpty())
-                                        .map(v -> TopologyChange.valueOf(v.toUpperCase()))
+                                        .map(v -> TopologyChange.valueOf(toUpperCaseLocalized(v)))
                                         .toArray(TopologyChange[]::new));
             });
             parseNanosRange(Optional.ofNullable(topologyChangeInterval)).ifPresent(builder::topologyChangeIntervalNanos);
@@ -289,7 +288,7 @@ public class SimulationRunner
             Optional.ofNullable(priority).ifPresent(kinds -> {
                 builder.scheduler(stream(kinds.split(","))
                                   .filter(v -> !v.isEmpty())
-                                  .map(v -> RunnableActionScheduler.Kind.valueOf(v.toUpperCase()))
+                                  .map(v -> RunnableActionScheduler.Kind.valueOf(toUpperCaseLocalized(v)))
                                   .toArray(RunnableActionScheduler.Kind[]::new));
             });
 
@@ -433,13 +432,16 @@ public class SimulationRunner
     }
 
 
-    private static Optional<Long> parseHex(Optional<String> value)
+    public static Optional<Long> parseHex(Optional<String> value)
     {
-        return value.map(s -> {
-            if (s.startsWith("0x"))
-                return Hex.parseLong(s, 2, s.length());
-            throw new IllegalArgumentException("Invalid hex string: " + s);
-        });
+        return value.map(SimulationRunner::parseHex);
+    }
+
+    public static long parseHex(String s)
+    {
+        if (s.startsWith("0x"))
+            return Hex.parseLong(s, 2, s.length());
+        throw new IllegalArgumentException("Invalid hex string: " + s);
     }
 
     private static final Pattern CHANCE_PATTERN = Pattern.compile("(uniform|(?<qlog>qlog(\\((?<quantizations>[0-9]+)\\))?):)?(?<min>0(\\.[0-9]+)?)(..(?<max>0\\.[0-9]+))?", Pattern.CASE_INSENSITIVE);

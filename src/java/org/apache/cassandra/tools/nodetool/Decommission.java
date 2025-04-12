@@ -26,7 +26,6 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "decommission", description = "Decommission the *node I am connecting to*")
 public class Decommission extends NodeToolCmd
 {
-
     @Option(title = "force",
     name = {"-f", "--force"},
     description = "Force decommission of this node even when it reduces the number of replicas to below configured RF")
@@ -54,6 +53,19 @@ public class Decommission extends NodeToolCmd
         } catch (UnsupportedOperationException e)
         {
             throw new IllegalStateException("Unsupported operation: " + e.getMessage(), e);
+        }
+    }
+
+    @Command(name = "abortdecommission", description = "Abort an ongoing, failed decommission")
+    public static class Abort extends NodeToolCmd
+    {
+        @Option(title = "node id", name = "--node")
+        private String nodeId;
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            probe.abortDecommission(nodeId);
         }
     }
 }

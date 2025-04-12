@@ -413,13 +413,13 @@ public abstract class Lists
                     Cell<?> cell = params.addCell(column, CellPath.create(uuid), buffer);
                     dataSize += cell.dataSize();
                 }
-                Guardrails.collectionSize.guard(dataSize, column.name.toString(), false, params.clientState);
+                Guardrails.collectionListSize.guard(dataSize, column.name.toString(), false, params.clientState);
             }
             else
             {
                 Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
                 Cell<?> cell = params.addCell(column, value.get());
-                Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
+                Guardrails.collectionListSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
             }
         }
     }

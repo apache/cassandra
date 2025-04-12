@@ -63,6 +63,7 @@ import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
@@ -78,6 +79,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
@@ -104,9 +106,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          DecoratedKey partitionKey,
                                          ClusteringIndexFilter clusteringIndexFilter,
                                          Index.QueryPlan indexQueryPlan,
-                                         boolean trackWarnings)
+                                         boolean trackWarnings,
+                                         DataRange dataRange)
     {
-        super(serializedAtEpoch, Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings);
+        super(serializedAtEpoch, Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -126,6 +129,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                      Index.QueryPlan indexQueryPlan,
                                                      boolean trackWarnings)
     {
+        DataRange dataRange = new DataRange(new Bounds<>(partitionKey, partitionKey), clusteringIndexFilter);
+
         if (metadata.isVirtual())
         {
             return new VirtualTableSinglePartitionReadCommand(isDigest,
@@ -139,8 +144,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                               partitionKey,
                                                               clusteringIndexFilter,
                                                               indexQueryPlan,
-                                                              trackWarnings);
+                                                              trackWarnings,
+                                                              dataRange);
         }
+
         return new SinglePartitionReadCommand(serializedAtEpoch,
                                               isDigest,
                                               digestVersion,
@@ -153,7 +160,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               partitionKey,
                                               clusteringIndexFilter,
                                               indexQueryPlan,
-                                              trackWarnings);
+                                              trackWarnings,
+                                              dataRange);
     }
 
     /**
@@ -471,12 +479,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
-    public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
+    public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException
     {
         if (clusteringIndexFilter.isEmpty(metadata().comparator))
             return EmptyIterators.partition();
 
-        return StorageProxy.read(Group.one(this), consistency, queryStartNanoTime);
+        return StorageProxy.read(Group.one(this), consistency, requestTime);
     }
 
     protected void recordLatency(TableMetrics metric, long latencyNanos)
@@ -1282,9 +1290,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                    new Group(commands, limits);
         }
 
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException
         {
-            return StorageProxy.read(this, consistency, queryStartNanoTime);
+            return StorageProxy.read(this, consistency, requestTime);
         }
     }
 
@@ -1296,13 +1304,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         @Override
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException
         {
             if (queries.size() == 1)
-                return queries.get(0).execute(consistency, state, queryStartNanoTime);
+                return queries.get(0).execute(consistency, state, requestTime);
 
             return PartitionIterators.concat(queries.stream()
-                                                    .map(q -> q.execute(consistency, state, queryStartNanoTime))
+                                                    .map(q -> q.execute(consistency, state, requestTime))
                                                     .collect(Collectors.toList()));
         }
     }
@@ -1370,13 +1378,15 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                          DecoratedKey partitionKey,
                                                          ClusteringIndexFilter clusteringIndexFilter,
                                                          Index.QueryPlan indexQueryPlan,
-                                                         boolean trackWarnings)
+                                                         boolean trackWarnings,
+                                                         DataRange dataRange)
         {
-            super(metadata.epoch, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings);
+            super(metadata.epoch, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, 
+                  rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings, dataRange);
         }
 
         @Override
-        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, long queryStartNanoTime) throws RequestExecutionException
+        public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException
         {
             return executeInternal(executionController());
         }
@@ -1385,7 +1395,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
         {
             VirtualTable view = VirtualKeyspaceRegistry.instance.getTableNullable(metadata().id);
-            UnfilteredPartitionIterator resultIterator = view.select(partitionKey, clusteringIndexFilter, columnFilter());
+            UnfilteredPartitionIterator resultIterator = view.select(partitionKey, clusteringIndexFilter, columnFilter(), rowFilter());
             return limits().filter(rowFilter().filter(resultIterator, nowInSec()), nowInSec(), selectsFullPartition());
         }
 

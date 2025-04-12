@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,9 +41,16 @@ import org.apache.cassandra.service.paxos.AbstractPaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedPaxosKey;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getCasContentionTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
 import static org.apache.cassandra.service.paxos.cleanup.PaxosCleanupSession.TIMEOUT_NANOS;
 
 public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupResponse>
@@ -58,11 +66,12 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
     private final SharedContext ctx;
     private int count = 0;
     private final long deadline;
+    private final boolean autoRepair;
 
     private final Map<DecoratedKey, AbstractPaxosRepair> inflight = new ConcurrentHashMap<>();
     private final PaxosTableRepairs tableRepairs;
 
-    private PaxosCleanupLocalCoordinator(SharedContext ctx, UUID session, TableId tableId, Collection<Range<Token>> ranges, CloseableIterator<UncommittedPaxosKey> uncommittedIter)
+    private PaxosCleanupLocalCoordinator(SharedContext ctx, UUID session, TableId tableId, Collection<Range<Token>> ranges, CloseableIterator<UncommittedPaxosKey> uncommittedIter, boolean autoRepair)
     {
         this.ctx = ctx;
         this.session = session;
@@ -72,6 +81,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         this.uncommittedIter = uncommittedIter;
         this.tableRepairs = ctx.paxosRepairState().getForTable(tableId);
         this.deadline = TIMEOUT_NANOS + ctx.clock().nanoTime();
+        this.autoRepair = autoRepair;
     }
 
     public synchronized void start()
@@ -82,13 +92,23 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
             return;
         }
 
-        if (!PaxosRepair.validatePeerCompatibility(ctx, table, ranges))
+        ClusterMetadata metadata = ClusterMetadata.current();
+        if (metadata.schema.getKeyspace(table.keyspace) == null)
+        {
+            fail("Unknown keyspace: " + table.keyspace);
+            return;
+        }
+
+        if (!PaxosRepair.validatePeerCompatibility(ctx, metadata, table, ranges))
         {
             fail("Unsupported peer versions for " + tableId + ' ' + ranges.toString());
             return;
         }
 
-        logger.info("Completing uncommitted paxos instances for {} on ranges {} for session {}", table, ranges, session);
+        if (autoRepair)
+            logger.debug("Completing uncommitted paxos instances for {} on ranges {} for session {}", table, ranges, session);
+        else
+            logger.info("Completing uncommitted paxos instances for {} on ranges {} for session {}", table, ranges, session);
 
         scheduleKeyRepairsOrFinish();
     }
@@ -96,13 +116,13 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
     public static PaxosCleanupLocalCoordinator create(SharedContext ctx, PaxosCleanupRequest request)
     {
         CloseableIterator<UncommittedPaxosKey> iterator = PaxosState.uncommittedTracker().uncommittedKeyIterator(request.tableId, request.ranges);
-        return new PaxosCleanupLocalCoordinator(ctx, request.session, request.tableId, request.ranges, iterator);
+        return new PaxosCleanupLocalCoordinator(ctx, request.session, request.tableId, request.ranges, iterator, false);
     }
 
     public static PaxosCleanupLocalCoordinator createForAutoRepair(SharedContext ctx, TableId tableId, Collection<Range<Token>> ranges)
     {
         CloseableIterator<UncommittedPaxosKey> iterator = PaxosState.uncommittedTracker().uncommittedKeyIterator(tableId, ranges);
-        return new PaxosCleanupLocalCoordinator(ctx, INTERNAL_SESSION, tableId, ranges, iterator);
+        return new PaxosCleanupLocalCoordinator(ctx, INTERNAL_SESSION, tableId, ranges, iterator, true);
     }
 
     /**
@@ -121,8 +141,10 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
                 return;
             }
 
+            long txnTimeoutMicros = Math.max(getCasContentionTimeout(MICROSECONDS), getWriteRpcTimeout(MICROSECONDS));
+            boolean waitForCoordinator = DatabaseDescriptor.getPaxosRepairRaceWait();
             while (inflight.size() < parallelism && uncommittedIter.hasNext())
-                repairKey(uncommittedIter.next());
+                repairKey(uncommittedIter.next(), txnTimeoutMicros, waitForCoordinator);
 
         }
 
@@ -130,7 +152,7 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
             finish();
     }
 
-    private boolean repairKey(UncommittedPaxosKey uncommitted)
+    private boolean repairKey(UncommittedPaxosKey uncommitted, long txnTimeoutMicros, boolean waitForCoordinator)
     {
         logger.trace("repairing {}", uncommitted);
         Preconditions.checkState(!inflight.containsKey(uncommitted.getKey()));
@@ -141,6 +163,9 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         if (consistency == null)
             return false;
 
+        if (waitForCoordinator)
+            maybeWaitForOriginalCoordinator(uncommitted, txnTimeoutMicros);
+
         inflight.put(uncommitted.getKey(), tableRepairs.startOrGetOrQueue(uncommitted.getKey(), uncommitted.ballot(), uncommitted.getConsistencyLevel(), table, result -> {
             if (result.wasSuccessful())
                 onKeyFinish(uncommitted.getKey());
@@ -148,6 +173,24 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
                 onKeyFailure(result.toString());
         }));
         return true;
+    }
+
+    /**
+     * Wait to repair things that are still potentially executing at the original coordinator to avoid
+     * causing timeouts. This should only have to happen at most a few times when the repair starts
+     */
+    private static void maybeWaitForOriginalCoordinator(UncommittedPaxosKey uncommitted, long txnTimeoutMicros)
+    {
+        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+        long ballotElapsedMicros = nowMicros - uncommitted.ballot().unixMicros();
+        if (ballotElapsedMicros < 0 && Math.abs(ballotElapsedMicros) > SECONDS.toMicros(1))
+            logger.warn("Encountered ballot that is more than 1 second in the future, is there a clock sync issue? {}", uncommitted.ballot());
+        if (ballotElapsedMicros < txnTimeoutMicros)
+        {
+            long sleepMicros = txnTimeoutMicros - ballotElapsedMicros;
+            logger.info("Paxos auto repair encountered a potentially in progress ballot, sleeping {}us to allow the in flight operation to finish", sleepMicros);
+            Uninterruptibles.sleepUninterruptibly(sleepMicros, MICROSECONDS);
+        }
     }
 
     private synchronized void onKeyFinish(DecoratedKey key)
@@ -182,7 +225,14 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
 
     private void finish()
     {
-        logger.info("Completed {} uncommitted paxos instances for {} on ranges {} for session {}", count, table, ranges, session);
+        if (autoRepair)
+        {
+            if (count > 0)
+                logger.info("Completed {} uncommitted paxos instances for {} for session {}", count, table, session);
+            logger.debug("Completed {} uncommitted paxos instances for {} on ranges {} for session {}", count, table, ranges, session);
+        }
+        else
+            logger.info("Completed {} uncommitted paxos instances for {} on ranges {} for session {}", count, table, ranges, session);
         complete(PaxosCleanupResponse.success(session));
     }
 }

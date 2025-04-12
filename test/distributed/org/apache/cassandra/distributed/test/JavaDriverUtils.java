@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.ProtocolVersion;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -33,6 +34,11 @@ public final class JavaDriverUtils
 {
     private JavaDriverUtils()
     {
+    }
+
+    public static com.datastax.driver.core.Cluster create(ICluster<? extends IInstance> dtest, Consumer<com.datastax.driver.core.Cluster.Builder> overrideBuilder)
+    {
+        return create(dtest, null, overrideBuilder);
     }
 
     public static com.datastax.driver.core.Cluster create(ICluster<? extends IInstance> dtest)
@@ -76,5 +82,27 @@ public final class JavaDriverUtils
         return dtest.stream()
                     .map(ClusterUtils::getNativeInetSocketAddress)
                     .collect(Collectors.toList());
+    }
+
+    public static ConsistencyLevel toDriverCL(org.apache.cassandra.distributed.api.ConsistencyLevel cl)
+    {
+        switch (cl)
+        {
+            case ONE: return ConsistencyLevel.ONE;
+            case TWO: return ConsistencyLevel.TWO;
+            case THREE: return ConsistencyLevel.THREE;
+            case LOCAL_ONE: return ConsistencyLevel.LOCAL_ONE;
+            case LOCAL_QUORUM: return ConsistencyLevel.LOCAL_QUORUM;
+            case SERIAL: return ConsistencyLevel.SERIAL;
+            case LOCAL_SERIAL: return ConsistencyLevel.LOCAL_SERIAL;
+            case QUORUM: return ConsistencyLevel.QUORUM;
+            case EACH_QUORUM: return ConsistencyLevel.EACH_QUORUM;
+            case ANY: return ConsistencyLevel.ANY;
+            case ALL: return ConsistencyLevel.ALL;
+            case NODE_LOCAL:
+                throw new AssertionError("NODE_LOCAL is not supported by driver and should go directly through jvm-dtest api");
+            default:
+                throw new UnsupportedOperationException("Unknown ConsistencyLevel: " + cl);
+        }
     }
 }

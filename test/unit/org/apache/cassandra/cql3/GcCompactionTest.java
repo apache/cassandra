@@ -232,7 +232,7 @@ public class GcCompactionTest extends CQLTester
 
       assertEquals(0, collected.getSSTableLevel()); // garbagecollect should leave the LCS level where it was
 
-      CompactionManager.instance.performMaximal(cfs, false);
+      CompactionManager.instance.performMaximal(cfs);
 
       assertEquals(1, cfs.getLiveSSTables().size());
       SSTableReader compacted = cfs.getLiveSSTables().iterator().next();

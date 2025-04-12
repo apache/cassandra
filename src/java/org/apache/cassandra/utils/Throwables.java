@@ -333,4 +333,11 @@ public final class Throwables
         if (!anyCauseMatches(err, cause::isInstance))
             throw new AssertionError("The exception is not caused by " + cause.getName(), err);
     }
+
+    @VisibleForTesting
+    public static void assertAnyCause(Throwable err, Class<? extends Throwable>... causeClasses)
+    {
+        if (Arrays.stream(causeClasses).noneMatch(c -> anyCauseMatches(err, c::isInstance)))
+            throw new AssertionError("The exception is not caused by any of " + Arrays.toString(causeClasses), err);
+    }
 }

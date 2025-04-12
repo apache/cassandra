@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public enum Stage
 {
@@ -79,7 +80,7 @@ public enum Stage
     private static String normalizeName(String stageName)
     {
         // Handle discrepancy between JMX names and actual pool names
-        String upperStageName = stageName.toUpperCase();
+        String upperStageName = toUpperCaseLocalized(stageName);
         if (upperStageName.endsWith("STAGE"))
         {
             upperStageName = upperStageName.substring(0, stageName.length() - 5);

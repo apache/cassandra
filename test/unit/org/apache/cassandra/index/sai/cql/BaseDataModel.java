@@ -41,6 +41,7 @@ class BaseDataModel
 
     public static final String SIMPLE_SELECT_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ?";
     public static final String RANGE_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s > ? AND %<s < ? LIMIT ?";
+    public static final String BETWEEN_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s BETWEEN ? AND ? LIMIT ?";
     public static final String TWO_CLAUSE_AND_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ?";
     public static final String THREE_CLAUSE_AND_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? AND %s %s ? LIMIT ?";
 
@@ -104,6 +105,7 @@ class BaseDataModel
                     .build();
 
     public static final String STATIC_INT_COLUMN = "entered";
+    public static final String CLUSTERING_COLUMN = "c";
 
     public static final List<Pair<String, String>> STATIC_COLUMNS =
             ImmutableList.<Pair<String, String>>builder().add(Pair.create(STATIC_INT_COLUMN, CQL3Type.Native.INT + " static"))
@@ -458,13 +460,27 @@ class BaseDataModel
 
     static class CompoundKeyDataModel extends BaseDataModel
     {
+        public static int ROWS_PER_PARTITION = 5;
+
         public CompoundKeyDataModel(List<Pair<String, String>> columns, List<String> rows)
         {
             super(columns, rows);
 
-            this.keyColumns = ImmutableList.of(Pair.create("p", "int"), Pair.create("c", "int"));
+            this.keyColumns = ImmutableList.of(Pair.create("p", "int"), Pair.create(CLUSTERING_COLUMN, "int"));
             this.primaryKey = keyColumns.stream().map(pair -> pair.left).collect(Collectors.joining(", "));
-            this.keys = new CompoundPrimaryKeyList(rows.size(), 1);
+            this.keys = new CompoundPrimaryKeyList(rows.size(), ROWS_PER_PARTITION);
+        }
+
+        @Override
+        public void createIndexes(Executor tester) throws Throwable
+        {
+            super.createIndexes(tester);
+
+            String indexNameTemplate = "sai_%s_index_%s";
+            String createIndexTemplate = "CREATE INDEX %s ON %%s (%s) USING 'sai'";
+            String indexName = String.format(indexNameTemplate, CLUSTERING_COLUMN, indexedTable);
+            executeLocalIndexed(tester, String.format(createIndexTemplate, indexName, CLUSTERING_COLUMN));
+            tester.waitForIndexQueryable(KEYSPACE, indexName);
         }
 
         @Override
@@ -493,6 +509,15 @@ class BaseDataModel
             {
                 executeLocal(tester, String.format("DELETE %s FROM %%s WHERE p = %s AND c = 0", NORMAL_COLUMNS.get(i).left, i));
             }
+        }
+    }
+
+    static class ReversedCompoundKeyDataModel extends CompoundKeyDataModel
+    {
+        public ReversedCompoundKeyDataModel(List<Pair<String, String>> columns, List<String> rows)
+        {
+            super(columns, rows);
+            tableOptions = " WITH CLUSTERING ORDER BY (c DESC)";
         }
     }
 

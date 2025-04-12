@@ -17,22 +17,18 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.Collections;
-import java.util.List;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SnapshotCommand;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
+import org.apache.cassandra.service.snapshot.SnapshotType;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 
-import static org.apache.cassandra.net.ParamType.SNAPSHOT_RANGES;
 
 public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
 {
@@ -44,18 +40,23 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         SnapshotCommand command = message.payload;
         if (command.clear_snapshot)
         {
-            StorageService.instance.clearSnapshot(command.snapshot_name, command.keyspace);
+            SnapshotManager.instance.clearSnapshots(command.snapshot_name, command.keyspace);
         }
         else if (DiagnosticSnapshotService.isDiagnosticSnapshotRequest(command))
         {
-            List<Range<Token>> ranges = Collections.emptyList();
-            if (message.header.params().containsKey(SNAPSHOT_RANGES))
-                ranges = (List<Range<Token>>) message.header.params().get(SNAPSHOT_RANGES);
-            DiagnosticSnapshotService.snapshot(command, ranges, message.from());
+            DiagnosticSnapshotService.snapshot(command, message.from());
         }
         else
         {
-            Keyspace.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
+            try
+            {
+                SnapshotOptions options = SnapshotOptions.systemSnapshot(command.snapshot_name, SnapshotType.DIAGNOSTICS, command.keyspace + '.' + command.column_family).build();
+                SnapshotManager.instance.takeSnapshot(options);
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeException(ex);
+            }
         }
 
         logger.debug("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from());

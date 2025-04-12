@@ -24,18 +24,15 @@ import java.util.Collection;
 import java.util.function.Consumer;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.RegularAndStaticColumns;
-
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.CellPath;
@@ -43,7 +40,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -93,16 +89,8 @@ public class ColumnFilterTest
         DatabaseDescriptor.daemonInitialization();
         SchemaLoader.prepareServer();
         DatabaseDescriptor.setSeedProvider(Arrays::asList);
-        DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
         DatabaseDescriptor.setDefaultFailureDetector();
         DatabaseDescriptor.setPartitionerUnsafe(new Murmur3Partitioner());
-    }
-
-    @Before
-    public void before()
-    {
-        Util.setUpgradeFromVersion("4.0");
-        // todo; nothing in this test is actually version dependent anymore
     }
 
     // Select all

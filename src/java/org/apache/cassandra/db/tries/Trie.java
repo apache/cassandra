@@ -133,6 +133,12 @@ public abstract class Trie<T>
      *  (2, i)+  <  (-1, -1)       wi      cursors not equal, advance smaller (2 > -1)
      *  (3, n)+  <  (-1, -1)       win*    cursors not equal, advance smaller (3 > -1)
      *  (-1, -1)    (-1, -1)               both exhasted
+     *
+     * Cursors are created with a direction (forward or reverse), which specifies the order in which a node's children
+     * are iterated (smaller first or larger first). Note that entries returned in reverse direction are in
+     * lexicographic order for the inverted alphabet, which is not the same as being presented in reverse. For example,
+     * a cursor for a trie containing "ab", "abc" and "cba", will visit the nodes in order "cba", "ab", "abc", i.e.
+     * prefixes will still be reported before their descendants.
      */
     protected interface Cursor<T>
     {
@@ -232,7 +238,7 @@ public abstract class Trie<T>
         int skipChildren();
     }
 
-    protected abstract Cursor<T> cursor();
+    protected abstract Cursor<T> cursor(Direction direction);
 
     /**
      * Used by {@link Cursor#advanceMultiple} to feed the transitions taken.
@@ -318,15 +324,24 @@ public abstract class Trie<T>
      */
     public void forEachValue(ValueConsumer<T> consumer)
     {
-        process(consumer);
+        process(consumer, Direction.FORWARD);
     }
+
 
     /**
      * Call the given consumer on all (path, content) pairs with non-null content in the trie in order.
      */
     public void forEachEntry(BiConsumer<ByteComparable, T> consumer)
     {
-        process(new TrieEntriesWalker.WithConsumer<T>(consumer));
+        forEachEntry(Direction.FORWARD, consumer);
+    }
+
+    /**
+     * Call the given consumer on all (path, content) pairs with non-null content in the trie in order.
+     */
+    public void forEachEntry(Direction direction, BiConsumer<ByteComparable, T> consumer)
+    {
+        process(new TrieEntriesWalker.WithConsumer<T>(consumer), direction);
         // Note: we can't do the ValueConsumer trick here, because the implementation requires state and cannot be
         // implemented with default methods alone.
     }
@@ -334,9 +349,9 @@ public abstract class Trie<T>
     /**
      * Process the trie using the given Walker.
      */
-    public <R> R process(Walker<T, R> walker)
+    public <R> R process(Walker<T, R> walker, Direction direction)
     {
-        return process(walker, cursor());
+        return process(walker, cursor(direction));
     }
 
     static <T, R> R process(Walker<T, R> walker, Cursor<T> cursor)
@@ -367,7 +382,7 @@ public abstract class Trie<T>
      */
     public String dump(Function<T, String> contentToString)
     {
-        return process(new TrieDumper<>(contentToString));
+        return process(new TrieDumper<>(contentToString), Direction.FORWARD);
     }
 
     /**
@@ -428,11 +443,27 @@ public abstract class Trie<T>
     }
 
     /**
+     * Returns the ordered entry set of this trie's content as an iterable.
+     */
+    public Iterable<Map.Entry<ByteComparable, T>> entrySet(Direction direction)
+    {
+        return () -> entryIterator(direction);
+    }
+
+    /**
      * Returns the ordered entry set of this trie's content in an iterator.
      */
     public Iterator<Map.Entry<ByteComparable, T>> entryIterator()
     {
-        return new TrieEntriesIterator.AsEntries<>(this);
+        return entryIterator(Direction.FORWARD);
+    }
+
+    /**
+     * Returns the ordered entry set of this trie's content in an iterator.
+     */
+    public Iterator<Map.Entry<ByteComparable, T>> entryIterator(Direction direction)
+    {
+        return new TrieEntriesIterator.AsEntries<>(this, direction);
     }
 
     /**
@@ -580,7 +611,7 @@ public abstract class Trie<T>
 
     private static final Trie<Object> EMPTY = new Trie<Object>()
     {
-        protected Cursor<Object> cursor()
+        protected Cursor<Object> cursor(Direction direction)
         {
             return new Cursor<Object>()
             {

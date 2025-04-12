@@ -17,36 +17,17 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.FileStore;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-
-import org.apache.commons.lang3.StringUtils;
-
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
+import com.google.common.collect.Iterables;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -61,14 +42,20 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.commons.lang3.StringUtils;
 import org.assertj.core.api.Assertions;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.FileStore;
+import java.util.*;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class CompactionsCQLTest extends CQLTester
 {
@@ -491,7 +478,7 @@ public class CompactionsCQLTest extends CQLTester
         }
         assertEquals(50, cfs.getLiveSSTables().size());
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
-        AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
+        AbstractCompactionTask act = Iterables.getOnlyElement(lcs.getNextBackgroundTasks(0), null);
         // we should be compacting all 50 sstables:
         assertEquals(50, act.transaction.originals().size());
         act.execute(ActiveCompactionsTracker.NOOP);
@@ -525,7 +512,7 @@ public class CompactionsCQLTest extends CQLTester
         // mark the L1 sstable as compacting to make sure we trigger STCS in L0:
         LifecycleTransaction txn = cfs.getTracker().tryModify(l1sstable, OperationType.COMPACTION);
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
-        AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
+        AbstractCompactionTask act = Iterables.getOnlyElement(lcs.getNextBackgroundTasks(0), null);
         // note that max_threshold is 60 (more than the amount of L0 sstables), but MAX_COMPACTING_L0 is 32, which means we will trigger STCS with at most max_threshold sstables
         assertEquals(50, act.transaction.originals().size());
         assertEquals(0, ((LeveledCompactionTask)act).getLevel());
@@ -558,7 +545,7 @@ public class CompactionsCQLTest extends CQLTester
         LeveledCompactionTask lcsTask;
         while (true)
         {
-            lcsTask = (LeveledCompactionTask) lcs.getNextBackgroundTask(0);
+            lcsTask = (LeveledCompactionTask) Iterables.getOnlyElement(lcs.getNextBackgroundTasks(0), null);
             if (lcsTask != null)
             {
                 lcsTask.execute(CompactionManager.instance.active);
@@ -595,7 +582,7 @@ public class CompactionsCQLTest extends CQLTester
         // sstables have been removed.
         try
         {
-            AbstractCompactionTask task = new NotifyingCompactionTask((LeveledCompactionTask) lcs.getNextBackgroundTask(0));
+            AbstractCompactionTask task = new NotifyingCompactionTask((LeveledCompactionTask) Iterables.getOnlyElement(lcs.getNextBackgroundTasks(0), null));
             task.execute(CompactionManager.instance.active);
             fail("task should throw exception");
         }
@@ -604,7 +591,7 @@ public class CompactionsCQLTest extends CQLTester
             // ignored
         }
 
-        lcsTask = (LeveledCompactionTask) lcs.getNextBackgroundTask(0);
+        lcsTask = (LeveledCompactionTask) Iterables.getOnlyElement(lcs.getNextBackgroundTasks(0), null);
         try
         {
             assertNotNull(lcsTask);
@@ -626,7 +613,7 @@ public class CompactionsCQLTest extends CQLTester
         @Override
         public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
                                                               Directories directories,
-                                                              LifecycleTransaction txn,
+                                                              ILifecycleTransaction txn,
                                                               Set<SSTableReader> nonExpiredSSTables)
         {
             return new MaxSSTableSizeWriter(cfs, directories, txn, nonExpiredSSTables, 1 << 20, 1)

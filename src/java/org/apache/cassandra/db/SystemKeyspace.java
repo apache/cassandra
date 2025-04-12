@@ -82,7 +82,6 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RebufferingInputStream;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -109,9 +108,13 @@ import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedIndex;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotType;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -120,11 +123,13 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.TriFunction;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -139,10 +144,10 @@ import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
 import static org.apache.cassandra.gms.ApplicationState.STATUS_WITH_PORT;
 import static org.apache.cassandra.gms.ApplicationState.TOKENS;
 import static org.apache.cassandra.service.paxos.Commit.latest;
+import static org.apache.cassandra.service.snapshot.SnapshotOptions.systemSnapshot;
 import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
 import static org.apache.cassandra.utils.CassandraVersion.UNREADABLE_VERSION;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.FBUtilities.now;
 
 public final class SystemKeyspace
 {
@@ -601,6 +606,8 @@ public final class SystemKeyspace
 
     private static volatile Map<TableId, Pair<CommitLogPosition, Long>> truncationRecords;
 
+    private static final Object truncationRecordLock = new Object();
+
     public enum BootstrapState
     {
         NEEDS_BOOTSTRAP,
@@ -648,15 +655,23 @@ public final class SystemKeyspace
                      "listen_address," +
                      "listen_port" +
                      ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+
+        // If this node has not yet been registered in cluster metadata, record the initialization location provided
+        // by the configured Locator, this will also be used when registering an new node in cluster metadata during its
+        // intial startup.
+        // If the node is present in cluster metadata (i.e. has been registered already and we have replayed the
+        // metadata log), then get the location from there (via the Locator).
+        // We do this in case either the Locator config or location in metadata has been modified in any way, as cluster
+        // metadata is the ultimate source of truth.
+        Location location = DatabaseDescriptor.getLocator().local();
         executeOnceInternal(format(req, LOCAL),
                             LOCAL,
                             DatabaseDescriptor.getClusterName(),
                             FBUtilities.getReleaseVersionString(),
                             QueryProcessor.CQL_VERSION.toString(),
                             String.valueOf(ProtocolVersion.CURRENT.asInt()),
-                            snitch.getLocalDatacenter(),
-                            snitch.getLocalRack(),
+                            location.datacenter,
+                            location.rack,
                             DatabaseDescriptor.getPartitioner().getClass().getName(),
                             FBUtilities.getJustBroadcastNativeAddress(),
                             DatabaseDescriptor.getNativeTransportPort(),
@@ -788,27 +803,33 @@ public final class SystemKeyspace
         return status;
     }
 
-    public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
+    public static void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
     {
-        String req = "UPDATE system.%s SET truncated_at = truncated_at + ? WHERE key = '%s'";
-        executeInternal(format(req, LOCAL, LOCAL), truncationAsMapEntry(cfs, truncatedAt, position));
-        truncationRecords = null;
-        forceBlockingFlush(LOCAL);
+        synchronized (truncationRecordLock)
+        {
+            String req = "UPDATE system.%s SET truncated_at = truncated_at + ? WHERE key = '%s'";
+            executeInternal(format(req, LOCAL, LOCAL), truncationAsMapEntry(cfs, truncatedAt, position));
+            truncationRecords = null;
+            forceBlockingFlush(LOCAL);
+        }
     }
 
     /**
      * This method is used to remove information about truncation time for specified column family
      */
-    public static synchronized void removeTruncationRecord(TableId id)
+    public static void removeTruncationRecord(TableId id)
     {
-        Pair<CommitLogPosition, Long> truncationRecord = getTruncationRecord(id);
-        if (truncationRecord == null)
-            return;
+        synchronized (truncationRecordLock)
+        {
+            Pair<CommitLogPosition, Long> truncationRecord = getTruncationRecord(id);
+            if (truncationRecord == null)
+                return;
 
-        String req = "DELETE truncated_at[?] from system.%s WHERE key = '%s'";
-        executeInternal(format(req, LOCAL, LOCAL), id.asUUID());
-        truncationRecords = null;
-        forceBlockingFlush(LOCAL);
+            String req = "DELETE truncated_at[?] from system.%s WHERE key = '%s'";
+            executeInternal(format(req, LOCAL, LOCAL), id.asUUID());
+            truncationRecords = null;
+            forceBlockingFlush(LOCAL);
+        }
     }
 
     private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
@@ -837,11 +858,14 @@ public final class SystemKeyspace
         return record == null ? Long.MIN_VALUE : record.right;
     }
 
-    private static synchronized Pair<CommitLogPosition, Long> getTruncationRecord(TableId id)
+    private static Pair<CommitLogPosition, Long> getTruncationRecord(TableId id)
     {
-        if (truncationRecords == null)
-            truncationRecords = readTruncationRecords();
-        return truncationRecords.get(id);
+        synchronized (truncationRecordLock)
+        {
+            if (truncationRecords == null)
+                truncationRecords = readTruncationRecords();
+            return truncationRecords.get(id);
+        }
     }
 
     private static Map<TableId, Pair<CommitLogPosition, Long>> readTruncationRecords()
@@ -943,6 +967,19 @@ public final class SystemKeyspace
     {
         String req = "INSERT INTO system.%s (key, schema_version) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), version);
+    }
+
+    public static synchronized void updateRack(String rack)
+    {
+        String req = "INSERT INTO system.%s (key, rack) VALUES ('%s', ?)";
+        executeInternal(format(req, LOCAL, LOCAL), rack);
+    }
+
+    public static synchronized void updateLocation(Location location)
+    {
+        String req = "INSERT INTO system.%s (key, data_center, rack) VALUES ('%s', ?, ?)";
+        executeInternal(format(req, LOCAL, LOCAL), location.datacenter, location.rack);
+        forceBlockingFlush(LOCAL);
     }
 
     public static Set<String> tokensAsSet(Collection<Token> tokens)
@@ -1362,6 +1399,8 @@ public final class SystemKeyspace
 
     /**
      * Load the current paxos state for the table and key
+     *
+     * NOTE: nowInSec is typically provided as zero, and should not be assumed to be definitive, as the cache may apply different nowInSec filters
      */
     public static PaxosState.Snapshot loadPaxosState(DecoratedKey partitionKey, TableMetadata metadata, long nowInSec)
     {
@@ -1373,14 +1412,38 @@ public final class SystemKeyspace
             return new PaxosState.Snapshot(Ballot.none(), Ballot.none(), null, noneCommitted);
         }
 
+        long purgeBefore = 0;
+        long overrideTtlSeconds = 0;
+        switch (paxosStatePurging())
+        {
+            default: throw new AssertionError();
+            case legacy:
+            case gc_grace:
+                overrideTtlSeconds = metadata.params.gcGraceSeconds;
+                if (nowInSec > 0)
+                    purgeBefore = TimeUnit.SECONDS.toMicros(nowInSec - overrideTtlSeconds);
+                break;
+
+            case repaired:
+                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
+                if (cfs != null)
+                {
+                    long paxosPurgeGraceMicros = DatabaseDescriptor.getPaxosPurgeGrace(MICROSECONDS);
+                    purgeBefore = cfs.getPaxosRepairLowBound(partitionKey).uuidTimestamp() - paxosPurgeGraceMicros;
+                }
+        }
+
+
         Row row = results.get(0);
 
         Ballot promisedWrite = PaxosRows.getWritePromise(row);
+        if (promisedWrite.uuidTimestamp() < purgeBefore) promisedWrite = Ballot.none();
         Ballot promised = latest(promisedWrite, PaxosRows.getPromise(row));
+        if (promised.uuidTimestamp() < purgeBefore) promised = Ballot.none();
 
         // either we have both a recently accepted ballot and update or we have neither
-        Accepted accepted = PaxosRows.getAccepted(row);
-        Committed committed = PaxosRows.getCommitted(metadata, partitionKey, row);
+        Accepted accepted = PaxosRows.getAccepted(row, purgeBefore, overrideTtlSeconds);
+        Committed committed = PaxosRows.getCommitted(metadata, partitionKey, row, purgeBefore, overrideTtlSeconds);
         // fix a race with TTL/deletion resolution, where TTL expires after equal deletion is inserted; TTL wins the resolution, and is read using an old ballot's nowInSec
         if (accepted != null && !accepted.isAfter(committed))
             accepted = null;
@@ -1522,16 +1585,16 @@ public final class SystemKeyspace
     public static PaxosRepairHistory loadPaxosRepairHistory(String keyspace, String table)
     {
         if (SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspace))
-            return PaxosRepairHistory.EMPTY;
+            return PaxosRepairHistory.empty(keyspace, table);
 
         UntypedResultSet results = executeInternal(String.format("SELECT * FROM system.%s WHERE keyspace_name=? AND table_name=?", PAXOS_REPAIR_HISTORY), keyspace, table);
         if (results.isEmpty())
-            return PaxosRepairHistory.EMPTY;
+            return PaxosRepairHistory.empty(keyspace, table);
 
         UntypedResultSet.Row row = Iterables.getOnlyElement(results);
         List<ByteBuffer> points = row.getList("points", BytesType.instance);
 
-        return PaxosRepairHistory.fromTupleBufferList(points);
+        return PaxosRepairHistory.fromTupleBufferList(keyspace, table, points);
     }
 
     /**
@@ -1780,10 +1843,8 @@ public final class SystemKeyspace
      * Compare the release version in the system.local table with the one included in the distro.
      * If they don't match, snapshot all tables in the system and schema keyspaces. This is intended
      * to be called at startup to create a backup of the system tables during an upgrade
-     *
-     * @throws IOException
      */
-    public static void snapshotOnVersionChange() throws IOException
+    public static void snapshotOnVersionChange()
     {
         String previous = getPreviousVersionString();
         String next = FBUtilities.getReleaseVersionString();
@@ -1792,16 +1853,18 @@ public final class SystemKeyspace
 
         // if we're restarting after an upgrade, snapshot the system and schema keyspaces
         if (!previous.equals(NULL_VERSION.toString()) && !previous.equals(next))
-
         {
-            logger.info("Detected version upgrade from {} to {}, snapshotting system keyspaces", previous, next);
-            String snapshotName = Keyspace.getTimestampedSnapshotName(format("upgrade-%s-%s",
-                                                                             previous,
-                                                                             next));
-
-            Instant creationTime = now();
+            List<String> entities = new ArrayList<>();
             for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
-                Keyspace.open(keyspace).snapshot(snapshotName, null, false, null, null, creationTime);
+            {
+                for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
+                    entities.add(cfs.getKeyspaceTableName());
+            }
+
+            logger.info("Detected version upgrade from {} to {}, snapshotting system keyspaces", previous, next);
+
+            SnapshotOptions options = systemSnapshot(format("%s-%s", previous, next), SnapshotType.UPGRADE, entities.toArray(new String[0])).build();
+            SnapshotManager.instance.takeSnapshot(options);
         }
     }
 
@@ -1911,8 +1974,8 @@ public final class SystemKeyspace
         int counter = 0;
         for (UntypedResultSet.Row row : resultSet)
         {
-            if (onLoaded.accept(MD5Digest.wrap(row.getByteArray("prepared_id")),
-                                row.getString("query_string"),
+            if (onLoaded.apply(MD5Digest.wrap(row.getByteArray("prepared_id")),
+                               row.getString("query_string"),
                                 row.has("logged_keyspace") ? row.getString("logged_keyspace") : null))
                 counter++;
         }
@@ -1926,16 +1989,12 @@ public final class SystemKeyspace
         int counter = 0;
         for (UntypedResultSet.Row row : resultSet)
         {
-            if (onLoaded.accept(MD5Digest.wrap(row.getByteArray("prepared_id")),
-                                row.getString("query_string"),
+            if (onLoaded.apply(MD5Digest.wrap(row.getByteArray("prepared_id")),
+                               row.getString("query_string"),
                                 row.has("logged_keyspace") ? row.getString("logged_keyspace") : null))
                 counter++;
         }
         return counter;
-    }
-
-    public static interface TriFunction<A, B, C, D> {
-        D accept(A var1, B var2, C var3);
     }
 
     public static void saveTopPartitions(TableMetadata metadata, String topType, Collection<TopPartitionTracker.TopPartition> topPartitions, long lastUpdate)

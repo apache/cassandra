@@ -112,7 +112,11 @@ public class TableStatsTest extends CQLTester
                         "            read_latency, reads, space_used_by_snapshots_total, space_used_live,\n" + 
                         "            space_used_total, sstable_compression_ratio, sstable_count,\n" + 
                         "            table_name, write_latency, writes, max_sstable_size,\n" +
-                        "            local_read_write_ratio, twcs_max_duration)\n" +
+                        "            local_read_write_ratio, twcs_max_duration,\n" +
+                        "            sai_local_query_latency_ms, sai_post_filtering_read_latency,\n" +
+                        "            sai_disk_used_bytes, sai_sstable_indexes_hit, sai_index_segments_hit\n" +
+                        "            sai_rows_filtered, sai_total_query_timeouts,\n" +
+                        "            sai_total_queryable_index_ratio)\n" +
                         "\n" + 
                         "        -t <top>, --top <top>\n" + 
                         "            Show only the top K tables for the sort key (specify the number K of\n" + 

@@ -86,23 +86,6 @@ public class AssureSufficientLiveNodesTest
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ServerTestUtils.prepareServerNoRegister();
         // Register peers with expected DC for NetworkTopologyStrategy.
-
-        // TODO shouldn't require the snitch setup
-        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
-        {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.addressBytes;
-                return "rake" + address[1];
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.addressBytes;
-                return "datacenter" + address[1];
-            }
-        });
-
         List<InetAddressAndPort> instances = ImmutableList.of(
             // datacenter 1
             InetAddressAndPort.getByName("127.1.0.255"), InetAddressAndPort.getByName("127.1.0.254"), InetAddressAndPort.getByName("127.1.0.253"),
@@ -118,6 +101,10 @@ public class AssureSufficientLiveNodesTest
             String rack = "rake" + ip.addressBytes[1];
             ClusterMetadataTestHelper.addEndpoint(ip, new Murmur3Partitioner.LongToken(i), dc, rack);
         }
+        // Need to register the local endpoint as ReplicaLayout::for(Range|Token)ReadLiveSorted sorts replicas by proximity to
+        // the local node. We use constants from SimpleSnitch to preserve previous test behaviour
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        ClusterMetadataTestHelper.register(local, SimpleLocationProvider.LOCATION);
     }
 
     @Test
@@ -268,13 +255,13 @@ public class AssureSufficientLiveNodesTest
             for (int i = 0; i < loopCount; i++)
             {
                 // reset the keyspace
-//                racedKs.setMetadata(initKsMeta);
+                SchemaTestUtil.addOrUpdateKeyspace(initKsMeta);
                 CountDownLatch trigger = new CountDownLatch(1);
                 // starts 2 runnables that could race
                 Future<?> f1 = es.submit(() -> {
                     Uninterruptibles.awaitUninterruptibly(trigger);
                     // Update replication strategy
-//                    racedKs.setMetadata(alterToKsMeta);
+                    SchemaTestUtil.addOrUpdateKeyspace(alterToKsMeta);
                 });
                 Future<?> f2 = es.submit(() -> {
                     Uninterruptibles.awaitUninterruptibly(trigger);

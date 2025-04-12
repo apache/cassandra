@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.test.ExecUtil;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.log.Entry;

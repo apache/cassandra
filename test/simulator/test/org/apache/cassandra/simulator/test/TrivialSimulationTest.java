@@ -40,6 +40,13 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
 public class TrivialSimulationTest extends SimulationTestBase
 {
     @Test
+    public void identityHashMapTest()
+    {
+        simulate(arr(() -> new IdentityHashMap<>().put(1, 1)),
+                 () -> {});
+    }
+
+    @Test
     public void trivialTest() throws IOException // for demonstration/experiment purposes
     {
         simulate((simulation) -> {
@@ -84,10 +91,5 @@ public class TrivialSimulationTest extends SimulationTestBase
                  () -> {});
     }
 
-    @Test
-    public void identityHashMapTest()
-    {
-        simulate(arr(() -> new IdentityHashMap<>().put(1, 1)),
-                 () -> {});
-    }
+
 }

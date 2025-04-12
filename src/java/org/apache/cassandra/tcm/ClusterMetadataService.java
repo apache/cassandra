@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,6 +42,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -53,6 +55,7 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.migration.GossipProcessor;
@@ -74,6 +77,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toSet;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.REMOTE;
@@ -95,6 +99,9 @@ public class ClusterMetadataService
             throw new IllegalStateException(String.format("Cluster metadata is already initialized to %s.", instance),
                                             trace);
         instance = newInstance;
+        RegistrationStatus.instance.onInitialized();
+        if (newInstance.metadata().myNodeId() != null)
+            RegistrationStatus.instance.onRegistration();
         trace = new RuntimeException("Previously initialized trace");
     }
 
@@ -102,6 +109,7 @@ public class ClusterMetadataService
     public static ClusterMetadataService unsetInstance()
     {
         ClusterMetadataService tmp = instance();
+        RegistrationStatus.instance.resetState();
         instance = null;
         return tmp;
     }
@@ -242,7 +250,8 @@ public class ClusterMetadataService
     {
         if (instance != null)
             return;
-        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(Collections.singleton("DC1"))
+        String localDC = DatabaseDescriptor.getLocalDataCenter();
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(Collections.singleton(localDC))
                                                 .forceEpoch(Epoch.EMPTY);
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
@@ -271,7 +280,7 @@ public class ClusterMetadataService
                                                                 new PeerLogFetcher(log));
 
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC);
         ClusterMetadataService.setInstance(cms);
     }
 
@@ -288,6 +297,7 @@ public class ClusterMetadataService
     {
         if (instance != null)
             return;
+
 
         ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools(initialSchema));
     }
@@ -308,6 +318,13 @@ public class ClusterMetadataService
         }
 
         ClusterMetadata metadata = metadata();
+        if (metadata.myNodeState() != NodeState.JOINED)
+        {
+            String msg = String.format("Initial CMS node needs to be fully joined, not: %s", metadata.myNodeState());
+            logger.error(msg);
+            throw new IllegalStateException(msg);
+        }
+
         Set<InetAddressAndPort> existingMembers = metadata.fullCMSMembers();
 
         if (!metadata.directory.allAddresses().containsAll(ignored))
@@ -334,6 +351,9 @@ public class ClusterMetadataService
                 continue;
             }
 
+            if (metadata.directory.peerState(entry.getKey()) == NodeState.LEFT)
+                continue;
+
             if (!version.isUpgraded())
             {
                 String msg = String.format("All nodes are not yet upgraded - %s is running %s", metadata.directory.endpoint(entry.getKey()), version);
@@ -347,13 +367,13 @@ public class ClusterMetadataService
             logger.info("First CMS node");
             Set<InetAddressAndPort> candidates = metadata
                                                  .directory
-                                                 .allAddresses()
+                                                 .allJoinedEndpoints()
                                                  .stream()
                                                  .filter(ep -> !FBUtilities.getBroadcastAddressAndPort().equals(ep) &&
                                                                !ignored.contains(ep))
                                                  .collect(toImmutableSet());
 
-            Election.instance.nominateSelf(candidates, ignored, metadata::equals, metadata);
+            Election.instance.nominateSelf(candidates, ignored, metadata, true);
             ClusterMetadataService.instance().triggerSnapshot();
         }
         else
@@ -362,15 +382,40 @@ public class ClusterMetadataService
         }
     }
 
-    // This method is to be used _only_ for interactive purposes (i.e. nodetool), since it assumes no retries are going to be attempted on reject.
     public void reconfigureCMS(ReplicationParams replicationParams)
     {
-        Transformation transformation = new PrepareCMSReconfiguration.Complex(replicationParams);
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Set<NodeId> downNodes = new HashSet<>();
+        for (InetAddressAndPort ep : metadata.directory.allJoinedEndpoints())
+            if (!FailureDetector.instance.isAlive(ep))
+                downNodes.add(metadata.directory.peerId(ep));
+        PrepareCMSReconfiguration.Complex transformation = new PrepareCMSReconfiguration.Complex(replicationParams, downNodes);
+        transformation.verify(metadata);
 
         ClusterMetadataService.instance()
                               .commit(transformation);
 
         InProgressSequences.finishInProgressSequences(ReconfigureCMS.SequenceKey.instance);
+    }
+
+    public void ensureCMSPlacement(ClusterMetadata metadata)
+    {
+        if (TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.getBoolean())
+        {
+            logger.info("Not performing CMS reconfiguration as {} property is set. This should only be used for testing.",
+                        TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.getKey());
+            return;
+        }
+
+        try
+        {
+            reconfigureCMS(ReplicationParams.meta(metadata));
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.warn("Could not reconfigure CMS, operator should run `nodetool cms reconfigure` to make sure CMS placement is correct", t);
+        }
     }
 
     public boolean applyFromGossip(ClusterMetadata expected, ClusterMetadata updated)
@@ -832,11 +877,23 @@ public class ClusterMetadataService
         @Override
         public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
         {
-            Pair<State, Processor> delegate = delegateInternal();
-            Commit.Result result = delegate.right.commit(entryId, transform, lastKnown, retryPolicy);
-            if (delegate.left == LOCAL || delegate.left == RESET)
-                replicator.send(result, null);
-            return result;
+            while (!retryPolicy.reachedMax())
+            {
+                try
+                {
+                    Pair<State, Processor> delegate = delegateInternal();
+                    Commit.Result result = delegate.right.commit(entryId, transform, lastKnown, retryPolicy);
+                    ClusterMetadataService.State state = delegate.left;
+                    if (state == LOCAL || state == RESET)
+                        replicator.send(result, null);
+                    return result;
+                }
+                catch (NotCMSException e)
+                {
+                    retryPolicy.maybeSleep();
+                }
+            }
+            return Commit.Result.failed(ExceptionCode.SERVER_ERROR, "Could not commit " + transform.kind() + " at epoch " + lastKnown);
         }
 
         @Override

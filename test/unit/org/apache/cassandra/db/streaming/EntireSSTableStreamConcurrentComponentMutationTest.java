@@ -130,7 +130,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
             .applyUnsafe();
         }
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         Token start = ByteOrderedPartitioner.instance.getTokenFactory().fromString(Long.toHexString(0));
         Token end = ByteOrderedPartitioner.instance.getTokenFactory().fromString(Long.toHexString(100));

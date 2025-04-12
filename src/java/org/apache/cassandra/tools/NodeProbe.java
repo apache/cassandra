@@ -90,8 +90,12 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.GossiperMBean;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.HintsServiceMBean;
+import org.apache.cassandra.index.sai.metrics.IndexGroupMetrics;
+import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
+import org.apache.cassandra.index.sai.metrics.TableStateMetrics;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -102,6 +106,7 @@ import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
+import org.apache.cassandra.service.snapshot.SnapshotManagerMBean;
 import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.GCInspectorMXBean;
@@ -150,6 +155,7 @@ public class NodeProbe implements AutoCloseable
     protected MBeanServerConnection mbeanServerConn;
     protected CompactionManagerMBean compactionProxy;
     protected StorageServiceMBean ssProxy;
+    protected SnapshotManagerMBean snapshotProxy;
     protected CMSOperationsMBean cmsProxy;
     protected GossiperMBean gossProxy;
     protected MemoryMXBean memProxy;
@@ -263,6 +269,8 @@ public class NodeProbe implements AutoCloseable
         {
             ObjectName name = new ObjectName(ssObjName);
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
+            name = new ObjectName(SnapshotManagerMBean.MBEAN_NAME);
+            snapshotProxy = JMX.newMBeanProxy(mbeanServerConn, name, SnapshotManagerMBean.class);
             name = new ObjectName(CMSOperations.MBEAN_OBJECT_NAME);
             cmsProxy = JMX.newMBeanProxy(mbeanServerConn, name, CMSOperationsMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
@@ -463,6 +471,11 @@ public class NodeProbe implements AutoCloseable
     public void forceUserDefinedCompaction(String datafiles) throws IOException, ExecutionException, InterruptedException
     {
         compactionProxy.forceUserDefinedCompaction(datafiles);
+    }
+
+    public void forceKeyspaceCompaction(boolean splitOutput, int parallelism, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        ssProxy.forceKeyspaceCompaction(splitOutput, parallelism, keyspaceName, tableNames);
     }
 
     public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
@@ -858,6 +871,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getGitSHA();
     }
 
+    public String getBuildDate()
+    {
+        return ssProxy.getBuildDate();
+    }
+
     public int getCurrentGenerationNumber()
     {
         return ssProxy.getCurrentGenerationNumber();
@@ -875,12 +893,12 @@ public class NodeProbe implements AutoCloseable
 
     public long getSnapshotLinksPerSecond()
     {
-        return ssProxy.getSnapshotLinksPerSecond();
+        return snapshotProxy.getSnapshotLinksPerSecond();
     }
 
     public void setSnapshotLinksPerSecond(long throttle)
     {
-        ssProxy.setSnapshotLinksPerSecond(throttle);
+        snapshotProxy.setSnapshotLinksPerSecond(throttle);
     }
 
     /**
@@ -900,10 +918,10 @@ public class NodeProbe implements AutoCloseable
                 throw new IOException("When specifying the table for a snapshot, you must specify one and only one keyspace");
             }
 
-            ssProxy.takeSnapshot(snapshotName, options, keyspaces[0] + "." + table);
+            snapshotProxy.takeSnapshot(snapshotName, options, keyspaces[0] + "." + table);
         }
         else
-            ssProxy.takeSnapshot(snapshotName, options, keyspaces);
+            snapshotProxy.takeSnapshot(snapshotName, options, keyspaces);
     }
 
     /**
@@ -921,11 +939,11 @@ public class NodeProbe implements AutoCloseable
     {
         if (null != tableList && tableList.length != 0)
         {
-            ssProxy.takeSnapshot(snapshotName, options, tableList);
+            snapshotProxy.takeSnapshot(snapshotName, options, tableList);
         }
         else
         {
-            throw new IOException("The column family List  for a snapshot should not be empty or null");
+            throw new IOException("The column family list for a snapshot should not be empty or null");
         }
     }
 
@@ -955,12 +973,20 @@ public class NodeProbe implements AutoCloseable
      */
     public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaces) throws IOException
     {
-        ssProxy.clearSnapshot(options, tag, keyspaces);
+        snapshotProxy.clearSnapshot(tag, options, keyspaces);
     }
 
+    /**
+     * Gets all snapshots' details.
+     *
+     * @param options options to use upon listing of snapshots
+     * @return details of snapshots
+     */
+    /** @deprecated See CASSANDRA-18111 */
+    @Deprecated(since = "5.1")
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
     {
-        return ssProxy.getSnapshotDetails(options);
+        return snapshotProxy.listSnapshots(options);
     }
 
     /** @deprecated See CASSANDRA-16789 */
@@ -972,7 +998,7 @@ public class NodeProbe implements AutoCloseable
 
     public long trueSnapshotsSize()
     {
-        return ssProxy.trueSnapshotsSize();
+        return snapshotProxy.getTrueSnapshotSize();
     }
 
     public boolean isJoined()
@@ -1005,9 +1031,24 @@ public class NodeProbe implements AutoCloseable
         ssProxy.decommission(force);
     }
 
+    public void abortDecommission(String nodeId)
+    {
+        ssProxy.abortDecommission(nodeId);
+    }
+
     public void move(String newToken) throws IOException
     {
         ssProxy.move(newToken);
+    }
+
+    public void resumeMove()
+    {
+        ssProxy.resumeMove();
+    }
+
+    public void abortMove(String nodeId)
+    {
+        ssProxy.abortMove(nodeId);
     }
 
     public void removeNode(String token)
@@ -1018,6 +1059,11 @@ public class NodeProbe implements AutoCloseable
     public void removeNode(String token, boolean force)
     {
         ssProxy.removeNode(token, force);
+    }
+
+    public void abortRemoveNode(String nodeId)
+    {
+        ssProxy.abortRemoveNode(nodeId);
     }
 
     public String getRemovalStatus(boolean withPort)
@@ -1192,6 +1238,18 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public LocationInfoMBean getLocationInfoProxy()
+    {
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.db:type=LocationInfo"), LocationInfoMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public ColumnFamilyStoreMBean getCfsProxy(String ks, String cf)
     {
         ColumnFamilyStoreMBean cfsProxy = null;
@@ -1354,9 +1412,9 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    public void stopNativeTransport()
+    public void stopNativeTransport(boolean force)
     {
-        ssProxy.stopNativeTransport();
+        ssProxy.stopNativeTransport(force);
     }
 
     public void startNativeTransport()
@@ -1424,6 +1482,11 @@ public class NodeProbe implements AutoCloseable
     public long getCompactionThroughputBytes()
     {
         return ssProxy.getCompactionThroughtputBytesPerSec();
+    }
+
+    public Map<String, String> getCurrentCompactionThroughputMiBPerSec()
+    {
+        return ssProxy.getCurrentCompactionThroughputMebibytesPerSec();
     }
 
     public void setBatchlogReplayThrottle(int value)
@@ -1877,7 +1940,75 @@ public class NodeProbe implements AutoCloseable
       }
     }
 
-    /**
+    public Object getSaiMetric(String ks, String cf, String metricName)
+    {
+        try
+        {
+            String scope = getSaiMetricScope(metricName);
+            String objectNameStr = String.format("org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=%s,table=%s,scope=%s,name=%s",ks, cf, scope, metricName);
+            ObjectName oName = new ObjectName(objectNameStr);
+
+            Set<ObjectName> matchingMBeans = mbeanServerConn.queryNames(oName, null);
+            if (matchingMBeans.isEmpty())
+                return null;
+
+            return getSaiMetricValue(metricName, oName);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException("Invalid ObjectName format: " + e.getMessage(), e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error accessing MBean server: " + e.getMessage(), e);
+        }
+    }
+
+    private Object getSaiMetricValue(String metricName, ObjectName oName) throws IOException
+    {
+        switch (metricName)
+        {
+            case "QueryLatency":
+                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxTimerMBean.class);
+            case "PostFilteringReadLatency":
+            case "SSTableIndexesHit":
+            case "IndexSegmentsHit":
+            case "RowsFiltered":
+                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxHistogramMBean.class);
+            case "DiskUsedBytes":
+            case "TotalIndexCount":
+            case "TotalQueryableIndexCount":
+                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+            case "TotalQueryTimeouts":
+                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+            default:
+                throw new IllegalArgumentException("Unknown metric name: " + metricName);
+        }
+    }
+
+    private String getSaiMetricScope(String metricName)
+    {
+        switch (metricName)
+        {
+            case "QueryLatency":
+            case "SSTableIndexesHit":
+            case "IndexSegmentsHit":
+            case "RowsFiltered":
+                return TableQueryMetrics.PerQueryMetrics.PER_QUERY_METRICS_TYPE;
+            case "PostFilteringReadLatency":
+            case "TotalQueryTimeouts":
+                return TableQueryMetrics.TABLE_QUERY_METRIC_TYPE;
+            case "DiskUsedBytes":
+                return IndexGroupMetrics.INDEX_GROUP_METRICS_TYPE;
+            case "TotalIndexCount":
+            case "TotalQueryableIndexCount":
+                return TableStateMetrics.TABLE_STATE_METRIC_TYPE;
+            default:
+                throw new IllegalArgumentException("Unknown metric name: " + metricName);
+        }
+    }
+
+        /**
      * Retrieve threadpool paths and names for threadpools with metrics.
      * @return Multimap from path (internal, request, etc.) to name
      */
@@ -1953,7 +2084,21 @@ public class NodeProbe implements AutoCloseable
                 case "WriteTotalLatency":
                 case "ReadTotalLatency":
                 case "PendingFlushes":
-                    return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                {
+                    // these are gauges for keyspace metrics, not counters
+                    if (!Strings.isNullOrEmpty(ks) &&
+                        Strings.isNullOrEmpty(cf) &&
+                        (metricName.equals("TotalDiskSpaceUsed") ||
+                         metricName.equals("LiveDiskSpaceUsed") ||
+                         metricName.equals("MemtableSwitchCount")))
+                    {
+                        return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                    }
+                    else
+                    {
+                        return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                    }
+                }
                 case "CoordinatorReadLatency":
                 case "CoordinatorScanLatency":
                 case "ReadLatency":

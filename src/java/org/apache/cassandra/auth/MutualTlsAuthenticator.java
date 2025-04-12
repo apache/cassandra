@@ -85,7 +85,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private final DurationSpec.IntMinutesBound certificateValidityWarnThreshold;
 
     // key for the 'identity' value in AuthenticatedUser metadata map.
-    static final String METADATA_IDENTITY_KEY = "identity";
+    public static final String METADATA_IDENTITY_KEY = "identity";
 
     public MutualTlsAuthenticator(Map<String, String> parameters)
     {
@@ -239,7 +239,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
             // Report metrics on client certificate expiration
             MutualTlsMetrics.instance.clientCertificateExpirationDays.update(daysToCertificateExpiration);
 
-            return new AuthenticatedUser(role, MTLS, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
+            return new AuthenticatedUser(role, MTLS, Map.of(METADATA_IDENTITY_KEY, identity));
         }
 
         @Override

@@ -212,6 +212,11 @@ public class Commit
                 return c > 0 ? a : b;
             return a instanceof CommittedWithTTL ? ((CommittedWithTTL)a).lastDeleted(b) : a;
         }
+
+        public boolean isNone()
+        {
+            return ballot.equals(Ballot.none()) && update.isEmpty();
+        }
     }
 
     public static class CommittedWithTTL extends Committed

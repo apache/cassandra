@@ -27,7 +27,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
@@ -44,9 +43,11 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -256,13 +257,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             private final boolean isStatic;
             @Nullable
             private final ColumnMask.Raw mask;
+            @Nullable
+            private final ColumnConstraints.Raw constraints;
 
-            Column(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, @Nullable ColumnMask.Raw mask)
+            Column(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, @Nullable ColumnMask.Raw mask, @Nullable ColumnConstraints.Raw constraints)
             {
                 this.name = name;
                 this.type = type;
                 this.isStatic = isStatic;
                 this.mask = mask;
+                this.constraints = constraints;
             }
         }
 
@@ -310,6 +314,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             AbstractType<?> type = column.type.prepare(keyspaceName, keyspace.types).getType();
             boolean isStatic = column.isStatic;
             ColumnMask mask = column.mask == null ? null : column.mask.prepare(keyspaceName, tableName, name, type, keyspace.userFunctions);
+            ColumnConstraints columnConstraints = column.constraints == null ? ColumnConstraints.NO_OP : column.constraints.prepare(name);
 
             if (null != tableBuilder.getColumn(name)) {
                 if (!ifColumnNotExists)
@@ -322,6 +327,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             if (isStatic && table.clusteringColumns().isEmpty())
                 throw ire("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
+
+            // check for nested non-frozen UDTs or collections in a non-frozen UDT
+            if (type.isUDT() && type.isMultiCell())
+            {
+                for (AbstractType<?> fieldType : ((UserType) type).fieldTypes())
+                {
+                    if (fieldType.isMultiCell())
+                        throw ire("Non-frozen UDTs with nested non-frozen collections are not supported for column " + column.name);
+                }
+            }
 
             ColumnMetadata droppedColumn = table.getDroppedColumn(name.bytes);
             if (null != droppedColumn)
@@ -350,9 +365,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             }
 
             if (isStatic)
-                tableBuilder.addStaticColumn(name, type, mask);
+                tableBuilder.addStaticColumn(name, type, mask, columnConstraints);
             else
-                tableBuilder.addRegularColumn(name, type, mask);
+                tableBuilder.addRegularColumn(name, type, mask, columnConstraints);
 
             if (!isStatic)
             {
@@ -361,7 +376,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                     if (view.includeAllColumns)
                     {
                         ColumnMetadata viewColumn = ColumnMetadata.regularColumn(view.metadata, name.bytes, type)
-                                                                  .withNewMask(mask);
+                                                                  .withNewMask(mask)
+                                                                  .withNewColumnConstraints(columnConstraints);
                         viewsBuilder.put(viewsBuilder.get(view.name()).withAddedRegularColumn(viewColumn));
                     }
                 }
@@ -463,7 +479,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
          */
         private long getTimestamp()
         {
-            return timestamp == null ? ClientState.getTimestamp() : timestamp;
+            // Prior to Metadata serialization V5, the execution timestamp was not included in AlterSchema
+            // serializations. Instead, the current time (from ClientState::getTimestamp) was used, making
+            // DROP COLUMN non-idempotent and causing potenial data loss as described in CASSANDRA-18961.
+            // This was fixed before release by serialization V5, but we include a dangerous backwards
+            // compatibility option here or so that we can still apply pre-V5 serialized transformations
+            // (which would only exist in clusters running pre-release versions of Cassandra). Once all peers
+            // are running a V5 compatible version, ClientState::getTimestamp will never be used.
+            return timestamp == null ? fixedTimestampMicros().orElseGet(ClientState::getTimestamp) : timestamp;
         }
     }
 
@@ -692,6 +715,49 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
     }
 
+    public static class AlterConstraints extends AlterTableStatement
+    {
+        final ColumnIdentifier columnName;
+        final ColumnConstraints.Raw constraints;
+        final boolean ifColumnExists;
+
+        AlterConstraints(String keyspaceName, String tableName, boolean ifTableExists, boolean ifColumnExists, ColumnIdentifier columnName, ColumnConstraints.Raw constraints)
+        {
+            super(keyspaceName, tableName, ifTableExists);
+            this.columnName = columnName;
+            this.constraints = constraints;
+            this.ifColumnExists = ifColumnExists;
+        }
+
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
+        {
+
+            ColumnMetadata column = table.getColumn(columnName);
+            if (column != null)
+            {
+                ColumnConstraints oldConstraints = column.getColumnConstraints();
+                ColumnConstraints newConstraints = constraints == null ? ColumnConstraints.NO_OP : constraints.prepare(columnName);
+                if (Objects.equals(oldConstraints, newConstraints))
+                    return keyspace;
+                newConstraints.validate(column);
+                TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
+                tableBuilder.alterColumnConstraints(columnName, newConstraints);
+
+                TableMetadata newTable = tableBuilder.build();
+                newTable.validate();
+
+                return keyspace.withSwapped(keyspace.tables.withSwapped(newTable));
+            }
+            else
+            {
+                if (!ifColumnExists)
+                    throw ire("Column '%s' doesn't exist", columnName);
+            }
+            return keyspace;
+        }
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private enum Kind
@@ -702,13 +768,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             DROP_COLUMNS,
             RENAME_COLUMNS,
             ALTER_OPTIONS,
-            DROP_COMPACT_STORAGE
+            DROP_COMPACT_STORAGE,
+            ALTER_CONSTRAINTS
         }
 
         private final QualifiedName name;
         private final boolean ifTableExists;
         private boolean ifColumnExists;
         private boolean ifColumnNotExists;
+        private ColumnIdentifier constraintName;
+        private ColumnConstraints.Raw constraints;
 
         private Kind kind;
 
@@ -731,8 +800,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public Raw(QualifiedName name, boolean ifTableExists)
         {
+            this(name, ifTableExists, null);
+        }
+
+        public Raw(QualifiedName name, boolean ifTableExists, ColumnIdentifier constraintName)
+        {
             this.name = name;
             this.ifTableExists = ifTableExists;
+            this.constraintName = constraintName;
         }
 
         public AlterTableStatement prepare(ClientState state)
@@ -749,6 +824,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns, ifTableExists, ifColumnExists);
                 case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs, ifTableExists);
                 case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName, ifTableExists);
+                case     ALTER_CONSTRAINTS: return new AlterConstraints(keyspaceName, tableName, ifTableExists, ifColumnExists, constraintName, constraints);
             }
 
             throw new AssertionError();
@@ -766,10 +842,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             rawMask = mask;
         }
 
-        public void add(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, @Nullable ColumnMask.Raw mask)
+        public void add(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, @Nullable ColumnMask.Raw mask, @Nullable ColumnConstraints.Raw constraints)
         {
             kind = Kind.ADD_COLUMNS;
-            addedColumns.add(new AddColumns.Column(name, type, isStatic, mask));
+            addedColumns.add(new AddColumns.Column(name, type, isStatic, mask, constraints));
         }
 
         public void drop(ColumnIdentifier name)
@@ -791,6 +867,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         public void dropCompactStorage()
         {
             kind = Kind.DROP_COMPACT_STORAGE;
+        }
+
+        public void constraint(ColumnIdentifier name, ColumnConstraints.Raw rawConstraints)
+        {
+            kind = Kind.ALTER_CONSTRAINTS;
+            this.constraintName = name;
+            this.constraints = rawConstraints;
         }
 
         public void timestamp(long timestamp)

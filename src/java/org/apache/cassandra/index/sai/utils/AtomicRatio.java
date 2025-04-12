@@ -54,7 +54,7 @@ public class AtomicRatio
 
     public double get()
     {
-        var current = ratio.get();
+        Ratio current = ratio.get();
         return (double) current.numerator / current.denominator;
     }
 

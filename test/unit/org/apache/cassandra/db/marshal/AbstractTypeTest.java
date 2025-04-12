@@ -260,6 +260,23 @@ public class AbstractTypeTest
     }
 
     @Test
+    public void isConstrainedTest()
+    {
+        qt().forAll(genBuilder().build()).checkAssert(type -> {
+            if (type instanceof TupleType || type instanceof AbstractCompositeType)
+                assertThat(type.isConstrainable()).isEqualTo(false);
+            else
+            {
+                if (type.isCollection() && !type.isFrozenCollection())
+                    assertThat(type.isConstrainable()).isEqualTo(false);
+                else
+                    assertThat(type.isConstrainable()).isEqualTo(true);
+            }
+        });
+
+    }
+
+    @Test
     public void unsafeSharedSerializer()
     {
         // For all types, make sure the serializer returned is unique to that type,
@@ -458,6 +475,33 @@ public class AbstractTypeTest
             int expectedSize = complexTypes.containsKey(type.getClass()) ? complexTypes.get(type.getClass()).apply(type) : 1;
             assertThat(type.subTypes()).hasSize(expectedSize);
         });
+    }
+
+    @Test
+    @SuppressWarnings("rawtypes")
+    public void nestedDuration()
+    {
+        qt().forAll(AbstractTypeGenerators.builder()
+                                          .withoutTypeKinds(COUNTER)
+                                          .withPrimitives(DurationType.instance)
+                                          .build())
+            .checkAssert(type -> {
+                assertThat(type.referencesDuration()).isTrue();
+                assertThat(ReversedType.getInstance(type).referencesDuration()).isTrue();
+            });
+    }
+
+    @Test
+    public void nestedWithoutDuration()
+    {
+        qt().forAll(AbstractTypeGenerators.builder()
+                                          .withoutTypeKinds(PRIMITIVE, COUNTER)
+                                          .withoutPrimitive(DurationType.instance)
+                                          .build())
+            .checkAssert(type -> {
+                assertThat(type.referencesDuration()).isFalse();
+                assertThat(ReversedType.getInstance(type).referencesDuration()).isFalse();
+            });
     }
 
     /**
@@ -923,7 +967,7 @@ public class AbstractTypeTest
                 assertThat(leftDecomposed.hasRemaining()).describedAs(typeRelDesc(".decompose", left, right)).isEqualTo(rightDecomposed.hasRemaining());
 
                 // serialization compatibility means that we can read a cell written using right's type serializer with left's type serializer;
-                // this additinoally imposes the requirement for storing the buffer lenght in the serialized form if the value is of variable length
+                // this additinoally imposes the requirement for storing the buffer length in the serialized form if the value is of variable length
                 // as well as, either both types serialize into a single or multiple cells
                 if (left.isSerializationCompatibleWith(right))
                 {

@@ -40,6 +40,7 @@ import org.jctools.queues.SpscUnboundedArrayQueue;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class StressAction implements Runnable
 {
@@ -217,7 +218,7 @@ public class StressAction implements Runnable
         output.println(String.format("Running %s with %d threads %s",
                                      operations.desc(),
                                      threadCount,
-                                     durationUnits != null ? duration + " " + durationUnits.toString().toLowerCase()
+                                     durationUnits != null ? duration + " " + toLowerCaseLocalized(durationUnits.toString())
                                         : opCount > 0      ? "for " + opCount + " iteration"
                                                            : "until stderr of mean < " + settings.command.targetUncertainty));
         final WorkManager workManager;

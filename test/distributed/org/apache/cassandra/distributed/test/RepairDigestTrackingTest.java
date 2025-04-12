@@ -30,6 +30,8 @@ import java.util.stream.Stream;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
+
+import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.Token;
@@ -39,6 +41,7 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Throwables;
 import org.junit.Test;
@@ -377,7 +380,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
      * local reads triggered by read repair (after speculative reads) execute at roughly the same time.
      *
      * This test depends on whether node1 gets a data or a digest request first, we force it to be a digest request
-     * in the forTokenReadLiveSorted ByteBuddy rule below.
+     * in the forTokenReadSorted ByteBuddy rule below.
      */
     @Test
     public void testLocalDataAndRemoteRequestConcurrency() throws Exception
@@ -437,7 +440,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
 
                 new ByteBuddy().rebase(ReplicaLayout.class)
-                               .method(named("forTokenReadLiveSorted").and(takesArguments(ClusterMetadata.class, Keyspace.class, AbstractReplicationStrategy.class, Token.class)))
+                               .method(named("forTokenReadSorted").and(takesArguments(ClusterMetadata.class, Keyspace.class, AbstractReplicationStrategy.class, Token.class)))
                                .intercept(MethodDelegation.to(BBHelper.class))
                                .make()
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
@@ -472,7 +475,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         }
 
         @SuppressWarnings({ "unused" })
-        public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
+        public static ReplicaLayout.ForTokenRead forTokenReadSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
         {
             try
             {
@@ -591,7 +594,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             int attempts = 100;
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
 
-            while (cfs.listSnapshots().isEmpty())
+            while (Util.listSnapshots(cfs).isEmpty())
             {
                 Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
                 if (attempts-- < 0)
@@ -602,11 +605,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
 
     private IInvokableInstance.SerializableRunnable assertSnapshotNotPresent(String snapshotName)
     {
-        return () ->
-        {
-            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
-            Assert.assertFalse(cfs.snapshotExists(snapshotName));
-        };
+        return () -> Assert.assertFalse(SnapshotManager.instance.exists(KEYSPACE, TABLE, snapshotName));
     }
 
     private long getConfirmedInconsistencies(IInvokableInstance instance)

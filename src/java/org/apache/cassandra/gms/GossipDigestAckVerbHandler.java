@@ -40,12 +40,10 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
     public void doVerb(Message<GossipDigestAck> message)
     {
         InetAddressAndPort from = message.from();
-        if (logger.isTraceEnabled())
-            logger.trace("Received a GossipDigestAckMessage from {}", from);
+        logger.trace("Received a GossipDigestAckMessage from {}", from);
         if (!Gossiper.instance.isEnabled() && !NewGossiper.instance.isInShadowRound())
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
+            logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
             return;
         }
 
@@ -68,8 +66,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
             // the regular gossip conversation.
             if ((nanoTime() - Gossiper.instance.firstSynSendAt) < 0 || Gossiper.instance.firstSynSendAt == 0)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("Ignoring unrequested GossipDigestAck from {}", from);
+                logger.trace("Ignoring unrequested GossipDigestAck from {}", from);
                 return;
             }
 
@@ -89,8 +86,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         }
 
         Message<GossipDigestAck2> gDigestAck2Message = Message.out(GOSSIP_DIGEST_ACK2, new GossipDigestAck2(deltaEpStateMap));
-        if (logger.isTraceEnabled())
-            logger.trace("Sending a GossipDigestAck2Message to {}", from);
+        logger.trace("Sending a GossipDigestAck2Message to {}", from);
         MessagingService.instance().send(gDigestAck2Message, from);
 
         super.doVerb(message);

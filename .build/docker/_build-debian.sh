@@ -21,6 +21,8 @@
 #
 ################################
 
+[ $DEBUG ] && set -x
+
 # variables, with defaults
 [ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
@@ -96,7 +98,7 @@ else
     # if CASSANDRA_VERSION is -alphaN, -betaN, -rcN, it fails on the '-' char; replace with '~'
     CASSANDRA_VERSION=${buildxml_version/-/\~}
     dt=`date +"%Y%m%d"`
-    ref=`git rev-parse --short HEAD || grep -q GitSHA src/resources/org/apache/cassandra/config/version.properties && grep GitSHA src/resources/org/apache/cassandra/config/version.properties | cut -d"=" -f2 || echo unknown`
+    ref=`git rev-parse --short HEAD || ( grep -q GitSHA src/resources/org/apache/cassandra/config/version.properties && grep GitSHA src/resources/org/apache/cassandra/config/version.properties | cut -d"=" -f2 ) || echo unknown`
     CASSANDRA_REVISION="${dt}git${ref}"
     dch -D unstable -v "${CASSANDRA_VERSION}-${CASSANDRA_REVISION}" --package "cassandra" "building ${CASSANDRA_VERSION}-${CASSANDRA_REVISION}"
 fi

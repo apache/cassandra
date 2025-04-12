@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
@@ -192,6 +193,11 @@ public final class MultiCBuilder
 
         if (clusterings.isEmpty())
             return BTreeSet.of(comparator, Clustering.EMPTY);
+
+        // If we have one clustering, avoid unnecessary builder and iterator allocations that would otherwise follow.
+        // This is a very hot path, touched by both reads and writes.
+        if (clusterings.size() == 1)
+            return BTreeSet.of(comparator, Clustering.make(clusterings.get(0).toArray(new ByteBuffer[comparator.size()])));
 
         CBuilder builder = CBuilder.create(comparator);
 

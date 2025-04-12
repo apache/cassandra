@@ -63,7 +63,8 @@ public class DiskBoundaryManager
                     logger.trace("Refreshing disk boundary cache for {}.{}", cfs.getKeyspaceName(), cfs.getTableName());
                     DiskBoundaries oldBoundaries = diskBoundaries;
                     diskBoundaries = getDiskBoundaryValue(cfs, metadata.partitioner);
-                    logger.trace("Updating boundaries from {} to {} for {}.{}", oldBoundaries, diskBoundaries, cfs.getKeyspaceName(), cfs.getTableName());
+                    if (logger.isTraceEnabled())
+                        logger.trace("Updating boundaries from {} to {} for {}.{}", oldBoundaries, diskBoundaries, cfs.getKeyspaceName(), cfs.getTableName());
                 }
             }
         }
@@ -151,7 +152,7 @@ public class DiskBoundaryManager
         }
         else
         {
-            // Reason we use use the future settled metadata is that if we decommission a node, we want to stream
+            // Reason we use the future settled metadata is that if we decommission a node, we want to stream
             // from that node to the correct location on disk, if we didn't, we would put new files in the wrong places.
             // We do this to minimize the amount of data we need to move in rebalancedisks once everything settled
             placement = metadata.writePlacementAllSettled(cfs.keyspace.getMetadata());

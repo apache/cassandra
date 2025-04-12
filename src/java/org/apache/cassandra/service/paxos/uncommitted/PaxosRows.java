@@ -21,6 +21,7 @@ package org.apache.cassandra.service.paxos.uncommitted;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
@@ -88,32 +89,38 @@ public class PaxosRows
         return getBallot(row, WRITE_PROMISE, Ballot.none());
     }
 
-    public static Accepted getAccepted(Row row)
+    public static Accepted getAccepted(Row row, long purgeBefore, long overrideTtlSeconds)
     {
         Cell ballotCell = row.getCell(PROPOSAL);
         if (ballotCell == null)
             return null;
 
         Ballot ballot = ballotCell.accessor().toBallot(ballotCell.value());
+        if (ballot.uuidTimestamp() < purgeBefore)
+            return null;
+
         int version = getInt(row, PROPOSAL_VERSION, MessagingService.VERSION_40);
         PartitionUpdate update = getUpdate(row, PROPOSAL_UPDATE, version);
-        return ballotCell.isExpiring()
-               ? new AcceptedWithTTL(ballot, update, ballotCell.localDeletionTime())
-               : new Accepted(ballot, update);
+        if (overrideTtlSeconds > 0) return new AcceptedWithTTL(ballot, update, TimeUnit.MICROSECONDS.toSeconds(ballotCell.timestamp()) + overrideTtlSeconds);
+        else if (ballotCell.isExpiring()) return new AcceptedWithTTL(ballot, update, ballotCell.localDeletionTime());
+        else return new Accepted(ballot, update);
     }
 
-    public static Committed getCommitted(TableMetadata metadata, DecoratedKey partitionKey, Row row)
+    public static Committed getCommitted(TableMetadata metadata, DecoratedKey partitionKey, Row row, long purgeBefore, long overrideTtlSeconds)
     {
         Cell ballotCell = row.getCell(COMMIT);
         if (ballotCell == null)
             return Committed.none(partitionKey, metadata);
 
         Ballot ballot = ballotCell.accessor().toBallot(ballotCell.value());
+        if (ballot.uuidTimestamp() < purgeBefore)
+            return Committed.none(partitionKey, metadata);
+
         int version = getInt(row, COMMIT_VERSION, MessagingService.VERSION_40);
         PartitionUpdate update = getUpdate(row, COMMIT_UPDATE, version);
-        return ballotCell.isExpiring()
-               ? new CommittedWithTTL(ballot, update, ballotCell.localDeletionTime())
-               : new Committed(ballot, update);
+        if (overrideTtlSeconds > 0) return new CommittedWithTTL(ballot, update, TimeUnit.MICROSECONDS.toSeconds(ballotCell.timestamp()) + overrideTtlSeconds);
+        else if (ballotCell.isExpiring()) return new CommittedWithTTL(ballot, update, ballotCell.localDeletionTime());
+        else return new Committed(ballot, update);
     }
 
     public static TableId getTableId(Row row)

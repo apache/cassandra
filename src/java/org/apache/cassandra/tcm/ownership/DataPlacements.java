@@ -141,6 +141,24 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
                '}';
     }
 
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (!(o instanceof DataPlacements)) return false;
+        DataPlacements that = (DataPlacements) o;
+        return this.map.equals(that.map);
+    }
+
+    public boolean equivalentTo(DataPlacements other)
+    {
+        if (!map.keySet().equals(other.map.keySet()))
+            return false;
+        return map.entrySet()
+                  .stream()
+                  .allMatch(e -> e.getValue().equivalentTo(other.get(e.getKey())));
+    }
+
     public static DataPlacements sortReplicaGroups(DataPlacements placements, Comparator<Replica> comparator)
     {
         Builder builder = DataPlacements.builder(placements.size());

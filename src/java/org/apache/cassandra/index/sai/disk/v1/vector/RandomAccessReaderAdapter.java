@@ -28,6 +28,7 @@ import com.google.common.primitives.Ints;
 import io.github.jbellis.jvector.disk.ReaderSupplier;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
 
 public class RandomAccessReaderAdapter extends RandomAccessReader implements io.github.jbellis.jvector.disk.RandomAccessReader
 {
@@ -44,7 +45,7 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
     @Override
     public void readFully(float[] dest) throws IOException
     {
-        var bh = bufferHolder;
+        BufferHolder bh = bufferHolder;
         long position = getPosition();
 
         FloatBuffer floatBuffer;
@@ -60,7 +61,7 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
         {
             // offset is non-zero, and probably not aligned to Float.BYTES, so
             // set the position before converting to FloatBuffer.
-            var bb = bh.buffer();
+            ByteBuffer bb = bh.buffer();
             bb.position(Ints.checkedCast(position - bh.offset()));
             floatBuffer = bb.asFloatBuffer();
         }
@@ -68,7 +69,7 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
         if (dest.length > floatBuffer.remaining())
         {
             // slow path -- desired slice is across region boundaries
-            var bb = ByteBuffer.allocate(Float.BYTES * dest.length);
+            ByteBuffer bb = ByteBuffer.allocate(Float.BYTES * dest.length);
             readFully(bb);
             floatBuffer = bb.asFloatBuffer();
         }
@@ -92,7 +93,7 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
         if (count == 0)
             return;
 
-        var bh = bufferHolder;
+        BufferHolder bh = bufferHolder;
         long position = getPosition();
 
         IntBuffer intBuffer;
@@ -108,7 +109,7 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
         {
             // offset is non-zero, and probably not aligned to Integer.BYTES, so
             // set the position before converting to IntBuffer.
-            var bb = bh.buffer();
+            ByteBuffer bb = bh.buffer();
             bb.position(Ints.checkedCast(position - bh.offset()));
             intBuffer = bb.asIntBuffer();
         }
@@ -116,7 +117,7 @@ public class RandomAccessReaderAdapter extends RandomAccessReader implements io.
         if (count > intBuffer.remaining())
         {
             // slow path -- desired slice is across region boundaries
-            var bb = ByteBuffer.allocate(Integer.BYTES * count);
+            ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES * count);
             readFully(bb);
             intBuffer = bb.asIntBuffer();
         }

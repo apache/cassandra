@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.upgrade.UpgradeTestBase;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.NetworkTopologyProximity;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
 public class InstanceConfig implements IInstanceConfig
@@ -101,10 +102,12 @@ public class InstanceConfig implements IInstanceConfig
                 .set("memtable_flush_writers", 1)
                 .set("concurrent_compactors", 1)
                 .set("memtable_heap_space", "10MiB")
-                .set("commitlog_sync", "batch")
+                .set("commitlog_sync", "periodic")
+                .set("commitlog_sync_period_in_ms", 10000)
                 .set("storage_port", storage_port)
                 .set("native_transport_port", native_transport_port)
-                .set("endpoint_snitch", DistributedTestSnitch.class.getName())
+                .set("initial_location_provider", DistributedTestInitialLocationProvider.class.getName())
+                .set("node_proximity", NetworkTopologyProximity.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                         Collections.singletonMap("seeds", seedIp + ':' + seedPort)))
                 .set("discovery_timeout", "3s")
@@ -123,6 +126,14 @@ public class InstanceConfig implements IInstanceConfig
                 "configurations", Map.of(
                     "default", Map.of(
                         "class_name", "TrieMemtable"))))
+
+                .set("batchlog_endpoint_strategy", "dynamic_remote")
+
+                .set("authenticator", Map.of("class_name", "AllowAllAuthenticator"))
+                .set("authorizer", Map.of("class_name", "AllowAllAuthorizer"))
+                .set("role_manager", Map.of("class_name", "CassandraRoleManager"))
+                .set("network_authorizer", Map.of("class_name", "AllowAllNetworkAuthorizer"))
+
                 .set("key_cache_size", "0MiB")
 
                 .set("memtable_allocation_type", "offheap_objects")
@@ -175,7 +186,7 @@ public class InstanceConfig implements IInstanceConfig
     @Override
     public InetSocketAddress broadcastAddress()
     {
-        return DistributedTestSnitch.fromCassandraInetAddressAndPort(getBroadcastAddressAndPort());
+        return TestEndpointCache.fromCassandraInetAddressAndPort(getBroadcastAddressAndPort());
     }
 
     public void unsetBroadcastAddressAndPort()
@@ -304,14 +315,15 @@ public class InstanceConfig implements IInstanceConfig
                                           Collection<String> tokens,
                                           int datadirCount)
     {
+        int seedNode = provisionStrategy.seedNodeNum();
         return new InstanceConfig(nodeNum,
                                   networkTopology,
                                   provisionStrategy.ipAddress(nodeNum),
                                   provisionStrategy.ipAddress(nodeNum),
                                   provisionStrategy.ipAddress(nodeNum),
                                   provisionStrategy.ipAddress(nodeNum),
-                                  provisionStrategy.seedIp(),
-                                  provisionStrategy.seedPort(),
+                                  provisionStrategy.ipAddress(seedNode),
+                                  provisionStrategy.storagePort(seedNode),
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
                                   datadirs(datadirCount, root, nodeNum),
                                   String.format("%s/node%d/commitlog", root, nodeNum),
@@ -335,12 +347,22 @@ public class InstanceConfig implements IInstanceConfig
     public InstanceConfig forVersion(Semver version)
     {
         // Versions before 4.0 need to set 'seed_provider' without specifying the port
-        if (UpgradeTestBase.v40.compareTo(version) < 0)
+        // Versions before 5.0 need to set 'endpoint_snitch', not initial_location_provider + node_proximity
+        if (version.compareTo(UpgradeTestBase.v51) >= 0)
             return this;
-        else
-            return new InstanceConfig(this)
-                            .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                                                                         Collections.singletonMap("seeds", "127.0.0.1")));
+
+        InstanceConfig config = new InstanceConfig(this);
+        config.remove("initial_location_provider");
+        config.remove("node_proximity");
+        config.set("endpoint_snitch", "org.apache.cassandra.distributed.impl.DistributedTestSnitch");
+
+        // 4.0+ has seed_provider without port
+        if (version.compareTo(UpgradeTestBase.v40) >= 0)
+            return config;
+
+        config.set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
+                                                           Collections.singletonMap("seeds", "127.0.0.1")));
+        return config;
     }
 
     public String toString()

@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -163,9 +164,29 @@ public class NativeCellTest extends CQLTester
         Assert.assertEquals(row.clustering(), brow.clustering());
         Assert.assertEquals(nrow.clustering(), brow.clustering());
 
+        Assert.assertEquals(row.clustering().dataSize(), nrow.clustering().dataSize());
+        Assert.assertEquals(row.clustering().dataSize(), brow.clustering().dataSize());
+
         ClusteringComparator comparator = new ClusteringComparator(UTF8Type.instance);
         Assert.assertEquals(0, comparator.compare(row.clustering(), nrow.clustering()));
         Assert.assertEquals(0, comparator.compare(row.clustering(), brow.clustering()));
         Assert.assertEquals(0, comparator.compare(nrow.clustering(), brow.clustering()));
+
+        assertCellsDataSize(row, nrow);
+        assertCellsDataSize(row, brow);
+
     }
+
+    private static void assertCellsDataSize(Row row1, Row row2)
+    {
+        Iterator<Cell<?>> row1Iterator = row1.cells().iterator();
+        Iterator<Cell<?>> row2Iterator = row2.cells().iterator();
+        while (row1Iterator.hasNext())
+        {
+            Cell cell1 = row1Iterator.next();
+            Cell cell2 = row2Iterator.next();
+            Assert.assertEquals(cell1.dataSize(), cell2.dataSize());
+        }
+    }
+
 }

@@ -48,15 +48,16 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.locator.Replicas;
+import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -93,7 +94,7 @@ public class RangeStreamer
     private final List<SourceFilter> sourceFilters = new ArrayList<>();
     private final StreamPlan streamPlan;
     private final boolean useStrictConsistency;
-    private final IEndpointSnitch snitch;
+    private final NodeProximity proximity;
     private final StreamStateStore stateStore;
     private final MovementMap movements;
     private final MovementMap strictMovements;
@@ -178,18 +179,18 @@ public class RangeStreamer
     public static class SingleDatacenterFilter implements SourceFilter
     {
         private final String sourceDc;
-        private final IEndpointSnitch snitch;
+        private final Locator locator;
 
-        public SingleDatacenterFilter(IEndpointSnitch snitch, String sourceDc)
+        public SingleDatacenterFilter(Locator locator, String sourceDc)
         {
             this.sourceDc = sourceDc;
-            this.snitch = snitch;
+            this.locator = locator;
         }
 
         @Override
         public boolean apply(Replica replica)
         {
-            return snitch.getDatacenter(replica).equals(sourceDc);
+            return locator.location(replica.endpoint()).datacenter.equals(sourceDc);
         }
 
         @Override
@@ -204,19 +205,19 @@ public class RangeStreamer
     */
     public static class ExcludeLocalDatacenterFilter implements SourceFilter
     {
-        private final IEndpointSnitch snitch;
+        private final Locator locator;
         private final String localDc;
 
-        public ExcludeLocalDatacenterFilter(IEndpointSnitch snitch)
+        public ExcludeLocalDatacenterFilter(Locator locator)
         {
-            this.snitch = snitch;
-            this.localDc = snitch.getLocalDatacenter();
+            this.locator = locator;
+            this.localDc = locator.local().datacenter;
         }
 
         @Override
         public boolean apply(Replica replica)
         {
-            return !snitch.getDatacenter(replica).equals(localDc);
+            return !locator.location(replica.endpoint()).datacenter.equals(localDc);
         }
 
         @Override
@@ -292,21 +293,21 @@ public class RangeStreamer
     public RangeStreamer(ClusterMetadata metadata,
                          StreamOperation streamOperation,
                          boolean useStrictConsistency,
-                         IEndpointSnitch snitch,
+                         NodeProximity proximity,
                          StreamStateStore stateStore,
                          boolean connectSequentially,
                          int connectionsPerHost,
                          MovementMap movements,
                          MovementMap strictMovements)
     {
-        this(metadata, streamOperation, useStrictConsistency, snitch, stateStore,
+        this(metadata, streamOperation, useStrictConsistency, proximity, stateStore,
              FailureDetector.instance, connectSequentially, connectionsPerHost, movements, strictMovements);
     }
 
     RangeStreamer(ClusterMetadata metadata,
                   StreamOperation streamOperation,
                   boolean useStrictConsistency,
-                  IEndpointSnitch snitch,
+                  NodeProximity proximity,
                   StreamStateStore stateStore,
                   IFailureDetector failureDetector,
                   boolean connectSequentially,
@@ -319,7 +320,7 @@ public class RangeStreamer
         this.description = streamOperation.getDescription();
         this.streamPlan = new StreamPlan(streamOperation, connectionsPerHost, connectSequentially, null, PreviewKind.NONE);
         this.useStrictConsistency = useStrictConsistency;
-        this.snitch = snitch;
+        this.proximity = proximity;
         this.stateStore = stateStore;
         this.movements = movements;
         this.strictMovements = strictMovements;
@@ -368,7 +369,7 @@ public class RangeStreamer
         }
 
         boolean useStrictSource = useStrictSourcesForRanges(keyspace.getMetadata().params.replication, strat);
-        EndpointsByReplica fetchMap = calculateRangesToFetchWithPreferredEndpoints(snitch::sortedByProximity,
+        EndpointsByReplica fetchMap = calculateRangesToFetchWithPreferredEndpoints(proximity::sortedByProximity,
                                                                                    keyspace.getReplicationStrategy(),
                                                                                    useStrictConsistency,
                                                                                    metadata,
@@ -389,7 +390,7 @@ public class RangeStreamer
         }
         else
         {
-            workMap = getOptimizedWorkMap(fetchMap, sourceFilters, keyspaceName);
+            workMap = getOptimizedWorkMap(fetchMap, sourceFilters, keyspaceName, metadata.locator);
         }
 
         if (toFetch.put(keyspaceName, workMap) != null)
@@ -458,7 +459,7 @@ public class RangeStreamer
      * consistency.
      **/
      public static EndpointsByReplica
-     calculateRangesToFetchWithPreferredEndpoints(BiFunction<InetAddressAndPort, EndpointsForRange, EndpointsForRange> snitchGetSortedListByProximity,
+     calculateRangesToFetchWithPreferredEndpoints(BiFunction<InetAddressAndPort, EndpointsForRange, EndpointsForRange> sortByProximity,
                                                   AbstractReplicationStrategy strat,
                                                   boolean useStrictConsistency,
                                                   ClusterMetadata metadata,
@@ -473,7 +474,7 @@ public class RangeStreamer
          logger.debug("To fetch RN: {}", movements.get(params).keySet());
 
          Predicate<Replica> testSourceFilters = and(sourceFilters);
-         Function<EndpointsForRange, EndpointsForRange> sorted = endpoints -> snitchGetSortedListByProximity.apply(localAddress, endpoints);
+         Function<EndpointsForRange, EndpointsForRange> sorted = endpoints -> sortByProximity.apply(localAddress, endpoints);
 
          //This list of replicas is just candidates. With strict consistency it's going to be a narrow list.
          EndpointsByReplica.Builder rangesToFetchWithPreferredEndpoints = new EndpointsByReplica.Builder();
@@ -599,7 +600,8 @@ public class RangeStreamer
      */
     private static Multimap<InetAddressAndPort, FetchReplica> getOptimizedWorkMap(EndpointsByReplica rangesWithSources,
                                                                                   Collection<SourceFilter> sourceFilters,
-                                                                                  String keyspace)
+                                                                                  String keyspace,
+                                                                                  Locator locator)
     {
         //For now we just aren't going to use the optimized range fetch map with transient replication to shrink
         //the surface area to test and introduce bugs.
@@ -613,7 +615,7 @@ public class RangeStreamer
         }
 
         EndpointsByRange unwrappedView = unwrapped.build();
-        RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(unwrappedView, sourceFilters, keyspace);
+        RangeFetchMapCalculator calculator = new RangeFetchMapCalculator(unwrappedView, sourceFilters, keyspace, locator);
         Multimap<InetAddressAndPort, Range<Token>> rangeFetchMapMap = calculator.getRangeFetchMap();
         logger.info("Output from RangeFetchMapCalculator for keyspace {}", keyspace);
         validateRangeFetchMap(unwrappedView, rangeFetchMapMap, keyspace);

@@ -24,10 +24,8 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.Iterables;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -68,12 +66,6 @@ import static org.junit.Assert.assertTrue;
 
 public class ClusterMetadataTransformationTest
 {
-    @BeforeClass
-    public static void init()
-    {
-        ServerTestUtils.initSnitch();
-    }
-
     long seed = System.nanoTime();
     Random random = new Random(seed);
 

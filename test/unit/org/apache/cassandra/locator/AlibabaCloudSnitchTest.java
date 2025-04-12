@@ -19,20 +19,19 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
-import static org.apache.cassandra.locator.AlibabaCloudSnitch.DEFAULT_METADATA_SERVICE_URL;
+import static org.apache.cassandra.locator.AlibabaCloudLocationProvider.DEFAULT_METADATA_SERVICE_URL;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -45,9 +44,14 @@ public class AlibabaCloudSnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
-        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
         ClusterMetadataTestHelper.setInstanceForTest();
+    }
+
+    @Before
+    public void resetCMS()
+    {
+        ServerTestUtils.resetCMS();
     }
 
     @Test
@@ -60,18 +64,14 @@ public class AlibabaCloudSnitchTest
 
         doReturn(az).when(spiedConnector).apiCall(any());
 
+        // for registering a new node, location is obtained from the cloud metadata service
+        AlibabaCloudLocationProvider locationProvider = new AlibabaCloudLocationProvider(spiedConnector);
+        assertEquals("cn-hangzhou", locationProvider.initialLocation().datacenter);
+        assertEquals("f", locationProvider.initialLocation().rack);
+
         AlibabaCloudSnitch snitch = new AlibabaCloudSnitch(spiedConnector);
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-        InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
-
-        Token t1 = ClusterMetadata.current().partitioner.getRandomToken();
-        ClusterMetadataTestHelper.addEndpoint(nonlocal, t1, "cn-shanghai", "a");
-
-        assertEquals("cn-shanghai", snitch.getDatacenter(nonlocal));
-        assertEquals("a", snitch.getRack(nonlocal));
-
-        assertEquals("cn-hangzhou", snitch.getDatacenter(local));
-        assertEquals("f", snitch.getRack(local));
+        assertEquals("cn-hangzhou", snitch.getLocalDatacenter());
+        assertEquals("f", snitch.getLocalRack());
     }
 
     @Test
@@ -83,9 +83,13 @@ public class AlibabaCloudSnitchTest
 
         doReturn(az).when(spiedConnector).apiCall(any());
 
+        // for registering a new node, location is obtained from the cloud metadata service
+        AlibabaCloudLocationProvider locationProvider = new AlibabaCloudLocationProvider(spiedConnector);
+        assertEquals("us-east", locationProvider.initialLocation().datacenter);
+        assertEquals("1a", locationProvider.initialLocation().rack);
+
         AlibabaCloudSnitch snitch = new AlibabaCloudSnitch(spiedConnector);
-        InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
-        assertEquals("us-east", snitch.getDatacenter(local));
-        assertEquals("1a", snitch.getRack(local));
+        assertEquals("us-east", snitch.getLocalDatacenter());
+        assertEquals("1a", snitch.getLocalRack());
     }
 }

@@ -159,9 +159,39 @@ auto_hints_cleanup_enabled: false
 # Min unit: KiB
 batchlog_replay_throttle: 1024KiB
 
+# Strategy to choose the batchlog storage endpoints.
+#
+# Available options:
+#
+# - random_remote
+#   Default, purely random, prevents the local rack, if possible.
+#
+# - prefer_local
+#   Similar to random_remote. Random, except that one of the replications will go to the local rack,
+#   which mean it offers lower availability guarantee than random_remote or dynamic_remote.
+#
+# - dynamic_remote
+#   Using DynamicEndpointSnitch to select batchlog storage endpoints, prevents the
+#   local rack, if possible. This strategy offers the same availability guarantees
+#   as random_remote but selects the fastest endpoints according to the DynamicEndpointSnitch.
+#   (DynamicEndpointSnitch currently only tracks reads and not writes - i.e. write-only
+#   (or mostly-write) workloads might not benefit from this strategy.)
+#   Note: this strategy will fall back to random_remote, if dynamic_snitch is not enabled.
+#
+# - dynamic
+#   Mostly the same as dynamic_remote, except that local rack is not excluded, which mean it offers lower
+#   availability guarantee than random_remote or dynamic_remote.
+#   Note: this strategy will fall back to random_remote, if dynamic_snitch is not enabled.
+#
+batchlog_endpoint_strategy: dynamic_remote
+
 # Authentication backend, implementing IAuthenticator; used to identify users
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthenticator,
 # PasswordAuthenticator}.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
 #
 # - AllowAllAuthenticator performs no checks - set it to disable authentication.
 # - PasswordAuthenticator relies on username/password pairs to authenticate
@@ -169,22 +199,27 @@ batchlog_replay_throttle: 1024KiB
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
 authenticator:
-  class_name : org.apache.cassandra.auth.AllowAllAuthenticator
+  class_name: AllowAllAuthenticator
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
-#  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
-#  parameters :
+#  class_name: org.apache.cassandra.auth.MutualTlsAuthenticator
+#  parameters:
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
 # CassandraAuthorizer}.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
 #
 # - AllowAllAuthorizer allows any action to any user - set it to disable authorization.
 # - CassandraAuthorizer stores permissions in system_auth.role_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-authorizer: AllowAllAuthorizer
+authorizer:
+  class_name: AllowAllAuthorizer
 
 # Part of the Authentication & Authorization backend, implementing IRoleManager; used
 # to maintain grants and memberships between roles.
@@ -192,25 +227,47 @@ authorizer: AllowAllAuthorizer
 # which stores role information in the system_auth keyspace. Most functions of the
 # IRoleManager require an authenticated login, so unless the configured IAuthenticator
 # actually implements authentication, most of this functionality will be unavailable.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
 #
 # - CassandraRoleManager stores role data in the system_auth keyspace. Please
 #   increase system_auth keyspace replication factor if you use this role manager.
-role_manager: CassandraRoleManager
+role_manager:
+  class_name: CassandraRoleManager
+  parameters:
+    # Controls how often invalid roles are disconnected, such as when a role is altered with LOGIN=false
+    # Task is scheduled with period + random(0, max_jitter) delay between executions
+    # It's recommended to set these longer than the roles cache refresh period, since the invalidation check depends on
+    # cache contents. Disable by setting period=0h.
+    invalid_role_disconnect_task_period: 4h
+    invalid_role_disconnect_task_max_jitter: 1h
 
 # Network authorization backend, implementing INetworkAuthorizer; used to restrict user
 # access to certain DCs
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllNetworkAuthorizer,
 # CassandraNetworkAuthorizer}.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
 #
 # - AllowAllNetworkAuthorizer allows access to any DC to any user - set it to disable authorization.
 # - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-network_authorizer: AllowAllNetworkAuthorizer
+network_authorizer:
+  class_name: AllowAllNetworkAuthorizer
 
 # CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
 # access from certain CIDRs
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllCIDRAuthorizer,
 # CassandraCIDRAuthorizer}.
+# Optional parameters can be specified in the form of:
+#   parameters:
+#    param_key1: param_value1
+#    ...
+#
 # - AllowAllCIDRAuthorizer allows access from any CIDR to any user - set it to disable CIDR authorization.
 # - CassandraCIDRAuthorizer stores user's CIDR permissions in system_auth.cidr_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
@@ -948,13 +1005,13 @@ listen_address: localhost
 # Internode authentication backend, implementing IInternodeAuthenticator;
 # used to allow/disallow connections from peer nodes.
 #internode_authenticator:
-#  class_name : org.apache.cassandra.auth.AllowAllInternodeAuthenticator
-#  parameters :
+#  class_name: org.apache.cassandra.auth.AllowAllInternodeAuthenticator
+#  parameters:
 # MutualTlsInternodeAuthenticator can be configured using the following configuration.One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
-#  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
-#  parameters :
+#  class_name: org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+#  parameters:
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 #    trusted_peer_identities: "spiffe1,spiffe2"
 #    node_identity: "spiffe1"
@@ -967,6 +1024,9 @@ native_transport_port: 9042
 # The maximum threads for handling requests (note that idle threads are stopped
 # after 30 seconds so there is not corresponding minimum setting).
 # native_transport_max_threads: 128
+# The maximum threads for handling auth requests in a separate executor from main request executor.
+# When set to 0, main executor for requests is used.
+# native_transport_max_auth_threads: 4
 #
 # The maximum size of allowed frame. Frame (requests) larger than this will
 # be rejected as invalid. The default is 16MiB. If you're changing this parameter,
@@ -1392,90 +1452,94 @@ slow_query_log_timeout: 500ms
 # most users should never need to adjust this.
 # phi_convict_threshold: 8
 
-# endpoint_snitch -- Set this to a class that implements
-# IEndpointSnitch.  The snitch has two functions:
+# The settings in the following section are intended to supercede the use of endpoint_snitch:
+# initial_location_provider
+# node_proximity
+# addresses_config (optional)
+# prefer_local_connections (optional, defaults to false)
+
+# The initial location provider supplies the datacenter and rack for a new node joining the
+# cluster for the first time. This DC/rack is used to register the node with the cluster and
+# is then persisted in and propagated by cluster metadata. The initial location provider is
+# not used after this initial phase of the node lifecycle is complete. Cassandra provides the
+# following implementations:
 #
-# - it teaches Cassandra enough about your network topology to route
-#   requests efficiently
-# - it allows Cassandra to spread replicas around your cluster to avoid
-#   correlated failures. It does this by grouping machines into
-#   "datacenters" and "racks."  Cassandra will do its best not to have
-#   more than one replica on the same "rack" (which may not actually
-#   be a physical location)
+# SimpleLocationProvider:
+#    Hardcoded to supply a static location of `datacenter1/rack1`. Replicates the behaviour of
+#    SimpleSnitch.
 #
-# CASSANDRA WILL NOT ALLOW YOU TO SWITCH TO AN INCOMPATIBLE SNITCH
-# ONCE DATA IS INSERTED INTO THE CLUSTER.  This would cause data loss.
-# This means that if you start with the default SimpleSnitch, which
-# locates every node on "rack1" in "datacenter1", your only options
-# if you need to add another datacenter are GossipingPropertyFileSnitch
-# (and the older PFS).  From there, if you want to migrate to an
-# incompatible snitch like Ec2Snitch you can do it by adding new nodes
-# under Ec2Snitch (which will locate them in a new "datacenter") and
-# decommissioning the old ones.
+# RackDCFileLocationProvider:
+#    The rack and datacenter for the local node are defined in cassandra-rackdc.properties,
+#    and is backwards compatible with the configuration of GossipingPropertyFileSnitch.
 #
-# Out of the box, Cassandra provides:
+# TopologyFileLocationProvider:
+#    The rack and datacenter for the local node are defined in cassandra-topology.properties,
+#    and is backwards compatible with the configuration of PropertyFileSnitch. Only the location
+#    info for the local node is relevant now, rack/dc specifications for other endpoints are
+#    ignored.
 #
-# SimpleSnitch:
-#    Treats Strategy order as proximity. This can improve cache
-#    locality when disabling read repair.  Only appropriate for
-#    single-datacenter deployments.
+# AlibabaCloudLocationProvider:
+#    Obtains datacenter and rack of the node from the metadata service of Alibaba cloud. This
+#    maps the ECS region to datacenter and the ECS availability zone to the rack. Intended to
+#    replace use of AlibabaCloudSnitch.
 #
-# GossipingPropertyFileSnitch
-#    This should be your go-to snitch for production use.  The rack
-#    and datacenter for the local node are defined in
-#    cassandra-rackdc.properties and propagated to other nodes via
-#    gossip.  If cassandra-topology.properties exists, it is used as a
-#    fallback, allowing migration from the PropertyFileSnitch.
+# AzureCloudLocationProvider:
+#    Maps datacenter to `location` and rack to `zone` fields of the `compute` object obtained
+#    from the Azure metadata service. If the availablity zone is not enabled, it will use the
+#    failure domain and get its respective value. Intended to replace use of AzureSnitch.
 #
-# PropertyFileSnitch:
-#    Proximity is determined by rack and data center, which are
-#    explicitly configured in cassandra-topology.properties.
+# CloudstackLocationProvider:
+#    Assumes a Cloudstack Zone follows the typical convention country-location-az, using a
+#    country/location tuple as a datacenter and the availability zone as a rack. Intended to
+#    replace use of CloudstackSnitch.
+#    WARNING: This legacy snitch has been deprecated and is scheduled to be removed in a future
+#    version of Cassandra.
 #
-# AlibabaCloudSnitch:
-#    Snitch for getting dc and rack of a node from metadata service of Alibaba cloud.
-#    This snitch that assumes an ECS region is a DC and an ECS availability_zone is a rack.
+# Ec2LocationProvider:
+#    Loads Region and Availability Zone information from the EC2 API. The Region is treated as the
+#    datacenter and the AvailablilityZone as the rack. Intended to replace use of Ec2Snitch and
+#    Ec2MultiRegionSnitch.
 #
-# AzureSnitch:
-#    Gets datacenter from 'location' and rack from 'zone' fields of 'compute' object
-#    from instance metadata service. If the availability zone is not enabled, it will use the fault
-#    domain and get its respective value.
+# GoogleCloudLocationProvider:
+#    Fetches source data from the metadata service of Google Cloud. This provider maps the GCE
+#    region to datacenter and the availibility zone to the rack. Intended to replace use of
+#    GoogleCloudSnitch.
+initial_location_provider: SimpleLocationProvider
+
+# Node proximity controls sorting and ranking of replica lists in order to route requests efficiently.
+# Dynamic snitch (not configured here) provides an additional level of sorting on top of whatever is
+# specified here of sorting based on recorded latencies between peers.
 #
-# CloudstackSnitch:
-#    A snitch that assumes a Cloudstack Zone follows the typical convention 
-#    country-location-az and uses a country/location tuple as a datacenter
-#    and the availability zone as a rack.
-#    WARNING: This snitch is deprecated and it is scheduled to be removed 
-#    in the next major version of Cassandra.
+# Out of the box Cassandra provides:
 #
-# Ec2Snitch:
-#    Appropriate for EC2 deployments in a single Region. Loads Region
-#    and Availability Zone information from the EC2 API. The Region is
-#    treated as the datacenter, and the Availability Zone as the rack.
-#    Only private IPs are used, so this will not work across multiple
-#    Regions.
+# NoOpProximity:
+#    Performs no reordering of replica lists and assigns every endpoint equal proximity, regardless of
+#    actual topology. This replicates the behaviour of SimpleSnitch.
 #
-# Ec2MultiRegionSnitch:
-#    Uses public IPs as broadcast_address to allow cross-region
-#    connectivity.  (Thus, you should set seed addresses to the public
-#    IP as well.) You will need to open the storage_port or
-#    ssl_storage_port on the public IP firewall.  (For intra-Region
-#    traffic, Cassandra will switch to the private IP after
-#    establishing a connection.)
-#
-# GoogleCloudSnitch:
-#    Snitch for getting dc and rack of a node from metadata service of Google cloud.
-#    This snitch that assumes an GCE region is a DC and an GCE availability_zone is a rack.
-#
-# RackInferringSnitch:
-#    Proximity is determined by rack and data center, which are
-#    assumed to correspond to the 3rd and 2nd octet of each node's IP
-#    address, respectively.  Unless this happens to match your
-#    deployment conventions, this is best used as an example of
-#    writing a custom Snitch class and is provided in that spirit.
-#
-# You can use a custom Snitch by setting this to the full class name
-# of the snitch, which will be assumed to be on your classpath.
-endpoint_snitch: SimpleSnitch
+# NetworkTopologyProximity:
+#    Ranks proximity of nodes based on datacenter and rack. Nodes in the same rack are considered
+#    closest, followed by those in the same datacenter. Nodes in different datacenters are
+#    considered furthest apart. Replicates the behaviour of topology aware snitches such as
+#    GossipingPropertyFileSnitch, PropertyFileSnitch and the multiple cloud platform snitches.
+node_proximity: NetworkTopologyProximity
+
+# Address configuration (public and private endpoint addresses) is almost always derived directly
+# from this configuration file using broadcast_address. In certain deployments, both the public and
+# private addresses may be configured from an external source. For instance, in EC2 a node will have
+# discover both of its own addresses at startup by querying the appropriate cloud metadata service.
+# In multi-region EC2 deployments, this should be set to Ec2MultiRegionAddressConfig, to replicate the
+# behaviour of Ec2MultiRegionSnitch.
+#addresses_config: Ec2MultiRegionAddressConfig
+
+# Controls whether or not to ensure that connections to peers in the same datacenter are established
+# using private addresses. Typically, this is for situations like EC2 where a node will have a public
+# address and a private address. We may initially connect on the public, then discover the private, and
+# reconnect on the private.
+# In Ec2MultiRegionSnitch (now deprecated), this behaviour was hard coded so if migrating from that
+# snitch to modern config, set this to true.
+# In GossipingPropertyFileSnitch (now deprecated), this behaviour was configured by the `prefer_local`
+# property so if migrating from that snitch to modern config, set this accordingly.
+#prefer_local_connections: false
 
 # controls how often to perform the more expensive part of host score
 # calculation
@@ -1549,6 +1613,10 @@ server_encryption_options:
   # Set to a valid keystore if internode_encryption is dc, rack or all
   keystore: conf/.keystore
   #keystore_password: cassandra
+  # Optional configuration to specify password for keystore in a separate file
+  # When keystore_password and keystore_password_file both are specified, the keystore_password will take precedence
+  # The password in the file should be on the first line
+  #keystore_password_file: conf/keystore_passwordfile.txt
   # Configure the way Cassandra creates SSL contexts.
   # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
   # ssl_context_factory:
@@ -1560,11 +1628,20 @@ server_encryption_options:
   # to create SSLContext. By default, outbound_keystore is the same as keystore indicating mTLS is not enabled.
 #  outbound_keystore: conf/.keystore
 #  outbound_keystore_password: cassandra
+  # Optional configuration to specify password for keystore in a separate file
+  # When outbound_keystore_password and outbound_keystore_password_file both are specified,
+  # the outbound_keystore_password will take precedence
+  # The password in the file should be on the first line
+  #outbound_keystore_password_file: conf/outbound_keystore_passwordfile.txt
   # Verify peer server certificates
   require_client_auth: false
   # Set to a valid trustore if require_client_auth is true
   truststore: conf/.truststore
   #truststore_password: cassandra
+  # Optional configuration to specify password for truststore in a separate file
+  # When truststore_password and truststore_password_file both are specified, the truststore_password will take precedence
+  # The password in the file should be on the first line
+  #truststore_password_file: conf/truststore_passwordfile.txt
   # Verify that the host name in the certificate matches the connected host
   require_endpoint_verification: false
   # More advanced defaults:
@@ -1599,6 +1676,10 @@ client_encryption_options:
   # Set keystore and keystore_password to valid keystores if enabled is true
   keystore: conf/.keystore
   #keystore_password: cassandra
+  # Optional configuration to specify password for keystore in a separate file
+  # When keystore_password and keystore_password_file both are specified, the keystore_password will take precedence
+  # The password in the file should be on the first line
+  #keystore_password_file: conf/keystore_passwordfile.txt
   # Configure the way Cassandra creates SSL contexts.
   # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
   # ssl_context_factory:
@@ -1613,6 +1694,10 @@ client_encryption_options:
   # Set trustore and truststore_password if require_client_auth is true
   # truststore: conf/.truststore
   # truststore_password: cassandra
+  # Optional configuration to specify password for truststore in a separate file
+  # When truststore_password and truststore_password_file both are specified, the truststore_password will take precedence
+  # The password in the file should be on the first line
+  #truststore_password_file: conf/truststore_passwordfile.txt
   # More advanced defaults:
   # protocol: TLS
   # store_type: JKS
@@ -1622,6 +1707,77 @@ client_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+
+# Configure SSL for JMX
+#
+# Using system properties via cassandra-env.sh to configure JMX SSL is
+# considered legacy and only supported for backward compatibility. If SSL
+# is enabled via both methods, a configuration error will occur at
+# startup. Hot reloading of the `SSLContext` is not yet supported for the
+# JMX SSL.
+# Similar to `client/server_encryption_options`, you can specify PEM-based
+# key material or customize the SSL configuration using `ssl_context_factory` in `jmx_encryption_options`.
+# If you uncomment this section, please be sure that you comment out configure_jmx function call in cassandra-env.sh
+# as it is errorneous to have JMX set by two ways, both in cassandra-env.sh and in this yaml.
+#jmx_server_options:
+  # enabled: true
+  # remote: false
+  # jmx_port: 7199
+  #
+  # Port used by the RMI registry when remote connections are enabled.
+  # To simplify firewall configs, this can be set to the same as the JMX server port (port). See CASSANDRA-7087.
+  # However, if ssl is enabled the same port cannot be used for both jmx and rmi so either
+  # pick another value for this property. Alternatively, comment out or set to 0 to use a random
+  # port (pre-CASSANDRA-7087 behaviour)
+  # rmi_port: 7199
+  #
+  # jmx ssl options - only apply when remote connections are enabled
+  #
+  # jmx_encryption_options:
+  #   enabled: true
+  #   cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+  #   accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+  #   keystore: conf/cassandra_ssl.keystore
+  #   keystore_password: cassandra
+  #   Optional configuration to specify password for keystore in a separate file
+  #   When keystore_password and keystore_password_file both are specified, the keystore_password will take precedence
+  #   The password in the file should be on the first line
+  #   keystore_password_file: conf/keystore_passwordfile.txt
+  #   truststore: conf/cassandra_ssl.truststore
+  #   truststore_password: cassandra
+  #   Optional configuration to specify password for truststore in a separate file
+  #   When truststore_password and truststore_password_file both are specified, the truststore_password will take precedence
+  #   The password in the file should be on the first line
+  #   truststore_password_file: conf/truststore_passwordfile.txt
+  #
+  # jmx authentication and authorization options.
+  # authenticate: false
+  #
+  # Options for basic file based authentication & authorization
+  # password_file: /etc/cassandra/jmxremote.password
+  # access_file: /etc/cassandra/jmxremote.access
+  #
+  # Custom auth settings which can be used as alternatives to JMX's out of the box auth utilities.
+  # JAAS login modules can be used for authentication using this property.Cassandra ships with a
+  # LoginModule implementation - org.apache.cassandra.auth.CassandraLoginModule - which delegates
+  # to the IAuthenticator configured in cassandra.yaml.
+  #
+  # login_config_name refers to the Application Name in the JAAS configuration under which the
+  # desired LoginModule(s) are configured.
+  # The location of the JAAS config file may be set using the standard JVM mechanism, by setting
+  # the system property "java.security.auth.login.config". If this property is set, it's value
+  # will be used to locate the config file. For convenience, if the property is not already set
+  # at startup, a value can be supplied here via the login_config_file setting.
+  #
+  # The Application Name specified must be present in the JAAS config or an error will be thrown
+  # when authentication is attempted.
+  # See the sample JAAS configuration file conf/cassandra-jaas.config
+  # login_config_name: CassandraLogin
+  # login_config_file: conf/cassandra-jaas.config
+  #
+  # Cassandra also ships with a helper for delegating JMX authz calls to the configured IAuthorizer,
+  # uncomment this to use it. Requires one of the two authentication options to be enabled
+  # authorizer: org.apache.cassandra.auth.jmx.AuthorizationProxy
 
 # internode_compression controls whether traffic between nodes is
 # compressed.
@@ -1710,6 +1866,20 @@ transparent_data_encryption_options:
 # using the StorageService mbean.
 tombstone_warn_threshold: 1000
 tombstone_failure_threshold: 100000
+
+# Controls the granularity of purgeable tombstones reported to PurgeableTombstoneScannedHistogram table metric
+# Possible values:
+# 'disabled' - do not collect the metric at all
+# 'row'      - track only partition/range/row level tombstone,
+#              a good compromise between overheads and usability.
+#              For CPU-bound workload you may get less than 1% of overhead for throughput.
+#              For IO-bound workload the overhead is negligible.
+# 'cell'     - track partition/range/row/cell level tombstones.
+#              This is the most granular option,
+#              but it has some performance overheads due to iteration over cells.
+#              For CPU-bound workload you may get about 5% of overhead for throughput.
+#              For IO-bound workload the overhead is almost negligible.
+# tombstone_read_purgeable_metric_granularity: disabled
 
 # Filtering and secondary index queries at read consistency levels above ONE/LOCAL_ONE use a
 # mechanism called replica filtering protection to ensure that results from stale replicas do
@@ -2175,17 +2345,19 @@ default_secondary_index_enabled: true
 # feature won't be available if this property is set to CASSANDRA_4. See the upgrade guide for more details.
 #
 # Possible values are:
-# - CASSANDRA_4: Stays compatible with the 4.x line in features, formats and component versions.
-# - UPGRADING:   The cluster monitors the version of each node during this interim stage. This has a cost but ensures
+#
+# ** CASSANDRA_4: Stays compatible with the 4.x line in features, formats and component versions.
+# ** UPGRADING:   The cluster monitors the version of each node during this interim stage. This has a cost but ensures
 #                all new features, formats, versions, etc. are enabled safely.
-# - NONE:        Start with all the new features and formats enabled.
+# ** NONE:        Start with all the new features and formats enabled.
 #
 # A typical upgrade would be:
-# - Do a rolling upgrade, starting all nodes in CASSANDRA_X compatibility mode.
-# - Once the new binary is rendered stable, do a rolling restart with the UPGRADING mode. The cluster will keep new
+#
+# . Do a rolling upgrade, starting all nodes in CASSANDRA_X compatibility mode.
+# . Once the new binary is rendered stable, do a rolling restart with the UPGRADING mode. The cluster will keep new
 #   features disabled until all nodes are started in the UPGRADING mode; when that happens, new features controlled by
 #   the storage compatibility mode are enabled.
-# - Do a rolling restart with all nodes starting with the NONE mode. This eliminates the cost of checking node versions
+# . Do a rolling restart with all nodes starting with the NONE mode. This eliminates the cost of checking node versions
 #   and ensures stability. If Cassandra was started at the previous version by accident, a node with disabled
 #   compatibility mode would no longer toggle behaviors as when it was running in the UPGRADING mode.
 #

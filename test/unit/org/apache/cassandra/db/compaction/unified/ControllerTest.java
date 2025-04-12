@@ -45,6 +45,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -142,7 +143,7 @@ public class ControllerTest
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
         // The below value is based on the value in the above statement. Decreasing the above statement should result in a decrease below.
         options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, "70.710MiB");
-        options.putIfAbsent(Controller.OVERLAP_INCLUSION_METHOD_OPTION, Overlaps.InclusionMethod.SINGLE.toString().toLowerCase());
+        options.putIfAbsent(Controller.OVERLAP_INCLUSION_METHOD_OPTION, toLowerCaseLocalized(Overlaps.InclusionMethod.SINGLE.toString()));
         options.putIfAbsent(Controller.SSTABLE_GROWTH_OPTION, "0.5");
     }
 

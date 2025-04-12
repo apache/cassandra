@@ -132,8 +132,7 @@ public abstract class CompactStoragePagingWithProtocolTester extends UpgradeTest
         String query = withKeyspace("SELECT * FROM %s.t");
         assertRows(query, ProtocolVersion.V3, rows);
         assertRows(query, ProtocolVersion.V4, rows);
-        if (initialVersion().isGreaterThanOrEqualTo(v3X))
-            assertRows(query, ProtocolVersion.V5, rows);
+        assertRows(query, ProtocolVersion.V5, rows);
     }
 
     private static void assertRows(String query, ProtocolVersion protocolVersion, Object[]... expectedRows)

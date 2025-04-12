@@ -106,6 +106,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -454,6 +455,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean optimiseStreams,
                                              boolean repairPaxos,
                                              boolean paxosOnly,
+                                             boolean dontPurgeTombstones,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
                                              String... cfnames)
@@ -469,7 +471,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession, range, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
-                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
+                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, dontPurgeTombstones, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);
@@ -883,10 +885,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                       .map(cfs -> cfs.metadata().toString()).collect(Collectors.joining(", ")));
                 long startNanos = ctx.clock().nanoTime();
                 for (ColumnFamilyStore cfs : session.columnFamilyStores.values())
-                {
-                    if (cfs.snapshotExists(snapshotName))
-                        cfs.clearSnapshot(snapshotName);
-                }
+                    SnapshotManager.instance.clearSnapshot(cfs.keyspace.getName(), cfs.name, snapshotName);
+
                 logger.info("[repair #{}] Cleared snapshots in {}ms", parentSessionId, TimeUnit.NANOSECONDS.toMillis(ctx.clock().nanoTime() - startNanos));
             });
         }

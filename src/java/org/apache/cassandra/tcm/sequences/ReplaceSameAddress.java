@@ -93,6 +93,7 @@ public class ReplaceSameAddress
             StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
                          .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
                          .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
+            BootstrapAndReplace.gossipStateToNormal(metadata, metadata.myNodeId());
             Gossiper.instance.mergeNodeToGossip(metadata.myNodeId(), metadata);
         }
     }

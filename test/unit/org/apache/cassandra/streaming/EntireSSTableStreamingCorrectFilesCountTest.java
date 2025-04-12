@@ -104,7 +104,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
         }
 
         Util.flush(store);
-        CompactionManager.instance.performMaximal(store, false);
+        CompactionManager.instance.performMaximal(store);
 
         sstable = store.getLiveSSTables().iterator().next();
 

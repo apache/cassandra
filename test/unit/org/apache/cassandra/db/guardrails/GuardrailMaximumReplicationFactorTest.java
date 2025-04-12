@@ -26,14 +26,10 @@ import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.ClientWarn;
 import org.assertj.core.api.Assertions;
 
@@ -113,21 +109,6 @@ public class GuardrailMaximumReplicationFactorTest extends ThresholdTester
     @Test
     public void testMultipleDatacenter() throws Throwable
     {
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
-        {
-            public static final String RACK1 = ServerTestUtils.RACK1;
-
-            @Override
-            public String getRack(InetAddressAndPort endpoint) { return RACK1; }
-
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint) { return "datacenter2"; }
-
-            @Override
-            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
-        });
-
         List<String> twoWarnings = Arrays.asList(format("The keyspace ks has a replication factor of 3, above the warning threshold of %s.", MAXIMUM_REPLICATION_FACTOR_WARN_THRESHOLD),
                                                  format("The keyspace ks has a replication factor of 3, above the warning threshold of %s.", MAXIMUM_REPLICATION_FACTOR_WARN_THRESHOLD));
 
@@ -152,7 +133,7 @@ public class GuardrailMaximumReplicationFactorTest extends ThresholdTester
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 2, 'datacenter2' : 5}", 5);
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 5, 'datacenter2' : 5}", 5);
 
-        DatabaseDescriptor.setEndpointSnitch(snitch);
+//        DatabaseDescriptor.setEndpointSnitch(snitch);
     }
 
     @Test

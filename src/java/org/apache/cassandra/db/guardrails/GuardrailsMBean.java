@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -552,6 +553,78 @@ public interface GuardrailsMBean
     void setColumnValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
+     * @return The threshold to warn when encountering ascii column values larger than threshold, as a string  formatted as
+     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnAsciiValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent ascii column values larger than threshold, as a string formatted as in, for example,
+     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnAsciiValueSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering ascii column values larger than threshold, as a string
+     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent ascii column values larger than threshold, as a string formatted as in, for
+     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     */
+    void setColumnAsciiValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering blob column values larger than threshold, as a string  formatted as
+     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnBlobValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent blob column values larger than threshold, as a string formatted as in, for example,
+     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnBlobValueSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering blob column values larger than threshold, as a string
+     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent blob column values larger than threshold, as a string formatted as in, for
+     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     */
+    void setColumnBlobValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering text and varchar column values larger than threshold, as a string  formatted as
+     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnTextAndVarcharValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent text and varchar column values larger than threshold, as a string formatted as in, for example,
+     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnTextAndVarcharValueSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering text or varchar column values larger than threshold, as a string
+     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent text column values larger than threshold, as a string formatted as in, for
+     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     */
+    void setColumnTextAndVarcharValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
      * @return The threshold to warn when encountering larger size of collection data than threshold, as a string
      * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
      * means that the threshold is disabled.
@@ -576,6 +649,84 @@ public interface GuardrailsMBean
      *                 value means disabled.
      */
     void setCollectionSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering larger size of map collection data than threshold, as a string
+     * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
+     * means that the threshold is disabled.
+     */
+    @Nullable
+    String getCollectionMapSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent map collections with larger data size than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means that the
+     * threshold is disabled.
+     */
+    @Nullable
+    String getCollectionMapSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering larger size of map collection data than threshold, as a
+     *                 string formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent map collections with larger data size than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null}
+     *                 value means disabled.
+     */
+    void setCollectionMapSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering larger size of set collection data than threshold, as a string
+     * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
+     * means that the threshold is disabled.
+     */
+    @Nullable
+    String getCollectionSetSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent set collections with larger data size than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means that the
+     * threshold is disabled.
+     */
+    @Nullable
+    String getCollectionSetSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering larger size of set collection data than threshold, as a
+     *                 string formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent set collections with larger data size than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null}
+     *                 value means disabled.
+     */
+    void setCollectionSetSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering larger size of list collection data than threshold, as a string
+     * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
+     * means that the threshold is disabled.
+     */
+    @Nullable
+    String getCollectionListSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent list collections with larger data size than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means that the
+     * threshold is disabled.
+     */
+    @Nullable
+    String getCollectionListSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering larger size of list collection data than threshold, as a
+     *                 string formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent list collections with larger data size than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null}
+     *                 value means disabled.
+     */
+    void setCollectionListSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
      * @return The threshold to warn when encountering more elements in a collection than threshold.
@@ -624,6 +775,16 @@ public interface GuardrailsMBean
      * @param fail The threshold to prevent creating a vector with more dimensions than threshold.
      */
     void setVectorDimensionsThreshold(int warn, int fail);
+
+    /**
+     * @param enabled {@code true} if vector type usage is enabled.
+     */
+    void setVectorTypeEnabled(boolean enabled);
+
+    /**
+     * @return {@code true} if vector type usage is enabled.
+     */
+    boolean getVectorTypeEnabled();
 
     /**
      * @return The threshold to warn when local data disk usage percentage exceeds that threshold.
@@ -904,4 +1065,16 @@ public interface GuardrailsMBean
     boolean getIntersectFilteringQueryEnabled();
     
     void setIntersectFilteringQueryEnabled(boolean value);
+
+    /**
+     * @return the configuration of password validator.
+     */
+    Map<String, Object> getPasswordValidatorConfig();
+
+    /**
+     * Reconfigures password validator.
+     *
+     * @param config configuration of new password validator
+     */
+    void reconfigurePasswordValidator(Map<String, Object> config);
 }

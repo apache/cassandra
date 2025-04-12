@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -56,7 +57,6 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.Verb;
@@ -353,6 +353,8 @@ public class LocalSessions
      */
     public synchronized void start()
     {
+        long startTime = ctx.clock().nanoTime();
+        int loadedSessionsCount = 0;
         Preconditions.checkArgument(!started, "LocalSessions.start can only be called once");
         Preconditions.checkArgument(sessions.isEmpty(), "No sessions should be added before start");
         UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), 1000);
@@ -360,6 +362,7 @@ public class LocalSessions
         Map<TableId, List<RepairedState.Level>> initialLevels = new HashMap<>();
         for (UntypedResultSet.Row row : rows)
         {
+            loadedSessionsCount++;
             try
             {
                 LocalSession session = load(row);
@@ -383,6 +386,9 @@ public class LocalSessions
 
         sessions = ImmutableMap.copyOf(loadedSessions);
         failOngoingRepairs();
+        long endTime = ctx.clock().nanoTime();
+        logger.info("LocalSessions start completed in {} ms, sessions loaded from DB: {}",
+                    TimeUnit.NANOSECONDS.toMillis(endTime - startTime), loadedSessionsCount);
         started = true;
     }
 
@@ -507,11 +513,10 @@ public class LocalSessions
         return buffers;
     }
 
-    private static Range<Token> deserializeRange(ByteBuffer bb)
+    private static Range<Token> deserializeRange(ByteBuffer bb, IPartitioner partitioner)
     {
         try (DataInputBuffer in = new DataInputBuffer(bb, false))
         {
-            IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
             Token left = Token.serializer.deserialize(in, partitioner, 0);
             Token right = Token.serializer.deserialize(in, partitioner, 0);
             return new Range<>(left, right);
@@ -522,10 +527,10 @@ public class LocalSessions
         }
     }
 
-    private static Set<Range<Token>> deserializeRanges(Set<ByteBuffer> buffers)
+    private static Set<Range<Token>> deserializeRanges(Set<ByteBuffer> buffers, IPartitioner partitioner)
     {
         Set<Range<Token>> ranges = new HashSet<>(buffers.size());
-        buffers.forEach(bb -> ranges.add(deserializeRange(bb)));
+        buffers.forEach(bb -> ranges.add(deserializeRange(bb, partitioner)));
         return ranges;
     }
 
@@ -579,9 +584,13 @@ public class LocalSessions
             row.getInetAddress("coordinator"),
             row.getInt("coordinator_port"));
         builder.withCoordinator(coordinator);
-        builder.withTableIds(uuidToTableId(row.getSet("cfids", UUIDType.instance)));
+        Set<TableId> tableIds = uuidToTableId(row.getSet("cfids", UUIDType.instance));
+        builder.withTableIds(tableIds);
         builder.withRepairedAt(row.getTimestamp("repaired_at").getTime());
-        builder.withRanges(deserializeRanges(row.getSet("ranges", BytesType.instance)));
+        Set<IPartitioner> partitioners = tableIds.stream().map(ColumnFamilyStore::getIfExists).filter(Objects::nonNull).map(ColumnFamilyStore::getPartitioner).collect(Collectors.toSet());
+        assert partitioners.size() <= 1 : "Mismatching partitioners for a localsession: " + partitioners;
+        IPartitioner partitioner = partitioners.isEmpty() ? IPartitioner.global() : partitioners.iterator().next();
+        builder.withRanges(deserializeRanges(row.getSet("ranges", BytesType.instance), partitioner));
         //There is no cross version streaming and thus no cross version repair so assume that
         //any valid repair sessions has the participants_wp column and any that doesn't is malformed
         Set<String> participants = row.getSet("participants_wp", UTF8Type.instance);
@@ -717,7 +726,8 @@ public class LocalSessions
                                         session.getState(), state);
             if (expected != null && session.getState() != expected)
                 return false;
-            logger.trace("Changing LocalSession state from {} -> {} for {}", session.getState(), state, session.sessionID);
+            if (logger.isTraceEnabled())
+                logger.trace("Changing LocalSession state from {} -> {} for {}", session.getState(), state, session.sessionID);
             boolean wasCompleted = session.isCompleted();
             session.setState(state);
             session.setLastUpdate();
@@ -971,7 +981,7 @@ public class LocalSessions
     }
 
     @VisibleForTesting
-    protected void sessionCompleted(LocalSession session)
+    public void sessionCompleted(LocalSession session)
     {
         for (TableId tid: session.tableIds)
         {
@@ -1066,6 +1076,7 @@ public class LocalSessions
         }
         else
         {
+            session.setLastUpdate();
             logger.debug("Received StatusResponse for repair session {} with state {}, which is not actionable. Doing nothing.", sessionID, response.state);
         }
     }

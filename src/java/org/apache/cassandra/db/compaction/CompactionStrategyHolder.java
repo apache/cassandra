@@ -106,7 +106,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     {
         List<TaskSupplier> suppliers = new ArrayList<>(strategies.size());
         for (AbstractCompactionStrategy strategy : strategies)
-            suppliers.add(new TaskSupplier(strategy.getEstimatedRemainingTasks(), () -> strategy.getNextBackgroundTask(gcBefore)));
+            suppliers.add(new TaskSupplier(strategy.getEstimatedRemainingTasks(), () -> strategy.getNextBackgroundTasks(gcBefore)));
 
         return suppliers;
     }
@@ -117,7 +117,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
         List<AbstractCompactionTask> tasks = new ArrayList<>(strategies.size());
         for (AbstractCompactionStrategy strategy : strategies)
         {
-            Collection<AbstractCompactionTask> task = strategy.getMaximalTask(gcBefore, splitOutput);
+            Collection<AbstractCompactionTask> task = strategy.getMaximalTasks(gcBefore, splitOutput);
             if (task != null)
                 tasks.addAll(task);
         }

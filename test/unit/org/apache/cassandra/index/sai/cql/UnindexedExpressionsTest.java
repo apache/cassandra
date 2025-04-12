@@ -69,9 +69,7 @@ public class UnindexedExpressionsTest extends SAITester
         // The IS NOT operator is only valid on materialized views
         assertInvalidMessage("Unsupported restriction:", "SELECT pk FROM %s WHERE val1 = 1 AND val2 is not null");
 
-        // The != operator is currently not supported at all
-        assertInvalidMessage("Unsupported '!=' relation: val2 != '22'", "SELECT pk FROM %s WHERE val1 = 1 AND val2 != '22'");
-
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT pk FROM %s WHERE val1 = 1 AND val2 != '22'");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT pk FROM %s WHERE val1 = 1 AND val2 < '22'");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT pk FROM %s WHERE val1 = 1 AND val2 <= '11'");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT pk FROM %s WHERE val1 = 1 AND val2 >= '11'");

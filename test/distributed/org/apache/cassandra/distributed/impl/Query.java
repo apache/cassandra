@@ -30,12 +30,11 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
 {
@@ -60,7 +59,7 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
     {
         ConsistencyLevel commitConsistency = toCassandraCL(commitConsistencyOrigin);
         ConsistencyLevel serialConsistency = serialConsistencyOrigin == null ? null : toCassandraCL(serialConsistencyOrigin);
-        ClientState clientState = Coordinator.makeFakeClientState();
+        ClientState clientState = CoordinatorHelper.makeFakeClientState();
         CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
         List<ByteBuffer> boundBBValues = new ArrayList<>();
         for (Object boundValue : boundValues)
@@ -83,7 +82,7 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
                                                                  null,
                                                                  timestamp,
                                                                  FBUtilities.nowInSeconds()),
-                                             nanoTime());
+                                             Dispatcher.RequestTime.forImmediateExecution());
 
         // Collect warnings reported during the query.
         if (res != null)

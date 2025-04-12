@@ -43,7 +43,6 @@ import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SY
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
 import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
@@ -60,7 +59,7 @@ public abstract class AbstractCommitLogService
     private volatile Interruptible executor;
 
     // all Allocations written before this time will be synced
-    protected volatile long lastSyncedAt = currentTimeMillis();
+    protected volatile long lastSyncedAt = MonotonicClock.Global.preciseTime.now();
 
     // counts of total written, and pending, log messages
     private final AtomicLong written = new AtomicLong(0);

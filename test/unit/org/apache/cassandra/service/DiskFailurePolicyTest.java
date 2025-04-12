@@ -38,7 +38,6 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
@@ -72,7 +71,7 @@ public class DiskFailurePolicyTest
         JOIN_RING.setBoolean(false); // required to start gossiper without setting tokens
         SchemaLoader.prepareServer();
         StorageService.instance.initServer();
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
     }
 
     public DiskFailurePolicyTest(DiskFailurePolicy testPolicy, boolean isStartUpInProgress, Throwable t,

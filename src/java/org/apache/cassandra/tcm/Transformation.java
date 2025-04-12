@@ -48,6 +48,12 @@ import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
 import org.apache.cassandra.tcm.transformations.cms.StartAddToCMS;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 
+/**
+ * Implementations should be pure transformations from one ClusterMetadata state to another. They are likely to be
+ * replayed during startup to rebuild the node's current state and so should be free of side effects and should not
+ * depend on external state, configuration or resources. They must produce consistent outputs when run on every instance
+ * in a cluster, regardless of any specific characteristics of the instance.
+ */
 public interface Transformation
 {
     Serializer transformationSerializer = new Serializer();
@@ -213,7 +219,8 @@ public interface Transformation
         PREPARE_SIMPLE_CMS_RECONFIGURATION(31, () -> PrepareCMSReconfiguration.Simple.serializer),
         PREPARE_COMPLEX_CMS_RECONFIGURATION(32, () -> PrepareCMSReconfiguration.Complex.serializer),
         ADVANCE_CMS_RECONFIGURATION(33, () -> AdvanceCMSReconfiguration.serializer),
-        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer)
+        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer),
+        ALTER_TOPOLOGY(35, () -> AlterTopology.serializer),
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

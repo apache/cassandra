@@ -23,11 +23,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+
+import com.google.common.collect.AbstractIterator;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -58,12 +61,17 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     };
 
     private static final RestrictionSet EMPTY = new RestrictionSet(Collections.unmodifiableNavigableMap(new TreeMap<>(COLUMN_DEFINITION_COMPARATOR)),
-                                                                   false, false, false,false);
+                                                                   false, false, false, false,false);
 
     /**
      * The restrictions per column.
      */
     private final NavigableMap<ColumnMetadata, SingleRestriction> restrictions;
+
+    /**
+     * {@code true} if it contains multi-column restrictions, {@code false} otherwise.
+     */
+    private final boolean hasMultiColumnRestrictions;
 
     private final boolean hasSlice;
 
@@ -83,12 +91,14 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     private RestrictionSet(NavigableMap<ColumnMetadata, SingleRestriction> restrictions,
+                           boolean hasMultiColumnRestrictions,
                            boolean hasIn,
                            boolean hasSlice,
                            boolean hasAnn,
                            boolean needsFilteringOrIndexing)
     {
         this.restrictions = restrictions;
+        this.hasMultiColumnRestrictions = hasMultiColumnRestrictions;
         this.hasIn = hasIn;
         this.hasSlice = hasSlice;
         this.hasAnn = hasAnn;
@@ -184,6 +194,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         boolean newNeedsFilteringOrIndexing = needsFilteringOrIndexing || restriction.needsFilteringOrIndexing();
 
         return new RestrictionSet(mergeRestrictions(newRestricitons, restriction),
+                                  hasMultiColumnRestrictions || restriction.isMultiColumn(),
                                   newHasIN,
                                   newHasSlice,
                                   newHasANN,
@@ -260,8 +271,8 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     @Override
     public Iterator<SingleRestriction> iterator()
     {
-        // We need to eliminate duplicates in the case where we have multi-column restrictions.
-        return new LinkedHashSet<>(restrictions.values()).iterator();
+        Iterator<SingleRestriction> iterator = restrictions.values().iterator();
+        return hasMultiColumnRestrictions ? new DistinctIterator<>(iterator) : iterator;
     }
 
     @Override
@@ -300,5 +311,48 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     SingleRestriction lastRestriction()
     {
         return restrictions.lastEntry().getValue();
+    }
+
+    /**
+     * {@code Iterator} decorator that removes duplicates in an ordered one.
+     *
+     * @param <E> the iterator element type.
+     */
+    private static final class DistinctIterator<E> extends AbstractIterator<E>
+    {
+        /**
+         * The decorated iterator.
+         */
+        private final Iterator<E> iterator;
+
+        /**
+         * The previous element.
+         */
+        private E previous;
+
+        public DistinctIterator(Iterator<E> iterator)
+        {
+            this.iterator = iterator;
+        }
+
+        protected E computeNext()
+        {
+            while(iterator.hasNext())
+            {
+                E next = iterator.next();
+                if (!next.equals(previous))
+                {
+                    previous = next;
+                    return next;
+                }
+            }
+            return endOfData();
+        }
+    }
+
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

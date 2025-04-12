@@ -23,6 +23,9 @@ import java.net.SocketAddress;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
+
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 
@@ -36,6 +39,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.unix.Errors;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.OversizedCQLMessageException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.ErrorMessage;
@@ -100,7 +104,7 @@ public class ExceptionHandlers
                 logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
                 return;
             }
-            logClientNetworkingExceptions(cause);
+            logClientNetworkingExceptions(cause, ctx.channel().remoteAddress());
         }
 
         private static boolean isFatal(Throwable cause)
@@ -110,7 +114,7 @@ public class ExceptionHandlers
         }
     }
 
-    static void logClientNetworkingExceptions(Throwable cause)
+    static void logClientNetworkingExceptions(Throwable cause, SocketAddress clientAddress)
     {
         if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException))
         {
@@ -128,15 +132,28 @@ public class ExceptionHandlers
             // Once the threshold for overload is breached, it will very likely spam the logs...
             NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, cause.getMessage());
         }
+        else if (Throwables.anyCauseMatches(cause, t -> t instanceof OversizedCQLMessageException))
+        {
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, cause.getMessage());
+        }
         else if (Throwables.anyCauseMatches(cause, t -> t instanceof Errors.NativeIoException))
         {
             ClientMetrics.instance.markUnknownException();
             logger.trace("Native exception in client networking", cause);
         }
+        else if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLHandshakeException))
+        {
+            ClientMetrics.instance.markSSLHandshakeException();
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "SSLHandshakeException in client networking with peer {} {}", clientAddress, cause.getMessage());
+        }
+        else if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLException))
+        {
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "SSLException in client networking with peer {} {}", clientAddress, cause.getMessage());
+        }
         else
         {
             ClientMetrics.instance.markUnknownException();
-            logger.warn("Unknown exception in client networking", cause);
+            logger.warn("Unknown exception in client networking with peer {} {}", clientAddress, cause.getMessage());
         }
     }
 

@@ -41,8 +41,6 @@ public interface PartitionRangeReadQuery extends ReadQuery
         return PartitionRangeReadCommand.create(table, nowInSec, columnFilter, rowFilter, limits, dataRange);
     }
 
-    DataRange dataRange();
-
     /**
      * Creates a new {@code PartitionRangeReadQuery} with the updated limits.
      *

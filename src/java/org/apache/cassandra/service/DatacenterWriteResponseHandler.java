@@ -23,6 +23,7 @@ import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.transport.Dispatcher;
 
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -38,9 +39,9 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
                                           Runnable callback,
                                           WriteType writeType,
                                           Supplier<Mutation> hintOnFailure,
-                                          long queryStartNanoTime)
+                                          Dispatcher.RequestTime requestTime)
     {
-        super(replicaPlan, callback, writeType, hintOnFailure, queryStartNanoTime);
+        super(replicaPlan, callback, writeType, hintOnFailure, requestTime);
         assert replicaPlan.consistencyLevel().isDatacenterLocal();
     }
 

@@ -19,9 +19,9 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -30,20 +30,32 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInstanceConfig.ParameterizedClass;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
-
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.SimpleSeedProvider;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
-import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_QUORUM;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -56,16 +68,13 @@ import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_PROPOSE_REQ;
 import static org.apache.cassandra.net.Verb.READ_REQ;
+import static org.apache.cassandra.service.paxos.MessageHelper.electorateMismatchChecker;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class CASTest extends CASCommonTestCases
 {
-    static
-    {
-        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
-    }
 
     /**
      * The {@code cas_contention_timeout} used during the tests
@@ -84,12 +93,25 @@ public class CASTest extends CASCommonTestCases
     public static void beforeClass() throws Throwable
     {
         PAXOS_USE_SELF_EXECUTION.setBoolean(false);
+        TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.setBoolean(true);
+        TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
         TestBaseImpl.beforeClass();
+        // At times during these tests, node1 is going to be blocked from appending entries to its local metadata
+        // log in order to induce divergent views of cluster topology between instances. This precludes it from
+        // acting as the sole CMS member for the cluster. Instead, we make node2 the single CMS member by we
+        // configuring it with auto_bootstrap: true to ensure that it is the first instance to start up. This
+        // also means that it needs to be the seed for the other nodes so that they can discover it when they
+        // startup.
+        ParameterizedClass seeds = new ParameterizedClass(SimpleSeedProvider.class.getName(),
+                                                          Collections.singletonMap("seeds", "127.0.0.2"));
+
         Consumer<IInstanceConfig> conf = config -> config
                                                    .set("paxos_variant", "v2")
                                                    .set("write_request_timeout", REQUEST_TIMEOUT)
                                                    .set("cas_contention_timeout", CONTENTION_TIMEOUT)
-                                                   .set("request_timeout", REQUEST_TIMEOUT);
+                                                   .set("request_timeout", REQUEST_TIMEOUT)
+                                                   .set("seed_provider", seeds)
+                                                   .set("auto_bootstrap", config.num() == 2);
         // TODO: fails with vnode enabled
         THREE_NODES = init(Cluster.build(3).withConfig(conf).withoutVNodes().start());
         FOUR_NODES = init(Cluster.build(4).withConfig(conf).withoutVNodes().start(), 3);
@@ -389,22 +411,26 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
         // make it so {1} is unaware (yet) that {4} is an owner of the token
-        FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::removeFromRing).accept(FOUR_NODES.get(4));
+        removeFromRing(FOUR_NODES.get(4));
+        // This is the epoch of the START_JOIN transform. We'll make {1} ignore any entry from here on
+        Epoch targetEpoch = ClusterUtils.getCurrentEpoch(FOUR_NODES.get(2)).nextEpoch().nextEpoch(); // +prepare +start
+        ClusterUtils.dropAllEntriesBeginningAt(FOUR_NODES.get(1), targetEpoch);
+        joinFully(FOUR_NODES, 4);
 
         int pk = pk(FOUR_NODES, 1, 2);
 
         // {1} promises and accepts on !{3} => {1, 2}; commits on !{2,3} => {1}
         drop(FOUR_NODES, 1, to(3), to(3), to(2, 3));
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
+        // Allow {1} to append entries into its log again
+        ClusterUtils.clearEntryFilters(FOUR_NODES.get(1));
+
         assertRows(executeWithRetry(FOUR_NODES.coordinator(1), "INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ONE, pk),
                    row(true));
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
 
         for (int i = 1; i <= 3; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingNormal).accept(FOUR_NODES.get(4));
             FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
-        }
 
         // {4} reads from !{2} => {3, 4}
         drop(FOUR_NODES, 4, to(2), to(2), to());
@@ -426,8 +452,11 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
         // make it so {1} is unaware (yet) that {4} is an owner of the token
-        FOUR_NODES.get(1).acceptOnInstance(CASTestBase::removeFromRing, FOUR_NODES.get(4));
-        FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
+        removeFromRing(FOUR_NODES.get(4));
+        // This is the epoch of the START_JOIN transform. We'll make {1} ignore any entry from here on
+        Epoch targetEpoch = ClusterUtils.getCurrentEpoch(FOUR_NODES.get(2)).nextEpoch().nextEpoch(); // +prepare +start
+        ClusterUtils.dropAllEntriesBeginningAt(FOUR_NODES.get(1), targetEpoch);
+        joinFully(FOUR_NODES, 4);
 
         // {4} promises, accepts and commits on !{2} => {3, 4}
         int pk = pk(FOUR_NODES, 1, 2);
@@ -436,6 +465,9 @@ public class CASTest extends CASCommonTestCases
                    row(true));
 
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
+        // Allow {1} to append entries into its log again
+        ClusterUtils.clearEntryFilters(FOUR_NODES.get(1));
+
         // {1} promises, accepts and commmits on !{3} => {1, 2}
         drop(FOUR_NODES, 1, to(3), to(3), to(3));
         assertRows(executeWithRetry(FOUR_NODES.coordinator(1), "INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ONE, pk),
@@ -460,20 +492,23 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
         // make it so {4} is bootstrapping, and this has propagated to only a quorum of other nodes
-        for (int i = 1 ; i <= 4 ; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::removeFromRing).accept(FOUR_NODES.get(4));
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
-        }
-        for (int i = 2 ; i <= 4 ; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingBootstrapping).accept(FOUR_NODES.get(4));
+        removeFromRing(FOUR_NODES.get(4));
+        // This is the epoch of the START_JOIN transform. We'll make {1} ignore any entry from here on
+        Epoch targetEpoch = ClusterUtils.getCurrentEpoch(FOUR_NODES.get(2)).nextEpoch().nextEpoch(); // +prepare +start
+        ClusterUtils.dropAllEntriesBeginningAt(FOUR_NODES.get(1), targetEpoch);
+        // Now bring {4} to the mid join point
+        joinPartially(FOUR_NODES, 4);
+
+        for (int i = 2; i <= 4; ++i)
             FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
-        }
 
         int pk = pk(FOUR_NODES, 1, 2);
 
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
+
+        // Allow {1} to append entries into its log again
+        ClusterUtils.clearEntryFilters(FOUR_NODES.get(1));
+
         // {1} promises and accepts on !{3} => {1, 2}; commmits on !{2, 3} => {1}
         drop(FOUR_NODES, 1, to(3), to(3), to(2, 3));
         assertRows(executeWithRetry(FOUR_NODES.coordinator(1), "INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v) VALUES (?, 1, 1) IF NOT EXISTS", ONE, pk),
@@ -481,8 +516,7 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
 
         // finish topology change
-        for (int i = 1 ; i <= 4 ; ++i)
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingNormal).accept(FOUR_NODES.get(4));
+        finishJoin(FOUR_NODES, 4);
 
         // {3} reads from !{2} => {3, 4}
         drop(FOUR_NODES, 3, to(2), to(), to());
@@ -504,20 +538,23 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
         // make it so {4} is bootstrapping, and this has propagated to only a quorum of other nodes
-        for (int i = 1 ; i <= 4 ; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::removeFromRing).accept(FOUR_NODES.get(4));
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
-        }
+        removeFromRing(FOUR_NODES.get(4));
+        // This is the epoch of the START_JOIN transform. We'll make {1} ignore any entry from here on
+        Epoch targetEpoch = ClusterUtils.getCurrentEpoch(FOUR_NODES.get(2)).nextEpoch().nextEpoch(); // +prepare +start
+        ClusterUtils.dropAllEntriesBeginningAt(FOUR_NODES.get(1), targetEpoch);
+        // Now bring {4} to the mid join point
+        joinPartially(FOUR_NODES, 4);
+
         for (int i = 2 ; i <= 4 ; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingBootstrapping).accept(FOUR_NODES.get(4));
             FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
-        }
 
         int pk = pk(FOUR_NODES, 1, 2);
 
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
+
+        // Allow {1} to append entries into its log again
+        ClusterUtils.clearEntryFilters(FOUR_NODES.get(1));
+
         // {1} promises and accepts on !{3} => {1, 2}; commits on !{2, 3} => {1}
         drop(FOUR_NODES, 1, to(3), to(3), to(2, 3));
         assertRows(executeWithRetry(FOUR_NODES.coordinator(1), "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ONE, pk),
@@ -525,8 +562,7 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
 
         // finish topology change
-        for (int i = 1 ; i <= 4 ; ++i)
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingNormal).accept(FOUR_NODES.get(4));
+        finishJoin(FOUR_NODES, 4);
 
         // {3} reads from !{2} => {3, 4}
         drop(FOUR_NODES, 3, to(2), to(), to());
@@ -557,16 +593,15 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
         // make it so {4} is bootstrapping, and this has propagated to only a quorum of other nodes
-        for (int i = 1 ; i <= 4 ; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::removeFromRing).accept(FOUR_NODES.get(4));
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
-        }
-        for (int i = 2 ; i <= 4 ; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingBootstrapping).accept(FOUR_NODES.get(4));
+        removeFromRing(FOUR_NODES.get(4));
+        // This is the epoch of the START_JOIN transform. We'll make {1} ignore any entry from here on
+        Epoch targetEpoch = ClusterUtils.getCurrentEpoch(FOUR_NODES.get(2)).nextEpoch().nextEpoch(); // +prepare +start
+        ClusterUtils.dropAllEntriesBeginningAt(FOUR_NODES.get(1), targetEpoch);
+        // Now bring {4} to the mid join point
+        joinPartially(FOUR_NODES, 4);
+
+        for (int i = 2; i <= 4; ++i)
             FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
-        }
 
         int pk = pk(FOUR_NODES, 1, 2);
 
@@ -586,6 +621,9 @@ public class CASTest extends CASCommonTestCases
         drop(FOUR_NODES, 1, to(3), to(3), to(2, 3));
         // two options: either we can invalidate the previous operation and succeed, or we can complete the previous operation
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
+
+        // Allow {1} to append entries into its log again
+        ClusterUtils.clearEntryFilters(FOUR_NODES.get(1));
         Object[][] result = executeWithRetry(FOUR_NODES.coordinator(1), "INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ONE, pk);
         Object[] expectRow;
         if (result[0].length == 1)
@@ -601,8 +639,7 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
 
         // finish topology change
-        for (int i = 1 ; i <= 4 ; ++i)
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingNormal).accept(FOUR_NODES.get(4));
+        finishJoin(FOUR_NODES, 4);
 
         // {3} reads from !{2} => {3, 4}
         drop(FOUR_NODES, 3, to(2), to(2), to());
@@ -631,16 +668,15 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
         // make it so {4} is bootstrapping, and this has propagated to only a quorum of other nodes
-        for (int i = 1; i <= 4; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::removeFromRing).accept(FOUR_NODES.get(4));
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
-        }
+        removeFromRing(FOUR_NODES.get(4));
+        // This is the epoch of the START_JOIN transform. We'll make {1} ignore any entry from here on
+        Epoch targetEpoch = ClusterUtils.getCurrentEpoch(FOUR_NODES.get(2)).nextEpoch().nextEpoch(); // +prepare +start
+        ClusterUtils.dropAllEntriesBeginningAt(FOUR_NODES.get(1), targetEpoch);
+        // Now bring {4} to the mid join point
+        joinPartially(FOUR_NODES, 4);
+
         for (int i = 2; i <= 4; ++i)
-        {
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingBootstrapping).accept(FOUR_NODES.get(4));
             FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
-        }
 
         int pk = pk(FOUR_NODES, 1, 2);
 
@@ -661,6 +697,9 @@ public class CASTest extends CASCommonTestCases
         drop(FOUR_NODES, 1, to(3), to(3), to(2, 3));
         // two options: either we can invalidate the previous operation and succeed, or we can complete the previous operation
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertNotVisibleInRing).accept(FOUR_NODES.get(4));
+
+        // Allow {1} to append entries into its log again
+        ClusterUtils.clearEntryFilters(FOUR_NODES.get(1));
         Object[][] result = executeWithRetry(FOUR_NODES.coordinator(1), "INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ONE, pk);
         Object[] expectRow;
         if (result[0].length == 1)
@@ -676,14 +715,14 @@ public class CASTest extends CASCommonTestCases
         FOUR_NODES.get(1).acceptsOnInstance(CASTestBase::assertVisibleInRing).accept(FOUR_NODES.get(4));
 
         // finish topology change
-        for (int i = 1; i <= 4; ++i)
-            FOUR_NODES.get(i).acceptsOnInstance(CASTestBase::addToRingNormal).accept(FOUR_NODES.get(4));
+        finishJoin(FOUR_NODES, 4);
 
         // {3} reads from !{2} => {3, 4}
         FOUR_NODES.filters().verbs(PAXOS2_PREPARE_REQ.id, PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();
         FOUR_NODES.filters().verbs(PAXOS2_PROPOSE_REQ.id, PAXOS_PROPOSE_REQ.id).from(3).to(2).drop();
         assertRows(FOUR_NODES.coordinator(3).execute("INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ONE, pk),
                    expectRow);
+
     }
 
     // TODO: RF changes
@@ -785,6 +824,46 @@ public class CASTest extends CASCommonTestCases
         THREE_NODES.coordinator(1).execute("INSERT INTO " + table + " (k, v) VALUES (5, 5) IF NOT EXISTS", LOCAL_QUORUM);
         THREE_NODES.coordinator(1).execute("UPDATE " + table + " SET v = 123 WHERE k = 5 IF EXISTS", LOCAL_QUORUM);
 
+    }
+
+    private void joinFully(Cluster cluster, int node)
+    {
+        IInstanceConfig config = cluster.get(node).config();
+        InetAddressAndPort address = InetAddressAndPort.getByAddress(config.broadcastAddress());
+        IPartitioner partitioner = FBUtilities.newPartitioner(config.getString("partitioner"));
+        Token token = partitioner.getTokenFactory().fromString(config.getString("initial_token"));
+        cluster.get(node).runOnInstance(() -> ClusterMetadataTestHelper.join(address, token));
+    }
+
+    private void joinPartially(Cluster cluster, int node)
+    {
+        IInstanceConfig config = cluster.get(node).config();
+        InetAddressAndPort address = InetAddressAndPort.getByAddress(config.broadcastAddress());
+        IPartitioner partitioner = FBUtilities.newPartitioner(config.getString("partitioner"));
+        Token token = partitioner.getTokenFactory().fromString(config.getString("initial_token"));
+        cluster.get(node).runOnInstance(() -> ClusterMetadataTestHelper.joinPartially(address, token));
+    }
+
+    private void finishJoin(Cluster cluster, int node)
+    {
+        cluster.get(node).runOnInstance(() -> {
+            BootstrapAndJoin plan = ClusterMetadataTestHelper.getBootstrapPlan(ClusterMetadata.current().myNodeId());
+            InProgressSequences.resume(plan);
+        });
+    }
+
+    @Test
+    public void testMatchingElectorates()
+    {
+        // Verify that when the local and remote electorates have not diverged, we don't include redundant
+        // information in the Permitted responses
+        String tableName = tableName("tbl");
+        FOUR_NODES.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
+        int pk = pk(FOUR_NODES, 1, 2);
+        IMessageFilters.Matcher matcher = electorateMismatchChecker(FOUR_NODES);
+        FOUR_NODES.filters().verbs(Verb.PAXOS2_PREPARE_RSP.id).from(2, 3, 4).to(1).messagesMatching(matcher).drop();
+        assertRows(executeWithRetry(FOUR_NODES.coordinator(1), "INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ONE, pk),
+                   row(true));
     }
 
 }

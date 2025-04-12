@@ -53,15 +53,15 @@ public abstract class AbstractStrategyHolder
     public static class TaskSupplier implements Comparable<TaskSupplier>
     {
         private final int numRemaining;
-        private final Supplier<AbstractCompactionTask> supplier;
+        private final Supplier<Collection<AbstractCompactionTask>> supplier;
 
-        TaskSupplier(int numRemaining, Supplier<AbstractCompactionTask> supplier)
+        TaskSupplier(int numRemaining, Supplier<Collection<AbstractCompactionTask>> supplier)
         {
             this.numRemaining = numRemaining;
             this.supplier = supplier;
         }
 
-        public AbstractCompactionTask getTask()
+        public Collection<AbstractCompactionTask> getTasks()
         {
             return supplier.get();
         }

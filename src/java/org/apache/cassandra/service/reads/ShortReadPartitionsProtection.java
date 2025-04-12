@@ -46,6 +46,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 
 public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
 {
@@ -62,21 +63,21 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private boolean partitionsFetched; // whether we've seen any new partitions since iteration start or last moreContents() call
 
-    private final long queryStartNanoTime;
+    private final Dispatcher.RequestTime requestTime;
 
     public ShortReadPartitionsProtection(ReadCommand command,
                                          Replica source,
                                          Runnable preFetchCallback,
                                          DataLimits.Counter singleResultCounter,
                                          DataLimits.Counter mergedResultCounter,
-                                         long queryStartNanoTime)
+                                         Dispatcher.RequestTime requestTime)
     {
         this.command = command;
         this.source = source;
         this.preFetchCallback = preFetchCallback;
         this.singleResultCounter = singleResultCounter;
         this.mergedResultCounter = mergedResultCounter;
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.requestTime = requestTime;
     }
 
     @Override
@@ -177,18 +178,18 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
     {
-        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
-        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
+        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, requestTime);
+        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
 
         if (source.isSelf())
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
+            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
         }
         else
         {
             if (source.isTransient())
                 cmd = cmd.copyAsTransientQuery(source);
-            MessagingService.instance().sendWithCallback(cmd.createMessage(false), source.endpoint(), handler);
+            MessagingService.instance().sendWithCallback(cmd.createMessage(false, requestTime), source.endpoint(), handler);
         }
 
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.

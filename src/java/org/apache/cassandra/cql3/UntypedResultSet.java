@@ -33,7 +33,6 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.datastax.driver.core.CodecUtils;
 import org.apache.cassandra.cql3.functions.types.LocalDate;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
@@ -48,11 +47,10 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
-
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /** a utility for doing internal cql-based queries */
 public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
@@ -291,7 +289,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                         if (pager.isExhausted())
                             return endOfData();
 
-                        try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, nanoTime()))
+                        try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, Dispatcher.RequestTime.forImmediateExecution()))
                         {
                             currentPage = select.process(iter, nowInSec, true, clientState).rows.iterator();
                         }
@@ -443,7 +441,13 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return TimestampType.instance.compose(data.get(column));
         }
 
-        public LocalDate getDate(String column) { return LocalDate.fromDaysSinceEpoch(CodecUtils.fromUnsignedToSignedInt(data.get(column).getInt()));}
+        public LocalDate getDate(String column)
+        {
+            // date type is stored as an unsigned byte; convert it back by adding MIN_VALUE.
+            int unsigned = data.get(column).getInt();
+            int signed = unsigned + Integer.MIN_VALUE;
+            return LocalDate.fromDaysSinceEpoch(signed);
+        }
 
         public long getLong(String column)
         {

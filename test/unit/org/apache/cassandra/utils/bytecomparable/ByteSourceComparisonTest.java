@@ -432,7 +432,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
                                                safeStr(c.clusteringString(comp.subtypes())),
                                                safeStr(e.clusteringString(comp.subtypes())), bsc, bse, v),
                                  expected, Integer.signum(ByteComparable.compare(bsc, bse, v)));
-                    maybeCheck41Properties(expected, bsc, bse, v);
+                    maybeCheck50Properties(expected, bsc, bse, v);
                     maybeAssertNotPrefix(bsc, bse, v);
 
                     ClusteringComparator compR = new ClusteringComparator(ReversedType.getInstance(t1), ReversedType.getInstance(t2));
@@ -443,7 +443,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
                                                safeStr(c.clusteringString(comp.subtypes())),
                                                safeStr(e.clusteringString(comp.subtypes())), bsrc, bsre, v),
                                  expectedR, Integer.signum(ByteComparable.compare(bsrc, bsre, v)));
-                    maybeCheck41Properties(expectedR, bsrc, bsre, v);
+                    maybeCheck50Properties(expectedR, bsrc, bsre, v);
                     maybeAssertNotPrefix(bsrc, bsre, v);
                 }
     }
@@ -644,7 +644,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
     @Test
     public void testDecoratedKeyPrefixesVOSS50()
     {
-        // This should pass with the OSS 4.1 encoding
+        // This should pass with the OSS 5.0 encoding
         testDecoratedKeyPrefixes(Version.OSS50);
     }
 
@@ -864,13 +864,13 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
 
     private void maybeAssertNotPrefix(ByteComparable s1, ByteComparable s2, Version version)
     {
-        if (version == Version.OSS50)
+        if (version != Version.LEGACY)
             assertNotPrefix(s1.asComparableBytes(version), s2.asComparableBytes(version));
     }
 
-    private void maybeCheck41Properties(int expectedComparison, ByteComparable s1, ByteComparable s2, Version version)
+    private void maybeCheck50Properties(int expectedComparison, ByteComparable s1, ByteComparable s2, Version version)
     {
-        if (version != Version.OSS50)
+        if (version == Version.LEGACY)
             return;
 
         if (s1 == null || s2 == null || 0 == expectedComparison)
@@ -985,7 +985,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
             assertEquals(String.format("Failed comparing %s(%s) and %s(%s)", ByteBufferUtil.bytesToHex(b1), bs1.byteComparableAsString(version), ByteBufferUtil.bytesToHex(b2), bs2.byteComparableAsString(version)),
                          expected,
                          actual);
-            maybeCheck41Properties(expected, bs1, bs2, version);
+            maybeCheck50Properties(expected, bs1, bs2, version);
         }
     }
 
@@ -1139,7 +1139,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
                                  expected,
                                  actual);
             }
-            maybeCheck41Properties(expected, bc1, bc2, version);
+            maybeCheck50Properties(expected, bc1, bc2, version);
         }
     }
 

@@ -72,6 +72,7 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
@@ -100,7 +101,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     private final Keyspace keyspace;
     private final ReadCommand command;
     private final ConsistencyLevel consistency;
-    private final long queryStartNanoTime;
+    private final Dispatcher.RequestTime requestTime;
     private final E sources;
     private final TableMetrics tableMetrics;
 
@@ -121,7 +122,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     ReplicaFilteringProtection(Keyspace keyspace,
                                ReadCommand command,
                                ConsistencyLevel consistency,
-                               long queryStartNanoTime,
+                               Dispatcher.RequestTime requestTime,
                                E sources,
                                int cachedRowsWarnThreshold,
                                int cachedRowsFailThreshold)
@@ -129,7 +130,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         this.keyspace = keyspace;
         this.command = command;
         this.consistency = consistency;
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.requestTime = requestTime;
         this.sources = sources;
         this.originalPartitions = new ArrayList<>(sources.size());
 
@@ -148,19 +149,19 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     {
         @SuppressWarnings("unchecked")
         DataResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver =
-            new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, queryStartNanoTime);
+            new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, requestTime);
 
-        ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
+        ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
 
         if (source.isSelf())
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
+            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
         }
         else
         {
             if (source.isTransient())
                 cmd = cmd.copyAsTransientQuery(source);
-            MessagingService.instance().sendWithCallback(cmd.createMessage(false), source.endpoint(), handler);
+            MessagingService.instance().sendWithCallback(cmd.createMessage(false, requestTime), source.endpoint(), handler);
         }
 
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
@@ -229,7 +230,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
                         // Even if there are no completely missing rows, replicas may still be silent about individual
                         // columns, so we need to check for divergence at the column level:
-                        for (ColumnMetadata column : columns)
+                        for (ColumnMetadata column : merged.isStatic() ? columns.statics : columns.regulars)
                         {
                             Arrays.fill(silentColumnAt, false);
                             boolean allSilent = true;
@@ -426,12 +427,12 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             if (toFetch == null)
                 toFetch = BTreeSet.builder(command.metadata().comparator);
 
-            // Note that for static, we shouldn't add the clustering to the clustering set (the
-            // ClusteringIndexNamesFilter we'll build from this later does not expect it), but the fact
-            // we created a builder in the first place will act as a marker that the static row must be
-            // fetched, even if no other rows are added for this partition.
             if (row.isStatic())
-                unresolvedStatic = true;
+                // If there is an expression on a static column, the static row must be marked unresolved and the 
+                // partition fetched, as completing the static row could produce matches across the entire partition.
+                // The static row itself will still be retrieved and completed if there is any unresolved non-static 
+                // row, however, ensuring the latest static values are returned from the query.
+                unresolvedStatic = command.rowFilter().hasStaticExpression();
             else
                 toFetch.add(row.clustering());
         }
@@ -537,14 +538,19 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             Tracing.trace("Requesting {} rows in partition {} from {} for replica filtering protection",
                           clusterings.size(), key, source);
 
-            // build the read command taking into account that we could be requesting only in the static row
-            DataLimits limits = clusterings.isEmpty() ? DataLimits.cqlLimits(1) : DataLimits.NONE;
-            ClusteringIndexFilter filter = unresolvedStatic ? command.clusteringIndexFilter(key) : new ClusteringIndexNamesFilter(clusterings, command.isReversed());
+            // If there is an unresolved static column, we must fetch the entire partition, as static column predicates
+            // may produce row matches across the entire partition. If there are only non-static rows to complete, we
+            // query the partition specifically for the corresponding cluterings by name. In either case, we do not
+            // provide a limit. (In the unresolved static case, we have no way of knowing how many stale rows we might
+            // read on a silent replica before finding a live one.)
+            ClusteringIndexFilter filter = unresolvedStatic ? command.clusteringIndexFilter(key)
+                                                            : new ClusteringIndexNamesFilter(clusterings, command.isReversed());
+
             SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(command.metadata(),
                                                                                command.nowInSec(),
                                                                                command.columnFilter(),
                                                                                RowFilter.none(),
-                                                                               limits,
+                                                                               DataLimits.NONE,
                                                                                key,
                                                                                filter);
 

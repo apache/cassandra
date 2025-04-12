@@ -51,6 +51,7 @@ public abstract class QuerySet extends SAITester
 
             // Query full range
             assertRowsIgnoringOrder(tester.execute("SELECT * FROM %s WHERE value >= ? AND value <= ?", allRows[0][VALUE_INDEX], allRows[NUMBER_OF_VALUES - 1][VALUE_INDEX]), allRows);
+            assertRowsIgnoringOrder(tester.execute("SELECT * FROM %s WHERE value BETWEEN ? AND ?", allRows[0][VALUE_INDEX], allRows[NUMBER_OF_VALUES - 1][VALUE_INDEX]), allRows);
 
             // Query random ranges. This selects a series of random ranges and tests the different possible inclusivity
             // on them. This loops a reasonable number of times to cover as many ranges as possible without taking too long
@@ -81,6 +82,10 @@ public abstract class QuerySet extends SAITester
 
                 // lower inclusive -> upper inclusive
                 assertRowsIgnoringOrder(tester.execute("SELECT * FROM %s WHERE value >= ? AND value <= ?", allRows[min][VALUE_INDEX], allRows[max][VALUE_INDEX]),
+                        Arrays.copyOfRange(allRows, min, max + 1));
+
+                // between
+                assertRowsIgnoringOrder(tester.execute("SELECT * FROM %s WHERE value BETWEEN ? AND ?", allRows[min][VALUE_INDEX], allRows[max][VALUE_INDEX]),
                         Arrays.copyOfRange(allRows, min, max + 1));
             }
         }

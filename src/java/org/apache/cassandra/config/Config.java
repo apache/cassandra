@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.guardrails.CustomGuardrailConfig;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.compress.BufferType;
@@ -79,10 +80,10 @@ public class Config
 
     public String cluster_name = "Test Cluster";
     public ParameterizedClass authenticator;
-    public String authorizer;
-    public String role_manager;
+    public ParameterizedClass authorizer;
+    public ParameterizedClass role_manager;
     public ParameterizedClass crypto_provider;
-    public String network_authorizer;
+    public ParameterizedClass network_authorizer;
     public ParameterizedClass cidr_authorizer;
 
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
@@ -123,6 +124,7 @@ public class Config
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
+    @Deprecated(since = "5.0.1")
     public volatile boolean use_deterministic_table_id = false;
 
     /* initial token in the ring */
@@ -175,6 +177,7 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
+    public volatile int epoch_aware_debounce_inflight_tracker_max_size = 100;
     /**
      * How often we should snapshot the cluster metadata.
      */
@@ -289,6 +292,7 @@ public class Config
     public DataStorageSpec.IntMebibytesBound native_transport_max_frame_size = new DataStorageSpec.IntMebibytesBound("16MiB");
     /** do bcrypt hashing in a limited pool to prevent cpu load spikes; note: any value < 1 will be set to 1 on init **/
     public int native_transport_max_auth_threads = 4;
+    public volatile DataStorageSpec.LongBytesBound native_transport_max_message_size = null;
     public volatile long native_transport_max_concurrent_connections = -1L;
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
@@ -340,6 +344,8 @@ public class Config
     public volatile DataRateSpec.LongBytesPerSecondBound compaction_throughput = new DataRateSpec.LongBytesPerSecondBound("64MiB/s");
     @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound("50MiB");
+
+    public DataStorageSpec.IntKibibytesBound compressed_read_ahead_buffer_size = new DataStorageSpec.IntKibibytesBound("256KiB");
 
     // fraction of free disk space available for compaction after min free space is subtracted
     public volatile Double max_space_usable_for_compactions_in_percentage = .95;
@@ -427,10 +433,17 @@ public class Config
     public DurationSpec.IntMillisecondsBound dynamic_snitch_reset_interval = new DurationSpec.IntMillisecondsBound("10m");
     public double dynamic_snitch_badness_threshold = 1.0;
 
+    public String node_proximity;
+    public String initial_location_provider;
+    public String addresses_config;
+    public boolean prefer_local_connections = false;
+
     public String failure_detector = "FailureDetector";
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
     public EncryptionOptions client_encryption_options = new EncryptionOptions();
+
+    public JMXServerOptions jmx_server_options;
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
@@ -438,6 +451,7 @@ public class Config
     public DataStorageSpec.IntKibibytesBound hinted_handoff_throttle = new DataStorageSpec.IntKibibytesBound("1024KiB");
     @Replaces(oldName = "batchlog_replay_throttle_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntKibibytesBound batchlog_replay_throttle = new DataStorageSpec.IntKibibytesBound("1024KiB");
+    public BatchlogEndpointStrategy batchlog_endpoint_strategy = BatchlogEndpointStrategy.random_remote;
     public int max_hints_delivery_threads = 2;
     @Replaces(oldName = "hints_flush_period_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public DurationSpec.IntMillisecondsBound hints_flush_period = new DurationSpec.IntMillisecondsBound("10s");
@@ -448,6 +462,7 @@ public class Config
     public ParameterizedClass hints_compression;
     public volatile boolean auto_hints_cleanup_enabled = false;
     public volatile boolean transfer_hints_on_decommission = true;
+    public volatile boolean use_creation_time_for_hint_ttl = true;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
@@ -459,6 +474,7 @@ public class Config
     public volatile DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;
+    public volatile boolean key_cache_invalidate_after_sstable_deletion = false;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
     @Replaces(oldName = "key_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
     public DataStorageSpec.LongMebibytesBound key_cache_size = null;
@@ -529,6 +545,8 @@ public class Config
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
+
+    public TombstonesMetricGranularity tombstone_read_purgeable_metric_granularity = TombstonesMetricGranularity.disabled;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
@@ -841,6 +859,7 @@ public class Config
 
     public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
+    public volatile boolean invalid_legacy_protocol_magic_no_spam_enabled = false;
 
     @Replaces(oldName = "keyspace_count_warn_threshold", converter = Converters.KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL, deprecated = true)
     public volatile int keyspaces_warn_threshold = -1;
@@ -892,12 +911,27 @@ public class Config
     public volatile long partition_tombstones_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound column_value_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound column_value_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_ascii_value_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_ascii_value_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_blob_value_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_blob_value_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_text_and_varchar_value_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_text_and_varchar_value_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_varchar_value_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_varchar_value_size_fail_threshold = null;
     public volatile DataStorageSpec.LongBytesBound collection_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound collection_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound collection_map_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound collection_map_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound collection_set_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound collection_set_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound collection_list_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound collection_list_size_fail_threshold = null;
     public volatile int items_per_collection_warn_threshold = -1;
     public volatile int items_per_collection_fail_threshold = -1;
     public volatile int fields_per_udt_warn_threshold = -1;
     public volatile int fields_per_udt_fail_threshold = -1;
+    public volatile boolean vector_type_enabled = true;
     public volatile int vector_dimensions_warn_threshold = -1;
     public volatile int vector_dimensions_fail_threshold = -1;
     public volatile int data_disk_usage_percentage_warn_threshold = -1;
@@ -939,6 +973,9 @@ public class Config
     public volatile DurationSpec.LongMicrosecondsBound maximum_timestamp_fail_threshold = null;
     public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_warn_threshold = null;
     public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_fail_threshold = null;
+
+    public volatile boolean password_validator_reconfiguration_enabled = true;
+    public volatile CustomGuardrailConfig password_validator = new CustomGuardrailConfig();
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
@@ -1192,6 +1229,7 @@ public class Config
             switch (this)
             {
                 case unslabbed_heap_buffers:
+                case unslabbed_heap_buffers_logged:
                 case heap_buffers:
                     return BufferType.ON_HEAP;
                 case offheap_buffers:
@@ -1246,9 +1284,101 @@ public class Config
         exception
     }
 
+    public enum BatchlogEndpointStrategy
+    {
+        /**
+         * Old, conventional strategy to select batchlog storage endpoints.
+         * Purely random, prevents the local rack, if possible.
+         */
+        random_remote(false, false),
+
+        /**
+         * Random, except that one of the replications will go to the local rack.
+         * Which means this strategy offers lower availability guarantees than
+         * {@link #random_remote} or {@link #dynamic_remote}.
+         */
+        prefer_local(false, true),
+
+        /**
+         * Strategy using {@link Config#dynamic_snitch} ({@link org.apache.cassandra.locator.DynamicEndpointSnitch})
+         * to select batchlog storage endpoints. Prevents the local rack, if possible.
+         *
+         * This strategy offers the same availability guarantees as {@link #random_remote} but selects the
+         * fastest endpoints according to the {@link org.apache.cassandra.locator.DynamicEndpointSnitch}.
+         *
+         * Hint: {@link org.apache.cassandra.locator.DynamicEndpointSnitch} tracks reads and not writes - i.e.
+         * write-only (or mostly-write) workloads might not benefit from this strategy.
+         *
+         * Note: this strategy will fall back to {@link #random_remote}, if {@link #dynamic_snitch} is not enabled.
+         */
+        dynamic_remote(true, false),
+
+        /**
+         * Strategy using {@link Config#dynamic_snitch} ({@link org.apache.cassandra.locator.DynamicEndpointSnitch})
+         * to select batchlog storage endpoints. Does not prevent the local rack.
+         *
+         * Since the local rack is not excluded, this strategy offers lower availability guarantees than
+         * {@link #random_remote} or {@link #dynamic_remote}.
+         *
+         * Hint: {@link org.apache.cassandra.locator.DynamicEndpointSnitch} tracks reads and not writes - i.e.
+         * write-only (or mostly-write) workloads might not benefit from this strategy.
+         *
+         * Note: this strategy will fall back to {@link #random_remote}, if {@link #dynamic_snitch} is not enabled.
+         */
+        dynamic(true, true);
+
+        /**
+         * If true, dynamic snitch response times will be used to select more responsive nodes to write the batchlog to.
+         * If false, nodes will be randomly selected.
+         */
+        public final boolean useDynamicSnitchScores;
+
+        /**
+         * If true, one of the selected nodes will come from the local rack.
+         * If false, the local rack will not be used except as a last resort with no other racks available.
+         */
+        public final boolean preferLocalRack;
+
+        BatchlogEndpointStrategy(boolean useDynamicSnitchScores, boolean preferLocalRack)
+        {
+            this.useDynamicSnitchScores = useDynamicSnitchScores;
+            this.preferLocalRack = preferLocalRack;
+        }
+    }
+
+    /**
+     * Allow to control the granularity of metrics related to tombstones.
+     * It is a trade-off between granularity of a metric vs performance overheads.
+     * See CASSANDRA-20132 for more details.
+     */
+    public enum TombstonesMetricGranularity
+    {
+        /**
+         * Do not collect the metric at all.
+         */
+        disabled,
+        /**
+         * Track only partition/range/row level tombstone,
+         * a good compromise between overheads and usability.
+         * For CPU-bound workload you may get less than 1% of overhead for throughput.
+         * For IO-bound workload the overhead is negligible.
+         */
+        row,
+        /**
+         * Track partition/range/row/cell level tombstones.
+         * This is the most granular option,
+         * but it has some performance overheads due to iteration over cells.
+         * For CPU-bound workload you may get about 5% of overhead for throughput.
+         * For IO-bound workload the overhead is almost negligible.
+         */
+        cell
+    }
+
     private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{
         add("client_encryption_options");
         add("server_encryption_options");
+        // jmx_server_options output (JMXServerOptions.toString()) doesn't
+        // include sensitive encryption config so no need to blocklist here
     }};
 
     public static void log(Config config)
@@ -1317,4 +1447,26 @@ public class Config
     }
 
     public TriggersPolicy triggers_policy = TriggersPolicy.enabled;
+
+    /**
+     * Which timestamp should be used to represent a base for replica-side timeouts.
+     * Client-side timeout is always based on the QUEUE, and is controlled by native_transport_timeout.
+     */
+    public enum CQLStartTime
+    {
+        REQUEST, // uses a timestamp that represent the start of processing of the request
+        QUEUE    // uses a timestamp that represents when the request was enqueued
+    }
+    public volatile CQLStartTime cql_start_time = CQLStartTime.REQUEST;
+
+    public boolean native_transport_throw_on_overload = false;
+    public double native_transport_queue_max_item_age_threshold = Double.MAX_VALUE;
+    public DurationSpec.LongMillisecondsBound native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("10ms");
+    public DurationSpec.LongMillisecondsBound native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("200ms");
+
+    // 3.x Cassandra Driver has its "read" timeout set to 12 seconds, default matches this.
+    public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("12s");
+    public boolean enforce_native_deadline_for_hints = false;
+
+    public boolean paxos_repair_race_wait = true;
 }

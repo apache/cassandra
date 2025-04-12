@@ -27,15 +27,19 @@ import java.util.stream.IntStream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.Math.min;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
@@ -43,9 +47,6 @@ import static org.apache.cassandra.service.paxos.Commit.latest;
 
 public class PaxosRepairHistory
 {
-    public static final PaxosRepairHistory EMPTY = new PaxosRepairHistory(new Token[0], new Ballot[] { Ballot.none() });
-    private static final Token.TokenFactory TOKEN_FACTORY = DatabaseDescriptor.getPartitioner().getTokenFactory();
-    private static final Token MIN_TOKEN = DatabaseDescriptor.getPartitioner().getMinimumToken();
     private static final TupleType TYPE = new TupleType(ImmutableList.of(BytesType.instance, BytesType.instance));
 
     /**
@@ -63,12 +64,37 @@ public class PaxosRepairHistory
      *   (t4, MAX_VALUE) => none()
      */
 
+    public final IPartitioner partitioner;
     private final Token[] tokenInclusiveUpperBound;
     private final Ballot[] ballotLowBound; // always one longer to capture values up to "MAX_VALUE" (which in some cases doesn't exist, as is infinite)
 
-    PaxosRepairHistory(Token[] tokenInclusiveUpperBound, Ballot[] ballotLowBound)
+    private static IPartitioner partitioner(String keyspace, String table)
+    {
+        TableMetadata tm = Schema.instance.getTableMetadata(keyspace, table);
+        return tm != null ? tm.partitioner : IPartitioner.global();
+    }
+
+    @VisibleForTesting
+    public static PaxosRepairHistory empty()
+    {
+        return empty(IPartitioner.global());
+    }
+
+    public static PaxosRepairHistory empty(String keyspace, String table)
+    {
+        return empty(partitioner(keyspace, table));
+    }
+
+    public static PaxosRepairHistory empty(IPartitioner partitioner)
+    {
+        return new PaxosRepairHistory(partitioner, new Token[0], new Ballot[] { Ballot.none() } );
+    }
+
+    PaxosRepairHistory(IPartitioner partitioner,
+                       Token[] tokenInclusiveUpperBound, Ballot[] ballotLowBound)
     {
         assert ballotLowBound.length == tokenInclusiveUpperBound.length + 1;
+        this.partitioner = partitioner;
         this.tokenInclusiveUpperBound = tokenInclusiveUpperBound;
         this.ballotLowBound = ballotLowBound;
     }
@@ -158,23 +184,28 @@ public class PaxosRepairHistory
 
     private Token tokenExclusiveLowerBound(int i)
     {
-        return i == 0 ? MIN_TOKEN : tokenInclusiveUpperBound[i - 1];
+        return i == 0 ? partitioner.getMinimumToken() : tokenInclusiveUpperBound[i - 1];
     }
 
     private Token tokenInclusiveUpperBound(int i)
     {
-        return i == tokenInclusiveUpperBound.length ? MIN_TOKEN : tokenInclusiveUpperBound[i];
+        return i == tokenInclusiveUpperBound.length ? partitioner.getMinimumToken() : tokenInclusiveUpperBound[i];
     }
 
     public List<ByteBuffer> toTupleBufferList()
     {
         List<ByteBuffer> tuples = new ArrayList<>(size() + 1);
         for (int i = 0 ; i < 1 + size() ; ++i)
-            tuples.add(TYPE.pack(TOKEN_FACTORY.toByteArray(tokenInclusiveUpperBound(i)), ballotLowBound[i].toBytes()));
+            tuples.add(TYPE.pack(partitioner.getTokenFactory().toByteArray(tokenInclusiveUpperBound(i)), ballotLowBound[i].toBytes()));
         return tuples;
     }
 
-    public static PaxosRepairHistory fromTupleBufferList(List<ByteBuffer> tuples)
+    public static PaxosRepairHistory fromTupleBufferList(String keyspace, String table, List<ByteBuffer> tuples)
+    {
+        return fromTupleBufferList(partitioner(keyspace, table), tuples);
+    }
+
+    public static PaxosRepairHistory fromTupleBufferList(IPartitioner partitioner, List<ByteBuffer> tuples)
     {
         Token[] tokenInclusiveUpperBounds = new Token[tuples.size() - 1];
         Ballot[] ballotLowBounds = new Ballot[tuples.size()];
@@ -182,11 +213,11 @@ public class PaxosRepairHistory
         {
             List<ByteBuffer> elements = TYPE.unpack(tuples.get(i));
             if (i < tokenInclusiveUpperBounds.length)
-                tokenInclusiveUpperBounds[i] = TOKEN_FACTORY.fromByteArray(elements.get(0));
+                tokenInclusiveUpperBounds[i] = partitioner.getTokenFactory().fromByteArray(elements.get(0));
             ballotLowBounds[i] = Ballot.deserialize(elements.get(1));
         }
 
-        return new PaxosRepairHistory(tokenInclusiveUpperBounds, ballotLowBounds);
+        return new PaxosRepairHistory(partitioner, tokenInclusiveUpperBounds, ballotLowBounds);
     }
 
     // append the item to the given list, modifying the underlying list
@@ -200,7 +231,11 @@ public class PaxosRepairHistory
         if (historyRight == null)
             return historyLeft;
 
-        Builder builder = new Builder(historyLeft.size() + historyRight.size());
+        assert historyLeft.partitioner == historyRight.partitioner : String.format("Mismatching partitioners (%s != %s)",
+                                                                                   historyLeft.partitioner,
+                                                                                   historyRight.partitioner);
+
+        Builder builder = new Builder(historyLeft.partitioner, historyLeft.size() + historyRight.size());
 
         RangeIterator left = historyLeft.rangeIterator();
         RangeIterator right = historyRight.rangeIterator();
@@ -243,7 +278,7 @@ public class PaxosRepairHistory
     public static PaxosRepairHistory add(PaxosRepairHistory existing, Collection<Range<Token>> ranges, Ballot ballot)
     {
         ranges = Range.normalize(ranges);
-        Builder builder = new Builder(ranges.size() * 2);
+        Builder builder = new Builder(existing.partitioner, ranges.size() * 2);
         for (Range<Token> range : ranges)
         {
             // don't add a point for an opening min token, since it
@@ -261,7 +296,7 @@ public class PaxosRepairHistory
     @VisibleForTesting
     static PaxosRepairHistory trim(PaxosRepairHistory existing, Collection<Range<Token>> ranges)
     {
-        Builder builder = new Builder(existing.size());
+        Builder builder = new Builder(existing.partitioner, existing.size());
 
         ranges = Range.normalize(ranges);
         for (Range<Token> select : ranges)
@@ -310,10 +345,12 @@ public class PaxosRepairHistory
         else return a;
     }
 
-    public static final IVersionedSerializer<PaxosRepairHistory> serializer = new IVersionedSerializer<PaxosRepairHistory>()
+    public static final IVersionedSerializer<PaxosRepairHistory> serializer = new IVersionedSerializer<>()
     {
         public void serialize(PaxosRepairHistory history, DataOutputPlus out, int version) throws IOException
         {
+            if (version >= MessagingService.VERSION_51)
+                out.writeUTF(history.partitioner.getClass().getCanonicalName());
             out.writeUnsignedVInt32(history.size());
             for (int i = 0; i < history.size() ; ++i)
             {
@@ -325,21 +362,27 @@ public class PaxosRepairHistory
 
         public PaxosRepairHistory deserialize(DataInputPlus in, int version) throws IOException
         {
+            IPartitioner partitioner = version >= MessagingService.VERSION_51
+                                       ? FBUtilities.newPartitioner(in.readUTF())
+                                       : IPartitioner.global();
             int size = in.readUnsignedVInt32();
             Token[] tokenInclusiveUpperBounds = new Token[size];
             Ballot[] ballotLowBounds = new Ballot[size + 1];
             for (int i = 0; i < size; i++)
             {
-                tokenInclusiveUpperBounds[i] = Token.serializer.deserialize(in, DatabaseDescriptor.getPartitioner(), version);
+                tokenInclusiveUpperBounds[i] = Token.serializer.deserialize(in, partitioner, version);
                 ballotLowBounds[i] = Ballot.deserialize(in);
             }
             ballotLowBounds[size] = Ballot.deserialize(in);
-            return new PaxosRepairHistory(tokenInclusiveUpperBounds, ballotLowBounds);
+            return new PaxosRepairHistory(partitioner, tokenInclusiveUpperBounds, ballotLowBounds);
         }
 
         public long serializedSize(PaxosRepairHistory history, int version)
         {
-            long size = TypeSizes.sizeofUnsignedVInt(history.size());
+            long size = 0;
+            if (version >= MessagingService.VERSION_51)
+                size += TypeSizes.sizeof(history.partitioner.getClass().getCanonicalName());
+            size += TypeSizes.sizeofUnsignedVInt(history.size());
             for (int i = 0; i < history.size() ; ++i)
             {
                 size += Token.serializer.serializedSize(history.tokenInclusiveUpperBound[i], version);
@@ -411,11 +454,13 @@ public class PaxosRepairHistory
 
     static class Builder
     {
+        final IPartitioner partitioner;
         final List<Token> tokenInclusiveUpperBounds;
         final List<Ballot> ballotLowBounds;
 
-        Builder(int capacity)
+        Builder(IPartitioner partitioner, int capacity)
         {
+            this.partitioner = partitioner;
             this.tokenInclusiveUpperBounds = new ArrayList<>(capacity);
             this.ballotLowBounds = new ArrayList<>(capacity + 1);
         }
@@ -473,7 +518,9 @@ public class PaxosRepairHistory
         {
             if (tokenInclusiveUpperBounds.size() == ballotLowBounds.size())
                 ballotLowBounds.add(Ballot.none());
-            return new PaxosRepairHistory(tokenInclusiveUpperBounds.toArray(new Token[0]), ballotLowBounds.toArray(new Ballot[0]));
+            return new PaxosRepairHistory(partitioner,
+                                          tokenInclusiveUpperBounds.toArray(new Token[0]),
+                                          ballotLowBounds.toArray(new Ballot[0]));
         }
     }
 }

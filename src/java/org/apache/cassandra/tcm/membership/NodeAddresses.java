@@ -84,7 +84,6 @@ public class NodeAddresses
     public boolean conflictsWith(NodeAddresses other)
     {
         return broadcastAddress.equals(other.broadcastAddress) ||
-               localAddress.equals(other.localAddress) ||
                nativeAddress.equals(other.nativeAddress);
     }
 

@@ -21,6 +21,7 @@ import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
@@ -59,18 +60,20 @@ public interface VirtualTable
      * @param partitionKey the partition key
      * @param clusteringIndexFilter the clustering columns to selected
      * @param columnFilter the selected columns
+     * @param rowFilter filter on which rows a given query should include or exclude
      * @return the rows corresponding to the requested data.
      */
-    UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, ColumnFilter columnFilter);
+    UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, ColumnFilter columnFilter, RowFilter rowFilter);
 
     /**
      * Selects the rows from a range of partitions.
      *
      * @param dataRange the range of data to retrieve
      * @param columnFilter the selected columns
+     * @param rowFilter filter on which rows a given query should include or exclude
      * @return the rows corresponding to the requested data.
      */
-    UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter);
+    UnfilteredPartitionIterator select(DataRange dataRange, ColumnFilter columnFilter, RowFilter rowFilter);
 
     /**
      * Truncates data from the underlying source, if supported.

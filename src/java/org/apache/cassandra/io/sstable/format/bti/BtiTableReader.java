@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -45,8 +44,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IVerifier;
+import org.apache.cassandra.io.sstable.KeyReader;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.SSTableReadsListener.SelectionReason;
@@ -124,6 +123,15 @@ public class BtiTableReader extends SSTableReaderWithFilter
     public long estimatedKeys()
     {
         return partitionIndex == null ? 0 : partitionIndex.size();
+    }
+
+    @Override
+    public KeyReader keyReader(PartitionPosition key) throws IOException
+    {
+        return PartitionIterator.create(partitionIndex, metadata().partitioner, rowIndexFile, dfile,
+                                        key, -1,
+                                        metadata().partitioner.getMaximumToken().maxKeyBound(), 0,
+                                        descriptor.version);
     }
 
     @Override
@@ -380,27 +388,6 @@ public class BtiTableReader extends SSTableReaderWithFilter
             return new SSTableReversedIterator(this, dataFileInput, key, indexEntry, slices, selectedColumns, rowIndexFile);
         else
             return new SSTableIterator(this, dataFileInput, key, indexEntry, slices, selectedColumns, rowIndexFile);
-    }
-
-    @Override
-    public ISSTableScanner getScanner()
-    {
-        return BtiTableScanner.getScanner(this);
-    }
-
-    @Override
-    public ISSTableScanner getScanner(Collection<Range<Token>> ranges)
-    {
-        if (ranges != null)
-            return BtiTableScanner.getScanner(this, ranges);
-        else
-            return getScanner();
-    }
-
-    @Override
-    public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
-    {
-        return BtiTableScanner.getScanner(this, rangeIterator);
     }
 
     @VisibleForTesting

@@ -125,7 +125,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         }
     }
 
-    public final Tracker tracker;
+    private final Tracker tracker;
     // The transaction logs keep track of new and old sstable files
     private final LogTransaction log;
     // the original readers this transaction was opened over, and that it guards
@@ -161,7 +161,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     /**
      * construct a Transaction for use in an offline operation
      */
-    public static LifecycleTransaction offline(OperationType operationType, Iterable<SSTableReader> readers)
+    public static LifecycleTransaction offline(OperationType operationType, Collection<SSTableReader> readers)
     {
         // if offline, for simplicity we just use a dummy tracker
         Tracker dummy = Tracker.newDummyTracker();
@@ -182,6 +182,11 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<? extends SSTableReader> readers)
     {
         this(tracker, new LogTransaction(operationType, tracker), readers);
+    }
+
+    LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<? extends SSTableReader> readers, TimeUUID id)
+    {
+        this(tracker, new LogTransaction(operationType, tracker, id), readers);
     }
 
     LifecycleTransaction(Tracker tracker, LogTransaction log, Iterable<? extends SSTableReader> readers)
@@ -207,9 +212,16 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return log.type();
     }
 
+    @Override
     public TimeUUID opId()
     {
         return log.id();
+    }
+
+    @VisibleForTesting
+    public Tracker tracker()
+    {
+        return tracker;
     }
 
     public void doPrepare()
@@ -282,7 +294,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // replace all updated readers with a version restored to its original state
         List<SSTableReader> restored = restoreUpdatedOriginals();
         List<SSTableReader> invalid = Lists.newArrayList(Iterables.concat(logged.update, logged.obsolete));
-        accumulate = tracker.apply(updateLiveSet(logged.update, restored), accumulate);
+        accumulate = tracker.apply(updateLiveSet(logged.update, restored, tracker.maybeGetSSTableIntervalTreeLatencyMetrics()), accumulate);
         accumulate = tracker.notifySSTablesChanged(invalid, restored, OperationType.COMPACTION, accumulate);
         // setReplaced immediately preceding versions that have not been obsoleted
         accumulate = setReplaced(logged.update, accumulate);
@@ -347,8 +359,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
     private Throwable checkpoint(Throwable accumulate)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("Checkpointing staged {}", staged);
+        logger.trace("Checkpointing staged {}", staged);
 
         if (staged.isEmpty())
             return accumulate;
@@ -363,7 +374,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         // and don't want anyone else messing with them
         // apply atomically along with updating the live set of readers
         tracker.apply(compose(updateCompacting(emptySet(), fresh),
-                              updateLiveSet(toUpdate, staged.update)));
+                              updateLiveSet(toUpdate, staged.update, tracker.maybeGetSSTableIntervalTreeLatencyMetrics())));
 
         // log the staged changes and our newly marked readers
         marked.addAll(fresh);
@@ -577,6 +588,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
 
     // convenience method for callers that know only one sstable is involved in the transaction
+    // overridden to avoid defensive copying
     public SSTableReader onlyOne()
     {
         assert originals.size() == 1;

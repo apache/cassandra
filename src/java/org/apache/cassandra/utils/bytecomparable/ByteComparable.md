@@ -76,253 +76,36 @@ are in the releavant `AbstractType` subclass.
 Generally, we desire the following two properties from the byte-ordered translations of values we use in the database:
 
 - Comparison equivalence (1):  
-    <math xmlns="http://www.w3.org/1998/Math/MathML">
-      <semantics>
-        <mstyle displaystyle="true">
-          <mo>&#x2200;</mo>
-          <mi>x</mi>
-          <mo>,</mo>
-          <mi>y</mi>
-          <mo>&#x2208;</mo>
-          <mi>T</mi>
-          <mo>,</mo>
-          <mrow>
-            <mtext>compareBytesUnsigned</mtext>
-          </mrow>
-          <mrow>
-            <mo>(</mo>
-            <mi>T</mi>
-            <mo>.</mo>
-            <mrow>
-              <mtext>byteOrdered</mtext>
-            </mrow>
-            <mrow>
-              <mo>(</mo>
-              <mi>x</mi>
-              <mo>)</mo>
-            </mrow>
-            <mo>,</mo>
-            <mi>T</mi>
-            <mo>.</mo>
-            <mrow>
-              <mtext>byteOrdered</mtext>
-            </mrow>
-            <mrow>
-              <mo>(</mo>
-              <mi>y</mi>
-              <mo>)</mo>
-            </mrow>
-            <mo>)</mo>
-          </mrow>
-          <mo>=</mo>
-          <mi>T</mi>
-          <mo>.</mo>
-          <mrow>
-            <mtext>compare</mtext>
-          </mrow>
-          <mrow>
-            <mo>(</mo>
-            <mi>x</mi>
-            <mo>,</mo>
-            <mi>y</mi>
-            <mo>)</mo>
-          </mrow>
-        </mstyle>
-        <!-- <annotation encoding="text/x-asciimath">forall x,y in T, "compareBytesUnsigned"(T."byteOrdered"(x), T."byteOrdered"(y))=T."compare"(x, y)</annotation> -->
-      </semantics>
-    </math>
+    $$\forall x,y \in T, \mathrm{compareBytesUnsigned}(T.\mathrm{byteOrdered}(x), T.\mathrm{byteOrdered}(y)) = T.\mathrm{compare}(x, y)$$
+ 
 - Prefix-freedom (2):  
-    <math xmlns="http://www.w3.org/1998/Math/MathML">
-      <semantics>
-        <mstyle displaystyle="true">
-          <mo>&#x2200;</mo>
-          <mi>x</mi>
-          <mo>,</mo>
-          <mi>y</mi>
-          <mo>&#x2208;</mo>
-          <mi>T</mi>
-          <mo>,</mo>
-          <mi>T</mi>
-          <mo>.</mo>
-          <mrow>
-            <mtext>byteOrdered</mtext>
-          </mrow>
-          <mrow>
-            <mo>(</mo>
-            <mi>x</mi>
-            <mo>)</mo>
-          </mrow>
-          <mrow>
-            <mspace width="1ex" />
-            <mtext> is not a prefix of </mtext>
-            <mspace width="1ex" />
-          </mrow>
-          <mi>T</mi>
-          <mo>.</mo>
-          <mrow>
-            <mtext>byteOrdered</mtext>
-          </mrow>
-          <mrow>
-            <mo>(</mo>
-            <mi>y</mi>
-            <mo>)</mo>
-          </mrow>
-        </mstyle>
-        <!-- <annotation encoding="text/x-asciimath">forall x,y in T, T."byteOrdered"(x) " is not a prefix of " T."byteOrdered"(y)</annotation> -->
-      </semantics>
-    </math>
+    $$\forall x,y \in T, T.\mathrm{byteOrdered}(x) \text{ is not a prefix of } T.\mathrm{byteOrdered}(y)$$
 
 The former is the essential requirement, and the latter allows construction of encodings of sequences of multiple
 values, as well as a little more efficiency in the data structures.
 
 To more efficiently encode byte-ordered blobs, however, we use a slightly tweaked version of the above requirements:
 
-- Comparison equivalence (3):  
-    <math xmlns="http://www.w3.org/1998/Math/MathML">
-      <semantics>
-        <mstyle displaystyle="true">
-          <mo>&#x2200;</mo>
-          <mi>x</mi>
-          <mo>,</mo>
-          <mi>y</mi>
-          <mo>&#x2208;</mo>
-          <mi>T</mi>
-          <mo>,</mo>
-          <mo>&#x2200;</mo>
-          <msub>
-            <mi>b</mi>
-            <mn>1</mn>
-          </msub>
-          <mo>,</mo>
-          <msub>
-            <mi>b</mi>
-            <mn>2</mn>
-          </msub>
-          <mo>&#x2208;</mo>
-          <mrow>
-            <mo>[</mo>
-            <mn>0x10</mn>
-            <mo>-</mo>
-            <mn>0xEF</mn>
-            <mo>]</mo>
-          </mrow>
-          <mo>,</mo>
-            <mtext><br/></mtext>
-          <mrow>
-            <mtext>compareBytesUnsigned</mtext>
-          </mrow>
-          <mrow>
-            <mo>(</mo>
-            <mi>T</mi>
-            <mo>.</mo>
-            <mrow>
-              <mtext>byteOrdered</mtext>
-            </mrow>
-            <mrow>
-              <mo>(</mo>
-              <mi>x</mi>
-              <mo>)</mo>
-            </mrow>
-            <mo>+</mo>
-            <msub>
-              <mi>b</mi>
-              <mn>1</mn>
-            </msub>
-            <mo>,</mo>
-            <mi>T</mi>
-            <mo>.</mo>
-            <mrow>
-              <mtext>byteOrdered</mtext>
-            </mrow>
-            <mrow>
-              <mo>(</mo>
-              <mi>y</mi>
-              <mo>)</mo>
-            </mrow>
-            <mo>+</mo>
-            <msub>
-              <mi>b</mi>
-              <mn>2</mn>
-            </msub>
-            <mo>)</mo>
-          </mrow>
-          <mo>=</mo>
-          <mi>T</mi>
-          <mo>.</mo>
-          <mrow>
-            <mtext>compare</mtext>
-          </mrow>
-          <mrow>
-            <mo>(</mo>
-            <mi>x</mi>
-            <mo>,</mo>
-            <mi>y</mi>
-            <mo>)</mo>
-          </mrow>
-        </mstyle>
-        <!-- <annotation encoding="text/x-asciimath">forall x,y in T, forall b_1, b_2 in [0x10-0xEF],
-    "compareBytesUnsigned"(T."byteOrdered"(x)+b_1, T."byteOrdered"(y)+b_2)=T."compare"(x, y)</annotation> -->
-      </semantics>
-    </math>
+[//]: # (latex arrays don't work in github markdown, replace ```math...``` with $$...$$ to see math in IntelliJ)
+
+- Comparison equivalence (3):
+  ```math
+    \begin{array}{c}
+        \forall x,y \in T, \forall b_1, b_2 \in [0x10-0x\text{EF}],\cr
+        \mathrm{compareBytesUnsigned}(T.\mathrm{byteOrdered}(x)+b_1, T.\mathrm{byteOrdered}(y)+b_2)
+        = \begin{cases}
+             T.\mathrm{compare}(x, y), &\mathrm{if\ } x \ne y \cr
+             \mathrm{Byte.compare}(b_1, b_2), &\mathrm{if\ } x = y
+        \end{cases}
+    \end{array}
+  ```
 - Weak prefix-freedom (4):  
-    <math xmlns="http://www.w3.org/1998/Math/MathML">
-      <semantics>
-        <mstyle displaystyle="true">
-          <mo>&#x2200;</mo>
-          <mi>x</mi>
-          <mo>,</mo>
-          <mi>y</mi>
-          <mo>&#x2208;</mo>
-          <mi>T</mi>
-          <mo>,</mo>
-          <mo>&#x2200;</mo>
-          <mi>b</mi>
-          <mo>&#x2208;</mo>
-          <mrow>
-            <mo>[</mo>
-            <mn>0x10</mn>
-            <mo>-</mo>
-            <mn>0xEF</mn>
-            <mo>]</mo>
-          </mrow>
-          <mo>,</mo>
-            <mtext><br/></mtext>
-          <mrow>
-            <mo>(</mo>
-            <mi>T</mi>
-            <mo>.</mo>
-            <mrow>
-              <mtext>byteOrdered</mtext>
-            </mrow>
-            <mrow>
-              <mo>(</mo>
-              <mi>x</mi>
-              <mo>)</mo>
-            </mrow>
-            <mo>+</mo>
-            <mi>b</mi>
-            <mo>)</mo>
-          </mrow>
-          <mrow>
-            <mspace width="1ex" />
-            <mtext> is not a prefix of </mtext>
-            <mspace width="1ex" />
-          </mrow>
-          <mi>T</mi>
-          <mo>.</mo>
-          <mrow>
-            <mtext>byteOrdered</mtext>
-          </mrow>
-          <mrow>
-            <mo>(</mo>
-            <mi>y</mi>
-            <mo>)</mo>
-          </mrow>
-        </mstyle>
-        <!-- <annotation encoding="text/x-asciimath">forall x,y in T, forall b in [0x10-0xEF],
-    (T."byteOrdered"(x)+b) " is not a prefix of " T."byteOrdered"(y)</annotation> -->
-      </semantics>
-    </math>
+  ```math
+    \begin{array}{c}
+         \forall x,y \in T, \forall b \in [0x10-0x\text{EF}], \cr
+         T.\mathrm{byteOrdered}(x)+b \text{ is not a prefix of } T.\mathrm{byteOrdered}(y)
+    \end{array}
+  ```
 
 These versions allow the addition of a separator byte after each value, and guarantee that the combination with
 separator fulfills the original requirements. (3) is somewhat stronger than (1) but is necessarily true if (2) is also

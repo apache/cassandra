@@ -38,6 +38,8 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.transform.BasePartitions;
+import org.apache.cassandra.db.transform.BaseRows;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.exceptions.UnknownTableException;
@@ -74,6 +76,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CassandraUInt;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -82,8 +85,8 @@ import org.apache.cassandra.utils.TimeUUID;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
  * General interface for storage-engine read commands (common to both range and
@@ -111,6 +114,8 @@ public abstract class ReadCommand extends AbstractReadQuery
     private int digestVersion;
 
     private boolean trackWarnings;
+
+    protected final DataRange dataRange;
 
     @Nullable
     private final Index.QueryPlan indexQueryPlan;
@@ -155,7 +160,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                           RowFilter rowFilter,
                           DataLimits limits,
                           Index.QueryPlan indexQueryPlan,
-                          boolean trackWarnings)
+                          boolean trackWarnings,
+                          DataRange dataRange)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
         if (acceptsTransient && isDigestQuery)
@@ -168,6 +174,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.indexQueryPlan = indexQueryPlan;
         this.trackWarnings = trackWarnings;
         this.serializedAtEpoch = serializedAtEpoch;
+        this.dataRange = dataRange;
     }
 
     public static ReadCommand getCommand()
@@ -298,6 +305,12 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract ClusteringIndexFilter clusteringIndexFilter(DecoratedKey key);
 
+    @Override
+    public DataRange dataRange()
+    {
+        return dataRange;
+    }
+
     /**
      * Returns a copy of this command.
      *
@@ -402,6 +415,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      * validation method to check that nothing in this command's parameters
      * violates the implementation specific validation rules.
      */
+    @Override
     public void maybeValidateIndex()
     {
         if (null != indexQueryPlan)
@@ -452,6 +466,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 iterator = withQuerySizeTracking(iterator);
                 iterator = maybeSlowDownForTesting(iterator);
                 iterator = withQueryCancellation(iterator);
+                iterator = maybeRecordPurgeableTombstones(iterator, cfs);
                 iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
                 iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
@@ -740,6 +755,22 @@ public abstract class ReadCommand extends AbstractReadQuery
         long lastCheckedAt = 0;
 
         @Override
+        protected void attachTo(BasePartitions partitions)
+        {
+            Preconditions.checkArgument(this.partitions == null || this.partitions == partitions,
+                                        "Attempted to attach 2nd different BasePartitions in StoppingTransformation; this is a bug.");
+            this.partitions = partitions;
+        }
+
+        @Override
+        protected void attachTo(BaseRows rows)
+        {
+            Preconditions.checkArgument(this.rows == null || this.rows == rows,
+                                        "Attempted to attach 2nd different BaseRows in StoppingTransformation; this is a bug.");
+            this.rows = rows;
+        }
+
+        @Override
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
             maybeCancel();
@@ -808,14 +839,19 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      * Creates a message for this command.
      */
-    public Message<ReadCommand> createMessage(boolean trackRepairedData)
+    public Message<ReadCommand> createMessage(boolean trackRepairedData, Dispatcher.RequestTime requestTime)
     {
-        Message<ReadCommand> msg = trackRepairedData
-                                   ? Message.outWithFlags(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA)
-                                   : Message.outWithFlag(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
+        List<MessageFlag> flags = new ArrayList<>(3);
+        flags.add(MessageFlag.CALL_BACK_ON_FAILURE);
         if (trackWarnings)
-            msg = msg.withFlag(MessageFlag.TRACK_WARNINGS);
-        return msg;
+            flags.add(MessageFlag.TRACK_WARNINGS);
+        if (trackRepairedData)
+            flags.add(MessageFlag.TRACK_REPAIRED_DATA);
+
+        return Message.outWithFlags(verb(),
+                                    this,
+                                    requestTime,
+                                    flags);
     }
 
     protected abstract boolean intersects(SSTableReader sstable);
@@ -857,6 +893,144 @@ public abstract class ReadCommand extends AbstractReadQuery
             }
         }
         return Transformation.apply(iterator, new WithoutPurgeableTombstones());
+    }
+
+
+    /**
+     * Wraps the provided iterator so that metrics on count of purgeable tombstones are tracked and traced.
+     * It tracks only tombstones with localDeletionTime < now - gc_grace_period.
+     * Other (non-purgeable) tombstones will be tracked by regular Cassandra logic later.
+     */
+    private UnfilteredPartitionIterator maybeRecordPurgeableTombstones(UnfilteredPartitionIterator iter,
+                                                                       ColumnFamilyStore cfs)
+    {
+        class PurgeableTombstonesMetricRecording extends Transformation<UnfilteredRowIterator>
+        {
+            private int purgeableTombstones = 0;
+
+            @Override
+            public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
+            {
+                if (!iter.partitionLevelDeletion().isLive())
+                    purgeableTombstones++;
+                return Transformation.apply(iter, this);
+            }
+
+            @Override
+            public Row applyToStatic(Row row)
+            {
+                return applyToRow(row);
+            }
+
+            @Override
+            public Row applyToRow(Row row)
+            {
+                final long nowInSec = nowInSec();
+                boolean hasTombstones = false;
+
+                if (isPurgeableCellTombstonesTrackingEnabled())
+                {
+                    for (Cell<?> cell : row.cells())
+                    {
+                        if (!cell.isLive(nowInSec) && isPurgeable(cell.localDeletionTime(), nowInSec))
+                        {
+                            purgeableTombstones++;
+                            hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        }
+                    }
+                }
+
+                // we replicate the logic is used for non-purged tombstones metric here
+                if (!row.primaryKeyLivenessInfo().isLive(nowInSec)
+                    && row.hasDeletion(nowInSec)
+                    && isPurgeable(row.deletion().time(), nowInSec)
+                    && !hasTombstones)
+                {
+                    // We're counting primary key deletions only here.
+                    purgeableTombstones++;
+                }
+
+                return row;
+            }
+
+            @Override
+            public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+            {
+                final long nowInSec = nowInSec();
+
+                // for boundary markers - increment metric only if both - close and open - markers are purgeable
+                if (marker.isBoundary())
+                {
+                    countIfBothPurgeable(marker.closeDeletionTime(false),
+                                         marker.openDeletionTime(false),
+                                         nowInSec);
+                }
+                // for bound markers - just increment if it is purgeable
+                else if (marker instanceof RangeTombstoneBoundMarker)
+                {
+                    countIfPurgeable(((RangeTombstoneBoundMarker) marker).deletionTime(), nowInSec);
+                }
+
+                return marker;
+            }
+
+            @Override
+            public void onClose()
+            {
+                cfs.metric.purgeableTombstoneScannedHistogram.update(purgeableTombstones);
+                if (purgeableTombstones > 0)
+                    Tracing.trace("Read {} purgeable tombstone cells", purgeableTombstones);
+            }
+
+            /**
+             * Increments if both - close and open - deletion times less than (now - gc_grace_period)
+             */
+            private void countIfBothPurgeable(DeletionTime closeDeletionTime,
+                                              DeletionTime openDeletionTime,
+                                              long nowInSec)
+            {
+                if (isPurgeable(closeDeletionTime, nowInSec) && isPurgeable(openDeletionTime, nowInSec))
+                    purgeableTombstones++;
+            }
+
+            /**
+             * Increments if deletion time less than (now - gc_grace_period)
+             */
+            private void countIfPurgeable(DeletionTime deletionTime,
+                                          long nowInSec)
+            {
+                if (isPurgeable(deletionTime, nowInSec))
+                    purgeableTombstones++;
+            }
+
+            /**
+             * Checks that deletion time < now - gc_grace_period
+             */
+            private boolean isPurgeable(DeletionTime deletionTime,
+                                        long nowInSec)
+            {
+                return isPurgeable(deletionTime.localDeletionTime(), nowInSec);
+            }
+
+            /**
+             * Checks that deletion time < now - gc_grace_period
+             */
+            private boolean isPurgeable(long localDeletionTime,
+                                        long nowInSec)
+            {
+                return localDeletionTime < cfs.gcBefore(nowInSec);
+            }
+
+            private boolean isPurgeableCellTombstonesTrackingEnabled()
+            {
+                return DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity() == Config.TombstonesMetricGranularity.cell;
+            }
+        }
+
+        if (DatabaseDescriptor.getPurgeableTobmstonesMetricGranularity() != Config.TombstonesMetricGranularity.disabled)
+            return Transformation.apply(iter, new PurgeableTombstonesMetricRecording());
+        else
+            return iter;
     }
 
     /**

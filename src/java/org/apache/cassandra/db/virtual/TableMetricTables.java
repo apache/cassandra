@@ -75,6 +75,7 @@ public class TableMetricTables
             new LatencyTableMetric(name, "local_write_latency", t -> t.writeLatency.latency),
             new LatencyTableMetric(name, "coordinator_write_latency", t -> t.coordinatorWriteLatency),
             new HistogramTableMetric(name, "tombstones_per_read", t -> t.tombstoneScannedHistogram.cf),
+            new HistogramTableMetric(name, "purgeable_tombstones_per_read", t -> t.purgeableTombstoneScannedHistogram.cf),
             new HistogramTableMetric(name, "rows_per_read", t -> t.liveScannedHistogram.cf),
             new StorageTableMetric(name, "disk_usage", (TableMetrics t) -> t.totalDiskSpaceUsed),
             new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize),

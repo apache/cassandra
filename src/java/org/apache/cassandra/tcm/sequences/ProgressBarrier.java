@@ -198,7 +198,7 @@ public class ProgressBarrier
         Retry.Deadline deadline = Retry.Deadline.after(TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS),
                                                       new Retry.Backoff(DatabaseDescriptor.getCmsDefaultRetryMaxTries(),
                                                                         (int) BACKOFF_MILLIS,
-                                                                        TCMMetrics.instance.fetchLogRetries));
+                                                                        TCMMetrics.instance.progressBarrierRetries));
         while (!deadline.reachedMax())
         {
             for (WatermarkRequest request : requests)
@@ -523,7 +523,6 @@ public class ProgressBarrier
 
         public WatermarkRequest(InetAddressAndPort to, MessageDelivery messagingService, Epoch waitFor)
         {
-
             this.to = to;
             this.messagingService = messagingService;
             this.waitFor = waitFor;

@@ -1031,10 +1031,36 @@ public interface Index
      */
     enum Status
     {
-        UNKNOWN,
-        FULL_REBUILD_STARTED,
-        BUILD_FAILED,
-        BUILD_SUCCEEDED,
-        DROPPED
+        UNKNOWN(0),
+        FULL_REBUILD_STARTED(1),
+        BUILD_FAILED(2),
+        BUILD_SUCCEEDED(3),
+        DROPPED(4);
+
+        public final int code;
+
+        Status(int code)
+        {
+            this.code = code;
+        }
+
+        static Status fromCode(int code)
+        {
+            switch (code)
+            {
+                case 0:
+                    return UNKNOWN;
+                case 1:
+                    return FULL_REBUILD_STARTED;
+                case 2:
+                    return BUILD_FAILED;
+                case 3:
+                    return BUILD_SUCCEEDED;
+                case 4:
+                    return DROPPED;
+            }
+
+            throw new IllegalArgumentException("Unrecognized code: " + code);
+        }
     }
 }

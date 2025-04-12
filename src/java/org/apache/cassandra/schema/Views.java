@@ -68,6 +68,11 @@ public final class Views implements Iterable<ViewMetadata>
         return NONE;
     }
 
+    public static Views of(Iterable<ViewMetadata> views)
+    {
+        return builder().put(views).build();
+    }
+
     public Iterator<ViewMetadata> iterator()
     {
         return views.values().iterator();
@@ -232,7 +237,7 @@ public final class Views implements Iterable<ViewMetadata>
         return ViewsDiff.diff(before, after);
     }
 
-    static final class ViewsDiff extends Diff<Views, ViewMetadata>
+    public static final class ViewsDiff extends Diff<Views, ViewMetadata>
     {
         private static final ViewsDiff NONE = new ViewsDiff(Views.none(), Views.none(), ImmutableList.of());
 

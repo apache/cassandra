@@ -18,13 +18,15 @@
 
 package org.apache.cassandra.utils.btree;
 
+import java.util.AbstractCollection;
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
 
 public abstract class AbstractBTreeMap<K, V> extends AbstractMap<K, V>
 {
@@ -105,13 +107,27 @@ public abstract class AbstractBTreeMap<K, V> extends AbstractMap<K, V>
         return keySet;
     }
 
+    /**
+     * This method, according to the contract of {@link Map#values()}, returns a collection backed by the map. It also
+     * closely mirrors {@link AbstractMap#values()}, which returns an {@link AbstractCollection}.
+     */
     @Override
-    public Set<V> values()
+    public Collection<V> values()
     {
-        ImmutableSet.Builder<V> b = ImmutableSet.builder();
-        for (Map.Entry<K, V> e : entrySet())
-            b.add(e.getValue());
-        return b.build();
+        return new AbstractCollection<>()
+        {
+            @Override
+            public Iterator<V> iterator()
+            {
+                return Iterators.transform(BTree.<Entry<K, V>>iterator(tree), Entry::getValue);
+            }
+
+            @Override
+            public int size()
+            {
+                return AbstractBTreeMap.this.size();
+            }
+        };
     }
 
     @Override

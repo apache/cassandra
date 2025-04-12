@@ -240,7 +240,7 @@ include::cassandra:example$RESULTS/sai/select_all_from_cyclist_career_teams-team
 
 You can create an index on xref:cassandra:developing/cql/indexing/2i/_2i-create-on-collection.adoc[map collection keys].
 If an index of the map values of the collection exists, drop that index before creating an index on the map collection keys.
-Assume a cyclist table contains this map data where `nation is the map key and `Canada` is the map value`:
+Assume a cyclist table contains this map data where `nation` is the map key and `Canada` is the map value:
 
 [source,no-highlight]
 ----

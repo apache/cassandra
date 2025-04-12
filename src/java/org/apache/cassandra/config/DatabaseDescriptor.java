@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
@@ -31,7 +32,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,6 +49,8 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -86,6 +88,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.FSWriteError;
@@ -101,8 +104,14 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.InitialLocationProvider;
+import org.apache.cassandra.locator.LocationInfo;
+import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.locator.NodeAddressConfig;
+import org.apache.cassandra.locator.NodeProximity;
+import org.apache.cassandra.locator.ReconnectableSnitchHelper;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
@@ -110,12 +119,16 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANALYTICS_DISABLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_STCS_IN_L0;
 import static org.apache.cassandra.config.CassandraRelevantProperties.INITIAL_TOKEN;
@@ -155,6 +168,7 @@ public class DatabaseDescriptor
 {
     static
     {
+        CHRONICLE_ANALYTICS_DISABLE.setBoolean(true);
         // This static block covers most usages
         FBUtilities.preventIllegalAccessWarnings();
         IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT.setBoolean(false);
@@ -176,7 +190,10 @@ public class DatabaseDescriptor
     static final DurationSpec.LongMillisecondsBound LOWEST_ACCEPTED_TIMEOUT = new DurationSpec.LongMillisecondsBound(10L);
 
     private static Supplier<IFailureDetector> newFailureDetector;
-    private static IEndpointSnitch snitch;
+    private static NodeProximity nodeProximity;
+    private static Locator initializationLocator;
+    private static InitialLocationProvider initialLocationProvider;
+    private static IEndpointStateChangeSubscriber localAddressReconnector;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
@@ -209,8 +226,9 @@ public class DatabaseDescriptor
     private static long counterCacheSizeInMiB;
     private static long indexSummaryCapacityInMiB;
 
-    private static String localDC;
-    private static Comparator<Replica> localComparator;
+    private static volatile long nativeTransportMaxMessageSizeInBytes;
+    private static volatile boolean nativeTransportMaxMessageSizeConfiguredExplicitly;
+
     private static EncryptionContext encryptionContext;
     private static boolean hasLoggedConfig;
 
@@ -252,10 +270,8 @@ public class DatabaseDescriptor
 
     public static void daemonInitialization(Supplier<Config> config) throws ConfigurationException
     {
-        if (toolInitialized)
-            throw new AssertionError("toolInitialization() already called");
-        if (clientInitialized)
-            throw new AssertionError("clientInitialization() already called");
+        assertNotToolInitialized();
+        assertNotClientInitialized();
 
         // Some unit tests require this :(
         if (daemonInitialized)
@@ -265,6 +281,41 @@ public class DatabaseDescriptor
         setConfig(config.get());
         applyAll();
         AuthConfig.applyAuth();
+    }
+
+    public static void unsafeDaemonInitialization(Supplier<Config> config) throws ConfigurationException
+    {
+        assertNotToolInitialized();
+        assertNotClientInitialized();
+
+        daemonInitialized = true;
+
+        setConfig(config.get());
+        clear();
+        applyAll();
+        AuthConfig.applyAuth();
+    }
+
+    private static void clear()
+    {
+        sstableFormats = null;
+        clearMBean("org.apache.cassandra.db:type=DynamicEndpointSnitch");
+        clearMBean("org.apache.cassandra.db:type=EndpointSnitchInfo");
+        clearMBean("org.apache.cassandra.db:type=LocationInfo");
+    }
+
+    private static void clearMBean(String name)
+    {
+        try
+        {
+            ObjectName mbeanName = new ObjectName(name);
+            if (MBeanWrapper.instance.isRegistered(mbeanName))
+                MBeanWrapper.instance.unregisterMBean(mbeanName);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     /**
@@ -291,10 +342,8 @@ public class DatabaseDescriptor
         }
         else
         {
-            if (daemonInitialized)
-                throw new AssertionError("daemonInitialization() already called");
-            if (clientInitialized)
-                throw new AssertionError("clientInitialization() already called");
+            assertNotDaemonInitialized();
+            assertNotClientInitialized();
         }
 
         if (toolInitialized)
@@ -312,6 +361,8 @@ public class DatabaseDescriptor
         applyPartitioner();
 
         applySnitch();
+
+        applyFailureDetector();
 
         applyEncryptionContext();
     }
@@ -348,10 +399,8 @@ public class DatabaseDescriptor
         }
         else
         {
-            if (daemonInitialized)
-                throw new AssertionError("daemonInitialization() already called");
-            if (toolInitialized)
-                throw new AssertionError("toolInitialization() already called");
+            assertNotDaemonInitialized();
+            assertNotToolInitialized();
         }
 
         if (clientInitialized)
@@ -363,6 +412,24 @@ public class DatabaseDescriptor
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
+    }
+
+    private static void assertNotDaemonInitialized()
+    {
+        if (daemonInitialized)
+            throw new AssertionError("daemonInitialization() already called");
+    }
+
+    private static void assertNotClientInitialized()
+    {
+        if (clientInitialized)
+            throw new AssertionError("clientInitialization() already called");
+    }
+
+    private static void assertNotToolInitialized()
+    {
+        if (toolInitialized)
+            throw new AssertionError("toolInitialization() already called");
     }
 
     public static boolean isClientInitialized()
@@ -462,6 +529,8 @@ public class DatabaseDescriptor
         applyAddressConfig();
 
         applySnitch();
+
+        applyFailureDetector();
 
         applyTokensConfig();
 
@@ -901,9 +970,40 @@ public class DatabaseDescriptor
         else if (conf.commitlog_segment_size.toKibibytes() < 2 * conf.max_mutation_size.toKibibytes())
             throw new ConfigurationException("commitlog_segment_size must be at least twice the size of max_mutation_size / 1024", false);
 
+        if (conf.native_transport_max_message_size == null)
+        {
+            conf.native_transport_max_message_size = new DataStorageSpec.LongBytesBound(calculateDefaultNativeTransportMaxMessageSizeInBytes());
+        }
+        else
+        {
+            nativeTransportMaxMessageSizeConfiguredExplicitly = true;
+            long maxCqlMessageSize = conf.native_transport_max_message_size.toBytes();
+            if (maxCqlMessageSize > conf.native_transport_max_request_data_in_flight.toBytes())
+                throw new ConfigurationException("native_transport_max_message_size must not exceed native_transport_max_request_data_in_flight", false);
+
+            if (maxCqlMessageSize > conf.native_transport_max_request_data_in_flight_per_ip.toBytes())
+                throw new ConfigurationException("native_transport_max_message_size must not exceed native_transport_max_request_data_in_flight_per_ip", false);
+
+        }
+        nativeTransportMaxMessageSizeInBytes = conf.native_transport_max_message_size.toBytes();
+
         // native transport encryption options
         if (conf.client_encryption_options != null)
             conf.client_encryption_options.applyConfig();
+
+        if (conf.jmx_server_options == null)
+        {
+            conf.jmx_server_options = JMXServerOptions.createParsingSystemProperties();
+        }
+        else if (JMXServerOptions.isEnabledBySystemProperties())
+        {
+            throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
+                                             "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
+                                             "to call configure_jmx function but you have to keep jmx_server_options " +
+                                             "in cassandra.yaml commented out.");
+        }
+
+        conf.jmx_server_options.jmx_encryption_options.applyConfig();
 
         if (conf.snapshot_links_per_second < 0)
             throw new ConfigurationException("snapshot_links_per_second must be >= 0");
@@ -923,6 +1023,9 @@ public class DatabaseDescriptor
                 diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
                 break;
         }
+
+        if (conf.compressed_read_ahead_buffer_size.toKibibytes() > 0 && conf.compressed_read_ahead_buffer_size.toKibibytes() < 256)
+            throw new ConfigurationException("compressed_read_ahead_buffer_size must be at least 256KiB (set to 0 to disable), but was " + conf.compressed_read_ahead_buffer_size, false);
 
         if (conf.server_encryption_options != null)
         {
@@ -998,6 +1101,21 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("Invalid value for.progress_barrier_default_consistency_level %s. Allowed values: %s",
                                                            conf.progress_barrier_default_consistency_level, progressBarrierCLsArr));
         }
+
+        if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() <= 0)
+            throw new ConfigurationException(" be positive");
+
+        if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() >= conf.native_transport_max_backoff_on_queue_overload.toMilliseconds())
+            throw new ConfigurationException(String.format("native_transport_min_backoff_on_queue_overload should be strictly less than native_transport_max_backoff_on_queue_overload, but %s >= %s",
+                                                           conf.native_transport_min_backoff_on_queue_overload,
+                                                           conf.native_transport_max_backoff_on_queue_overload));
+
+        if (conf.use_deterministic_table_id)
+            logger.warn("use_deterministic_table_id is no longer supported and should be removed from cassandra.yaml.");
+
+        // run audit logging options through sanitation and validation
+        if (conf.audit_logging_options != null)
+            setAuditLoggingOptions(conf.audit_logging_options);
     }
 
     @VisibleForTesting
@@ -1240,7 +1358,14 @@ public class DatabaseDescriptor
         {
             SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, REQUIRED, true);
             SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.getClientAuth(), true);
+            // For JMX SSL the validation is pretty much the same as the Native transport
+            SSLFactory.validateSslContext("JMX transport", conf.jmx_server_options.jmx_encryption_options, conf.jmx_server_options.jmx_encryption_options.getClientAuth(), true);
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
+            /*
+            For JMX SSL, the hot reloading of the SSLContext is out of scope for CASSANDRA-18508.
+            Since JMXServerUtil that initializes the JMX Server is used statically, it may require significant
+            effort to change that behavior unlike SSLFactory used for Native transport/Internode messaging.
+             */
         }
         catch (IOException e)
         {
@@ -1397,24 +1522,50 @@ public class DatabaseDescriptor
     // definitely not safe for tools + clients - implicitly instantiates StorageService
     public static void applySnitch()
     {
-        /* end point snitch */
-        if (conf.endpoint_snitch == null)
-        {
-            throw new ConfigurationException("Missing endpoint_snitch directive", false);
-        }
-        snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
-        EndpointSnitchInfo.create();
+        boolean hasLegacyConfig = conf.endpoint_snitch != null;
+        boolean hasModernConfig = conf.initial_location_provider != null && conf.node_proximity != null;
 
-        localDC = snitch.getLocalDatacenter();
-        localComparator = (replica1, replica2) -> {
-            boolean local1 = localDC.equals(snitch.getDatacenter(replica1));
-            boolean local2 = localDC.equals(snitch.getDatacenter(replica2));
-            if (local1 && !local2)
-                return -1;
-            if (local2 && !local1)
-                return 1;
-            return 0;
-        };
+        if (hasLegacyConfig == hasModernConfig)
+            throw new ConfigurationException("Configuration must specify either node_proximity and " +
+                                             "initial_location_provider or endpoint_snitch but not both. ");
+
+        NodeProximity proximity;
+        NodeAddressConfig addressConfig;
+        if (hasLegacyConfig)
+        {
+            logger.info("Use of endpoint_snitch in configuration is deprecated and should be replaced by " +
+                        "initial_location_provider and node_proximity");
+            SnitchAdapter adapter = new SnitchAdapter(createEndpointSnitch(conf.endpoint_snitch));
+            proximity = adapter;
+            initialLocationProvider = adapter;
+            addressConfig = adapter;
+        }
+        else
+        {
+            proximity = createProximityImpl(conf.node_proximity);
+            initialLocationProvider = createInitialLocationProvider(conf.initial_location_provider);
+            addressConfig = conf.addresses_config != null
+                            ? createAddressConfig(conf.addresses_config)
+                            : NodeAddressConfig.DEFAULT;
+        }
+        // this is done here and not in applyAddressConfig as historically, Ec2MultiRegionSnitch is
+        // responsible for querying the cloud metadata service to get the public IP used for
+        // broadcast_address and we only want to instantiate the snitch here.
+        addressConfig.configureAddresses();
+        initializationLocator = new Locator(RegistrationStatus.instance,
+                                            FBUtilities.getBroadcastAddressAndPort(),
+                                            initialLocationProvider);
+        nodeProximity = conf.dynamic_snitch ? new DynamicEndpointSnitch(proximity) : proximity;
+        localAddressReconnector = addressConfig.preferLocalConnections()
+                                  ? new ReconnectableSnitchHelper(initializationLocator, true)
+                                  : new IEndpointStateChangeSubscriber() { /* NO-OP */ };
+
+        EndpointSnitchInfo.create();
+        LocationInfo.create();
+    }
+
+    public static void applyFailureDetector()
+    {
         newFailureDetector = () -> createFailureDetector(conf.failure_detector);
     }
 
@@ -1445,17 +1596,32 @@ public class DatabaseDescriptor
         partitionerName = partitioner.getClass().getCanonicalName();
     }
 
-    private static DiskAccessMode resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
+    private static Pair<DiskAccessMode, Boolean> resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
     {
         boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
         boolean directIOSupported = false;
-        try
+        // File.getBlockSize creates directories/files tools may not have permissions for
+        if (!toolInitialized)
         {
-            directIOSupported = FileUtils.getBlockSize(new File(getCommitLogLocation())) > 0;
-        }
-        catch (RuntimeException e)
-        {
-            logger.warn("Unable to determine block size for commit log directory: {}", e.getMessage());
+            try
+            {
+                String commitLogLocation = getCommitLogLocation();
+
+                if (commitLogLocation == null)
+                    throw new ConfigurationException("commitlog_directory must be specified", false);
+
+                File commitLogLocationDir = new File(commitLogLocation);
+                PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
+                directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
+            }
+            catch (IOError | ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (RuntimeException e)
+            {
+                logger.warn("Unable to determine block size for commit log directory: {}", e.getMessage());
+            }
         }
 
         if (providedDiskAccessMode == DiskAccessMode.auto)
@@ -1474,20 +1640,31 @@ public class DatabaseDescriptor
             providedDiskAccessMode = compressOrEncrypt ? DiskAccessMode.standard : DiskAccessMode.mmap;
         }
 
-        return providedDiskAccessMode;
+        return Pair.create(providedDiskAccessMode, directIOSupported);
     }
 
-    private static void validateCommitLogWriteDiskAccessMode(DiskAccessMode diskAccessMode) throws ConfigurationException
+    private static void validateCommitLogWriteDiskAccessMode(Pair<DiskAccessMode, Boolean> accessModeDirectIoPair) throws ConfigurationException
     {
         boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
 
-        if (compressOrEncrypt && diskAccessMode != DiskAccessMode.standard)
+        if (!accessModeDirectIoPair.right && accessModeDirectIoPair.left == DiskAccessMode.direct)
         {
-            throw new ConfigurationException("commitlog_disk_access_mode = " + diskAccessMode + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
+            throw new ConfigurationException("commitlog_disk_access_mode can not be set to direct when direct IO is not supported by the file system.");
         }
-        else if (!compressOrEncrypt && diskAccessMode != DiskAccessMode.mmap && diskAccessMode != DiskAccessMode.direct)
+        else if (compressOrEncrypt && accessModeDirectIoPair.left != DiskAccessMode.standard)
         {
-            throw new ConfigurationException("commitlog_disk_access_mode = " + diskAccessMode + " is not supported. Please use 'auto' when unsure.", false);
+            String with;
+            if (null != getCommitLogCompression() && (null != getEncryptionContext() && getEncryptionContext().isEnabled()))
+                with = "compression or encryption";
+            else if (null != getCommitLogCompression())
+                with = "compression";
+            else
+                with = "encryption";
+            throw new ConfigurationException("commitlog_disk_access_mode = " + accessModeDirectIoPair.left + " is not supported with " + with + ". Please use 'auto' when unsure.", false);
+        }
+        else if (!compressOrEncrypt && accessModeDirectIoPair.left != DiskAccessMode.mmap && accessModeDirectIoPair.left != DiskAccessMode.direct)
+        {
+            throw new ConfigurationException("commitlog_disk_access_mode = " + accessModeDirectIoPair.left + " is not supported. Please use 'auto' when unsure.", false);
         }
     }
 
@@ -1608,12 +1785,36 @@ public class DatabaseDescriptor
         });
     }
 
-    public static IEndpointSnitch createEndpointSnitch(boolean dynamic, String snitchClassName) throws ConfigurationException
+    public static IEndpointSnitch createEndpointSnitch(String snitchClassName) throws ConfigurationException
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
         IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
-        return dynamic ? new DynamicEndpointSnitch(snitch) : snitch;
+        return snitch;
+    }
+
+    public static NodeProximity createProximityImpl(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.locator." + className;
+        NodeProximity sorter = FBUtilities.construct(className, "node proximity measurement");
+        return sorter;
+    }
+
+    public static InitialLocationProvider createInitialLocationProvider(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.locator." + className;
+        InitialLocationProvider provider = FBUtilities.construct(className, "initial location provider");
+        return provider;
+    }
+
+    public static NodeAddressConfig createAddressConfig(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.locator." + className;
+        NodeAddressConfig config = FBUtilities.construct(className, "node address config");
+        return config;
     }
 
     private static IFailureDetector createFailureDetector(String detectorClassName) throws ConfigurationException
@@ -1686,20 +1887,6 @@ public class DatabaseDescriptor
             return defaultCidrChecksForSuperusers;
 
         return Boolean.parseBoolean(value);
-    }
-
-    public static ICIDRAuthorizer.CIDRAuthorizerMode getCidrAuthorizerMode()
-    {
-        ICIDRAuthorizer.CIDRAuthorizerMode defaultCidrAuthorizerMode = ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR;
-
-        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
-            return defaultCidrAuthorizerMode;
-
-        String cidrAuthorizerMode = conf.cidr_authorizer.parameters.get("cidr_authorizer_mode");
-        if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
-            return defaultCidrAuthorizerMode;
-
-        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase());
     }
 
     public static int getCidrGroupsCacheRefreshInterval()
@@ -1974,14 +2161,49 @@ public class DatabaseDescriptor
         return old;
     }
 
-    public static IEndpointSnitch getEndpointSnitch()
+    public static IEndpointStateChangeSubscriber getLocalAddressReconnectionHelper()
     {
-        return snitch;
+        return localAddressReconnector;
     }
 
-    public static void setEndpointSnitch(IEndpointSnitch eps)
+    public static boolean preferLocalConnections()
     {
-        snitch = eps;
+        return conf.prefer_local_connections;
+    }
+
+    /**
+     * Return a Locator that can be used from the moment a node begins its initial startup.
+     * It is not initialized with a ClusterMetadata instance (as there may not be one yet), so
+     * instead it always performs lookups using the current metadata. This means it is possible
+     * for the value of a lookup for the same endpoint to change between calls e.g. if a peer
+     * were to register or change broadcast address between the two calls being made.
+     * @return Locator
+     */
+    public static Locator getLocator()
+    {
+        if (initializationLocator == null && isClientInitialized())
+            return Locator.forClients();
+        return initializationLocator;
+    }
+
+    /**
+     * Used to provide the location (dc/rack) of the local node during its initial startup
+     * for the purpose of registering it with ClusterMetadata.
+     * See: org.apache.cassandra.locator.Locator
+     */
+    public static InitialLocationProvider getInitialLocationProvider()
+    {
+        return initialLocationProvider;
+    }
+
+    public static NodeProximity getNodeProximity()
+    {
+        return nodeProximity;
+    }
+
+    public static void setNodeProximity(NodeProximity proximity)
+    {
+        nodeProximity = proximity;
     }
 
     public static IFailureDetector newFailureDetector()
@@ -2258,6 +2480,100 @@ public class DatabaseDescriptor
                          getTruncateRpcTimeout(unit));
     }
 
+    public static Config.CQLStartTime getCQLStartTime()
+    {
+        return conf.cql_start_time;
+    }
+
+    public static void setCQLStartTime(Config.CQLStartTime value)
+    {
+        conf.cql_start_time = value;
+    }
+
+    /**
+     * How much time the item is allowed to spend in (currently only Native) queue, compared to {@link #nativeTransportIdleTimeout()},
+     * before backpressure starts being applied.
+     *
+     * For example, setting this value to 0.5 means and having the largest of read/range/write/counter timeouts to 10 seconds
+     * means that if any item spends more than 5 seconds in the queue, backpressure will be applied to the socket associated
+     * with this queue.
+     *
+     * Set to 0 or any negative value to fully disable.
+     */
+    public static double getNativeTransportQueueMaxItemAgeThreshold()
+    {
+        return conf.native_transport_queue_max_item_age_threshold;
+    }
+
+    public static void setNativeTransportMaxQueueItemAgeThreshold(double threshold)
+    {
+        conf.native_transport_queue_max_item_age_threshold = threshold;
+    }
+
+    public static long getNativeTransportMinBackoffOnQueueOverload(TimeUnit timeUnit)
+    {
+        return conf.native_transport_min_backoff_on_queue_overload.to(timeUnit);
+    }
+
+    public static long getNativeTransportMaxBackoffOnQueueOverload(TimeUnit timeUnit)
+    {
+        return conf.native_transport_max_backoff_on_queue_overload.to(timeUnit);
+    }
+
+    public static void setNativeTransportBackoffOnQueueOverload(long minBackoffMillis,
+                                                                long maxBackoffMillis,
+                                                                TimeUnit timeUnit)
+    {
+        if (minBackoffMillis <= 0)
+            throw new IllegalArgumentException("native_transport_min_backoff_on_queue_overload should be positive");
+
+        if (minBackoffMillis >= maxBackoffMillis)
+            throw new IllegalArgumentException(String.format("native_transport_max_backoff_on_queue_overload should be greater than native_transport_min_backoff_on_queue_overload, but %s >= %s", minBackoffMillis, maxBackoffMillis));
+
+
+        conf.native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound(minBackoffMillis, timeUnit);
+        conf.native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound(maxBackoffMillis, timeUnit);
+    }
+
+    private static long native_transport_timeout_nanos_cached = -1;
+
+    public static long getNativeTransportTimeout(TimeUnit timeUnit)
+    {
+        if (timeUnit == TimeUnit.NANOSECONDS)
+        {
+            if (native_transport_timeout_nanos_cached == -1)
+                native_transport_timeout_nanos_cached = conf.native_transport_timeout.to(TimeUnit.NANOSECONDS);
+
+            return native_transport_timeout_nanos_cached;
+        }
+        return conf.native_transport_timeout.to(timeUnit);
+    }
+
+    public static void setNativeTransportTimeout(long dealine, TimeUnit timeUnit)
+    {
+        conf.native_transport_timeout = new DurationSpec.LongMillisecondsBound(dealine, timeUnit);
+    }
+
+    public static boolean getEnforceNativeDeadlineForHints()
+    {
+        return conf.enforce_native_deadline_for_hints;
+    }
+
+    public static void setEnforceNativeDeadlineForHints(boolean value)
+    {
+        conf.enforce_native_deadline_for_hints = value;
+    }
+
+    public static boolean getNativeTransportThrowOnOverload()
+    {
+        return conf.native_transport_throw_on_overload;
+    }
+
+    public static void setNativeTransportThrowOnOverload(boolean throwOnOverload)
+    {
+        conf.native_transport_throw_on_overload = throwOnOverload;
+    }
+
     public static long getPingTimeout(TimeUnit unit)
     {
         return unit.convert(getBlockForPeersTimeoutInSeconds(), TimeUnit.SECONDS);
@@ -2414,6 +2730,24 @@ public class DatabaseDescriptor
     public static void setConcurrentViewBuilders(int value)
     {
         conf.concurrent_materialized_view_builders = value;
+    }
+
+    public static int getCompressedReadAheadBufferSize()
+    {
+        return conf.compressed_read_ahead_buffer_size.toBytes();
+    }
+
+    public static int getCompressedReadAheadBufferSizeInKB()
+    {
+        return conf.compressed_read_ahead_buffer_size.toKibibytes();
+    }
+
+    public static void setCompressedReadAheadBufferSizeInKb(int sizeInKb)
+    {
+        if (sizeInKb < 256)
+            throw new IllegalArgumentException("compressed_read_ahead_buffer_size_in_kb must be at least 256KiB");
+
+        conf.compressed_read_ahead_buffer_size = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(sizeInKb, "compressed_read_ahead_buffer_size");
     }
 
     public static long getMinFreeSpacePerDriveInMebibytes()
@@ -2758,15 +3092,16 @@ public class DatabaseDescriptor
     @VisibleForTesting
     public static void setCommitLogWriteDiskAccessMode(DiskAccessMode diskAccessMode)
     {
+        commitLogWriteDiskAccessMode = diskAccessMode;
         conf.commitlog_disk_access_mode = diskAccessMode;
     }
 
     @VisibleForTesting
     public static void initializeCommitLogDiskAccessMode()
     {
-        DiskAccessMode resolved = resolveCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode);
-        validateCommitLogWriteDiskAccessMode(resolved);
-        commitLogWriteDiskAccessMode = resolved;
+        Pair<DiskAccessMode, Boolean> accessModeDirectIoPair = resolveCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode);
+        validateCommitLogWriteDiskAccessMode(accessModeDirectIoPair);
+        commitLogWriteDiskAccessMode = accessModeDirectIoPair.left;
     }
 
     public static String getSavedCachesLocation()
@@ -3066,6 +3401,30 @@ public class DatabaseDescriptor
         return conf.native_transport_max_request_data_in_flight_per_ip.toBytes();
     }
 
+    public static long getNativeTransportMaxMessageSizeInBytes()
+    {
+        // the value of native_transport_max_message_size in bytes is cached
+        // to avoid conversion overhead during a parsing of each incoming CQL message
+        return nativeTransportMaxMessageSizeInBytes;
+    }
+
+    @VisibleForTesting
+    public static void setNativeTransportMaxMessageSizeInBytes(long maxMessageSizeInBytes)
+    {
+        conf.native_transport_max_message_size = new DataStorageSpec.LongBytesBound(maxMessageSizeInBytes);
+        nativeTransportMaxMessageSizeInBytes = conf.native_transport_max_message_size.toBytes();
+    }
+
+    private static long calculateDefaultNativeTransportMaxMessageSizeInBytes()
+    {
+        return Math.min(conf.max_mutation_size.toBytes(),
+                   Math.min(
+                   conf.native_transport_max_request_data_in_flight.toBytes(),
+                   conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
+                   )
+        );
+    }
+
     public static Config.PaxosVariant getPaxosVariant()
     {
         return conf.paxos_variant;
@@ -3192,6 +3551,10 @@ public class DatabaseDescriptor
             maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 40;
 
         conf.native_transport_max_request_data_in_flight_per_ip = new DataStorageSpec.LongBytesBound(maxRequestDataInFlightInBytes);
+        long newNativeTransportMaxMessageSizeInBytes = nativeTransportMaxMessageSizeConfiguredExplicitly
+                                                       ? Math.min(maxRequestDataInFlightInBytes, getNativeTransportMaxMessageSizeInBytes())
+                                                       : calculateDefaultNativeTransportMaxMessageSizeInBytes();
+        setNativeTransportMaxMessageSizeInBytes(newNativeTransportMaxMessageSizeInBytes);
     }
 
     public static long getNativeTransportMaxRequestDataInFlightInBytes()
@@ -3205,6 +3568,10 @@ public class DatabaseDescriptor
             maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 10;
 
         conf.native_transport_max_request_data_in_flight = new DataStorageSpec.LongBytesBound(maxRequestDataInFlightInBytes);
+        long newNativeTransportMaxMessageSizeInBytes = nativeTransportMaxMessageSizeConfiguredExplicitly
+                                                       ? Math.min(maxRequestDataInFlightInBytes, getNativeTransportMaxMessageSizeInBytes())
+                                                       : calculateDefaultNativeTransportMaxMessageSizeInBytes();
+        setNativeTransportMaxMessageSizeInBytes(newNativeTransportMaxMessageSizeInBytes);
     }
 
     public static int getNativeTransportMaxRequestsPerSecond()
@@ -3372,16 +3739,6 @@ public class DatabaseDescriptor
         return conf.hinted_handoff_disabled_datacenters;
     }
 
-    public static boolean useDeterministicTableID()
-    {
-        return conf != null && conf.use_deterministic_table_id;
-    }
-
-    public static void useDeterministicTableID(boolean value)
-    {
-        conf.use_deterministic_table_id = value;
-    }
-
     public static void enableHintsForDC(String dc)
     {
         conf.hinted_handoff_disabled_datacenters.remove(dc);
@@ -3480,6 +3837,11 @@ public class DatabaseDescriptor
         return conf.client_encryption_options;
     }
 
+    public static JMXServerOptions getJmxServerOptions()
+    {
+        return conf.jmx_server_options;
+    }
+
     @VisibleForTesting
     public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions, EncryptionOptions> update)
     {
@@ -3504,6 +3866,22 @@ public class DatabaseDescriptor
     public static void setBatchlogReplayThrottleInKiB(int throttleInKiB)
     {
         conf.batchlog_replay_throttle = new DataStorageSpec.IntKibibytesBound(throttleInKiB);
+    }
+
+    public static boolean isDynamicEndpointSnitch()
+    {
+        // not using config.dynamic_snitch because snitch can be changed via JMX
+        return nodeProximity instanceof DynamicEndpointSnitch;
+    }
+
+    public static Config.BatchlogEndpointStrategy getBatchlogEndpointStrategy()
+    {
+        return conf.batchlog_endpoint_strategy;
+    }
+
+    public static void setBatchlogEndpointStrategy(Config.BatchlogEndpointStrategy batchlogEndpointStrategy)
+    {
+        conf.batchlog_endpoint_strategy = batchlogEndpointStrategy;
     }
 
     public static int getMaxHintsDeliveryThreads()
@@ -3554,6 +3932,16 @@ public class DatabaseDescriptor
     public static void setTransferHintsOnDecommission(boolean enabled)
     {
         conf.transfer_hints_on_decommission = enabled;
+    }
+
+    public static boolean isUseCreationTimeForHintTtl()
+    {
+        return conf.use_creation_time_for_hint_ttl;
+    }
+
+    public static void setUseCreationTimeForHintTtl(boolean enabled)
+    {
+        conf.use_creation_time_for_hint_ttl = enabled;
     }
 
     public static boolean isIncrementalBackupsEnabled()
@@ -3635,6 +4023,16 @@ public class DatabaseDescriptor
     public static void setMigrateKeycacheOnCompaction(boolean migrateCacheEntry)
     {
         conf.key_cache_migrate_during_compaction = migrateCacheEntry;
+    }
+
+    public static boolean shouldInvalidateKeycacheOnSSTableDeletion()
+    {
+        return conf.key_cache_invalidate_after_sstable_deletion;
+    }
+
+    public static void setInvalidateKeycacheOnSSTableDeletion(boolean invalidateCacheEntry)
+    {
+        conf.key_cache_invalidate_after_sstable_deletion = invalidateCacheEntry;
     }
 
     /**
@@ -3813,18 +4211,7 @@ public class DatabaseDescriptor
 
     public static String getLocalDataCenter()
     {
-        return localDC;
-    }
-
-    @VisibleForTesting
-    public static void setLocalDataCenter(String value)
-    {
-        localDC = value;
-    }
-
-    public static Comparator<Replica> getLocalComparator()
-    {
-        return localComparator;
+        return initializationLocator == null ? null : initializationLocator.local().datacenter;
     }
 
     public static Config.InternodeCompression internodeCompression()
@@ -4626,6 +5013,11 @@ public class DatabaseDescriptor
         return conf.internode_error_reporting_exclusions;
     }
 
+    public static boolean getInvalidLegacyProtocolMagicNoSpamEnabled()
+    {
+        return conf.invalid_legacy_protocol_magic_no_spam_enabled;
+    }
+
     public static boolean getReadThresholdsEnabled()
     {
         return conf.read_thresholds_enabled;
@@ -5049,6 +5441,16 @@ public class DatabaseDescriptor
         return conf.sai_options.segment_write_buffer_size;
     }
 
+    public static boolean getPrioritizeSAIOverLegacyIndex()
+    {
+        return conf.sai_options.prioritize_over_legacy_index;
+    }
+
+    public static void setPrioritizeSAIOverLegacyIndex(boolean value)
+    {
+        conf.sai_options.prioritize_over_legacy_index = value;
+    }
+
     public static RepairRetrySpec getRepairRetrySpec()
     {
         return conf == null ? new RepairRetrySpec() : conf.repair.retries;
@@ -5072,6 +5474,11 @@ public class DatabaseDescriptor
     public static DurationSpec getCmsAwaitTimeout()
     {
         return conf.cms_await_timeout;
+    }
+
+    public static int getEpochAwareDebounceInFlightTrackerMaxSize()
+    {
+        return conf.epoch_aware_debounce_inflight_tracker_max_size;
     }
 
     public static int getMetadataSnapshotFrequency()
@@ -5149,5 +5556,32 @@ public class DatabaseDescriptor
     public static Config.TriggersPolicy getTriggersPolicy()
     {
         return conf.triggers_policy;
+    }
+
+    public static boolean isPasswordValidatorReconfigurationEnabled()
+    {
+        return conf.password_validator_reconfiguration_enabled;
+    }
+
+    public static Config.TombstonesMetricGranularity getPurgeableTobmstonesMetricGranularity()
+    {
+        return conf.tombstone_read_purgeable_metric_granularity;
+    }
+
+    @VisibleForTesting
+    public static void setPurgeableTobmstonesMetricGranularity(Config.TombstonesMetricGranularity granularity)
+    {
+        conf.tombstone_read_purgeable_metric_granularity = granularity;
+    }
+
+    public static boolean getPaxosRepairRaceWait()
+    {
+        return conf.paxos_repair_race_wait;
+    }
+
+    @VisibleForTesting
+    public static void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
+    {
+        conf.paxos_repair_race_wait = paxosRepairRaceWait;
     }
 }

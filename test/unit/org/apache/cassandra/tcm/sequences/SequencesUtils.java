@@ -18,19 +18,27 @@
 
 package org.apache.cassandra.tcm.sequences;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
 
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
+import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
@@ -173,5 +181,69 @@ public class SequencesUtils
     public static Epoch epoch(int epoch)
     {
         return Epoch.create(epoch);
+    }
+
+    // Custom transforms to lock/unlock an arbitrary set of ranges to
+    // avoid having to actually initiate some range movement
+    public static class LockRanges implements Transformation, Serializable
+    {
+        public static final AsymmetricMetadataSerializer<Transformation, LockRanges> serializer = new AsymmetricMetadataSerializer<Transformation, LockRanges>()
+        {
+            @Override
+            public void serialize(Transformation t, DataOutputPlus out, Version version){}
+            @Override
+            public LockRanges deserialize(DataInputPlus in, Version version) {return new LockRanges();}
+            @Override
+            public long serializedSize(Transformation t, Version version) {return 0;}
+        };
+
+        public static final String NAME = "TestLockRanges";
+
+        // at the moment, the detail of the specific LockedRanges doesn't matter, transformations
+        // which are rejected in the presence of locking are rejected whatever is actually locked
+        private static final LockedRanges.AffectedRanges toLock =
+            LockedRanges.AffectedRanges.singleton(ReplicationParams.simple(3),
+                                                  new Range<>(Murmur3Partitioner.instance.getMinimumToken(),
+                                                              Murmur3Partitioner.instance.getRandomToken()));
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.CUSTOM;
+        }
+
+        @Override
+        public Result execute(ClusterMetadata metadata)
+        {
+            LockedRanges newLocked = metadata.lockedRanges.lock(LockedRanges.keyFor(metadata.epoch), toLock);
+            return Transformation.success(metadata.transformer().with(newLocked), toLock);
+        }
+    }
+
+    public static class ClearLockedRanges implements Transformation, Serializable
+    {
+        public static final AsymmetricMetadataSerializer<Transformation, ClearLockedRanges> serializer = new AsymmetricMetadataSerializer<Transformation, ClearLockedRanges>()
+        {
+            @Override
+            public void serialize(Transformation t, DataOutputPlus out, Version version) {}
+            @Override
+            public ClearLockedRanges deserialize(DataInputPlus in, Version version) {return new ClearLockedRanges();}
+            @Override
+            public long serializedSize(Transformation t, Version version) {return 0;}
+        };
+        public static final String NAME = "TestClearLockedRanges";
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.CUSTOM;
+        }
+
+        @Override
+        public Result execute(ClusterMetadata metadata)
+        {
+            LockedRanges newLocked = LockedRanges.EMPTY;
+            return Transformation.success(metadata.transformer().with(newLocked), LockedRanges.AffectedRanges.EMPTY);
+        }
     }
 }

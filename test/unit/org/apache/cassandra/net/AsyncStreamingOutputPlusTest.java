@@ -24,12 +24,12 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.Random;
 
-import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.utils.FBUtilities;
 

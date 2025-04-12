@@ -30,7 +30,6 @@ import org.junit.rules.TemporaryFolder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -66,11 +65,9 @@ public class ColumnFamilyStoreClientModeTest
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
-        DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
         DatabaseDescriptor.getRawConfig().memtable_flush_writers = 1;
         DatabaseDescriptor.getRawConfig().local_system_data_file_directory = tempFolder.toString();
         DatabaseDescriptor.getRawConfig().partitioner = "Murmur3Partitioner";
-        DatabaseDescriptor.setLocalDataCenter("DC1");
         DatabaseDescriptor.applyPartitioner();
     }
 

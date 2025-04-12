@@ -71,6 +71,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -94,9 +95,9 @@ import org.apache.cassandra.gms.IGossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
@@ -136,6 +137,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tools.nodetool.Repair;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -182,8 +184,18 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         UnitConfigOverride.maybeOverrideConfig();
 
         DatabaseDescriptor.daemonInitialization();
+
+        // in-memory fs (jimfs) we use for testing purposes does not handle direct mode well,
+        // it is evalauted to direct only in case we are running -latest test profile where
+        // commitlog_disk_access_mode is set to auto which would evaluate it to "direct" which fails,
+        // other test profiles (normal or compression) would run with in-memory fs just fine,
+        // it is just "direct" which can not be run with in-memory fs, in that case,
+        // we set it forcibly to mmap to bypass that
+        // please keep in mind this is a static field, impacting every test running in the same jvm
+        if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.mmap);
+
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance); // TOOD (coverage): random select
-        DatabaseDescriptor.setLocalDataCenter("test");
         StreamingChannel.Factory.Global.unsafeSet(new StreamingChannel.Factory()
         {
             private final AtomicInteger counter = new AtomicInteger();
@@ -313,7 +325,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             TableId id = ids.get(i);
             TableMetadata tableMetadata = new CassandraGenerators.TableMetadataBuilder().withKeyspaceName(ks).withTableName(name).withTableId(id).withTableKinds(TableMetadata.Kind.REGULAR)
                                                                                         // shouldn't matter, just wanted to avoid UDT as that needs more setup
-                                                                                        .withDefaultTypeGen(AbstractTypeGenerators.builder().withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE).withoutPrimitive(EmptyType.instance).build()).build().generate(qt);
+                                                                                        .withDefaultTypeGen(AbstractTypeGenerators.builder().withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE).withoutPrimitive(EmptyType.instance)).build().generate(qt);
             tableBuilder.add(tableMetadata);
         }
         KeyspaceParams params = KeyspaceParams.simple(3);
@@ -662,7 +674,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
         final Map<InetAddressAndPort, Node> nodes;
         private final IFailureDetector failureDetector = Mockito.mock(IFailureDetector.class);
-        private final IEndpointSnitch snitch = Mockito.mock(IEndpointSnitch.class);
+        private final Locator locator = Mockito.mock(Locator.class);
         private final SimulatedExecutorFactory globalExecutor;
         final ScheduledExecutorPlus unorderedScheduled;
         final ExecutorPlus orderedExecutor;
@@ -720,8 +732,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
                 String dc = rs.pick(dcs);
                 String rack = "rack";
-                Mockito.when(snitch.getDatacenter(Mockito.eq(addressAndPort))).thenReturn(dc);
-                Mockito.when(snitch.getRack(Mockito.eq(addressAndPort))).thenReturn(rack);
+                Location location = new Location(dc, rack);
+                Mockito.when(locator.location(Mockito.eq(addressAndPort))).thenReturn(location);
 
                 VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
                 EndpointState state = new EndpointState(new HeartBeatState(42, 42));
@@ -958,13 +970,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     long max = TimeUnit.SECONDS.toNanos(5);
                     LongSupplier small = () -> rs.nextLong(min, maxSmall);
                     LongSupplier large = () -> rs.nextLong(maxSmall, max);
-                    return Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
+                    return Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
                 }).getAsLong();
             }
 
             private boolean networkDrops(InetAddressAndPort to)
             {
-                return networkDrops.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
+                return networkDrops.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
             }
 
             @Override
@@ -1209,9 +1221,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
 
             @Override
-            public IEndpointSnitch snitch()
+            public Locator locator()
             {
-                return snitch;
+                return locator;
             }
 
             @Override

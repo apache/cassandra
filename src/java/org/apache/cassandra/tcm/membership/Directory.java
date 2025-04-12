@@ -38,6 +38,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -155,7 +156,10 @@ public class Directory implements MetadataValue<Directory>
                                          UUID hostId)
     {
         NodeId id = new NodeId(nextId);
-        return with(addresses, id, hostId, location, version).withNodeState(id, state).withRackAndDC(id);
+        Directory updated = with(addresses, id, hostId, location, version).withNodeState(id, state);
+        if (state == NodeState.JOINED)
+            updated = updated.withRackAndDC(id);
+        return updated;
     }
 
     @VisibleForTesting
@@ -233,7 +237,6 @@ public class Directory implements MetadataValue<Directory>
     {
         InetAddressAndPort endpoint = peers.get(id);
         Location location = locations.get(id);
-
         BTreeMultimap<String, InetAddressAndPort> rackEP = (BTreeMultimap<String, InetAddressAndPort>) racksByDC.get(location.datacenter);
         if (rackEP == null)
             rackEP = BTreeMultimap.empty();
@@ -248,7 +251,11 @@ public class Directory implements MetadataValue<Directory>
     {
         InetAddressAndPort endpoint = peers.get(id);
         Location location = locations.get(id);
+        if (location == null)
+            return this;
         BTreeMultimap<String, InetAddressAndPort> rackEP = (BTreeMultimap<String, InetAddressAndPort>) racksByDC.get(location.datacenter);
+        if (rackEP == null)
+            return this;
         rackEP = rackEP.without(location.rack, endpoint);
         BTreeMap<String, Multimap<String, InetAddressAndPort>> newRacksByDC;
         if (rackEP.isEmpty())
@@ -258,6 +265,26 @@ public class Directory implements MetadataValue<Directory>
         return new Directory(nextId, lastModified, peers, locations, states, versions, hostIds, addresses,
                              endpointsByDC.without(location.datacenter, endpoint),
                              newRacksByDC);
+    }
+
+    public Directory withUpdatedRackAndDc(NodeId id, Location location)
+    {
+        if (!peers.containsKey(id))
+            throw new IllegalArgumentException(String.format("Node %s has no registered location to update", id));
+
+        return withoutRackAndDC(id).withLocation(id, location).withRackAndDC(id);
+    }
+
+    private Directory withLocation(NodeId id, Location location)
+    {
+        if (!locations.containsKey(id))
+            throw new IllegalArgumentException(String.format("Node %s has no registered location to update", id));
+
+        if (locations.get(id).equals(location))
+            return this;
+
+        return new Directory(nextId, lastModified, peers, locations.withForce(id, location), states, versions, hostIds,
+                             addresses, endpointsByDC, racksByDC);
     }
 
     public Directory without(NodeId id)
@@ -657,7 +684,7 @@ public class Directory implements MetadataValue<Directory>
         Directory directory = (Directory) o;
 
         return Objects.equals(lastModified, directory.lastModified) &&
-               isEquivalent(directory);
+               equivalentTo(directory);
     }
 
     private static Pair<NodeVersion, NodeVersion> minMaxVersions(BTreeMap<NodeId, NodeState> states, BTreeMap<NodeId, NodeVersion> versions)
@@ -692,7 +719,7 @@ public class Directory implements MetadataValue<Directory>
      * does not check equality of lastModified
      */
     @VisibleForTesting
-    public boolean isEquivalent(Directory directory)
+    public boolean equivalentTo(Directory directory)
     {
         return nextId == directory.nextId &&
                Objects.equals(peers, directory.peers) &&
@@ -712,10 +739,18 @@ public class Directory implements MetadataValue<Directory>
         {
             logger.warn("nextId differ: {} != {}", nextId, other.nextId);
         }
+        if (!Objects.equals(lastModified, other.lastModified))
+        {
+            logger.warn("Last modified differ: {} != {}", lastModified, other.lastModified);
+        }
         if (!Objects.equals(peers, other.peers))
         {
             logger.warn("Peers differ: {} != {}", peers, other.peers);
             dumpDiff(logger, peers, other.peers);
+        }
+        if (!Objects.equals(locations, other.locations))
+        {
+            logger.warn("Locations differ: {} != {}", locations, other.locations);
         }
         if (!Objects.equals(states, other.states))
         {
@@ -726,6 +761,10 @@ public class Directory implements MetadataValue<Directory>
         {
             logger.warn("Endpoints by dc differ: {} != {}", endpointsByDC, other.endpointsByDC);
             dumpDiff(logger, endpointsByDC.asMap(), other.endpointsByDC.asMap());
+        }
+        if (!Objects.equals(racksByDC, other.racksByDC))
+        {
+            logger.warn("Racks by dc differ: {} != {}", racksByDC, other.racksByDC);
         }
         if (!Objects.equals(versions, other.versions))
         {

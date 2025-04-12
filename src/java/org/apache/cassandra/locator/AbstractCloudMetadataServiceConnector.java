@@ -36,11 +36,11 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-abstract class AbstractCloudMetadataServiceConnector
+public abstract class AbstractCloudMetadataServiceConnector
 {
-    static final String METADATA_URL_PROPERTY = "metadata_url";
-    static final String METADATA_REQUEST_TIMEOUT_PROPERTY = "metadata_request_timeout";
-    static final String DEFAULT_METADATA_REQUEST_TIMEOUT = "30s";
+    public static final String METADATA_URL_PROPERTY = "metadata_url";
+    public static final String METADATA_REQUEST_TIMEOUT_PROPERTY = "metadata_request_timeout";
+    public static final String DEFAULT_METADATA_REQUEST_TIMEOUT = "30s";
 
     protected final String metadataServiceUrl;
     protected final int requestTimeoutMs;

@@ -493,12 +493,12 @@ public class DeleteTest extends CQLTester
                              "DELETE FROM %s WHERE partitionKey > ? ", 0);
 
         assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
-                             "DELETE FROM %s WHERE partitionKey > ? ", 0);
+                             "DELETE FROM %s WHERE partitionKey BETWEEN ? AND ?", 0, 3);
 
         assertInvalidMessage("Cannot use DELETE with CONTAINS",
                              "DELETE FROM %s WHERE partitionKey CONTAINS ?", 0);
 
-        // Non primary key in the where clause
+        // Non-primary key in the where clause
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "DELETE FROM %s WHERE partitionKey = ? AND value = ?", 0, 1);
     }

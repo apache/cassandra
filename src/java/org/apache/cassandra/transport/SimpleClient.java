@@ -366,6 +366,12 @@ public class SimpleClient implements Closeable
     private static class ConnectionTracker implements Connection.Tracker
     {
         public void addConnection(Channel ch, Connection connection) {}
+
+        @Override
+        public boolean isRunning()
+        {
+            return true;
+        }
     }
 
     private static class HandlerNames
@@ -447,8 +453,17 @@ public class SimpleClient implements Closeable
             FrameEncoder frameEncoder = frameEncoder(ctx);
             FrameEncoder.PayloadAllocator payloadAllocator = frameEncoder.allocator();
 
-            CQLMessageHandler.MessageConsumer<Message.Response> responseConsumer = (c, message, converter, backpressured) -> {
-                responseHandler.handleResponse(c, message);
+            CQLMessageHandler.MessageConsumer<Message.Response> responseConsumer = new CQLMessageHandler.MessageConsumer<Message.Response>()
+            {
+                public void dispatch(Channel channel, Message.Response message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure)
+                {
+                    responseHandler.handleResponse(channel, message);
+                }
+
+                public boolean hasQueueCapacity()
+                {
+                    return true;
+                }
             };
 
             CQLMessageHandler.ErrorHandler errorHandler = (error) -> {
@@ -496,6 +511,7 @@ public class SimpleClient implements Closeable
 
             CQLMessageHandler<Message.Response> processor =
                 new CQLMessageHandler<Message.Response>(ctx.channel(),
+                                        null,
                                         version,
                                         frameDecoder,
                                         envelopeDecoder,
@@ -503,14 +519,15 @@ public class SimpleClient implements Closeable
                                         responseConsumer,
                                         payloadAllocator,
                                         queueCapacity,
+                                        QueueBackpressure.NO_OP,
                                         resources,
                                         handler -> {},
                                         errorHandler,
                                         ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload())
                 {
-                    protected boolean processRequest(Envelope request)
+                    protected boolean processRequest(Envelope request, Overload overload)
                     {
-                        boolean continueProcessing = super.processRequest(request);
+                        boolean continueProcessing = super.processRequest(request, overload);
                         releaseCapacity(Ints.checkedCast(request.header.bodySizeInBytes));
                         return continueProcessing;
                     }
@@ -541,7 +558,7 @@ public class SimpleClient implements Closeable
             pipeline.remove(this);
 
             Message.Response message = messageDecoder.decode(ctx.channel(), response);
-            responseConsumer.accept(channel, message, (ch, req, resp) -> null, Overload.NONE);
+            responseConsumer.dispatch(channel, message, (ch, req, resp) -> null, Overload.NONE);
         }
 
         private FrameDecoder frameDecoder(ChannelHandlerContext ctx, BufferPoolAllocator allocator)

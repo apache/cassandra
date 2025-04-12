@@ -54,8 +54,8 @@ public class DynamicEndpointSnitchLongTest
 
             // do this because SS needs to be initialized before DES can work properly.
             StorageService.instance.unsafeInitialize();
-            SimpleSnitch ss = new SimpleSnitch();
-            DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
+            NodeProximity proximity = new NoOpProximity();
+            DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(proximity, String.valueOf(proximity.hashCode()));
             InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
 
             EndpointsForRange.Builder replicasBuilder = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE);

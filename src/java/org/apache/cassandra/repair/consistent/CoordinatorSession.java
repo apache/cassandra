@@ -138,7 +138,8 @@ public class CoordinatorSession extends ConsistentSession
 
     public synchronized void setParticipantState(InetAddressAndPort participant, State state)
     {
-        logger.trace("Setting participant {} to state {} for repair {}", participant, state, sessionID);
+        if (logger.isTraceEnabled())
+            logger.trace("Setting participant {} to state {} for repair {}", participant, state, sessionID);
         Preconditions.checkArgument(participantStates.containsKey(participant),
                                     "Session %s doesn't include %s",
                                     sessionID, participant);

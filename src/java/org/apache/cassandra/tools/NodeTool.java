@@ -95,6 +95,7 @@ public class NodeTool
     {
         List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
                 AbortBootstrap.class,
+                AlterTopology.class,
                 Assassinate.class,
                 CassHelp.class,
                 CIDRFilteringStats.class,
@@ -106,6 +107,7 @@ public class NodeTool
                 CompactionStats.class,
                 DataPaths.class,
                 Decommission.class,
+                Decommission.Abort.class,
                 DescribeCluster.class,
                 DescribeRing.class,
                 DisableAuditLog.class,
@@ -172,6 +174,7 @@ public class NodeTool
                 ListPendingHints.class,
                 ListSnapshots.class,
                 Move.class,
+                Move.Abort.class,
                 NetStats.class,
                 PauseHandoff.class,
                 ProfileLoad.class,
@@ -188,6 +191,7 @@ public class NodeTool
                 ReloadTriggers.class,
                 RelocateSSTables.class,
                 RemoveNode.class,
+                RemoveNode.Abort.class,
                 Repair.class,
                 ReplayBatchlog.class,
                 ResetFullQueryLog.class,
@@ -265,7 +269,10 @@ public class NodeTool
                .withCommand(CMSAdmin.InitializeCMS.class)
                .withCommand(CMSAdmin.ReconfigureCMS.class)
                .withCommand(CMSAdmin.Snapshot.class)
-               .withCommand(CMSAdmin.Unregister.class);
+               .withCommand(CMSAdmin.Unregister.class)
+               .withCommand(CMSAdmin.AbortInitialization.class)
+               .withCommand(CMSAdmin.DumpDirectory.class)
+               .withCommand(CMSAdmin.DumpLog.class);
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 

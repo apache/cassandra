@@ -33,7 +33,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionListener;
@@ -281,8 +281,8 @@ public class KeyspaceActions extends ClusterActions
                     joined.add(join);
                     joined.remove(leave);
                     left.add(leave);
-                    TokenPlacementModel.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     nodeLookup.setTokenOf(join, nodeLookup.tokenOf(leave));
+                    TokenPlacementModel.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
                     Topology after = recomputeTopology(placementsAfter, placementsAfter);

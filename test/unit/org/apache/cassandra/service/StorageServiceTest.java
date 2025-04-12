@@ -30,15 +30,12 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaMultimap;
-import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.transformations.Register;
@@ -73,27 +70,8 @@ public class StorageServiceTest extends TestBaseImpl
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
 
         ClusterMetadataService.instance().commit(new Register(NodeAddresses.current(),
-                                                              new Location(SimpleSnitch.DATA_CENTER_NAME, SimpleSnitch.RACK_NAME),
+                                                              SimpleLocationProvider.LOCATION,
                                                               NodeVersion.CURRENT));
-        IEndpointSnitch snitch = new AbstractEndpointSnitch()
-        {
-            public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2)
-            {
-                return 0;
-            }
-
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return "R1";
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                return "DC1";
-            }
-        };
-
-        DatabaseDescriptor.setEndpointSnitch(snitch);
         CommitLog.instance.start();
     }
 
@@ -298,7 +276,7 @@ public class StorageServiceTest extends TestBaseImpl
         {
             assertEquals(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
                                        nonExistentDC,
-                                       SimpleSnitch.DATA_CENTER_NAME),
+                                       SimpleLocationProvider.LOCATION.datacenter),
                                 ex.getMessage());
         }
     }

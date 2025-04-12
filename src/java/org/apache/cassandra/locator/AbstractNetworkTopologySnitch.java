@@ -20,48 +20,15 @@ package org.apache.cassandra.locator;
 /**
  * An endpoint snitch tells Cassandra information about network topology that it can use to route
  * requests more efficiently.
+ * @deprecated See CASSANDRA-19488
  */
+@Deprecated(since = "CEP-21")
 public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnitch
 {
-    /**
-     * Return the rack for which an endpoint resides in
-     * @param endpoint a specified endpoint
-     * @return string of rack
-     */
-    abstract public String getRack(InetAddressAndPort endpoint);
-
-    /**
-     * Return the data center for which an endpoint resides in
-     * @param endpoint a specified endpoint
-     * @return string of data center
-     */
-    abstract public String getDatacenter(InetAddressAndPort endpoint);
-
+    private static final NodeProximity proximity = new NetworkTopologyProximity();
     @Override
     public int compareEndpoints(InetAddressAndPort address, Replica r1, Replica r2)
     {
-        InetAddressAndPort a1 = r1.endpoint();
-        InetAddressAndPort a2 = r2.endpoint();
-        if (address.equals(a1) && !address.equals(a2))
-            return -1;
-        if (address.equals(a2) && !address.equals(a1))
-            return 1;
-
-        String addressDatacenter = getDatacenter(address);
-        String a1Datacenter = getDatacenter(a1);
-        String a2Datacenter = getDatacenter(a2);
-        if (addressDatacenter.equals(a1Datacenter) && !addressDatacenter.equals(a2Datacenter))
-            return -1;
-        if (addressDatacenter.equals(a2Datacenter) && !addressDatacenter.equals(a1Datacenter))
-            return 1;
-
-        String addressRack = getRack(address);
-        String a1Rack = getRack(a1);
-        String a2Rack = getRack(a2);
-        if (addressRack.equals(a1Rack) && !addressRack.equals(a2Rack))
-            return -1;
-        if (addressRack.equals(a2Rack) && !addressRack.equals(a1Rack))
-            return 1;
-        return 0;
+        return proximity.compareEndpoints(address, r1, r2);
     }
 }

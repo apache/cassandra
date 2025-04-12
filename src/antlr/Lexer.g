@@ -98,6 +98,7 @@ K_TABLES:      ( C O L U M N F A M I L I E S
 K_MATERIALIZED:M A T E R I A L I Z E D;
 K_VIEW:        V I E W;
 K_INDEX:       I N D E X;
+K_INDEXES:     I N D E X E S;
 K_CUSTOM:      C U S T O M;
 K_ON:          O N;
 K_TO:          T O;
@@ -129,6 +130,7 @@ K_GROUP:       G R O U P;
 K_CLUSTER:     C L U S T E R;
 K_INTERNALS:   I N T E R N A L S;
 K_ONLY:        O N L Y;
+K_CHECK:       C H E C K;
 
 K_GRANT:       G R A N T;
 K_ALL:         A L L;
@@ -151,6 +153,7 @@ K_ROLES:       R O L E S;
 K_SUPERUSERS:  S U P E R U S E R S;
 K_SUPERUSER:   S U P E R U S E R;
 K_NOSUPERUSER: N O S U P E R U S E R;
+K_GENERATED:   G E N E R A T E D;
 K_PASSWORD:    P A S S W O R D;
 K_HASHED:      H A S H E D;
 K_LOGIN:       L O G I N;

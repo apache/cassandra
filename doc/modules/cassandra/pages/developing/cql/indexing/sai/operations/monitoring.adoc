@@ -47,11 +47,7 @@ The categorized data:
 * Global indexing metrics
 * Table query metrics
 * Per query metrics
-* Key fetch metrics
-* Offset fetch metrics
-* Token fetch metrics
 * Column query metrics per index
-* Terms metrics per index
 * Range slice metrics
 
 For example, you can use metrics to get the current count of total partition reads since the node started for `cycling.cyclist_semi_pro`.
@@ -101,32 +97,6 @@ The index group metrics for the given keyspace and table:
 * `IndexFileCacheBytes` -- Size in bytes of memory used by the on-disk data structure of the per-column indices.
 * `OpenIndexFiles` -- Number of open index files for the given table's SAI indices.
 
-== Key fetch metrics
-
-----
-ObjectName: org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=<keyspace>,table=<table>,scope=KeyFetch,name=<metric>
-----
-
-The key fetch metrics for the given keyspace and table:
-
-* `ChunkCacheHitRate` -- All-time chunk cache hit rate for keys during queries against the given table.
-* `TotalChunkCacheLookups` -- All-time chunk cache lookups for keys during queries against the given table.
-* `TotalChunkCacheMisses` -- All-time chunk cache misses for keys during queries against the given table.
-* `ChunkCache(One|Five|Fifteen)HitRate` -- <N>-minute chunk cache hit rate for keys during queries against the given table.
-
-== Offset fetch metrics
-
-----
-ObjectName: org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=<keyspace>,table=<table>,scope=OffsetFetch,name=<metric>
-----
-
-The offset fetch metrics for the given keyspace and table:
-
-* `ChunkCacheHitRate` -- All-time chunk cache hit rate for partition key SSTable offset fetches during queries against the given table.
-* `TotalChunkCacheLookups` -- All-time chunk cache lookups for partition key SSTable offset fetches during queries against the given table.
-* `TotalChunkCacheMisses` -- All-time chunk cache misses for partition key SSTable offset fetches during queries against the given table.
-* `ChunkCache(One|Five|Fifteen)HitRate` -- <N>-minute chunk cache hit rate for partition key SSTable offset fetches during queries against the given table.
-
 == Per query metrics
 
 ----
@@ -170,30 +140,6 @@ The table state metrics for the given keyspace and table:
 * `TotalIndexCount` -- Total number of SAI indices per table.
 * `TotalQueryableIndexCount` -- Status of SAI indices per table currently in the `is_querable` state.
 
-== Token fetch metrics
-
-----
-ObjectName: org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=<keyspace>,table=<table>,scope=TokenFetch,name=<metric>
-----
-
-The token fetch metrics for the given keyspace and table:
-
-* `ChunkCacheHitRate` -- All-time chunk cache hit rate for partition key token fetches during queries against the given table.
-* `TotalChunkCacheLookups` -- All-time chunk cache lookups for partition key token fetches during queries against the given table.
-* `TotalChunkCacheMisses` -- All-time chunk cache misses for partition key token fetches during queries against the given table.
-* `ChunkCache(One|Five|Fifteen)HitRate` -- <N>-minute chunk cache hit rate for partition key token fetches during queries against the given table.
-
-== Token skipping metrics
-
-----
-ObjectName: org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=<keyspace>,table=<table>,scope=TokenSkipping,name=<metric>
-----
-
-The token skippping metrics for the given keyspace and table:
-
-* `CacheHits` -- Number of cache hits from token skipping in a multi-index `AND` query.
-* `Lookups` -- Number of lookups from token skipping a multi-index `AND` query.
-
 == Column query metrics for each numeric index
 
 ----
@@ -218,19 +164,6 @@ ObjectName: org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=<key
 The column query metrics for the given keyspace, table, and index include:
 
 * `TermsLookupLatency` -- For string indexes, such as `country_sai_idx` in the xref:cassandra:getting-started/sai-quickstart.adoc[quickstart] examples, this metric shows terms lookup latency percentiles (in microseconds) per one/five/fifteen minute query throughput.
-
-== Terms metrics for each string index
-
-----
-ObjectName: org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=<keyspace>,table=<table>,index=<index>,scope=Terms,name=<metric>
-----
-
-For string indexes, the terms metrics for the given keyspace, table, and index:
-
-* `ChunkCacheHitRate` -- All-time chunk cache hit rate for terms during string index queries that used the given index.
-* `TotalChunkCacheLookups` -- All-time chunk cache lookups for terms during string index queries that used the given index.
-* `TotalChunkCacheMisses` -- All-time chunk cache misses for terms during string index queries that used the given index.
-* `ChunkCache(One|Five|Fifteen)HitRate` -- <N>-minute chunk cache hit rate for terms during string index queries that used the given index.
 
 == Range slice metrics
 

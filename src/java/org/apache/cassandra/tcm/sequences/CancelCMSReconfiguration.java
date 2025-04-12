@@ -77,7 +77,7 @@ public class CancelCMSReconfiguration implements Transformation
                                  .withoutWriteReplica(prev.nextEpoch(), pendingReplica)
                                  .build();
         }
-        if (!placement.reads.equals(placement.writes))
+        if (!placement.reads.equivalentTo(placement.writes))
             return new Rejected(ExceptionCode.INVALID, String.format("Placements will be inconsistent if this transformation is applied:\nReads %s\nWrites: %s",
                                                                      placement.reads,
                                                                      placement.writes));

@@ -3,27 +3,12 @@
 
 Available third-party plugins for Apache Cassandra
 
-== CAPI-Rowcache
+== Cassandra Lucene Index
 
-The Coherent Accelerator Process Interface (CAPI) is a general term for
-the infrastructure of attaching a Coherent accelerator to an IBM POWER
-system. A key innovation in IBM POWER8's open architecture is the CAPI.
-It provides a high bandwidth, low latency path between external devices,
-the POWER8 core, and the system's open memory architecture. IBM Data
-Engine for NoSQL is an integrated platform for large and fast growing
-NoSQL data stores. It builds on the CAPI capability of POWER8 systems
-and provides super-fast access to large flash storage capacity and
-addresses the challenges associated with typical x86 server based
-scale-out deployments.
+**NOTE** Support for the Cassandra Lucene Index Plug-in was retired by Instaclustr after the release of Cassandra 5.0 with Storage-attached Indexing (SAI). It remains support for Cassandra 4.x releases.
 
-The official page for the
-https://github.com/ppc64le/capi-rowcache[CAPI-Rowcache plugin] contains
-further details how to build/run/download the plugin.
-
-== Stratio's Cassandra Lucene Index
-
-Stratio's Lucene index is a Cassandra secondary index implementation
-based on http://lucene.apache.org/[Apache Lucene]. It extends
+The Cassandra Lucene Index Plug-in was a Cassandra secondary index implementation
+based on http://lucene.apache.org/[Apache Lucene]. It extended
 Cassandra's functionality to provide near real-time distributed search
 engine capabilities such as with ElasticSearch or
 http://lucene.apache.org/solr/[Apache Solr], including full text search
@@ -33,5 +18,5 @@ distance. Each node indexes its own data, so high availability and
 scalability is guaranteed.
 
 The official Github repository
-http://www.github.com/stratio/cassandra-lucene-index[Cassandra Lucene
+https://github.com/instaclustr/cassandra-lucene-index/[Cassandra Lucene
 Index] contains everything you need to build/run/configure the plugin.

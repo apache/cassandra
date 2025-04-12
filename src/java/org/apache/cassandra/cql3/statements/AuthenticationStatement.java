@@ -17,25 +17,43 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.List;
+
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleOptions;
 import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
+
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public abstract class AuthenticationStatement extends CQLStatement.Raw implements CQLStatement
 {
+    private static final List<ColumnSpecification> GENERATED_PASSWORD_METADATA =
+    List.of(new ColumnSpecification(SchemaConstants.AUTH_KEYSPACE_NAME,
+                                    "generated_password",
+                                    new ColumnIdentifier("generated_password", true),
+                                    UTF8Type.instance));
+
     public AuthenticationStatement prepare(ClientState state)
     {
         return this;
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
+    @Override
+    public ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime)
     throws RequestExecutionException, RequestValidationException
     {
         return execute(state.getClientState());
@@ -43,6 +61,7 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
 
     public abstract ResultMessage execute(ClientState state) throws RequestExecutionException, RequestValidationException;
 
+    @Override
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
         // executeLocally is for local query only, thus altering users doesn't make sense and is not supported
@@ -67,6 +86,22 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
     public String obfuscatePassword(String query)
     {
         return query;
+    }
+
+    protected ResultMessage getResultMessage(RoleOptions opts)
+    {
+        if (!opts.isGeneratedPassword())
+            return null;
+
+        if (opts.getPassword().isEmpty())
+            return null;
+
+        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(GENERATED_PASSWORD_METADATA);
+        ResultSet result = new ResultSet(resultMetadata);
+
+        result.addColumnValue(bytes(opts.getPassword().get()));
+
+        return new ResultMessage.Rows(result);
     }
 }
 

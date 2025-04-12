@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * A future on the result ({@link StreamState}) of a streaming plan.
@@ -198,7 +199,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
 
     void handleSessionComplete(StreamSession session)
     {
-        logger.info("[Stream #{}] Session with {} is {}", session.planId(), session.peer, session.state().name().toLowerCase());
+        logger.info("[Stream #{}] Session with {} is {}", session.planId(), session.peer, toLowerCaseLocalized(session.state().name()));
         fireStreamEvent(new StreamEvent.SessionCompleteEvent(session));
         SessionInfo sessionInfo = session.getSessionInfo();
         coordinator.addSessionInfo(sessionInfo);

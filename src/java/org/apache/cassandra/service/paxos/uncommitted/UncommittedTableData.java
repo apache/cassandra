@@ -47,6 +47,7 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSReadError;
@@ -109,6 +110,7 @@ public class UncommittedTableData
         private final CloseableIterator<PaxosKeyState> wrapped;
         private final PeekingIterator<PaxosKeyState> peeking;
         private final PeekingIterator<Range<Token>> rangeIterator;
+        private final IPartitioner partitioner;
         private final PaxosRepairHistory.Searcher historySearcher;
 
         FilteringIterator(CloseableIterator<PaxosKeyState> wrapped, List<Range<Token>> ranges, PaxosRepairHistory history)
@@ -116,6 +118,7 @@ public class UncommittedTableData
             this.wrapped = wrapped;
             this.peeking = Iterators.peekingIterator(wrapped);
             this.rangeIterator = Iterators.peekingIterator(Range.normalize(ranges).iterator());
+            this.partitioner = history.partitioner;
             this.historySearcher = history.searcher();
         }
 
@@ -128,35 +131,25 @@ public class UncommittedTableData
 
                 Range<Token> range = rangeIterator.peek();
 
-                PaxosKeyState peeked = peeking.peek();
-                Token token = peeked.key.getToken();
-
-                // If repairing the distributed metadata log table, we skip the filtering of paxos keys where the token
-                // is outside the range of the repair. This check would be complicated by the fact that the system.paxos
-                // table keys are tokenized with the global partitioner, but the log table uses its own specific
-                // partitioner. This means that the repair ranges will be a ReversedLongLocalToken pair, while the
-                // tokens obtained from the PaxosKeyState iterator will be whatever the global partitioner uses.
-                // However, as the replicas of the distributed log table (i.e. CMS members) always replicate the entire
-                // table, the range check is superfluous in this case anyway.
-                // For the purposes of the actual paxos repair (and for paxos reads/writes in general), this mismatch is
-                // also fine as the keys/tokens are opaque to the paxos implentation itself.
-                if (range.left.getPartitioner() == MetaStrategy.partitioner)
+                Token token = peeking.peek().key.getToken();
+                if (!range.contains(token))
                 {
-                    assert peeked.tableId.equals(DistributedMetadataLogKeyspace.LOG_TABLE_ID);
-                }
-                else
-                {
-                    if (!range.contains(token))
-                    {
-                        if (range.right.compareTo(token) < 0)
-                            rangeIterator.next();
-                        else
-                            peeking.next();
-                        continue;
-                    }
+                    if (!range.right.isMinimum() && range.right.compareTo(token) < 0)
+                        rangeIterator.next();
+                    else
+                        peeking.next();
+                    continue;
                 }
 
                 PaxosKeyState next = peeking.next();
+                // If repairing a table with a partioner different from IPartitioner.global(), such as the distributed
+                // metadata log table, we don't filter paxos keys outside the data range of the repair. Instead, we
+                // repair everything present for that table. Replicas of the distributed log table (i.e. CMS members)
+                // always replicate the entire table, so this is not much of an issue at present.
+                // In this case, we also need to obtain the appropriate token for the paxos key, according to the
+                // table specific partitioner, in order to look up the low bound ballot for it the repair history.
+                if (partitioner != IPartitioner.global())
+                    token = partitioner.getToken(next.key.getKey());
 
                 Ballot lowBound = historySearcher.ballotForToken(token);
                 if (Commit.isAfter(lowBound, next.ballot))
@@ -204,6 +197,10 @@ public class UncommittedTableData
             if (table == null)
                 return Range.normalize(FULL_RANGE);
 
+            // for tables using a different partitioner to the globally configured one, don't filter anything
+            if (table.getPartitioner() != IPartitioner.global())
+                return Range.normalize(FULL_RANGE);
+
             String ksName = table.getKeyspaceName();
             Collection<Range<Token>> ranges = StorageService.instance.getLocalAndPendingRanges(ksName);
 
@@ -218,7 +215,12 @@ public class UncommittedTableData
         {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
             if (cfs == null)
-                return PaxosRepairHistory.EMPTY;
+            {
+                IPartitioner partitioner = tableId.equals(DistributedMetadataLogKeyspace.LOG_TABLE_ID)
+                                           ? MetaStrategy.partitioner
+                                           : IPartitioner.global();
+                return PaxosRepairHistory.empty(partitioner);
+            }
 
             return cfs.getPaxosRepairHistory();
         }

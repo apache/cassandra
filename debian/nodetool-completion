@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 #
-have nodetool && have cqlsh &&
+_have nodetool && _have cqlsh &&
 {
 
     show_keyspaces()

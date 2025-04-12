@@ -33,6 +33,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -214,7 +215,8 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
 
     private static boolean isInLocalDc(InetAddressAndPort destination)
     {
-        return DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination));
+        Locator locator = DatabaseDescriptor.getLocator();
+        return locator.local().sameDatacenter(locator.location(destination));
     }
 
     /**

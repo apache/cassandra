@@ -172,7 +172,9 @@ syntax_rules = r'''
 <CQL_Statement> ::= [statements]=<statementBody> ";"
                   ;
 
-# the order of these terminal productions is significant:
+# The order of these terminal productions is significant. The input string is matched to the rule
+# specified first in the grammar.
+
 <endline> ::= /\n/ ;
 
 JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
@@ -182,6 +184,12 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <quotedStringLiteral> ::= /'([^']|'')*'/ ;
 <pgStringLiteral> ::= /\$\$(?:(?!\$\$).)*\$\$/;
 <quotedName> ::=    /"([^"]|"")*"/ ;
+
+<unclosedPgString>::= /\$\$(?:(?!\$\$).)*/ ;
+<unclosedString>  ::= /'([^']|'')*/ ;
+<unclosedName>    ::= /"([^"]|"")*/ ;
+<unclosedComment> ::= /[/][*].*$/ ;
+
 <float> ::=         /-?[0-9]+\.[0-9]+/ ;
 <uuid> ::=          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ ;
 <blobLiteral> ::=    /0x[0-9a-f]+/ ;
@@ -198,11 +206,6 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <boolean> ::= "true"
             | "false"
             ;
-
-<unclosedPgString>::= /\$\$(?:(?!\$\$).)*/ ;
-<unclosedString>  ::= /'([^']|'')*/ ;
-<unclosedName>    ::= /"([^"]|"")*/ ;
-<unclosedComment> ::= /[/][*].*$/ ;
 
 <term> ::= <stringLiteral>
          | <integer>
@@ -276,6 +279,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <schemaChangeStatement> ::= <createKeyspaceStatement>
                           | <createColumnFamilyStatement>
+                          | <copyTableStatement>
                           | <createIndexStatement>
                           | <createMaterializedViewStatement>
                           | <createUserTypeStatement>
@@ -318,7 +322,24 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <userType> ::= utname=<cfOrKsName> ;
 
-<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <vectorType> | <userType> ) ( <column_mask> )? ;
+<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <vectorType> | <userType> ) ( <constraintsExpr> )? ( <column_mask> )? ;
+
+<constraintsExpr> ::= "CHECK" <constraint> ( "AND" <constraint> )*
+                    ;
+
+<constraint> ::= <cident> <cmp> <term>
+               | <constraintComparableFunction> <functionArguments> <cmp> <term>
+               | <constraintStandaloneFunction> <functionArguments>
+               ;
+
+<constraintComparableFunction> ::= "LENGTH"
+                                 | "OCTET_LENGTH"
+                                 | "REGEXP"
+                                 ;
+
+<constraintStandaloneFunction> ::= "JSON"
+                                 | "NOT_NULL"
+                                 ;
 
 <column_mask> ::= "MASKED" "WITH" ( "DEFAULT" | <functionName> <selectionFunctionArguments> );
 
@@ -376,6 +397,9 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             ( ender="," [propmapkey]=<term> ":" [propmapval]=<term> )*
                       ender="}"
                     ;
+<propertyOrOption> ::= <property>
+                     | "INDEXES"
+                     ;
 
 '''
 
@@ -738,12 +762,12 @@ syntax_rules += r'''
                     ;
 <whereClause> ::= <relation> ( "AND" <relation> )*
                 ;
-<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "CONTAINS" ( "KEY" )? ) <term>
+<relation> ::= [rel_lhs]=<cident> ( "[" <term> "]" )? ( "=" | "<" | ">" | "<=" | ">=" | "!=" | ( "NOT" )? "CONTAINS" ( "KEY" )? ) <term>
              | token="TOKEN" "(" [rel_tokname]=<cident>
                                  ( "," [rel_tokname]=<cident> )*
                              ")" ("=" | "<" | ">" | "<=" | ">=") <tokenDefinition>
-             | [rel_lhs]=<cident> "IN" "(" <term> ( "," <term> )* ")"
-             | [rel_rhs]=<cident> "BETWEEN" <term> "AND" <term>
+             | [rel_lhs]=<cident> (( "NOT" )? "IN" ) "(" <term> ( "," <term> )* ")"
+             | [rel_lhs]=<cident> "BETWEEN" <term> "AND" <term>
              ;
 <selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
@@ -1300,6 +1324,27 @@ def create_cf_composite_primary_key_comma_completer(ctxt, cass):
 
 
 syntax_rules += r'''
+<copyTableStatement> ::= "CREATE" wat=("COLUMNFAMILY" | "TABLE" ) ("IF" "NOT" "EXISTS")?
+                                ( tks=<nonSystemKeyspaceName> dot="." )? tcf=<cfOrKsName>
+                                "LIKE" ( sks=<nonSystemKeyspaceName> dot="." )? scf=<cfOrKsName>
+                                ( "WITH" <propertyOrOption> ( "AND" <propertyOrOption> )* )?
+                            ;
+'''
+
+
+@completer_for('copyTableStatement', 'wat')
+def create_tb_wat_completer(ctxt, cass):
+    # would prefer to get rid of the "schema" nomenclature in cql3
+    if ctxt.get_binding('partial', '') == '':
+        return ['TABLE']
+    return ['COLUMNFAMILY', 'TABLE']
+
+
+explain_completion('copyTableStatement', 'tcf', '<new_table_name>')
+explain_completion('copyTableStatement', 'scf', '<old_table_name>')
+
+
+syntax_rules += r'''
 
 <idxName> ::= <identifier>
             | <quotedName>
@@ -1438,7 +1483,7 @@ syntax_rules += r'''
                       | "WITH" <cfamProperty> ( "AND" <cfamProperty> )*
                       | "RENAME" ("IF" "EXISTS")? existcol=<cident> "TO" newcol=<cident>
                          ( "AND" existcol=<cident> "TO" newcol=<cident> )*
-                      | "ALTER" ("IF" "EXISTS")? existcol=<cident> ( <column_mask> | "DROP" "MASKED" )
+                      | "ALTER" ("IF" "EXISTS")? existcol=<cident> ( <constraintsExpr> | <column_mask> | "DROP" ( "CHECK" | "MASKED" ) )
                       ;
 
 <alterUserTypeStatement> ::= "ALTER" "TYPE" ("IF" "EXISTS")? ut=<userTypeName>
@@ -1480,12 +1525,12 @@ syntax_rules += r'''
              ;
 
 <createUserStatement> ::= "CREATE" "USER" ( "IF" "NOT" "EXISTS" )? <username>
-                              ( "WITH" ("HASHED")? "PASSWORD" <stringLiteral> )?
+                              ( ("WITH" ("HASHED")? "PASSWORD" <stringLiteral>) | ("WITH" "GENERATED" "PASSWORD") )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                         ;
 
 <alterUserStatement> ::= "ALTER" "USER" ("IF" "EXISTS")? <username>
-                              ( "WITH" "PASSWORD" <stringLiteral> )?
+                              ( ("WITH" "PASSWORD" <stringLiteral>) | ("WITH" "GENERATED" "PASSWORD") )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                        ;
 
@@ -1497,9 +1542,9 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<rolename> ::= <identifier>
+<rolename> ::= role=( <identifier>
              | <quotedName>
-             | <unreservedKeyword>
+             | <unreservedKeyword> )
              ;
 
 <createRoleStatement> ::= "CREATE" "ROLE" ("IF" "NOT" "EXISTS")? <rolename>
@@ -1511,6 +1556,7 @@ syntax_rules += r'''
                        ;
 
 <roleProperty> ::= (("HASHED")? "PASSWORD") "=" <stringLiteral>
+                 | "GENERATED" "PASSWORD"
                  | "OPTIONS" "=" <mapLiteral>
                  | "SUPERUSER" "=" <boolean>
                  | "LOGIN" "=" <boolean>
@@ -1607,32 +1653,22 @@ def permission_completer(ctxt, _):
 
 @completer_for('username', 'name')
 def username_name_completer(ctxt, cass):
-    def maybe_quote(name):
-        if CqlRuleSet.is_valid_cql3_name(name):
-            return name
-        return "'%s'" % name
-
     # disable completion for CREATE USER.
     if ctxt.matched[0][1].upper() == 'CREATE':
         return [Hint('<username>')]
 
     session = cass.session
-    return [maybe_quote(list(row.values())[0].replace("'", "''")) for row in session.execute("LIST USERS")]
+    return map(maybe_escape_name, [row['name'] for row in session.execute("LIST USERS")])
 
 
 @completer_for('rolename', 'role')
 def rolename_completer(ctxt, cass):
-    def maybe_quote(name):
-        if CqlRuleSet.is_valid_cql3_name(name):
-            return name
-        return "'%s'" % name
-
     # disable completion for CREATE ROLE.
     if ctxt.matched[0][1].upper() == 'CREATE':
         return [Hint('<rolename>')]
 
     session = cass.session
-    return [maybe_quote(row[0].replace("'", "''")) for row in session.execute("LIST ROLES")]
+    return map(maybe_escape_name, [row['role'] for row in session.execute("LIST ROLES")])
 
 
 syntax_rules += r'''

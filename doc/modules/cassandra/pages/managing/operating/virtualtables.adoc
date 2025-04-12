@@ -516,6 +516,53 @@ SELECT total - progress AS remaining
 FROM system_views.sstable_tasks;
 ----
 
+=== Virtual table for primary id's
+
+Since https://issues.apache.org/jira/browse/CASSANDRA-20161[CASSANDRA-20161], there is
+a virtual table `system_views.partition_key_statistics` to allow users to query partition keys and related metadata for a specific table within a keyspace. This feature provides insights into SSTable-level details, such as token values, size estimates, and SSTable counts, without requiring expensive disk-based operations.
+
+[source,console]
+----
+cassandra@cqlsh> select * from ks.tbl;
+
+ id | cl1 | i
+----+-----+-----
+  1 | 202 | 999
+  1 | 200 | 999
+  1 | 101 | 600
+  2 | 101 | 600
+----
+
+[source,console]
+----
+cassandra@cqlsh> use system_views;
+cassandra@cqlsh> select * from partition_key_statistics where keyspace_name = 'ks' and table_name = 'tbl' and key = '1';
+
+@ Row 1
+---------------+----------------------
+ keyspace_name | ks
+ table_name    | tbl
+ token_value   | -4069959284402364209
+ key           | 1
+ size_estimate | 83
+ sstables      | 3
+
+cassandra@cqlsh> select * from partition_key_statistics where keyspace_name = 'ks' and table_name = 'tbl' and key = '2';
+
+@ Row 1
+---------------+----------------------
+ keyspace_name | ks
+ table_name    | tbl
+ token_value   | -3248873570005575792
+ key           | 2
+ size_estimate | 25
+ sstables      | 1
+----
+
+The value in `sstables` column means how many SSTables a particular key is located in.
+
+If there is a composite partition key, you can separate the values by a colon for `key`.
+
 === Other Virtual Tables
 
 Some examples of using other virtual tables are as follows.

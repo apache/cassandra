@@ -37,14 +37,15 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
-import org.apache.cassandra.distributed.test.log.RngUtils;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Surjections;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;
 import org.apache.cassandra.harry.gen.rng.PcgRSUFast;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.gen.rng.RngUtils;
+import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
@@ -114,7 +115,9 @@ public class ProgressBarrierTest extends CMSTestBase
             {
                 List<TokenPlacementModel.Node> allNodes = new ArrayList<>();
                 TokenPlacementModel.Node node = null;
-                int nodesInCluster = Math.max(rf.total(), nodes.get());
+                // + 1 since one of the nodes will not be joined yet by the time we create progress barrier, which will fail
+                // a check with ALL.
+                int nodesInCluster = Math.max(rf.total(), nodes.get()) + 1;
                 for (int i = 1; i <= nodesInCluster; i++)
                 {
                     node = nodeFactory.make(i, (i % rf.dcs()) + 1, 1);
@@ -176,7 +179,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             Assert.assertTrue(String.format("Should have collected at least %d nodes but got %d." +
                                                             "\nRF: %s" +
                                                             "\nReplicas: %s" +
-                                                            "\nNodes: %s", expected, collected.size(), rf, replicas, collected),
+                                                            "\nNodes:    %s", expected, collected.size(), rf, replicas, collected),
                                               collected.size() >= expected);
 
                             break;
@@ -308,6 +311,8 @@ public class ProgressBarrierTest extends CMSTestBase
                 public <REQ> void send(Message<REQ> message, InetAddressAndPort to) {}
                 public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection) {}
                 public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to) { return null; }
+
+                @Override
                 public <V> void respond(V response, Message<?> message) {}
             };
 
@@ -316,7 +321,9 @@ public class ProgressBarrierTest extends CMSTestBase
                                               .advance(metadata.epoch)
                                               .barrier()
                                               .withMessagingService(delivery);
+            long before = TCMMetrics.instance.progressBarrierRetries.getCount();
             progressBarrier.await();
+            Assert.assertTrue(TCMMetrics.instance.progressBarrierRetries.getCount() - before > 0);
             Assert.assertTrue(responded.size() == 1);
         }
     }

@@ -27,6 +27,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
 class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
@@ -49,6 +50,7 @@ class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
             return endOfData();
 
         ReplicaPlan.ForRangeRead current = ranges.next();
+        ClusterMetadata metadata = ClusterMetadata.current();
 
         // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
         // the replication factor into account. If the intersection of live endpoints for 2 consecutive ranges
@@ -64,7 +66,7 @@ class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
                 break;
 
             ReplicaPlan.ForRangeRead next = ranges.peek();
-            ReplicaPlan.ForRangeRead merged = ReplicaPlans.maybeMerge(keyspace, consistency, current, next);
+            ReplicaPlan.ForRangeRead merged = ReplicaPlans.maybeMerge(metadata, keyspace, consistency, current, next);
             if (merged == null)
                 break;
 

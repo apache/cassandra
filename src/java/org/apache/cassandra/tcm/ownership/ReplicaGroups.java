@@ -487,9 +487,8 @@ public class ReplicaGroups
                     InetAddressAndPort replicaAddress = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
                     boolean isFull = in.readBoolean();
                     replicas.add(new Replica(replicaAddress, replicaRange, isFull));
-
                 }
-                EndpointsForRange efr = EndpointsForRange.copyOf(replicas);
+                EndpointsForRange efr = replicas.isEmpty() ? EndpointsForRange.builder(range).build() : EndpointsForRange.copyOf(replicas);
                 result.put(range, VersionedEndpoints.forRange(lastModified, efr));
             }
             return new ReplicaGroups(result);
@@ -534,5 +533,20 @@ public class ReplicaGroups
     public int hashCode()
     {
         return Objects.hash(ranges, endpoints);
+    }
+
+    public boolean equivalentTo(ReplicaGroups other)
+    {
+        if (!ranges.equals(other.ranges))
+            return false;
+
+        for (int i = 0; i < ranges.size(); i++)
+        {
+            EndpointsForRange e1 = endpoints.get(i).get();
+            EndpointsForRange e2 = other.forRange(ranges.get(i)).get();
+            if (e1.size() != e2.size() || !e1.stream().allMatch(e2::contains))
+                return false;
+        }
+        return true;
     }
 }

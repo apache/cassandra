@@ -82,7 +82,7 @@ public class AddToCMS extends MultiStepOperation<Epoch>
                                                                .commit(new StartAddToCMS(addr))
                                            .inProgressSequences.get(nodeId);
         InProgressSequences.resume(sequence);
-        ReconfigureCMS.repairPaxosTopology();
+        ReconfigureCMS.repairPaxosForCMSTopologyChange();
     }
 
     public AddToCMS(Epoch latestModification,

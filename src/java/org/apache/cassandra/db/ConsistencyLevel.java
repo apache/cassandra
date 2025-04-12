@@ -17,20 +17,19 @@
  */
 package org.apache.cassandra.db;
 
-
-import java.util.Locale;
-
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.InOurDc;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.InOurDc;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolException;
 
 import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public enum ConsistencyLevel
 {
@@ -85,7 +84,7 @@ public enum ConsistencyLevel
 
     public static ConsistencyLevel fromString(String str)
     {
-        return valueOf(str.toUpperCase(Locale.US));
+        return valueOf(toUpperCaseLocalized(str));
     }
 
     public static int quorumFor(AbstractReplicationStrategy replicationStrategy)
@@ -123,10 +122,10 @@ public enum ConsistencyLevel
         }
     }
 
-    public static ObjectIntHashMap<String> eachQuorumForWrite(AbstractReplicationStrategy replicationStrategy, Endpoints<?> pendingWithDown)
+    public static ObjectIntHashMap<String> eachQuorumForWrite(Locator locator, AbstractReplicationStrategy replicationStrategy, Endpoints<?> pendingWithDown)
     {
         ObjectIntHashMap<String> perDc = eachQuorumForRead(replicationStrategy);
-        addToCountPerDc(perDc, pendingWithDown, 1);
+        addToCountPerDc(locator, perDc, pendingWithDown, 1);
         return perDc;
     }
 

@@ -41,10 +41,12 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.NewGossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -57,6 +59,7 @@ import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.migration.Election;
+import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
@@ -71,6 +74,7 @@ import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
+import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
  /**
@@ -133,7 +137,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
     public static void initializeAsFirstCMSNode()
     {
         InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
-        ClusterMetadataService.instance().log().bootstrap(addr);
+        String datacenter = DatabaseDescriptor.getLocator().local().datacenter;
+        ClusterMetadataService.instance().log().bootstrap(addr, datacenter);
         ClusterMetadata metadata =  ClusterMetadata.current();
         assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
 
@@ -226,8 +231,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             {
                 Election.instance.nominateSelf(candidates.nodes(),
                                                Collections.singleton(FBUtilities.getBroadcastAddressAndPort()),
-                                               (cm) -> true,
-                                               null);
+                                               ClusterMetadata.current(),
+                                               false);
             }
         }
 
@@ -240,8 +245,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             }
             else
             {
-                Election.Initiator initiator = Election.instance.initiator();
-                candidates = Discovery.instance.discoverOnce(initiator == null ? null : initiator.initiator);
+                CMSInitializationRequest.Initiator initiator = Election.instance.initiator();
+                candidates = Discovery.instance.discoverOnce(initiator == null ? null : initiator.endpoint);
             }
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
@@ -281,19 +286,65 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
         logger.debug("Starting to initialize ClusterMetadata from gossip");
         Map<InetAddressAndPort, EndpointState> epStates = NewGossiper.instance.doShadowRound();
+        InetAddressAndPort switchIp = null;
+        if (!epStates.containsKey(getBroadcastAddressAndPort()))
+        {
+            UUID hostId = SystemKeyspace.getLocalHostId();
+            for (Map.Entry<InetAddressAndPort, EndpointState> epstate : epStates.entrySet())
+            {
+                EndpointState state = epstate.getValue();
+                VersionedValue gossipHostId = state.getApplicationState(ApplicationState.HOST_ID);
+                if (gossipHostId != null && UUID.fromString(gossipHostId.value).equals(hostId))
+                {
+                    switchIp = epstate.getKey();
+                    break;
+                }
+            }
+            if (switchIp != null)
+            {
+                logger.info("Changing IP in gossip mode from {} to {}", switchIp, getBroadcastAddressAndPort());
+                // we simply switch the key to the new ip here to make sure we grab NodeAddresses.current() for
+                // this node when constructing the initial ClusterMetadata in GossipHelper#getAddressesFromEndpointState
+                epStates.put(getBroadcastAddressAndPort(), epStates.remove(switchIp));
+            }
+        }
+
         logger.debug("Got epStates {}", epStates);
         ClusterMetadata initial = fromEndpointStates(emptyFromSystemTables.schema, epStates);
         logger.debug("Created initial ClusterMetadata {}", initial);
-        SystemKeyspace.setLocalHostId(initial.myNodeId().toUUID());
         ClusterMetadataService.instance().setFromGossip(initial);
         Gossiper.instance.clearUnsafe();
+
+        // find any endpoints that were ignored on upgrade and make sure they don't get re-added in gossip
+        InetAddressAndPort removeEp = switchIp;
+        Gossiper.runInGossipStageBlocking(() -> {
+            if (removeEp != null)
+                Gossiper.instance.removeEndpoint(removeEp);
+            for (InetAddressAndPort ep : epStates.keySet())
+            {
+                if (initial.directory.peerId(ep) == null)
+                    Gossiper.instance.removeEndpoint(ep); // just quarantines the ep - endpoint states should be empty
+                                                          // here (this is run before Gossiper is started)
+            }
+        });
+
         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
         for (Map.Entry<NodeId, NodeState> entry : initial.directory.states.entrySet())
-            Gossiper.instance.mergeNodeToGossip(entry.getKey(), initial);
+        {
+            InetAddressAndPort ep = initial.directory.addresses.get(entry.getKey()).broadcastAddress;
+            if (entry.getValue() != LEFT)
+                Gossiper.instance.mergeNodeToGossip(entry.getKey(), initial, Gossiper.isHibernate(epStates.get(ep)));
+            else
+                Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.endpointStateMap.put(ep, epStates.get(ep)));
+        }
 
         // double check that everything was added, can remove once we are confident
         ClusterMetadata cmGossip = fromEndpointStates(emptyFromSystemTables.schema, Gossiper.instance.getEndpointStates());
-        assert cmGossip.equals(initial) : cmGossip + " != " + initial;
+        if (!cmGossip.equals(initial))
+        {
+            cmGossip.dumpDiff(initial);
+            throw new AssertionError("Issue when populating gossip from cluster metadata");
+        }
     }
 
     public static void reinitializeWithClusterMetadata(String fileName, Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws IOException, StartupException
@@ -366,7 +417,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         NodeId self = metadata.myNodeId();
 
         // finish in-progress sequences first
-        InProgressSequences.finishInProgressSequences(self);
+        InProgressSequences.finishInProgressSequences(self, true);
         metadata = ClusterMetadata.current();
 
         switch (metadata.directory.peerState(self))
@@ -377,8 +428,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     ReconfigureCMS.maybeReconfigureCMS(metadata, DatabaseDescriptor.getReplaceAddress());
 
                 ClusterMetadataService.instance().commit(initialTransformation.get());
-
-                InProgressSequences.finishInProgressSequences(self);
+                InProgressSequences.finishInProgressSequences(self, true); // potentially finish the MSO committed above
                 metadata = ClusterMetadata.current();
 
                 if (metadata.directory.peerState(self) == JOINED)
@@ -406,6 +456,14 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     throw new IllegalStateException("Expected to complete startup sequence, but did not. " +
                                                     "Can't proceed from the state " + metadata.directory.peerState(self));
                 }
+                break;
+            case LEAVING:
+                logger.info("Node is currently being decommissioned, resume with `nodetool decommission`");
+                StorageService.instance.markDecommissionFailed();
+                break;
+            case MOVING:
+                logger.info("Node is currently moving, resume with nodetool move --resume or abort with nodetool move --abort");
+                StorageService.instance.markMoveFailed();
                 break;
             default:
                 throw new IllegalStateException("Can't proceed from the state " + metadata.directory.peerState(self));

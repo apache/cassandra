@@ -30,7 +30,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -43,6 +42,13 @@ import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+
+import static org.apache.cassandra.harry.model.TokenPlacementModel.Node;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.NodeFactory;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.NtsReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.ReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.SimpleReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.nodeFactory;
 
 /**
  * Compare different operations, and make sure that executing operations such as move, bootstrap, etc.,
@@ -61,30 +67,30 @@ public class OperationalEquivalenceTest extends CMSTestBase
     @Test
     public void testMove() throws Exception
     {
-        testMove(new TokenPlacementModel.SimpleReplicationFactor(2));
-        testMove(new TokenPlacementModel.SimpleReplicationFactor(3));
-        testMove(new TokenPlacementModel.SimpleReplicationFactor(5));
+        testMove(new SimpleReplicationFactor(2));
+        testMove(new SimpleReplicationFactor(3));
+        testMove(new SimpleReplicationFactor(5));
 
-        testMove(new TokenPlacementModel.NtsReplicationFactor(1, 2));
-        testMove(new TokenPlacementModel.NtsReplicationFactor(1, 3));
-        testMove(new TokenPlacementModel.NtsReplicationFactor(1, 5));
+        testMove(new NtsReplicationFactor(1, 2));
+        testMove(new NtsReplicationFactor(1, 3));
+        testMove(new NtsReplicationFactor(1, 5));
 
-        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 2));
-        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 3));
-        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 5));
+        testMove(new NtsReplicationFactor(3, 2));
+        testMove(new NtsReplicationFactor(3, 3));
+        testMove(new NtsReplicationFactor(3, 5));
 
-        testMove(new TokenPlacementModel.SimpleReplicationFactor(3, 1));
-        testMove(new TokenPlacementModel.SimpleReplicationFactor(3, 2));
-        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 3, 1));
-        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 5, 2));
+        testMove(new SimpleReplicationFactor(3, 1));
+        testMove(new SimpleReplicationFactor(3, 2));
+        testMove(new NtsReplicationFactor(3, 3, 1));
+        testMove(new NtsReplicationFactor(3, 5, 2));
     }
 
-    public void testMove(TokenPlacementModel.ReplicationFactor rf) throws Exception
+    public void testMove(ReplicationFactor rf) throws Exception
     {
-        TokenPlacementModel.NodeFactory nodeFactory = TokenPlacementModel.nodeFactory();
+        NodeFactory nodeFactory = nodeFactory();
 
         ClusterMetadata withMove = null;
-        List<TokenPlacementModel.Node> equivalentNodes = new ArrayList<>();
+        List<Node> equivalentNodes = new ArrayList<>();
         int nodes = 30;
         try (CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
@@ -92,14 +98,14 @@ public class OperationalEquivalenceTest extends CMSTestBase
             for (int i = 0; i < nodes; i++)
             {
                 int dc = toDc(i, rf);
-                TokenPlacementModel.Node node = nodeFactory.make(counter.incrementAndGet(), dc, 1);
+                Node node = nodeFactory.make(counter.incrementAndGet(), dc, 1);
                 sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
                 sut.service.commit(new UnsafeJoin(node.nodeId(), Collections.singleton(node.longToken()), sut.service.placementProvider()));
                 equivalentNodes.add(node);
             }
 
-            TokenPlacementModel.Node toMove = equivalentNodes.get(rng.nextInt(equivalentNodes.size()));
-            TokenPlacementModel.Node moved = toMove.withNewToken();
+            Node toMove = equivalentNodes.get(rng.nextInt(equivalentNodes.size()));
+            Node moved = toMove.withNewToken();
             equivalentNodes.set(equivalentNodes.indexOf(toMove), moved);
 
             Move plan = SimulatedOperation.prepareMove(sut, toMove, moved.longToken()).get();
@@ -114,12 +120,12 @@ public class OperationalEquivalenceTest extends CMSTestBase
                          withMove.placements);
     }
 
-    private static ClusterMetadata simulateAndCompare(TokenPlacementModel.ReplicationFactor rf, List<TokenPlacementModel.Node> nodes) throws Exception
+    private static ClusterMetadata simulateAndCompare(ReplicationFactor rf, List<Node> nodes) throws Exception
     {
         Collections.shuffle(nodes, rng);
         try (CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
-            for (TokenPlacementModel.Node node : nodes)
+            for (Node node : nodes)
             {
                 sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
                 sut.service.commit(new UnsafeJoin(node.nodeId(), Collections.singleton(node.longToken()), sut.service.placementProvider()));
@@ -154,7 +160,7 @@ public class OperationalEquivalenceTest extends CMSTestBase
     {
         return ep.stream().sorted(Replica::compareTo).collect(Collectors.toList());
     }
-    private static int toDc(int i, TokenPlacementModel.ReplicationFactor rf)
+    private static int toDc(int i, ReplicationFactor rf)
     {
         return (i % rf.dcs()) + 1;
     }

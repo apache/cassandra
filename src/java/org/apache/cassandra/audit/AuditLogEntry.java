@@ -19,9 +19,11 @@ package org.apache.cassandra.audit;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.Map;
 import java.util.UUID;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
@@ -36,6 +38,8 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class AuditLogEntry
 {
+    static final String DEFAULT_KEY_VALUE_SEPARATOR = ":";
+    static final String DEFAULT_FIELD_SEPARATOR = "|";
     private final InetAddressAndPort host = FBUtilities.getBroadcastAddressAndPort();
     private final InetAddressAndPort source;
     private final String user;
@@ -47,60 +51,69 @@ public class AuditLogEntry
     private final String operation;
     private final QueryOptions options;
     private final QueryState state;
+    private final Map<String, Object> metadata;
 
-    private AuditLogEntry(AuditLogEntryType type,
-                          InetAddressAndPort source,
-                          String user,
-                          long timestamp,
-                          UUID batch,
-                          String keyspace,
-                          String scope,
-                          String operation,
-                          QueryOptions options,
-                          QueryState state)
+    private AuditLogEntry(Builder builder)
     {
-        this.type = type;
-        this.source = source;
-        this.user = user;
-        this.timestamp = timestamp;
-        this.batch = batch;
-        this.keyspace = keyspace;
-        this.scope = scope;
-        this.operation = operation;
-        this.options = options;
-        this.state = state;
+        this.type = builder.type;
+        this.source = builder.source;
+        this.user = builder.user;
+        this.timestamp = builder.timestamp;
+        this.batch = builder.batch;
+        this.keyspace = builder.keyspace;
+        this.scope = builder.scope;
+        this.operation = builder.operation;
+        this.options = builder.options;
+        this.state = builder.state;
+        this.metadata = builder.metadata;
     }
 
-    String getLogString()
+    @VisibleForTesting
+    public String getLogString()
+    {
+        return getLogString(DEFAULT_KEY_VALUE_SEPARATOR, DEFAULT_FIELD_SEPARATOR);
+    }
+
+    String getLogString(String keyValueSeparator, String fieldSeparator)
     {
         StringBuilder builder = new StringBuilder(100);
-        builder.append("user:").append(user)
-               .append("|host:").append(host)
-               .append("|source:").append(source.getAddress());
-        if (source.getPort() > 0)
+        builder.append("user").append(keyValueSeparator).append(user)
+               .append(fieldSeparator).append("host").append(keyValueSeparator).append(host);
+
+        // Source is only expected to be null during testing
+        // in MacOS when running in-jvm dtests
+        if (source != null)
         {
-            builder.append("|port:").append(source.getPort());
+            builder.append(fieldSeparator).append("source").append(keyValueSeparator).append(source.getAddress());
+            if (source.getPort() > 0)
+            {
+                builder.append(fieldSeparator).append("port").append(keyValueSeparator).append(source.getPort());
+            }
         }
 
-        builder.append("|timestamp:").append(timestamp)
-               .append("|type:").append(type)
-               .append("|category:").append(type.getCategory());
+        builder.append(fieldSeparator).append("timestamp").append(keyValueSeparator).append(timestamp)
+               .append(fieldSeparator).append("type").append(keyValueSeparator).append(type)
+               .append(fieldSeparator).append("category").append(keyValueSeparator).append(type.getCategory());
 
         if (batch != null)
         {
-            builder.append("|batch:").append(batch);
+            builder.append(fieldSeparator).append("batch").append(keyValueSeparator).append(batch);
         }
         if (StringUtils.isNotBlank(keyspace))
         {
-            builder.append("|ks:").append(keyspace);
+            builder.append(fieldSeparator).append("ks").append(keyValueSeparator).append(keyspace);
         }
         if (StringUtils.isNotBlank(scope))
         {
-            builder.append("|scope:").append(scope);
+            builder.append(fieldSeparator).append("scope").append(keyValueSeparator).append(scope);
         }
         if (StringUtils.isNotBlank(operation))
         {
-            builder.append("|operation:").append(operation);
+            builder.append(fieldSeparator).append("operation").append(keyValueSeparator).append(operation);
+        }
+        if (metadata != null && !metadata.isEmpty())
+        {
+            metadata.forEach((key, value) -> builder.append(fieldSeparator).append(key).append(keyValueSeparator).append(value));
         }
         return builder.toString();
     }
@@ -189,6 +202,7 @@ public class AuditLogEntry
         private String operation;
         private QueryOptions options;
         private QueryState state;
+        private Map<String, Object> metadata;
 
         public Builder(QueryState queryState)
         {
@@ -198,15 +212,21 @@ public class AuditLogEntry
 
             if (clientState != null)
             {
-                if (clientState.getRemoteAddress() != null)
+                InetSocketAddress addr = clientState.getRemoteAddress();
+                if (addr != null)
                 {
-                    InetSocketAddress addr = clientState.getRemoteAddress();
                     source = InetAddressAndPort.getByAddressOverrideDefaults(addr.getAddress(), addr.getPort());
                 }
 
-                if (clientState.getUser() != null)
+                AuthenticatedUser authenticatedUser = clientState.getUser();
+                if (authenticatedUser != null)
                 {
-                    user = clientState.getUser().getName();
+                    user = authenticatedUser.getName();
+
+                    if (authenticatedUser.getMetadata() != null)
+                    {
+                        metadata = Map.copyOf(authenticatedUser.getMetadata());
+                    }
                 }
                 keyspace = clientState.getRawKeyspace();
             }
@@ -231,6 +251,7 @@ public class AuditLogEntry
             operation = entry.operation;
             options = entry.options;
             state = entry.state;
+            metadata = entry.metadata != null ? Map.copyOf(entry.metadata) : null;
         }
 
         public Builder setType(AuditLogEntryType type)
@@ -312,10 +333,16 @@ public class AuditLogEntry
             return this;
         }
 
+        public Builder setMetadata(Map<String, Object> metadata)
+        {
+            this.metadata = metadata != null ? Map.copyOf(metadata) : null;
+            return this;
+        }
+
         public AuditLogEntry build()
         {
             timestamp = timestamp > 0 ? timestamp : currentTimeMillis();
-            return new AuditLogEntry(type, source, user, timestamp, batch, keyspace, scope, operation, options, state);
+            return new AuditLogEntry(this);
         }
     }
 }

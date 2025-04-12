@@ -421,7 +421,7 @@ public class RangeTombstoneTest
                         partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec, enforceStrictLiveness));
 
         // Compact everything and re-test
-        CompactionManager.instance.performMaximal(cfs, false);
+        CompactionManager.instance.performMaximal(cfs);
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
 
         for (int i = 0; i < 5; i++)
@@ -515,7 +515,7 @@ public class RangeTombstoneTest
 
         assertEquals(10, index.rowsInserted.size());
 
-        CompactionManager.instance.performMaximal(cfs, false);
+        CompactionManager.instance.performMaximal(cfs);
 
         // compacted down to single sstable
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -547,7 +547,7 @@ public class RangeTombstoneTest
         assertEquals(2, cfs.getLiveSSTables().size());
 
         // compact down to single sstable
-        CompactionManager.instance.performMaximal(cfs, false);
+        CompactionManager.instance.performMaximal(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // test the physical structure of the sstable i.e. rt & columns on disk

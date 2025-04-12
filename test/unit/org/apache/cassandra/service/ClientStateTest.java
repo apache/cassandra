@@ -50,6 +50,8 @@ public class ClientStateTest
         properties = new WithProperties().set(ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION, true);
         SchemaLoader.prepareServer();
         DatabaseDescriptor.setAuthFromRoot(true);
+        DatabaseDescriptor.setRoleManager(new AuthTestUtils.LocalCassandraRoleManager());
+        DatabaseDescriptor.getRoleManager().setup();
         Roles.init();
         AuthCacheService.initializeAndRegisterCaches();
     }

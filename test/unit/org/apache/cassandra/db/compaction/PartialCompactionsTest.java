@@ -98,7 +98,7 @@ public class PartialCompactionsTest extends SchemaLoader
         LimitableDataDirectory.setAvailableSpace(cfs, enoughSpaceForAllButTheLargestSSTable(cfs));
 
         // when - run a compaction where all tombstones have timed out
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false, 0));
 
         // then - the tombstones should not be removed
         assertEquals("live sstables after compaction", 2, cfs.getLiveSSTables().size());

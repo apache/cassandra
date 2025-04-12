@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Locale;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class RoleName
 {
@@ -25,7 +25,7 @@ public class RoleName
 
     public void setName(String name, boolean keepCase)
     {
-        this.name = keepCase ? name : (name == null ? name : name.toLowerCase(Locale.US));
+        this.name = keepCase ? name : (name == null ? name : toLowerCaseLocalized(name));
     }
 
     public boolean hasName()

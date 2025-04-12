@@ -63,7 +63,7 @@ public class SnapshotManifest
     {
         this.files = files;
         this.createdAt = creationTime;
-        this.expiresAt = ttl == null ? null : createdAt.plusSeconds(ttl.toSeconds());
+        this.expiresAt = computeExpiration(ttl, creationTime);
         this.ephemeral = ephemeral;
     }
 
@@ -95,6 +95,11 @@ public class SnapshotManifest
     public static SnapshotManifest deserializeFromJsonFile(File file) throws IOException
     {
         return JsonUtils.deserializeFromJsonFile(SnapshotManifest.class, file);
+    }
+
+    public static Instant computeExpiration(DurationSpec.IntSecondsBound ttl, Instant createdAt)
+    {
+        return ttl == null ? null : createdAt.plusSeconds(ttl.toSeconds());
     }
 
     @Override

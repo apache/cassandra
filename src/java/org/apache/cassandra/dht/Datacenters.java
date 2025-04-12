@@ -28,7 +28,7 @@ public class Datacenters
 {
     private static class DCHandle
     {
-        private static final String thisDc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+        private static final String thisDc = DatabaseDescriptor.getLocator().local().datacenter;
     }
 
     public static String thisDatacenter()

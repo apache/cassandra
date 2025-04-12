@@ -49,7 +49,7 @@ RUN yum -y install \
    procps \
    rsync
 
-RUN until curl -f -S -s --retry 9 --retry-connrefused --retry-delay 1 http://mirror.centos.org/centos/7/os/x86_64/Packages/ant-junit-1.9.4-2.el7.noarch.rpm -o ant-junit-1.9.4-2.el7.noarch.rpm ; do echo "curl failed… trying again in 10s… " ; sleep 10 ; done
+RUN until curl -f -S -s --retry 9 --retry-connrefused --retry-delay 1 https://vault.centos.org/7.9.2009/os/x86_64/Packages/ant-junit-1.9.4-2.el7.noarch.rpm -o ant-junit-1.9.4-2.el7.noarch.rpm ; do echo "curl failed… trying again in 10s… " ; sleep 10 ; done
 
 RUN rpm -i --nodeps ant-junit-1.9.4-2.el7.noarch.rpm
 

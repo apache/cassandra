@@ -72,6 +72,13 @@ public final class WithProperties implements AutoCloseable
         return set(prop, () -> prop.setLong(value));
     }
 
+    public WithProperties preserve(CassandraRelevantProperties prop)
+    {
+        String previous = prop.getString(); // because all properties are strings
+        rollback.add(previous == null ? prop::clearValue : () -> prop.setString(previous));
+        return this;
+    }
+
     private void with(String key, String value)
     {
         String previous = System.setProperty(key, value); // checkstyle: suppress nearby 'blockSystemPropertyUsage'

@@ -60,9 +60,10 @@ public class SSTableExportTest extends OfflineToolUtils
         String help = "usage: sstabledump <sstable file path> <options>\n" +
                        "Dump contents of given SSTable to standard output in JSON format.\n" +
                        " -d         CQL row per line internal representation\n" +
-                       " -e         enumerate partition keys only\n" +
+                       " -e         Enumerate partition keys only\n" +
                        " -k <arg>   List of included partition keys\n" +
                        " -l         Output json lines, by partition\n" +
+                       " -o         Enumerate tombstones only\n" +
                        " -t         Print raw timestamps instead of iso8601 date strings\n" +
                        " -x <arg>   List of excluded partition keys\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);

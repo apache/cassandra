@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual.model;
 
 import com.codahale.metrics.Metric;
+import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -30,11 +31,13 @@ public class TimerMetricRow
 {
     private final String key;
     private final Timer value;
+    private final Snapshot snapshot;
 
     public TimerMetricRow(String key, Metric value)
     {
         this.key = key;
         this.value = (Timer) value;
+        this.snapshot = ((Timer) value).getSnapshot();
     }
 
     @Column
@@ -77,5 +80,53 @@ public class TimerMetricRow
     public double oneMinuteRate()
     {
         return value.getOneMinuteRate();
+    }
+
+    @Column
+    public double p75th()
+    {
+        return snapshot.get75thPercentile();
+    }
+
+    @Column
+    public double p95th()
+    {
+        return snapshot.get95thPercentile();
+    }
+
+    @Column
+    public double p98th()
+    {
+        return snapshot.get98thPercentile();
+    }
+
+    @Column
+    public double p99th()
+    {
+        return snapshot.get99thPercentile();
+    }
+
+    @Column
+    public double p999th()
+    {
+        return snapshot.get999thPercentile();
+    }
+
+    @Column
+    public double max()
+    {
+        return snapshot.getMax();
+    }
+
+    @Column
+    public double mean()
+    {
+        return snapshot.getMean();
+    }
+
+    @Column
+    public double min()
+    {
+        return snapshot.getMin();
     }
 }

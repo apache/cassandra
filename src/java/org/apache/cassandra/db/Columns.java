@@ -28,6 +28,7 @@ import com.google.common.collect.Iterators;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.ColumnData;
@@ -62,7 +63,8 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            SetType.getInstance(UTF8Type.instance, true),
                            ColumnMetadata.NO_POSITION,
                            ColumnMetadata.Kind.STATIC,
-                           null);
+                           null,
+                           ColumnConstraints.NO_OP);
 
     public static final ColumnMetadata FIRST_COMPLEX_REGULAR =
         new ColumnMetadata("",
@@ -71,7 +73,8 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            SetType.getInstance(UTF8Type.instance, true),
                            ColumnMetadata.NO_POSITION,
                            ColumnMetadata.Kind.REGULAR,
-                           null);
+                           null,
+                           ColumnConstraints.NO_OP);
 
     private final Object[] columns;
     private final int complexIdx; // Index of the first complex column

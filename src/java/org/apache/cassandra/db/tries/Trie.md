@@ -250,3 +250,13 @@ implicit representation using a pair of `depth` and `incomingTransition` for eac
 In slices we can also use `advanceMultiple` when we are certain to be strictly inside the slice, i.e. beyond the
 left bound and before a prefix of the right bound. As above, descending to any depth in this case is safe as the
 result will remain smaller than the right bound.
+
+## Reverse iteration
+
+Tries and trie cursors support reverse iteration. Reverse trie iteration presents data in lexicographic order 
+using the inverted alphabet. This is not always the same as the reverse order of the data returned in the forward 
+direction; the latter is only guaranteed if the entries in the trie can contain no prefixes (i.e. the representation 
+is prefix-free like the byte-ordered type translations).
+
+This difference is imposed by the cursor interfaces which necessarily have to present parent nodes before their 
+children and do not preserve or present any state on ascent.

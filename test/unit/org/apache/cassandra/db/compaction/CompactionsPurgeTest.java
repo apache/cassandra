@@ -120,7 +120,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // major compact and test that all columns but the resurrected one is completely gone
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Long.MAX_VALUE, false, 0));
         cfs.invalidateCachedPartition(dk(key));
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
@@ -156,7 +156,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // major compact - tombstones should be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Long.MAX_VALUE, false, 0));
 
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, key);
@@ -200,7 +200,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // major compact - tombstones should be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Long.MAX_VALUE, false, 0));
 
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, key);
@@ -242,7 +242,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // major compact - tombstones should be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Long.MAX_VALUE, false, 0));
 
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, key);
@@ -519,7 +519,7 @@ public class CompactionsPurgeTest
         assertEquals(0, result.size());
 
         // compact the two sstables with a gcBefore that does *not* allow the row tombstone to be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) - 10000, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) - 10000, false, 0));
 
         // the data should be gone, but the tombstone should still exist
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -539,7 +539,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // compact the two sstables with a gcBefore that *does* allow the row tombstone to be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) + 10000, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) + 10000, false, 0));
 
         // both the data and the tombstone should be gone this time
         assertEquals(0, cfs.getLiveSSTables().size());

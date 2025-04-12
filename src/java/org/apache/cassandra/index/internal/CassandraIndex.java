@@ -207,6 +207,13 @@ public abstract class CassandraIndex implements Index
     }
 
     @Override
+    public boolean isQueryable(Status status)
+    {
+        // consider unknown status as queryable, because gossip may not be up-to-date for newly joining nodes.
+        return status == Status.BUILD_SUCCEEDED || status == Status.UNKNOWN || status == Status.FULL_REBUILD_STARTED;
+    }
+
+    @Override
     public void validate(ReadCommand command) throws InvalidRequestException
     {
         Optional<RowFilter.Expression> target = getTargetExpression(command.rowFilter().getExpressions());

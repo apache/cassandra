@@ -30,6 +30,8 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
+import static org.apache.cassandra.locator.NetworkTopologyStrategy.REPLICATION_FACTOR;
+
 /**
  * MetaStrategy is designed for distributed cluster metadata keyspace, and should not be used by
  * the users directly. This strategy allows a configurable number of nodes to own an entire range and
@@ -55,9 +57,26 @@ public class MetaStrategy extends SystemStrategy
         return new Replica(addr, entireRange, true);
     }
 
+    private final ReplicationFactor rf;
+
     public MetaStrategy(String keyspaceName, Map<String, String> configOptions)
     {
         super(keyspaceName, configOptions);
+        int replicas = 0;
+        if (configOptions != null)
+        {
+            for (Map.Entry<String, String> entry : configOptions.entrySet())
+            {
+                String dc = entry.getKey();
+                // prepareOptions should have transformed any "replication_factor" options by now
+                if (dc.equalsIgnoreCase(REPLICATION_FACTOR))
+                    continue;
+                ReplicationFactor rf = ReplicationFactor.fromString(entry.getValue());
+                replicas += rf.allReplicas;
+            }
+        }
+
+        rf = ReplicationFactor.fullOnly(replicas);
     }
 
     @Override
@@ -75,11 +94,7 @@ public class MetaStrategy extends SystemStrategy
     @Override
     public ReplicationFactor getReplicationFactor()
     {
-        ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.epoch.isEqualOrBefore(Epoch.FIRST))
-            return ReplicationFactor.fullOnly(1);
-        int rf = metadata.placements.get(ReplicationParams.meta(metadata)).writes.forRange(entireRange).get().byEndpoint.size();
-        return ReplicationFactor.fullOnly(rf);
+        return rf;
     }
 
     @Override

@@ -32,6 +32,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
@@ -46,9 +47,13 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.constraints.ColumnConstraint;
+import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.cql3.constraints.InvalidConstraintDefinitionException;
+import org.apache.cassandra.cql3.constraints.NotNullConstraint;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.Clustering;
@@ -196,6 +201,13 @@ public class TableMetadata implements SchemaElement
     public final DataResource resource;
     public TableMetadataRef ref;
 
+    // We cache the columns with constraints to avoid iterations over columns
+    // Partition keys columns are evaluated separately, so we keep the two of them in
+    // two different variables.
+    public final List<ColumnConstraint<?>> partitionKeyConstraints;
+    public final List<ColumnMetadata> columnsWithConstraints;
+    public final List<ColumnMetadata> notNullColumns;
+
     protected TableMetadata(Builder builder)
     {
         flags = Sets.immutableEnumSet(builder.flags);
@@ -235,6 +247,30 @@ public class TableMetadata implements SchemaElement
             ref = TableMetadataRef.forIndex(Schema.instance, this, keyspace, indexName, id);
         else
             ref = TableMetadataRef.withInitialReference(new TableMetadataRef(Schema.instance, keyspace, name, id), this);
+
+        List<ColumnConstraint<?>> pkConstraints = new ArrayList<>(this.partitionKeyColumns.size());
+        for (ColumnMetadata column : this.partitionKeyColumns)
+        {
+            if (column.hasConstraint())
+                pkConstraints.add(column.getColumnConstraints());
+        }
+        this.partitionKeyConstraints = pkConstraints;
+
+        List<ColumnMetadata> columnsWithConstraints = new ArrayList<>();
+        List<ColumnMetadata> notNullColumns = new ArrayList<>();
+
+        for (ColumnMetadata column : this.columns())
+        {
+            if (column.hasConstraint() && !column.isPrimaryKeyColumn())
+            {
+                columnsWithConstraints.add(column);
+                if (ColumnMetadata.hasFunctionConstraint(column.getColumnConstraints(), NotNullConstraint.FUNCTION_NAME))
+                    notNullColumns.add(column);
+
+            }
+        }
+        this.columnsWithConstraints = columnsWithConstraints;
+        this.notNullColumns = notNullColumns;
     }
 
     public static Builder builder(String keyspace, String table)
@@ -326,6 +362,19 @@ public class TableMetadata implements SchemaElement
         return columns.values();
     }
 
+    /**
+     * Same as {@link #columns} but the list returned is in {@link #allColumnsInSelectOrder()}.
+     *
+     * This method is needed by tests that need deterministic ordering; {@link #columns()} returns in hash order
+     * so isn't consistent cross different jvms or hosts.
+     */
+    public List<ColumnMetadata> columnsInFixedOrder()
+    {
+        List<ColumnMetadata> columnMetadata = new ArrayList<>(columns.size());
+        allColumnsInSelectOrder().forEachRemaining(columnMetadata::add);
+        return columnMetadata;
+    }
+
     public Iterable<ColumnMetadata> primaryKeyColumns()
     {
         return Iterables.concat(partitionKeyColumns, clusteringColumns);
@@ -406,6 +455,7 @@ public class TableMetadata implements SchemaElement
     {
         return columns.get(name.bytes);
     }
+
     /**
      * Returns the column of the provided name if it exists, but throws a user-visible exception if that column doesn't
      * exist.
@@ -527,6 +577,19 @@ public class TableMetadata implements SchemaElement
             except("Missing partition keys for table %s", toString());
 
         indexes.validate(this);
+
+        for (ColumnMetadata columnMetadata : columns())
+        {
+            ColumnConstraints constraints = columnMetadata.getColumnConstraints();
+            try
+            {
+                constraints.validate(columnMetadata);
+            }
+            catch (InvalidConstraintDefinitionException e)
+            {
+                throw new InvalidRequestException(e.getMessage(), e);
+            }
+        }
     }
 
     /**
@@ -629,19 +692,14 @@ public class TableMetadata implements SchemaElement
     }
 
     /**
-     * @return true if the change as made impacts queries/updates on the table,
-     *         e.g. any columns or indexes were added, removed, or altered; otherwise, false is returned.
+     * @return true if the change as made impacts queries/updates on the table, effectively this is
+     *              true if the metadata has changed in any way, as replicas compare metadata epochs
+     *              when performing reads & writes.
      *         Used to determine whether prepared statements against this table need to be re-prepared.
      */
     boolean changeAffectsPreparedStatements(TableMetadata updated)
     {
-        return !partitionKeyColumns.equals(updated.partitionKeyColumns)
-            || !clusteringColumns.equals(updated.clusteringColumns)
-            || !regularAndStaticColumns.equals(updated.regularAndStaticColumns)
-            || !indexes.equals(updated.indexes)
-            || params.defaultTimeToLive != updated.params.defaultTimeToLive
-            || params.gcGraceSeconds != updated.params.gcGraceSeconds
-            || ( !Flag.isCQLTable(flags) && Flag.isCQLTable(updated.flags) );
+        return epoch.isBefore(updated.epoch);
     }
 
     /**
@@ -829,7 +887,7 @@ public class TableMetadata implements SchemaElement
             {
                 // make sure vtables use deteriminstic ids so they can be referenced in calls cross-nodes
                 // see CASSANDRA-17295
-                if (DatabaseDescriptor.useDeterministicTableID() || kind == Kind.VIRTUAL)
+                if (kind == Kind.VIRTUAL)
                     id = TableId.unsafeDeterministic(keyspace, name);
                 else
                     id = TableId.generate();
@@ -1019,7 +1077,12 @@ public class TableMetadata implements SchemaElement
 
         public Builder addPartitionKeyColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, partitionKeyColumns.size(), ColumnMetadata.Kind.PARTITION_KEY, mask));
+            return addPartitionKeyColumn(name, type, mask, ColumnConstraints.NO_OP);
+        }
+
+        public Builder addPartitionKeyColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nonnull ColumnConstraints cqlConstraints)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, partitionKeyColumns.size(), ColumnMetadata.Kind.PARTITION_KEY, mask, cqlConstraints));
         }
 
         public Builder addClusteringColumn(String name, AbstractType<?> type)
@@ -1039,7 +1102,12 @@ public class TableMetadata implements SchemaElement
 
         public Builder addClusteringColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, clusteringColumns.size(), ColumnMetadata.Kind.CLUSTERING, mask));
+            return addClusteringColumn(name, type, mask, ColumnConstraints.NO_OP);
+        }
+
+        public Builder addClusteringColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nonnull ColumnConstraints cqlConstraints)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, clusteringColumns.size(), ColumnMetadata.Kind.CLUSTERING, mask, cqlConstraints));
         }
 
         public Builder addRegularColumn(String name, AbstractType<?> type)
@@ -1059,7 +1127,12 @@ public class TableMetadata implements SchemaElement
 
         public Builder addRegularColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, mask));
+            return addRegularColumn(name, type, mask, ColumnConstraints.NO_OP);
+        }
+
+        public Builder addRegularColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nonnull ColumnConstraints cqlConstraints)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, mask, cqlConstraints));
         }
 
         public Builder addStaticColumn(String name, AbstractType<?> type)
@@ -1079,7 +1152,12 @@ public class TableMetadata implements SchemaElement
 
         public Builder addStaticColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.STATIC, mask));
+            return addStaticColumn(name, type, mask, ColumnConstraints.NO_OP);
+        }
+
+        public Builder addStaticColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask, @Nonnull ColumnConstraints cqlConstraints)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.STATIC, mask, cqlConstraints));
         }
 
         public Builder addColumn(ColumnMetadata column)
@@ -1217,6 +1295,19 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder alterColumnConstraints(ColumnIdentifier name, ColumnConstraints constraints)
+        {
+            ColumnMetadata column = columns.get(name.bytes);
+            if (column == null)
+                throw new IllegalArgumentException();
+
+            ColumnMetadata newColumn = column.withNewColumnConstraints(constraints);
+
+            updateColumn(column, newColumn);
+
+            return this;
+        }
+
         Builder alterColumnType(ColumnIdentifier name, AbstractType<?> type)
         {
             ColumnMetadata column = columns.get(name.bytes);
@@ -1294,11 +1385,14 @@ public class TableMetadata implements SchemaElement
      */
     private static void addUserTypes(AbstractType<?> type, Set<ByteBuffer> types)
     {
-        // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
-        type.subTypes().forEach(t -> addUserTypes(t, types));
+        AbstractType<?> unwrapped = type.unwrap();
 
-        if (type.isUDT())
-            types.add(((UserType)type).name);
+        if (unwrapped.isUDT())
+        {
+            // Reach into subtypes first, so that if the type is a UDT, it's dependencies are recreated first.
+            unwrapped.subTypes().forEach(t -> addUserTypes(t, types));
+            types.add(((UserType)unwrapped).name);
+        }
     }
 
     @Override
@@ -1373,8 +1467,7 @@ public class TableMetadata implements SchemaElement
         if (!hasSingleColumnPrimaryKey)
             appendPrimaryKey(builder);
 
-        builder.decreaseIndent()
-               .append(')');
+        builder.decreaseIndent().append(')');
 
         builder.append(" WITH ")
                .increaseIndent();
@@ -1426,7 +1519,7 @@ public class TableMetadata implements SchemaElement
                 DroppedColumn dropped = iterDropped.next();
                 dropped.column.appendCqlTo(builder);
 
-                if (!hasSingleColumnPrimaryKey || iter.hasNext())
+                if (!hasSingleColumnPrimaryKey || iterDropped.hasNext())
                     builder.append(',');
 
                 builder.newLine();
@@ -1458,8 +1551,7 @@ public class TableMetadata implements SchemaElement
             builder.append(", ")
                    .appendWithSeparators(clusteringColumns, (b, c) -> b.append(c.name), ", ");
 
-        builder.append(')')
-               .newLine();
+        builder.append(')').newLine();
     }
 
     void appendTableOptions(CqlBuilder builder, boolean withInternals)
@@ -1679,7 +1771,7 @@ public class TableMetadata implements SchemaElement
                 for (ColumnMetadata c : regularAndStaticColumns)
                 {
                     if (c.isStatic())
-                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, -1, ColumnMetadata.Kind.REGULAR, c.getMask()));
+                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, -1, ColumnMetadata.Kind.REGULAR, c.getMask(), c.getColumnConstraints()));
                 }
                 otherColumns = columns.iterator();
             }
@@ -1897,7 +1989,6 @@ public class TableMetadata implements SchemaElement
             size += Triggers.serializer.serializedSize(t.triggers, version);
 
             return size;
-
         }
     }
 }

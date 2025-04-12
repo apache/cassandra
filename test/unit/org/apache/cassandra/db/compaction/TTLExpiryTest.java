@@ -141,7 +141,7 @@ public class TTLExpiryTest
         Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(
                 cfs,
                 sstables,
-                Collections.EMPTY_SET,
+                s -> Collections.EMPTY_SET,
                 gcBefore);
         assertEquals(2, expired.size());
 

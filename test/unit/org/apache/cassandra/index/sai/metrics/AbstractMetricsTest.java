@@ -34,4 +34,9 @@ public abstract class AbstractMetricsTest extends SAITester
 
         createMBeanServerConnection();
     }
+
+    protected long getTableQueryMetrics(String keyspace, String table, String metricsName)
+    {
+        return (long) getMetricValue(objectNameNoIndex(metricsName, keyspace, table, TableQueryMetrics.TABLE_QUERY_METRIC_TYPE));
+    }
 }

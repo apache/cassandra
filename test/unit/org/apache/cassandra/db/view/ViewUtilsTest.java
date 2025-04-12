@@ -54,7 +54,6 @@ public class ViewUtilsTest
         DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
         ServerTestUtils.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
-
     }
 
     @Before

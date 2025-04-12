@@ -40,6 +40,7 @@ import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
+import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
@@ -103,6 +104,7 @@ class OnClusterReplace extends OnClusterChangeTopology
             ).config().num()
             ).toArray();
 
+            local.add(new OnClusterMarkDown(actions, leaving));
             local.add(new OnClusterRepairRanges(actions, others, true, false, repairRanges));
             local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.START_REPLACE));
             local.addAll(Quiesce.all(actions));
@@ -132,7 +134,11 @@ class OnClusterReplace extends OnClusterChangeTopology
         {
             super("Prepare Replace", actions, joining, () -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
-                ClusterMetadataService.instance().commit(new PrepareReplace(new NodeId(leavingNodeId),
+                NodeId leaving = new NodeId(leavingNodeId);
+                ReconfigureCMS.maybeReconfigureCMS(metadata, metadata.directory.endpoint(leaving));
+
+                metadata = ClusterMetadata.current();
+                ClusterMetadataService.instance().commit(new PrepareReplace(leaving,
                                                                             metadata.myNodeId(),
                                                                             ClusterMetadataService.instance().placementProvider(),
                                                                             true,

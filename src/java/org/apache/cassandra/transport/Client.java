@@ -38,6 +38,9 @@ import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 public class Client extends SimpleClient
 {
     private final SimpleEventHandler eventHandler = new SimpleEventHandler();
@@ -100,7 +103,7 @@ public class Client extends SimpleClient
         Iterator<String> iter = splitter.split(line).iterator();
         if (!iter.hasNext())
             return null;
-        String msgType = iter.next().toUpperCase();
+        String msgType = toUpperCaseLocalized(iter.next());
         if (msgType.equals("STARTUP"))
         {
             Map<String, String> options = new HashMap<String, String>();
@@ -108,17 +111,17 @@ public class Client extends SimpleClient
             while (iter.hasNext())
             {
                String next = iter.next();
-               if (next.toLowerCase().equals("snappy"))
+               if (toLowerCaseLocalized(next).equals("snappy"))
                {
                    options.put(StartupMessage.COMPRESSION, "snappy");
                    connection.setCompressor(Compressor.SnappyCompressor.instance);
                }
-               if (next.toLowerCase().equals("lz4"))
+               if (toLowerCaseLocalized(next).equals("lz4"))
                {
                    options.put(StartupMessage.COMPRESSION, "lz4");
                    connection.setCompressor(Compressor.LZ4Compressor.instance);
                }
-               if (next.toLowerCase().equals("throw_on_overload"))
+               if (toLowerCaseLocalized(next).equals("throw_on_overload"))
                {
                    options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
                    connection.setThrowOnOverload(true);
@@ -198,7 +201,7 @@ public class Client extends SimpleClient
         }
         else if (msgType.equals("REGISTER"))
         {
-            String type = line.substring(9).toUpperCase();
+            String type = toUpperCaseLocalized(line.substring(9));
             try
             {
                 return new RegisterMessage(Collections.singletonList(Enum.valueOf(Event.Type.class, type)));

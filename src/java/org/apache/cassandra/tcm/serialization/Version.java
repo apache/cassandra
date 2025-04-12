@@ -38,6 +38,23 @@ public enum Version
      *  - Serialize MemtableParams when serializing TableParams
      */
     V2(2),
+    /**
+     * - down nodes serialized in PrepareCMSReconfiguration
+     */
+    V3(3),
+    /**
+     * - Serialize allowAutoSnapshot and incrementalBackups when serializing TableParams
+     */
+    V4(4),
+    /**
+     * - AlterSchema includes execution timestamp
+     * - PreInitialize includes datacenter (affects local serialization on first CMS node only)
+     */
+    V5(5),
+    /**
+     * CEP-42 - Constraints framework. New version due to modifications in table metadata serialization.
+     */
+    V6(6),
 
     UNKNOWN(Integer.MAX_VALUE);
 

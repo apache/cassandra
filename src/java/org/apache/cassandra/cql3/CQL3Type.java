@@ -42,6 +42,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.stream.Collectors.toList;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public interface CQL3Type
 {
@@ -139,7 +140,7 @@ public interface CQL3Type
         @Override
         public String toString()
         {
-            return super.toString().toLowerCase();
+            return toLowerCaseLocalized(super.toString());
         }
     }
 
@@ -723,6 +724,7 @@ public interface CQL3Type
             {
                 if (type.isVector())
                 {
+                    Guardrails.vectorTypeEnabled.ensureEnabled(name, state);
                     int dimensions = ((Vector) type).getType().dimension;
                     Guardrails.vectorDimensions.guard(dimensions, name, false, state);
                 }
@@ -921,6 +923,7 @@ public interface CQL3Type
             @Override
             public void validate(ClientState state, String name)
             {
+                Guardrails.vectorTypeEnabled.ensureEnabled(name, state);
                 Guardrails.vectorDimensions.guard(dimension, name, false, state);
             }
 

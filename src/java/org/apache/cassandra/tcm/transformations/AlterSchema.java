@@ -28,6 +28,8 @@ import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -38,11 +40,11 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -53,7 +55,9 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement.NO_EXECUTION_TIMESTAMP;
 import static org.apache.cassandra.exceptions.ExceptionCode.ALREADY_EXISTS;
 import static org.apache.cassandra.exceptions.ExceptionCode.CONFIG_ERROR;
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
@@ -65,14 +69,11 @@ public class AlterSchema implements Transformation
     private static final Logger logger = LoggerFactory.getLogger(AlterSchema.class);
     public static final Serializer serializer = new Serializer();
 
-    public final SchemaTransformation schemaTransformation;
-    protected final SchemaProvider schemaProvider;
+    private final SchemaTransformation schemaTransformation;
 
-    public AlterSchema(SchemaTransformation schemaTransformation,
-                       SchemaProvider schemaProvider)
+    public AlterSchema(SchemaTransformation schemaTransformation)
     {
         this.schemaTransformation = schemaTransformation;
-        this.schemaProvider = schemaProvider;
     }
 
     @Override
@@ -95,7 +96,6 @@ public class AlterSchema implements Transformation
             // log. In this case, there is a connected client and associated ClientState, so to avoid duplicate warnings
             // pause capture and resume after in applying the schema change.
             schemaTransformation.enterExecution();
-
             // Guard against an invalid SchemaTransformation supplying a TableMetadata with a future epoch
             newKeyspaces = schemaTransformation.apply(prev);
             newKeyspaces.forEach(ksm -> {
@@ -165,8 +165,9 @@ public class AlterSchema implements Transformation
             if (!keyspacesByReplication.containsKey(newKSM.params.replication))
                 affectsPlacements.add(newKSM);
 
-            Tables tables = Tables.of(normaliseEpochs(nextEpoch, newKSM.tables.stream()));
-            newKeyspaces = newKeyspaces.withAddedOrUpdated(newKSM.withSwapped(tables));
+            Tables tables = Tables.of(normaliseTableEpochs(nextEpoch, newKSM.tables.stream()));
+            Views views = Views.of(normaliseViewEpochs(nextEpoch, newKSM.views.stream()));
+            newKeyspaces = newKeyspaces.withAddedOrUpdated(newKSM.withSwapped(tables).withSwapped(views));
         }
 
         // Scan modified keyspaces to check for replication changes and to ensure that any modified table metadata
@@ -177,12 +178,20 @@ public class AlterSchema implements Transformation
                 affectsPlacements.add(alteredKSM.before);
 
             Tables tables = Tables.of(alteredKSM.after.tables);
-            for (TableMetadata created : normaliseEpochs(nextEpoch, alteredKSM.tables.created.stream()))
+            for (TableMetadata created : normaliseTableEpochs(nextEpoch, alteredKSM.tables.created.stream()))
                 tables = tables.withSwapped(created);
 
-            for (TableMetadata altered : normaliseEpochs(nextEpoch, alteredKSM.tables.altered.stream().map(altered -> altered.after)))
+            for (TableMetadata altered : normaliseTableEpochs(nextEpoch, alteredKSM.tables.altered.stream().map(altered -> altered.after)))
                 tables = tables.withSwapped(altered);
-            newKeyspaces = newKeyspaces.withAddedOrUpdated(alteredKSM.after.withSwapped(tables));
+
+            Views views = Views.of(alteredKSM.after.views);
+            for (ViewMetadata created : normaliseViewEpochs(nextEpoch, alteredKSM.views.created.stream()))
+                views = views.withSwapped(created);
+
+            for (ViewMetadata altered : normaliseViewEpochs(nextEpoch, alteredKSM.views.altered.stream().map(altered -> altered.after)))
+                views = views.withSwapped(altered);
+
+            newKeyspaces = newKeyspaces.withAddedOrUpdated(alteredKSM.after.withSwapped(tables).withSwapped(views));
         }
 
         // Changes which affect placement (i.e. new, removed or altered replication settings) are not allowed if there
@@ -215,7 +224,7 @@ public class AlterSchema implements Transformation
             calculatedPlacements.forEach((params, newPlacement) -> {
                 DataPlacement previousPlacement = prev.placements.get(params);
                 // Preserve placement versioning that has resulted from natural application where possible
-                if (previousPlacement.equals(newPlacement))
+                if (previousPlacement.equivalentTo(newPlacement))
                     newPlacementsBuilder.with(params, previousPlacement);
                 else
                     newPlacementsBuilder.with(params, newPlacement);
@@ -238,7 +247,7 @@ public class AlterSchema implements Transformation
         return byReplication;
     }
 
-    private static Iterable<TableMetadata> normaliseEpochs(Epoch nextEpoch, Stream<TableMetadata> tables)
+    private static Iterable<TableMetadata> normaliseTableEpochs(Epoch nextEpoch, Stream<TableMetadata> tables)
     {
         return tables.map(tm -> tm.epoch.is(nextEpoch)
                                 ? tm
@@ -246,6 +255,13 @@ public class AlterSchema implements Transformation
                      .collect(Collectors.toList());
     }
 
+    private static Iterable<ViewMetadata> normaliseViewEpochs(Epoch nextEpoch, Stream<ViewMetadata> views)
+    {
+        return views.map(vm -> vm.metadata.epoch.is(nextEpoch)
+                                ? vm
+                                : vm.copy(vm.metadata.unbuild().epoch(nextEpoch).build()))
+                     .collect(Collectors.toList());
+    }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, AlterSchema>
     {
@@ -253,20 +269,33 @@ public class AlterSchema implements Transformation
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
             SchemaTransformation.serializer.serialize(((AlterSchema) t).schemaTransformation, out, version);
+            if (version.isAtLeast(Version.V5))
+            {
+                long fixedTimestamp = ((AlterSchema)t).schemaTransformation.fixedTimestampMicros().orElse(NO_EXECUTION_TIMESTAMP);
+                out.writeVInt(fixedTimestamp);
+            }
         }
 
         @Override
         public AlterSchema deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new AlterSchema(SchemaTransformation.serializer.deserialize(in, version),
-                                   Schema.instance);
-
+            SchemaTransformation transformation = SchemaTransformation.serializer.deserialize(in, version);
+            if (version.isAtLeast(Version.V5))
+            {
+                long timestamp = in.readVInt();
+                if (transformation instanceof AlterSchemaStatement)
+                    ((AlterSchemaStatement) transformation).setExecutionTimestamp(timestamp);
+            }
+            return new AlterSchema(transformation);
         }
 
         @Override
         public long serializedSize(Transformation t, Version version)
         {
-            return SchemaTransformation.serializer.serializedSize(((AlterSchema) t).schemaTransformation, version);
+            long size = SchemaTransformation.serializer.serializedSize(((AlterSchema) t).schemaTransformation, version);
+            if (version.isAtLeast(Version.V5))
+                size += VIntCoding.computeVIntSize(((AlterSchema)t).schemaTransformation.fixedTimestampMicros().orElse(NO_EXECUTION_TIMESTAMP));
+            return size;
         }
     }
 

@@ -80,7 +80,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
      * I don't think that has any practical consequence and is more robust in
      * case someone provides a UUID with a broken variant.
      */
-    private static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
+    public static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
     private static final long MAX_CLOCK_SEQ_AND_NODE = 0x7f7f7f7f7f7f7f7fL;
 
     public static final long TIMEUUID_SIZE = ObjectSizes.measureDeep(new TimeUUID(10, 10));
@@ -293,6 +293,25 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         return ballot == null ? "null" : String.format("%s(%d:%s)", kind, ballot.uuidTimestamp(), ballot);
     }
 
+    public int sequence()
+    {
+        return (int) ((lsb >> 48) & 0x0000000000003FFFL);
+    }
+
+    /**
+     * Returns a new TimeUUID with the same data as this one, but with the provided sequence value.
+     *
+     * <b>Warning:</b> the uniqueness of the returned TimeUUID is not guaranteed by this method. Caller must ensure that
+     * the sequence numbers in use are distinct.
+     */
+    public TimeUUID withSequence(long sequence)
+    {
+        long sequenceBits = 0x0000000000003FFFL;
+        long sequenceMask = ~(sequenceBits << 48);
+        final long bits = (sequence & sequenceBits) << 48;
+        return new TimeUUID(uuidTimestamp, lsb() & sequenceMask | bits);
+    }
+
     @Override
     public int compareTo(TimeUUID that)
     {
@@ -370,6 +389,16 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         private static final long clockSeqAndNode = makeClockSeqAndNode();
 
         private static final AtomicLong lastMicros = new AtomicLong();
+
+        public interface Factory<T extends TimeUUID>
+        {
+            T atUnixMicrosWithLsb(long unixMicros, long clockSeqAndNode);
+        }
+
+        public static <T extends TimeUUID> T nextTimeUUID(Factory<T> factory)
+        {
+            return factory.atUnixMicrosWithLsb(nextUnixMicros(), clockSeqAndNode);
+        }
 
         public static TimeUUID nextTimeUUID()
         {

@@ -18,32 +18,41 @@
 
 package org.apache.cassandra.net;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Function;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 
-import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
 import static org.apache.cassandra.net.OutboundConnectionsTest.LOCAL_ADDR;
 import static org.apache.cassandra.net.OutboundConnectionsTest.REMOTE_ADDR;
 
 public class OutboundConnectionSettingsTest
 {
+    private static final String DC1 = "dc1";
+    private static final String DC2 = "dc2";
+    private static final String RACK = "rack1";
+
     @BeforeClass
     public static void before()
     {
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+    }
+
+    @Before
+    public void reset()
+    {
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
     }
 
     @Test (expected = IllegalArgumentException.class)
@@ -81,65 +90,47 @@ public class OutboundConnectionSettingsTest
         f.apply(new OutboundConnectionSettings(LOCAL_ADDR)).withDefaults(ConnectionCategory.MESSAGING);
     }
 
-    private static class TestSnitch extends AbstractEndpointSnitch
-    {
-        private final Map<InetAddressAndPort, String> nodeToDc = new HashMap<>();
-
-        void add(InetAddressAndPort node, String dc)
-        {
-            nodeToDc.put(node, dc);
-        }
-
-        public String getRack(InetAddressAndPort endpoint)
-        {
-            return null;
-        }
-
-        public String getDatacenter(InetAddressAndPort endpoint)
-        {
-            return nodeToDc.get(endpoint);
-        }
-
-        public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
-        {
-            return 0;
-        }
-    }
-
     @Test
     public void shouldCompressConnection_None()
     {
         DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.none);
-        Assert.assertFalse(OutboundConnectionSettings.shouldCompressConnection(getEndpointSnitch(), LOCAL_ADDR, REMOTE_ADDR));
+        Assert.assertFalse(OutboundConnectionSettings.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
     }
 
     @Test
     public void shouldCompressConnection_DifferentDc()
     {
-        TestSnitch snitch = new TestSnitch();
-        snitch.add(LOCAL_ADDR, "dc1");
-        snitch.add(REMOTE_ADDR, "dc2");
-        DatabaseDescriptor.setEndpointSnitch(snitch);
+        ClusterMetadataTestHelper.register(LOCAL_ADDR, DC1, RACK);
+        ClusterMetadataTestHelper.register(REMOTE_ADDR, DC2, RACK);
         DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.dc);
-        Assert.assertTrue(OutboundConnectionSettings.shouldCompressConnection(getEndpointSnitch(), LOCAL_ADDR, REMOTE_ADDR));
+        Assert.assertTrue(OutboundConnectionSettings.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
+    }
+
+    @Test
+    public void shouldCompressConnection_MetadataNotInitialized()
+    {
+        // if cluster metadata isn't yet available then we assume that every peer is remote.
+        // connections will be re-established once the cluster metadata service becomes available
+        ClusterMetadataTestHelper.register(LOCAL_ADDR, DC1, RACK);
+        ClusterMetadataTestHelper.register(REMOTE_ADDR, DC2, RACK);
+        DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.dc);
+        Assert.assertTrue(OutboundConnectionSettings.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
     }
 
     @Test
     public void shouldCompressConnection_All()
     {
         DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.all);
-        Assert.assertTrue(OutboundConnectionSettings.shouldCompressConnection(getEndpointSnitch(), LOCAL_ADDR, REMOTE_ADDR));
+        Assert.assertTrue(OutboundConnectionSettings.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
     }
 
     @Test
     public void shouldCompressConnection_SameDc()
     {
-        TestSnitch snitch = new TestSnitch();
-        snitch.add(LOCAL_ADDR, "dc1");
-        snitch.add(REMOTE_ADDR, "dc1");
-        DatabaseDescriptor.setEndpointSnitch(snitch);
+        ClusterMetadataTestHelper.register(LOCAL_ADDR, DC1, RACK);
+        ClusterMetadataTestHelper.register(REMOTE_ADDR, DC1, RACK);
         DatabaseDescriptor.setInternodeCompression(Config.InternodeCompression.dc);
-        Assert.assertFalse(OutboundConnectionSettings.shouldCompressConnection(getEndpointSnitch(), LOCAL_ADDR, REMOTE_ADDR));
+        Assert.assertFalse(OutboundConnectionSettings.shouldCompressConnection(LOCAL_ADDR, REMOTE_ADDR));
     }
 
 }

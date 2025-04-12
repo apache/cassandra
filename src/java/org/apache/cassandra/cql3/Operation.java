@@ -374,8 +374,16 @@ public abstract class Operation
         {
             if (!(receiver.type instanceof CollectionType))
             {
-                if (!(receiver.type instanceof CounterColumnType))
-                    throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver.name));
+                if (canReadExistingState)
+                {
+                    if (!(receiver.type instanceof NumberType<?>))
+                        throw new InvalidRequestException(String.format("Invalid operation (%s) for non-numeric type %s", toString(receiver), receiver.name));
+                }
+                else
+                {
+                    if (!(receiver.type instanceof CounterColumnType))
+                        throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver.name));
+                }
                 return new Constants.Substracter(receiver, value.prepare(metadata.keyspace, receiver));
             }
             else if (!(receiver.type.isMultiCell()))

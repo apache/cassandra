@@ -30,9 +30,11 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
+import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.LazyToString.lazy;
 
 class OnClusterLeave extends OnClusterChangeTopology
@@ -83,6 +85,9 @@ class OnClusterLeave extends OnClusterChangeTopology
         {
             super("Prepare Leave", actions, on, () -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
+                ReconfigureCMS.maybeReconfigureCMS(metadata, getBroadcastAddressAndPort());
+
+                metadata = ClusterMetadata.current();
                 ClusterMetadataService.instance().commit(new PrepareLeave(metadata.myNodeId(),
                                                                           false,
                                                                           ClusterMetadataService.instance().placementProvider(),

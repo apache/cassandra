@@ -104,6 +104,8 @@ public class SimulatedSnitch extends NodeLookup
             if (prev != null)
                 prev.accept(config);
             config.set("endpoint_snitch", SimulatedSnitch.Instance.class.getName())
+                  .set("initial_location_provider", null)
+                  .set("node_proximity", null)
                   .set("dynamic_snitch", false);
         });
     }

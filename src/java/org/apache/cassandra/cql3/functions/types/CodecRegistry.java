@@ -260,10 +260,9 @@ public final class CodecRegistry
         {
             checkNotNull(cacheKey.cqlType, "Parameter cqlType cannot be null");
             if (logger.isTraceEnabled())
-                logger.trace(
-                "Loading codec into cache: [{} <-> {}]",
-                CodecRegistry.toString(cacheKey.cqlType),
-                CodecRegistry.toString(cacheKey.javaType));
+                logger.trace("Loading codec into cache: [{} <-> {}]",
+                             CodecRegistry.toString(cacheKey.cqlType),
+                             CodecRegistry.toString(cacheKey.javaType));
             for (TypeCodec<?> codec : codecs)
             {
                 if (codec.accepts(cacheKey.cqlType)
@@ -363,10 +362,9 @@ public final class CodecRegistry
         @Override
         public void onRemoval(RemovalNotification<CacheKey, TypeCodec<?>> notification)
         {
-            logger.trace(
-            "Evicting codec from cache: {} (cause: {})",
-            notification.getValue(),
-            notification.getCause());
+            logger.trace("Evicting codec from cache: {} (cause: {})",
+                         notification.getValue(),
+                         notification.getCause());
         }
     }
 

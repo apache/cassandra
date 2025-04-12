@@ -152,7 +152,7 @@ public class SSTableWriterTestBase extends SchemaLoader
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
 
         if(cfs.getLiveSSTables().size() > 0)
-            assertFalse(CompactionManager.instance.submitMaximal(cfs, cfs.gcBefore((int) (System.currentTimeMillis() / 1000)), false).isEmpty());
+            assertFalse(CompactionManager.instance.submitMaximal(cfs, cfs.gcBefore((int) (System.currentTimeMillis() / 1000)), false, 0).isEmpty());
     }
 
     public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, LifecycleTransaction txn, long repairedAt, TimeUUID pendingRepair, boolean isTransient)

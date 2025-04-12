@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -31,6 +33,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -48,7 +51,6 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.VectorQueryContext;
@@ -63,7 +65,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.InsertionOrderedNavigableSet;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 
@@ -83,6 +85,8 @@ public class QueryController
     private final PrimaryKey lastPrimaryKey;
     private final int orderChunkSize;
 
+    private final NavigableSet<Clustering<?>> nextClusterings;
+
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
                            RowFilter indexFilter,
@@ -100,6 +104,7 @@ public class QueryController
         this.firstPrimaryKey = keyFactory.create(mergeRange.left.getToken());
         this.lastPrimaryKey = keyFactory.create(mergeRange.right.getToken());
         this.orderChunkSize = SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.getInt();
+        this.nextClusterings = new InsertionOrderedNavigableSet<>(cfs.metadata().comparator);
     }
 
     public PrimaryKey.Factory primaryKeyFactory()
@@ -152,20 +157,36 @@ public class QueryController
         return index != null && index.hasAnalyzer();
     }
 
-    public UnfilteredRowIterator queryStorage(PrimaryKey key, ReadExecutionController executionController)
+    public UnfilteredRowIterator queryStorage(List<PrimaryKey> keys, ReadExecutionController executionController)
     {
-        if (key == null)
-            throw new IllegalArgumentException("non-null key required");
+        if (keys.isEmpty())
+            throw new IllegalArgumentException("At least one primary key is required!");
 
         SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata(),
                                                                                  command.nowInSec(),
                                                                                  command.columnFilter(),
                                                                                  RowFilter.none(),
                                                                                  DataLimits.NONE,
-                                                                                 key.partitionKey(),
-                                                                                 makeFilter(key));
+                                                                                 keys.get(0).partitionKey(),
+                                                                                 makeFilter(keys));
 
         return partition.queryMemtableAndDisk(cfs, executionController);
+    }
+
+    private static Runnable getIndexReleaser(Set<SSTableIndex> referencedIndexes)
+    {
+        return new Runnable()
+        {
+            boolean closed;
+            @Override
+            public void run()
+            {
+                if (closed)
+                    return;
+                closed = true;
+                referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+            }
+        };
     }
 
     /**
@@ -196,7 +217,7 @@ public class QueryController
         expressions = expressions.stream().filter(e -> e.getIndexOperator() != Expression.IndexOperator.ANN).collect(Collectors.toList());
 
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(expressions, mergeRange).build();
-        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+        Runnable onClose = getIndexReleaser(queryView.referencedIndexes);
         KeyRangeIterator.Builder builder = command.rowFilter().isStrict()
                                            ? KeyRangeIntersectionIterator.builder(expressions.size(), onClose)
                                            : KeyRangeUnionIterator.builder(expressions.size(), onClose);
@@ -267,7 +288,11 @@ public class QueryController
 
     private void maybeTriggerGuardrails(QueryViewBuilder.QueryView queryView)
     {
-        int referencedIndexes = queryView.referencedIndexes.size();
+        int referencedIndexes = 0;
+
+        // We want to make sure that no individual column expression touches too many SSTable-attached indexes:
+        for (Pair<Expression, Collection<SSTableIndex>> expressionSSTables : queryView.view)
+            referencedIndexes = Math.max(referencedIndexes, expressionSSTables.right.size());
 
         if (Guardrails.saiSSTableIndexesPerQuery.failsOn(referencedIndexes, null))
         {
@@ -310,12 +335,12 @@ public class QueryController
         assert expression.operator() == Operator.ANN;
         StorageAttachedIndex index = indexFor(expression);
         assert index != null;
-        var planExpression = Expression.create(index).add(Operator.ANN, expression.getIndexValue().duplicate());
+        Expression planExpression = Expression.create(index).add(Operator.ANN, expression.getIndexValue().duplicate());
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         KeyRangeIterator memtableResults = index.memtableIndexManager().searchMemtableIndexes(queryContext, planExpression, mergeRange);
 
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
-        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+        Runnable onClose = getIndexReleaser(queryView.referencedIndexes);
 
         try
         {
@@ -346,16 +371,16 @@ public class QueryController
         // Filter out PKs now. Each PK is passed to every segment of the ANN index, so filtering shadowed keys
         // eagerly can save some work when going from PK to row id for on disk segments.
         // Since the result is shared with multiple streams, we use an unmodifiable list.
-        var sourceKeys = rawSourceKeys.stream().filter(vectorQueryContext::shouldInclude).collect(Collectors.toList());
+        List<PrimaryKey> sourceKeys = rawSourceKeys.stream().filter(vectorQueryContext::shouldInclude).collect(Collectors.toList());
         StorageAttachedIndex index = indexFor(expression);
         assert index != null : "Cannot do ANN ordering on an unindexed column";
-        var planExpression = Expression.create(index);
+        Expression planExpression = Expression.create(index);
         planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
 
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         KeyRangeIterator memtableResults = index.memtableIndexManager().limitToTopResults(queryContext, sourceKeys, planExpression);
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
-        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+        Runnable onClose = getIndexReleaser(queryView.referencedIndexes);
 
         try
         {
@@ -389,7 +414,7 @@ public class QueryController
      */
     private KeyRangeIterator createRowIdIterator(Pair<Expression, Collection<SSTableIndex>> indexExpression)
     {
-        var subIterators = indexExpression.right
+        List<KeyRangeIterator> subIterators = indexExpression.right
                            .stream()
                            .map(index ->
                                 {
@@ -410,21 +435,29 @@ public class QueryController
 
     // Note: This method assumes that the selects method has already been called for the
     // key to avoid having to (potentially) call selects twice
-    private ClusteringIndexFilter makeFilter(PrimaryKey key)
+    private ClusteringIndexFilter makeFilter(List<PrimaryKey> keys)
     {
-        ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(key.partitionKey());
+        PrimaryKey firstKey = keys.get(0);
 
-        assert cfs.metadata().comparator.size() == 0 && !key.kind().hasClustering ||
-               cfs.metadata().comparator.size() > 0 && key.kind().hasClustering :
-               "PrimaryKey " + key + " clustering does not match table. There should be a clustering of size " + cfs.metadata().comparator.size();
+        assert cfs.metadata().comparator.size() == 0 && !firstKey.kind().hasClustering ||
+               cfs.metadata().comparator.size() > 0 && firstKey.kind().hasClustering :
+               "PrimaryKey " + firstKey + " clustering does not match table. There should be a clustering of size " + cfs.metadata().comparator.size();
+
+        ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(firstKey.partitionKey());
 
         // If we have skinny partitions or the key is for a static row then we need to get the partition as
         // requested by the original query.
-        if (cfs.metadata().comparator.size() == 0 || key.kind() == PrimaryKey.Kind.STATIC)
+        if (cfs.metadata().comparator.size() == 0 || firstKey.kind() == PrimaryKey.Kind.STATIC)
+        {
             return clusteringIndexFilter;
+        }
         else
-            return new ClusteringIndexNamesFilter(FBUtilities.singleton(key.clustering(), cfs.metadata().comparator),
-                                                  clusteringIndexFilter.isReversed());
+        {
+            nextClusterings.clear();
+            for (PrimaryKey key : keys)
+                nextClusterings.add(key.clustering());
+            return new ClusteringIndexNamesFilter(nextClusterings, clusteringIndexFilter.isReversed());
+        }
     }
 
     /**
@@ -437,14 +470,11 @@ public class QueryController
     {
         if (command instanceof SinglePartitionReadCommand)
         {
-            SinglePartitionReadCommand cmd = (SinglePartitionReadCommand) command;
-            DecoratedKey key = cmd.partitionKey();
-            return Lists.newArrayList(new DataRange(new Range<>(key, key), cmd.clusteringIndexFilter()));
+            return Lists.newArrayList(command.dataRange());
         }
         else if (command instanceof PartitionRangeReadCommand)
         {
-            PartitionRangeReadCommand cmd = (PartitionRangeReadCommand) command;
-            return Lists.newArrayList(cmd.dataRange());
+            return Lists.newArrayList(command.dataRange());
         }
         else
         {

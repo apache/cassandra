@@ -23,6 +23,7 @@ import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.utils.concurrent.Condition;
 
@@ -32,10 +33,10 @@ import org.apache.cassandra.utils.progress.jmx.JMXNotificationProgressListener;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus.FAILED;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus.valueOf;
 import static org.apache.cassandra.tools.NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.apache.cassandra.utils.progress.ProgressEventType.*;
 
@@ -165,7 +166,7 @@ public class RepairRunner extends JMXNotificationProgressListener
                 case FAILED:
                     printMessage(String.format("%s %s discovered repair %s.",
                                               triggeringCondition,
-                                              queriedString, parentRepairStatus.name().toLowerCase()));
+                                              queriedString, toLowerCaseLocalized(parentRepairStatus.name())));
                     if (parentRepairStatus == FAILED)
                     {
                         error = new IOException(messages.get(0));

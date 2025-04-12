@@ -66,6 +66,32 @@ import org.apache.cassandra.schema.ColumnMetadata;
 public class ClusteringElements extends ForwardingList<ByteBuffer> implements Comparable<ClusteringElements>
 {
     /**
+     * A comparator for {@code ClusteringElements} that is used to compare elements from a CQL point of view.
+     * <p>The Comparator will ignore reverse type as well as the number of elements (e.g. elements with different length but same prefix value are considered equals)</p>
+     */
+    public static  final Comparator<ClusteringElements> CQL_COMPARATOR = new Comparator<ClusteringElements>()
+    {
+        @Override
+        public int compare(ClusteringElements a, ClusteringElements b)
+        {
+            if (a == null || b == null)
+                throw new NullPointerException();
+
+            a.isComparableWith(b);
+
+            for (int i = 0, m = Math.min(a.size(), b.size()); i < m; i++)
+            {
+                int comparison = a.columnType(i).compareForCQL(a.values.get(i), b.values.get(i));
+
+                if (comparison != 0)
+                    return comparison;
+            }
+
+            return 0;
+        }
+    };
+
+    /**
      * The empty {@code ClusteringElements} instance used to avoid creating unecessary empty instances.
      */
     private static final ClusteringElements EMPTY = new ClusteringElements(ImmutableList.of(), ImmutableList.of());
@@ -255,6 +281,11 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
     public static RangeSet<ClusteringElements> greaterThan(ClusteringElements endpoint)
     {
         return buildRangeSet(endpoint, false, BoundType.OPEN);
+    }
+
+    public static Range<ClusteringElements> notEqualTo(ClusteringElements endpoint)
+    {
+        return Range.closed(endpoint.bottom(), endpoint.top());
     }
 
     private static RangeSet<ClusteringElements> buildRangeSet(ClusteringElements endpoint, boolean upperBound, BoundType boundType)

@@ -113,4 +113,10 @@ public class MD5Digest
     {
         return localMD5Digest.get();
     }
+
+    public int size()
+    {
+        return bytes.length + //bytes
+                4; // int hashCode
+    }
 }

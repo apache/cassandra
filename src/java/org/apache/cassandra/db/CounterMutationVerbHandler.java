@@ -25,8 +25,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import org.apache.cassandra.transport.Dispatcher;
 
 public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<CounterMutation>
 {
@@ -36,11 +35,10 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
 
     protected void applyMutation(final Message<CounterMutation> message, InetAddressAndPort respondToAddress)
     {
-        long queryStartNanoTime = nanoTime();
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
 
-        String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
+        String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;
         // We should not wait for the result of the write in this thread,
         // otherwise we could have a distributed deadlock between replicas
         // running this VerbHandler (see #4578).
@@ -51,6 +49,6 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
         StorageProxy.applyCounterMutationOnLeader(cm,
                                                   localDataCenter,
                                                   () -> MessagingService.instance().send(message.emptyResponse(), respondToAddress),
-                                                  queryStartNanoTime);
+                                                  Dispatcher.RequestTime.forImmediateExecution());
     }
 }

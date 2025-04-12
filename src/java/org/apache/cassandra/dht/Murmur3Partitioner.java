@@ -138,6 +138,11 @@ public class Murmur3Partitioner implements IPartitioner
         return new LongToken(newToken);
     }
 
+    public boolean supportsSplitting()
+    {
+        return true;
+    }
+
     public LongToken getMinimumToken()
     {
         return MINIMUM;

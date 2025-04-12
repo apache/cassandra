@@ -199,7 +199,7 @@ cqlsh:demo> SELECT first_name, last_name, age, height, created_at FROM sasi
 
 SASI supports queries with multiple predicates, however, due to the
 nature of the default indexing implementation, CQL requires the user
-to specify `ALLOW FILTERING` to opt-in to the potential performance
+to specify `ALLOW FILTERING` to opt in to the potential performance
 pitfalls of such a query. With SASI, while the requirement to include
 `ALLOW FILTERING` remains, to reduce modifications to the grammar, the
 performance pitfalls do not exist because filtering is not
@@ -383,7 +383,7 @@ of the memtable to disk -- this is the origin of the name "SSTable
 Attached Secondary Index".
 
 The SASI index data structures are built in memory as the SSTable is
-being written and they are flushed to disk before the writing of the
+being written, and they are flushed to disk before the writing of the
 SSTable completes. The writing of each index file only requires
 sequential writes to disk. In some cases, partial flushes are
 performed, and later stitched back together, to reduce memory
@@ -467,7 +467,7 @@ collision.
 
 To optimize for its write-once environment the
 [`TokenTreeBuilder`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/TokenTreeBuilder.java)
-completely loads its interior nodes as the tree is built and it uses
+completely loads its interior nodes as the tree is built, and it uses
 the well-known algorithm optimized for bulk-loading the data
 structure.
 
@@ -562,7 +562,7 @@ been found, or there is no more matching data, the result set is
 returned to the coordinator through the existing internal components.
 
 The number of queries (total/failed/timed-out), and their latencies,
-are maintined per-table/column family.
+are maintained per-table/column family.
 
 SASI also supports concurrently iterating terms for the same index
 across SSTables. The concurrency factor is controlled by the
@@ -713,7 +713,7 @@ the documentation
 The abstract `RangeIterator` class provides a unified interface over
 the two main operations performed by SASI at various layers in the
 execution path: set intersection and union. These operations are
-performed in a iterated, or "streaming", fashion to prevent unneeded
+performed in an iterated, or "streaming", fashion to prevent unneeded
 reads of elements from either set. In both the intersection and union
 cases the algorithms take advantage of the data being pre-sorted using
 the same sort order, e.g. term or token order.
@@ -725,7 +725,7 @@ performs the "Merge-Join" portion of the
 algorithm, with the properties of an outer-join, or union. It is
 implemented with several optimizations to improve its performance over
 a large number of iterators -- sets to union. Specifically, the
-iterator exploits the likely case of the data having many sub-groups
+iterator exploits the likely case of the data having many subgroups
 of overlapping ranges and the unlikely case that all ranges will
 overlap each other. For more details see the
 [javadoc](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeUnionIterator.java#L9-L21).
@@ -742,7 +742,7 @@ between them based on some properties of the data.
 the
 [`RangeUnionIterator`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeUnionIterator.java)
 in that it performs a "Merge-Join", however, its nature is similar to
-a inner-join, where like values are merged by a data-specific merge
+an inner-join, where like values are merged by a data-specific merge
 function (e.g. merging two tokens in a list to lookup in a SSTable
 later). See the
 [javadoc](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeIntersectionIterator.java#L88-L101)

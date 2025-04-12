@@ -23,18 +23,22 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.Clock;
 import org.assertj.core.util.Lists;
 
 import static org.apache.cassandra.service.snapshot.SnapshotLoader.SNAPSHOT_DIR_PATTERN;
@@ -66,6 +70,12 @@ public class SnapshotLoaderTest
 
     @ClassRule
     public static TemporaryFolder tmpDir = new TemporaryFolder();
+
+    @BeforeClass
+    public static void setup()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void testMatcher()
@@ -102,9 +112,9 @@ public class SnapshotLoaderTest
     @Test
     public void testSnapshotsWithoutManifests() throws IOException
     {
-        Set<File> tag1Files = new HashSet<>();
-        Set<File> tag2Files = new HashSet<>();
-        Set<File> tag3Files = new HashSet<>();
+        Set<File> firstSnapshotDirs = new HashSet<>();
+        Set<File> secondSnapshotDirs = new HashSet<>();
+        Set<File> thirdSnapshotDirs = new HashSet<>();
 
         // Create one snapshot per table - without manifests:
         // - ks1.t1 : tag1
@@ -113,10 +123,16 @@ public class SnapshotLoaderTest
         File baseDir  = new File(tmpDir.newFolder());
         for (String dataDir : DATA_DIRS)
         {
-            tag1Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
-            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE2_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
-            tag3Files.add(createDir(baseDir, dataDir, KEYSPACE_2, tableDirName(TABLE3_NAME, TABLE3_ID), Directories.SNAPSHOT_SUBDIR, TAG3));
+            firstSnapshotDirs.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
+            secondSnapshotDirs.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE2_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
+            thirdSnapshotDirs.add(createDir(baseDir, dataDir, KEYSPACE_2, tableDirName(TABLE3_NAME, TABLE3_ID), Directories.SNAPSHOT_SUBDIR, TAG3));
         }
+
+        Instant createdAt = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
+
+        createManifests(firstSnapshotDirs, createdAt);
+        createManifests(secondSnapshotDirs, createdAt);
+        createManifests(thirdSnapshotDirs, createdAt);
 
         // Verify all 3 snapshots are found correctly from data directories
         SnapshotLoader loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
@@ -124,9 +140,9 @@ public class SnapshotLoaderTest
                                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
         Set<TableSnapshot> snapshots = loader.loadSnapshots();
         assertThat(snapshots).hasSize(3);
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files, false));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, null, null, tag2Files, false));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, createdAt, null, firstSnapshotDirs, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID, TAG2, createdAt, null, secondSnapshotDirs, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID, TAG3, createdAt, null, thirdSnapshotDirs, false));
 
         // Verify snapshot loading for a specific keyspace
         loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
@@ -135,21 +151,37 @@ public class SnapshotLoaderTest
 
         snapshots = loader.loadSnapshots(KEYSPACE_1);
         assertThat(snapshots).hasSize(2);
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files, false));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, null, null, tag2Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, createdAt, null, firstSnapshotDirs, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, createdAt, null, secondSnapshotDirs, false));
 
         loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
                                                   Paths.get(baseDir.toString(), DATA_DIR_2),
                                                   Paths.get(baseDir.toString(), DATA_DIR_3)));
         snapshots = loader.loadSnapshots(KEYSPACE_2);
         assertThat(snapshots).hasSize(1);
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, createdAt, null, thirdSnapshotDirs, false));
+    }
+
+    private void createManifests(Set<File> snapshotDirs, Instant createdAt)
+    {
+        SnapshotManifest snapshotManifest = new SnapshotManifest(List.of(), null, createdAt, false);
+        for (File snapshotDir : snapshotDirs)
+        {
+            try
+            {
+                snapshotManifest.serializeToJsonFile(new File(snapshotDir, "manifest.json"));
+            }
+            catch (Throwable t)
+            {
+                throw new RuntimeException("Unable to write manifest file", t);
+            }
+        }
     }
 
     @Test
     public void testEphemeralSnapshotWithoutManifest() throws IOException
     {
-        Set<File> tag1Files = new HashSet<>();
+        Set<File> snapshotDirs = new HashSet<>();
 
         // Create one snapshot per table - without manifests:
         // - ks1.t1 : tag1
@@ -158,7 +190,7 @@ public class SnapshotLoaderTest
         for (String dataDir : DATA_DIRS)
         {
             File dir = createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1);
-            tag1Files.add(dir);
+            snapshotDirs.add(dir);
             if (!ephemeralFileCreated)
             {
                 createEphemeralMarkerFile(dir);
@@ -171,9 +203,12 @@ public class SnapshotLoaderTest
                                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
                                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
 
+        Instant createdAt = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
+        createManifests(snapshotDirs, createdAt);
+
         Set<TableSnapshot> snapshots = loader.loadSnapshots();
         assertThat(snapshots).hasSize(1);
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files, true));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, createdAt, null, snapshotDirs, true));
         Assert.assertTrue(snapshots.stream().findFirst().get().isEphemeral());
     }
 

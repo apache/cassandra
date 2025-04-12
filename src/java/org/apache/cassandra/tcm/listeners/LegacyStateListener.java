@@ -34,6 +34,7 @@ import org.apache.cassandra.db.virtual.PeersTable;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -50,6 +51,7 @@ import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
+import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 
 public class LegacyStateListener implements ChangeListener.Async
 {
@@ -113,10 +115,19 @@ public class LegacyStateListener implements ChangeListener.Async
                 // state for the local node.
                 Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
                 Gossiper.instance.addLocalApplicationState(SCHEMA, StorageService.instance.valueFactory.schema(next.schema.getVersion()));
+                // if the local node's location has changed, update system.local.
+                if (!next.directory.location(change).equals(prev.directory.location(change)))
+                    SystemKeyspace.updateLocation(next.directory.location(change));
             }
 
-
-            if (next.directory.peerState(change) == LEFT)
+            if (next.directory.peerState(change) == REGISTERED)
+            {
+                // Re-establish any connections made prior to this node registering
+                InetAddressAndPort endpoint = next.directory.endpoint(change);
+                logger.info("Peer with address {} has registered, interrupting any previously established connections", endpoint);
+                MessagingService.instance().interruptOutbound(endpoint);
+            }
+            else if (next.directory.peerState(change) == LEFT)
             {
                 Gossiper.instance.mergeNodeToGossip(change, next, prev.tokenMap.tokens(change));
                 InetAddressAndPort endpoint = prev.directory.endpoint(change);
@@ -157,6 +168,8 @@ public class LegacyStateListener implements ChangeListener.Async
                         for (Token token : tokens)
                             logger.warn("Token {} changing ownership from {} to {}", token, replaced, replacement);
                     }
+                    Gossiper.instance.mergeNodeToGossip(change, next, tokens);
+                    PeersTable.updateLegacyPeerTable(change, prev, next);
                 }
             }
             else
@@ -171,6 +184,8 @@ public class LegacyStateListener implements ChangeListener.Async
     {
         return prev.peerState(nodeId) != next.peerState(nodeId) ||
                !Objects.equals(prev.getNodeAddresses(nodeId), next.getNodeAddresses(nodeId)) ||
-               !Objects.equals(prev.version(nodeId), next.version(nodeId));
+               !Objects.equals(prev.version(nodeId), next.version(nodeId)) ||
+               !Objects.equals(prev.location(nodeId), next.location(nodeId));
+
     }
 }

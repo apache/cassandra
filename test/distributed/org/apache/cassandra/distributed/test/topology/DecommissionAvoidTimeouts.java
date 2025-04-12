@@ -109,7 +109,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
             pending.call();
             unpauseCommits(cluster.get(1));
 
-            cluster.forEach(i -> i.runOnInstance(() -> ((DynamicEndpointSnitch) DatabaseDescriptor.getEndpointSnitch()).updateScores()));
+            cluster.forEach(i -> i.runOnInstance(() -> ((DynamicEndpointSnitch) DatabaseDescriptor.getNodeProximity()).updateScores()));
             cluster.filters().verbs(Verb.GOSSIP_DIGEST_SYN.id).drop();
 
             nodetool.join();

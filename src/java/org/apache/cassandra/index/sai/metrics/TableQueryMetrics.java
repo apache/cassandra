@@ -71,6 +71,8 @@ public class TableQueryMetrics extends AbstractMetrics
 
     public class PerQueryMetrics extends AbstractMetrics
     {
+        public static final String PER_QUERY_METRICS_TYPE = "PerQuery";
+
         private final Timer queryLatency;
 
         /**
@@ -99,7 +101,7 @@ public class TableQueryMetrics extends AbstractMetrics
 
         public PerQueryMetrics(TableMetadata table)
         {
-            super(table.keyspace, table.name, "PerQuery");
+            super(table.keyspace, table.name, PER_QUERY_METRICS_TYPE);
 
             queryLatency = Metrics.timer(createMetricName("QueryLatency"));
 

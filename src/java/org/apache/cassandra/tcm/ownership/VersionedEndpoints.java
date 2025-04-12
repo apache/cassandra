@@ -116,7 +116,9 @@ public interface VersionedEndpoints<E extends Endpoints<E>> extends MetadataValu
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ForRange forRange = (ForRange) o;
-            return Objects.equals(endpointsForRange.sorted(Replica::compareTo), forRange.endpointsForRange.sorted(Replica::compareTo));
+            return lastModified.equals(forRange.lastModified) &&
+                   Objects.equals(endpointsForRange.sorted(Replica::compareTo),
+                                  forRange.endpointsForRange.sorted(Replica::compareTo));
         }
 
         public boolean isEmpty()
@@ -184,7 +186,8 @@ public interface VersionedEndpoints<E extends Endpoints<E>> extends MetadataValu
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ForToken forToken = (ForToken) o;
-            return Objects.equals(endpointsForToken, forToken.endpointsForToken);
+            return lastModified.equals(forToken.lastModified) &&
+                   Objects.equals(endpointsForToken, forToken.endpointsForToken);
         }
 
         public boolean isEmpty()

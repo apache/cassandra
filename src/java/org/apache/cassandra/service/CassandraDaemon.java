@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -45,9 +46,11 @@ import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCacheService;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -64,6 +67,11 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.tcm.CMSOperations;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.RegistrationStatus;
+import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.net.StartupClusterConnectivityChecker;
@@ -71,12 +79,10 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamManager;
-import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
-import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -90,8 +96,6 @@ import org.apache.cassandra.utils.logging.VirtualTableAppender;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
@@ -122,6 +126,12 @@ public class CassandraDaemon
         return instance;
     }
 
+    @VisibleForTesting
+    public NativeTransportService nativeTransportService()
+    {
+        return nativeTransportService;
+    }
+
     static {
         // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
@@ -146,42 +156,24 @@ public class CassandraDaemon
         // then the JVM agent will have already started up a default JMX connector
         // server. This behaviour is deprecated, but some clients may be relying
         // on it, so log a warning and skip setting up the server with the settings
-        // as configured in cassandra-env.(sh|ps1)
+        // as configured in cassandra.yaml or cassandra-env.sh.
         // See: CASSANDRA-11540 & CASSANDRA-11725
         if (COM_SUN_MANAGEMENT_JMXREMOTE_PORT.isPresent())
         {
-            logger.warn("JMX settings in cassandra-env.sh have been bypassed as the JMX connector server is " +
-                        "already initialized. Please refer to cassandra-env.(sh|ps1) for JMX configuration info");
+            logger.warn("JMX settings in cassandra.yaml or cassandra-env.sh have been bypassed as the JMX connector server is " +
+                        "already initialized. Please refer to cassandra.yaml or cassandra-env.sh for JMX configuration info");
             return;
         }
 
         JAVA_RMI_SERVER_RANDOM_ID.setBoolean(true);
 
-        // If a remote port has been specified then use that to set up a JMX
-        // connector server which can be accessed remotely. Otherwise, look
-        // for the local port property and create a server which is bound
-        // only to the loopback address. Auth options are applied to both
-        // remote and local-only servers, but currently SSL is only
-        // available for remote.
-        // If neither is remote nor local port is set in cassandra-env.(sh|ps)
-        // then JMX is effectively  disabled.
-        boolean localOnly = false;
-        String jmxPort = CASSANDRA_JMX_REMOTE_PORT.getString();
-
-        if (jmxPort == null)
-        {
-            localOnly = true;
-            jmxPort = CASSANDRA_JMX_LOCAL_PORT.getString();
-        }
-
-        if (jmxPort == null)
+        JMXServerOptions jmxServerOptions = DatabaseDescriptor.getJmxServerOptions();
+        if (!jmxServerOptions.enabled)
             return;
 
         try
         {
-            jmxServer = JMXServerUtils.createJMXServer(Integer.parseInt(jmxPort), localOnly);
-            if (jmxServer == null)
-                return;
+            jmxServer = JMXServerUtils.createJMXServer(jmxServerOptions);
         }
         catch (IOException e)
         {
@@ -232,7 +224,7 @@ public class CassandraDaemon
      */
     protected void setup()
     {
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
 
         // Since CASSANDRA-14793 the local system keyspaces data are not dispatched across the data directories
         // anymore to reduce the risks in case of disk failures. By consequence, the system need to ensure in case of
@@ -260,8 +252,16 @@ public class CassandraDaemon
         DatabaseDescriptor.createAllDirectories();
         Keyspace.setInitialized();
         CommitLog.instance.start();
-        runStartupChecks();
 
+        SnapshotManager.instance.start(false);
+        SnapshotManager.instance.clearExpiredSnapshots();
+        SnapshotManager.instance.clearEphemeralSnapshots();
+        SnapshotManager.instance.resumeSnapshotCleanup();
+        SnapshotManager.instance.registerMBean();
+
+        // clearing of snapshots above here will in fact clear all ephemeral snapshots
+        // which were cleared as part of startup checks before CASSANDRA-18111
+        runStartupChecks();
 
         try
         {
@@ -269,6 +269,8 @@ public class CassandraDaemon
             Startup.initialize(DatabaseDescriptor.getSeeds());
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
+            if (ClusterMetadata.current().myNodeId() != null)
+                RegistrationStatus.instance.onRegistration();
         }
         catch (InterruptedException | ExecutionException | IOException e)
         {
@@ -285,7 +287,7 @@ public class CassandraDaemon
         {
             SystemKeyspace.snapshotOnVersionChange();
         }
-        catch (IOException e)
+        catch (Throwable e)
         {
             exitOrFail(StartupException.ERR_WRONG_DISK_STATE, e.getMessage(), e.getCause());
         }
@@ -373,9 +375,13 @@ public class CassandraDaemon
             exitOrFail(1, "Fatal configuration error", e);
         }
 
+        // The local rack may have been changed at some point, which will now be reflected in cluster metadata. Update
+        // the system.local table just in case the actual value doesn't match what the configured location provided
+        // reported when the earlier call to SystemKeyspace::persistLocalMetadata was made prior to initialising cluster
+        // metadata.
+        SystemKeyspace.updateRack(ClusterMetadata.current().locator.local().rack);
         ScheduledExecutors.optionalTasks.execute(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
 
-        // TODO: (TM/alexp), this can be made time-dependent
         // Because we are writing to the system_distributed keyspace, this should happen after that is created, which
         // happens in StorageService.instance.initServer()
         Runnable viewRebuild = () -> {
@@ -387,11 +393,6 @@ public class CassandraDaemon
         };
 
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
-
-        // TODO: (TM/alexp), we do not need to wait for gossip settlement anymore
-//        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
-//            Gossiper.waitToSettle();
-
         StorageService.instance.doAuthSetup();
 
         // re-enable auto-compaction after replay, so correct disk boundaries are used
@@ -641,8 +642,9 @@ public class CassandraDaemon
     {
         StartupClusterConnectivityChecker connectivityChecker = StartupClusterConnectivityChecker.create(DatabaseDescriptor.getBlockForPeersTimeoutInSeconds(),
                                                                                                          DatabaseDescriptor.getBlockForPeersInRemoteDatacenters());
+        Locator locator = DatabaseDescriptor.getLocator();
         Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
-        connectivityChecker.execute(peers, DatabaseDescriptor.getEndpointSnitch()::getDatacenter);
+        connectivityChecker.execute(peers, ep -> locator.location(ep).datacenter);
 
         // check to see if transports may start else return without starting.  This is needed when in survey mode or
         // when bootstrap has not completed.
@@ -841,12 +843,16 @@ public class CassandraDaemon
             StorageService.instance.setRpcReady(true);
     }
 
+    @Deprecated(since = "5.0.0")
     public void stopNativeTransport()
     {
+        stopNativeTransport(false);
+    }
+
+    public void stopNativeTransport(boolean force)
+    {
         if (nativeTransportService != null)
-        {
-            nativeTransportService.stop();
-        }
+            nativeTransportService.stop(force);
     }
 
     public boolean isNativeTransportRunning()
@@ -881,6 +887,11 @@ public class CassandraDaemon
     public void clearConnectionHistory()
     {
         nativeTransportService.clearConnectionHistory();
+    }
+
+    public void disconnectUser(Predicate<AuthenticatedUser> userPredicate)
+    {
+        nativeTransportService.disconnect(userPredicate);
     }
 
     private void exitOrFail(int code, String message)

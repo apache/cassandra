@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -223,5 +224,10 @@ public final class DistributedMetadataLogKeyspace
     public static KeyspaceMetadata initialMetadata(Set<String> knownDatacenters)
     {
         return KeyspaceMetadata.create(SchemaConstants.METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters)), Tables.of(Log));
+    }
+
+    public static KeyspaceMetadata initialMetadata(String datacenter)
+    {
+        return initialMetadata(Collections.singleton(datacenter));
     }
 }

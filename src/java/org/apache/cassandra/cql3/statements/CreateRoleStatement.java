@@ -19,13 +19,25 @@ package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.auth.*;
+
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CIDRPermissions;
+import org.apache.cassandra.auth.DCPermissions;
+import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleOptions;
+import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.RoleName;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -87,6 +99,18 @@ public class CreateRoleStatement extends AuthenticationStatement
         if (ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
             return null;
 
+        if (opts.isGeneratedPassword())
+        {
+            String generatedPassword = Guardrails.password.generate();
+            if (generatedPassword != null)
+                opts.setOption(IRoleManager.Option.PASSWORD, generatedPassword);
+            else
+                throw new InvalidRequestException("You have to enable password_validator and it's generator_class_name property " +
+                                                  "in cassandra.yaml to be able to generate passwords.");
+        }
+
+        opts.getPassword().ifPresent(password -> Guardrails.password.guard(password, state));
+
         DatabaseDescriptor.getRoleManager().createRole(state.getUser(), role, opts);
         if (DatabaseDescriptor.getNetworkAuthorizer().requireAuthorization())
         {
@@ -98,14 +122,14 @@ public class CreateRoleStatement extends AuthenticationStatement
 
         grantPermissionsToCreator(state);
 
-        return null;
+        return getResultMessage(opts);
     }
 
     /**
      * Grant all applicable permissions on the newly created role to the user performing the request
      * see also: AlterTableStatement#createdResources() and the overridden implementations
      * of it in subclasses CreateKeyspaceStatement & CreateTableStatement.
-     * @param state
+     * @param state client state
      */
     private void grantPermissionsToCreator(ClientState state)
     {

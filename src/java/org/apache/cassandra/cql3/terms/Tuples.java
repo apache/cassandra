@@ -68,13 +68,13 @@ public final class Tuples
             if (elements.size() == 1 && !checkIfTupleType(receiver.type))
                 return elements.get(0).prepare(keyspace, receiver);
 
+            validateTupleAssignableTo(receiver, elements);
+
             TupleType tupleType = getTupleType(receiver.type);
 
             if (elements.size() != tupleType.size())
                 throw invalidRequest("Expected %d elements in value for tuple %s, but got %d: %s",
                                      tupleType.size(), receiver.name, elements.size(), this);
-
-            validateTupleAssignableTo(receiver, elements);
 
             List<Term> values = new ArrayList<>(elements.size());
             boolean allTerminal = true;

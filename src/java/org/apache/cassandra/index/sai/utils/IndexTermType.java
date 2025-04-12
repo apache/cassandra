@@ -141,20 +141,24 @@ public class IndexTermType
         this.indexTargetType = indexTargetType;
         this.capabilities = calculateCapabilities(columnMetadata, partitionColumns, indexTargetType);
         this.indexType = calculateIndexType(columnMetadata.type, capabilities, indexTargetType);
-        if (indexType.subTypes().isEmpty())
+
+        AbstractType<?> baseType = indexType.unwrap();
+
+        if (baseType.subTypes().isEmpty())
         {
             this.subTypes = Collections.emptyList();
         }
         else
         {
-            List<IndexTermType> subTypes = new ArrayList<>(indexType.subTypes().size());
-            for (AbstractType<?> subType : indexType.subTypes())
+            List<IndexTermType> subTypes = new ArrayList<>(baseType.subTypes().size());
+            for (AbstractType<?> subType : baseType.subTypes())
                 subTypes.add(new IndexTermType(columnMetadata.withNewType(subType), partitionColumns, indexTargetType));
             this.subTypes = Collections.unmodifiableList(subTypes);
         }
+
         if (isVector())
         {
-            VectorType<?> vectorType = (VectorType<?>) indexType;
+            VectorType<?> vectorType = (VectorType<?>) baseType;
             vectorElementType = vectorType.elementType;
             vectorDimension = vectorType.dimension;
         }
@@ -271,6 +275,14 @@ public class IndexTermType
         }
     }
 
+    /**
+     * @return {@code true} if the empty values of the given type should be excluded from indexing
+     */
+    public boolean skipsEmptyValue()
+    {
+        return !indexType.allowsEmpty() || !isLiteral();
+    }
+
     public AbstractType<?> indexType()
     {
         return indexType;
@@ -313,6 +325,11 @@ public class IndexTermType
     public boolean dependsOn(ColumnMetadata columnMetadata)
     {
         return this.columnMetadata.compareTo(columnMetadata) == 0;
+    }
+
+    public static boolean isEqOnlyType(AbstractType<?> type)
+    {
+        return EQ_ONLY_TYPES.contains(type);
     }
 
     /**
@@ -454,12 +471,14 @@ public class IndexTermType
     {
         if (isInetAddress())
             return compareInet(b1, b2);
-            // BigInteger values, frozen types and composite types (map entries) use compareUnsigned to maintain
-            // a consistent order between the in-memory index and the on-disk index.
+        else if (isLong())
+            return indexType.unwrap().compare(b1, b2);
+        // BigInteger values, frozen types and composite types (map entries) use compareUnsigned to maintain
+        // a consistent order between the in-memory index and the on-disk index.
         else if (isBigInteger() || isBigDecimal() || isComposite() || isFrozen())
             return FastByteOperations.compareUnsigned(b1, b2);
 
-        return indexType.compare(b1, b2 );
+        return indexType.compare(b1, b2);
     }
 
     /**
@@ -491,10 +510,17 @@ public class IndexTermType
     {
         if (isInetAddress())
             return compareInet(requestedValue.encoded, columnValue.encoded);
-            // Override comparisons for frozen collections and composite types (map entries)
+        // bigint, decimal, and varint are not indexed in reversed byte-comparable form or treated as reversed types by
+        // Expression, so it is correct to compare with the base/unwrapped type
+        else if (isLong() || isBigDecimal() || isBigInteger())
+            return indexType.unwrap().compare(requestedValue.raw, columnValue.raw);
+        // Override comparisons for frozen collections and composite types (map entries)
         else if (isComposite() || isFrozen())
             return FastByteOperations.compareUnsigned(requestedValue.raw, columnValue.raw);
 
+        // Reversed types are treated as such by Expression here, so we cannot blindly compare with the unwrapped type.
+        // In the future, we might consider simplifying things to have SAI ignore reversed types altogether, but this
+        // will require a change to the on-disk formats.
         return indexType.compare(requestedValue.raw, columnValue.raw);
     }
 
@@ -523,6 +549,9 @@ public class IndexTermType
 
     public ByteSource asComparableBytes(ByteBuffer value, ByteComparable.Version version)
     {
+        if (value.remaining() == 0)
+            return ByteSource.EMPTY;
+
         if (isInetAddress() || isBigInteger() || isBigDecimal())
             return ByteSource.optionalFixedLength(ByteBufferAccessor.instance, value);
         else if (isLong())
@@ -542,8 +571,8 @@ public class IndexTermType
      */
     public ByteBuffer asIndexBytes(ByteBuffer value)
     {
-        if (value == null)
-            return null;
+        if (value == null || value.remaining() == 0)
+            return value;
 
         if (isInetAddress())
             return encodeInetAddress(value);
@@ -566,7 +595,8 @@ public class IndexTermType
             operator == Operator.LIKE_CONTAINS ||
             operator == Operator.LIKE_PREFIX ||
             operator == Operator.LIKE_MATCHES ||
-            operator == Operator.LIKE_SUFFIX) return false;
+            operator == Operator.LIKE_SUFFIX ||
+            operator == Operator.IN) return false;
 
         // ANN is only supported against vectors, and vector indexes only support ANN
         if (operator == Operator.ANN)
@@ -628,10 +658,7 @@ public class IndexTermType
             capabilities.add(Capability.COMPOSITE_PARTITION);
 
         AbstractType<?> type = columnMetadata.type;
-
-        if (type.isReversed())
-            capabilities.add(Capability.REVERSED);
-
+        boolean reversed = type.isReversed();
         AbstractType<?> baseType = type.unwrap();
 
         if (baseType.isCollection())
@@ -666,16 +693,31 @@ public class IndexTermType
             capabilities.add(Capability.VECTOR);
 
         if (indexType instanceof InetAddressType)
+        {
             capabilities.add(Capability.INET_ADDRESS);
+            reversed = false;
+        }
 
         if (indexType instanceof IntegerType)
+        {
             capabilities.add(Capability.BIG_INTEGER);
+            reversed = false;
+        }
 
         if (indexType instanceof DecimalType)
+        {
             capabilities.add(Capability.BIG_DECIMAL);
+            reversed = false;
+        }
 
         if (indexType instanceof LongType)
+        {
             capabilities.add(Capability.LONG);
+            reversed = false;
+        }
+
+        if (reversed)
+            capabilities.add(Capability.REVERSED);
 
         return capabilities;
     }

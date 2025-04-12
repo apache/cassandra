@@ -45,11 +45,13 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
+import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.auth.AuthKeyspace.CIDR_GROUPS;
 import static org.apache.cassandra.auth.AuthKeyspace.CIDR_PERMISSIONS;
 import static org.apache.cassandra.auth.AuthTestUtils.auth;
+import static org.apache.cassandra.auth.AuthTestUtils.getClientState;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
@@ -251,6 +253,28 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
         UntypedResultSet results = getCidrGroups(role);
         Assert.assertEquals(Sets.newHashSet("cidrGroup1"),
                             Iterables.getOnlyElement(results).getFrozenSet("cidr_groups", UTF8Type.instance));
+
+        AuthTestUtils.auth("DROP ROLE %s", role);
+        assertEmpty(getCidrGroups(role));
+    }
+
+    @Test
+    public void testAlterRoleWithCidrsClauseAsNonSuperUser() throws Throwable
+    {
+        String role = "role1";
+
+        assertEmpty(getCidrGroups(role));
+
+        auth("CREATE ROLE %s WITH password = 'password' AND LOGIN = true ", role);
+        auth("ALTER ROLE %s WITH ACCESS FROM CIDRS {'%s'}", role, "cidrGroup1");
+
+        UntypedResultSet results = getCidrGroups(role);
+        Assert.assertEquals(Sets.newHashSet("cidrGroup1"),
+                            Iterables.getOnlyElement(results).getFrozenSet("cidr_groups", UTF8Type.instance));
+
+        Assertions.assertThatThrownBy(() -> auth("ALTER ROLE %s WITH ACCESS FROM ALL CIDRS", getClientState(role), role))
+                  .hasMessage("Only superusers are allowed to alter access from CIDR groups.")
+                  .isInstanceOf(UnauthorizedException.class);
 
         AuthTestUtils.auth("DROP ROLE %s", role);
         assertEmpty(getCidrGroups(role));

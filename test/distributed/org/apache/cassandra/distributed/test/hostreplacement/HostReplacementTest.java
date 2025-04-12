@@ -19,8 +19,12 @@
 package org.apache.cassandra.distributed.test.hostreplacement;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -34,13 +38,21 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.Uninterruptibles;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertInRing;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingHealthy;
@@ -48,6 +60,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getTokenMetadataTokens;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
+import static org.junit.Assert.fail;
 
 public class HostReplacementTest extends TestBaseImpl
 {
@@ -106,6 +119,10 @@ public class HostReplacementTest extends TestBaseImpl
                                                      expectedState.toObjectArrays());
             validateRows(seed.coordinator(), expectedState);
             validateRows(replacingNode.coordinator(), expectedState);
+            String replacingNodeAddress = replacingNode.config().broadcastAddress().getHostString();
+            validateGossipStatusNormal(seed, replacingNodeAddress);
+            validateGossipStatusNormal(replacingNode, replacingNodeAddress);
+            validatePeersTables(seed, replacingNode, even);
         }
     }
 
@@ -239,5 +256,50 @@ public class HostReplacementTest extends TestBaseImpl
         expected.reset();
         SimpleQueryResult rows = coordinator.executeWithResult("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
         assertRows(rows, expected);
+    }
+
+    static void validateGossipStatusNormal(IInvokableInstance i, String address)
+    {
+        i.runOnInstance(() -> {
+            long start = System.nanoTime();
+            while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(20))
+            {
+                InetAddressAndPort host = InetAddressAndPort.getByNameUnchecked(address);
+                String appstate = Gossiper.instance.getApplicationState(host, ApplicationState.STATUS_WITH_PORT);
+                if (appstate.startsWith("NORMAL"))
+                    return;
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            }
+            fail("Gossip STATUS_WITH_PORT did not become NORMAL");
+        });
+    }
+
+    static void validatePeersTables(IInvokableInstance seed, IInvokableInstance replacingNode, TokenSupplier tokens)
+    {
+        InetAddress replacementAddress = replacingNode.config().broadcastAddress().getAddress();
+        NodeId replacementId = new NodeId(3);
+        UUID schemaVersion = seed.callOnInstance(() -> ClusterMetadata.current().schema.getVersion());
+        String releaseVersion = seed.callOnInstance(() -> ClusterMetadata.current().directory.version(ClusterMetadata.current().myNodeId()).cassandraVersion.toString());
+        LinkedHashSet<String> replacementTokens = new LinkedHashSet<>(tokens.tokens(2));
+        String datacenter = "datacenter0";
+        String rack = "rack0";
+        assertRows(seed.executeInternal("SELECT * from system.peers"),
+                   row(replacementAddress, datacenter, replacementId.toUUID(),
+                       replacementAddress, rack, releaseVersion, replacementAddress,
+                       schemaVersion, replacementTokens));
+        assertRows(seed.executeInternal("SELECT * from system.peers_v2"),
+                   row(replacementAddress, 7012, datacenter, replacementId.toUUID(),
+                       replacementAddress, 9042, replacementAddress, 7012, rack, releaseVersion,
+                       schemaVersion, replacementTokens));
+        // system_views.peers contains both remote and local node info
+        InetAddress seedAddress = seed.config().broadcastAddress().getAddress();
+        assertRows(seed.executeInternal("SELECT * from system_views.peers"),
+                   rows(row(seedAddress, 7012, datacenter, new NodeId(1).toUUID(),
+                            seedAddress, 9042, seedAddress, 7012, rack, releaseVersion,
+                            schemaVersion, NodeState.JOINED.toString(), new LinkedHashSet<>(tokens.tokens(1))),
+                        row(replacementAddress, 7012, datacenter, replacementId.toUUID(),
+                            replacementAddress, 9042, replacementAddress, 7012, rack, releaseVersion,
+                            schemaVersion, NodeState.JOINED.toString(), replacementTokens)));
+
     }
 }

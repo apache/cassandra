@@ -38,6 +38,7 @@ import Parser,Lexer;
 
     import org.apache.cassandra.auth.*;
     import org.apache.cassandra.cql3.conditions.*;
+    import org.apache.cassandra.cql3.constraints.*;
     import org.apache.cassandra.cql3.functions.*;
     import org.apache.cassandra.cql3.functions.masking.*;
     import org.apache.cassandra.cql3.restrictions.CustomIndexExpression;
@@ -50,6 +51,7 @@ import Parser,Lexer;
     import org.apache.cassandra.exceptions.SyntaxException;
     import org.apache.cassandra.schema.ColumnMetadata;
     import org.apache.cassandra.utils.Pair;
+    import org.apache.cassandra.utils.LocalizeString;
 }
 
 @members {

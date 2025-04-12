@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
@@ -138,5 +139,14 @@ public class RolesTest
                                  .stream()
                                  .map(RoleResource::getRoleName)
                                  .collect(Collectors.toSet()));
+    }
+
+    @Test
+    public void testNonexistentRoleCantLogin()
+    {
+        // There can be a reference to a nonexistent role (that has been removed from the cache and the system table)
+        // via the native transport connection state, make sure there's no NPE on canLogin check
+        AuthenticatedUser nonexistent = new AuthenticatedUser("nonexistent");
+        Assertions.assertThat(nonexistent.canLogin()).isFalse();
     }
 }

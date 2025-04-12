@@ -32,8 +32,8 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.IGossiper;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -73,7 +73,7 @@ public interface SharedContext
         };
     }
     IFailureDetector failureDetector();
-    IEndpointSnitch snitch();
+    Locator locator();
     IGossiper gossiper();
     ICompactionManager compactionManager();
     ActiveRepairService repair();
@@ -147,9 +147,9 @@ public interface SharedContext
         }
 
         @Override
-        public IEndpointSnitch snitch()
+        public Locator locator()
         {
-            return DatabaseDescriptor.getEndpointSnitch();
+            return DatabaseDescriptor.getLocator();
         }
 
         @Override
@@ -270,9 +270,9 @@ public interface SharedContext
         }
 
         @Override
-        public IEndpointSnitch snitch()
+        public Locator locator()
         {
-            return delegate().snitch();
+            return delegate().locator();
         }
 
         @Override

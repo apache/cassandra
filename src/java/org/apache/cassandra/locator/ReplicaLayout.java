@@ -25,7 +25,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
@@ -301,6 +300,8 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      */
     static <E extends Endpoints<E>> boolean haveWriteConflicts(E natural, E pending)
     {
+        if (pending.isEmpty())
+            return false;
         Set<InetAddressAndPort> naturalEndpoints = natural.endpoints();
         for (InetAddressAndPort pendingEndpoint : pending.endpoints())
         {
@@ -352,32 +353,31 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
     }
 
     /**
-     * @return the read layout for a token - this includes only live natural replicas, i.e. those that are not pending
-     * and not marked down by the failure detector. these are reverse sorted by the badness score of the configured snitch
+     * @return the read layout for a token - this includes natural replicas, i.e. those that are not pending.
+     * They are reverse sorted by the badness score of the configured snitch
      */
-    static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
+    static ReplicaLayout.ForTokenRead forTokenReadSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
     {
         EndpointsForToken replicas = keyspace.getMetadata().params.replication.isLocal()
                                      ? forLocalStrategyToken(metadata, replicationStrategy, token)
                                      : forNonLocalStrategyTokenRead(metadata, keyspace.getMetadata(), token);
-        replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
-        replicas = replicas.filter(FailureDetector.isReplicaAlive);
+
+        replicas = DatabaseDescriptor.getNodeProximity().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
+
         return new ReplicaLayout.ForTokenRead(replicationStrategy, replicas);
     }
 
     /**
      * TODO: we should really double check that the provided range does not overlap multiple token ring regions
-     * @return the read layout for a range - this includes only live natural replicas, i.e. those that are not pending
-     * and not marked down by the failure detector. these are reverse sorted by the badness score of the configured snitch
+     * @return the read layout for a range - these are reverse sorted by the badness score of the configured snitch
      */
-    static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
+    static ReplicaLayout.ForRangeRead forRangeReadSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
     {
         EndpointsForRange replicas = keyspace.getMetadata().params.replication.isLocal()
                                      ? forLocalStrategyRange(metadata, replicationStrategy, range)
                                      : forNonLocalStategyRangeRead(metadata, keyspace.getMetadata(), range);
 
-        replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
-        replicas = replicas.filter(FailureDetector.isReplicaAlive);
+        replicas = DatabaseDescriptor.getNodeProximity().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
         return new ReplicaLayout.ForRangeRead(replicationStrategy, range, replicas);
     }
 

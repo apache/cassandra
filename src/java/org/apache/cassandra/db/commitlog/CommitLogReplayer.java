@@ -19,7 +19,16 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -80,7 +89,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     private long pendingMutationBytes = 0;
 
     private final ReplayFilter replayFilter;
-    private final CommitLogArchiver archiver;
+    private CommitLogArchiver archiver;
 
     @VisibleForTesting
     protected boolean sawCDCMutation;
@@ -119,7 +128,8 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 // Point in time restore is taken to mean that the tables need to be replayed even if they were
                 // deleted at a later point in time. Any truncation record after that point must thus be cleared prior
                 // to replay (CASSANDRA-9195).
-                long restoreTime = commitLog.archiver.restorePointInTime;
+                // truncatedTime is millseconds level but restoreTime is microlevel
+                long restoreTime = commitLog.archiver.restorePointInTimeInMicroseconds == Long.MAX_VALUE ? Long.MAX_VALUE : commitLog.archiver.restorePointInTimeInMicroseconds / 1000;
                 long truncatedTime = SystemKeyspace.getTruncatedAt(cfs.metadata.id);
                 if (truncatedTime > restoreTime)
                 {
@@ -145,7 +155,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 }
                 else
                 {
-                    if (commitLog.archiver.restorePointInTime == Long.MAX_VALUE)
+                    if (commitLog.archiver.getRestorePointInTimeInMicroseconds() == Long.MAX_VALUE)
                     {
                         // Normal restart, everything is persisted and restored by the memtable itself.
                         filter = new IntervalSet<>(CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
@@ -491,11 +501,9 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     protected boolean pointInTimeExceeded(Mutation fm)
     {
-        long restoreTarget = archiver.restorePointInTime;
-
         for (PartitionUpdate upd : fm.getPartitionUpdates())
         {
-            if (archiver.precision.toMillis(upd.maxTimestamp()) > restoreTarget)
+            if (archiver.precision.toMicros(upd.maxTimestamp()) > archiver.restorePointInTimeInMicroseconds)
                 return true;
         }
         return false;

@@ -35,11 +35,13 @@ import org.apache.cassandra.utils.CassandraUInt;
 public class ValidationRequest extends RepairMessage
 {
     public final long nowInSec;
+    public final boolean dontPurgeTombstones;
 
-    public ValidationRequest(RepairJobDesc desc, long nowInSec)
+    public ValidationRequest(RepairJobDesc desc, long nowInSec, boolean dontPurgeTombstones)
     {
         super(desc);
         this.nowInSec = nowInSec;
+        this.dontPurgeTombstones = dontPurgeTombstones;
     }
 
     @Override
@@ -47,6 +49,7 @@ public class ValidationRequest extends RepairMessage
     {
         return "ValidationRequest{" +
                "nowInSec=" + nowInSec +
+               ", dontPurgeTombstones" + dontPurgeTombstones +
                "} " + super.toString();
     }
 
@@ -72,19 +75,23 @@ public class ValidationRequest extends RepairMessage
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
             out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(message.nowInSec) : (int) message.nowInSec);
+            if (version >= MessagingService.VERSION_51)
+                out.writeBoolean(message.dontPurgeTombstones);
         }
 
         public ValidationRequest deserialize(DataInputPlus dis, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(dis, version);
             long nowInsec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(dis.readInt()) : dis.readInt();
-            return new ValidationRequest(desc, nowInsec);
+            boolean dontPurgeTombstones = version >= MessagingService.VERSION_51 ? dis.readBoolean() : false;
+            return new ValidationRequest(desc, nowInsec, dontPurgeTombstones);
         }
 
         public long serializedSize(ValidationRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
             size += TypeSizes.INT_SIZE;
+            size += version >= MessagingService.VERSION_51 ? TypeSizes.sizeof(message.dontPurgeTombstones) : 0;
             return size;
         }
     };

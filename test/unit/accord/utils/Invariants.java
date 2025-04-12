@@ -22,6 +22,7 @@ import net.nicoulaj.compilecommand.annotations.Inline;
 
 import javax.annotation.Nullable;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static java.lang.String.format;
 
@@ -39,9 +40,14 @@ public class Invariants
         return DEBUG;
     }
 
-    private static void illegalState(String msg)
+    public static IllegalStateException createIllegalState(String msg)
     {
-        throw new IllegalStateException(msg);
+        return new IllegalStateException(msg);
+    }
+
+    public static IllegalStateException illegalState(String msg)
+    {
+        throw createIllegalState(msg);
     }
 
     private static void illegalState()
@@ -89,6 +95,12 @@ public class Invariants
     {
         if (!condition)
             illegalState();
+    }
+
+    public static void checkState(boolean condition, Supplier<String> msg)
+    {
+        if (!condition)
+            throw illegalState(msg.get());
     }
 
     public static void checkState(boolean condition, String msg)

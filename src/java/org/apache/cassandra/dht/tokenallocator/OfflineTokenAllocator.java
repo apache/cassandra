@@ -23,7 +23,6 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -32,12 +31,16 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.RegistrationStatus;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.OutputHandler;
+
+import static org.apache.cassandra.locator.SimpleLocationProvider.LOCATION;
 
 public class OfflineTokenAllocator
 {
@@ -54,6 +57,9 @@ public class OfflineTokenAllocator
 
         Preconditions.checkArgument(nodes >= rf,
                                     "not enough nodes %s for rf %s in %s", Arrays.stream(nodesPerRack).sum(), rf, Arrays.toString(nodesPerRack));
+        DatabaseDescriptor.setPartitionerUnsafe(partitioner);
+        // Set RegistrationStatus to REGISTERED so that Locator works exclusively from ClusterMetadata
+        RegistrationStatus.instance.onRegistration();
 
         List<FakeNode> fakeNodes = new ArrayList<>(nodes);
         MultinodeAllocator allocator = new MultinodeAllocator(rf, numTokens, logger, partitioner);
@@ -114,27 +120,21 @@ public class OfflineTokenAllocator
 
     private static class MultinodeAllocator
     {
-        private final FakeSnitch fakeSnitch;
         private final TokenAllocation allocation;
         private final Map<Integer, SummaryStatistics> lastCheckPoint = Maps.newHashMap();
         private final OutputHandler logger;
 
         private MultinodeAllocator(int rf, int numTokens, OutputHandler logger, IPartitioner partitioner)
         {
-            this.fakeSnitch = new FakeSnitch();
-            this.allocation = TokenAllocation.create(fakeSnitch, new ClusterMetadata(partitioner), rf, numTokens);
+            this.allocation = TokenAllocation.create(LOCATION.datacenter, new ClusterMetadata(partitioner), rf, numTokens);
             this.logger = logger;
         }
 
         private FakeNode allocateTokensForNode(int nodeId, Integer rackId)
         {
-            // Update snitch and token metadata info
             InetAddressAndPort fakeNodeAddressAndPort = getLoopbackAddressWithPort(nodeId);
-            fakeSnitch.nodeByRack.put(fakeNodeAddressAndPort, rackId);
-            // todo:
-            //fakeMetadata.updateTopology(fakeNodeAddressAndPort);
-
             // Allocate tokens
+            allocation.addNodeToMetadata(fakeNodeAddressAndPort, new Location(LOCATION.datacenter, rackId.toString()));
             Collection<Token> tokens = allocation.allocate(fakeNodeAddressAndPort);
 
             // Validate ownership stats
@@ -145,7 +145,7 @@ public class OfflineTokenAllocator
 
         private void validateAllocation(int nodeId, int rackId)
         {
-            SummaryStatistics newOwnership = allocation.getAllocationRingOwnership(SimpleSnitch.DATA_CENTER_NAME, Integer.toString(rackId));
+            SummaryStatistics newOwnership = allocation.getAllocationRingOwnership(LOCATION.datacenter, Integer.toString(rackId));
             SummaryStatistics oldOwnership = lastCheckPoint.put(rackId, newOwnership);
             if (oldOwnership != null)
                 logger.debug(String.format("Replicated node load in rack=%d before allocating node %d: %s.", rackId, nodeId,
@@ -161,17 +161,6 @@ public class OfflineTokenAllocator
                                               stdDevGrowth * 100, nodeId, rackId, (int)(TokenAllocation.WARN_STDEV_GROWTH * 100)));
                 }
             }
-        }
-    }
-
-    private static class FakeSnitch extends SimpleSnitch
-    {
-        final Map<InetAddressAndPort, Integer> nodeByRack = new HashMap<>();
-
-        @Override
-        public String getRack(InetAddressAndPort endpoint)
-        {
-            return Integer.toString(nodeByRack.get(endpoint));
         }
     }
 

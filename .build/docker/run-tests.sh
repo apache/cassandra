@@ -15,26 +15,69 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#
 # A wrapper script to run-tests.sh (or dtest-python.sh) in docker.
-#  Can split (or grep) the test list into multiple docker runs, collecting results.
+#
 
 [ $DEBUG ] && set -x
 
-# help
-if [ "$#" -lt 1 ] || [ "$#" -gt 3 ] || [ "$1" == "-h" ]; then
-    echo ""
-    echo "Usage: run-tests.sh test_type [split_chunk|test_regexp] [java_version]"
-    echo ""
-    echo "        default split_chunk is 1/1"
-    echo "        default java_version is what 'java.default' specifies in build.xml"
-    exit 1
-fi
+print_help() {
+  echo ""
+  echo "Usage: $0 [-a|-t|-c|-j|-h] [extra arguments]"
+  echo "   -a Test target type: test, test-compression, test-cdc, ..."
+  echo "   -t Test name regexp to run."
+  echo "   -c Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
+  echo "   -j Java version. Default java_version is what 'java.default' specifies in build.xml."
+  echo "   [extra arguments] will be passed to downstream scripts."
+  exit 1
+}
 
 error() {
-    echo >&2 $2;
-    set -x
-    exit $1
+  echo >&2 $2;
+  set -x
+  exit $1
 }
+
+# legacy argument handling
+case ${1} in
+  "build_dtest_jars" | "stress-test" | "fqltool-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" | "simulator-dtest" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large" | "test" | "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
+    test_type="-a ${1}"
+    if [[ -z ${2} ]]; then
+      test_list=""
+    elif [[ -n ${2} && "${2}" =~ ^[0-9]+/[0-9]+$ ]]; then
+      test_list="-c ${2}";
+    else
+      test_list="-t ${2}";
+    fi
+    if [[ -n ${3} ]]; then java_version="-j ${3}"; else java_version=""; fi
+    echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list} ${java_version}"
+    $0 ${test_type} ${test_list} ${java_version}
+    exit $?
+esac
+
+env_vars=""
+while getopts ":a:t:c:e:hj:" opt; do
+  # shellcheck disable=SC2220
+  # Invalid flags check disabled as we'll pass them to other scripts
+  case $opt in
+    a ) test_target="$OPTARG"
+        ;;
+    t ) test_name_regexp="$OPTARG"
+        ;;
+    c ) chunk="$OPTARG"
+        ;;
+    j ) java_version="$OPTARG"
+        ;;
+    e ) env_vars="${env_vars} -e $OPTARG"
+        ;;
+    h ) print_help
+        exit 0
+        ;;
+    e)  ;; # Repeat vars are just passed to downstream run-tests-enhaced.sh
+    \?) die "Invalid option: -$OPTARG"
+        ;;
+  esac
+done
 
 # variables, with defaults
 [ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname "$0")/../..)"
@@ -53,10 +96,11 @@ command -v timeout >/dev/null 2>&1 || { error 1 "timeout needs to be installed";
 [ -f "${cassandra_dir}/.build/run-tests.sh" ] || { error 1 "${cassandra_dir}/.build/run-tests.sh must exist"; }
 
 # arguments
-target=$1
+target=${test_target}
 split_chunk="1/1"
-[ "$#" -gt 1 ] && split_chunk=$2
-java_version=$3
+split_chunk=${chunk-'1/1'}
+test_name_regexp=${test_name_regexp}
+java_version=${java_version}
 
 test_script="run-tests.sh"
 java_version_default=`grep 'property\s*name="java.default"' ${cassandra_dir}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
@@ -135,7 +179,7 @@ esac
 
 # figure out resource limits, scripts, and mounts for the test type
 docker_flags="-m 5g --memory-swap 5g"
-case ${target} in
+case ${test_target/-repeat/} in
     "build_dtest_jars")
     ;;
     "stress-test" | "fqltool-test" )
@@ -149,14 +193,14 @@ case ${target} in
         [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
         docker_flags="-m 15g --memory-swap 15g"
     ;;
-    "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large")
+    "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-large-latest" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large")
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { error 1 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; }
         test_script="run-python-dtests.sh"
         docker_mounts="${docker_mounts} -v ${cassandra_dtest_dir}:/home/cassandra/cassandra-dtest"
         [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
         docker_flags="-m 15g --memory-swap 15g"
     ;;
-    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
+    "test" | "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
     *)
@@ -189,6 +233,8 @@ chmod -R ag+rwx "${build_dir}"
 case "${target}" in
     "cqlsh-test" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" | "dtest-upgrade-novnode" | "dtest-upgrade-novnode-large" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_python${python_version/./-}"
+        # intentionally not TMP_DIR
+        DTEST_TMPDIR_LOCAL="$(mktemp -d ${build_dir}/run-python-dtest.XXXXXX)"
     ;;
     "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" )
         ANT_OPTS="-Dtesttag.extra=_$(arch)_novnode"
@@ -208,6 +254,11 @@ fi
 
 # the docker container's env
 docker_envs="--env TEST_SCRIPT=${test_script} --env JAVA_VERSION=${java_version} --env PYTHON_VERSION=${python_version} --env cython=${cython} --env ANT_OPTS=\"${ANT_OPTS}\""
+if [ -n "${DTEST_TMPDIR_LOCAL}" ] ; then
+    DTEST_TMPDIR_REMOTE="$(sed "s:${build_dir}:/home/cassandra/cassandra/build:" <<< ${DTEST_TMPDIR_LOCAL})"
+    docker_envs="${docker_envs} --env TMPDIR=${DTEST_TMPDIR_REMOTE} --env CCM_CONFIG_DIR=${DTEST_TMPDIR_REMOTE}/.ccm"
+fi
+[ $DEBUG ] && docker_envs="${docker_envs} --env DEBUG=1"
 
 split_str="0_0"
 if [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]]; then
@@ -229,8 +280,10 @@ logfile="${build_dir}/test/logs/docker_attach_${container_name}.log"
 # Docker commands:
 #  set java to java_version
 #  execute the run_script
+[ -n "${test_name_regexp}" ] && test_name_regexp_arg="-t ${test_name_regexp}" || split_chunk_arg="-c ${split_chunk}"
+
 docker_command="source \${CASSANDRA_DIR}/.build/docker/_set_java.sh ${java_version} ; \
-            \${CASSANDRA_DIR}/.build/docker/_docker_init_tests.sh ${target} ${split_chunk} ; exit \$?"
+            \${CASSANDRA_DIR}/.build/docker/_docker_init_tests.sh -a ${target} ${split_chunk_arg} ${test_name_regexp_arg} ${env_vars} ; exit \$?"
 
 # start the container, timeout after 4 hours
 docker_id=$(docker run --name ${container_name} ${docker_flags} ${docker_envs} ${docker_mounts} ${docker_volume_opt} ${image_name} sleep 4h)
@@ -239,6 +292,12 @@ echo "Running container ${container_name} ${docker_id}"
 
 docker exec --user root ${container_name} bash -c "\${CASSANDRA_DIR}/.build/docker/_create_user.sh cassandra $(id -u) $(id -g)" | tee -a ${logfile}
 docker exec --user root ${container_name} update-alternatives --set python /usr/bin/python${python_version} | tee -a ${logfile}
+
+if [ -n "${DTEST_TMPDIR_LOCAL}" ] && [[ "${target}" =~ ^dtest-upgrade ]] ; then
+    # prepopulate a tmp ccm repository directory, if running dtest-upgrade tests
+    docker exec --user cassandra ${container_name} bash -c "\${CASSANDRA_DIR}/.build/docker/_copy_ccm_repositories.sh" | tee -a ${logfile}
+    trap 'nohup rm -rf "${DTEST_TMPDIR_LOCAL}/.ccm/repository" >/dev/null 2>&1 &' EXIT
+fi
 
 # capture logs and status
 set -o pipefail
@@ -265,5 +324,5 @@ xz -f ${logfile} 2>/dev/null
 
 popd >/dev/null
 popd >/dev/null
-set -x
+echo "+ exit ${status}"
 exit ${status}

@@ -18,16 +18,31 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
+
+import static org.apache.cassandra.tcm.CMSOperations.COMMITS_PAUSED;
+import static org.apache.cassandra.tcm.CMSOperations.EPOCH;
+import static org.apache.cassandra.tcm.CMSOperations.IS_MEMBER;
+import static org.apache.cassandra.tcm.CMSOperations.IS_MIGRATING;
+import static org.apache.cassandra.tcm.CMSOperations.LOCAL_PENDING;
+import static org.apache.cassandra.tcm.CMSOperations.MEMBERS;
+import static org.apache.cassandra.tcm.CMSOperations.NEEDS_RECONFIGURATION;
+import static org.apache.cassandra.tcm.CMSOperations.REPLICATION_FACTOR;
+import static org.apache.cassandra.tcm.CMSOperations.SERVICE_STATE;
 
 public abstract class CMSAdmin extends NodeTool.NodeToolCmd
 {
@@ -39,14 +54,15 @@ public abstract class CMSAdmin extends NodeTool.NodeToolCmd
         {
             Map<String, String> info = probe.getCMSOperationsProxy().describeCMS();
             output.out.printf("Cluster Metadata Service:%n");
-            output.out.printf("Members: %s%n", info.get("MEMBERS"));
-            output.out.printf("Is Member: %s%n", info.get("IS_MEMBER"));
-            output.out.printf("Service State: %s%n", info.get("SERVICE_STATE"));
-            output.out.printf("Is Migrating: %s%n", info.get("IS_MIGRATING"));
-            output.out.printf("Epoch: %s%n", info.get("EPOCH"));
-            output.out.printf("Local Pending Count: %s%n", info.get("LOCAL_PENDING"));
-            output.out.printf("Commits Paused: %s%n", info.get("COMMITS_PAUSED"));
-            output.out.printf("Replication factor: %s%n", info.get("REPLICATION_FACTOR"));
+            output.out.printf("Members: %s%n", info.get(MEMBERS));
+            output.out.printf("Needs reconfiguration: %s%n", info.get(NEEDS_RECONFIGURATION));
+            output.out.printf("Is Member: %s%n", info.get(IS_MEMBER));
+            output.out.printf("Service State: %s%n", info.get(SERVICE_STATE));
+            output.out.printf("Is Migrating: %s%n", info.get(IS_MIGRATING));
+            output.out.printf("Epoch: %s%n", info.get(EPOCH));
+            output.out.printf("Local Pending Count: %s%n", info.get(LOCAL_PENDING));
+            output.out.printf("Commits Paused: %s%n", info.get(COMMITS_PAUSED));
+            output.out.printf("Replication factor: %s%n", info.get(REPLICATION_FACTOR));
         }
     }
 
@@ -182,5 +198,63 @@ public abstract class CMSAdmin extends NodeTool.NodeToolCmd
         {
             probe.getCMSOperationsProxy().unregisterLeftNodes(nodeIds);
         }
+    }
+
+    @Command(name = "abortinitialization", description = "Abort an incomplete initialization")
+    public static class AbortInitialization extends NodeTool.NodeToolCmd
+    {
+        @Option(required = true, name = "--initiator", title = "Initiator", description = "The address of the node where `cms initialize` was run.")
+        public String initiator;
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            probe.getCMSOperationsProxy().abortInitialization(initiator);
+        }
+    }
+
+    @Command(name = "dumpdirectory", description = "Dump the directory from the current ClusterMetadata")
+    public static class DumpDirectory extends NodeTool.NodeToolCmd
+    {
+        @Option(name = "--tokens", title = "Include tokens", description = "Include tokens in output")
+        public boolean tokens = false;
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            output(probe.output().out, "NodeId", probe.getCMSOperationsProxy().dumpDirectory(tokens));
+        }
+    }
+
+    @Command(name = "dumplog", description = "Dump the metadata log")
+    public static class DumpLog extends NodeTool.NodeToolCmd
+    {
+        @Option(name = "--start", title = "Start epoch")
+        long startEpoch = Epoch.FIRST.getEpoch();
+        @Option(name = "--end", title = "End epoch")
+        long endEpoch = Long.MAX_VALUE;
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            output(probe.output().out, "Epoch", probe.getCMSOperationsProxy().dumpLog(startEpoch, endEpoch));
+        }
+    }
+
+    private static void output(PrintStream out, String title, Map<Long, Map<String, String>> map)
+    {
+        if (map.isEmpty())
+            return;
+        int keywidth = keywidth(map);
+        for (Long key : ImmutableList.sortedCopyOf(map.keySet()))
+        {
+            out.println(title + ": " + key);
+            for (Map.Entry<String, String> nodeEntry : map.get(key).entrySet())
+                out.printf("  %-" + keywidth + "s%s%n", nodeEntry.getKey(), nodeEntry.getValue());
+        }
+    }
+
+    private static int keywidth(Map<?, Map<String, String>> map)
+    {
+        assert !map.isEmpty();
+        return map.entrySet().iterator().next().getValue().keySet().stream().max(Comparator.comparingInt(String::length)).get().length() + 1;
     }
 }

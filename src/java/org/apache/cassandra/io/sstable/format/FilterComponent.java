@@ -104,16 +104,12 @@ public class FilterComponent
         IFilter filter = null;
         if (!shouldUseBloomFilter(desiredFPChance))
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Bloom filter for {} will not be loaded because fpChance={} is negligible", descriptor, desiredFPChance);
-
+            logger.trace("Bloom filter for {} will not be loaded because fpChance={} is negligible", descriptor, desiredFPChance);
             return FilterFactory.AlwaysPresent;
         }
         else if (!components.contains(Components.FILTER) || Double.isNaN(currentFPChance))
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Bloom filter for {} will not be loaded because the filter component is missing or sstable lacks validation metadata", descriptor);
-
+            logger.trace("Bloom filter for {} will not be loaded because the filter component is missing or sstable lacks validation metadata", descriptor);
             return null;
         }
         else if (!isFPChanceDiffNegligible(desiredFPChance, currentFPChance) && rebuildFilterOnFPChanceChange)

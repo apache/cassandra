@@ -18,13 +18,14 @@
 
 package org.apache.cassandra.locator;
 
-import java.net.UnknownHostException;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 
 import static org.junit.Assert.*;
 
@@ -33,34 +34,25 @@ import static org.junit.Assert.*;
  */
 public class GossipingPropertyFileSnitchTest
 {
-
     @BeforeClass
-    public static void setupDD()
+    public static void setup() throws Exception
     {
         DatabaseDescriptor.daemonInitialization();
     }
 
-    public static void checkEndpoint(final AbstractNetworkTopologySnitch snitch,
-                                     final String endpointString, final String expectedDatacenter,
-                                     final String expectedRack)
+    @Before
+    public void resetCMS()
     {
-        final InetAddressAndPort endpoint;
-        try
-        {
-            endpoint = InetAddressAndPort.getByName(endpointString);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-        assertEquals(expectedDatacenter, snitch.getDatacenter(endpoint));
-        assertEquals(expectedRack, snitch.getRack(endpoint));
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
     }
 
     @Test
-    public void testLoadConfig() throws Exception
+    public void testLoadConfig()
     {
         final GossipingPropertyFileSnitch snitch = new GossipingPropertyFileSnitch();
-        checkEndpoint(snitch, FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(), "DC1", "RAC1");
+        // for registering a new node, location is obtained from the snitch config
+        assertEquals("DC1", snitch.getLocalDatacenter());
+        assertEquals("RAC1", snitch.getLocalRack());
     }
 }

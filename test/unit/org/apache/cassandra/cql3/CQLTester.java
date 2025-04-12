@@ -39,7 +39,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -76,9 +75,15 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestName;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.DefaultRandom;
+import accord.utils.Gen;
+import accord.utils.Property;
+import accord.utils.RandomSource;
 import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.CloseFuture;
 import com.datastax.driver.core.Cluster;
@@ -106,12 +111,16 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.JMXServerOptions;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.types.ParseUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -155,6 +164,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -165,6 +175,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Message;
@@ -174,6 +185,7 @@ import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ConfigGenBuilder;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.Pair;
@@ -181,9 +193,9 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_REUSE_PREPARED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ROW_CACHE_SIZE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_USE_PREPARED;
@@ -194,6 +206,7 @@ import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TABLE;
 import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TYPE;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.createMetricsKeyspaceTables;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -386,7 +399,7 @@ public abstract class CQLTester
         InetAddress loopback = InetAddress.getLoopbackAddress();
         jmxHost = loopback.getHostAddress();
         jmxPort = getAutomaticallyAllocatedPort(loopback);
-        jmxServer = JMXServerUtils.createJMXServer(jmxPort, true);
+        jmxServer = JMXServerUtils.createJMXServer(JMXServerOptions.fromDescriptor(true, true, jmxPort));
         jmxServer.start();
     }
 
@@ -421,14 +434,21 @@ public abstract class CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        prePrepareServer();
+
+        // Once per-JVM is enough
+        prepareServer();
+    }
+
+    protected static void prePrepareServer()
+    {
         CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS.setLong(0);
         ServerTestUtils.daemonInitialization();
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.registerMBeans();
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        // Once per-JVM is enough
-        prepareServer();
+        SnapshotManager.instance.registerMBean();
     }
 
     @AfterClass
@@ -500,7 +520,7 @@ public abstract class CQLTester
 
     public static List<String> buildNodetoolArgs(List<String> args)
     {
-        int port = jmxPort == 0 ? CASSANDRA_JMX_LOCAL_PORT.getInt(7199) : jmxPort;
+        int port = jmxPort == 0 ? DatabaseDescriptor.getJmxServerOptions().jmx_port : jmxPort;
         String host = jmxHost == null ? "127.0.0.1" : jmxHost;
         List<String> allArgs = new ArrayList<>();
         allArgs.add("bin/nodetool");
@@ -1030,7 +1050,7 @@ public abstract class CQLTester
     private String createSchemaElementName(SchemaElement.SchemaElementType type, String keyspace)
     {
         String prefix = keyspace == null ? "" : keyspace + '.';
-        String typeName = type == MATERIALIZED_VIEW ? "mv" : type.name().toLowerCase(Locale.US);
+        String typeName = type == MATERIALIZED_VIEW ? "mv" : toLowerCaseLocalized(type.name());
         int sequence = seqNumber.getAndIncrement();
         int usedSpaceSoFar = prefix.length() + typeName.length() + Math.max(2, numberOfDigits(sequence)) + 1;
         String testMethodName = StringUtils.truncate(getTestMethodName(), SchemaConstants.NAME_LENGTH - usedSpaceSoFar);
@@ -1057,6 +1077,25 @@ public abstract class CQLTester
     {
         String currentTable = createTableName(tableName);
         String fullQuery = formatQuery(keyspace, query);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return currentTable;
+    }
+
+    protected String createTableLike(String query, String sourceTable, String sourceKeyspace, String targetKeyspace)
+    {
+        return createTableLike(query, sourceTable, sourceKeyspace, null, targetKeyspace);
+    }
+
+    protected String createTableLike(String query, String sourceTable, String sourceKeyspace, String targetTable, String targetKeyspace)
+    {
+        if (!tables.contains(sourceTable))
+        {
+            throw new IllegalArgumentException("Source table " + sourceTable + " does not exist");
+        }
+
+        String currentTable = createTableName(targetTable);
+        String fullQuery = currentTable == null ? query : String.format(query, targetKeyspace + "." + currentTable, sourceKeyspace + "." + sourceTable);
         logger.info(fullQuery);
         schemaChange(fullQuery);
         return currentTable;
@@ -1313,7 +1352,7 @@ public abstract class CQLTester
 
         index = ParseUtils.isQuoted(index, '\"')
                 ? ParseUtils.unDoubleQuote(index)
-                : index.toLowerCase();
+                : toLowerCaseLocalized(index);
 
         return Pair.create(keyspace, index);
     }
@@ -1527,9 +1566,21 @@ public abstract class CQLTester
         }
     }
 
+    protected TableMetadata getTableMetadata(String keyspace, String table)
+    {
+        return Schema.instance.getTableMetadata(keyspace, table);
+    }
+
     protected TableMetadata currentTableMetadata()
     {
         return Schema.instance.getTableMetadata(KEYSPACE, currentTable());
+    }
+
+    protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, ConsistencyLevel consistency, String query)
+    {
+        Statement statement = new SimpleStatement(formatQuery(query));
+        statement = statement.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.valueOf(consistency.name()));
+        return sessionNet(protocolVersion).execute(statement);
     }
 
     protected com.datastax.driver.core.ResultSet executeNet(ProtocolVersion protocolVersion, String query, Object... values)
@@ -1915,6 +1966,74 @@ public abstract class CQLTester
             return true;
         }
         return false;
+    }
+
+    /**
+     * Determine whether the source and target TableMetadata is equal without compare the table name and dropped columns.
+     * @param source the source TableMetadata
+     * @param target the target TableMetadata
+     * @param compareParams wether compare table's params
+     * @param compareIndexes wether compare table's indexes
+     * @param compareIndexWithOutName wether ignore indexes' name when doing index comparison
+     *                                if true then compare the index without name
+     * */
+    protected boolean equalsWithoutTableNameAndDropCns(TableMetadata source, TableMetadata target, boolean compareParams, boolean compareIndexes, boolean compareIndexWithOutName)
+    {
+        return source.partitioner.equals(target.partitioner)
+               && source.kind == target.kind
+               && source.flags.equals(target.flags)
+               && (!compareParams || source.params.equals(target.params))
+               && (!compareIndexes || compareIndexes(source, target, compareIndexWithOutName))
+               && columnsEqualWitoutKsTb(source, target);
+    }
+
+    private boolean compareIndexes(TableMetadata source, TableMetadata target, boolean compareIndexWithOutName)
+    {
+        if (compareIndexWithOutName)
+        {
+            if (source.indexes.size() != target.indexes.size())
+                return false;
+            Iterator<IndexMetadata> leftIter = source.indexes.stream().sorted(Comparator.comparing(idx -> idx.name)).iterator();
+            Iterator<IndexMetadata> rightIter = target.indexes.stream().sorted(Comparator.comparing(idx -> idx.name)).iterator();
+            boolean result = true;
+            while (leftIter.hasNext() && rightIter.hasNext())
+            {
+                IndexMetadata left = leftIter.next();
+                IndexMetadata right = rightIter.next();
+                result &= right.equalsWithoutName(left);
+            }
+            return result;
+        }
+        return source.indexes.equals(target.indexes);
+    }
+
+    // only compare columns
+    private boolean columnsEqualWitoutKsTb(TableMetadata source, TableMetadata target)
+    {
+        if (target.columns().size() != source.columns().size())
+            return false;
+
+        Iterator<ColumnMetadata> leftIterator = source.allColumnsInCreateOrder();
+        Iterator<ColumnMetadata> rightIterator = target.allColumnsInCreateOrder();
+
+        while (leftIterator.hasNext() && rightIterator.hasNext())
+        {
+            ColumnMetadata leftCn = leftIterator.next();
+            ColumnMetadata rightCn = rightIterator.next();
+            if (!equalsWithoutKsTb(leftCn, rightCn))
+                return false;
+        }
+
+        return true;
+    }
+
+    private boolean equalsWithoutKsTb(ColumnMetadata left, ColumnMetadata right)
+    {
+        return left.name.equals(right.name)
+               && left.kind == right.kind
+               && left.position() == right.position()
+               && java.util.Objects.equals(left.getMask(), right.getMask())
+               && left.type.equals(right.type);
     }
 
     protected void assertRowCountNet(ResultSet r1, int expectedCount)
@@ -2375,6 +2494,12 @@ public abstract class CQLTester
         void apply() throws Throwable;
     }
 
+    @FunctionalInterface
+    public interface CheckedSupplier
+    {
+        ResultMessage get() throws Throwable;
+    }
+
     /**
      * Runs the given function before and after a flush of sstables.  This is useful for checking that behavior is
      * the same whether data is in memtables or sstables.
@@ -2716,7 +2841,7 @@ public abstract class CQLTester
 
     private String getTestMethodName()
     {
-        return decorateCQLWithTestNames && testName.getMethodName() != null ? '_' + testName.getMethodName().toLowerCase().replaceAll("[^\\w]", "_")
+        return decorateCQLWithTestNames && testName.getMethodName() != null ? '_' + toLowerCaseLocalized(testName.getMethodName()).replaceAll("[^\\w]", "_")
                                                                             : "";
     }
 
@@ -2975,6 +3100,105 @@ public abstract class CQLTester
 
             return Objects.equal(username, u.username)
                 && Objects.equal(password, u.password);
+        }
+    }
+
+    /**
+     * Enhances {@link CQLTester} to make it easier for tests to leverage randomness.  This class is not the best way to
+     * leverage randomness as it won't run the tests against multiple seeds (so could take a long time to find faults)
+     *
+     * The main use case for this class is to take existing tests or tests patterns people wish to write, and make it easy
+     * and safe to add randomness.  One main advantage is that the node spun up has non-static configs, meaning that each
+     * test run can explore different spaces and avoid having to create a new yaml/CI pipeline to test different configs.
+     *
+     * When possible {@link Property#qt()} should be leveraged as it will rerun the test many times with different seeds.
+     */
+    public static abstract class Fuzzed extends CQLTester
+    {
+        private static RandomSource RANDOM;
+        private static long SEED;
+        private static String CONFIG = null;
+        protected static Gen<Map<String, Object>> CONFIG_GEN = null;
+
+        @Rule
+        public FailureWatcher failureRule = new FailureWatcher();
+
+        @BeforeClass
+        public static void setUpClass()
+        {
+            setupSeed();
+            try
+            {
+                updateConfigs();
+                prePrepareServer();
+
+                // Once per-JVM is enough
+                prepareServer();
+            }
+            catch (Throwable t)
+            {
+                throwPropertyError(t);
+            }
+        }
+
+        protected static RandomSource random()
+        {
+            if (RANDOM == null)
+                setupSeed();
+            return RANDOM;
+        }
+
+        protected static long seed()
+        {
+            return SEED;
+        }
+
+        protected static void setupSeed()
+        {
+            if (RANDOM != null) return;
+            SEED = TEST_RANDOM_SEED.getLong(new DefaultRandom().nextLong());
+            RANDOM = new DefaultRandom(SEED);
+        }
+
+        @Before
+        public void resetSeed()
+        {
+            RANDOM.setSeed(SEED);
+        }
+
+        protected static void updateConfigs()
+        {
+            if (CONFIG_GEN == null)
+                CONFIG_GEN = new ConfigGenBuilder().build();
+            Map<String, Object> config = CONFIG_GEN.next(RANDOM);
+            CONFIG = YamlConfigurationLoader.toYaml(config);
+
+            Config c = ConfigGenBuilder.prepare(DatabaseDescriptor.loadConfig());
+            YamlConfigurationLoader.updateFromMap(config, true, c);
+
+            DatabaseDescriptor.unsafeDaemonInitialization(() -> ConfigGenBuilder.sanitize(c));
+        }
+
+        public static class FailureWatcher extends TestWatcher
+        {
+            @Override
+            protected void failed(Throwable e, Description description)
+            {
+                throwPropertyError(e);
+            }
+        }
+
+        private static AssertionError throwPropertyError(Throwable e)
+        {
+            String seedProp = TEST_RANDOM_SEED.getKey();
+            StringBuilder sb = new StringBuilder();
+            sb.append("Property error detected:");
+            sb.append("\nSeed: ").append(SEED).append(" -- To rerun do -D").append(seedProp).append('=').append(SEED);
+            if (CONFIG != null)
+                sb.append("\nConfig:\n\t").append(CONFIG.replaceAll("\n", "\n\t"));
+            String message = e.toString();
+            sb.append("\nError:\n\t").append(message.replaceAll("\n", "\n\t"));
+            throw new AssertionError(sb.toString(), e);
         }
     }
 

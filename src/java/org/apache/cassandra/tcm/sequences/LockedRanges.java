@@ -334,6 +334,9 @@ public class LockedRanges implements MetadataValue<LockedRanges>
             {
                 for (Range<Token> otherRange : e.getValue())
                 {
+                    if (!map.containsKey(e.getKey()))
+                        continue;
+
                     for (Range<Token> thisRange : map.get(e.getKey()))
                     {
                         if (thisRange.intersects(otherRange))

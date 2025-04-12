@@ -33,6 +33,7 @@ import org.apache.cassandra.simulator.systems.InterceptedWait.InterceptedConditi
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DETERMINISM_CHECK;
@@ -58,6 +59,18 @@ public class InterceptingGlobalMethods extends InterceptingMonitors implements I
         this.capture = capture.any() ? capture : null;
         this.onThreadLocalRandomCheck = onThreadLocalRandomCheck;
         this.onUncaughtException = onUncaughtException;
+    }
+
+    @Override
+    public Semaphore newSemaphore(int count)
+    {
+        return new InterceptingSemaphore(count, false);
+    }
+
+    @Override
+    public Semaphore newFairSemaphore(int count)
+    {
+        return new InterceptingSemaphore(count, true);
     }
 
     @Override

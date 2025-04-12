@@ -34,6 +34,8 @@ import org.apache.commons.math3.random.JDKRandomGenerator;
 
 import org.apache.cassandra.stress.generate.*;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 /**
  * For selecting a mathematical distribution
  */
@@ -73,7 +75,7 @@ public class OptionDistribution extends Option
     @Override
     public boolean accept(String param)
     {
-        if (!param.toLowerCase().startsWith(prefix))
+        if (!toLowerCaseLocalized(param).startsWith(prefix))
             return false;
         spec = param.substring(prefix.length());
         return true;
@@ -86,7 +88,7 @@ public class OptionDistribution extends Option
             throw new IllegalArgumentException("Illegal distribution specification: " + spec);
         boolean inverse = m.group(1).equals("~");
         String name = m.group(2);
-        Impl impl = LOOKUP.get(name.toLowerCase());
+        Impl impl = LOOKUP.get(toLowerCaseLocalized(name));
         if (impl == null)
             throw new IllegalArgumentException("Illegal distribution type: " + name);
         List<String> params = new ArrayList<>();
@@ -181,7 +183,7 @@ public class OptionDistribution extends Option
     public static long parseLong(String value)
     {
         long multiplier = 1;
-        value = value.trim().toLowerCase();
+        value = toLowerCaseLocalized(value.trim());
         switch (value.charAt(value.length() - 1))
         {
             case 'b':

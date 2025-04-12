@@ -87,5 +87,5 @@ tables will be rejected unless some consumption process is in place.
 
 == Further Reading
 
-* https://issues.apache.org/jira/browse/CASSANDRA-8844[JIRA ticket]
-* https://issues.apache.org/jira/browse/CASSANDRA-12148[JIRA ticket]
+* Change Data Capture ( https://issues.apache.org/jira/browse/CASSANDRA-8844[CASSANDRA-8844 JIRA ticket] )
+* Improve determinism of CDC data availability ( https://issues.apache.org/jira/browse/CASSANDRA-12148[CASSANDRA-12148 JIRA ticket] )

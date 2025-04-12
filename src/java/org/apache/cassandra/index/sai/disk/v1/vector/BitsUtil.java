@@ -94,7 +94,7 @@ public class BitsUtil
         @Override
         public boolean get(int i)
         {
-            var p = postings.get(i);
+            VectorPostings<T> p = postings.get(i);
             assert p != null : "No postings for ordinal " + i;
             return !p.isEmpty();
         }
@@ -114,7 +114,7 @@ public class BitsUtil
         @Override
         public boolean get(int i)
         {
-            var p = postings.get(i);
+            VectorPostings<T> p = postings.get(i);
             assert p != null : "No postings for ordinal " + i;
             return !p.isEmpty() && toAccept.get(i);
         }

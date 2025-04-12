@@ -58,7 +58,10 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
+import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
 import org.apache.cassandra.utils.memory.Cloner;
+
+import static org.apache.cassandra.utils.btree.BTree.STOP_SENTINEL_VALUE;
 
 /**
  * Immutable implementation of a Row object.
@@ -399,9 +402,9 @@ public class BTreeRow extends AbstractRow
 
     public boolean hasComplexDeletion()
     {
-        long result = accumulate((cd, v) -> ((ComplexColumnData) cd).complexDeletion().isLive() ? 0 : Cell.MAX_DELETION_TIME,
+        long result = accumulate((cd, v) -> ((ComplexColumnData) cd).complexDeletion().isLive() ? 0 : STOP_SENTINEL_VALUE,
                                  COLUMN_COMPARATOR, isStatic() ? FIRST_COMPLEX_STATIC : FIRST_COMPLEX_REGULAR, 0L);
-        return result == Cell.MAX_DELETION_TIME;
+        return result == STOP_SENTINEL_VALUE;
     }
 
     public Row markCounterLocalToBeCleared()
@@ -558,6 +561,17 @@ public class BTreeRow extends AbstractRow
     public static Row.Builder unsortedBuilder()
     {
         return new Builder(false);
+    }
+
+    private static final TinyThreadLocalPool<Builder> POOL = new TinyThreadLocalPool<>();
+
+    public static Row.Builder pooledUnsortedBuilder() {
+        TinyThreadLocalPool.TinyPool<Builder> pool = POOL.get();
+        Builder builder = pool.poll();
+        if (builder == null)
+            builder = new Builder(false);
+        builder.pool = pool;
+        return builder;
     }
 
     // This is only used by PartitionUpdate.CounterMark but other uses should be avoided as much as possible as it breaks our general
@@ -818,6 +832,8 @@ public class BTreeRow extends AbstractRow
 
         // For complex column at index i of 'columns', we store at complexDeletions[i] its complex deletion.
 
+        private TinyThreadLocalPool.TinyPool<Builder> pool;
+
         protected Builder(boolean isSorted)
         {
             cells_ = null;
@@ -873,6 +889,11 @@ public class BTreeRow extends AbstractRow
             this.deletion = Deletion.LIVE;
             this.cells_.reuse();
             this.hasComplex = false;
+            if (pool != null)
+            {
+                pool.offer(this);
+                pool = null;
+            }
         }
 
         public void addPrimaryKeyLivenessInfo(LivenessInfo info)

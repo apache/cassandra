@@ -33,6 +33,8 @@ public class StorageAttachedIndexOptions
                                                            "Value must be a positive integer less than " + MAXIMUM_SEGMENT_BUFFER_MB + "MiB";
 
     public DataStorageSpec.IntMebibytesBound segment_write_buffer_size = new DataStorageSpec.IntMebibytesBound(DEFAULT_SEGMENT_BUFFER_MB);
+    
+    public volatile boolean prioritize_over_legacy_index = false;
 
     public void validate()
     {

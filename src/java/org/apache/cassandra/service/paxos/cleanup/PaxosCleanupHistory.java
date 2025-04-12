@@ -40,7 +40,7 @@ public class PaxosCleanupHistory
         this.history = history;
     }
 
-    public static final IVersionedSerializer<PaxosCleanupHistory> serializer = new IVersionedSerializer<PaxosCleanupHistory>()
+    public static final IVersionedSerializer<PaxosCleanupHistory> serializer = new IVersionedSerializer<>()
     {
         public void serialize(PaxosCleanupHistory message, DataOutputPlus out, int version) throws IOException
         {

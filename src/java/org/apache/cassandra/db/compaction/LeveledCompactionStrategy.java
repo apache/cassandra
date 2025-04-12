@@ -47,10 +47,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TOLERATE_S
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
-    private static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
+    public static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
     private static final boolean tolerateSstableSize = TOLERATE_SSTABLE_SIZE.getBoolean();
-    private static final String LEVEL_FANOUT_SIZE_OPTION = "fanout_size";
-    private static final String SINGLE_SSTABLE_UPLEVEL_OPTION = "single_sstable_uplevel";
+    public static final String LEVEL_FANOUT_SIZE_OPTION = "fanout_size";
+    public static final String SINGLE_SSTABLE_UPLEVEL_OPTION = "single_sstable_uplevel";
     public static final int DEFAULT_LEVEL_FANOUT_SIZE = 10;
 
     @VisibleForTesting
@@ -126,7 +126,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
      * the only difference between background and maximal in LCS is that maximal is still allowed
      * (by explicit user request) even when compaction is disabled.
      */
-    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
+    public Collection<AbstractCompactionTask> getNextBackgroundTasks(long gcBefore)
     {
         Collection<SSTableReader> previousCandidate = null;
         while (true)
@@ -140,7 +140,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 if (sstable == null)
                 {
                     logger.trace("No compaction necessary for {}", this);
-                    return null;
+                    return Collections.emptyList();
                 }
                 candidate = new LeveledManifest.CompactionCandidate(Collections.singleton(sstable),
                                                                     sstable.getSSTableLevel(),
@@ -159,7 +159,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 logger.warn("Could not acquire references for compacting SSTables {} which is not a problem per se," +
                             "unless it happens frequently, in which case it must be reported. Will retry later.",
                             candidate.sstables);
-                return null;
+                return Collections.emptyList();
             }
 
             LifecycleTransaction txn = cfs.getTracker().tryModify(candidate.sstables, OperationType.COMPACTION);
@@ -172,13 +172,13 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                     newTask = new SingleSSTableLCSTask(cfs, txn, candidate.level);
 
                 newTask.setCompactionType(op);
-                return newTask;
+                return Collections.singletonList(newTask);
             }
             previousCandidate = candidate.sstables;
         }
     }
 
-    public synchronized Collection<AbstractCompactionTask> getMaximalTask(long gcBefore, boolean splitOutput)
+    public synchronized List<AbstractCompactionTask> getMaximalTasks(long gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> sstables = manifest.getSSTables();
 

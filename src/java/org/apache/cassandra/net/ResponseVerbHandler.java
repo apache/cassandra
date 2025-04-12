@@ -62,7 +62,8 @@ class ResponseVerbHandler implements IVerbHandler
         if (callbackInfo == null)
         {
             String msg = "Callback already removed for {} (from {})";
-            logger.trace(msg, message.id(), message.from());
+            if (logger.isTraceEnabled())
+                logger.trace(msg, message.id(), message.from());
             Tracing.trace(msg, message.id(), message.from());
             return;
         }

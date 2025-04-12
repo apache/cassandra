@@ -46,6 +46,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.CMSIdentifierMismatchException;
@@ -74,6 +75,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
@@ -95,9 +97,14 @@ public class ClusterMetadata
     public final InProgressSequences inProgressSequences;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
-    // These two fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
+    // This isn't serialized as part of ClusterMetadata it's really just a view over the Directory.
+    public final Locator locator;
+
+    // These fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
     private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
+    private Set<NodeId> fullCMSIds;
+    private DataPlacements writePlacementAllSettled;
 
     public ClusterMetadata(IPartitioner partitioner)
     {
@@ -172,6 +179,7 @@ public class ClusterMetadata
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
         this.extensions = ImmutableMap.copyOf(extensions);
+        this.locator = Locator.usingDirectory(directory);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -179,6 +187,13 @@ public class ClusterMetadata
         if (fullCMSEndpoints == null)
             this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet());
         return fullCMSEndpoints;
+    }
+
+    public Set<NodeId> fullCMSMemberIds()
+    {
+        if (fullCMSIds == null)
+            this.fullCMSIds = placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet().stream().map(directory::peerId).collect(toImmutableSet());
+        return fullCMSIds;
     }
 
     public EndpointsForRange fullCMSMembersAsReplicas()
@@ -268,15 +283,19 @@ public class ClusterMetadata
 
     public DataPlacement writePlacementAllSettled(KeyspaceMetadata ksm)
     {
-        ClusterMetadata metadata = this;
-        Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
-        while (iter.hasNext())
+        if (writePlacementAllSettled == null)
         {
-            Transformation.Result result = iter.next().applyTo(metadata);
-            assert result.isSuccess();
-            metadata = result.success().metadata;
+            ClusterMetadata metadata = this;
+            Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
+            while (iter.hasNext())
+            {
+                Transformation.Result result = iter.next().applyTo(metadata);
+                assert result.isSuccess();
+                metadata = result.success().metadata;
+            }
+            writePlacementAllSettled = metadata.placements;
         }
-        return metadata.placements.get(ksm.params.replication);
+        return writePlacementAllSettled.get(ksm.params.replication);
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
@@ -397,7 +416,9 @@ public class ClusterMetadata
 
         public Transformer unregister(NodeId nodeId)
         {
-            directory = directory.without(nodeId);
+            directory = directory.withoutRackAndDC(nodeId).without(nodeId);
+            if (!tokenMap.tokens(nodeId).isEmpty())
+                tokenMap = tokenMap.unassignTokens(nodeId);
             return this;
         }
 
