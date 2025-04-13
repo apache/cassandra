@@ -237,6 +237,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
                 case ACCORD_ACCEPT_RSP:
                 case ACCORD_CHECK_STATUS_REQ:
                 case ACCORD_CHECK_STATUS_RSP:
+                case ACCORD_READ_REQ:
                 case ACCORD_READ_RSP:
                 case ACCORD_AWAIT_REQ:
                 case ACCORD_AWAIT_RSP:

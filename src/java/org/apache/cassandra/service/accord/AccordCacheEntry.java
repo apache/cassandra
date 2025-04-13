@@ -326,18 +326,32 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
     public <P> Loading load(BiFunction<P, Runnable, Cancellable> loadExecutor, P param, Adapter<K, V, ?> adapter, OnLoaded onLoaded)
     {
         Invariants.require(is(WAITING_TO_LOAD), "%s", this);
-        Loading loading = ((WaitingToLoad)state).load(loadExecutor.apply(param, () -> {
-            V result;
-            try
+
+        WaitingToLoad cur = (WaitingToLoad)state;
+        Collection<AccordTask<?>> waiters = cur.waiters;
+        Loading loading = cur.load(loadExecutor.apply(param, new Runnable()
+        {
+            @Override
+            public void run()
             {
-                result = adapter.load(owner.commandStore, key);
+                V result;
+                try
+                {
+                    result = adapter.load(owner.commandStore, key);
+                }
+                catch (Throwable t)
+                {
+                    onLoaded.onLoaded(AccordCacheEntry.this, null, t);
+                    throw t;
+                }
+                onLoaded.onLoaded(AccordCacheEntry.this, result, null);
             }
-            catch (Throwable t)
+
+            @Override
+            public String toString()
             {
-                onLoaded.onLoaded(this, null, t);
-                throw t;
+                return "Loading " + key + " on " + owner.commandStore + " for " + waiters;
             }
-            onLoaded.onLoaded(this, result, null);
         }));
         setStatus(LOADING);
         state = loading;
@@ -459,17 +473,28 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         {
             setStatus(SAVING);
             Object identity = new Object();
-            Cancellable saving = saveExecutor.apply(() -> {
-                try
+            Cancellable saving = saveExecutor.apply(new Runnable()
+            {
+                @Override
+                public void run()
                 {
-                    save.run();
+                    try
+                    {
+                        save.run();
+                    }
+                    catch (Throwable t)
+                    {
+                        onSaved.onSaved(AccordCacheEntry.this, identity, t);
+                        throw t;
+                    }
+                    onSaved.onSaved(AccordCacheEntry.this, identity, null);
                 }
-                catch (Throwable t)
+
+                @Override
+                public String toString()
                 {
-                    onSaved.onSaved(this, identity, t);
-                    throw t;
+                    return "Saving " + key + " for Accord cache eviction";
                 }
-                onSaved.onSaved(this, identity, null);
             });
             state = new Saving(saving, identity, state);
         }

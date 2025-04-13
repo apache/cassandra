@@ -32,6 +32,7 @@ import accord.api.ProgressLog;
 import accord.local.CommandStores;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
+import accord.local.SequentialAsyncExecutor;
 import accord.local.ShardDistributor;
 import accord.primitives.Range;
 import accord.topology.Topology;
@@ -61,6 +62,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize
 
     private final CacheSizeMetrics cacheSizeMetrics;
     private final AccordExecutor[] executors;
+    private final int mask;
 
     private long cacheSize, workingSetSize;
     private int maxQueuedLoads, maxQueuedRangeLoads;
@@ -74,6 +76,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize
               AccordCommandStore.factory(id -> executors[id % executors.length]));
         this.executors = executors;
         this.cacheSizeMetrics = new CacheSizeMetrics(ACCORD_STATE_CACHE, this);
+        this.mask = Integer.highestOneBit(executors.length) - 1;
         cacheSize = DatabaseDescriptor.getAccordCacheSizeInMiB() << 20;
         workingSetSize = DatabaseDescriptor.getAccordWorkingSetSizeInMiB() << 20;
         maxQueuedLoads = DatabaseDescriptor.getAccordMaxQueuedLoadCount();
@@ -132,6 +135,13 @@ public class AccordCommandStores extends CommandStores implements CacheSize
             return false;
         // we see new ranges when a new keyspace is added, so avoid bootstrap in these cases
         return contains(previous, ((TokenKey)  range.start()).table());
+    }
+
+    @Override
+    public SequentialAsyncExecutor someSequentialExecutor()
+    {
+        int idx = ((int) Thread.currentThread().getId()) & mask;
+        return executors[idx].newSequentialExecutor();
     }
 
     private static boolean contains(Topology previous, TableId searchTable)

@@ -172,8 +172,7 @@ public class AccordReadInteroperabilityTest extends AccordTestBase
                      assertEquals(0, messageCount(Verb.ACCORD_INTEROP_STABLE_THEN_READ_REQ));
                      assertEquals(0, messageCount(Verb.ACCORD_INTEROP_READ_REQ));
                      assertEquals(0, messageCount(Verb.ACCORD_INTEROP_READ_RSP));
-                     // Durability scheduling creates a lot of background commits that generate read responses
-                     assertTrue(messageCount(Verb.ACCORD_READ_RSP) > 0);
+                     assertTrue(messageCount(Verb.ACCORD_GET_EPHMRL_READ_DEPS_REQ) > 0);
                  }
              });
     }

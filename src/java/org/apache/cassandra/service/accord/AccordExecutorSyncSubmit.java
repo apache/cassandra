@@ -65,6 +65,12 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
     }
 
     @Override
+    AccordExecutorLoops loops()
+    {
+        return loops;
+    }
+
+    @Override
     boolean isInLoop()
     {
         return loops.isInLoop();

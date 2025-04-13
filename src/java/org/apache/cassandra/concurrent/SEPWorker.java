@@ -33,7 +33,7 @@ import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.T
 import static org.apache.cassandra.config.CassandraRelevantProperties.SET_SEP_THREAD_NAME;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
+final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable, DebuggableTask.DebuggableTaskRunner
 {
     private static final Logger logger = LoggerFactory.getLogger(SEPWorker.class);
     private static final boolean SET_THREAD_NAME = SET_SEP_THREAD_NAME.getBoolean();
@@ -63,10 +63,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         thread.start();
     }
 
-    /**
-     * @return the current {@link DebuggableTask}, if one exists
-     */
-    public DebuggableTask currentDebuggableTask()
+    @Override
+    public DebuggableTask running()
     {
         // can change after null check so go off local reference
         Runnable task = currentTask.get();
@@ -77,8 +75,15 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
         if (task instanceof FutureTask)
             return ((FutureTask<?>) task).debuggableTask();
-            
+
         return null;
+    }
+
+    // note this is not guaranteed to be in sync with running()
+    @Override
+    public String id()
+    {
+        return thread.getName();
     }
 
     public void run()

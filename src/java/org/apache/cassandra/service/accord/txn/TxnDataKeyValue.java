@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 
+import accord.primitives.Ranges;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Row;
@@ -32,6 +33,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
@@ -55,6 +57,12 @@ public class TxnDataKeyValue extends FilteredPartition implements TxnDataValue
     {
         Invariants.require(this.equals(that));
         return this;
+    }
+
+    @Override
+    public TxnDataValue without(Ranges ranges)
+    {
+        return ranges.contains(new TokenKey(metadata().id, partitionKey().getToken())) ? this : null;
     }
 
     @Override

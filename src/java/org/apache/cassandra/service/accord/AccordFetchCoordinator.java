@@ -164,6 +164,26 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
             builder.putAll(that.streams);
             return new StreamData(builder.build());
         }
+
+        @Override
+        public Data without(Ranges ranges)
+        {
+            ImmutableMap.Builder<TokenRange, SessionInfo> copy = ImmutableMap.builder();
+            for (Map.Entry<TokenRange, SessionInfo> e : streams.entrySet())
+            {
+                if (!ranges.intersects(e.getKey()))
+                {
+                    copy.put(e.getKey(), e.getValue());
+                }
+                else
+                {
+                    Ranges remainder = Ranges.of(e.getKey()).without(ranges);
+                    for (Range range : remainder)
+                        copy.put((TokenRange) range, e.getValue());
+                }
+            }
+            return new StreamData(copy.build());
+        }
     }
 
     // needs to be externally synchronized
@@ -265,7 +285,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         }
 
         @Override
-        public AsyncChain<Data> read(Seekable key, SafeCommandStore commandStore, Timestamp executeAt, DataStore store)
+        public AsyncChain<Data> read(SafeCommandStore commandStore, Seekable key, Timestamp executeAt)
         {
             try
             {
@@ -359,7 +379,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
 
     public AccordFetchCoordinator(Node node, Ranges ranges, SyncPoint syncPoint, DataStore.FetchRanges fetchRanges, CommandStore commandStore)
     {
-        super(node, ranges, syncPoint, fetchRanges, commandStore);
+        super(node, node.someSequentialExecutor(), ranges, syncPoint, fetchRanges, commandStore);
     }
 
     @Override

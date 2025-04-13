@@ -21,12 +21,14 @@ package org.apache.cassandra.service.accord.interop;
 import java.util.function.BiConsumer;
 
 import accord.api.Result;
+import accord.coordinate.ExecuteFlag;
 import accord.coordinate.Persist;
 import accord.coordinate.tracking.AllTracker;
 import accord.coordinate.tracking.QuorumTracker;
 import accord.coordinate.tracking.RequestStatus;
 import accord.coordinate.tracking.ResponseTracker;
 import accord.local.Node;
+import accord.local.SequentialAsyncExecutor;
 import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
@@ -109,9 +111,9 @@ public class AccordInteropPersist extends Persist
     private final ConsistencyLevel consistencyLevel;
     private CallbackHolder callback;
 
-    public AccordInteropPersist(Node node, Topologies topologies, TxnId txnId, Route<?> sendTo, Ballot ballot, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> clientCallback)
+    public AccordInteropPersist(Node node, SequentialAsyncExecutor executor, Topologies topologies, TxnId txnId, Route<?> sendTo, Ballot ballot, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, ExecuteFlag.CoordinationFlags flags, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> clientCallback)
     {
-        super(node, topologies, txnId, ballot, sendTo, txn, executeAt, deps, writes, result, fullRoute, informDurableOnDone, AccordInteropApply.FACTORY);
+        super(node, executor, topologies, txnId, ballot, sendTo, txn, executeAt, deps, writes, result, fullRoute, flags, informDurableOnDone, AccordInteropApply.FACTORY);
         Invariants.requireArgument(consistencyLevel == ConsistencyLevel.QUORUM || consistencyLevel == ConsistencyLevel.ALL || consistencyLevel == ConsistencyLevel.SERIAL || consistencyLevel == ConsistencyLevel.ONE);
         this.consistencyLevel = consistencyLevel;
         registerClientCallback(result, clientCallback);

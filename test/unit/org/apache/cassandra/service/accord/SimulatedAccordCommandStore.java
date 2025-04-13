@@ -31,6 +31,7 @@ import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import javax.annotation.Nullable;
 
+import accord.api.AsyncExecutor;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
@@ -52,6 +53,7 @@ import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.local.SequentialAsyncExecutor;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
 import accord.messages.BeginRecovery;
@@ -164,8 +166,21 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 
         this.storeService = new NodeCommandStoreService()
         {
+            @Override
+            public AsyncExecutor someExecutor()
+            {
+                return null;
+            }
+
+            @Override
+            public SequentialAsyncExecutor someSequentialExecutor()
+            {
+                return null;
+            }
+
             private final ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.NANOSECONDS, this::now);
             final Timeouts timeouts = new DefaultTimeouts(this);
+            long stamp;
 
             @Override public Timeouts timeouts() { return timeouts; }
 
@@ -214,6 +229,18 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             public TopologyManager topology()
             {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long currentStamp()
+            {
+                return stamp;
+            }
+
+            @Override
+            public void updateStamp()
+            {
+                ++stamp;
             }
         };
 

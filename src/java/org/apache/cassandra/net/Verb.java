@@ -104,7 +104,7 @@ import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.LatestDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.GetDurableBeforeSerializers;
-import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
+import org.apache.cassandra.service.accord.serializers.ReadDataSerializer;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
@@ -318,14 +318,14 @@ public enum Verb
     ACCORD_ACCEPT_RSP               (122, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AcceptSerializers.reply),              AccordService::responseHandlerOrNoop                                           ),
     ACCORD_ACCEPT_REQ               (123, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AcceptSerializers.request),            AccordService::requestHandlerOrNoop, ACCORD_ACCEPT_RSP                         ),
     ACCORD_NOT_ACCEPT_REQ           (124, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AcceptSerializers.notAccept),          AccordService::requestHandlerOrNoop, ACCORD_ACCEPT_RSP                         ),
-    ACCORD_READ_RSP                 (125, P2, readTimeout,  IMMEDIATE,          () -> accordEmbedded(ReadDataSerializers.reply),            AccordService::responseHandlerOrNoop                                           ),
-    ACCORD_READ_REQ                 (126, P2, readTimeout,  IMMEDIATE,          () -> accordEmbedded(ReadDataSerializers.readData),         AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
-    ACCORD_STABLE_THEN_READ_REQ     (127, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(ReadDataSerializers.stableThenRead),   AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
+    ACCORD_READ_RSP                 (125, P2, readTimeout, IMMEDIATE, () -> accordEmbedded(ReadDataSerializer.reply), AccordService::responseHandlerOrNoop                                           ),
+    ACCORD_READ_REQ                 (126, P2, readTimeout, IMMEDIATE, () -> accordEmbedded(ReadDataSerializer.request), AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
+    ACCORD_STABLE_THEN_READ_REQ     (127, P2, writeTimeout, IMMEDIATE, () -> accordEmbedded(ReadDataSerializer.request), AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
     ACCORD_COMMIT_REQ               (128, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(CommitSerializers.request),            AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
     ACCORD_COMMIT_INVALIDATE_REQ    (129, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(CommitSerializers.invalidate),         AccordService::requestHandlerOrNoop                                            ),
     ACCORD_APPLY_RSP                (130, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(ApplySerializers.reply),               AccordService::responseHandlerOrNoop                                           ),
     ACCORD_APPLY_REQ                (131, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(ApplySerializers.request),             AccordService::requestHandlerOrNoop, ACCORD_APPLY_RSP                          ),
-    ACCORD_APPLY_AND_WAIT_REQ       (132, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(ReadDataSerializers.readData),         AccordService::requestHandlerOrNoop, ACCORD_READ_RSP),
+    ACCORD_APPLY_AND_WAIT_REQ       (132, P2, writeTimeout, IMMEDIATE, () -> accordEmbedded(ReadDataSerializer.request), AccordService::requestHandlerOrNoop, ACCORD_READ_RSP),
     ACCORD_BEGIN_RECOVER_RSP        (133, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(RecoverySerializers.reply),            AccordService::responseHandlerOrNoop                                           ),
     ACCORD_BEGIN_RECOVER_REQ        (134, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(RecoverySerializers.request),          AccordService::requestHandlerOrNoop, ACCORD_BEGIN_RECOVER_RSP                  ),
     ACCORD_BEGIN_INVALIDATE_RSP     (135, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(BeginInvalidationSerializers.reply),   AccordService::responseHandlerOrNoop                                           ),
@@ -333,7 +333,7 @@ public enum Verb
     ACCORD_AWAIT_RSP                (137, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AwaitSerializers.syncReply),           AccordService::responseHandlerOrNoop                                           ),
     ACCORD_AWAIT_REQ                (138, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AwaitSerializers.request),             AccordService::requestHandlerOrNoop, ACCORD_AWAIT_RSP                          ),
     ACCORD_AWAIT_ASYNC_RSP_REQ      (139, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AwaitSerializers.asyncReply),          AccordService::requestHandlerOrNoop                                            ),
-    ACCORD_WAIT_UNTIL_APPLIED_REQ   (140, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(ReadDataSerializers.waitUntilApplied), AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
+    ACCORD_WAIT_UNTIL_APPLIED_REQ   (140, P2, writeTimeout, IMMEDIATE, () -> accordEmbedded(ReadDataSerializer.request), AccordService::requestHandlerOrNoop, ACCORD_READ_RSP                           ),
     ACCORD_RECOVER_AWAIT_RSP        (141, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AwaitSerializers.recoverReply),        AccordService::responseHandlerOrNoop                                           ),
     ACCORD_RECOVER_AWAIT_REQ        (142, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AwaitSerializers.recoverRequest),      AccordService::requestHandlerOrNoop, ACCORD_RECOVER_AWAIT_RSP),
     ACCORD_INFORM_DURABLE_REQ       (143, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(InformDurableSerializers.request),     AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),

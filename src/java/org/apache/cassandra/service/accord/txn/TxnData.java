@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.util.Map;
 
 import accord.api.Data;
+import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -131,12 +134,72 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
     @Override
     public TxnData merge(Data data)
     {
-        TxnData that = (TxnData) data;
-        TxnData merged = new TxnData();
-        this.forEach(merged::put);
-        for (Map.Entry<Integer, TxnDataValue> e : that.entrySet())
-            merged.merge(e.getKey(), e.getValue(), TxnDataValue::merge);
+        return merge(this, (TxnData) data);
+    }
+
+    private static TxnData merge(TxnData a, TxnData b)
+    {
+        if (a.size() < b.size()) { TxnData tmp = a; a = b; b = tmp; }
+
+        TxnData merged = null;
+        int matches = 0;
+        for (Map.Entry<Integer, TxnDataValue> e : a.entrySet())
+        {
+            Integer key = e.getKey();
+            TxnDataValue av = e.getValue();
+            TxnDataValue bv = b.get(key);
+            if (bv != null || merged != null)
+            {
+                if (bv == null) merged.put(key, av);
+                else
+                {
+                    ++matches;
+                    TxnDataValue upd = e.getValue().merge(bv);
+                    if (merged != null || upd != av)
+                    {
+                        if (merged == null) merged = new TxnData();
+                        merged.put(key, upd);
+                    }
+                }
+            }
+        }
+
+        if (matches == b.size())
+            return merged == null ? a : merged;
+
+        if (merged == null)
+        {
+            merged = new TxnData();
+            a.forEach(merged::put);
+        }
+
+        b.forEach(merged::putIfAbsent);
         return merged;
+    }
+
+    @Override
+    public Data without(Ranges ranges)
+    {
+        TxnData result = null;
+        for (Map.Entry<Integer, TxnDataValue> e : entrySet())
+        {
+            TxnDataValue oldValue = e.getValue();
+            TxnDataValue newValue = oldValue.without(ranges);
+            if (oldValue == newValue)
+            {
+                if (result != null)
+                    result.put(e.getKey(), oldValue);
+            }
+            else
+            {
+                if (result == null)
+                    result = new TxnData();
+                if (newValue != null)
+                    result.put(e.getKey(), newValue);
+            }
+        }
+
+        return result != null ? result : this;
     }
 
     public static Data merge(Data left, Data right)
@@ -147,6 +210,20 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
             return null;
 
         return left.merge(right);
+    }
+
+    @Override
+    public boolean validateReply(TxnId txnId, Timestamp executeAt, boolean futureReadPossible)
+    {
+        if (futureReadPossible)
+        {
+            for (TxnDataValue value : values())
+            {
+                if (value.maxTimestamp() >= executeAt.hlc())
+                    return false;
+            }
+        }
+        return true;
     }
 
     @Override

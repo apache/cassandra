@@ -207,14 +207,12 @@ public class AccordTaskTest
             }).beginAsResult());
 
             // clear cache
-            commandStore.executeBlocking(() -> {
-                try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
-                {
-                    long cacheSize = cache.global.capacity();
-                    cache.global.setCapacity(0);
-                    cache.global.setCapacity(cacheSize);
-                }
-            });
+            try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+            {
+                long cacheSize = cache.global.capacity();
+                cache.global.setCapacity(0);
+                cache.global.setCapacity(cacheSize);
+            }
 
             while (commandStore.executor().hasTasks())
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
@@ -261,14 +259,12 @@ public class AccordTaskTest
             }).beginAsResult());
 
             // clear cache
-            commandStore.executeBlocking(() -> {
-                try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
-                {
-                    long cacheSize = cache.global.capacity();
-                    cache.global.setCapacity(0);
-                    cache.global.setCapacity(cacheSize);
-                }
-            });
+            try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+            {
+                long cacheSize = cache.global.capacity();
+                cache.global.setCapacity(0);
+                cache.global.setCapacity(cacheSize);
+            }
 
             while (commandStore.executor().hasTasks())
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
@@ -288,7 +284,10 @@ public class AccordTaskTest
         // all txn use the same key; 0
         Keys keys = keys(Schema.instance.getTableMetadata("ks", "tbl"), 0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        commandStore.executeBlocking(() -> commandStore.executor().cacheUnsafe().setCapacity(0));
+        try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+        {
+            cache.global.setCapacity(0);
+        }
         Gen<TxnId> txnIdGen = rs -> txnId(1, clock.incrementAndGet(), 1);
 
         qt().withSeed(3447647345436261108L).withPure(false)

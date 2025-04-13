@@ -58,6 +58,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.utils.ImmutableBitSet;
+import accord.utils.UnhandledEnum;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.TableId;
@@ -353,6 +354,7 @@ public class AccordObjectSizes
                 case AcceptedMedium:
                 case AcceptedMediumWithDefinition:
                 case AcceptedSlow:
+                case AcceptedSlowWithDefAndVote:
                 case AcceptedSlowWithDefinition:
                 case PreCommitted:
                 case PreCommittedWithDeps:
@@ -378,7 +380,7 @@ public class AccordObjectSizes
                 case Invalidated:
                     return INVALIDATED;
                 default:
-                    throw new IllegalStateException("Unhandled status " + command.status());
+                    throw new UnhandledEnum(command.saveStatus());
             }
         }
     }

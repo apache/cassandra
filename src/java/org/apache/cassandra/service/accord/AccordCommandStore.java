@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -68,7 +67,6 @@ import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
@@ -145,8 +143,8 @@ public class AccordCommandStore extends CommandStore
     public final String loggingId;
     private final Journal journal;
     private final RangeSearcher rangeSearcher;
-    private final AccordExecutor executor;
-    private final Executor taskExecutor;
+    private final AccordExecutor sharedExecutor;
+    final AccordExecutor.SequentialExecutor exclusiveExecutor;
     private final ExclusiveCaches caches;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
     private final CommandsForRanges.Manager commandsForRanges;
@@ -154,7 +152,6 @@ public class AccordCommandStore extends CommandStore
     volatile SafeRedundantBefore safeRedundantBefore;
 
     private AccordSafeCommandStore current;
-    private Thread currentThread;
 
     private final CommandStoreLoader loader;
 
@@ -166,24 +163,24 @@ public class AccordCommandStore extends CommandStore
                               LocalListeners.Factory listenerFactory,
                               EpochUpdateHolder epochUpdateHolder,
                               Journal journal,
-                              AccordExecutor executor)
+                              AccordExecutor sharedExecutor)
     {
         super(id, node, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
         this.loggingId = String.format("[%s]", id);
         this.journal = journal;
         this.rangeSearcher = RangeSearcher.extractRangeSearcher(journal);
-        this.executor = executor;
+        this.sharedExecutor = sharedExecutor;
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
-        try (AccordExecutor.ExclusiveGlobalCaches exclusive = executor.lockCaches())
+        try (AccordExecutor.ExclusiveGlobalCaches exclusive = sharedExecutor.lockCaches())
         {
             commands = exclusive.commands.newInstance(this);
             commandsForKey = exclusive.commandsForKey.newInstance(this);
-            this.caches = new ExclusiveCaches(executor.lock, exclusive.global, commands, commandsForKey);
+            this.caches = new ExclusiveCaches(sharedExecutor.lock, exclusive.global, commands, commandsForKey);
         }
 
-        this.taskExecutor = executor.executor(this);
+        this.exclusiveExecutor = sharedExecutor.executor();
         this.commandsForRanges = new CommandsForRanges.Manager(this);
         this.loader = new CommandStoreLoader(this);
 
@@ -212,7 +209,7 @@ public class AccordCommandStore extends CommandStore
                new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
     }
 
-    public CommandsForRanges.Manager diskCommandsForRanges()
+    public CommandsForRanges.Manager commandsForRanges()
     {
         return commandsForRanges;
     }
@@ -221,7 +218,7 @@ public class AccordCommandStore extends CommandStore
     public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges, Status.Durability durability)
     {
         if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
-            store.snapshot(ranges, globalSyncId);
+            dataStore.snapshot(ranges, globalSyncId);
         super.markShardDurable(safeStore, globalSyncId, ranges, durability);
         if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
             commandsForRanges.gcBefore(globalSyncId, ranges);
@@ -230,7 +227,7 @@ public class AccordCommandStore extends CommandStore
     @Override
     public boolean inStore()
     {
-        return currentThread == Thread.currentThread();
+        return exclusiveExecutor.inExecutor();
     }
 
     void tryPreSetup(AccordTask<?> task)
@@ -246,7 +243,7 @@ public class AccordCommandStore extends CommandStore
 
     public AccordExecutor executor()
     {
-        return executor;
+        return sharedExecutor;
     }
 
     // TODO (desired): we use this for executing callbacks with mutual exclusivity,
@@ -254,7 +251,7 @@ public class AccordCommandStore extends CommandStore
     //  inflate a separate queue dynamically in AccordExecutor
     public Executor taskExecutor()
     {
-        return taskExecutor;
+        return exclusiveExecutor;
     }
 
     public ExclusiveCaches lockCaches()
@@ -273,7 +270,7 @@ public class AccordCommandStore extends CommandStore
 
     public Caches cachesExclusive()
     {
-        Invariants.require(executor.isOwningThread());
+        Invariants.require(sharedExecutor.isOwningThread());
         return caches;
     }
 
@@ -346,41 +343,10 @@ public class AccordCommandStore extends CommandStore
         return AsyncChains.ofCallable(taskExecutor(), task);
     }
 
-    public DataStore dataStore()
-    {
-        return store;
-    }
-
-    NodeCommandStoreService node()
-    {
-        return node;
-    }
-
-    ProgressLog progressLog()
-    {
-        return progressLog;
-    }
-
     @Override
     public AsyncChain<Void> build(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
     {
         return AccordTask.create(this, preLoadContext, consumer).chain();
-    }
-
-    public void executeBlocking(Runnable runnable)
-    {
-        try
-        {
-            executor.submit(runnable).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     public AccordSafeCommandStore begin(AccordTask<?> operation,
@@ -391,16 +357,19 @@ public class AccordCommandStore extends CommandStore
         return current;
     }
 
-    void setOwner(Thread thread, Thread self)
-    {
-        Invariants.require(thread == null ? currentThread == self : currentThread == null);
-        currentThread = thread;
-        if (thread != null) CommandStore.register(this);
-    }
-
     public boolean hasSafeStore()
     {
         return current != null;
+    }
+
+    DataStore dataStore()
+    {
+        return dataStore;
+    }
+
+    ProgressLog progressLog()
+    {
+        return progressLog;
     }
 
     public void complete(AccordSafeCommandStore store)
@@ -412,7 +381,6 @@ public class AccordCommandStore extends CommandStore
 
     public void abort(AccordSafeCommandStore store)
     {
-        checkInStore();
         Invariants.require(store == current);
         current = null;
     }
@@ -454,7 +422,7 @@ public class AccordCommandStore extends CommandStore
                 if (addRanges.intersects(coordinateRanges)) continue;
                 addRanges = redundantBefore.removeGcBefore(txnId, txnId, addRanges);
                 if (addRanges.isEmpty()) continue;
-                diskCommandsForRanges().mergeTransitive(txnId, addRanges, Ranges::with);
+                commandsForRanges().mergeTransitive(txnId, addRanges, Ranges::with);
             }
         }
     }

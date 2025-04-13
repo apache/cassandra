@@ -119,6 +119,7 @@ import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
+import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.key;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -1066,8 +1067,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             for (int i = 0; i < entries.size() ; ++i)
                 entries.get(i).clear();
             entries.clear();
-            if (!partition.partitionLevelDeletion().isLive())
-                mainBuilder.addCleanup(false, ERASE);
         }
 
         @Override
@@ -1138,12 +1137,21 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             return newVersion.build().unfilteredIterator();
         }
 
-        private UnfilteredRowIterator erase(DecoratedKey partitionKey)
+        private UnfilteredRowIterator erase(DecoratedKey partitionKey) throws IOException
         {
-            return PartitionUpdate.fullPartitionDelete(AccordKeyspace.Journal, partitionKey, Long.MAX_VALUE, nowInSec).unfilteredIterator();
+            AccordCommandRowEntry entry = entries.get(entries.size() - 1);
+            entry.builder.addCleanup(false, ERASE);
+            return PartitionUpdate.singleRowUpdate(AccordKeyspace.Journal, partitionKey, toRow(entry)).unfilteredIterator();
+        }
+
+        private BTreeRow toRow(AccordCommandRowEntry entry) throws IOException
+        {
+            Object[] newRow = rowTemplate.clone();
+            newRow[0] = BufferCell.live(AccordKeyspace.JournalColumns.record, timestamp, entry.builder.asByteBuffer(userVersion));
+            newRow[1] = userVersionCell;
+            return BTreeRow.create(entry.row.clustering(), entry.row.primaryKeyLivenessInfo(), entry.row.deletion(), newRow);
         }
     }
-
 
     private static class AbortableUnfilteredPartitionTransformation extends Transformation<UnfilteredRowIterator>
     {

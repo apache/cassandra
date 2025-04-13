@@ -28,9 +28,9 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 
 import accord.api.Data;
-import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.Read;
+import accord.local.CommandStore;
 import accord.local.SafeCommandStore;
 import accord.primitives.Keys;
 import accord.primitives.Participants;
@@ -40,7 +40,6 @@ import accord.primitives.Routable.Domain;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
-import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -53,16 +52,17 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ParameterisedVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static accord.primitives.Routables.Slice.Minimal;
+import static accord.utils.Invariants.require;
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS;
 import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
@@ -124,7 +124,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         // TODO (expected): relax this condition, require only that it holds for each equal byte[]
         //  right now this means we don't permit two different range queries in the same transaction touching adjacent ranges
         //  this is a pretty weak restriction and doesn't interfere with current CQL capabilities, but should be addressed eventually
-        Invariants.require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
+        require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
     }
 
     private TxnRead(TableMetadatas tables, @Nonnull List<TxnNamedRead> items, @Nullable ConsistencyLevel cassandraConsistencyLevel)
@@ -134,14 +134,13 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         checkArgument(cassandraConsistencyLevel == null || SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read: %s", cassandraConsistencyLevel);
         this.cassandraConsistencyLevel = cassandraConsistencyLevel;
         this.domain = items.get(0).key().domain();
-        Invariants.require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
+        require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
     }
 
     private static void sortReads(List<TxnNamedRead> reads)
     {
-        if (reads.size() == 0)
-            return;
-        reads.sort(TXN_NAMED_READ_KEY_COMPARATOR);
+        if (reads.size() > 1)
+            reads.sort(TXN_NAMED_READ_KEY_COMPARATOR);
     }
 
     public static TxnRead createTxnRead(TableMetadatas tables, @Nonnull List<TxnNamedRead> items, @Nullable ConsistencyLevel consistencyLevel, Domain domain)
@@ -360,7 +359,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                         }
                         else
                         {
-                            Invariants.require(c == 0);
+                            require(c == 0);
                             pending = pending.merge(add);
                         }
                     }
@@ -380,22 +379,26 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     }
 
     @Override
-    public AsyncChain<Data> read(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
+    public AsyncChain<Data> read(SafeCommandStore safeStore, Seekable key, Timestamp executeAt)
     {
-        // Set to null since we don't need it and interop can pass in null
-        safeStore = null;
-        ClusterMetadata cm = ClusterMetadata.current();
-        checkState(cm.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", cm.epoch.getEpoch(), executeAt.epoch());
+        return readDirect(safeStore.commandStore(), key, executeAt);
+    }
 
-        List<AsyncChain<Data>> results = new ArrayList<>();
-        forEachWithKey(key, read -> results.add(read.read(tables, cassandraConsistencyLevel, key, executeAt)));
-
-        if (results.isEmpty())
-            // Result type must match everywhere
+    @Override
+    public AsyncChain<Data> readDirect(CommandStore commandStore, Seekable key, Timestamp executeAt)
+    {
+        if (key == null)
             return AsyncChains.success(new TxnData());
 
-        if (results.size() == 1)
-            return results.get(0);
+        AccordExecutor executor = ((AccordCommandStore)commandStore).executor();
+        if (items.length == 1 && key.equals(items[0].key()))
+            return items[0].read(executor, tables, cassandraConsistencyLevel, key, executeAt);
+
+        List<AsyncChain<Data>> results = new ArrayList<>();
+            forEachWithKey(key, read -> results.add(read.read(executor, tables, cassandraConsistencyLevel, key, executeAt)));
+
+        if (results.isEmpty())
+            return AsyncChains.success(new TxnData());
 
         return AsyncChains.reduce(results, Data::merge);
     }

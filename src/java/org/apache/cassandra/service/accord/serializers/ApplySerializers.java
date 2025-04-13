@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.Result;
+import accord.coordinate.ExecuteFlag.ExecuteFlags;
 import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
@@ -31,6 +32,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
+import accord.utils.VIntCoding;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -76,10 +78,11 @@ public class ApplySerializers
             KeySerializers.nullableFullRoute.serialize(apply.fullRoute, out);
             if (apply.txnId.is(Write))
                 CommandSerializers.writes.serialize(apply.writes, out, version);
+            out.writeUnsignedVInt32(apply.flags.bits());
         }
 
         protected abstract A deserializeApply(TxnId txnId, Ballot ballot, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind,
-                                              Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result);
+                                              Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result, ExecuteFlags flags);
 
         @Override
         public A deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
@@ -94,13 +97,14 @@ public class ApplySerializers
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
                                     KeySerializers.nullableFullRoute.deserialize(in),
                                     (txnId.is(Write) ? CommandSerializers.writes.deserialize(in, version) : null),
-                                    ResultSerializers.APPLIED);
+                                    ResultSerializers.APPLIED,
+                                    ExecuteFlags.get(in.readUnsignedVInt32()));
         }
 
         @Override
         public long serializedBodySize(A apply, Version version)
         {
-            return   CommandSerializers.ballot.serializedSize(apply.ballot)
+            return CommandSerializers.ballot.serializedSize(apply.ballot)
                    + TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
                    + TypeSizes.sizeofUnsignedVInt(apply.maxEpoch - apply.minEpoch)
                    + kind.serializedSize(apply.kind)
@@ -108,7 +112,9 @@ public class ApplySerializers
                    + DepsSerializers.partialDeps.serializedSize(apply.deps)
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
                    + KeySerializers.nullableFullRoute.serializedSize(apply.fullRoute)
-                   + (apply.txnId.is(Write) ? CommandSerializers.writes.serializedSize(apply.writes, version) : 0);
+                   + (apply.txnId.is(Write) ? CommandSerializers.writes.serializedSize(apply.writes, version) : 0)
+                   + VIntCoding.sizeOfUnsignedVInt(apply.flags.bits())
+            ;
         }
     }
 
@@ -116,9 +122,9 @@ public class ApplySerializers
     {
         @Override
         protected Apply deserializeApply(TxnId txnId, Ballot ballot, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind,
-                                         Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result)
+                                         Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result, ExecuteFlags flags)
         {
-            return Apply.SerializationSupport.create(txnId, ballot, scope, minEpoch, waitForEpoch, maxEpoch, kind, executeAt, deps, txn, fullRoute, writes, result);
+            return Apply.SerializationSupport.create(txnId, ballot, scope, minEpoch, waitForEpoch, maxEpoch, kind, executeAt, deps, txn, fullRoute, writes, result, flags);
         }
     };
 

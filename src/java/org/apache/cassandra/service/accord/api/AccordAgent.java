@@ -22,8 +22,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
-import javax.annotation.Nullable;
-
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +38,6 @@ import accord.local.SafeCommandStore;
 import accord.local.TimeService;
 import accord.messages.ReplyContext;
 import accord.primitives.Keys;
-import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Status;
@@ -144,9 +141,13 @@ public class AccordAgent implements Agent
     @Override
     public void onUncaughtException(Throwable t)
     {
+        handleUncaughtException(t);
+    }
+
+    public static void handleUncaughtException(Throwable t)
+    {
         if (t instanceof RequestTimeoutException || t instanceof CancellationException)
             return;
-        logger.error("Uncaught accord exception", t);
         JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }
 
@@ -154,7 +155,7 @@ public class AccordAgent implements Agent
     public void onCaughtException(Throwable t, String context)
     {
         logger.warn(context, t);
-        JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+        JVMStabilityInspector.inspectThrowable(t);
     }
 
     @Override
@@ -350,11 +351,5 @@ public class AccordAgent implements Agent
     public long minStaleHlc(Node node, boolean requested)
     {
         return node.now() - (100 + getAccordScheduleDurabilityTxnIdLag(MICROSECONDS));
-    }
-
-    @Override
-    public void onViolation(String message, Participants<?> participants, @Nullable TxnId notWitnessed, @Nullable Timestamp notWitnessedExecuteAt, @Nullable TxnId by, @Nullable Timestamp byEexecuteAt)
-    {
-        logger.error(message);
     }
 }

@@ -42,7 +42,7 @@ public class AccordMetrics
     public final static AccordMetrics writeMetrics = new AccordMetrics("rw");
 
     public static final String STABLE_LATENCY = "StableLatency";
-    public static final String EXECUTE_LATENCY = "ExecuteLatency";
+    public static final String PREAPPLY_LATENCY = "PreApplyLatency";
     public static final String APPLY_LATENCY = "ApplyLatency";
     public static final String APPLY_DURATION = "ApplyDuration";
     public static final String PARTIAL_DEPENDENCIES = "PartialDependencies";
@@ -67,9 +67,9 @@ public class AccordMetrics
     public final Timer stableLatency;
 
     /**
-     * The time between start on the coordinator and execution on this replica.
+     * The time between start on the coordinator and arrival of the result on this replica.
      */
-    public final Timer executeLatency;
+    public final Timer preapplyLatency;
 
     /**
      * The time between start on the coordinator and application on this replica.
@@ -77,21 +77,26 @@ public class AccordMetrics
     public final Timer applyLatency;
 
     /**
+     * TODO (expected): probably more interesting is latency from preapplied to apply;
+     *  we already track local write latencies, whch this effectively duplicates (but including queueing latencies)
      * Duration of applying changes.
      */
     public final Timer applyDuration;
 
     /**
-     * A histogram of the number of dependencies per partial transaction at this replica.
+     * A histogram of the number of dependencies per transaction at this replica.
      */
-    public final Histogram partialDependencies;
+    public final Histogram localDependencies;
 
+    /**
+     * TODO (expected): this should be a Gauge
+     */
     public final Meter progressLogSize;
 
     /**
      * A histogram of the number of dependencies per transaction at this coordinator.
      */
-    public final Histogram dependencies;
+    public final Histogram coordinatorDependencies;
 
     /**
      * The number of fast path transactions executed on this coordinator.
@@ -137,14 +142,14 @@ public class AccordMetrics
     {
         DefaultNameFactory replica = new DefaultNameFactory(ACCORD_REPLICA, scope);
         stableLatency = Metrics.timer(replica.createMetricName(STABLE_LATENCY));
-        executeLatency = Metrics.timer(replica.createMetricName(EXECUTE_LATENCY));
+        preapplyLatency = Metrics.timer(replica.createMetricName(PREAPPLY_LATENCY));
         applyLatency = Metrics.timer(replica.createMetricName(APPLY_LATENCY));
         applyDuration = Metrics.timer(replica.createMetricName(APPLY_DURATION));
-        partialDependencies = Metrics.histogram(replica.createMetricName(PARTIAL_DEPENDENCIES), true);
+        localDependencies = Metrics.histogram(replica.createMetricName(PARTIAL_DEPENDENCIES), true);
         progressLogSize = Metrics.meter(replica.createMetricName(PROGRESS_LOG_SIZE));
 
         DefaultNameFactory coordinator = new DefaultNameFactory(ACCORD_COORDINATOR, scope);
-        dependencies = Metrics.histogram(coordinator.createMetricName(DEPENDENCIES), true);
+        coordinatorDependencies = Metrics.histogram(coordinator.createMetricName(DEPENDENCIES), true);
         fastPaths = Metrics.meter(coordinator.createMetricName(FAST_PATHS));
         slowPaths = Metrics.meter(coordinator.createMetricName(SLOW_PATHS));
         preempts = Metrics.meter(coordinator.createMetricName(PREEMPTS));
@@ -217,16 +222,16 @@ public class AccordMetrics
         }
 
         @Override
-        public void onExecuted(Command cmd)
+        public void onPreApplied(Command cmd)
         {
             long now = AccordTimeService.nowMicros();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
                 Timestamp trxTimestamp = cmd.txnId();
-                metrics.executeLatency.update(now - trxTimestamp.hlc(), TimeUnit.MICROSECONDS);
+                metrics.preapplyLatency.update(now - trxTimestamp.hlc(), TimeUnit.MICROSECONDS);
                 PartialDeps deps = cmd.partialDeps();
-                metrics.partialDependencies.update(deps != null ? deps.txnIdCount() : 0);
+                metrics.localDependencies.update(deps != null ? deps.txnIdCount() : 0);
             }
         }
 
@@ -239,7 +244,8 @@ public class AccordMetrics
             {
                 Timestamp trxTimestamp = cmd.txnId();
                 metrics.applyLatency.update(now - trxTimestamp.hlc(), TimeUnit.MICROSECONDS);
-                metrics.applyDuration.update(now - applyStartTimestamp, TimeUnit.MICROSECONDS);
+                if (applyStartTimestamp > 0)
+                    metrics.applyDuration.update(now - applyStartTimestamp, TimeUnit.MICROSECONDS);
             }
         }
 
@@ -250,7 +256,7 @@ public class AccordMetrics
             if (metrics != null)
             {
                 metrics.fastPaths.mark();
-                metrics.dependencies.update(deps.txnIdCount());
+                metrics.coordinatorDependencies.update(deps.txnIdCount());
             }
         }
 
@@ -261,7 +267,7 @@ public class AccordMetrics
             if (metrics != null)
             {
                 metrics.slowPaths.mark();
-                metrics.dependencies.update(deps.txnIdCount());
+                metrics.coordinatorDependencies.update(deps.txnIdCount());
             }
         }
 

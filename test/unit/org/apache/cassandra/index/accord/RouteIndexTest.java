@@ -171,7 +171,7 @@ public class RouteIndexTest extends CQLTester
         Domain domain = state.domainGen.next(rs);
         TxnId txnId = state.nextTxnId(domain);
         Route<?> route = createRoute(state, rs, domain, rs.nextInt(1, 20));
-        int storeId = state.accordService.node().commandStores().select(route.homeKey()).id();
+        int storeId = state.accordService.node().commandStores().unsafeForKey(route.homeKey()).id();
         return new InsertTxn(storeId, txnId, SaveStatus.PreAccepted, route);
     }
 

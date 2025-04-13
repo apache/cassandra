@@ -52,6 +52,12 @@ class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     }
 
     @Override
+    AccordExecutorLoops loops()
+    {
+        return loops;
+    }
+
+    @Override
     boolean isInLoop()
     {
         return loops.isInLoop();

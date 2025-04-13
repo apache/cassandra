@@ -22,19 +22,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
-import accord.api.Agent;
 import accord.api.Data;
 import accord.api.Result;
 import accord.coordinate.CoordinationAdapter;
-import accord.local.AgentExecutor;
-import accord.local.CommandStore;
+import accord.coordinate.ExecuteFlag.CoordinationFlags;
 import accord.local.Node;
 import accord.local.Node.Id;
+import accord.local.SequentialAsyncExecutor;
 import accord.messages.Commit;
 import accord.messages.Commit.Kind;
 import accord.primitives.AbstractRanges;
@@ -76,7 +74,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.interop.AccordInteropReadCallback.MaximalCommitSender;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
@@ -111,35 +108,6 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWri
  */
 public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSender
 {
-    static class InteropExecutor implements AgentExecutor
-    {
-        private final AccordAgent agent;
-
-        public InteropExecutor(AccordAgent agent)
-        {
-            this.agent = agent;
-        }
-
-        @Override
-        public Agent agent()
-        {
-            return agent;
-        }
-
-        @Override
-        public <T> AsyncChain<T> build(Callable<T> task)
-        {
-            try
-            {
-                return AsyncChains.success(task.call());
-            }
-            catch (Throwable e)
-            {
-                return AsyncChains.failure(e);
-            }
-        }
-    }
-
     private final Node node;
     private final TxnId txnId;
     private final Txn txn;
@@ -148,7 +116,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     private final Timestamp executeAt;
     private final Deps deps;
     private final BiConsumer<? super Result, Throwable> callback;
-    private final AgentExecutor executor;
+    private final SequentialAsyncExecutor executor;
     private final ConsistencyLevel consistencyLevel;
     private final AccordEndpointMapper endpointMapper;
 
@@ -163,7 +131,7 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
     private final AccordUpdate.Kind updateKind;
 
     public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Ballot ballot, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
-                                  AgentExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper)
+                                  SequentialAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper)
     {
         requireArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
         this.node = node;
@@ -401,10 +369,9 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
         else
             result = readChains();
 
-        CommandStore cs = node.commandStores().select(route.homeKey());
-        result.beginAsResult().withExecutor(cs).begin((data, failure) -> {
+        result.begin((data, failure) -> {
             if (failure == null)
-                ((CoordinationAdapter)node.coordinationAdapter(txnId, Standard)).persist(node, executes, route, ballot, txnId, txn, executeAt, deps, txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null, txn.result(txnId, executeAt, data), callback);
+                ((CoordinationAdapter)node.coordinationAdapter(txnId, Standard)).persist(node, executor, executes, route, ballot, CoordinationFlags.none(), txnId, txn, executeAt, deps, txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null, txn.result(txnId, executeAt, data), callback);
             else
                 callback.accept(null, failure);
         });

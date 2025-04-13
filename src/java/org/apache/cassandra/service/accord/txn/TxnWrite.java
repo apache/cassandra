@@ -27,13 +27,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.DataStore;
 import accord.api.Write;
+import accord.local.CommandStore;
 import accord.local.SafeCommandStore;
 import accord.primitives.PartialTxn;
 import accord.primitives.Routable.Domain;
@@ -45,7 +46,6 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
@@ -62,6 +62,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
@@ -135,13 +137,13 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                    '}';
         }
 
-        public AsyncChain<Void> write(TableMetadatas tables, boolean preserveTimestamps, long timestamp)
+        public AsyncChain<Void> write(Executor executor, TableMetadatas tables, boolean preserveTimestamps, long timestamp)
         {
             PartitionUpdate update = deserialize(tables);
             if (!preserveTimestamps)
                 update = new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build();
             Mutation mutation = new Mutation(update, PotentialTxnConflicts.ALLOW);
-            return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::applyUnsafe);
+            return AsyncChains.ofRunnable(executor, mutation::applyUnsafe);
         }
 
         @Override
@@ -424,7 +426,13 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     }
 
     @Override
-    public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, TxnId txnId, Timestamp executeAt, DataStore store, PartialTxn txn)
+    public AsyncChain<Void> apply(SafeCommandStore safeStore, Seekable key, TxnId txnId, Timestamp executeAt, PartialTxn txn)
+    {
+        return applyDirect(safeStore.commandStore(), key, txnId, executeAt, txn);
+    }
+
+    @Override
+    public AsyncChain<Void> applyDirect(CommandStore commandStore, Seekable key, TxnId txnId, Timestamp executeAt, PartialTxn txn)
     {
         // UnrecoverableRepairUpdate will deserialize as null at other nodes
         // Accord should skip the Update for a read transaction, but handle it here anyways
@@ -438,15 +446,16 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         List<AsyncChain<Void>> results = new ArrayList<>();
         if (isConditionMet)
         {
+            AccordExecutor executor = ((AccordCommandStore) commandStore).executor();
             boolean preserveTimestamps = txnUpdate.preserveTimestamps();
             // Apply updates not specified fully by the client but built from fragments completed by data from reads.
             // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
-            forEachWithKey(key, write -> results.add(write.write(tables, preserveTimestamps, timestamp)));
+            forEachWithKey(key, write -> results.add(write.write(executor, tables, preserveTimestamps, timestamp)));
             // Apply updates that are fully specified by the client and not reliant on data from reads.
             // ex. INSERT INTO tbl (a, b, c) VALUES (1, 2, 3)
             // These updates are persisted only in TxnUpdate and not in TxnWrite to avoid duplication.
             List<Update> updates = txnUpdate.completeUpdatesForKey((RoutableKey) key);
-            updates.forEach(write -> results.add(write.write(tables, preserveTimestamps, timestamp)));
+            updates.forEach(write -> results.add(write.write(executor, tables, preserveTimestamps, timestamp)));
         }
 
         if (results.isEmpty())
