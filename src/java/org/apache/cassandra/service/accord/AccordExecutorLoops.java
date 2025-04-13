@@ -20,12 +20,15 @@ package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.IntFunction;
+import java.util.stream.Stream;
 
 import accord.utils.Invariants;
 import org.agrona.collections.Long2ObjectHashMap;
+import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 import org.apache.cassandra.service.accord.AccordExecutor.Mode;
+import org.apache.cassandra.service.accord.AccordExecutor.TaskRunner;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -36,21 +39,33 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 class AccordExecutorLoops
 {
+    static abstract class LoopTask extends TaskRunner implements Runnable
+    {
+        final String id;
+        LoopTask(String id) { this.id = id; }
+        @Override public String id() { return id; }
+    }
+
     private final Long2ObjectHashMap<Thread> loops;
+    private final Long2ObjectHashMap<LoopTask> tasks;
 
     private final AtomicInteger running = new AtomicInteger();
     private final Condition terminated = Condition.newOneTimeCondition();
 
-    public AccordExecutorLoops(Mode mode, int threads, IntFunction<String> name, Function<Mode, Runnable> loopFactory)
+    public AccordExecutorLoops(Mode mode, int threads, IntFunction<String> loopName, BiFunction<String, Mode, LoopTask> loopFactory)
     {
         Invariants.require(mode == RUN_WITH_LOCK ? threads == 1 : threads >= 1);
         running.addAndGet(threads);
         loops = new Long2ObjectHashMap<>(threads, 0.65f);
+        tasks = new Long2ObjectHashMap<>(threads, 0.65f);
         for (int i = 0; i < threads; ++i)
         {
-            Thread thread = executorFactory().startThread(name.apply(i), wrap(loopFactory.apply(mode)), NON_DAEMON, INFINITE_LOOP);
+            String name = loopName.apply(i);
+            LoopTask task = loopFactory.apply(name, mode);
+            Thread thread = executorFactory().startThread(name, wrap(task), NON_DAEMON, INFINITE_LOOP);
             Thread conflict = loops.putIfAbsent(thread.getId(), thread);
             Invariants.require(conflict == null || !conflict.isAlive(), "Allocated two threads with the same threadId!");
+            tasks.put(thread.getId(), task);
         }
     }
 
@@ -68,6 +83,11 @@ class AccordExecutorLoops
                     terminated.signalAll();
             }
         };
+    }
+
+    public Stream<? extends DebuggableTaskRunner> active()
+    {
+        return tasks.values().stream();
     }
 
     public boolean isInLoop()

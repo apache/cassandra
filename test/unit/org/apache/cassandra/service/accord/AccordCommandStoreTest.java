@@ -49,6 +49,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.ImmutableBitSet;
 import accord.utils.SimpleBitSet;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -130,7 +131,7 @@ public class AccordCommandStoreTest
         SimpleBitSet waitingOnApply = new SimpleBitSet(3);
         waitingOnApply.set(1);
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
-        Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
+        Pair<Writes, Result> result = AsyncChains.getBlocking(AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt));
 
         Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, Majority, StoreParticipants.all(route),
                                                      promised, executeAt, txn, dependencies, accepted,

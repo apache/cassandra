@@ -286,10 +286,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
 
     public long maxTimestamp()
     {
-        long timestamp = complexDeletion.markedForDeleteAt();
-        for (Cell<?> cell : this)
-            timestamp = Math.max(timestamp, cell.timestamp());
-        return timestamp;
+        return BTree.<Cell>accumulate(cells, (cell, ts) -> Math.max(ts, cell.timestamp()), complexDeletion.markedForDeleteAt());
     }
 
     // This is the partner in crime of ArrayBackedRow.setValue. The exact warning apply. The short

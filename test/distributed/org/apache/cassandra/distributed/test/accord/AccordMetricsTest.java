@@ -32,6 +32,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.ProtocolModifiers;
+import accord.primitives.TxnId.FastPath;
+import accord.primitives.TxnId.FastPaths;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -72,7 +75,10 @@ public class AccordMetricsTest extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupCluster(Function.identity(), 2);
-        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> {
+            AccordService.instance().setCacheSize(0);
+            ProtocolModifiers.Toggles.setPermittedFastPaths(new FastPaths(FastPath.Unoptimised));
+        }));
         for (int i = 0; i < SHARED_CLUSTER.size(); i++) // initialize metrics
             logger.trace(SHARED_CLUSTER.get(i + 1).callOnInstance(() -> AccordMetrics.readMetrics.toString() + AccordMetrics.writeMetrics.toString()));
     }
@@ -120,8 +126,8 @@ public class AccordMetricsTest extends AccordTestBase
         SHARED_CLUSTER.coordinator(1).executeWithResult(readCql(), ConsistencyLevel.ALL, 0, 0, 1, 1);
         assertCoordinatorMetrics(0, "ro", 1, 0, 0, 0, 0);
         assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
-        assertReplicaMetrics(0, "ro", 1, 1, 0);
-        assertReplicaMetrics(1, "ro", 1, 1, 0);
+        assertReplicaMetrics(0, "ro", 0, 1, 1);
+        assertReplicaMetrics(1, "ro", 0, 1, 1);
         assertZeroMetrics("rw");
     }
 
@@ -285,9 +291,9 @@ public class AccordMetricsTest extends AccordTestBase
         Map<String, Long> metrics = diff(countingMetrics0).get(node);
         Function<String, Long> metric = n -> metrics.get(nameFactory.createMetricName(n).getMetricName());
         assertThat(metric.apply(AccordMetrics.STABLE_LATENCY)).isLessThanOrEqualTo(stable);
-        assertThat(metric.apply(AccordMetrics.EXECUTE_LATENCY)).isEqualTo(executions);
+        assertThat(metric.apply(AccordMetrics.PREAPPLY_LATENCY)).isEqualTo(executions);
         assertThat(metric.apply(AccordMetrics.APPLY_LATENCY)).isEqualTo(applications);
-        assertThat(metric.apply(AccordMetrics.APPLY_DURATION)).isEqualTo(applications);
+        assertThat(metric.apply(AccordMetrics.APPLY_DURATION)).isEqualTo(scope.equals("rw") ? applications : 0);
         assertThat(metric.apply(AccordMetrics.PARTIAL_DEPENDENCIES)).isEqualTo(executions);
 
         // Verify that replica metrics are published to the appropriate virtual table:

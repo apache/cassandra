@@ -85,6 +85,8 @@ public interface IAccordService
     @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime);
     @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime) throws RequestExecutionException;
 
+    List<AccordExecutor> executors();
+
     interface IAccordResult<V>
     {
         V success();
@@ -212,6 +214,12 @@ public interface IAccordService
         public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull RequestTime requestTime)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public List<AccordExecutor> executors()
+        {
+            return List.of();
         }
 
         @Override
@@ -381,6 +389,12 @@ public interface IAccordService
         public TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
         {
             return delegate.coordinate(minEpoch, txn, consistencyLevel, requestTime);
+        }
+
+        @Override
+        public List<AccordExecutor> executors()
+        {
+            return delegate.executors();
         }
 
         @Nonnull

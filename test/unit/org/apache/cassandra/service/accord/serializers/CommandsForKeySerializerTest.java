@@ -46,6 +46,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.api.Agent;
+import accord.api.AsyncExecutor;
 import accord.api.DataStore;
 import accord.api.Journal;
 import accord.api.Key;
@@ -65,6 +66,7 @@ import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.local.SequentialAsyncExecutor;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.cfk.CommandsForKey;
@@ -244,7 +246,6 @@ public class CommandsForKeySerializerTest
                     return Command.Committed.committed(builder(), saveStatus);
 
                 case PreApplied:
-                case Applying:
                 case Applied:
                     return Command.Executed.executed(builder(), saveStatus);
 
@@ -423,7 +424,7 @@ public class CommandsForKeySerializerTest
     @Test
     public void serde()
     {
-        testOne(629993588068216851L);
+        testOne(-4567266914751633833L);
         Random random = new Random();
         for (int i = 0 ; i < 10000 ; ++i)
         {
@@ -479,7 +480,7 @@ public class CommandsForKeySerializerTest
                 }
             }
 
-            Choices<SaveStatus> saveStatusChoices = Choices.uniform(EnumSet.complementOf(EnumSet.of(SaveStatus.TruncatedApply, SaveStatus.TruncatedUnapplied, SaveStatus.TruncatedApplyWithOutcome)).toArray(SaveStatus[]::new));
+            Choices<SaveStatus> saveStatusChoices = Choices.uniform(EnumSet.complementOf(EnumSet.of(SaveStatus.Applying, SaveStatus.TruncatedApply, SaveStatus.TruncatedUnapplied, SaveStatus.TruncatedApplyWithOutcome)).toArray(SaveStatus[]::new));
             Supplier<SaveStatus> saveStatusSupplier = () -> {
                 SaveStatus result = saveStatusChoices.choose(source);
                 while (result.is(Status.Truncated)) // we don't currently process truncations
@@ -697,6 +698,8 @@ public class CommandsForKeySerializerTest
         @Override public ProgressLog progressLog() { return null; }
         @Override public NodeCommandStoreService node() { return new NodeCommandStoreService()
         {
+            @Override public AsyncExecutor someExecutor() { throw new UnsupportedOperationException(); }
+            @Override public SequentialAsyncExecutor someSequentialExecutor() { throw new UnsupportedOperationException(); }
             @Override public long epoch() { return 0;}
             @Override public Node.Id id() { return Node.Id.NONE; }
             @Override public Timeouts timeouts() { return null; }
@@ -704,6 +707,8 @@ public class CommandsForKeySerializerTest
             @Override public DurabilityService durability() { return null; }
             @Override public long uniqueNow(long atLeast) { return 0; }
             @Override public TopologyManager topology() { return null; }
+            @Override public long currentStamp() { return 0; }
+            @Override public void updateStamp() { throw new UnsupportedOperationException(); }
             @Override public long now() { return 0; }
             @Override public long elapsed(TimeUnit unit) { return 0; }
         }; }

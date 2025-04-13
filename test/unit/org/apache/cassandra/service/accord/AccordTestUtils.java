@@ -34,6 +34,7 @@ import java.util.stream.IntStream;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
 
+import accord.api.AsyncExecutor;
 import accord.api.Data;
 import accord.api.Journal;
 import accord.api.ProgressLog.NoOpProgressLog;
@@ -52,6 +53,7 @@ import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.local.SequentialAsyncExecutor;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
@@ -74,6 +76,7 @@ import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.SortedArrays.SortedArrayList;
+import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorPlus;
@@ -210,35 +213,24 @@ public class AccordTestUtils
         return Ballot.fromValues(epoch, hlc, new Node.Id(node));
     }
 
-    public static Pair<Writes, Result> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
+    public static AsyncChain<Pair<Writes, Result>> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
-        AtomicReference<Pair<Writes, Result>> result = new AtomicReference<>();
+        AtomicReference<AsyncChain<Pair<Writes, Result>>> result = new AtomicReference<>();
         getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txn.keys().toParticipants()),
                            safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
         return result.get();
     }
 
-    public static Pair<Writes, Result> processTxnResultDirect(SafeCommandStore safeStore, TxnId txnId, PartialTxn txn, Timestamp executeAt)
+    public static AsyncChain<Pair<Writes, Result>> processTxnResultDirect(SafeCommandStore safeStore, TxnId txnId, PartialTxn txn, Timestamp executeAt)
     {
         TxnRead read = (TxnRead) txn.read();
-        Data readData = read.keys().stream().map(key -> {
-                                try
-                                {
-                                    return AsyncChains.getBlocking(read.read(key, safeStore, executeAt, null));
-                                }
-                                catch (InterruptedException e)
-                                {
-                                    throw new UncheckedInterruptedException(e);
-                                }
-                                catch (ExecutionException e)
-                                {
-                                    throw new RuntimeException(e);
-                                }
-                            })
-                            .reduce(null, TxnData::merge);
-        return Pair.create(txnId.is(Write) ? txn.execute(txnId, executeAt, readData) : null,
-                           txn.query().compute(txnId, executeAt, txn.keys(), readData, txn.read(), txn.update()));
-
+        return AsyncChains.allOf(read.keys().stream().map(key -> read.read(safeStore, key, executeAt))
+                                                          .collect(Collectors.toList()))
+                                               .map(list -> {
+                                                   Data data = list.stream().reduce(Data::merge).orElse(new TxnData());
+                                                   return Pair.create(txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null,
+                                                                      txn.query().compute(txnId, executeAt, txn.keys(), data, txn.read(), txn.update()));
+                                               });
     }
 
     public static String wrapInTxn(String query)
@@ -342,7 +334,20 @@ public class AccordTestUtils
     {
         NodeCommandStoreService time = new NodeCommandStoreService()
         {
+            @Override
+            public AsyncExecutor someExecutor()
+            {
+                return null;
+            }
+
+            @Override
+            public SequentialAsyncExecutor someSequentialExecutor()
+            {
+                return null;
+            }
+
             private ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
+            private long stamp = 0;
 
             @Override public Timeouts timeouts() { return null; }
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
@@ -353,6 +358,8 @@ public class AccordTestUtils
             @Override public long uniqueNow(long atLeast) { return now.getAsLong(); }
             @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
+            @Override public long currentStamp() { return stamp; }
+            @Override public void updateStamp() {++stamp;}
         };
 
         AccordAgent agent = new AccordAgent();

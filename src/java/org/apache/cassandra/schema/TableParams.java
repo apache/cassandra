@@ -293,7 +293,7 @@ public final class TableParams
             && extensions.equals(p.extensions)
             && cdc == p.cdc
             && readRepair == p.readRepair
-            && fastPath.equals(fastPath)
+            && fastPath.equals(p.fastPath)
             && transactionalMode == p.transactionalMode
             && transactionalMigrationFrom == p.transactionalMigrationFrom
             && pendingDrop == p.pendingDrop

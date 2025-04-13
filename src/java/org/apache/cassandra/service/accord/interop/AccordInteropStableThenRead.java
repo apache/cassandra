@@ -50,7 +50,6 @@ import org.apache.cassandra.service.accord.serializers.CommitSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
-import org.apache.cassandra.service.accord.serializers.ReadDataSerializers.ReadDataSerializer;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.messages.Commit.WithDeps.HasDeps;
@@ -63,7 +62,7 @@ import static accord.primitives.SaveStatus.ReadyToExecute;
 public class AccordInteropStableThenRead extends AccordInteropRead
 {
     // TODO (desired): duplicates a lot of StableThenReadSerializer
-    public static final IVersionedSerializer<AccordInteropStableThenRead> requestSerializer = new ReadDataSerializer<>()
+    public static final IVersionedSerializer<AccordInteropStableThenRead> requestSerializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(AccordInteropStableThenRead read, DataOutputPlus out, Version version) throws IOException

@@ -166,10 +166,18 @@ public class AccordLoadTest extends AccordTestBase
                     }
                     catch (RejectedExecutionException e)
                     {
-                        int index = 1 + random.nextInt(cluster.size());
-                        logger.info("Picking new coordinator ... {}", index);
-                        coordinator = cluster.coordinator(index);
                         inFlight.release();
+                        while (true)
+                        {
+                            try
+                            {
+                                int index = 1 + random.nextInt(cluster.size());
+                                logger.info("Picking new coordinator ... {}", index);
+                                coordinator = cluster.coordinator(index);
+                                break;
+                            }
+                            catch (Throwable t) { logger.info("Failed to select coordinator", t); }
+                        }
                     }
                     batchSize++;
                     if (System.nanoTime() >= batchEnd)

@@ -38,7 +38,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.Key;
-import accord.api.Result;
 import accord.local.CheckedCommands;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -60,7 +59,6 @@ import accord.primitives.Status;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
-import accord.primitives.Writes;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -88,7 +86,6 @@ import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import static accord.local.KeyHistory.SYNC;
 import static accord.local.PreLoadContext.contextFor;
@@ -281,15 +278,12 @@ public class CompactionAccordIteratorsTest
 
     private static void flush(AccordCommandStore commandStore)
     {
-        commandStore.executeBlocking(() -> {
-            // clear cache and wait for post-eviction writes to complete
-            try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
-            {
-                long cacheSize = cache.global.capacity();
-                cache.global.setCapacity(0);
-                cache.global.setCapacity(cacheSize);
-            }
-        });
+        try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
+        {
+            long cacheSize = cache.global.capacity();
+            cache.global.setCapacity(0);
+            cache.global.setCapacity(cacheSize);
+        }
         commandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
         while (commandStore.executor().hasTasks())
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
@@ -331,10 +325,11 @@ public class CompactionAccordIteratorsTest
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, txnId, partialDeps, (a, b) -> {});
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
-                Pair<Writes, Result> result = AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
+            getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC), safe -> {
+                return AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
+            }).flatMap(i -> i).flatMap(result -> commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
                 CheckedCommands.apply(safe, txnId, route, txnId, partialDeps, partialTxn, result.left, result.right, (a, b) -> {});
-            }).beginAsResult());
+            })));
             flush(commandStore);
             // The apply chain is asychronous, so it is easiest to just spin until it is applied
             // in order to have the updated state in the system table

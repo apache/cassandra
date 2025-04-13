@@ -330,7 +330,6 @@ public class BTreeRow extends AbstractRow
         if (!mayFilterColumns && !mayHaveShadowed && droppedColumns.isEmpty())
             return this;
 
-
         LivenessInfo newInfo = primaryKeyLivenessInfo;
         Deletion newDeletion = deletion;
         if (mayHaveShadowed)

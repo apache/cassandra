@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -40,6 +41,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -83,6 +86,34 @@ public class TxnDataRangeValue extends ArrayList<FilteredPartition> implements T
         return this;
     }
 
+    @Override
+    public TxnDataValue without(Ranges ranges)
+    {
+        TokenRange range = range();
+        if (range == null || !ranges.intersects(range))
+            return this;
+
+        if (ranges.contains(range))
+            return null;
+
+        TxnDataRangeValue result = new TxnDataRangeValue();
+        for (FilteredPartition p : this)
+        {
+            if (!ranges.contains(new TokenKey(p.metadata().id, p.partitionKey().getToken())))
+                result.add(p);
+        }
+        return result;
+    }
+
+    @Override
+    public long maxTimestamp()
+    {
+        long max = 0;
+        for (FilteredPartition partition : this)
+            max = Math.max(max, partition.maxTimestamp());
+        return max;
+    }
+
     Supplier<PartitionIterator> toPartitionIterator(boolean reversed)
     {
         // Sorting isn't preserved when merging TxnDataRangeValues together so sort here
@@ -95,12 +126,24 @@ public class TxnDataRangeValue extends ArrayList<FilteredPartition> implements T
         sort(Comparator.comparing(FilteredPartition::partitionKey));
     }
 
-    private @Nullable TableId tableId()
+    public @Nullable TableId tableId()
     {
         if (isEmpty())
             return null;
         return get(0).metadata().id;
     }
+
+    public @Nullable TokenRange range()
+    {
+        if (isEmpty())
+            return null;
+        FilteredPartition first = get(0);
+        FilteredPartition last = get(size() - 1);
+        return TokenRange.create(new TokenKey(first.metadata().id, first.partitionKey().getToken()),
+                                 new TokenKey(last.metadata().id, last.partitionKey().getToken()));
+    }
+
+
 
     @Override
     public long estimatedSizeOnHeap()

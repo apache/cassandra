@@ -42,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Journal;
+import accord.api.ProtocolModifiers;
 import accord.coordinate.CoordinateMaxConflict;
 import accord.coordinate.CoordinateTransaction;
 import accord.coordinate.KeyBarriers;
@@ -131,12 +132,11 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
-import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.Write;
-import static accord.primitives.TxnId.Cardinality.cardinality;
 import static accord.topology.TopologyManager.TopologyRange;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -154,8 +154,17 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 public class AccordService implements IAccordService, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
+    static
+    {
+        ProtocolModifiers.Toggles.setPermitLocalExecution(true);
+        ProtocolModifiers.Toggles.setRequiresUniqueHlcs(true);
+        ProtocolModifiers.Toggles.setFastReadExecMayResendTxn(true);
+        ProtocolModifiers.Toggles.setFastReadExec(MAY_BYPASS_SAFESTORE);
+        ProtocolModifiers.Toggles.setFastWriteExec(MAY_BYPASS_SAFESTORE);
+        ProtocolModifiers.Toggles.setDataStoreDetectsFutureReads(true);
+    }
 
-    private enum State {INIT, STARTED, SHUTTING_DOWN, SHUTDOWN}
+    private enum State { INIT, STARTED, SHUTTING_DOWN, SHUTDOWN }
 
     private final Node node;
     private final Shutdownable nodeShutdown;
@@ -320,7 +329,7 @@ public class AccordService implements IAccordService, Shutdownable
                              DefaultProgressLogs::new,
                              DefaultLocalListeners.Factory::new,
                              AccordCommandStores.factory(),
-                             new AccordInteropFactory(agent, configService),
+                             new AccordInteropFactory(configService),
                              journal.durableBeforePersister(),
                              journal);
         this.nodeShutdown = toShutdownable(node);
@@ -515,7 +524,7 @@ public class AccordService implements IAccordService, Shutdownable
             return syncInternal(minBound, keys, syncLocal, syncRemote);
 
         return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote)
-                          .flatMap(found -> KeyBarriers.await(node, found, syncLocal, syncRemote))
+                          .flatMap(found -> KeyBarriers.await(node, node.someSequentialExecutor(), found, syncLocal, syncRemote))
                           .flatMap(success -> {
                               if (success)
                                   return null;
@@ -525,7 +534,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     private AsyncChain<Void> syncInternal(Timestamp minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
     {
-        TxnId txnId = node.nextTxnId(minBound, Write, Key, cardinality(keys));
+        TxnId txnId = node.nextTxnId(minBound, keys, Write);
         FullRoute<?> route = node.computeRoute(txnId, keys);
         Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.NONE, TxnUpdate.empty(), new TableMetadatasAndKeys(TableMetadatas.none(), keys));
         return CoordinateTransaction.coordinate(node, route, txnId, txn)
@@ -535,7 +544,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public AsyncChain<Timestamp> maxConflict(Ranges ranges)
     {
-        return node.commandStores().any().build(() -> CoordinateMaxConflict.maxConflict(node, ranges)).flatMap(i -> i);
+        return CoordinateMaxConflict.maxConflict(node, ranges);
     }
 
     public static <V> V getBlocking(AsyncChain<V> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
@@ -632,9 +641,15 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
+    public List<AccordExecutor> executors()
+    {
+        return ((AccordCommandStores)node.commandStores()).executors();
+    }
+
+    @Override
     public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
     {
-        TxnId txnId = node.nextTxnId(txn.kind(), txn.keys().domain(), cardinality(txn.keys()));
+        TxnId txnId = node.nextTxnId(txn);
         long timeout = txnId.isWrite() ? DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) : DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
         ClientRequestBookkeeping bookkeeping = txn.isWrite() ? accordWriteBookkeeping : accordReadBookkeeping;
         bookkeeping.metrics.keySize.update(txn.keys().size());

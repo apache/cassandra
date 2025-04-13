@@ -28,9 +28,9 @@ import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.AsyncExecutor;
 import accord.api.MessageSink;
 import accord.impl.RequestCallbacks;
-import accord.local.AgentExecutor;
 import accord.local.Node;
 import accord.messages.Callback;
 import accord.messages.MessageType;
@@ -180,7 +180,7 @@ public class AccordMessageSink implements MessageSink
 
     // TODO (expected): permit bulk send to save esp. on callback registration (and combine records)
     @Override
-    public void send(Node.Id to, Request request, int attempt, AgentExecutor executor, Callback callback)
+    public void send(Node.Id to, Request request, int attempt, AsyncExecutor executor, Callback callback)
     {
         Verb verb = VerbMapping.getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());

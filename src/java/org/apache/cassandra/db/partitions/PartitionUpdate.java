@@ -52,7 +52,6 @@ import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ColumnData;
-import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
@@ -87,6 +86,7 @@ import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
+import static org.apache.cassandra.db.rows.Rows.EMPTY_STATIC_ROW;
 import static org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer.IS_EMPTY;
 
 /**
@@ -142,7 +142,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     public static PartitionUpdate emptyUpdate(TableMetadata metadata, DecoratedKey key)
     {
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
-        BTreePartitionData holder = new BTreePartitionData(RegularAndStaticColumns.NONE, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
+        BTreePartitionData holder = new BTreePartitionData(RegularAndStaticColumns.NONE, BTree.empty(), deletionInfo, EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
         return new PartitionUpdate(metadata, metadata.epoch, key, holder, deletionInfo, false);
     }
 
@@ -159,7 +159,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     public static PartitionUpdate fullPartitionDelete(TableMetadata metadata, DecoratedKey key, long timestamp, long nowInSec)
     {
         MutableDeletionInfo deletionInfo = new MutableDeletionInfo(timestamp, nowInSec);
-        BTreePartitionData holder = new BTreePartitionData(RegularAndStaticColumns.NONE, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
+        BTreePartitionData holder = new BTreePartitionData(RegularAndStaticColumns.NONE, BTree.empty(), deletionInfo, EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
         return new PartitionUpdate(metadata, metadata.epoch, key, holder, deletionInfo, false);
     }
 
@@ -183,7 +183,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             ),
             row == null ? BTree.empty() : BTree.singleton(row),
             deletionInfo,
-            staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow,
+            staticRow == null ? EMPTY_STATIC_ROW : staticRow,
             EncodingStats.NO_STATS
         );
         return new PartitionUpdate(metadata, metadata.epoch, key, holder, deletionInfo, false);
@@ -222,7 +222,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             columns = columns.mergeTo(Columns.from(row));
 
         BTreePartitionData holder = new BTreePartitionData(new RegularAndStaticColumns(Columns.NONE, columns),
-                                                           BTree.build(rows), deletionInfo, Rows.EMPTY_STATIC_ROW,
+                                                           BTree.build(rows), deletionInfo, EMPTY_STATIC_ROW,
                                                            EncodingStats.NO_STATS);
         return new PartitionUpdate(metadata, metadata.epoch, key, holder, deletionInfo, false);
     }
@@ -484,44 +484,7 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public long maxTimestamp()
     {
-        long maxTimestamp = deletionInfo.maxTimestamp();
-        for (Row row : this)
-        {
-            maxTimestamp = Math.max(maxTimestamp, row.primaryKeyLivenessInfo().timestamp());
-            for (ColumnData cd : row)
-            {
-                if (cd.column().isSimple())
-                {
-                    maxTimestamp = Math.max(maxTimestamp, ((Cell<?>)cd).timestamp());
-                }
-                else
-                {
-                    ComplexColumnData complexData = (ComplexColumnData)cd;
-                    maxTimestamp = Math.max(maxTimestamp, complexData.complexDeletion().markedForDeleteAt());
-                    for (Cell<?> cell : complexData)
-                        maxTimestamp = Math.max(maxTimestamp, cell.timestamp());
-                }
-            }
-        }
-
-        if (this.holder.staticRow != null)
-        {
-            for (ColumnData cd : this.holder.staticRow.columnData())
-            {
-                if (cd.column().isSimple())
-                {
-                    maxTimestamp = Math.max(maxTimestamp, ((Cell<?>) cd).timestamp());
-                }
-                else
-                {
-                    ComplexColumnData complexData = (ComplexColumnData) cd;
-                    maxTimestamp = Math.max(maxTimestamp, complexData.complexDeletion().markedForDeleteAt());
-                    for (Cell<?> cell : complexData)
-                        maxTimestamp = Math.max(maxTimestamp, cell.timestamp());
-                }
-            }
-        }
-        return maxTimestamp;
+        return maxTimestamp(deletionInfo.maxTimestamp());
     }
 
     /**
@@ -1003,7 +966,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         private BTree.Builder<Row> rowBuilder;
 
         private final int initialRowCapacity;
-        private Row staticRow = Rows.EMPTY_STATIC_ROW;
+        private Row staticRow = EMPTY_STATIC_ROW;
         private final RegularAndStaticColumns columns;
         private boolean isBuilt = false;
 
@@ -1013,7 +976,7 @@ public class PartitionUpdate extends AbstractBTreePartition
                        int initialRowCapacity,
                        boolean canHaveShadowedData)
         {
-            this(metadata, key, columns, initialRowCapacity, canHaveShadowedData, Rows.EMPTY_STATIC_ROW, MutableDeletionInfo.live(), BTree.empty());
+            this(metadata, key, columns, initialRowCapacity, canHaveShadowedData, EMPTY_STATIC_ROW, MutableDeletionInfo.live(), BTree.empty());
         }
 
         public Builder(TableMetadata metadata,

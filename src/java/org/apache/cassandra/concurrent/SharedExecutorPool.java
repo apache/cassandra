@@ -29,9 +29,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import org.apache.cassandra.concurrent.DebuggableTask.RunningDebuggableTask;
+import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
@@ -121,12 +121,9 @@ public class SharedExecutorPool
         allWorkers.remove(worker);
     }
 
-    public List<RunningDebuggableTask> runningTasks()
+    public Stream<? extends DebuggableTaskRunner> workers()
     {
-        return allWorkers.stream()
-                         .map(worker -> new RunningDebuggableTask(worker.toString(), worker.currentDebuggableTask()))
-                         .filter(RunningDebuggableTask::hasTask)
-                         .collect(Collectors.toList());
+        return allWorkers.stream();
     }
 
     void maybeStartSpinningWorker()

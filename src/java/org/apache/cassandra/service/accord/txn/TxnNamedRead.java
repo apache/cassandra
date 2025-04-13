@@ -35,10 +35,7 @@ import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResults;
-import org.apache.cassandra.concurrent.DebuggableTask;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
@@ -60,6 +57,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -69,7 +67,6 @@ import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Comparables;
-import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -229,7 +226,7 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
         return TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
     }
 
-    public AsyncChain<Data> read(TableMetadatas tables, ConsistencyLevel consistencyLevel, Seekable key, Timestamp executeAt)
+    public AsyncChain<Data> read(AccordExecutor executor, TableMetadatas tables, ConsistencyLevel consistencyLevel, Seekable key, Timestamp executeAt)
     {
         ReadCommand command = deserialize(tables);
         if (command == null)
@@ -244,9 +241,9 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
         switch (key.domain())
         {
             case Key:
-                return performLocalKeyRead(((SinglePartitionReadCommand) command).withTransactionalSettings(withoutReconciliation, nowInSeconds));
+                return performLocalKeyRead(executor, ((SinglePartitionReadCommand) command).withTransactionalSettings(withoutReconciliation, nowInSeconds));
             case Range:
-                return performLocalRangeRead(((PartitionRangeReadCommand) command), key.asRange(), consistencyLevel, nowInSeconds);
+                return performLocalRangeRead(executor, ((PartitionRangeReadCommand) command), key.asRange(), consistencyLevel, nowInSeconds);
             default:
                 throw new IllegalStateException("Unhandled domain " + key.domain());
         }
@@ -289,66 +286,35 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
         return deserialize(tables);
     }
 
-    private AsyncChain<Data> performLocalKeyRead(SinglePartitionReadCommand read)
+    private AsyncChain<Data> performLocalKeyRead(AccordExecutor executor, SinglePartitionReadCommand command)
     {
-        Callable<Data> readCallable = () ->
+        Callable<Data> callable = new Callable<>()
         {
-            try (ReadExecutionController controller = read.executionController();
-                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(read.executeLocally(controller), read.nowInSec()))
+            @Override
+            public Data call()
             {
-                TxnData result = new TxnData();
-                if (iterator.hasNext())
+                try (ReadExecutionController controller = command.executionController();
+                     PartitionIterator iterator = UnfilteredPartitionIterators.filter(command.executeLocally(controller), command.nowInSec()))
                 {
-                    TxnDataKeyValue value = new TxnDataKeyValue(iterator.next());
-                    if (value.hasRows() || read.selectsFullPartition())
-                        result.put(name, value);
+                    TxnData result = new TxnData();
+                    if (iterator.hasNext())
+                    {
+                        TxnDataKeyValue value = new TxnDataKeyValue(iterator.next());
+                        if (value.hasRows() || command.selectsFullPartition())
+                            result.put(name, value);
+                    }
+                    return result;
                 }
-                return result;
+            }
+
+            @Override
+            public String toString()
+            {
+                return command.toCQLString();
             }
         };
 
-        return AsyncChains.ofCallable(Stage.READ.executor(), readCallable, (callable, receiver) ->
-            new DebuggableTask.RunnableDebuggableTask()
-            {
-                private final long approxCreationTimeNanos = MonotonicClock.Global.approxTime.now();
-                private volatile long approxStartTimeNanos;
-
-                @Override
-                public void run()
-                {
-                    approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
-
-                    try
-                    {
-                        Data call = callable.call();
-                        receiver.accept(call, null);
-                    }
-                    catch (Throwable t)
-                    {
-                        logger.debug("AsyncChain Callable threw an Exception", t);
-                        receiver.accept(null, t);
-                    }
-                }
-
-                @Override
-                public long creationTimeNanos()
-                {
-                    return approxCreationTimeNanos;
-                }
-
-                @Override
-                public long startTimeNanos()
-                {
-                    return approxStartTimeNanos;
-                }
-
-                @Override
-                public String description()
-                {
-                    return read.toCQLString();
-                }
-            }
-        );
+        return submit(executor, callable, callable);
     }
 
     public static PartitionRangeReadCommand commandForSubrange(PartitionRangeReadCommand command, Range r, ConsistencyLevel consistencyLevel, long nowInSeconds)
@@ -392,75 +358,48 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
         return command.withTransactionalSettings(nowInSeconds, subRange, isRangeContinuation, readsWithoutReconciliation(consistencyLevel));
     }
 
-    private AsyncChain<Data> performLocalRangeRead(PartitionRangeReadCommand command, Range r, ConsistencyLevel consistencyLevel, long nowInSeconds)
+    private AsyncChain<Data> performLocalRangeRead(AccordExecutor executor, PartitionRangeReadCommand command, Range r, ConsistencyLevel consistencyLevel, long nowInSeconds)
     {
         PartitionRangeReadCommand read = commandForSubrange(command, r, consistencyLevel, nowInSeconds);
-        Callable<Data> readCallable = () ->
+        Callable<Data> callable = new Callable<>()
         {
-            try (ReadExecutionController controller = read.executionController();
-                 UnfilteredPartitionIterator partition = read.executeLocally(controller);
-                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
+            @Override
+            public Data call()
             {
-                TxnData result = new TxnData();
-                TxnDataRangeValue value = new TxnDataRangeValue();
-                while (iterator.hasNext())
+                try (ReadExecutionController controller = read.executionController();
+                     UnfilteredPartitionIterator partition = read.executeLocally(controller);
+                     PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
                 {
-                    try (RowIterator rows = iterator.next())
+                    TxnData result = new TxnData();
+                    TxnDataRangeValue value = new TxnDataRangeValue();
+                    while (iterator.hasNext())
                     {
-                        FilteredPartition filtered = FilteredPartition.create(rows);
-                        if (filtered.hasRows() || read.selectsFullPartition())
+                        try (RowIterator rows = iterator.next())
                         {
-                            value.add(filtered);
+                            FilteredPartition filtered = FilteredPartition.create(rows);
+                            if (filtered.hasRows() || read.selectsFullPartition())
+                            {
+                                value.add(filtered);
+                            }
                         }
                     }
+                    result.put(TxnData.txnDataName(TxnDataNameKind.USER), value);
+                    return result;
                 }
-                result.put(TxnData.txnDataName(TxnDataNameKind.USER), value);
-                return result;
+            }
+
+            @Override
+            public String toString()
+            {
+                return command.toCQLString();
             }
         };
+        return submit(executor, callable, callable);
+    }
 
-        return AsyncChains.ofCallable(Stage.READ.executor(), readCallable, (callable, receiver) ->
-                                                                           new DebuggableTask.RunnableDebuggableTask()
-                                                                           {
-                                                                               private final long approxCreationTimeNanos = MonotonicClock.Global.approxTime.now();
-                                                                               private volatile long approxStartTimeNanos;
-
-                                                                               @Override
-                                                                               public void run()
-                                                                               {
-                                                                                   approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
-
-                                                                                   try
-                                                                                   {
-                                                                                       Data call = callable.call();
-                                                                                       receiver.accept(call, null);
-                                                                                   }
-                                                                                   catch (Throwable t)
-                                                                                   {
-                                                                                       logger.debug("AsyncChain Callable threw an Exception", t);
-                                                                                       receiver.accept(null, t);
-                                                                                   }
-                                                                               }
-
-                                                                               @Override
-                                                                               public long creationTimeNanos()
-                                                                               {
-                                                                                   return approxCreationTimeNanos;
-                                                                               }
-
-                                                                               @Override
-                                                                               public long startTimeNanos()
-                                                                               {
-                                                                                   return approxStartTimeNanos;
-                                                                               }
-
-                                                                               @Override
-                                                                               public String description()
-                                                                               {
-                                                                                   return command.toCQLString();
-                                                                               }
-                                                                           }
-        );
+    private AsyncChain<Data> submit(AccordExecutor executor, Callable<Data> readCallable, Object describe)
+    {
+        return executor.buildDebuggable(readCallable, describe);
     }
 
     static final ParameterisedVersionedSerializer<TxnNamedRead, TableMetadatasAndKeys, Version> serializer = new ParameterisedVersionedSerializer<>()

@@ -62,8 +62,7 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
-import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
-import org.apache.cassandra.service.accord.serializers.ReadDataSerializers.ReadDataSerializer;
+import org.apache.cassandra.service.accord.serializers.ReadDataSerializer;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -77,7 +76,7 @@ import static com.google.common.base.Preconditions.checkState;
 public class AccordInteropRead extends ReadData
 {
 
-    public static final IVersionedSerializer<AccordInteropRead> requestSerializer = new ReadDataSerializer<AccordInteropRead>()
+    public static final IVersionedSerializer<AccordInteropRead> requestSerializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(AccordInteropRead read, DataOutputPlus out, Version version) throws IOException
@@ -108,7 +107,7 @@ public class AccordInteropRead extends ReadData
         }
     };
 
-    public static final IVersionedSerializer<ReadReply> replySerializer = new ReadDataSerializers.ReplySerializer<>(LocalReadData.serializer);
+    public static final IVersionedSerializer<ReadReply> replySerializer = new ReadDataSerializer.ReplySerializer<>(LocalReadData.serializer);
 
     private static class LocalReadData implements Data
     {
@@ -153,6 +152,14 @@ public class AccordInteropRead extends ReadData
             this.remoteResponse = null;
         }
 
+        private LocalReadData(@Nonnull List<Pair<TokenKey, ReadResponse>> responses, @Nonnull ReadCommand readCommand)
+        {
+            checkNotNull(readCommand, "readCommand is null");
+            this.localResponses = responses;
+            this.readCommand = readCommand;
+            this.remoteResponse = null;
+        }
+
         public LocalReadData(@Nonnull ReadResponse remoteResponse)
         {
             checkNotNull(remoteResponse);
@@ -172,9 +179,15 @@ public class AccordInteropRead extends ReadData
         @Override
         public Data merge(Data data)
         {
+            if (localResponses.isEmpty())
+                return data;
+
+            LocalReadData other = (LocalReadData)data;
+            if (other.localResponses.isEmpty())
+                return this;
+
             checkState(remoteResponse == null, "Already serialized");
             checkState(readCommand.isRangeRequest(), "Should only ever be a single partition");
-            LocalReadData other = (LocalReadData)data;
             checkState(readCommand == other.readCommand, "Should share the same ReadCommand");
             if (localResponses.size() == 1)
             {
@@ -182,8 +195,23 @@ public class AccordInteropRead extends ReadData
                 merged.add(localResponses.get(0));
                 localResponses = merged;
             }
+            // TODO (required): this may be safe, but it is surprising and we should avoid it (e.g. by using immutable structure like btree)
             localResponses.addAll(other.localResponses);
             return this;
+        }
+
+        @Override
+        public Data without(Ranges ranges)
+        {
+            List<Pair<TokenKey, ReadResponse>> copy = new ArrayList<>(localResponses.size());
+            for (Pair<TokenKey, ReadResponse> r : localResponses)
+            {
+                if (!ranges.contains(r.left))
+                    copy.add(r);
+            }
+            if (copy.size() == localResponses.size())
+                return this;
+            return new LocalReadData(localResponses, readCommand);
         }
 
         private void ensureRemoteResponse()
@@ -225,13 +253,13 @@ public class AccordInteropRead extends ReadData
 
     public AccordInteropRead(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> scope, long executeAtEpoch, ReadCommand command)
     {
-        super(to, topologies, txnId, scope, executeAtEpoch);
+        super(to, topologies, txnId, scope, null, null, executeAtEpoch);
         this.command = command;
     }
 
     public AccordInteropRead(TxnId txnId, Participants<?> scope, long executeAtEpoch, ReadCommand command)
     {
-        super(txnId, scope, executeAtEpoch);
+        super(txnId, scope, null, null, executeAtEpoch);
         this.command = command;
     }
 
@@ -251,7 +279,7 @@ public class AccordInteropRead extends ReadData
             SinglePartitionReadCommand readCommand = ((SinglePartitionReadCommand)command);
             TokenKey key = new TokenKey(readCommand.metadata().id, readCommand.partitionKey().getToken());
             if (!execute.contains(key))
-                return AsyncChains.success(null);
+                return AsyncChains.success(new LocalReadData(new ArrayList<>(), readCommand));
 
             ReadCommand submit = readCommand.withTransactionalSettings(TxnNamedRead.readsWithoutReconciliation(txnRead.cassandraConsistencyLevel()), nowInSeconds);
             return AsyncChains.ofCallable(Stage.READ.executor(), () -> new LocalReadData(key, ReadCommandVerbHandler.instance.doRead(submit, false), command));
@@ -273,7 +301,7 @@ public class AccordInteropRead extends ReadData
         }
 
         if (chains.isEmpty())
-            return AsyncChains.success(null);
+            return AsyncChains.success(new LocalReadData(new ArrayList<>(), command));
 
         return AsyncChains.reduce(chains, Data::merge);
     }
@@ -285,9 +313,9 @@ public class AccordInteropRead extends ReadData
     }
 
     @Override
-    protected ReadOk constructReadOk(Ranges unavailable, Data data, long uniqueHlc)
+    protected void reply(Ranges unavailable, Data data, long uniqueHlc)
     {
-        return new InteropReadOk(unavailable, data, uniqueHlc);
+        reply(new InteropReadOk(unavailable, data, uniqueHlc), null);
     }
 
     @Override

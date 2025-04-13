@@ -92,9 +92,9 @@ class AccordExecutorSimple extends AccordExecutor
                     return;
 
                 --tasks;
-                try { task.preRunExclusive(); task.run(); }
+                try { task.preRunExclusive(null); task.run(); }
                 catch (Throwable t) { task.fail(t); }
-                finally { task.cleanupExclusive(); }
+                finally { task.cleanupExclusive(null); }
             }
         }
         catch (Throwable t)

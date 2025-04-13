@@ -20,6 +20,9 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 
+import javax.annotation.Nullable;
+
+import accord.primitives.Ranges;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
@@ -63,6 +66,8 @@ public interface TxnDataValue
     TxnDataValue.Kind kind();
 
     TxnDataValue merge(TxnDataValue other);
+    @Nullable TxnDataValue without(Ranges ranges);
+    long maxTimestamp();
 
     long estimatedSizeOnHeap();
 

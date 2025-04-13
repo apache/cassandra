@@ -103,13 +103,14 @@ public class AccordDataStore implements DataStore
             List<Future<?>> futures = new ArrayList<>();
             for (Map.Entry<TableId, SnapshotBounds> e : tables.entrySet())
             {
+                // TODO (required): is it safe to ignore null tableMetadata (or ColumnFamilyStore below)?
                 TableMetadata tableMetadata = metadata.schema.getTableMetadata(e.getKey());
-                SnapshotBounds bounds = e.getValue();
-                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(tableMetadata);
+                if (tableMetadata == null) continue;
 
-                // TODO (required): is it safe to ignore null cfs?
+                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(tableMetadata);
                 if (cfs == null) continue;
 
+                SnapshotBounds bounds = e.getValue();
                 View view = cfs.getTracker().getView();
                 for (Memtable memtable : view.getAllMemtables())
                 {

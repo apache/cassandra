@@ -26,7 +26,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.impl.progresslog.DefaultProgressLogs;
 import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
@@ -42,7 +41,6 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -67,7 +65,6 @@ public class QueriesTableTest extends TestBaseImpl
         SHARED_CLUSTER = init(Cluster.build(1).withInstanceInitializer(QueryDelayHelper::install)
                                               .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
                                                                 .set("write_request_timeout", "10s")).start());
-
         DRIVER_CLUSTER = JavaDriverUtils.create(SHARED_CLUSTER);
         SESSION = DRIVER_CLUSTER.connect();
     }
@@ -178,10 +175,6 @@ public class QueriesTableTest extends TestBaseImpl
     {
         SHARED_CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".accord_tbl (k int primary key, v int)  WITH " + TransactionalMode.mixed_reads.asCqlParam());
 
-        // Disable recovery to make sure only one local read occurs:
-        for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(true));
-
         String update = "BEGIN TRANSACTION\n" +
                         "  LET row1 = (SELECT * FROM " + KEYSPACE + ".accord_tbl WHERE k = 0);\n" +
                         "  SELECT row1.k, row1.v;\n" +
@@ -220,7 +213,7 @@ public class QueriesTableTest extends TestBaseImpl
             String threadId = row.get("thread_id").toString();
             String task = row.get("task").toString();
 
-            readVisible |= threadId.contains("Read") && task.contains("SELECT");
+            readVisible |= (threadId.contains("AccordExecutor") || threadId.contains("Read")) && task.contains("SELECT");
             coordinatorTxnVisible |= threadId.contains("Native-Transport-Requests") && task.contains("BEGIN TRANSACTION");
         }
 

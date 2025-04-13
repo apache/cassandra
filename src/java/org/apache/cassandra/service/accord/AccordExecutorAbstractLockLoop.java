@@ -19,11 +19,14 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.locks.Lock;
+import java.util.stream.Stream;
 
 import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
+import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
+import org.apache.cassandra.service.accord.AccordExecutorLoops.LoopTask;
 import org.apache.cassandra.utils.concurrent.ConcurrentLinkedStack;
 
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
@@ -42,12 +45,14 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     abstract void notifyWork();
     abstract void notifyWorkExclusive();
     abstract void awaitExclusive() throws InterruptedException;
+    abstract AccordExecutorLoops loops();
     abstract boolean isInLoop();
     abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
 
     <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         // if we're a loop thread, we will poll the waitingToRun queue when we come around
+        // NOTE: this assumes no synchronous blocking tasks are submitted to this executor
         if (isInLoop()) submitted.push(async.apply(p1a, p2, p3, p4));
         else submitExternal(sync, async, p1s, p1a, p2, p3, p4);
     }
@@ -129,150 +134,171 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
         ++running;
     }
 
-    Runnable task(Mode mode)
+    LoopTask task(String name, Mode mode)
     {
-        return mode == RUN_WITH_LOCK ? this::runWithLock : this::runWithoutLock;
+        return mode == RUN_WITH_LOCK ? runWithLock(name) : runWithoutLock(name);
     }
 
-    protected void runWithLock()
+    protected LoopTask runWithLock(String name)
     {
-        while (true)
+        return new LoopTask(name)
         {
-            lock.lock();
-            try
+            @Override
+            public void run()
             {
-                resumeExclusive();
-                enterLockExclusive();
+                Task task;
                 while (true)
                 {
-                    Task task = pollWaitingToRunExclusive();
-
-                    if (task != null)
-                    {
-                        --tasks;
-                        try
-                        {
-                            task.preRunExclusive();
-                            task.run();
-                        }
-                        catch (Throwable t)
-                        {
-                            task.fail(t);
-                        }
-                        finally
-                        {
-                            task.cleanupExclusive();
-                        }
-                    }
-                    else
-                    {
-                        if (shutdown)
-                        {
-                            pauseExclusive();
-                            exitLockExclusive();
-                            notifyWorkExclusive(); // always notify on shutdown
-                            return;
-                        }
-
-                        pauseExclusive();
-                        awaitExclusive();
-                        resumeExclusive();
-                    }
-                }
-            }
-            catch (Throwable t)
-            {
-                pauseExclusive();
-                exitLockExclusive();
-
-                try { agent.onUncaughtException(t); }
-                catch (Throwable t2) { }
-            }
-            finally
-            {
-                lock.unlock();
-            }
-        }
-    }
-
-    protected void runWithoutLock()
-    {
-        Task task = null;
-        while (true)
-        {
-            lock.lock();
-            try
-            {
-                if (task != null) task.cleanupExclusive();
-                else resumeExclusive();
-                enterLockExclusive();
-
-                while (true)
-                {
-                    task = pollWaitingToRunExclusive();
-                    if (task != null)
-                    {
-                        exitLockExclusive();
-                        break;
-                    }
-
-                    if (shutdown)
-                    {
-                        exitLockExclusive();
-                        notifyWorkExclusive();
-                        return;
-                    }
-
-                    pauseExclusive();
-                    awaitExclusive();
-                    resumeExclusive();
-                }
-                --tasks;
-                task.preRunExclusive();
-            }
-            catch (Throwable t)
-            {
-                if (task != null)
-                {
-                    try { task.fail(t); }
-                    catch (Throwable t2) { t.addSuppressed(t2); }
-                    try { task.cleanupExclusive(); }
-                    catch (Throwable t2) { t.addSuppressed(t2); }
-                    try { agent.onUncaughtException(t); }
-                    catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
-                    task = null;
-                }
-                if (isHeldByExecutor)
-                    pauseExclusive();
-                exitLockExclusive();
-                continue;
-            }
-            finally
-            {
-                lock.unlock();
-            }
-
-            try
-            {
-                task.run();
-            }
-            catch (Throwable t)
-            {
-                try { task.fail(t); }
-                catch (Throwable t2)
-                {
+                    lock.lock();
                     try
                     {
-                        t2.addSuppressed(t);
-                        agent.onUncaughtException(t2);
+                        resumeExclusive();
+                        enterLockExclusive();
+                        while (true)
+                        {
+                            task = pollWaitingToRunExclusive();
+
+                            if (task != null)
+                            {
+                                --tasks;
+                                try
+                                {
+                                    task.preRunExclusive(this);
+                                    task.run();
+                                }
+                                catch (Throwable t)
+                                {
+                                    task.fail(t);
+                                }
+                                finally
+                                {
+                                    task.cleanupExclusive(this);
+                                }
+                            }
+                            else
+                            {
+                                if (shutdown)
+                                {
+                                    pauseExclusive();
+                                    exitLockExclusive();
+                                    notifyWorkExclusive(); // always notify on shutdown
+                                    return;
+                                }
+
+                                pauseExclusive();
+                                awaitExclusive();
+                                resumeExclusive();
+                            }
+                        }
                     }
-                    catch (Throwable t3)
+                    catch (Throwable t)
                     {
-                        // empty to ensure we definitely loop so we cleanup the task
+                        pauseExclusive();
+                        exitLockExclusive();
+
+                        try { agent.onUncaughtException(t); }
+                        catch (Throwable t2) { }
+                    }
+                    finally
+                    {
+                        lock.unlock();
                     }
                 }
             }
-        }
+        };
+    }
+
+    protected LoopTask runWithoutLock(String name)
+    {
+        return new LoopTask(name)
+        {
+            @Override
+            public void run()
+            {
+                Task task = null;
+                while (true)
+                {
+                    lock.lock();
+                    try
+                    {
+                        if (task != null) task.cleanupExclusive(this);
+                        else resumeExclusive();
+                        enterLockExclusive();
+
+                        while (true)
+                        {
+                            task = pollWaitingToRunExclusive();
+                            if (task != null)
+                            {
+                                exitLockExclusive();
+                                break;
+                            }
+
+                            if (shutdown)
+                            {
+                                exitLockExclusive();
+                                notifyWorkExclusive();
+                                return;
+                            }
+
+                            pauseExclusive();
+                            awaitExclusive();
+                            resumeExclusive();
+                        }
+                        --tasks;
+                        task.preRunExclusive(this);
+                    }
+                    catch (Throwable t)
+                    {
+                        if (task != null)
+                        {
+                            try { task.fail(t); }
+                            catch (Throwable t2) { t.addSuppressed(t2); }
+                            try { task.cleanupExclusive(this); }
+                            catch (Throwable t2) { t.addSuppressed(t2); }
+                            try { agent.onUncaughtException(t); }
+                            catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
+                            task = null;
+                        }
+                        if (isHeldByExecutor)
+                            pauseExclusive();
+                        exitLockExclusive();
+                        continue;
+                    }
+                    finally
+                    {
+                        lock.unlock();
+                    }
+
+                    try
+                    {
+                        task.run();
+                    }
+                    catch (Throwable t)
+                    {
+                        try { task.fail(t); }
+                        catch (Throwable t2)
+                        {
+                            try
+                            {
+                                t2.addSuppressed(t);
+                                agent.onUncaughtException(t2);
+                            }
+                            catch (Throwable t3)
+                            {
+                                // empty to ensure we definitely loop so we cleanup the task
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    @Override
+    public Stream<? extends DebuggableTaskRunner> active()
+    {
+        return loops().active();
     }
 
     @Override
