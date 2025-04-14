@@ -37,7 +37,7 @@ import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CompressionMetadata.Chunk;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TestCompressionParamsFactory;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -312,7 +312,7 @@ public class MmappedRegionsTest
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         try (SequentialWriter writer = new CompressedSequentialWriter(f, cf,
                                                                       null, SequentialWriterOption.DEFAULT,
-                                                                      CompressionParams.snappy(), sstableMetadataCollector))
+                                                                      TestCompressionParamsFactory.snappy(), sstableMetadataCollector))
         {
             writer.write(buffer);
             writer.finish();
@@ -393,7 +393,7 @@ public class MmappedRegionsTest
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, cf, null,
                                                                                 SequentialWriterOption.DEFAULT,
-                                                                                CompressionParams.deflate(chunkSize << 10),
+                                                                                TestCompressionParamsFactory.deflate(chunkSize << 10),
                                                                                 sstableMetadataCollector))
         {
             ByteBuffer slice = buffer.slice();
