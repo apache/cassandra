@@ -727,6 +727,11 @@
         </exclusions>
       </dependency>
       <dependency>
+        <groupId>info.picocli</groupId>
+        <artifactId>picocli</artifactId>
+        <version>4.7.5</version>
+      </dependency>
+      <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-all</artifactId>
         <version>${netty.version}</version>
