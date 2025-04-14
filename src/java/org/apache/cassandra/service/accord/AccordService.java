@@ -393,6 +393,8 @@ public class AccordService implements IAccordService, Shutdownable
                 }
             }
 
+            WatermarkCollector.fetchAndReportWatermarksAsync(configService());
+
             int attempt = 0;
             int waitSeconds = 5;
             while (true)
@@ -418,8 +420,6 @@ public class AccordService implements IAccordService, Shutdownable
         {
             throw new RuntimeException(e);
         }
-
-        WatermarkCollector.fetchAndReportWatermarksAsync(configService());
 
         configService.start();
         fastPathCoordinator.start();
