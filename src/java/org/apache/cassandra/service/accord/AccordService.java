@@ -399,9 +399,10 @@ public class AccordService implements IAccordService, Shutdownable
             int waitSeconds = 5;
             while (true)
             {
+                Epoch await = Epoch.max(Epoch.create(configService.currentEpoch()), metadata.epoch);
                 try
                 {
-                    epochReady(metadata.epoch).get(waitSeconds, SECONDS);
+                    epochReady(await).get(waitSeconds, SECONDS);
                     break;
                 }
                 catch (TimeoutException e)

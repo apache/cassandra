@@ -216,6 +216,9 @@ public abstract class AbstractReadExecutor
         if (retry.equals(NeverSpeculativeRetryPolicy.INSTANCE) || consistencyLevel == ConsistencyLevel.EACH_QUORUM)
             return new NeverSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime, false);
 
+        if (retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE))
+            return new AlwaysSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime);
+
         // There are simply no extra replicas to speculate.
         // Handle this separately so it can record failed attempts to speculate due to lack of replicas
         if (replicaPlan.contacts().size() == replicaPlan.readCandidates().size())
@@ -223,9 +226,6 @@ public abstract class AbstractReadExecutor
             boolean recordFailedSpeculation = consistencyLevel != ConsistencyLevel.ALL;
             return new NeverSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime, recordFailedSpeculation);
         }
-
-        if (retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE))
-            return new AlwaysSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime);
         else // PERCENTILE or CUSTOM.
             return new SpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime);
     }
