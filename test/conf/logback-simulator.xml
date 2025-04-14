@@ -26,14 +26,14 @@
   <appender name="INSTANCEFILE" class="ch.qos.logback.core.FileAppender">
     <file>./build/test/logs/${cassandra.testtag}/${suitename}/${cluster_id}/${instance_id}/system.log</file>
     <encoder>
-      <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %msg%n</pattern>
+      <pattern>%highlight(%-5level) [%thread] ${instance_id} %date{ISO8601} %msg%n</pattern>
     </encoder>
     <immediateFlush>true</immediateFlush>
   </appender>
 
   <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-      <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %F:%L - %msg%n</pattern>
+      <pattern>%highlight(%-5level) [%thread] ${instance_id} %date{ISO8601} %boldWhite(%F:%L) - %msg%n</pattern>
     </encoder>
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
       <level>WARN</level>
