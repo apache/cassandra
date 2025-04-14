@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutionException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -92,7 +91,6 @@ public class HintServiceBytemanTest
         HintsService.instance.startDispatch();
     }
 
-    @Ignore
     @Test
     @BMRule(name = "Delay delivering hints",
     targetClass = "DispatchHintsTask",

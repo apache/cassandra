@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.Random;
 
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -60,7 +59,6 @@ public class SafeMemoryWriterTest
         testSafeMemoryWriter(CHUNK * 5, CHUNK, 65536);
     }
 
-    @Ignore
     @Test
     public void testOver2GBuffer() throws IOException
     {
