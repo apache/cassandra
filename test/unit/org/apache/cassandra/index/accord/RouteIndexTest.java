@@ -111,7 +111,7 @@ import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 
-public class RouteIndexTest extends CQLTester.InMemory
+public class RouteIndexTest extends CQLTester
 {
     private static final Node.Id NODE = new Node.Id(42);
     private static final int MIN_TOKEN = 0;
@@ -129,8 +129,6 @@ public class RouteIndexTest extends CQLTester.InMemory
         // since this test does frequent truncates, the info table gets updated and forced flushed... which is 90% of the cost of this test...
         // this flag disables that flush
         CassandraRelevantProperties.UNSAFE_SYSTEM.setBoolean(true);
-
-        setupFileSystem();
 
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setAccordTransactionsEnabled(true);
