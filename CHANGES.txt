@@ -1,4 +1,5 @@
 4.1.9
+ * Assign a separate queue for Hints which is different from Mutation queue (CASSANDRA-19958)
  * Fix mixed mode paxos ttl commit hang (CASSANDRA-20514)
  * Fix paxos mixed mode infinite loop (CASSANDRA-20493)
  * Optionally skip exception logging on invalid legacy protocol magic exception (CASSANDRA-19483)
