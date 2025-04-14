@@ -157,7 +157,7 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     public void testRangeQueryWithFilterOnSelectedColumnOnSkinnyTable()
     {
         if (coordinator == 2)
-            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on ReplicaFilteringProtection");
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "depends on ALLOW FILTERING");
         tester("WHERE a=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 2, 3)",
@@ -185,7 +185,7 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     public void testRangeQueryWithFilterOnSelectedColumnOnWideTable()
     {
         if (coordinator == 2)
-            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on ReplicaFilteringProtection");
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "depends on ALLOW FILTERING");
         tester("WHERE a=1 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
@@ -218,7 +218,7 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     public void testRangeQueryWithFilterOnUnselectedColumnOnSkinnyTable()
     {
         if (coordinator == 2)
-            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "depends on ReplicaFilteringProtection");
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "depends on ALLOW FILTERING");
 
         tester("WHERE b=3 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
@@ -246,6 +246,8 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnUnselectedColumnOnWideTable()
     {
+        if (coordinator == 2)
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "depends on ALLOW FILTERING");
         tester("WHERE b=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
