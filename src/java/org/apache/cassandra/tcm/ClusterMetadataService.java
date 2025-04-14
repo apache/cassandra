@@ -41,6 +41,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
@@ -48,6 +49,8 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
@@ -739,7 +742,7 @@ public class ClusterMetadataService
         ScheduledExecutors.optionalTasks.submit(() -> {
             try
             {
-                future.setSuccess(ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, from, awaitAtLeast));
+                future.setSuccess(fetchLogFromPeerOrCMS(metadata, from, awaitAtLeast));
             }
             catch (Throwable t)
             {
@@ -749,6 +752,19 @@ public class ClusterMetadataService
             }
         });
         return future;
+    }
+
+    public boolean maybeFetchLogFromPeerOrCMSAsync(MessageDelivery messaging, Message<?> message, Runnable onFetchSuccess)
+    {
+        ClusterMetadata metadata = metadata();
+        if (metadata.epoch.isEqualOrAfter(metadata.epoch))
+            return false;
+        Future<ClusterMetadata> f = fetchLogFromPeerOrCMSAsync(metadata, message.from(), message.epoch());
+        f.addCallback((success, failure) -> {
+            if (failure != null) messaging.respondWithFailure(RequestFailure.UNKNOWN, message);
+            else                 message.verb().stage.execute(onFetchSuccess);
+        });
+        return true;
     }
 
     /**
@@ -785,6 +801,24 @@ public class ClusterMetadataService
             throw new IllegalStateException("Still behind after fetching log from CMS");
         logger.debug("Fetched log from CMS - caught up from epoch {} to epoch {}", before, metadata.epoch);
         return metadata;
+    }
+
+    /**
+     * Combines {@link #fetchLogFromPeer} with {@link #fetchLogFromCMS} to synchronously fetch and apply log entries
+     * up to the requested epoch. The supplied peer will be contacted first and if after doing so, the current local
+     * metadata is not caught up to at least the required epoch, a further request is made to the CMS.
+     * The returned ClusterMetadata is guaranteed to have been published, though it may have also been superceded by
+     * further updates.
+     * If the requested epoch is not reached even after fetching from the CMS, an IllegalStateException is thrown.
+     * @param from Initial peer to contact. Usually this is the sender of a message containing the requested epoch,
+     *             which means it can be assumed that this peer (if available) can supply any missing log entries.
+     * @param awaitAtLeast The requested epoch.
+     * @return A published ClusterMetadata with all entries up to (at least) the requested epoch enacted.
+     * @throws IllegalStateException if the requested epoch could not be reached, even after falling back to CMS catchup
+     */
+    public ClusterMetadata fetchLogFromPeerOrCMS(InetAddressAndPort from, Epoch awaitAtLeast)
+    {
+        return fetchLogFromPeerOrCMS(metadata(), from, awaitAtLeast);
     }
 
     public ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException

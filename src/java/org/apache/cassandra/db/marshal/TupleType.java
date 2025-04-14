@@ -383,7 +383,7 @@ public class TupleType extends MultiElementType<ByteBuffer>
 
     public ByteBuffer pack(ByteBuffer... components)
     {
-        return pack(Arrays.asList(components), ByteBufferAccessor.instance);
+        return pack(Arrays.asList(components));
     }
 
     @Override
@@ -467,7 +467,7 @@ public class TupleType extends MultiElementType<ByteBuffer>
                 fields.add(type.fromString(fieldString));
             }
         }
-        return pack(fields, ByteBufferAccessor.instance);
+        return pack(fields);
     }
 
     @Override
@@ -608,7 +608,7 @@ public class TupleType extends MultiElementType<ByteBuffer>
         for (AbstractType<?> type : types)
             buffers.add(type.getMaskedValue());
 
-        return serializer.serialize(pack(buffers, ByteBufferAccessor.instance));
+        return serializer.serialize(pack(buffers));
     }
 
     @Override

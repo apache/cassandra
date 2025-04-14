@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +48,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -93,9 +93,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         return prs != null ? prs.previewKind : PreviewKind.NONE;
     }
 
+    @Override
     public void doVerb(final Message<RepairMessage> message)
     {
-        ClusterMetadataService.instance().fetchLogFromCMS(message.epoch());
+        if (DatabaseDescriptor.getAccordTransactionsEnabled()
+            && ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
+            return;
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
         try

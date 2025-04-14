@@ -57,16 +57,6 @@ public abstract class MultiElementType<T> extends AbstractType<T>
         return pack(elements, ByteBufferAccessor.instance);
     }
 
-    public final ByteBuffer packBuffer(List<ByteBuffer> elements)
-    {
-        return pack(elements, ByteBufferAccessor.instance);
-    }
-
-    public final byte[] packArray(List<byte[]> elements)
-    {
-        return pack(elements, ByteArrayAccessor.instance);
-    }
-
     /**
      * Returns the serialized representation of the elements composing the specified value.
      *

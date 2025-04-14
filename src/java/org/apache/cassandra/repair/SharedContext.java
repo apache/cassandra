@@ -39,6 +39,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -86,6 +87,11 @@ public interface SharedContext
     default Supplier<TimeUUID> timeUUID()
     {
         return TimeUUID.Generator::nextTimeUUID;
+    }
+
+    default ClusterMetadataService cms()
+    {
+        return ClusterMetadataService.instance();
     }
 
     class Global implements SharedContext

@@ -24,7 +24,6 @@ import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -194,7 +193,7 @@ public class TxnReference
     {
         UserType userType = (UserType) column.type;
         int field = ByteBufferUtil.getUnsignedShort(path.get(0), 0);
-        return userType.unpack(udt.buffer(), ByteBufferAccessor.instance).get(field);
+        return userType.unpack(udt.buffer()).get(field);
     }
 
     public AbstractType<?> getFieldSelectionType()

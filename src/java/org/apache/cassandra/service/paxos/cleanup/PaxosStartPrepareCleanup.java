@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -185,7 +186,8 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
     public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
     {
         return in -> {
-            ClusterMetadataService.instance().fetchLogFromCMS(in.epoch());
+            if (DatabaseDescriptor.getAccordTransactionsEnabled())
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMS(in.from(), in.epoch());
             ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
             // Note: pre-5.1 we would use gossip state included in the request payload to update topology
             // prior to cleanup. Topology is no longer derived from gossip state, so this has been removed.

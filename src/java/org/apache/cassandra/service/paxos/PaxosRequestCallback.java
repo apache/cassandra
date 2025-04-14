@@ -20,6 +20,7 @@ package org.apache.cassandra.service.paxos;
 
 import java.util.function.BiFunction;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +31,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.FailureRecordingCallback;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.utils.TriFunction;
 
 import static org.apache.cassandra.exceptions.RequestFailure.TIMEOUT;
 import static org.apache.cassandra.exceptions.RequestFailure.UNKNOWN;
@@ -45,7 +47,8 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
     @Override
     public void onResponse(Message<T> message)
     {
-        ClusterMetadataService.instance().fetchLogFromCMS(message.epoch());
+        if (DatabaseDescriptor.getAccordTransactionsEnabled())
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(message.from(), message.epoch());
         onResponse(message.payload, message.from());
     }
 
@@ -69,10 +72,6 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
         }
 
         onResponse(response, getBroadcastAddressAndPort());
-    }
-
-    public interface TriFunction<A, B, C, D> {
-        D apply(A var1, B var2, C var3);
     }
 
     protected <I, J> void executeOnSelf(I parameter1, J parameter2, TriFunction<I, J, InetAddressAndPort, T> execute)

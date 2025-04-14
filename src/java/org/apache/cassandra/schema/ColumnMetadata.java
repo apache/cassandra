@@ -735,7 +735,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                 if (hasConstraints)
                     ColumnConstraints.serializer.serialize(t.columnConstraints, out, version);
             }
-            if (version.isAtLeast(Version.V3))
+            if (version.isAtLeast(Version.V7))
                 out.writeInt(t.uniqueId);
         }
 
@@ -761,7 +761,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             else
                 constraints = ColumnConstraints.NO_OP;
             int uniqueId = NO_UNIQUE_ID;
-            if (version.isAtLeast(Version.V3))
+            if (version.isAtLeast(Version.V7))
                 uniqueId = in.readInt();
             return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, uniqueId, position, kind, mask, constraints);
         }
@@ -786,7 +786,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                    BOOL_SIZE +
                    ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version)) +
                    constraintsSize +
-                   (version.isAtLeast(Version.V3) ? 4 : 0);
+                   (version.isAtLeast(Version.V7) ? 4 : 0);
         }
     }
 }
