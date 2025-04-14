@@ -20,6 +20,7 @@ package org.apache.cassandra.service.paxos;
 
 import java.util.function.BiFunction;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +47,8 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
     @Override
     public void onResponse(Message<T> message)
     {
-        ClusterMetadataService.instance().fetchLogFromPeerOrCMS(message.from(), message.epoch());
+        if (DatabaseDescriptor.getAccordTransactionsEnabled())
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(message.from(), message.epoch());
         onResponse(message.payload, message.from());
     }
 

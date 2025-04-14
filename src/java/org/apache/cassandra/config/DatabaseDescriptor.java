@@ -5334,7 +5334,7 @@ public class DatabaseDescriptor
 
     public static boolean getAccordTransactionsEnabled()
     {
-        return conf.accord.enabled;
+        return conf == null ? false : conf.accord.enabled;
     }
 
     public static void setAccordTransactionsEnabled(boolean b)

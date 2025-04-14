@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,7 +96,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     @Override
     public void doVerb(final Message<RepairMessage> message)
     {
-        if (ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
+        if (DatabaseDescriptor.getAccordTransactionsEnabled()
+            && ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
             return;
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
