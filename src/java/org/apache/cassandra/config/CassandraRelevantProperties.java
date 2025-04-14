@@ -481,6 +481,13 @@ public enum CassandraRelevantProperties
     SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "true"),
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
     SIZE_RECORDER_INTERVAL("cassandra.size_recorder_interval", "300"),
+
+    /**
+     * Do not try to calculate optimal streaming candidates. This can take a lot of time in some configs specially
+     * with vnodes.
+     */
+    SKIP_OPTIMAL_STREAMING_CANDIDATES_CALCULATION("cassandra.skip_optimal_streaming_candidates_calculation", "false"),
+
     SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE("cassandra.skip_paxos_repair_on_topology_change"),
     /** If necessary for operational purposes, permit certain keyspaces to be ignored for paxos topology repairs. */
     SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES("cassandra.skip_paxos_repair_on_topology_change_keyspaces"),
