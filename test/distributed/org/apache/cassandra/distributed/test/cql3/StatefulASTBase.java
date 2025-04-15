@@ -76,11 +76,10 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -544,9 +543,9 @@ public class StatefulASTBase extends TestBaseImpl
         {
             try
             {
-                return ExceptionCode.fromValue(code).name();
+                return RequestFailureReason.fromCode(code).name();
             }
-            catch (ProtocolException e)
+            catch (IllegalArgumentException e)
             {
                 return "Unexpected code " + code + ": " + e.getMessage();
             }
