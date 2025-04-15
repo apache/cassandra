@@ -93,27 +93,6 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
         }
 
         @Override
-        public boolean allowNonPartitionQuery()
-        {
-            // This is disabled to make CI stable.  There are known issues that are being fixed so have to exclude for now
-            return false;
-        }
-
-        @Override
-        public boolean allowNonPartitionMultiColumnQuery()
-        {
-            // This is disabled to make CI stable.  There are known issues that are being fixed so have to exclude for now
-            return false;
-        }
-
-        @Override
-        public boolean allowPartitionQuery()
-        {
-            // This is disabled to make CI stable.  There are known issues that are being fixed so have to exclude for now
-            return false;
-        }
-
-        @Override
         protected boolean isMultiNode()
         {
             // When a seed fails its useful to rerun the test as a single node to see if the issue persists... but doing so corrupts the random history!

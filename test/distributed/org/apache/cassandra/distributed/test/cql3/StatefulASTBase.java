@@ -34,6 +34,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
@@ -46,6 +47,8 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
+import com.datastax.driver.core.exceptions.ReadFailureException;
+import com.datastax.driver.core.exceptions.WriteFailureException;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
@@ -73,6 +76,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -496,8 +500,32 @@ public class StatefulASTBase extends TestBaseImpl
                                  .findAny()
                                  .get();
                 ss.setHost(host);
-                ResultSet result = session.execute(ss);
+                ResultSet result;
+                try
+                {
+                    result = session.execute(ss);
+                }
+                catch (ReadFailureException t)
+                {
+                    throw new AssertionError("failed from=" + Maps.transformValues(t.getFailuresMap(), BaseState::safeErrorCode), t);
+                }
+                catch (WriteFailureException t)
+                {
+                    throw new AssertionError("failed from=" + Maps.transformValues(t.getFailuresMap(), BaseState::safeErrorCode), t);
+                }
                 return getRowsAsByteBuffer(result);
+            }
+        }
+
+        private static String safeErrorCode(Integer code)
+        {
+            try
+            {
+                return RequestFailureReason.fromCode(code).name();
+            }
+            catch (IllegalArgumentException e)
+            {
+                return "Unexpected code " + code + ": " + e.getMessage();
             }
         }
 
