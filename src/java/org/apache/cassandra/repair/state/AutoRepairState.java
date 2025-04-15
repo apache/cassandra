@@ -21,6 +21,7 @@ package org.apache.cassandra.repair.state;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -45,6 +46,9 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
+
+import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.MY_TURN;
+import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN;
 
 // AutoRepairState represents the state of automated repair for a given repair type.
 public abstract class AutoRepairState
@@ -91,6 +95,11 @@ public abstract class AutoRepairState
     {
         return new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
                                   options, keyspace);
+    }
+
+    public AutoRepairUtilsV2.RepairTurn calcRepairTurn(UUID myId)
+    {
+        return AutoRepairUtilsV2.myTurnToRunRepair(repairType, myId);
     }
 
     public long getLastRepairTime()
@@ -359,5 +368,15 @@ class BootstrapRepairState extends AutoRepairState
         option.getColumnFamilies().addAll(tables);
 
         return getRepairRunnable(keyspace, option);
+    }
+
+    @Override
+    public AutoRepairUtilsV2.RepairTurn calcRepairTurn(UUID myId)
+    {
+        if (!StorageService.instance.isBootstrapMode())
+        {
+            return NOT_MY_TURN;
+        }
+        return MY_TURN;
     }
 }

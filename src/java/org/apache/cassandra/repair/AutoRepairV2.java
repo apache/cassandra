@@ -163,7 +163,7 @@ public class AutoRepairV2
 
             //consistency level to use for local query
             UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
-            RepairTurn turn = AutoRepairUtilsV2.myTurnToRunRepair(repairType, myId);
+            RepairTurn turn = repairState.calcRepairTurn(myId);
             repairState.recordTurn(turn);
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {

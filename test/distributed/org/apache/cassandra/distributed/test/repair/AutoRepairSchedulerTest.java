@@ -21,6 +21,9 @@ package org.apache.cassandra.distributed.test.repair;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
@@ -121,9 +124,18 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
             }
         }));
         logger.info("Repair setup done");
+
+        // For AutoRepairConfig.RepairType.bootstrap, we do not insert any entries to the
+        // AUTO_REPAIR_KEYSPACE_NAME.AUTO_REPAIR_HISTORY_V2
+        // as it bypasses all the complex checks to determine whose turn is next, etc.
+        List<AutoRepairConfig.RepairType> repairTypes =
+        Arrays.stream(AutoRepairConfig.RepairType.values()).
+              filter(type -> type != AutoRepairConfig.RepairType.bootstrap).
+              collect(Collectors.toList());
+
         // validate that the repair ran on all nodes
         cluster.forEach(i -> i.runOnInstance(() -> {
-            for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+            for (AutoRepairConfig.RepairType repairType : repairTypes)
             {
                 while (AutoRepairMetricsManager.getMetrics(repairType).nodeRepairTimeInSec.getValue().longValue() <= 0)
                 {
@@ -139,7 +151,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                 logger.info("AutoRepair has completed one {} repair cycle", repairType);
             }
         }));
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        for (AutoRepairConfig.RepairType repairType : repairTypes)
         {
             validate(repairType.toString());
         }

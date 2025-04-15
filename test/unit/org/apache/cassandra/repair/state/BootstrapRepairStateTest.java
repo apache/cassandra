@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.repair.AutoRepairUtilsV2;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.messages.RepairOption;
@@ -78,5 +79,10 @@ public class BootstrapRepairStateTest extends CQLTester
         assertFalse(options.optimiseStreams());
         assertFalse(options.repairPaxos());
         assertFalse(options.paxosOnly());
+    }
+
+    @Test
+    public void testCalculatingTurn() {
+        assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
     }
 }

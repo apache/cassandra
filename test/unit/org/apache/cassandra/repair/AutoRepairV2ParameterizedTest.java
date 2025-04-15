@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.Sets;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -158,9 +159,14 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
 
         timeFuncCalls = 0;
         AutoRepairV2.timeFunc = System::currentTimeMillis;
-        AutoRepairV2.sleepFunc = (Long startTime, TimeUnit unit) -> {};
+        AutoRepairV2.sleepFunc = (Long startTime, TimeUnit unit) -> {
+        };
         resetCounters();
         resetConfig();
+
+        when(autoRepairState.calcRepairTurn(any())).thenAnswer(inv -> {
+            return AutoRepairUtilsV2.myTurnToRunRepair(repairType, inv.getArgument(0));
+        });
     }
 
     @After
@@ -234,8 +240,11 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     }
 
     @Test
-    public void testRepair() throws Throwable
+    public void testRepair()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         AutoRepairService.instance.getAutoRepairConfig().setRepairMinIntervalInHours(repairType, -1);
         AutoRepairV2.instance.repair(repairType, 0);
         assertEquals(0, AutoRepairV2.instance.repairStates.get(repairType).getTotalMVTablesConsideredForRepair());
@@ -249,6 +258,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testTooFrequentRepairs()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         //in the first round let repair run
         config.setRepairMinIntervalInHours(repairType, -1);
@@ -269,8 +281,11 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     }
 
     @Test
-    public void testNonFrequentRepairs() throws Throwable
+    public void testNonFrequentRepairs()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         Integer prevMetricsCount = AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue();
         AutoRepairState state = AutoRepairV2.instance.repairStates.get(repairType);
         long prevCount = state.getTotalMVTablesConsideredForRepair();
@@ -291,8 +306,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     }
 
     @Test
-    public void testGetPriorityHosts() throws Throwable
+    public void testGetPriorityHosts()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because priority calculation does not apply to it", repairType != AutoRepairConfig.RepairType.bootstrap);
         Integer prevMetricsCount = AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue();
         AutoRepairState state = AutoRepairV2.instance.repairStates.get(repairType);
         long prevCount = state.getTotalMVTablesConsideredForRepair();
@@ -312,8 +328,11 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     }
 
     @Test
-    public void testCheckAutoRepairStartStop() throws Throwable
+    public void testCheckAutoRepairStartStop()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         Integer prevMetricsCount = AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue();
         AutoRepairState state = AutoRepairV2.instance.repairStates.get(repairType);
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
@@ -363,6 +382,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testMVRepair()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setMVRepairEnabled(repairType, true);
         config.setRepairMinIntervalInHours(repairType, -1);
@@ -387,6 +409,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testSkipRepairSSTableCountHigherThreshold()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         AutoRepairState state = AutoRepairV2.instance.repairStates.get(repairType);
         ColumnFamilyStore cfsBaseTable = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
@@ -450,6 +475,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testMetrics()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setMVRepairEnabled(repairType, true);
         config.setRepairMinIntervalInHours(repairType, -1);
@@ -517,12 +545,14 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AutoRepairV2.instance.repair(repairType, 0);
         AutoRepairV2.instance.repair(repairType, 0);
         AutoRepairV2.instance.repair(repairType, 0);
-
     }
 
     @Test
     public void testRepairDCGroups()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setRepairMinIntervalInHours(repairType, -1);
         config.setDCGroups(repairType, Sets.newHashSet(DatabaseDescriptor.getLocalDataCenter(), "dc2"));
@@ -539,6 +569,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testRepairShufflesKeyspacesAndTables()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         AtomicInteger shuffleKeyspacesCall = new AtomicInteger();
         AtomicInteger shuffleTablesCall = new AtomicInteger();
         AutoRepairV2.shuffleFunc = (List<?> list) -> {
@@ -565,6 +598,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testRepairTakesLastRepairTimeFromDB()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not track any persistence status",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.setMVRepairEnabled(repairType, true);
         long lastRepairTime = System.currentTimeMillis() - 1000;
@@ -620,10 +655,12 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
             assertEquals(config.getRepairRetryBackoffInSec(), (long) duration);
         };
         doAnswer(invocation -> {
-            if (sleepCalls.get() == 0) {
+            if (sleepCalls.get() == 0)
+            {
                 invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.ERROR, 0, 0));
             }
-            else {
+            else
+            {
                 invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0));
             }
 
@@ -743,18 +780,21 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testSchedulerIgnoresErrorsFromUnrelatedRepairRunables()
     {
+        Assume.assumeTrue("Skipping bootstrap repairType because bootstrap repair does not work for normal nodes",
+                repairType != AutoRepairConfig.RepairType.bootstrap);
+
         RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, repairType == AutoRepairConfig.RepairType.incremental, false,
-                                               AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), Set.of(),
-                                               false, false, false, PreviewKind.NONE, false, true, false, false);
+                                                AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), Set.of(),
+                                                false, false, false, PreviewKind.NONE, false, true, false, false);
         AutoRepairState repairState = AutoRepairV2.instance.repairStates.get(repairType);
         AutoRepairState spyState = spy(repairState);
         AtomicReference<RepairRunnable> failingRepair = new AtomicReference<>(new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(), options, keyspace.getName()));
         AtomicReference<AutoRepairV2.RepairProgressListener> failingListener = new AtomicReference<>();
         AtomicReference<RepairRunnable> succeedingRepair = new AtomicReference<>(new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(), options, keyspace.getName()));
         AtomicInteger repairRunableCalls = new AtomicInteger();
-        doAnswer((InvocationOnMock inv ) -> {
+        doAnswer((InvocationOnMock inv) -> {
             RepairRunnable runnable = spy(repairState.getRepairRunnable(inv.getArgument(0), inv.getArgument(1), inv.getArgument(2),
-                                                                    inv.getArgument(3), inv.getArgument(4)));
+                                                                        inv.getArgument(3), inv.getArgument(4)));
             if (repairRunableCalls.getAndIncrement() == 0)
             {
                 // this will be used for first repair job
@@ -774,7 +814,6 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
                     {
                         // repair runnable for the subsequent repair jobs will immediately complete
                         invocation.getArgument(0, ProgressListener.class).progress("test", new ProgressEvent(ProgressEventType.COMPLETE, 0, 0));
-
                     }
                     // repair runnable for the first repair job will continue firing ERROR events
                     failingListener.get().progress("test", new ProgressEvent(ProgressEventType.ERROR, 0, 0));
