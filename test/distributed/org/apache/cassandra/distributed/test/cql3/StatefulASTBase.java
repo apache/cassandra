@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -49,6 +48,7 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
 import com.datastax.driver.core.exceptions.ReadFailureException;
+import com.datastax.driver.core.exceptions.WriteFailureException;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
@@ -81,11 +81,9 @@ import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
-import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.multistep;
@@ -502,41 +500,21 @@ public class StatefulASTBase extends TestBaseImpl
                                  .findAny()
                                  .get();
                 ss.setHost(host);
-                // Only SELECT is known safe to retry, as Mutations might not be idempotent!
-                boolean allowRetries = stmt.kind() == Statement.Kind.SELECT;
-                ResultSet result = !allowRetries ? session.execute(ss)
-                                                 : executeWithRetries(ss, 3);
-                return getRowsAsByteBuffer(result);
-            }
-        }
-
-        private ResultSet executeWithRetries(SimpleStatement ss, int maxTries)
-        {
-            Backoff backoff = null;
-            ReadFailureException lastError = null;
-            for (int i = 0; i < maxTries; i++)
-            {
+                ResultSet result;
                 try
                 {
-                    return session.execute(ss);
+                    result = session.execute(ss);
                 }
                 catch (ReadFailureException t)
                 {
-                    lastError = t;
-                    if (backoff == null)
-                        backoff = new Backoff.ExponentialBackoff(maxTries, 200, TimeUnit.SECONDS.toMillis(1), ThreadLocalRandom.current()::nextDouble); // using TLR to avoid altering the random history
-                    try
-                    {
-                        backoff.unit().sleep(backoff.computeWaitTime(i));
-                    }
-                    catch (InterruptedException e)
-                    {
-                        Thread.currentThread().interrupt();
-                        throw new UncheckedInterruptedException(e);
-                    }
+                    throw new AssertionError("failed from=" + Maps.transformValues(t.getFailuresMap(), BaseState::safeErrorCode), t);
                 }
+                catch (WriteFailureException t)
+                {
+                    throw new AssertionError("failed from=" + Maps.transformValues(t.getFailuresMap(), BaseState::safeErrorCode), t);
+                }
+                return getRowsAsByteBuffer(result);
             }
-            throw new AssertionError("Request failed after " + maxTries + " attempts! failed from=" + Maps.transformValues(lastError.getFailuresMap(), BaseState::safeErrorCode), lastError);
         }
 
         private static String safeErrorCode(Integer code)
