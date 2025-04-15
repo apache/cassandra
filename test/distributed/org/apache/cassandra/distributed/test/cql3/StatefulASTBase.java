@@ -80,6 +80,7 @@ import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -536,7 +537,19 @@ public class StatefulASTBase extends TestBaseImpl
                     }
                 }
             }
-            throw new AssertionError("Request failed after " + maxTries + " attempts! failed from=" + Maps.transformValues(lastError.getFailuresMap(), ExceptionCode::fromValue), lastError);
+            throw new AssertionError("Request failed after " + maxTries + " attempts! failed from=" + Maps.transformValues(lastError.getFailuresMap(), BaseState::safeErrorCode), lastError);
+        }
+
+        private static String safeErrorCode(Integer code)
+        {
+            try
+            {
+                return ExceptionCode.fromValue(code).name();
+            }
+            catch (ProtocolException e)
+            {
+                return "Unexpected code " + code + ": " + e.getMessage();
+            }
         }
 
         @VisibleForTesting
