@@ -184,7 +184,7 @@ public class BatchMessage extends Message.Request
                 {
                     p = QueryProcessor.parseAndPrepare((String) query,
                                                        state.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()),
-                                                       false);
+                                                       false, false);
                 }
                 else
                 {

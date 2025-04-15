@@ -393,6 +393,11 @@ public class QueryProcessor implements QueryHandler
 
     public static Prepared parseAndPrepare(String query, ClientState clientState, boolean isInternal) throws RequestValidationException
     {
+        return parseAndPrepare(query, clientState, isInternal, true);
+    }
+
+    public static Prepared parseAndPrepare(String query, ClientState clientState, boolean isInternal, boolean measure) throws RequestValidationException
+    {
         CQLStatement.Raw raw = parseStatement(query);
 
         boolean fullyQualified = false;
@@ -416,7 +421,10 @@ public class QueryProcessor implements QueryHandler
             res = new Prepared(statement, "", fullyQualified, keyspace);
         else
             res = new Prepared(statement, query, fullyQualified, keyspace);
-        res.pstmntSize = measurePstmnt(res);
+
+        // Some prepared statements will not be cached and therefore do not require a pre-computed size.
+        if (measure)
+            res.pstmntSize = measurePstmnt(res);
 
         return res;
     }
