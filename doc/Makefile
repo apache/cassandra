@@ -13,6 +13,7 @@
 
 GENERATE_NODETOOL_DOCS = ./scripts/gen-nodetool-docs.py
 MAKE_CASSANDRA_YAML = ./scripts/convert_yaml_to_adoc.py ../conf/cassandra.yaml ./modules/cassandra/pages/managing/configuration/cass_yaml_file.adoc
+PROCESS_NATIVE_PROC_SPECS = ./scripts/process-native-protocol-specs-in-docker.sh
 
 .PHONY: html
 html:
@@ -24,3 +25,4 @@ gen-asciidoc:
 	@mkdir -p modules/cassandra/examples/TEXT/NODETOOL
 	python3 $(GENERATE_NODETOOL_DOCS)
 	python3 $(MAKE_CASSANDRA_YAML)
+	$(PROCESS_NATIVE_PROC_SPECS)

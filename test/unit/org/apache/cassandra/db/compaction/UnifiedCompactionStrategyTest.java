@@ -36,6 +36,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.monitoring.runtime.instrumentation.common.collect.ImmutableList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -54,13 +55,16 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import static org.apache.cassandra.io.sstable.format.SSTableReader.UNIQUE_IDENTIFIER_FACTORY;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -596,7 +600,7 @@ public class UnifiedCompactionStrategyTest
         List<SSTableReader> nonExpiredSSTables = createSStables(cfs.getPartitioner(), 0);
         strategy.addSSTables(expiredSSTables);
         strategy.addSSTables(nonExpiredSSTables.subList(0, 3));
-        dataTracker.addInitialSSTables(Iterables.concat(expiredSSTables, nonExpiredSSTables));
+        dataTracker.addInitialSSTables(ImmutableList.copyOf(Iterables.concat(expiredSSTables, nonExpiredSSTables)));
 
         long timestamp = expiredSSTables.get(expiredSSTables.size() - 1).getMaxLocalDeletionTime();
         long expirationPoint = timestamp + 1;
@@ -848,6 +852,9 @@ public class UnifiedCompactionStrategyTest
         when(ret.getMinTimestamp()).thenReturn(timestamp);
         when(ret.getFirst()).thenReturn(first);
         when(ret.getLast()).thenReturn(last);
+        when(ret.getInterval()).thenReturn(new Interval<>(first, last, ret));
+        when(ret.instanceId()).thenReturn(TimeUUID.Generator.nextTimeUUID(UNIQUE_IDENTIFIER_FACTORY));
+        when(ret.compareTo(any())).thenCallRealMethod();
         when(ret.isMarkedSuspect()).thenReturn(false);
         when(ret.isRepaired()).thenReturn(false);
         when(ret.getRepairedAt()).thenReturn(repairedAt);

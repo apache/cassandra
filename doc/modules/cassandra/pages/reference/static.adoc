@@ -2,7 +2,7 @@
 :description: In a table that uses clustering columns, non-clustering columns can be declared static in the table definition.
 
 Static column values are shared among the rows in the partition.
-In a table that uses https://cassandra.apache.org/_/glossary.html#clustering-column[clustering columns], non-clustering columns can be declared static in the table definition.
+In a table that uses https://cassandra.apache.org/\_/glossary.html#clustering-column[clustering columns], non-clustering columns can be declared static in the table definition.
 https://cassandra.apache.org/_/glossary.html#static-column[Static columns] are only static within a given partition.
 
 In the following example, the `flag` column is static:

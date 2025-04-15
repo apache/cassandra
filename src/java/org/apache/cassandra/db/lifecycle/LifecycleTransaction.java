@@ -161,7 +161,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     /**
      * construct a Transaction for use in an offline operation
      */
-    public static LifecycleTransaction offline(OperationType operationType, Iterable<SSTableReader> readers)
+    public static LifecycleTransaction offline(OperationType operationType, Collection<SSTableReader> readers)
     {
         // if offline, for simplicity we just use a dummy tracker
         Tracker dummy = Tracker.newDummyTracker();

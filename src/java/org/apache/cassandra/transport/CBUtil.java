@@ -39,7 +39,6 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
@@ -160,14 +159,28 @@ public abstract class CBUtil
 
     public static void writeString(String str, ByteBuf cb)
     {
-        int length = TypeSizes.encodedUTF8Length(str);
+        int length = encodedUTF8Length(str);
         cb.writeShort(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
 
     public static int sizeOfString(String str)
     {
-        return 2 + TypeSizes.encodedUTF8Length(str);
+        return 2 + encodedUTF8Length(str);
+    }
+
+    /**
+     * Java uses a Modified UTF-8, whereas Netty uses UTF-8 proper... this means that the encoded UTF8 lengths
+     * do not match, and you must be careful to use the correct length method...
+     *
+     * When using {@link ByteBufUtil#reserveAndWriteUtf8(ByteBuf, CharSequence, int)} or similiar logic, you must use
+     * this method.  When using {@link java.io.DataOutput#writeUTF(String)} you must use {@link org.apache.cassandra.db.TypeSizes#encodedUTF8Length(String)}.
+     *
+     * @see <a href="https://docs.oracle.com/en/java/javase/23/docs/api/java.base/java/io/DataInput.html#modified-utf-8">Modified UTF 8</a>
+     */
+    public static int encodedUTF8Length(String str)
+    {
+        return ByteBufUtil.utf8Bytes(str);
     }
 
     /**
@@ -195,14 +208,14 @@ public abstract class CBUtil
 
     public static void writeLongString(String str, ByteBuf cb)
     {
-        int length = TypeSizes.encodedUTF8Length(str);
+        int length = encodedUTF8Length(str);
         cb.writeInt(length);
         ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
 
     public static int sizeOfLongString(String str)
     {
-        return 4 + TypeSizes.encodedUTF8Length(str);
+        return 4 + encodedUTF8Length(str);
     }
 
     public static byte[] readBytes(ByteBuf cb)

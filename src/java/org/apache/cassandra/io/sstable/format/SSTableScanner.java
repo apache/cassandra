@@ -78,7 +78,7 @@ implements ISSTableScanner
     {
         assert sstable != null;
 
-        this.dfile = sstable.openDataReader();
+        this.dfile = sstable.openDataReaderForScan();
         this.sstable = sstable;
         this.columns = columns;
         this.dataRange = dataRange;

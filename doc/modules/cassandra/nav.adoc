@@ -118,8 +118,11 @@
 
 ** xref:reference/index.adoc[]
 *** xref:reference/cql-commands/commands-toc.adoc[CQL commands]
+*** xref:developing/cql/cql_singlefile.html[CQL specification]
 *** xref:reference/java17.adoc[Java 17]
-*** xref:reference/static.adoc[Static columns]
+*** xref:reference/native-protocol.adoc[Native Protocol specification]
 *** xref:reference/sai-virtual-table-indexes.adoc[SAI virtual table]
+*** xref:reference/static.adoc[Static columns]
+*** xref:reference/vector-data-type.adoc[Vector data type]
 
 ** xref:integrating/plugins/index.adoc[]

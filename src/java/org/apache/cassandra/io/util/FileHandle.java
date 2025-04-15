@@ -134,6 +134,11 @@ public class FileHandle extends SharedCloseableImpl
         return createReader(null);
     }
 
+    public RandomAccessReader createReaderForScan()
+    {
+        return createReader(null, true);
+    }
+
     /**
      * Create {@link RandomAccessReader} with configured method of reading content of the file.
      * Reading from file will be rate limited by given {@link RateLimiter}.
@@ -143,7 +148,12 @@ public class FileHandle extends SharedCloseableImpl
      */
     public RandomAccessReader createReader(RateLimiter limiter)
     {
-        return new RandomAccessReader(instantiateRebufferer(limiter));
+        return createReader(limiter, false);
+    }
+
+    public RandomAccessReader createReader(RateLimiter limiter, boolean forScan)
+    {
+       return new RandomAccessReader(instantiateRebufferer(limiter, forScan));
     }
 
     public FileDataInput createReader(long position)
@@ -186,7 +196,12 @@ public class FileHandle extends SharedCloseableImpl
 
     public Rebufferer instantiateRebufferer(RateLimiter limiter)
     {
-        Rebufferer rebufferer = rebuffererFactory.instantiateRebufferer();
+        return instantiateRebufferer(limiter, false);
+    }
+
+    public Rebufferer instantiateRebufferer(RateLimiter limiter, boolean forScan)
+    {
+        Rebufferer rebufferer = rebuffererFactory.instantiateRebufferer(forScan);
 
         if (limiter != null)
             rebufferer = new LimitingRebufferer(rebufferer, limiter, DiskOptimizationStrategy.MAX_BUFFER_SIZE);

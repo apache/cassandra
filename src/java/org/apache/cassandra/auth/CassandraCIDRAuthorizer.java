@@ -19,6 +19,7 @@
 package org.apache.cassandra.auth;
 
 import java.net.InetAddress;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -28,7 +29,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -39,11 +39,20 @@ import org.apache.cassandra.utils.NoSpamLogger;
  */
 public class CassandraCIDRAuthorizer extends AbstractCIDRAuthorizer
 {
+    static final String CIDR_AUTHORIZER_MODE_PARAM = "cidr_authorizer_mode";
+
     private static final Logger logger = LoggerFactory.getLogger(AuthenticatedUser.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
-
     protected static CIDRPermissionsCache cidrPermissionsCache;
     protected static CIDRGroupsMappingCache cidrGroupsMappingCache;
+    private final CIDRAuthorizerMode cidrAuthorizerMode;
+
+    public CassandraCIDRAuthorizer(Map<String, String> params)
+    {
+        cidrAuthorizerMode = (params != null && params.containsKey(CIDR_AUTHORIZER_MODE_PARAM))
+                             ? CIDRAuthorizerMode.valueOf(params.get(CIDR_AUTHORIZER_MODE_PARAM).toUpperCase(Locale.US))
+                             : CIDRAuthorizerMode.MONITOR;
+    }
 
     @Override
     public void setup()
@@ -105,7 +114,7 @@ public class CassandraCIDRAuthorizer extends AbstractCIDRAuthorizer
     @VisibleForTesting
     protected boolean isMonitorMode()
     {
-        return DatabaseDescriptor.getCidrAuthorizerMode() == CIDRAuthorizerMode.MONITOR;
+        return cidrAuthorizerMode == CIDRAuthorizerMode.MONITOR;
     }
 
     private boolean hasCidrAccess(RoleResource role, InetAddress ipAddress)

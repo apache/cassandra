@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CIDR;
@@ -183,16 +184,14 @@ public class AuthTestUtils
 
     public static class LocalCassandraCIDRAuthorizer extends CassandraCIDRAuthorizer
     {
-        CIDRAuthorizerMode cidrAuthorizerMode;
-
         public LocalCassandraCIDRAuthorizer()
         {
-            cidrAuthorizerMode = CIDRAuthorizerMode.ENFORCE;
+            this(CIDRAuthorizerMode.ENFORCE);
         }
 
         public LocalCassandraCIDRAuthorizer(CIDRAuthorizerMode mode)
         {
-            cidrAuthorizerMode = mode;
+            super(ImmutableMap.of(CIDR_AUTHORIZER_MODE_PARAM, mode.name()));
         }
 
         @Override
@@ -200,12 +199,6 @@ public class AuthTestUtils
         {
             cidrPermissionsManager = new LocalCIDRPermissionsManager();
             cidrGroupsMappingManager = new LocalCIDRGroupsMappingManager();
-        }
-
-        @Override
-        protected boolean isMonitorMode()
-        {
-            return cidrAuthorizerMode == CIDRAuthorizerMode.MONITOR;
         }
 
         CIDRPermissionsCache getCidrPermissionsCache()
@@ -290,14 +283,19 @@ public class AuthTestUtils
         return roleOptions;
     }
 
-    private static ClientState getClientState()
+    public static ClientState getClientState(String role)
     {
         ClientState state = ClientState.forInternalCalls();
-        state.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
+        state.login(new AuthenticatedUser(role));
         return state;
     }
 
-    public static AuthenticationStatement authWithoutInvalidate(String query, Object... args)
+    public static ClientState getClientState()
+    {
+        return getClientState(CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
+    }
+
+    public static AuthenticationStatement authWithoutInvalidate(String query, ClientState clientState, Object... args)
     {
         CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare(ClientState.forInternalCalls());
         assert statement instanceof CreateRoleStatement
@@ -305,14 +303,25 @@ public class AuthTestUtils
                || statement instanceof DropRoleStatement;
         AuthenticationStatement authStmt = (AuthenticationStatement) statement;
 
-        authStmt.execute(getClientState());
+        authStmt.authorize(clientState);
+        authStmt.execute(clientState);
 
         return authStmt;
     }
 
+    public static AuthenticationStatement authWithoutInvalidate(String query, Object... args)
+    {
+        return authWithoutInvalidate(query, getClientState(), args);
+    }
+
     public static AuthenticationStatement auth(String query, Object... args)
     {
-        AuthenticationStatement authStmt = authWithoutInvalidate(query, args);
+        return auth(query, getClientState(), args);
+    }
+
+    public static AuthenticationStatement auth(String query, ClientState clientState, Object... args)
+    {
+        AuthenticationStatement authStmt = authWithoutInvalidate(query, clientState, args);
 
         // invalidate roles cache so that any changes to the underlying roles are picked up
         Roles.cache.invalidate();

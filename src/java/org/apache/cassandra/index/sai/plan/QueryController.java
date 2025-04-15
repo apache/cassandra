@@ -271,7 +271,11 @@ public class QueryController
 
     private void maybeTriggerGuardrails(QueryViewBuilder.QueryView queryView)
     {
-        int referencedIndexes = queryView.referencedIndexes.size();
+        int referencedIndexes = 0;
+
+        // We want to make sure that no individual column expression touches too many SSTable-attached indexes:
+        for (Pair<Expression, Collection<SSTableIndex>> expressionSSTables : queryView.view)
+            referencedIndexes = Math.max(referencedIndexes, expressionSSTables.right.size());
 
         if (Guardrails.saiSSTableIndexesPerQuery.failsOn(referencedIndexes, null))
         {
@@ -423,7 +427,7 @@ public class QueryController
                "PrimaryKey " + firstKey + " clustering does not match table. There should be a clustering of size " + cfs.metadata().comparator.size();
 
         ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(firstKey.partitionKey());
-        
+
         // If we have skinny partitions or the key is for a static row then we need to get the partition as
         // requested by the original query.
         if (cfs.metadata().comparator.size() == 0 || firstKey.kind() == PrimaryKey.Kind.STATIC)

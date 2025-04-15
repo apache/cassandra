@@ -9,7 +9,7 @@ results will occur. Note: the script does not verify that Cassandra is
 stopped.
 
 == WARNING
-See CASSANDRA-9947 and CASSANDRA-17017 for discussion around risks with this tool. Specifically: "We mark sstables that fail verification as unrepaired, but that's not going to do what you think.  What it means is that the local node will use that sstable in the next repair, but other nodes will not. So all we'll end up doing is streaming whatever data we can read from it, to the other replicas.  If we could magically mark whatever sstables correspond on the remote nodes, to the data in the local sstable, that would work, but we can't."
+See https://issues.apache.org/jira/browse/CASSANDRA-9947[CASSANDRA-9947] and https://issues.apache.org/jira/browse/CASSANDRA-17017[CASSANDRA-17017] for discussion around risks with this tool. Specifically: "We mark sstables that fail verification as unrepaired, but that's not going to do what you think.  What it means is that the local node will use that sstable in the next repair, but other nodes will not. So all we'll end up doing is streaming whatever data we can read from it, to the other replicas.  If we could magically mark whatever sstables correspond on the remote nodes, to the data in the local sstable, that would work, but we can't."
 
 This tool requires the use of a -f or --force flag to indicate that the user understands the risks and would like to attempt its usage anyway.
 
@@ -23,7 +23,7 @@ sstableverify <options> <keyspace> <table>
 |-e, --extended |extended verification
 |-h, --help |display this help message
 |-v, --verbose |verbose output
-|-f, --force |allow use of tool (see CASSANDRA-17017 for risks)
+|-f, --force |allow use of tool (see https://issues.apache.org/jira/browse/CASSANDRA-17017[CASSANDRA-17017] for risks)
 |===
 
 == Basic Verification

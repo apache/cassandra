@@ -121,10 +121,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     @Override
     public long getEstimatedResultRows()
     {
-        // this is temporary (until proper QueryPlan is integrated into Cassandra)
-        // and allows us to priority storage-attached indexes if any in the query since they
-        // are going to be more efficient, to query and intersect, than built-in indexes.
-        return Long.MIN_VALUE;
+        return DatabaseDescriptor.getPrioritizeSAIOverLegacyIndex() ? Long.MIN_VALUE : Long.MAX_VALUE;
     }
 
     @Override

@@ -65,6 +65,13 @@ public abstract class AbstractHintWindowTest extends TestBaseImpl
         });
     }
 
+    void transferHints(IInvokableInstance node, UUID transferToNode)
+    {
+        node.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> {
+            HintsService.instance.transferHints(() -> transferToNode);
+        });
+    }
+
     void waitUntilNodeState(IInvokableInstance node, UUID node2UUID, boolean shouldBeOnline)
     {
         await().pollInterval(10, SECONDS)

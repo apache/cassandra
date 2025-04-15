@@ -626,6 +626,38 @@ public final class CassandraGenerators
         return SourceDSL.lists().of(tokenGen).ofSizeBetween(1, 16);
     }
 
+    public static Gen<IPartitioner> localPartitioner()
+    {
+        return AbstractTypeGenerators.safeTypeGen().map(LocalPartitioner::new);
+    }
+
+    private enum SupportedPartitioners
+    {
+        Murmur(ignore -> Murmur3Partitioner.instance),
+        ByteOrdered(ignore -> ByteOrderedPartitioner.instance),
+        Random(ignore -> RandomPartitioner.instance),
+        Local(localPartitioner()),
+        OrderPreserving(ignore -> OrderPreservingPartitioner.instance);
+
+        private final Gen<IPartitioner> partitioner;
+
+        SupportedPartitioners(Gen<IPartitioner> partitionerGen)
+        {
+            partitioner = partitionerGen;
+        }
+
+        public Gen<IPartitioner> partitioner()
+        {
+            return partitioner;
+        }
+    }
+
+    public static Gen<IPartitioner> partitioners()
+    {
+        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
+                        .flatMap(SupportedPartitioners::partitioner);
+    }
+
     public static Gen<HeartBeatState> heartBeatStates()
     {
         Constraint generationDomain = Constraint.between(0, Integer.MAX_VALUE);
@@ -669,9 +701,13 @@ public final class CassandraGenerators
                         );
     }
 
-    private static Gen<VersionedValue> gossipStatusValue()
+    public static Gen<VersionedValue> gossipStatusValue()
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        return gossipStatusValue(DatabaseDescriptor.getPartitioner());
+    }
+
+    public static Gen<VersionedValue> gossipStatusValue(IPartitioner partitioner)
+    {
         Gen<String> statusGen = gossipStatus();
         Gen<Token> tokenGen = token(partitioner);
         Gen<? extends Collection<Token>> tokensGen = tokens(partitioner);

@@ -169,11 +169,21 @@ public class RowFilter implements Iterable<RowFilter.Expression>
     }
 
     /**
-     * @return true if this filter contains an intersection on two or more mutable columns
+     * @return true if this filter contains an intersection on either any static column or two regular mutable columns
      */
     public boolean isMutableIntersection()
     {
-        return expressions.stream().filter(e -> !e.column.isPrimaryKeyColumn()).count() > 1;
+        int count = 0;
+        for (Expression e : expressions)
+        {
+            if (e.column.isStatic() && expressions.size() > 1)
+                return true;
+
+            if (!e.column.isPrimaryKeyColumn())
+                if (++count > 1)
+                    return true;
+        }
+        return false;
     }
 
     /**
@@ -247,7 +257,10 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             @Override
             public Row applyToRow(Row row)
             {
-                Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+                // If we purge deletions when reconciliation is required, we hide information replica filtering
+                // protection would require to filter rows that are no longer matches are the coordinator.
+                Row purged = needsReconciliation() ? row : row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+
                 if (purged == null)
                     return null;
 
@@ -382,6 +395,24 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                 newExpressions.add(e);
 
         return withNewExpressions(newExpressions);
+    }
+
+    public boolean hasNonKeyExpression()
+    {
+        for (Expression e : expressions)
+            if (!e.column().isPrimaryKeyColumn())
+                return true;
+
+        return false;
+    }
+
+    public boolean hasStaticExpression()
+    {
+        for (Expression e : expressions)
+            if (e.column().isStatic())
+                return true;
+
+        return false;
     }
 
     public RowFilter withoutExpressions()

@@ -201,7 +201,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         }
 
         // Some types support empty byte buffers:
-        if (term.remaining() == 0 && !index.termType().indexType().allowsEmpty()) return;
+        if (term.remaining() == 0 && index.termType().skipsEmptyValue()) return;
 
         if (analyzer == null || !index.termType().isLiteral())
         {

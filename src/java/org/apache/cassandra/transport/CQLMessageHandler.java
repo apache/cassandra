@@ -382,11 +382,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         return new Envelope(header, body);
     }
 
-    protected boolean processRequest(Envelope request)
-    {
-        return processRequest(request, Overload.NONE);
-    }
-    
     protected boolean processRequest(Envelope request, Overload backpressure)
     {
         M message = null;

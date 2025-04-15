@@ -36,11 +36,11 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentOrdering;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -53,7 +53,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  *     <li>Exposes the index metadata for the column index</li>
  * </ul>
  */
-public abstract class SSTableIndex implements SegmentOrdering
+public abstract class SSTableIndex implements SegmentOrdering, Comparable<SSTableIndex>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndex.class);
 
@@ -266,5 +266,12 @@ public abstract class SSTableIndex implements SegmentOrdering
                           .add("maxTerm", indexTermType.asString(maxTerm()))
                           .add("totalRows", sstableContext.sstable.getTotalRows())
                           .toString();
+    }
+
+    @Override
+    public int compareTo(SSTableIndex index)
+    {
+        // SSTableReader is truly unique for comparison which is relied on in IntervalTree
+        return getSSTable().compareTo(index.getSSTable());
     }
 }

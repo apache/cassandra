@@ -76,6 +76,8 @@ Thumbs.db
 
 # Generated files from the documentation
 doc/modules/cassandra/pages/managing/configuration/cass_yaml_file.adoc
+doc/modules/cassandra/pages/reference/native-protocol.adoc
+doc/modules/cassandra/attachments/native_protocol_v*.html
 doc/modules/cassandra/pages/managing/tools/nodetool/
 doc/modules/cassandra/examples/TEXT/NODETOOL/
 

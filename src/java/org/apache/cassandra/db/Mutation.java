@@ -149,6 +149,11 @@ public class Mutation implements IMutation, Supplier<Mutation>
         return modifications.values();
     }
 
+    public long getApproxCreatedAtNanos()
+    {
+        return approxCreatedAtNanos;
+    }
+
     @Override
     public Supplier<Mutation> hintOnFailure()
     {

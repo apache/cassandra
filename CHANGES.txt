@@ -1,4 +1,53 @@
+5.0.5
+ * Avoid purging deletions in RowFilter when reconciliation is required (CASSANDRA-20541)
+ * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)
+ * Upgrade com.datastax.cassandra:cassandra-driver-core:3.11.5 to org.apache.cassandra:cassandra-driver-core:3.12.1 (CASSANDRA-17231)
+Merged from 4.0:
+ * Fix Dropwizard Meter causes timeouts when infrequently used (CASSANDRA-19332)
+
+
+5.0.4
+ * Update netty to 4.1.119.Final and netty-tcnative to 2.0.70.Final (CASSANDRA-20314)
+ * Serialization can lose complex deletions in a mutation with multiple collections in a row (CASSANDRA-20449)
+ * Improve error messages when initializing auth classes (CASSANDRA-20368)
+ * Prioritize legacy 2i over SAI for columns with multiple indexes (CASSANDRA-20334)
+ * Ensure only offline tools can build IntervalTrees without first/last key fields (CASSANDRA-20407)
+ * Improve disk access patterns during compaction and range reads (CASSANDRA-15452)
+ * Improve IntervalTree build throughput (CASSANDRA-19596)
+ * Avoid limit on RFP fetch in the case of an unresolved static row (CASSANDRA-20323)
+ * Include materialized views to the output of DESCRIBE TABLE statements (CASSANDRA-20365)
+ * Heap and GC jvm flags improvements (CASSANDRA-20296)
+ * Fix unparseable YAML in default cassandra.yaml when uncommented for downstream tooling (CASSANDRA-20359)
+ * Avoid fetching entire partitions on unresolved static rows in RFP when no static column predicates exist (CASSANDRA-20243)
+ * Avoid indexing empty values for non-literals and types that do not allow them (CASSANDRA-20313)
+ * Fix incorrect results of min / max in-built functions on clustering columns in descending order (CASSANDRA-20295)
+ * Avoid possible consistency violations for SAI intersection queries over repaired index matches and multiple non-indexed column matches (CASSANDRA-20189)
+ * Skip check for DirectIO when initializing tools (CASSANDRA-20289)
+ * Avoid under-skipping during intersections when an iterator has mixed STATIC and WIDE keys (CASSANDRA-20258)
+ * Correct the default behavior of compareTo() when comparing WIDE and STATIC PrimaryKeys (CASSANDRA-20238)
+Merged from 4.1:
+ * Fix mixed mode paxos ttl commit hang (CASSANDRA-20514)
+ * Fix paxos mixed mode infinite loop (CASSANDRA-20493)
+ * Optionally skip exception logging on invalid legacy protocol magic exception (CASSANDRA-19483)
+ * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
+ * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
+Merged from 4.0:
+ * Update OWASP dependency checker to version 12.1.0 (CASSANDRA-20501)
+ * Suppress CVE-2025-25193 (CASSANDRA-20504)
+ * Include in source tree and build packages a Snyk policy file that lists known false positives (CASSANDRA-20319)
+ * Update zstd-jni to 1.5.7-2 (CASSANDRA-20453)
+ * Suppress CVE-2024-12801 (CASSANDRA-20412)
+ * Suppress CVE-2024-12798 (CASSANDRA-20408)
+ * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
+ * Fix autocompletion for role names/user names (CASSANDRA-20175)
+ * Support null column value tombstones in FQL batch statements (CASSANDRA-20397)
+ * Update Zstd library to 1.5.7-1 (CASSANDRA-20367)
+ * Fix premature auto-failing of long-running repairs (CASSANDRA-20312)
+
+
 5.0.3
+ * Make sure we can set parameters when configuring CassandraCIDRAuthorizer (CASSANDRA-20220)
+ * Add selected SAI index state and query performance metrics to nodetool tablestats (CASSANDRA-20026)
  * Remove v30 and v3X from 5.x in-JVM upgrade tests (CASSANDRA-20103)
  * Avoid memory allocation in offheap_object's NativeCell.valueSize() and NativeClustering.dataSize() (CASSANDRA-20162)
  * Add flag to avoid invalidating key cache on sstable deletions (CASSANDRA-20068)
@@ -9,10 +58,15 @@
  * Ban the usage of "var" instead of full types in the production code (CASSANDRA-20038)
  * Suppress CVE-2024-45772 from lucene-core-9.7.0.jar (CASSANDRA-20024)
 Merged from 4.1:
+ * Run audit_logging_options through santiation and validation on startup (CASSANDRA-20208)
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Add nodetool checktokenmetadata command that checks TokenMetadata is insync with Gossip endpointState (CASSANDRA-18758)
  * Equality check for Paxos.Electorate should not depend on collection types (CASSANDRA-19935)
 Merged from 4.0:
+ * Tighten up permissions in dc and authorizers (CASSANDRA-20225)
+ * CBUtil serialization of UTF8 does not handle all UTF8 properly (CASSANDRA-20234)
+ * Make hint expiry use request start time rather than timeout time for TTL (CASSANDRA-20014)
+ * Do not attach rows and partitions to QueryCancellationChecker when already attached (CASSANDRA-20135)
  * Allow hint delivery during schema mismatch (CASSANDRA-20188)
  * IndexOutOfBoundsException when accessing partition where the column was deleted (CASSANDRA-20108)
  * Enhance CQLSSTableWriter to notify clients on sstable production (CASSANDRA-19800)
@@ -22,6 +76,8 @@ Merged from 4.0:
  * Fix CQL in snapshot's schema which did not contained UDTs used as reverse clustering columns (CASSANDRA-20036)
  * Add configurable batchlog endpoint strategies: random_remote, prefer_local, dynamic_remote, and dynamic (CASSANDRA-18120)
  * Fix bash-completion for debian distro (CASSANDRA-19999)
+Merged from 3.0
+  * Tighten up permissions on system keyspaces (CASSANDRA-20090)
 
 
 5.0.2

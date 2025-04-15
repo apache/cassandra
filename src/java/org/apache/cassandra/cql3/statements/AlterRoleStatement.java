@@ -92,6 +92,12 @@ public class AlterRoleStatement extends AuthenticationStatement
         if (opts.getSuperuser().isPresent() && !isSuper)
             throw new UnauthorizedException("Only superusers are allowed to alter superuser status");
 
+        if (dcPermissions != null && !isSuper)
+            throw new UnauthorizedException("Only superusers are allowed to alter access to datacenters.");
+
+        if (cidrPermissions != null && !isSuper)
+            throw new UnauthorizedException("Only superusers are allowed to alter access from CIDR groups.");
+
         // superusers can do whatever else they like
         if (isSuper)
             return;

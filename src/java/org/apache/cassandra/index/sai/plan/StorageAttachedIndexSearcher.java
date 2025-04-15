@@ -229,7 +229,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 if (firstKey == null)
                     return Collections.emptyList();
             }
-            while (queryController.doesNotSelect(firstKey) || firstKey.equals(lastKey));
+            while (queryController.doesNotSelect(firstKey) || firstKey.equals(lastKey, false));
 
             lastKey = firstKey;
             threadLocalNextKeys.add(firstKey);
@@ -291,7 +291,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 if (key == null)
                     break;
 
-                if (queryController.doesNotSelect(key) || key.equals(lastKey))
+                if (queryController.doesNotSelect(key) || key.equals(lastKey, false))
                     continue;
 
                 nextPrimaryKeys.add(key);
@@ -316,7 +316,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
          */
         private boolean isWithinUpperBound(PrimaryKey key)
         {
-            return lastPrimaryKey.token().isMinimum() || lastPrimaryKey.compareTo(key) >= 0;
+            return lastPrimaryKey.token().isMinimum() || lastPrimaryKey.compareTo(key, false) >= 0;
         }
 
         /**

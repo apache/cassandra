@@ -812,6 +812,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
 
+    public int getCompressedReadAheadBufferInKB();
+    public void setCompressedReadAheadBufferInKB(int sizeInKb);
+
     public int getBatchlogReplayThrottleInKB();
     public void setBatchlogReplayThrottleInKB(int value);
 
@@ -1064,6 +1067,16 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean getTransferHintsOnDecommission();
     public void setTransferHintsOnDecommission(boolean enabled);
 
+    /** Returns whether we are using the creation time of the mutation for determining hint ttl **/
+    public boolean isHintTtlUseMutationCreationTime();
+    /** Sets whether we are using the creation time of the mutation for determining hint ttl **/
+    public void setUseCreationTimeForHintTtl(boolean enabled);
+
+    /** Returns upper bound on the hint ttl **/
+    public int getMaxHintTTL();
+    /** Sets the upper bound on the hint ttl **/
+    public void setMaxHintTTL(int maxHintTTL);
+
     /**
      * Resume bootstrap streaming when there is failed data streaming.
      *
@@ -1306,4 +1319,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * e.g. keyspace_name -> [reads, writes, paxos].
      */
     Map<String, long[]> getOutOfRangeOperationCounts();
+
+    boolean getPrioritizeSAIOverLegacyIndex();
+    void setPrioritizeSAIOverLegacyIndex(boolean value);
 }

@@ -262,6 +262,11 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     protected abstract int ackCount();
 
+    public Dispatcher.RequestTime getRequestTime()
+    {
+        return requestTime;
+    }
+
     /**
      * null message means "response from local write"
      */

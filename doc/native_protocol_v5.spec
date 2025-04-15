@@ -29,7 +29,6 @@ Table of Contents
       2.3.1 Initial Handshake
       2.3.2 Compression
     2.4. Frame Payload
-      2.4.1 Frame Header
       2.4.1.1. version
       2.4.1.2. flags
       2.4.1.3. stream
@@ -232,7 +231,7 @@ Table of Contents
   All values in an envelope are big-endian (network byte order).
 
   Each envelope contains a fixed size header (9 bytes) followed by a variable size
-  body. The header is described in Section 2.4.1. The content of the body depends
+  body. The content of the body depends
   on the header opcode value (the body can in particular be empty for some
   opcode values). The list of allowed opcodes is defined in Section 2.4.1.4 and the
   details of each corresponding message are described Section 4.
@@ -255,7 +254,7 @@ Table of Contents
   previously possible to enable compression for an individual envelope. This is no
   longer possible, as the framing format is responsible for compression, which is set for
   the lifetime of a connection and applies to all messages transmitted throughout it
-  (see Section 2.2.1 for caveats). The compression flag is therefore deprecated and
+  (see Section 2.2 for caveats). The compression flag is therefore deprecated and
   ignored in protocol v5.
 
 2.4.1.1. version
@@ -277,7 +276,7 @@ Table of Contents
   connection.
 
   This document describes version 5 of the protocol. For the changes made since
-  version 4, see Section 10.
+  version 4, see Section 9.
 
 2.4.1.2. flags
 

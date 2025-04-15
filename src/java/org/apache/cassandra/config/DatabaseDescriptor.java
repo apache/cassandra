@@ -954,6 +954,9 @@ public class DatabaseDescriptor
                 break;
         }
 
+        if (conf.compressed_read_ahead_buffer_size.toKibibytes() > 0 && conf.compressed_read_ahead_buffer_size.toKibibytes() < 256)
+            throw new ConfigurationException("compressed_read_ahead_buffer_size must be at least 256KiB (set to 0 to disable), but was " + conf.compressed_read_ahead_buffer_size, false);
+
         if (conf.server_encryption_options != null)
         {
             conf.server_encryption_options.applyConfig();
@@ -1025,6 +1028,10 @@ public class DatabaseDescriptor
 
         if (conf.use_deterministic_table_id)
             logger.warn("use_deterministic_table_id is deprecated and will be ignored in a future release.");
+
+        // run audit logging options through sanitation and validation
+        if (conf.audit_logging_options != null)
+            setAuditLoggingOptions(conf.audit_logging_options);
     }
 
     @VisibleForTesting
@@ -1476,24 +1483,28 @@ public class DatabaseDescriptor
     {
         boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
         boolean directIOSupported = false;
-        try
+        // File.getBlockSize creates directories/files tools may not have permissions for
+        if (!toolInitialized)
         {
-            String commitLogLocation = getCommitLogLocation();
+            try
+            {
+                String commitLogLocation = getCommitLogLocation();
 
-            if (commitLogLocation == null)
-                throw new ConfigurationException("commitlog_directory must be specified", false);
+                if (commitLogLocation == null)
+                    throw new ConfigurationException("commitlog_directory must be specified", false);
 
-            File commitLogLocationDir = new File(commitLogLocation);
-            PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
-            directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
-        }
-        catch (IOError | ConfigurationException ex)
-        {
-            throw  ex;
-        }
-        catch (RuntimeException e)
-        {
-            logger.warn("Unable to determine block size for commit log directory: {}", e.getMessage());
+                File commitLogLocationDir = new File(commitLogLocation);
+                PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
+                directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
+            }
+            catch (IOError | ConfigurationException ex)
+            {
+                throw ex;
+            }
+            catch (RuntimeException e)
+            {
+                logger.warn("Unable to determine block size for commit log directory: {}", e.getMessage());
+            }
         }
 
         if (providedDiskAccessMode == DiskAccessMode.auto)
@@ -1725,20 +1736,6 @@ public class DatabaseDescriptor
             return defaultCidrChecksForSuperusers;
 
         return Boolean.parseBoolean(value);
-    }
-
-    public static ICIDRAuthorizer.CIDRAuthorizerMode getCidrAuthorizerMode()
-    {
-        ICIDRAuthorizer.CIDRAuthorizerMode defaultCidrAuthorizerMode = ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR;
-
-        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
-            return defaultCidrAuthorizerMode;
-
-        String cidrAuthorizerMode = conf.cidr_authorizer.parameters.get("cidr_authorizer_mode");
-        if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
-            return defaultCidrAuthorizerMode;
-
-        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase());
     }
 
     public static int getCidrGroupsCacheRefreshInterval()
@@ -2538,6 +2535,24 @@ public class DatabaseDescriptor
     public static void setConcurrentViewBuilders(int value)
     {
         conf.concurrent_materialized_view_builders = value;
+    }
+
+    public static int getCompressedReadAheadBufferSize()
+    {
+        return conf.compressed_read_ahead_buffer_size.toBytes();
+    }
+
+    public static int getCompressedReadAheadBufferSizeInKB()
+    {
+        return conf.compressed_read_ahead_buffer_size.toKibibytes();
+    }
+
+    public static void setCompressedReadAheadBufferSizeInKb(int sizeInKb)
+    {
+        if (sizeInKb < 256)
+            throw new IllegalArgumentException("compressed_read_ahead_buffer_size_in_kb must be at least 256KiB");
+
+        conf.compressed_read_ahead_buffer_size = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(sizeInKb, "compressed_read_ahead_buffer_size");
     }
 
     public static long getMinFreeSpacePerDriveInMebibytes()
@@ -3731,6 +3746,16 @@ public class DatabaseDescriptor
         conf.transfer_hints_on_decommission = enabled;
     }
 
+    public static boolean isUseCreationTimeForHintTtl()
+    {
+        return conf.use_creation_time_for_hint_ttl;
+    }
+
+    public static void setUseCreationTimeForHintTtl(boolean enabled)
+    {
+        conf.use_creation_time_for_hint_ttl = enabled;
+    }
+
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;
@@ -4805,6 +4830,11 @@ public class DatabaseDescriptor
         return conf.internode_error_reporting_exclusions;
     }
 
+    public static boolean getInvalidLegacyProtocolMagicNoSpamEnabled()
+    {
+        return conf.invalid_legacy_protocol_magic_no_spam_enabled;
+    }
+
     public static boolean getReadThresholdsEnabled()
     {
         return conf.read_thresholds_enabled;
@@ -5220,6 +5250,16 @@ public class DatabaseDescriptor
     public static DataStorageSpec.IntMebibytesBound getSAISegmentWriteBufferSpace()
     {
         return conf.sai_options.segment_write_buffer_size;
+    }
+
+    public static boolean getPrioritizeSAIOverLegacyIndex()
+    {
+        return conf.sai_options.prioritize_over_legacy_index;
+    }
+
+    public static void setPrioritizeSAIOverLegacyIndex(boolean value)
+    {
+        conf.sai_options.prioritize_over_legacy_index = value;
     }
 
     public static RepairRetrySpec getRepairRetrySpec()

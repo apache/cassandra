@@ -525,9 +525,9 @@ public class SimpleClient implements Closeable
                                         errorHandler,
                                         ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload())
                 {
-                    protected boolean processRequest(Envelope request)
+                    protected boolean processRequest(Envelope request, Overload overload)
                     {
-                        boolean continueProcessing = super.processRequest(request);
+                        boolean continueProcessing = super.processRequest(request, overload);
                         releaseCapacity(Ints.checkedCast(request.header.bodySizeInBytes));
                         return continueProcessing;
                     }

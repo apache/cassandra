@@ -351,7 +351,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         // me (3.0.25, 3.11.11): added hostId of the node from which the sstable originated
 
         // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
-        // nb (4.0.0): originating host id
+        // nb (4.0-rc2): originating host id
         // oa (5.0): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
         //           Long deletionTime to prevent TTL overflow
         //           token space coverage
