@@ -287,7 +287,6 @@ public class Operation
                 }
             }
         }
-
         return indexTargetType;
     }
 
