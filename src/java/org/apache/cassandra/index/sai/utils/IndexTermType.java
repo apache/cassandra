@@ -144,7 +144,8 @@ public class IndexTermType
 
         AbstractType<?> baseType = indexType.unwrap();
 
-        if (baseType.subTypes().isEmpty())
+        // We only need to inspect subtypes when it is possible for them to be queried individually.
+        if (baseType.subTypes().isEmpty() || indexTargetType == IndexTarget.Type.SIMPLE || indexTargetType == IndexTarget.Type.FULL)
         {
             this.subTypes = Collections.emptyList();
         }
