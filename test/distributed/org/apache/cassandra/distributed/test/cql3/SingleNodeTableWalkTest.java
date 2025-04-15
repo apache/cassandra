@@ -44,7 +44,7 @@ import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
-import org.apache.cassandra.cql3.ast.Conditional;
+import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
@@ -170,7 +170,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
         Select.Builder builder = Select.builder().table(state.metadata);
         builder.where(FunctionCall.tokenByColumns(state.model.factory.partitionColumns),
-                      Conditional.Where.Inequality.EQUAL,
+                      Inequality.EQUAL,
                       token(state, ref));
 
         Select select = builder.build();
@@ -213,10 +213,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         else
         {
             builder.where(pkToken,
-                          startInclusive ? Conditional.Where.Inequality.GREATER_THAN_EQ : Conditional.Where.Inequality.GREATER_THAN,
+                          startInclusive ? Inequality.GREATER_THAN_EQ : Inequality.GREATER_THAN,
                           token(state, start));
             builder.where(pkToken,
-                          endInclusive ? Conditional.Where.Inequality.LESS_THAN_EQ : Conditional.Where.Inequality.LESS_THAN,
+                          endInclusive ? Inequality.LESS_THAN_EQ : Inequality.LESS_THAN,
                           token(state, end));
         }
         Select select = builder.build();
@@ -330,7 +330,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     private Property.Command<State, Void, ?> simpleRangeSearch(RandomSource rs, State state, Symbol symbol, ByteBuffer value, Select.Builder builder)
     {
         // do a simple search, like > or <
-        Conditional.Where.Inequality kind = state.rangeInequalityGen.next(rs);
+        Inequality kind = state.rangeInequalityGen.next(rs);
         builder.where(symbol, kind, value);
         Select select = builder.build();
         var indexed = state.indexes.get(symbol);
@@ -368,7 +368,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                   .add(StatefulASTBase::fullTableScan)
                                   .addIf(State::hasPartitions, this::selectExisting)
                                   .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
-                                                                        .add(this::selectTokenRange))
+                                                                        .add(this::selectTokenRange)
+                                                                        .add(StatefulASTBase::selectMinTokenRange))
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
                                   .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
@@ -555,11 +556,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 indexed.put(symbol, new IndexedColumn(symbol, ddl));
             }
             return indexed;
-        }
-
-        public boolean hasPartitions()
-        {
-            return !model.isEmpty();
         }
 
         public boolean supportTokens()

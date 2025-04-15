@@ -71,6 +71,8 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
 import org.apache.cassandra.harry.util.StringUtils;
@@ -1436,7 +1438,7 @@ public class ASTSingleTableModel
         NavigableSet<BytesPartitionState.Ref> keys = partitions.navigableKeySet();
         // To support the case where 2+ keys share the same token, need to create a token ref before and after the token, to make sure
         // the head/tail sets find the matches correctly
-        if (tokenLowerBound != null)
+        if (tokenLowerBound != null && !tokenLowerBound.token.isMinimum())
         {
             boolean inclusive;
             switch (tokenLowerBound.inequality)
@@ -1454,7 +1456,7 @@ public class ASTSingleTableModel
             // when inclusive=false the ref should be after the token, that way they are excluded
             keys = keys.tailSet(factory.createRef(tokenLowerBound.token, !inclusive), inclusive);
         }
-        if (tokenUpperBound != null)
+        if (tokenUpperBound != null && !tokenUpperBound.token.isMinimum())
         {
             boolean inclusive;
             switch (tokenUpperBound.inequality)
@@ -1600,6 +1602,30 @@ public class ASTSingleTableModel
         return ExpressionEvaluator.evalEncoded(e);
     }
 
+    private BytesPartitionState.Ref processToken(Expression e)
+    {
+        BytesPartitionState.Ref ref;
+        if (e instanceof FunctionCall)
+        {
+            FunctionCall rhs = (FunctionCall) e;
+            List<ByteBuffer> pkValues = rhs.arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
+            ref = factory.createRef(new BufferClustering(pkValues.toArray(ByteBuffer[]::new)));
+        }
+        else if (e instanceof Value)
+        {
+            var value = (Value) e;
+            if (value.type() != LongType.instance)
+                throw new AssertionError("Token values only expected to be bigint but given " + value.type().asCQL3Type());
+            var token = new Murmur3Partitioner.LongToken(LongType.instance.compose(value.valueEncoded()));
+            ref = factory.createRef(token, true); // should this be false?
+        }
+        else
+        {
+            throw new UnsupportedOperationException(e.getClass().toString());
+        }
+        return ref;
+    }
+
     private static class Row
     {
         private static final Row EMPTY = new Row(ImmutableUniqueList.empty(), ByteBufferUtil.EMPTY_ARRAY);
@@ -1727,7 +1753,7 @@ public class ASTSingleTableModel
             if (tokenLowerBound != null && tokenUpperBound != null)
             {
                 int rc = tokenLowerBound.token.compareTo(tokenUpperBound.token);
-                if (rc > 0)
+                if (rc > 0 && !tokenUpperBound.token.isMinimum())
                 {
                     // where token > 10 and < 0.... nothing matches that!
                     unmatchable = true;
@@ -1783,9 +1809,7 @@ public class ASTSingleTableModel
                     switch (fn.name())
                     {
                         case "token":
-                            FunctionCall rhs = (FunctionCall) w.rhs;
-                            List<ByteBuffer> pkValues = rhs.arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
-                            BytesPartitionState.Ref ref = factory.createRef(new BufferClustering(pkValues.toArray(ByteBuffer[]::new)));
+                            BytesPartitionState.Ref ref = processToken(w.rhs);
                             switch (w.kind)
                             {
                                 case EQUAL:
@@ -1881,17 +1905,14 @@ public class ASTSingleTableModel
                     {
                         case "token":
                             // if the ref is a token, the only valid start/end are also token
-                            List<ByteBuffer> start = ((FunctionCall) between.start).arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
-                            Token startToken = factory.createRef(new BufferClustering(start.toArray(ByteBuffer[]::new))).token;
-
-                            List<ByteBuffer> end = ((FunctionCall) between.end).arguments.stream().map(ASTSingleTableModel::eval).collect(Collectors.toList());
-                            Token endToken = factory.createRef(new BufferClustering(end.toArray(ByteBuffer[]::new))).token;
+                            Token startToken = processToken(between.start).token;
+                            Token endToken = processToken(between.end).token;
 
                             if (startToken.equals(endToken))
                             {
                                 token = startToken;
                             }
-                            else if (startToken.compareTo(endToken) > 0)
+                            else if (startToken.compareTo(endToken) > 0 && !endToken.isMinimum())
                             {
                                 // start is larger than end... no matches
                                 unmatchable = true;

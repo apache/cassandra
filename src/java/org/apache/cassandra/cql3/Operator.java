@@ -40,6 +40,7 @@ import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -95,12 +96,12 @@ public enum Operator
         }
 
         @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 1 : this + " accept only one single value";
             ClusteringElements arg = args.get(0);
-            rangeSet.removeAll(ClusteringElements.lessThan(arg));
-            rangeSet.removeAll(ClusteringElements.greaterThan(arg));
+            rangeSet.removeAll(ClusteringElements.lessThan(arg, partitioner));
+            rangeSet.removeAll(ClusteringElements.greaterThan(arg, partitioner));
         }
 
         @Override
@@ -144,10 +145,10 @@ public enum Operator
         }
 
         @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 1 : this + " accept only one single value";
-            rangeSet.removeAll(ClusteringElements.atLeast(args.get(0)));
+            rangeSet.removeAll(ClusteringElements.atLeast(args.get(0), partitioner));
         }
 
         @Override
@@ -198,10 +199,10 @@ public enum Operator
         }
 
         @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 1 : this + " accept only one single value";
-            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(0)));
+            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(0), partitioner));
         }
 
         @Override
@@ -252,10 +253,10 @@ public enum Operator
         }
 
         @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 1 : this + " accept only one single value";
-            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
+            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0), partitioner));
         }
 
         @Override
@@ -305,10 +306,10 @@ public enum Operator
         }
 
         @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 1 : this + " accept only one single value";
-            rangeSet.removeAll(ClusteringElements.atMost(args.get(0)));
+            rangeSet.removeAll(ClusteringElements.atMost(args.get(0), partitioner));
         }
 
         @Override
@@ -499,7 +500,7 @@ public enum Operator
         }
 
         @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 1;
             rangeSet.remove(ClusteringElements.notEqualTo(args.get(0)));
@@ -676,7 +677,7 @@ public enum Operator
         }
 
         @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             for (ClusteringElements clustering : args)
                 rangeSet.remove(ClusteringElements.notEqualTo(clustering));
@@ -805,12 +806,16 @@ public enum Operator
         }
 
         @Override
-        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
         {
             assert args.size() == 2 : this + " accepts exactly two values";
-            args.sort(ClusteringElements.CQL_COMPARATOR);
-            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
-            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1)));
+            // avoid sorting when working with token restrictions, otherwise we can't know the difference between these queries:
+            // select * from x.y where token(id) between 0 and MIN_TOKEN
+            // select * from x.y where token(id) between MIN_TOKEN and 0
+            if (!args.get(0).token)
+                args.sort(ClusteringElements.CQL_COMPARATOR);
+            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0), partitioner));
+            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1), partitioner));
         }
 
         @Override
@@ -1074,7 +1079,7 @@ public enum Operator
      * @param rangeSet the range set to restrict
      * @param args the operator arguments
      */
-    public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+    public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args, IPartitioner partitioner)
     {
         throw new UnsupportedOperationException(this + " is not a range operator");
     }

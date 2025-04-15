@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -226,10 +227,10 @@ public final class SimpleRestriction implements SingleRestriction
     }
 
     @Override
-    public void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options)
+    public void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options, IPartitioner partitioner)
     {
         assert operator.isSlice() || operator == Operator.EQ;
-        operator.restrict(rangeSet, bindAndGetClusteringElements(options));
+        operator.restrict(rangeSet, bindAndGetClusteringElements(options), partitioner);
     }
 
     private List<ClusteringElements> bindAndGetClusteringElements(QueryOptions options)
@@ -254,7 +255,7 @@ public final class SimpleRestriction implements SingleRestriction
 
         List<ClusteringElements> elements = new ArrayList<>(values.size());
         for (int i = 0; i < values.size(); i++)
-            elements.add(ClusteringElements.of(columnsExpression.columnSpecification(), values.get(i)));
+            elements.add(ClusteringElements.of(columnsExpression.columnSpecification(), values.get(i), isOnToken()));
         return elements;
     }
 

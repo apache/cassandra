@@ -55,6 +55,7 @@ import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CQLFormatter;
 import org.apache.cassandra.cql3.ast.Conditional;
+import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Select;
@@ -238,6 +239,42 @@ public class StatefulASTBase extends TestBaseImpl
         return state.command(rs, select, "full table scan");
     }
 
+    protected static <S extends BaseState> Property.Command<S, Void, ?> selectMinTokenRange(RandomSource rs, S state)
+    {
+        var key = rs.pickOrderedSet(state.model.partitionKeys());
+        FunctionCall tokenCall = FunctionCall.tokenByColumns(state.model.factory.partitionColumns);
+        Literal min = Literal.of(key.token.getLongValue());
+        Literal max = Literal.of(Long.MIN_VALUE);
+        if (rs.nextBoolean())
+        {
+            Literal tmp = min;
+            min = max;
+            max = tmp;
+        }
+        Select select;
+        if (rs.nextBoolean())
+        {
+            select = Select.builder(state.metadata)
+                           .where(tokenCall, state.greaterThanGen.next(rs), min)
+                           .where(tokenCall, state.lessThanGen.next(rs), max)
+                           .build();
+        }
+        else
+        {
+            // it's possible that the range was flipped, which is known bug with BETWEEN, so
+            // make sure the range is not flipped until that bug is fixed
+            if (IGNORED_ISSUES.contains(KnownIssue.BETWEEN_START_LARGER_THAN_END))
+            {
+                min = Literal.of(key.token.getLongValue());
+                max = Literal.of(Long.MIN_VALUE);
+            }
+            select = Select.builder(state.metadata)
+                           .between(tokenCall, min, max)
+                           .build();
+        }
+        return state.command(rs, select, "min token range");
+    }
+
     protected static abstract class BaseState implements AutoCloseable
     {
         protected final RandomSource rs;
@@ -292,6 +329,11 @@ public class StatefulASTBase extends TestBaseImpl
             this.tableRef = TableReference.from(metadata);
             this.model = new ASTSingleTableModel(metadata, IGNORED_ISSUES);
             createTable(metadata);
+        }
+
+        public boolean hasPartitions()
+        {
+            return !model.isEmpty();
         }
 
         protected boolean readAfterWrite()

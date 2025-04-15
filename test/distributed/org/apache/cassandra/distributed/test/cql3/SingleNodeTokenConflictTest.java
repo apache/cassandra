@@ -280,6 +280,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
                                   .add(SingleNodeTokenConflictTest::tokenBetween)
                                   .add(SingleNodeTokenConflictTest::tokenRange)
                                   .add(SingleNodeTokenConflictTest::tokenBoundRange)
+                                  .addIf(State::hasPartitions, StatefulASTBase::selectMinTokenRange)
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
                                   .destroyState(State::close)
