@@ -30,8 +30,8 @@ import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class AutoRepairConfig implements Serializable
 {
@@ -310,6 +310,17 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.initial_scheduler_delay_in_sec);
     }
 
+    public void setRepairTokenRangesForNode(RepairType repairType, InetAddressAndPort endpoint)
+    {
+        ensureOverrides(repairType);
+        repair_type_overrides.get(repairType).repair_token_ranges_for_node = endpoint;
+    }
+
+    public InetAddressAndPort getRepairTokenRangesForNode(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.repair_token_ranges_for_node);
+    }
+
     // Options configures auto-repair behavior for a given repair type.
     // The function of each of these fields is described here: https://docs.google.com/document/d/1Z1d27moU9yPT-r_1JhpcO_3ws-aQkUww5JA0abwK9dE/edit#heading=h.izpcb3d6hq4n
     // All fields can be modified dynamically.
@@ -397,6 +408,14 @@ public class AutoRepairConfig implements Serializable
         public volatile Boolean mv_repair_enabled;
         // the minimum delay in seconds after a node starts before the scheduler starts running repair
         public volatile Integer initial_scheduler_delay_in_sec;
+
+        // by default, null, i.e., run repair for the token range that this node owns
+        // this is used for the case when we want to run repair for a different token range
+        // for example, when we bootstrap a node as part of a node replacement,
+        // we might want to run repair for the token range that the previous node owned
+        // but the previous node is down, so we want somebody else (bootstrapping node) to run
+        // repair on its behalf
+        public volatile InetAddressAndPort repair_token_ranges_for_node;
     }
 
     @VisibleForTesting

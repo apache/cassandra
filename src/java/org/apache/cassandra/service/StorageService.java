@@ -394,8 +394,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
+        return getLocalReplicasEndpoint(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public RangesAtEndpoint getLocalReplicasEndpoint(String keyspaceName, InetAddressAndPort ep)
+    {
         return Keyspace.open(keyspaceName).getReplicationStrategy()
-                .getAddressReplicas(FBUtilities.getBroadcastAddressAndPort());
+                       .getAddressReplicas(ep);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)

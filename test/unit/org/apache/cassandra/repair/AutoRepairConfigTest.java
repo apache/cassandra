@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair;
 
+import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -31,12 +32,13 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AutoRepairConfig.Options;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
@@ -517,5 +519,27 @@ public class AutoRepairConfigTest extends CQLTester
 
         for (String keyspace : allowedKeyspaces)
             assertFalse("Keyspace " + keyspace + " should be allowed", Pattern.matches(defaultOptions.ignore_keyspaces, keyspace));
+    }
+
+    @Test
+    public void tesDefaultRepairTokenRangesForNode() throws UnknownHostException
+    {
+        assertNull(config.getRepairTokenRangesForNode(repairType));
+    }
+
+    @Test
+    public void tesSetRepairTokenRangesForNode() throws UnknownHostException
+    {
+        config.setRepairTokenRangesForNode(repairType, InetAddressAndPort.getByName("127.0.0.1"));
+
+        assertEquals(InetAddressAndPort.getByName("127.0.0.1"), config.repair_type_overrides.get(repairType).repair_token_ranges_for_node);
+    }
+
+    @Test
+    public void tesGetRepairTokenRangesForNode() throws UnknownHostException
+    {
+        assertNull(config.getRepairTokenRangesForNode(repairType));
+        config.global_settings.repair_token_ranges_for_node = InetAddressAndPort.getByName("127.0.0.1");
+        assertEquals(InetAddressAndPort.getByName("127.0.0.1"), config.getRepairTokenRangesForNode(repairType));
     }
 }

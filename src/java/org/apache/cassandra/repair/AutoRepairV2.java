@@ -50,6 +50,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.metrics.AutoRepairMetricsV2;
 import org.apache.cassandra.repair.state.AutoRepairState;
@@ -247,11 +248,24 @@ public class AutoRepairV2
                     {
                         try
                         {
-                            Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
+                            InetAddressAndPort repairTokenRangesForNode = config.getRepairTokenRangesForNode(repairType);
+                            if (repairTokenRangesForNode == null)
+                            {
+                                // by default run repair for the token range that this node owns
+                                repairTokenRangesForNode = FBUtilities.getBroadcastAddressAndPort();
+                            }
+                            else
+                            {
+                                // this is useful if we want to run repair for the token range owned
+                                // by some other node
+                                // TODO: maybe add a metric for this
+                                logger.info("Repair token ranges for node {}", repairTokenRangesForNode);
+                            }
+                            Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRangesForEndpoint(keyspaceName, repairTokenRangesForNode);
                             if (!primaryRangeOnly)
                             {
                                 // if we need to repair non-primary token ranges, then change the tokens accrodingly
-                                tokens = StorageService.instance.getLocalReplicas(keyspaceName).ranges();
+                                tokens = StorageService.instance.getLocalReplicasEndpoint(keyspaceName, repairTokenRangesForNode).ranges();
                             }
                             int numberOfSubranges = config.getRepairSubRangeNum(repairType);
                             int totalSubRanges = tokens.size() * numberOfSubranges;
