@@ -38,7 +38,6 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -288,8 +287,6 @@ public class Operation
                 }
             }
         }
-        else if (type instanceof CompositeType)
-            indexTargetType = IndexTarget.Type.KEYS_AND_VALUES;
 
         return indexTargetType;
     }

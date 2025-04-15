@@ -67,7 +67,7 @@ public class ComplexQueryTest extends SAITester
     }
 
     @Test
-    public void CompositeTypeWithMapInsideQuery()
+    public void compositeTypeWithMapInsideQuery()
     {
         createTable(KEYSPACE, "CREATE TABLE %s (" +
                               "pk1 frozen<map<'CompositeType(IntegerType,SimpleDateType)', 'DynamicCompositeType(Q=>LongType,I=>ByteType,6=>LexicalUUIDType)'>>," +
@@ -80,8 +80,7 @@ public class ComplexQueryTest extends SAITester
                               "r4 frozen<list<frozen<list<time>>>>," +
                               "r5 'CompositeType(CompositeType(ShortType,SimpleDateType,BooleanType),CompositeType(FloatType),MapType(ByteType,TimeType))'," +
                               "r6 set<smallint>," +
-                              "PRIMARY KEY ((pk1, pk2), ck1, ck2)) " +
-                              "WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC);");
+                              "PRIMARY KEY ((pk1, pk2), ck1, ck2))");
 
 
 
