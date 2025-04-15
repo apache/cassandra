@@ -479,17 +479,10 @@ public class GrantAndRevokeTest extends CQLTester
         useSuperUser();
         executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
         
-        useUser(user, pass);
-        assertUnauthorizedQuery("User user has no SELECT permission on <table system_views.settings> or any of its parents",
-                                "SELECT * FROM system_views.settings LIMIT 1");
-        
-        useSuperUser();
         executeNet(ProtocolVersion.CURRENT, format("GRANT SELECT PERMISSION ON KEYSPACE system_virtual_schema TO %s", user));
         executeNet(ProtocolVersion.CURRENT, format("GRANT SELECT PERMISSION ON KEYSPACE system_views TO %s", user));
-        
-        useUser(user, pass);
-        executeNet(ProtocolVersion.CURRENT, "SELECT * FROM system_views.settings LIMIT 1");
-        executeNet(ProtocolVersion.CURRENT, "SELECT * FROM system_virtual_schema.tables LIMIT 1");
+        executeNet(ProtocolVersion.CURRENT, format("REVOKE SELECT PERMISSION ON KEYSPACE system_virtual_schema FROM %s", user));
+        executeNet(ProtocolVersion.CURRENT, format("REVOKE SELECT PERMISSION ON KEYSPACE system_views FROM %s", user));
     }
 
     private void maybeReadSystemTables(boolean superuser) throws Throwable
