@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.RangeSet;
 
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -51,18 +52,22 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      */
     private final boolean allowFiltering;
 
+    private final IPartitioner partitioner;
+
     public ClusteringColumnRestrictions(TableMetadata table, boolean allowFiltering)
     {
-        this(table.comparator, RestrictionSet.empty(), allowFiltering);
+        this(table.comparator, RestrictionSet.empty(), allowFiltering, table.partitioner);
     }
 
     private ClusteringColumnRestrictions(ClusteringComparator comparator,
                                          RestrictionSet restrictionSet,
-                                         boolean allowFiltering)
+                                         boolean allowFiltering,
+                                         IPartitioner partitioner)
     {
         super(restrictionSet);
         this.comparator = comparator;
         this.allowFiltering = allowFiltering;
+        this.partitioner = partitioner;
     }
 
     public ClusteringColumnRestrictions mergeWith(Restriction restriction, @Nullable IndexRegistry indexRegistry) throws InvalidRequestException
@@ -89,7 +94,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
                                      newRestrictionStart.name);
         }
 
-        return new ClusteringColumnRestrictions(this.comparator, newRestrictionSet, allowFiltering);
+        return new ClusteringColumnRestrictions(this.comparator, newRestrictionSet, allowFiltering, partitioner);
     }
 
     public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options, ClientState state) throws InvalidRequestException
@@ -123,7 +128,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             if (r.isSlice())
             {
                 RangeSet<ClusteringElements> rangeSet = ClusteringElements.all();
-                r.restrict(rangeSet, options);
+                r.restrict(rangeSet, options, partitioner);
                 return builder.extend(rangeSet).buildSlices();
             }
 

@@ -559,5 +559,17 @@ public class SimpleQueryTest extends CQLTester
         execute("DELETE FROM %s USING TIMESTAMP 6 WHERE k1 = 1");
 
         assertRows(execute("SELECT * FROM %s WHERE k1=1"), row(1, 1, 2));
-    } 
+    }
+
+    @Test
+    public void testTokenRestriction()
+    {
+        createTable("CREATE TABLE %s (id int primary key)");
+        for (int i = 0; i < 10; i++)
+            execute("INSERT INTO %s (id) values (?)", i);
+
+        assertRows(execute("SELECT * FROM %s where token(id) > 0 AND token(id) < " + Long.MIN_VALUE),  row(7), row(6), row(9), row(3));
+        assertRows(execute("SELECT * FROM %s where token(id) > 0 AND token(id) <= " + Long.MIN_VALUE), row(7), row(6), row(9), row(3));
+        assertRows(execute("SELECT * FROM %s where token(id) BETWEEN 0 AND " + Long.MIN_VALUE),        row(7), row(6), row(9), row(3));
+    }
 }

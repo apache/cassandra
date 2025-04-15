@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.db.BufferClusteringBound;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
@@ -94,7 +95,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
     /**
      * The empty {@code ClusteringElements} instance used to avoid creating unecessary empty instances.
      */
-    private static final ClusteringElements EMPTY = new ClusteringElements(ImmutableList.of(), ImmutableList.of());
+    private static final ClusteringElements EMPTY = new ClusteringElements(ImmutableList.of(), ImmutableList.of(), false);
 
     /**
      * A range representing all {@code ClusteringElements}.
@@ -112,7 +113,12 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      */
     private final ImmutableList<ByteBuffer> values;
 
-    private ClusteringElements(ImmutableList<? extends ColumnSpecification> columns, ImmutableList<ByteBuffer> values)
+    /**
+     * We need to special case token restrictions to properly handle MIN_TOKEN
+     */
+    public final boolean token;
+
+    private ClusteringElements(ImmutableList<? extends ColumnSpecification> columns, ImmutableList<ByteBuffer> values, boolean token)
     {
         if (columns.size() != values.size())
             throw new IllegalArgumentException("columns and values should have the same size");
@@ -121,6 +127,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
 
         this.columns = columns;
         this.values = values;
+        this.token = token;
     }
 
     private static void checkColumnsOrder(ImmutableList<? extends ColumnSpecification> columns)
@@ -163,9 +170,9 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      * @param value the element value
      * @return a {@code ClusteringElements} with a single element.
      */
-    public static ClusteringElements of(ColumnSpecification column, ByteBuffer value)
+    public static ClusteringElements of(ColumnSpecification column, ByteBuffer value, boolean onToken)
     {
-        return new ClusteringElements(ImmutableList.of(column), ImmutableList.of(value));
+        return new ClusteringElements(ImmutableList.of(column), ImmutableList.of(value), onToken);
     }
 
     /**
@@ -176,7 +183,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      */
     public static ClusteringElements of(List<? extends ColumnSpecification> columns, List<ByteBuffer> values)
     {
-        return new ClusteringElements(ImmutableList.copyOf(columns), ImmutableList.copyOf(values));
+        return new ClusteringElements(ImmutableList.copyOf(columns), ImmutableList.copyOf(values), false);
     }
 
     /**
@@ -200,9 +207,9 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
         ImmutableList<? extends ColumnSpecification> newColumns = concat(columns, suffix.columns);
         ImmutableList<ByteBuffer> newValues = concat(values, suffix.values);
 
-        return suffix instanceof Top ? new Top(newColumns, newValues)
-                                     : suffix instanceof Bottom ? new Bottom(newColumns, newValues)
-                                                                : new ClusteringElements(newColumns, newValues);
+        return suffix instanceof Top ? new Top(newColumns, newValues, token)
+                                     : suffix instanceof Bottom ? new Bottom(newColumns, newValues, token)
+                                                                : new ClusteringElements(newColumns, newValues, token);
     }
 
     private void checkSuffix(ClusteringElements suffix)
@@ -245,36 +252,36 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      * Returns a {@code RangeSet} that contains all values less than or equal to endpoint.
      * @return a {@code RangeSet} that contains all values less than or equal to endpoint.
      */
-    public static RangeSet<ClusteringElements> atMost(ClusteringElements endpoint)
+    public static RangeSet<ClusteringElements> atMost(ClusteringElements endpoint, IPartitioner partitioner)
     {
-        return buildRangeSet(endpoint, true, BoundType.CLOSED);
+        return buildRangeSet(endpoint, true, BoundType.CLOSED, partitioner);
     }
 
     /**
      * Returns a {@code RangeSet} that contains all values less than endpoint.
      * @return a {@code RangeSet} that contains all values less than endpoint.
      */
-    public static RangeSet<ClusteringElements> lessThan(ClusteringElements endpoint)
+    public static RangeSet<ClusteringElements> lessThan(ClusteringElements endpoint, IPartitioner partitioner)
     {
-        return buildRangeSet(endpoint, true, BoundType.OPEN);
+        return buildRangeSet(endpoint, true, BoundType.OPEN, partitioner);
     }
 
     /**
      * Returns a {@code RangeSet} that contains all values greater or equal to endpoint.
      * @return a {@code RangeSet} that contains all values greater or equal to endpoint.
      */
-    public static RangeSet<ClusteringElements> atLeast(ClusteringElements endpoint)
+    public static RangeSet<ClusteringElements> atLeast(ClusteringElements endpoint, IPartitioner partitioner)
     {
-        return buildRangeSet(endpoint, false, BoundType.CLOSED);
+        return buildRangeSet(endpoint, false, BoundType.CLOSED, partitioner);
     }
 
     /**
      * Returns a {@code RangeSet} that contains all values greater than endpoint.
      * @return a {@code RangeSet} that contains all values greater than endpoint.
      */
-    public static RangeSet<ClusteringElements> greaterThan(ClusteringElements endpoint)
+    public static RangeSet<ClusteringElements> greaterThan(ClusteringElements endpoint, IPartitioner partitioner)
     {
-        return buildRangeSet(endpoint, false, BoundType.OPEN);
+        return buildRangeSet(endpoint, false, BoundType.OPEN, partitioner);
     }
 
     public static Range<ClusteringElements> notEqualTo(ClusteringElements endpoint)
@@ -282,7 +289,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
         return Range.closed(endpoint.bottom(), endpoint.top());
     }
 
-    private static RangeSet<ClusteringElements> buildRangeSet(ClusteringElements endpoint, boolean upperBound, BoundType boundType)
+    private static RangeSet<ClusteringElements> buildRangeSet(ClusteringElements endpoint, boolean upperBound, BoundType boundType, IPartitioner partitioner)
     {
         TreeRangeSet<ClusteringElements> rangeSet = TreeRangeSet.create();
         boolean reversed = endpoint.columnType(0).isReversed();
@@ -312,12 +319,16 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
                 oppositeEndpoint = upperBound ? e.bottom() : e.top();
             }
         }
+        boolean minToken = false;
+        if (endpoint.token && !upperBound)
+            minToken = partitioner.getTokenFactory().fromByteArray(endpoint.get(0)).isMinimum();
         // We need to add the last range or the only one if there was no change of direction.
         Range<ClusteringElements> range = upperBound ? Range.range(oppositeEndpoint,
                                                                    BoundType.CLOSED,
                                                                    boundType == BoundType.OPEN ? endpoint.bottom() : endpoint.top(),
                                                                    boundType)
-                                                     : Range.range(boundType == BoundType.OPEN ? endpoint.top() : endpoint.bottom(),
+                                                     : Range.range(minToken ? oppositeEndpoint
+                                                                            : boundType == BoundType.OPEN ? endpoint.top() : endpoint.bottom(),
                                                                    boundType,
                                                                    oppositeEndpoint,
                                                                    BoundType.CLOSED);
@@ -331,7 +342,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      */
     public ClusteringElements top()
     {
-        return new Top(columns, values);
+        return new Top(columns, values, token);
     }
 
     /**
@@ -340,7 +351,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      */
     public ClusteringElements bottom()
     {
-        return new Bottom(columns, values);
+        return new Bottom(columns, values, token);
     }
 
     @Override
@@ -472,9 +483,9 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      */
     private static class Bottom extends ClusteringElements
     {
-        private Bottom(ImmutableList<? extends ColumnSpecification> columns, ImmutableList<ByteBuffer> values)
+        private Bottom(ImmutableList<? extends ColumnSpecification> columns, ImmutableList<ByteBuffer> values, boolean token)
         {
-            super(columns, values);
+            super(columns, values, token);
         }
 
         @Override
@@ -491,9 +502,9 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      */
     private static class Top extends ClusteringElements
     {
-        private Top(ImmutableList<? extends ColumnSpecification> columns, ImmutableList<ByteBuffer> values)
+        private Top(ImmutableList<? extends ColumnSpecification> columns, ImmutableList<ByteBuffer> values, boolean token)
         {
-            super(columns, values);
+            super(columns, values, token);
         }
 
         @Override

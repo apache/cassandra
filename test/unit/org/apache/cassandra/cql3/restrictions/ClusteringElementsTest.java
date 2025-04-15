@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.harry.util.ByteUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 
@@ -187,7 +188,7 @@ public class ClusteringElementsTest
             ClusteringElements four = elements(type, 4);
             ClusteringElements six = elements(type, 6);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atMost(four);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atMost(four, Murmur3Partitioner.instance);
             assertTrue(rangeSet.contains(one));
             assertTrue(rangeSet.contains(four));
             assertFalse(rangeSet.contains(six));
@@ -208,7 +209,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFive = elements(columns, 1, 5);
             ClusteringElements twoFive = elements(columns, 2, 5);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atMost(oneThree);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atMost(oneThree, Murmur3Partitioner.instance);
 
             assertTrue(rangeSet.contains(zeroZero));
             assertTrue(rangeSet.contains(oneZero));
@@ -258,7 +259,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFiveOne = elements(columns, 1, 5, 1);
             ClusteringElements twoFiveFive = elements(columns, 2, 5, 5);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atMost(oneThreeOne);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atMost(oneThreeOne, Murmur3Partitioner.instance);
 
             assertTrue(rangeSet.contains(zeroZeroZero));
             assertTrue(rangeSet.contains(oneZeroOne));
@@ -279,7 +280,7 @@ public class ClusteringElementsTest
             ClusteringElements four = elements(column, 4);
             ClusteringElements six = elements(column, 6);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.lessThan(four);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.lessThan(four, Murmur3Partitioner.instance);
             assertTrue(rangeSet.contains(one));
             assertFalse(rangeSet.contains(four));
             assertFalse(rangeSet.contains(six));
@@ -300,7 +301,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFive = elements(columns, 1, 5);
             ClusteringElements twoFive = elements(columns, 2, 5);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.lessThan(oneThree);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.lessThan(oneThree, Murmur3Partitioner.instance);
 
             assertTrue(rangeSet.contains(zeroZero));
             assertTrue(rangeSet.contains(oneZero));
@@ -351,7 +352,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFiveOne = elements(columns, 1, 5, 1);
             ClusteringElements twoFiveFive = elements(columns, 2, 5, 5);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.lessThan(oneThreeOne);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.lessThan(oneThreeOne, Murmur3Partitioner.instance);
 
             assertTrue(rangeSet.contains(zeroZeroZero));
             assertTrue(rangeSet.contains(oneZeroOne));
@@ -372,7 +373,7 @@ public class ClusteringElementsTest
             ClusteringElements four = elements(column, 4);
             ClusteringElements six = elements(column, 6);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atLeast(four);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atLeast(four, Murmur3Partitioner.instance);
             assertFalse(rangeSet.contains(one));
             assertTrue(rangeSet.contains(four));
             assertTrue(rangeSet.contains(six));
@@ -393,7 +394,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFive = elements(columns, 1, 5);
             ClusteringElements twoFive = elements(columns, 2, 5);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atLeast(oneThree);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atLeast(oneThree, Murmur3Partitioner.instance);
 
             assertFalse(rangeSet.contains(zeroZero));
             assertFalse(rangeSet.contains(oneZero));
@@ -444,7 +445,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFiveOne = elements(columns, 1, 5, 1);
             ClusteringElements twoFiveFive = elements(columns, 2, 5, 5);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atLeast(oneThreeOne);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.atLeast(oneThreeOne, Murmur3Partitioner.instance);
 
             assertFalse(rangeSet.contains(zeroZeroZero));
             assertFalse(rangeSet.contains(oneZeroOne));
@@ -465,7 +466,7 @@ public class ClusteringElementsTest
             ClusteringElements four = elements(column, 4);
             ClusteringElements six = elements(column, 6);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.greaterThan(four);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.greaterThan(four, Murmur3Partitioner.instance);
             assertFalse(rangeSet.contains(one));
             assertFalse(rangeSet.contains(four));
             assertTrue(rangeSet.contains(six));
@@ -486,7 +487,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFive = elements(columns, 1, 5);
             ClusteringElements twoFive = elements(columns, 2, 5);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.greaterThan(oneThree);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.greaterThan(oneThree, Murmur3Partitioner.instance);
 
             assertFalse(rangeSet.contains(zeroZero));
             assertFalse(rangeSet.contains(oneZero));
@@ -537,7 +538,7 @@ public class ClusteringElementsTest
             ClusteringElements oneFiveOne = elements(columns, 1, 5, 1);
             ClusteringElements twoFiveFive = elements(columns, 2, 5, 5);
 
-            RangeSet<ClusteringElements> rangeSet = ClusteringElements.greaterThan(oneThreeOne);
+            RangeSet<ClusteringElements> rangeSet = ClusteringElements.greaterThan(oneThreeOne, Murmur3Partitioner.instance);
 
             assertFalse(rangeSet.contains(zeroZeroZero));
             assertFalse(rangeSet.contains(oneZeroOne));
@@ -662,7 +663,7 @@ public class ClusteringElementsTest
 
     private static ClusteringElements elements(ColumnMetadata column, int value)
     {
-        return ClusteringElements.of(column, bytes(value));
+        return ClusteringElements.of(column, bytes(value), false);
     }
 
     private static ClusteringElements elements(List<ColumnMetadata> columns, int... values)

@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -325,11 +326,11 @@ public final class MergedRestriction implements SingleRestriction
     }
 
     @Override
-    public void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options)
+    public void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options, IPartitioner partitioner)
     {
         for (int i = 0, m = restrictions.size(); i < m; i++)
         {
-            restrictions.get(i).restrict(rangeSet, options);
+            restrictions.get(i).restrict(rangeSet, options, partitioner);
         }
     }
 
