@@ -35,6 +35,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
@@ -47,6 +48,7 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
+import com.datastax.driver.core.exceptions.ReadFailureException;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
@@ -74,6 +76,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -510,14 +513,14 @@ public class StatefulASTBase extends TestBaseImpl
         private ResultSet executeWithRetries(SimpleStatement ss, int maxTries)
         {
             Backoff backoff = null;
-            Throwable lastError = null;
+            ReadFailureException lastError = null;
             for (int i = 0; i < maxTries; i++)
             {
                 try
                 {
                     return session.execute(ss);
                 }
-                catch (Throwable t)
+                catch (ReadFailureException t)
                 {
                     lastError = t;
                     if (backoff == null)
@@ -533,7 +536,7 @@ public class StatefulASTBase extends TestBaseImpl
                     }
                 }
             }
-            throw new RuntimeException(lastError);
+            throw new AssertionError("Request failed after " + maxTries + " attempts! failed from=" + Maps.transformValues(lastError.getFailuresMap(), ExceptionCode::fromValue), lastError);
         }
 
         @VisibleForTesting
