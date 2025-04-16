@@ -304,8 +304,19 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     public void update(long value)
     {
-        int index = findIndex(bucketOffsets, value);
-        bucketsThreadLocal.get().update(index, clock.now());
+        int index = getIndex(value);
+        BucketsThreadLocal local = getBucketsThreadLocal();
+        local.update(index, clock.now());
+    }
+
+    private BucketsThreadLocal getBucketsThreadLocal()
+    {
+        return bucketsThreadLocal.get();
+    }
+
+    private int getIndex(long value)
+    {
+        return findIndex(bucketOffsets, value);
     }
 
     public static void release() throws InterruptedException
@@ -361,7 +372,12 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
     private static long forwardDecayWeight(long decayLandmark, long now)
     {
-        return Math.round(Math.exp(TimeUnit.NANOSECONDS.toSeconds(now - decayLandmark) / MEAN_LIFETIME_IN_S));
+        return forwardDecayWeight(TimeUnit.NANOSECONDS.toSeconds(now - decayLandmark));
+    }
+
+    private static long forwardDecayWeight(long durationSeconds)
+    {
+        return Math.round(Math.exp(durationSeconds / MEAN_LIFETIME_IN_S));
     }
 
     private static void decay(LongBuffer buffer, long decayLandmark, long now)
@@ -888,7 +904,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         // try to use int[] instead of long[] to reduce memory usage, and move to the sum array when overflow
         private final AtomicReference<DecayingArray> decayingRef;
         private final long[] estimated;
-        private volatile boolean writing;
 
         public BucketsThreadLocal(int size)
         {
@@ -898,22 +913,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         public void update(int index, long now)
         {
-            // This is only called by the thread that owns the thread local, so we don't need to worry about contention.
-            // Once the rescaling has occurred, we need to flush the values to the decayingBucket and report that the values are no longer in use.
-            writing = true;
-            try
-            {
-                DecayingArray decaying = decayingRef.get();
-                if (decaying.decayLandmark != decayingEstimatedBuckets.decayLandmark)
-                    decayingEstimatedBuckets.flush(this, decaying);
-
-                decayingRef.get().update(index, now);
-                estimated[index]++;
-            }
-            finally
-            {
-                writing = false;
-            }
+            decayingEstimatedBuckets.getDecayingArraySafely(decayingRef).update(index, now);
+            estimated[index]++;
         }
 
         public void release()
@@ -986,9 +987,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                             break;
                         if (local.decayingRef.compareAndSet(prev, new DecayingArray(size, now)))
                         {
-                            // We successfully switched the thread local to the new decayLandmark, wait for the thread to finish updating.
-                            while (local.writing)
-                                LockSupport.parkNanos(50);
                             decayingPending.offer(prev);
                             break;
                         }
@@ -1015,17 +1013,24 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         }
 
         /**
-         * Used only by a thread-local writer to flush the values to the buffer.
+         * @param decayingRef the decaying array reference.
+         * @return the decaying array with the updated decay landmark.
          */
-        public void flush(BucketsThreadLocal local, DecayingArray decaying)
+        public DecayingArray getDecayingArraySafely(AtomicReference<DecayingArray> decayingRef)
         {
+            DecayingArray decaying = decayingRef.get();
+            if (decaying.decayLandmark == decayLandmark)
+                return decaying;
+
+            boolean success;
+            DecayingArray candidate = new DecayingArray(decaying.data.length, decayLandmark);
             long stamp = stampedLock.tryWriteLock();
             if (stamp > 0)
             {
                 try
                 {
-                    boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(size, decayLandmark));
-                    assert success : "The thread local was updated by another thread";
+                    success = decayingRef.compareAndSet(decaying, candidate);
+                    assert success : "The decaying array was updated by another thread while we were waiting for the lock";
                     decayingPending.offer(decaying);
                     flushPendingExclusive();
                 }
@@ -1036,11 +1041,13 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             }
             else
             {
-                boolean success = local.decayingRef.compareAndSet(decaying, new DecayingArray(size, decayLandmark));
+                success = decayingRef.compareAndSet(decaying, candidate);
                 // If the CAS failed, the thread local was updated by the rescale thread and all the values were already flushed.
                 if (success)
                     decayingPending.offer(decaying);
             }
+
+            return success ? candidate : decayingRef.get();
         }
 
         public DecayingEstimatedArray snapshot(Set<BucketsThreadLocal> locals)
@@ -1144,6 +1151,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     private static class DecayingArray
     {
+        private static final int oneSecond = 1_000_000_000;
         private final long[] data;
         private final long decayLandmark;
         /**
@@ -1151,7 +1159,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
          * and the precision of the clock is not guaranteed to be nanoseconds (approximately 2ms),
          * we can avoid calculating the decay weight for every sample and instead use the last calculated weight.
          */
-        private long lastSampledClock;
+        private long lastTick;
         private long lastDecayedWeight;
 
         public DecayingArray(int size, long decayLandmark)
@@ -1162,10 +1170,15 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         public void update(int index, long now)
         {
-            if (lastSampledClock != now)
+            long tick = now - decayLandmark / oneSecond;
+            if (tick != lastTick)
             {
-                lastSampledClock = now;
-                lastDecayedWeight = forwardDecayWeight(decayLandmark, now);
+                // The decay weight is calculated only once per second.
+                // The decay weight is calculated using the forward decay formula.
+                // The decay weight is calculated using the formula: e^(x / meanLifetime)
+                // where x is the time since the last decay landmark and meanLifetime is the mean lifetime of the data in seconds.
+                lastTick = tick;
+                lastDecayedWeight = forwardDecayWeight(tick);
             }
             data[index] += lastDecayedWeight;
         }
