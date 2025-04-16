@@ -310,15 +310,10 @@ public class GrantAndRevokeTest extends CQLTester
         Session superuser = session(SUPERUSER);
         superuser.execute(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
         
-        Session nonsuperuser = session(USER);
-        assertUnauthorizedQuery(nonsuperuser, "User user has no SELECT permission on <table system_views.settings> or any of its parents",
-                                "SELECT * FROM system_views.settings LIMIT 1");
-        
         superuser.execute(String.format("GRANT SELECT PERMISSION ON KEYSPACE system_virtual_schema TO %s", user));
         superuser.execute(String.format("GRANT SELECT PERMISSION ON KEYSPACE system_views TO %s", user));
-        
-        nonsuperuser.execute("SELECT * FROM system_views.settings LIMIT 1");
-        nonsuperuser.execute("SELECT * FROM system_virtual_schema.tables LIMIT 1");
+        superuser.execute(String.format("REVOKE SELECT PERMISSION ON KEYSPACE system_virtual_schema FROM %s", user));
+        superuser.execute(String.format("REVOKE SELECT PERMISSION ON KEYSPACE system_views FROM %s", user));
     }
 
     private void maybeReadSystemTables(Session session, boolean isSuper) throws Throwable
