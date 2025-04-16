@@ -30,7 +30,7 @@ import org.apache.cassandra.tools.NodeProbe;
 //import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 //PICOCLI imports below
-import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.CassandraUsage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -39,7 +39,7 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeys
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
-@Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
+@Command(name = "compact", description = "Force a (major PRANAV CHAURASIA) compaction on one or more tables or user-defined compaction on given SSTables")
 //public class Compact extends NodeToolCmd
 public class Compact extends AbstractCommand
 {
