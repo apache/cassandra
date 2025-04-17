@@ -20,9 +20,10 @@ package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.junit.Assert;
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.BTreeRow;
@@ -45,7 +47,11 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTree;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class RowFilterTest
 {
@@ -88,8 +94,8 @@ public class RowFilterTest
                 closed.set(true);
             }
         }), 1);
-        Assert.assertFalse(iter.hasNext());
-        Assert.assertTrue(closed.get());
+        assertFalse(iter.hasNext());
+        assertTrue(closed.get());
 
         filter = RowFilter.none().withNewExpressions(new ArrayList<>());
         filter.add(r, Operator.NEQ, one);
@@ -122,9 +128,34 @@ public class RowFilterTest
                 closed.set(true);
             }
         }), 1);
-        Assert.assertFalse(iter.hasNext());
-        Assert.assertTrue(closed.get());
+        assertFalse(iter.hasNext());
+        assertTrue(closed.get());
     }
 
+    @Test
+    public void testMutableIntersections()
+    {
+        TableMetadata metadata = TableMetadata.builder("testks", "testcf")
+                                              .addPartitionKeyColumn("pk", Int32Type.instance)
+                                              .addRegularColumn("r", Int32Type.instance)
+                                              .addRegularColumn("t", UTF8Type.instance)
+                                              .build();
 
+        RowFilter filter = RowFilter.none().withNewExpressions(new ArrayList<>());
+        assertFalse(filter.isMutableIntersection());
+        
+        ColumnMetadata r = metadata.getColumn(new ColumnIdentifier("r", true));
+        RowFilter.Expression gt = new RowFilter.SimpleExpression(r, Operator.GT, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        filter = filter.withNewExpressions(Collections.singletonList(gt));
+        assertFalse(filter.isMutableIntersection());
+
+        RowFilter.Expression lt = new RowFilter.SimpleExpression(r, Operator.LT, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        filter = filter.withNewExpressions(ImmutableList.of(gt, lt));
+        assertFalse(filter.isMutableIntersection());
+
+        ColumnMetadata t = metadata.getColumn(new ColumnIdentifier("t", true));
+        RowFilter.Expression eq = new RowFilter.SimpleExpression(t, Operator.EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        filter = filter.withNewExpressions(ImmutableList.of(gt, lt, eq));
+        assertTrue(filter.isMutableIntersection());
+    }
 }

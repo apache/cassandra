@@ -1,4 +1,5 @@
 5.0.5
+ * Ensure RowFilter#isMutableIntersection() properly evaluates numeric ranges on a single column (CASSANDRA-20566)
  * Switch memtable-related off-heap objects to Native Endian and Memory to Little Endian (CASSANDRA-20190)
  * SAI marks an index as non-empty when a partial partition/row modifications is flushed due to repair (CASSANDRA-20567)
  * SAI fails queries when multiple columns exist and a non-indexed column is a composite with a map (CASSANDRA-19891)
