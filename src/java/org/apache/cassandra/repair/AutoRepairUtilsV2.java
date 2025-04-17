@@ -379,11 +379,11 @@ public class AutoRepairUtilsV2
     public static long getLastRepairTimeForNode(RepairType repairType, UUID hostId)
     {
         ResultMessage.Rows rows = selectLastRepairTimeForNode.execute(QueryState.forInternalCalls(),
-                                                                                QueryOptions.forInternalCalls(internalQueryCL,
-                                                                                                              Lists.newArrayList(
-                                                                                                              ByteBufferUtil.bytes(repairType.toString()),
-                                                                                                              ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()),
-                                                                                                              ByteBufferUtil.bytes(hostId))),
+                                                                      QueryOptions.forInternalCalls(internalQueryCL,
+                                                                                                    Lists.newArrayList(
+                                                                                                    ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                    ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()),
+                                                                                                    ByteBufferUtil.bytes(hostId))),
                                                                       Dispatcher.RequestTime.forImmediateExecution());
 
         UntypedResultSet repairTime = UntypedResultSet.create(rows.result);
@@ -917,5 +917,12 @@ public class AutoRepairUtilsV2
             }
         }
         return allMvs;
+    }
+
+    public static boolean isBootstrapRepair()
+    {
+        return StorageService.instance.isBootstrapMode() &&
+               AutoRepairService.instance.getAutoRepairConfig().isAutoRepairEnabled(RepairType.bootstrap) &&
+               DatabaseDescriptor.getReplaceAddress() != null;
     }
 }

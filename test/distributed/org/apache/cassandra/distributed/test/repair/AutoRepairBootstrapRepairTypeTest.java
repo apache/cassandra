@@ -18,67 +18,142 @@
 
 package org.apache.cassandra.distributed.test.repair;
 
+import java.net.InetSocketAddress;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import com.google.common.collect.ImmutableMap;
+import org.junit.Test;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.*;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.repair.AutoRepairUtilsV2;
+import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.repair.state.AutoRepairStateFactory;
 import org.apache.cassandra.streaming.StreamSession;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.lang.management.ManagementFactory;
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.repair.AutoRepairConfig.RepairType.bootstrap;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class AutoRepairBootstrapRepairTypeTest extends TestBaseImpl
 {
-    private long savedMigrationDelay;
-
-    static String originalResetBootstrapProgress = null;
-
-    @Before
-    public void beforeTest()
+    @Test
+    public void bootstrapAutoRepairTurn() throws Throwable
     {
-        // MigrationCoordinator schedules schema pull requests immediatelly when the node is just starting up, otherwise
-        // the first pull request is sent in 60 seconds. Whether we are starting up or not is detected by examining
-        // the node up-time and if it is lower than MIGRATION_DELAY, we consider the server is starting up.
-        // When we are running multiple test cases in the class, where each starts a node but in the same JVM, the
-        // up-time will be more or less relevant only for the first test. In order to enforce the startup-like behaviour
-        // for each test case, the MIGRATION_DELAY time is adjusted accordingly
-        savedMigrationDelay = CassandraRelevantProperties.MIGRATION_DELAY.getLong();
-        CassandraRelevantProperties.MIGRATION_DELAY.setLong(ManagementFactory.getRuntimeMXBean().getUptime() + savedMigrationDelay);
+        RESET_BOOTSTRAP_PROGRESS.setBoolean(true);
 
-        originalResetBootstrapProgress = RESET_BOOTSTRAP_PROGRESS.getString();
+        int originalNodeCount = 3;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withDynamicPortAllocation(false)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount, 1))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(AutoRepairBootstrapRepairTypeTest.BBStreamFailure::install)
+                                        .start())
+        {
+            populate(cluster, 0, 100, 1, 3, ConsistencyLevel.QUORUM);
+
+            // Make node 1 stream fail
+            cluster.get(1).runOnInstance(
+            () -> {
+                BBStreamFailure.failStream.set(true);
+            }
+            );
+
+            IInstanceConfig config = cluster.newInstanceConfig();
+            config.set("auto_bootstrap", true);
+            config
+            .set("auto_repair",
+                 ImmutableMap.of(
+                 "repair_type_overrides",
+                 ImmutableMap.of(bootstrap.toString(),
+                                 ImmutableMap.<String, String>builder()
+                                             .put("initial_scheduler_delay_in_sec", "5")
+                                             .put("enabled", "true")
+                                             .put("parallel_repair_count_in_group", "1")
+                                             .put("parallel_repair_percentage_in_group", "0")
+                                             .put("min_repair_interval_in_hours", "-1")
+                                             .put("repair_only_keyspaces", KEYSPACE).build()
+                 )))
+            .set("auto_repair.enabled", "true")
+            .set("auto_repair.repair_check_interval_in_sec", "10")
+            .set("auto_repair.repair_task_min_duration", "0s");
+
+            InetSocketAddress node2Address = cluster.get(2).broadcastAddress();
+
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            cluster.get(2).shutdown();
+            System.setProperty("cassandra.replace_address", node2Address.getHostName());
+            newInstance.startup(cluster);
+            newInstance.logs().watchFor("Stream failed");
+
+            // Make node 1 stream normal
+            cluster.get(1).runOnInstance(
+            () -> {
+                // verify that the normal node (cluster.get(1)) returns "NOT_MY_TURN" when probed for "bootstrap" repair type
+                assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
+                BBStreamFailure.failStream.set(false);
+            }
+            );
+            // run bootstrap repair on the UJ node
+            newInstance.runOnInstance(
+            () -> {
+                AutoRepairV2.instance.setup();
+                assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN, AutoRepairStateFactory.getAutoRepairState(bootstrap).calcRepairTurn(null));
+                assertTrue(AutoRepairUtilsV2.isBootstrapRepair());
+
+                // ensure that the "bootstrap" repair has finished one round
+                while (AutoRepairMetricsManager.getMetrics(bootstrap).nodeRepairTimeInSec.getValue().longValue() <= 0)
+                {
+                    try
+                    {
+                        Thread.sleep(1000);
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            );
+        }
     }
 
-    @After
-    public void afterTest()
+    public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl)
     {
-        CassandraRelevantProperties.MIGRATION_DELAY.setLong(savedMigrationDelay);
-        if (originalResetBootstrapProgress == null)
-            RESET_BOOTSTRAP_PROGRESS.clearValue();
-        else
-            RESET_BOOTSTRAP_PROGRESS.setString(originalResetBootstrapProgress);
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        for (int i = from; i < to; i++)
+        {
+            cluster.coordinator(coord).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
+                                               cl,
+                                               i, i, i);
+        }
     }
 
     public static class BBStreamFailure
     {
         public static final AtomicBoolean failStream = new AtomicBoolean();
+
         public static void install(ClassLoader cl, Integer i)
         {
             new ByteBuddy().rebase(StreamSession.class)
@@ -95,65 +170,6 @@ public class AutoRepairBootstrapRepairTypeTest extends TestBaseImpl
                 throw new RuntimeException("Trigger stream failure");
             }
             zuper.call();
-        }
-    }
-
-    @Test
-    public void bootstrapAutoRepairTurn() throws Throwable
-    {
-        RESET_BOOTSTRAP_PROGRESS.setBoolean(true);
-
-        int originalNodeCount = 2;
-        int expandedNodeCount = originalNodeCount + 1;
-
-        try (Cluster cluster = builder().withNodes(originalNodeCount)
-                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount, 1))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .withInstanceInitializer(AutoRepairBootstrapRepairTypeTest.BBStreamFailure::install)
-                                        .start())
-        {
-            populate(cluster, 0, 100, 1, 3, ConsistencyLevel.QUORUM);
-
-            // Make node 1 stream fail
-            cluster.get(1).runOnInstance(
-            ()-> {
-                // verify that the normal node (cluster.get(1)) returns "NOT_MY_TURN" when probed for "bootstrap" repair type
-                assertEquals(AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
-                BBStreamFailure.failStream.set(true);
-            }
-            );
-
-            IInstanceConfig config = cluster.newInstanceConfig();
-            config.set("auto_bootstrap", true);
-            IInvokableInstance newInstance = cluster.bootstrap(config);
-            newInstance.startup(cluster);
-            newInstance.logs().watchFor("Stream failed");
-
-            // Make node 1 stream normal
-            cluster.get(1).runOnInstance(
-            ()-> {
-                BBStreamFailure.failStream.set(false);
-            }
-            );
-            // verify that the bootstrapping node "newInstance" returns "MY_TURN" when probed for "bootstrap" repair type
-            newInstance.runOnInstance(
-            () -> {
-                assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
-            }
-            );
-        }
-    }
-
-    public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl)
-    {
-        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
-        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-        for (int i = from; i < to; i++)
-        {
-            cluster.coordinator(coord).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
-                                               cl,
-                                               i, i, i);
         }
     }
 }

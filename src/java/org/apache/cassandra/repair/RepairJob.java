@@ -121,7 +121,10 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
         cfs.metric.repairsStarted.inc();
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
-        allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
+        if (!AutoRepairUtilsV2.isBootstrapRepair())
+        {
+            allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
+        }
 
         Future<Void> paxosRepair;
         if (paxosRepairEnabled() && ((useV2() && session.repairPaxos) || session.paxosOnly))

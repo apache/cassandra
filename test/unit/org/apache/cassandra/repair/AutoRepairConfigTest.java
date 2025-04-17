@@ -520,26 +520,4 @@ public class AutoRepairConfigTest extends CQLTester
         for (String keyspace : allowedKeyspaces)
             assertFalse("Keyspace " + keyspace + " should be allowed", Pattern.matches(defaultOptions.ignore_keyspaces, keyspace));
     }
-
-    @Test
-    public void tesDefaultRepairTokenRangesForNode() throws UnknownHostException
-    {
-        assertNull(config.getRepairTokenRangesForNode(repairType));
-    }
-
-    @Test
-    public void tesSetRepairTokenRangesForNode() throws UnknownHostException
-    {
-        config.setRepairTokenRangesForNode(repairType, InetAddressAndPort.getByName("127.0.0.1"));
-
-        assertEquals(InetAddressAndPort.getByName("127.0.0.1"), config.repair_type_overrides.get(repairType).repair_token_ranges_for_node);
-    }
-
-    @Test
-    public void tesGetRepairTokenRangesForNode() throws UnknownHostException
-    {
-        assertNull(config.getRepairTokenRangesForNode(repairType));
-        config.global_settings.repair_token_ranges_for_node = InetAddressAndPort.getByName("127.0.0.1");
-        assertEquals(InetAddressAndPort.getByName("127.0.0.1"), config.getRepairTokenRangesForNode(repairType));
-    }
 }

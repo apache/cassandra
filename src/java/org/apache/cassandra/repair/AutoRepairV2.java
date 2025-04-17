@@ -159,8 +159,12 @@ public class AutoRepairV2
                 return;
             }
 
-            // refresh the longest unrepaired node
-            repairState.setLongestUnrepairedNode(AutoRepairUtilsV2.getHostWithLongestUnrepairTime(repairType));
+            // Table operations are not allowed during bootstrap
+            if (!AutoRepairUtilsV2.isBootstrapRepair())
+            {
+                // refresh the longest unrepaired node
+                repairState.setLongestUnrepairedNode(AutoRepairUtilsV2.getHostWithLongestUnrepairTime(repairType));
+            }
 
             //consistency level to use for local query
             UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
@@ -175,7 +179,8 @@ public class AutoRepairV2
                 boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)
                                            && turn != MY_TURN_FORCE_REPAIR;
 
-                if (repairState.getLastRepairTime() == 0)
+                // Table operations are not allowed during bootstrap
+                if (repairState.getLastRepairTime() == 0 && !AutoRepairUtilsV2.isBootstrapRepair())
                 {
                     // the node has either just boooted or has not run repair before,
                     // we should check for the node's repair history in the DB
@@ -198,7 +203,11 @@ public class AutoRepairV2
                 long startTime = timeFunc.get();
                 logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId,
                             config.getRepairPrimaryTokenRangeOnly(repairType));
-                AutoRepairUtilsV2.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
+                // Table operations are not allowed during bootstrap
+                if (!AutoRepairUtilsV2.isBootstrapRepair())
+                {
+                    AutoRepairUtilsV2.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
+                }
 
                 repairState.setRepairKeyspaceCount(0);
                 repairState.setRepairInProgress(true);
@@ -248,17 +257,14 @@ public class AutoRepairV2
                     {
                         try
                         {
-                            InetAddressAndPort repairTokenRangesForNode = config.getRepairTokenRangesForNode(repairType);
-                            if (repairTokenRangesForNode == null)
-                            {
-                                // by default run repair for the token range that this node owns
-                                repairTokenRangesForNode = FBUtilities.getBroadcastAddressAndPort();
-                            }
-                            else
+                            // by default run repair for the token range that this node owns
+                            InetAddressAndPort repairTokenRangesForNode = FBUtilities.getBroadcastAddressAndPort();
+                            if (AutoRepairUtilsV2.isBootstrapRepair())
                             {
                                 // this is useful if we want to run repair for the token range owned
                                 // by some other node
                                 // TODO: maybe add a metric for this
+                                repairTokenRangesForNode = DatabaseDescriptor.getReplaceAddress();
                                 logger.info("Repair token ranges for node {}", repairTokenRangesForNode);
                             }
                             Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRangesForEndpoint(keyspaceName, repairTokenRangesForNode);
@@ -446,7 +452,6 @@ public class AutoRepairV2
                 repairState.setFailedTokenRangesCount(failedTokenRanges);
                 repairState.setSucceededTokenRangesCount(succeededTokenRanges);
                 repairState.setSkippedTokenRangesCount(skippedTokenRanges);
-                repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTime));
                 long timeInHours = TimeUnit.SECONDS.toHours(repairState.getNodeRepairTimeInSec());
                 logger.info("Local {} repair time {} hour(s), stats: repairKeyspaceCount {}, " +
                             "repairTokenRangesSuccessCount {}, repairTokenRangesFailureCount {}, " +
@@ -468,6 +473,7 @@ public class AutoRepairV2
                     logger.info("Wait for {} milliseconds for repair type {}.", millisToWait, repairType);
                     Thread.sleep(millisToWait);
                 }
+                repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTime));
                 repairState.setRepairInProgress(false);
                 AutoRepairUtilsV2.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
             }

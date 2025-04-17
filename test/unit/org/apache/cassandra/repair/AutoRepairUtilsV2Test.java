@@ -579,4 +579,10 @@ public class AutoRepairUtilsV2Test extends CQLTester
 
         assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN, AutoRepairUtilsV2.myTurnToRunRepair(repairType, myID));
     }
+
+    @Test
+    public void testIsBootstrapRepair()
+    {
+        assertFalse(AutoRepairUtilsV2.isBootstrapRepair());
+    }
 }
