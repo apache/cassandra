@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -172,15 +174,21 @@ public class RowFilter implements Iterable<RowFilter.Expression>
      */
     public boolean isMutableIntersection()
     {
-        int count = 0;
+        Set<ColumnMetadata> columns = null;
         for (Expression e : expressions)
         {
             if (e.column.isStatic() && expressions.size() > 1)
                 return true;
 
             if (!e.column.isPrimaryKeyColumn())
-                if (++count > 1)
+            {
+                if (columns == null)
+                    columns = new HashSet<>(expressions.size());
+
+                columns.add(e.column);
+                if (columns.size() > 1)
                     return true;
+            }
         }
         return false;
     }
