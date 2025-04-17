@@ -4015,12 +4015,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     // Never ever do this at home. Used by tests.
     @VisibleForTesting
-    public void setPartitionerUnsafe(IPartitioner newPartitioner)
+    public IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
     {
         checkNotNull(newPartitioner, "newPartitioner is null");
         checkState(originalPartitioner == null, "Already changed the partitioner without resetting");
         originalPartitioner = DatabaseDescriptor.setPartitionerUnsafe(newPartitioner);
         valueFactory = new VersionedValue.VersionedValueFactory(newPartitioner);
+        return originalPartitioner;
     }
 
     @VisibleForTesting

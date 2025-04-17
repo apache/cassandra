@@ -23,7 +23,6 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
@@ -67,13 +66,6 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
                 return false;
             });
         }
-    }
-
-    @Override
-    protected void clusterConfig(IInstanceConfig c)
-    {
-        super.clusterConfig(c);
-        c.set("transaction_timeout", "180s");
     }
 
     @Override

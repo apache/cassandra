@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.fuzz.sai;
 
+import org.junit.Ignore;
+
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
+@Ignore("CASSANDRA-20567: Repair is failing due to missing SAI index files when using zero copy streaming")
 public class AccordFullMultiNodeSAITest extends MultiNodeSAITestBase
 {
     public AccordFullMultiNodeSAITest()

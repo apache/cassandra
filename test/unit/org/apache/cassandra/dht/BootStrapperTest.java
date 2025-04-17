@@ -33,10 +33,8 @@ import com.google.common.collect.Multimap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
-import org.apache.cassandra.CassandraTestBase;
-import org.apache.cassandra.CassandraTestBase.PrepareServerNoRegister;
-import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -50,6 +48,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -58,15 +57,16 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.utils.Pair;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-@UseMurmur3Partitioner
-@PrepareServerNoRegister
-public class BootStrapperTest extends CassandraTestBase
+@RunWith(BMUnitRunner.class)
+public class BootStrapperTest
 {
+    static IPartitioner oldPartitioner;
     static Predicate<Replica> originalAlivePredicate = RangeStreamer.ALIVE_PREDICATE;
     public static AtomicBoolean nonOptimizationHit = new AtomicBoolean(false);
     public static AtomicBoolean optimizationHit = new AtomicBoolean(false);
@@ -88,6 +88,9 @@ public class BootStrapperTest extends CassandraTestBase
     @BeforeClass
     public static void setup() throws ConfigurationException
     {
+        DatabaseDescriptor.daemonInitialization();
+        oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.startGossiper();
         SchemaLoader.schemaDefinition("BootStrapperTest");
         RangeStreamer.ALIVE_PREDICATE = Predicates.alwaysTrue();
@@ -97,6 +100,7 @@ public class BootStrapperTest extends CassandraTestBase
     @AfterClass
     public static void tearDown()
     {
+        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
         RangeStreamer.ALIVE_PREDICATE = originalAlivePredicate;
     }
 
@@ -204,16 +208,16 @@ public class BootStrapperTest extends CassandraTestBase
         }
 
         return new RangeStreamer(metadata,
-               StreamOperation.BOOTSTRAP,
-               true,
-               DatabaseDescriptor.getNodeProximity(),
-               new StreamStateStore(),
-               mockFailureDetector,
-               false,
-               1,
-               movements.left,
-               movements.right,
-               true);
+                                 StreamOperation.BOOTSTRAP,
+                                 true,
+                                 DatabaseDescriptor.getNodeProximity(),
+                                 new StreamStateStore(),
+                                 mockFailureDetector,
+                                 false,
+                                 1,
+                                 movements.left,
+                                 movements.right,
+                                 true);
     }
 
     private boolean includesWraparound(Collection<Range<Token>> toFetch)
