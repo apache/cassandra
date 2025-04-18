@@ -44,6 +44,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -2150,6 +2151,23 @@ public class StorageProxy implements StorageProxyMBean
         };
     }
 
+    private static PartitionIterator fetchRowsTracked(List<SinglePartitionReadCommand> commands,
+                                                      ConsistencyLevel consistencyLevel,
+                                                      Dispatcher.RequestTime requestTime)
+    {
+        int cmdCount = commands.size();
+        TrackedRead[] reads = new TrackedRead[cmdCount];
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        for (int i=0; i<cmdCount; i++)
+            reads[i] = TrackedRead.create(metadata, commands.get(i), consistencyLevel, requestTime);
+
+        for (TrackedRead read : reads)
+            read.start();
+
+        throw new UnsupportedOperationException("TODO");
+    }
+
     /**
      * This function executes local and remote reads, and blocks for the results:
      *
@@ -2161,9 +2179,9 @@ public class StorageProxy implements StorageProxyMBean
      * 4. If the digests (if any) match the data return the data
      * 5. else carry out read repair by getting data from all the nodes.
      */
-    private static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands,
-                                               ConsistencyLevel consistencyLevel,
-                                               Dispatcher.RequestTime requestTime)
+    private static PartitionIterator fetchRowsUntracked(List<SinglePartitionReadCommand> commands,
+                                                        ConsistencyLevel consistencyLevel,
+                                                        Dispatcher.RequestTime requestTime)
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         int cmdCount = commands.size();
@@ -2230,6 +2248,21 @@ public class StorageProxy implements StorageProxyMBean
 
         // if we did a read repair, assemble repair mutation and block on them
         return concatAndBlockOnRepair(results, repairs);
+    }
+
+    private static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands,
+                                               ConsistencyLevel consistencyLevel,
+                                               Dispatcher.RequestTime requestTime)
+    {
+        if (commands.get(0).metadata().replicationType().isTracked())
+        {
+            return fetchRowsTracked(commands, consistencyLevel, requestTime);
+        }
+        else
+        {
+            return fetchRowsUntracked(commands, consistencyLevel, requestTime);
+        }
+
     }
 
     public static class LocalReadRunnable extends DroppableRunnable implements RunnableDebuggableTask
