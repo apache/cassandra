@@ -37,6 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -671,7 +672,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         while (refs == null)
         {
             Iterable<SSTableReader> sstables = cfs.getTracker().getView().select(SSTableSet.CANONICAL);
-            SSTableIntervalTree tree = SSTableIntervalTree.build(sstables);
+            SSTableIntervalTree tree = SSTableIntervalTree.buildSSTableIntervalTree(ImmutableList.copyOf(sstables));
             Range<PartitionPosition> r = Range.makeRowRange(tokenRange);
             List<SSTableReader> canonicalSSTables = View.sstablesInBounds(r.left, r.right, tree);
             if (repairType == AutoRepairConfig.RepairType.INCREMENTAL)

@@ -1147,7 +1147,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-
     public boolean isAuthSetupComplete()
     {
         return authSetupComplete;

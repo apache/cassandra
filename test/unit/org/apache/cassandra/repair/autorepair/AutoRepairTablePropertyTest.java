@@ -59,13 +59,14 @@ public class AutoRepairTablePropertyTest extends CQLTester
     public void helperTestTableProperty(boolean autoRepairOn)
     {
         DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(autoRepairOn);
+        DatabaseDescriptor.setAccordTransactionsEnabled(false);
 
         Map<String, String> systemSchemaTables = Map.of(SchemaKeyspaceTables.TABLES, "table_name", SchemaKeyspaceTables.VIEWS, "view_name");
         for (Map.Entry<String, String> systemSchema : systemSchemaTables.entrySet())
         {
             ColumnFamilyStore tables = Keyspace.open(SchemaConstants.SCHEMA_KEYSPACE_NAME).getColumnFamilyStore(systemSchema.getKey());
             SimpleBuilders.RowBuilder builder = new SimpleBuilders.RowBuilder(tables.metadata(), systemSchema.getValue());
-            SchemaKeyspace.addTableParamsToRowBuilder(tables.metadata().params, builder);
+            SchemaKeyspace.addTableParamsToRowBuilder(tables.metadata().params, builder, false);
             Row row = builder.build();
             ColumnMetadata autoRepair = tables.metadata().getColumn(ByteBufferUtil.bytes("auto_repair"));
             ColumnData data = row.getCell(autoRepair);

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.Serializable;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
