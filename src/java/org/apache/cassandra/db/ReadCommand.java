@@ -185,6 +185,19 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
+    private interface ReadCompleter<T>
+    {
+        T complete(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos);
+    }
+
+    public interface InProgressRead
+    {
+        UnfilteredPartitionIterator read();
+        void augment(Collection<Mutation> mutations);
+        void augment(UnfilteredPartitionIterator iterator);
+        void close();
+    }
+
     private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
 
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
@@ -546,11 +559,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
-    private interface ReadCompleter<T>
-    {
-        T complete(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos);
-    }
-
     private <T> T beginRead(ReadExecutionController executionController, ReadCompleter<T> completer)
     {
         long startTimeNanos = nanoTime();
@@ -645,14 +653,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             COMMAND.set(null);
         }
-    }
-
-    public interface InProgressRead
-    {
-        UnfilteredPartitionIterator read();
-        void augment(Collection<Mutation> mutations);
-        void augment(UnfilteredPartitionIterator iterator);
-        void close();
     }
 
     /**

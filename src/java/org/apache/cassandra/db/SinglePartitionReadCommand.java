@@ -515,6 +515,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return new SingletonUnfilteredPartitionIterator(partition);
     }
 
+    @Override
+    protected InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
+    {
+        throw new UnsupportedOperationException("TODO");
+    }
+
     /**
      * Fetch the rows requested if in cache; if not, read it from disk and cache it.
      * <p>
