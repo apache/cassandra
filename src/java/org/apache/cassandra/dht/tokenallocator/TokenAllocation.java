@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -86,7 +87,7 @@ public class TokenAllocation
         // We create a fake NTS replication strategy with the specified RF in the local DC
         HashMap<String, String> options = new HashMap<>();
         options.put(localDatacenter, Integer.toString(replicas));
-        NetworkTopologyStrategy fakeReplicationStrategy = new NetworkTopologyStrategy(null, options);
+        NetworkTopologyStrategy fakeReplicationStrategy = new NetworkTopologyStrategy(null, options, ReplicationType.untracked);
 
         return new TokenAllocation(metadata, fakeReplicationStrategy, numTokens);
     }

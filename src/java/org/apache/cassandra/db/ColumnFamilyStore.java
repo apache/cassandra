@@ -676,19 +676,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return memtableFactory.streamFromMemtable();
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SerializationHeader header, ILifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, null, 0, header, txn);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, coordinatorLogOffsets, null, 0, header, txn);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, IntervalSet<CommitLogPosition> commitLogPositions, SerializationHeader header, ILifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, IntervalSet<CommitLogPosition> commitLogPositions, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, commitLogPositions, 0, header, txn);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, coordinatorLogOffsets, commitLogPositions, 0, header, txn);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, IntervalSet<CommitLogPosition> commitLogPositions, int sstableLevel, SerializationHeader header, ILifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, IntervalSet<CommitLogPosition> commitLogPositions, int sstableLevel, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, commitLogPositions, sstableLevel, header, indexManager.listIndexGroups(), txn);
+        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, coordinatorLogOffsets, commitLogPositions, sstableLevel, header, indexManager.listIndexGroups(), txn);
     }
 
     public boolean supportsEarlyOpen()
@@ -2441,7 +2441,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                              keys,
                                                              0,
                                                              repairSessionID,
-                                                             false,
                                                              logOffsetsBuilder.build(),
                                                              commitLogIntervals.build(),
                                                              new SerializationHeader(true,

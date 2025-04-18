@@ -90,7 +90,7 @@ public class ReplicaPlansTest
             Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "3", "DC2", "3"));
             EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), full(EP2), full(EP3), full(EP4), full(EP5), full(EP6));
             EndpointsForToken pending = EndpointsForToken.empty(token);
-            ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, (cm) -> natural, (cm) -> pending, null, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+            ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, (cm) -> natural, (cm) -> pending, null, Predicates.alwaysTrue(), ReplicaPlans.writeAll);
             assertEquals(natural, plan.liveAndDown);
             assertEquals(natural, plan.live);
             assertEquals(natural, plan.contacts());
@@ -102,11 +102,10 @@ public class ReplicaPlansTest
             Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "3", "DC2", "3"));
             EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
             EndpointsForToken pending = EndpointsForToken.empty(token);
-            ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, (cm) -> natural, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+            ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, (cm) -> natural, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll);
             assertEquals(natural, plan.liveAndDown);
             assertEquals(natural, plan.live);
-            EndpointsForToken expectContacts = EndpointsForToken.of(token, full(EP1), full(EP2), full(EP4), full(EP5));
-            assertEquals(expectContacts, plan.contacts());
+            assertEquals(natural, plan.contacts());
         }
     }
 }

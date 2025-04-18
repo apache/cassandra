@@ -48,12 +48,15 @@ import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
 import org.apache.cassandra.db.tracked.TrackedKeyspaceWriteHandler;
 import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.replication.MutationTrackingService;
@@ -64,6 +67,7 @@ import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -611,6 +615,7 @@ public class Keyspace
     private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
     {
         Preconditions.checkState(getMetadata().useMutationTracking() && !mutation.id().isNone());
+        ClusterMetadata cm = ClusterMetadata.current();
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
@@ -631,8 +636,39 @@ public class Keyspace
                         continue;
                     }
 
+                    // If this range is only witnessed then don't apply the update to the underlying column family store
+                    // We still want the mutation tracking log to see the update so that it can witness it
+                    // and participate in reconciliation of the mutation
+                    AbstractReplicationStrategy replicationStrategy = cfs.keyspace.getReplicationStrategy();
+                    if (replicationStrategy.hasTransientReplicas())
+                    {
+                        RangesAtEndpoint localRanges = replicationStrategy.getLocalRanges(cm);
+                        Token token = upd.partitionKey().getToken();
+                        boolean foundMatch = false;
+                        for (Range<Token> r : localRanges.onlyFull().ranges())
+                        {
+                            if (r.contains(token))
+                            {
+                                foundMatch = true;
+                                break;
+                            }
+                        }
+                        if (!foundMatch)
+                        {
+                            // TODO checkState(!mutation.allowsPotentialTxnConflicts)
+                            // Basically if a transaction system thinks it is writing to a non-witness but is writing to a
+                            // witness then we are probably going to have issues.
+                            // This is problematic/racy in general because schema changes aren't really synced with
+                            // transaction systems yet when in reality they really should be completed by a transaction or some
+                            // other similar solution.
+                            continue;
+                        }
+                    }
+
                     cfs.getWriteHandler().write(mutation.id(), upd, ctx, true);
                 }
+
+
             }
         }
 

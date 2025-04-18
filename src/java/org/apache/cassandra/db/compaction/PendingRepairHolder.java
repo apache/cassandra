@@ -46,12 +46,10 @@ import org.apache.cassandra.utils.TimeUUID;
 public class PendingRepairHolder extends AbstractStrategyHolder
 {
     private final List<PendingRepairManager> managers = new ArrayList<>();
-    private final boolean isTransient;
 
-    public PendingRepairHolder(ColumnFamilyStore cfs, DestinationRouter router, boolean isTransient)
+    public PendingRepairHolder(ColumnFamilyStore cfs, DestinationRouter router)
     {
         super(cfs, router);
-        this.isTransient = isTransient;
     }
 
     @Override
@@ -71,15 +69,15 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     {
         managers.clear();
         for (int i = 0; i < numTokenPartitions; i++)
-            managers.add(new PendingRepairManager(cfs, params, isTransient));
+            managers.add(new PendingRepairManager(cfs, params));
     }
 
     @Override
-    public boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair, boolean isTransient)
+    public boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair)
     {
         Preconditions.checkArgument(!isPendingRepair || !isRepaired,
                                     "SSTables cannot be both repaired and pending repair");
-        return isPendingRepair && (this.isTransient == isTransient);
+        return isPendingRepair;
     }
 
     @Override
@@ -246,7 +244,6 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                                                        long keyCount,
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
-                                                       boolean isTransient,
                                                        ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
@@ -264,7 +261,6 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                                                  keyCount,
                                                  repairedAt,
                                                  pendingRepair,
-                                                 isTransient,
                                                  coordinatorLogOffsets,
                                                  commitLogPositions,
                                                  sstableLevel,

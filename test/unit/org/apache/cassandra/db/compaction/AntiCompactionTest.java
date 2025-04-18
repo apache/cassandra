@@ -178,18 +178,11 @@ public class AntiCompactionTest
                     try (UnfilteredRowIterator row = scanner.next())
                     {
                         Token token = row.partitionKey().getToken();
-                        if (sstable.isPendingRepair() && !sstable.isTransient())
+                        if (sstable.isPendingRepair())
                         {
                             assertTrue(fullContains.test(token));
                             assertFalse(transContains.test(token));
                             stats.pendingKeys++;
-                        }
-                        else if (sstable.isPendingRepair() && sstable.isTransient())
-                        {
-
-                            assertTrue(transContains.test(token));
-                            assertFalse(fullContains.test(token));
-                            stats.transKeys++;
                         }
                         else
                         {
@@ -218,30 +211,6 @@ public class AntiCompactionTest
         assertEquals(2, stats.numLiveSSTables);
         assertEquals(stats.pendingKeys, 4);
         assertEquals(stats.transKeys, 0);
-        assertEquals(stats.unrepairedKeys, 6);
-        assertOnDiskState(store, 2);
-    }
-
-    @Test
-    public void antiCompactOneMixed() throws Exception
-    {
-        ColumnFamilyStore store = prepareColumnFamilyStore();
-        SSTableStats stats = antiCompactRanges(store, atEndpoint(range(0, 4), range(4, 8)));
-        assertEquals(3, stats.numLiveSSTables);
-        assertEquals(stats.pendingKeys, 4);
-        assertEquals(stats.transKeys, 4);
-        assertEquals(stats.unrepairedKeys, 2);
-        assertOnDiskState(store, 3);
-    }
-
-    @Test
-    public void antiCompactOneTransOnly() throws Exception
-    {
-        ColumnFamilyStore store = prepareColumnFamilyStore();
-        SSTableStats stats = antiCompactRanges(store, atEndpoint(NO_RANGES, range(0, 4)));
-        assertEquals(2, stats.numLiveSSTables);
-        assertEquals(stats.pendingKeys, 0);
-        assertEquals(stats.transKeys, 4);
         assertEquals(stats.unrepairedKeys, 6);
         assertOnDiskState(store, 2);
     }
@@ -282,7 +251,7 @@ public class AntiCompactionTest
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         Descriptor desc = cfs.newSSTableDescriptor(dir);
 
-        try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc, 0, 0, NO_PENDING_REPAIR, false, ImmutableCoordinatorLogOffsets.NONE, new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS)))
+        try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc, 0, 0, NO_PENDING_REPAIR, ImmutableCoordinatorLogOffsets.NONE, new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS)))
         {
             for (int i = 0; i < count; i++)
             {
@@ -334,48 +303,6 @@ public class AntiCompactionTest
         assertEquals(stats.transKeys, 0);
         assertEquals(stats.unrepairedKeys, 60);
         assertOnDiskState(store, 10);
-    }
-
-    @Test
-    public void antiCompactTenTrans() throws IOException, NoSuchRepairSessionException
-    {
-        Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
-        store.disableAutoCompaction();
-
-        for (int table = 0; table < 10; table++)
-        {
-            generateSStable(store,Integer.toString(table));
-        }
-        SSTableStats stats = antiCompactRanges(store, atEndpoint(NO_RANGES, range(0, 4)));
-        /*
-        Anticompaction will be anti-compacting 10 SSTables but will be doing this two at a time
-        so there will be no net change in the number of sstables
-         */
-        assertEquals(10, stats.numLiveSSTables);
-        assertEquals(stats.pendingKeys, 0);
-        assertEquals(stats.transKeys, 40);
-        assertEquals(stats.unrepairedKeys, 60);
-        assertOnDiskState(store, 10);
-    }
-
-    @Test
-    public void antiCompactTenMixed() throws IOException, NoSuchRepairSessionException
-    {
-        Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
-        store.disableAutoCompaction();
-
-        for (int table = 0; table < 10; table++)
-        {
-            generateSStable(store,Integer.toString(table));
-        }
-        SSTableStats stats = antiCompactRanges(store, atEndpoint(range(0, 4), range(4, 8)));
-        assertEquals(15, stats.numLiveSSTables);
-        assertEquals(stats.pendingKeys, 40);
-        assertEquals(stats.transKeys, 40);
-        assertEquals(stats.unrepairedKeys, 20);
-        assertOnDiskState(store, 15);
     }
 
     @Test

@@ -188,7 +188,7 @@ public class CassandraStreamReader implements IStreamReader
         StreamReceiver streamReceiver = session.getAggregator(tableId);
         Preconditions.checkState(streamReceiver instanceof CassandraStreamReceiver);
         ILifecycleTransaction txn = createTxn();
-        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, false, coordinatorLogOffsets, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()));
+        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, coordinatorLogOffsets, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()));
         return new SSTableTxnSingleStreamWriter(txn, writer);
     }
 

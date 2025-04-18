@@ -384,7 +384,7 @@ public class LeveledCompactionStrategyTest
         SSTableReader sstable1 = unrepaired.manifest.getLevel(2).iterator().next();
         SSTableReader sstable2 = unrepaired.manifest.getLevel(1).iterator().next();
 
-        sstable1.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable1.descriptor, System.currentTimeMillis(), null, false);
+        sstable1.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable1.descriptor, System.currentTimeMillis(), null);
         sstable1.reloadSSTableMetadata();
         assertTrue(sstable1.isRepaired());
 

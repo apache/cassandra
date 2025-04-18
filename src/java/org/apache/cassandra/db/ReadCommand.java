@@ -161,7 +161,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             this.allowed = allowed;
         }
     }
-    
+
     // Expose the active command running so transitive calls can lookup this command.
     // This is useful for a few reasons, but mainly because the CQL query is here.
     private static final FastThreadLocal<ReadCommand> COMMAND = new FastThreadLocal<>();
@@ -169,7 +169,6 @@ public abstract class ReadCommand extends AbstractReadQuery
     private final Kind kind;
 
     private final boolean isDigestQuery;
-    private final boolean acceptsTransient;
     private final Epoch serializedAtEpoch;
     private final PotentialTxnConflicts potentialTxnConflicts;
 
@@ -190,7 +189,6 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 Epoch serializedAtEpoch,
                                                 boolean isDigest,
                                                 int digestVersion,
-                                                boolean acceptsTransient,
                                                 PotentialTxnConflicts potentialTxnConflicts,
                                                 TableMetadata metadata,
                                                 long nowInSec,
@@ -219,7 +217,6 @@ public abstract class ReadCommand extends AbstractReadQuery
                           Kind kind,
                           boolean isDigestQuery,
                           int digestVersion,
-                          boolean acceptsTransient,
                           PotentialTxnConflicts potentialTxnConflicts,
                           TableMetadata metadata,
                           long nowInSec,
@@ -231,13 +228,9 @@ public abstract class ReadCommand extends AbstractReadQuery
                           DataRange dataRange)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
-        if (acceptsTransient && isDigestQuery)
-            throw new IllegalArgumentException("Attempted to issue a digest response to transient replica");
-
         this.kind = kind;
         this.isDigestQuery = isDigestQuery;
         this.digestVersion = digestVersion;
-        this.acceptsTransient = acceptsTransient;
         this.indexQueryPlan = indexQueryPlan;
         this.potentialTxnConflicts = potentialTxnConflicts;
         this.trackWarnings = trackWarnings;
@@ -248,6 +241,11 @@ public abstract class ReadCommand extends AbstractReadQuery
     public static ReadCommand getCommand()
     {
         return COMMAND.get();
+    }
+
+    public boolean acceptsTransient()
+    {
+        return false;
     }
 
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
@@ -319,14 +317,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         return this;
     }
 
-    /**
-     * @return Whether this query expects only a transient data response, or a full response
-     */
-    public boolean acceptsTransient()
-    {
-        return acceptsTransient;
-    }
-
     @Override
     public void trackWarnings()
     {
@@ -387,28 +377,6 @@ public abstract class ReadCommand extends AbstractReadQuery
      * @return a copy of this command.
      */
     public abstract ReadCommand copy();
-
-    /**
-     * Returns a copy of this command with acceptsTransient set to true.
-     */
-    public ReadCommand copyAsTransientQuery(Replica replica)
-    {
-        checkArgument(replica.isTransient(),
-                                    "Can't make a transient request on a full replica: " + replica);
-        return copyAsTransientQuery();
-    }
-
-    /**
-     * Returns a copy of this command with acceptsTransient set to true.
-     */
-    public ReadCommand copyAsTransientQuery(Iterable<Replica> replicas)
-    {
-        if (any(replicas, Replica::isFull))
-            throw new IllegalArgumentException("Can't make a transient request on full replicas: " + Iterables.toString(filter(replicas, Replica::isFull)));
-        return copyAsTransientQuery();
-    }
-
-    protected abstract ReadCommand copyAsTransientQuery();
 
     /**
      * Returns a copy of this command with isDigestQuery set to true.
@@ -1434,7 +1402,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             out.writeByte(
             digestFlag(command.isDigestQuery())
             | indexFlag(null != command.indexQueryPlan())
-            | acceptsTransientFlag(command.acceptsTransient())
+            // | acceptsTransientFlag(false) Deprecated flag, could be reused?
             | needsReconciliationFlag(command.rowFilter().needsReconciliation())
             | potentialTxnConflicts(command.potentialTxnConflicts)
             );
@@ -1494,7 +1462,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
             }
 
-            return deserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
+            return deserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         public ReadCommand deserialize(DataInputPlus in, int version) throws IOException

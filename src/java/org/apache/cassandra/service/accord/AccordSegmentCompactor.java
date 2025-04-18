@@ -44,7 +44,7 @@ public class AccordSegmentCompactor<V> extends AbstractAccordSegmentCompactor<V>
         SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
 
         // TODO: Is ImmutableCoordinatorLogOffsets.NONE correct/reasonable here?
-        this.writer = SSTableTxnWriter.create(cfs, descriptor, estimatedKeyCount, 0, null, false, ImmutableCoordinatorLogOffsets.NONE, header);
+        this.writer = SSTableTxnWriter.create(cfs, descriptor, estimatedKeyCount, 0, null, ImmutableCoordinatorLogOffsets.NONE, header);
     }
 
     @Override

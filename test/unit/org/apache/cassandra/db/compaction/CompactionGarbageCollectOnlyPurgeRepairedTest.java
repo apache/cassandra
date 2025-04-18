@@ -361,7 +361,7 @@ public class CompactionGarbageCollectOnlyPurgeRepairedTest extends CQLTester
      */
     private static void repair(ColumnFamilyStore cfs, SSTableReader sstable) throws IOException
     {
-        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, System.currentTimeMillis(), null, false);
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, System.currentTimeMillis(), null);
         sstable.reloadSSTableMetadata();
         cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
     }

@@ -20,10 +20,12 @@ package org.apache.cassandra.locator;
 
 import java.util.Map;
 
+import org.apache.cassandra.schema.ReplicationType;
+
 public class RemoteStrategy extends LocalStrategy
 {
     public RemoteStrategy(String keyspaceName, Map<String, String> configOptions)
     {
-        super(keyspaceName, configOptions);
+        super(keyspaceName, configOptions, ReplicationType.untracked);
     }
 }

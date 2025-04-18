@@ -355,15 +355,13 @@ public class AccordInteropExecution implements ReadCoordinator
      * Any nodes not contacted for read need to be sent commits
      */
     @Override
-    public void notifyOfInitialContacts(EndpointsForToken fullDataRequests, EndpointsForToken transientRequests, EndpointsForToken digestRequests)
+    public void notifyOfInitialContacts(EndpointsForToken fullDataRequests, EndpointsForToken digestRequests)
     {
         if (readsCurrentlyUnderConstruction == null)
             return;
 
         for (int i = 0; i < fullDataRequests.size(); i++)
             contacted.add(fullDataRequests.endpoint(i));
-        for (int i = 0; i < transientRequests.size(); i++)
-            contacted.add(transientRequests.endpoint(i));
         for (int i = 0; i < digestRequests.size(); i++)
             contacted.add(digestRequests.endpoint(i));
         if (readsCurrentlyUnderConstruction.decrementAndGet() == 0)

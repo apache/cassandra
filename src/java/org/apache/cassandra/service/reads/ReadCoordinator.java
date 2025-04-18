@@ -71,7 +71,7 @@ public interface ReadCoordinator
         return command;
     }
     void sendReadCommand(Message<ReadCommand> message, InetAddressAndPort to, RequestCallback<ReadResponse> callback);
-    default void notifyOfInitialContacts(EndpointsForToken fullDataRequests, EndpointsForToken transientRequests, EndpointsForToken digestRequests) {}
+    default void notifyOfInitialContacts(EndpointsForToken fullDataRequests, EndpointsForToken digestRequests) {}
     void sendReadRepairMutation(Message<Mutation> message, InetAddressAndPort to, RequestCallback<Object> callback);
     default PotentialTxnConflicts potentialTxnConflicts()
     {

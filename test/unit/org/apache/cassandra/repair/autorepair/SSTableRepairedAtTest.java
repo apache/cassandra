@@ -161,7 +161,7 @@ public class SSTableRepairedAtTest extends CQLTester
         table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         SchemaLoader.insertData(TEST_KEYSPACE, table1.name, 0, 1);
         table1.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
-        table1.getCompactionStrategyManager().mutateRepaired(table1.getLiveSSTables(), 1, null, false);
+        table1.getCompactionStrategyManager().mutateRepaired(table1.getLiveSSTables(), 1, null);
         assertEquals(2, table1.getLiveSSTables().stream().filter(SSTableReader::isRepaired).count());
 
         List<String> result = StorageService.instance.mutateSSTableRepairedState(false, false, TEST_KEYSPACE, Arrays.asList(table1.name));

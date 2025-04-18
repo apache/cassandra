@@ -118,7 +118,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
         // Not a race in fact. It is just testing the Unavailable can be correctly thrown.
         assertThatThrownBy(() ->
            raceOfReplicationStrategyTest(largeRF, largeRF, 1,
-                                         keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal))
+                                         keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeAll))
         ).as("Unavailable should be thrown given 3 live nodes is less than a quorum of 6")
          .isInstanceOf(UnavailableException.class)
          .hasMessageContaining("Cannot achieve consistency level QUORUM");
@@ -134,7 +134,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> ReplicaPlans.forWrite(keyspace, EACH_QUORUM, tk, ReplicaPlans.writeNormal)
+            keyspace -> ReplicaPlans.forWrite(keyspace, EACH_QUORUM, tk, ReplicaPlans.writeAll)
         );
         // read
         raceOfReplicationStrategyTest(
@@ -158,7 +158,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to. (3 + 3) / 2 + 1 > 3
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal)
+            keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeAll)
         );
         raceOfReplicationStrategyTest(
             // init. The # of live endpoints is 3 = 2 + 1
@@ -166,7 +166,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to. (3 + 3) / 2 + 1 > 3
             KeyspaceParams.nts(DC1, 2, DC2, 1, DC3, 3),
             // test
-            keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal)
+            keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeAll)
         );
 
         // read
@@ -198,7 +198,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> ReplicaPlans.forWrite(keyspace, EACH_QUORUM, tk, ReplicaPlans.writeNormal)
+            keyspace -> ReplicaPlans.forWrite(keyspace, EACH_QUORUM, tk, ReplicaPlans.writeAll)
         );
 
         // read
@@ -222,7 +222,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> ReplicaPlans.forWrite(keyspace, LOCAL_QUORUM, tk, ReplicaPlans.writeNormal)
+            keyspace -> ReplicaPlans.forWrite(keyspace, LOCAL_QUORUM, tk, ReplicaPlans.writeAll)
         );
 
         // read

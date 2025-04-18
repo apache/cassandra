@@ -240,13 +240,13 @@ public class MetadataSerializer implements IMetadataSerializer
     }
 
     @Override
-    public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, TimeUUID newPendingRepair, boolean isTransient) throws IOException
+    public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, TimeUUID newPendingRepair) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
                          descriptor.fileFor(Components.STATS), newRepairedAt, newPendingRepair);
 
-        mutate(descriptor, stats -> stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair, isTransient));
+        mutate(descriptor, stats -> stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair));
     }
 
     private void mutate(Descriptor descriptor, UnaryOperator<StatsMetadata> transform) throws IOException

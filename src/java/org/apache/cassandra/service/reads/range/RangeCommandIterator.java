@@ -68,9 +68,9 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static com.google.common.base.Preconditions.checkState;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetricsForLevel;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 @VisibleForTesting
@@ -219,6 +219,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         new DataResolver<>(readCoordinator, rangeCommand, sharedReplicaPlan, readRepair, requestTime, trackRepairedStatus);
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
         new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
+        checkState(!replicaPlan.contacts().anyMatch(Replica::isTransient), "Transient replication requires mutation tracking");
 
         if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf() && readCoordinator.localReadSupported())
         {
@@ -229,8 +230,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             for (Replica replica : replicaPlan.contacts())
             {
                 Tracing.trace("Enqueuing request to {}", replica);
-                ReadCommand command = replica.isFull() ? rangeCommand : rangeCommand.copyAsTransientQuery(replica);
-                Message<ReadCommand> message = command.createMessage(trackRepairedStatus && replica.isFull(), requestTime);
+                Message<ReadCommand> message = rangeCommand.createMessage(trackRepairedStatus && replica.isFull(), requestTime);
                 readCoordinator.sendReadCommand(message, replica.endpoint(), handler);
             }
         }

@@ -631,6 +631,9 @@ public class ReplicaPlans
         }
     };
 
+    // TODO (desired): Cheap quorums are not a goal for now, would really require speculation for writes
+    // and would trigger reconciliation work later, potentially quite a lot so I don't think it makes sense.
+    // So just remove selector?
     /**
      * Select all full nodes, live or down, as write targets.  If there are insufficient nodes to complete the write,
      * but there are live transient nodes, select a sufficient number of these to reach our consistency level.
@@ -826,7 +829,65 @@ public class ReplicaPlans
             return contactForEachQuorumRead(locator, (NetworkTopologyStrategy) replicationStrategy, candidates);
 
         int count = consistencyLevel.blockFor(replicationStrategy) + (alwaysSpeculate ? 1 : 0);
+
+        // Fix for transient replica bug: ensure we always contact at least one full replica
+        // if the first replica is transient, reorder to put a full replica first
+        if (!candidates.isEmpty() && candidates.get(0).isTransient())
+        {
+            return contactWithFullReplicaFirst(candidates, count);
+        }
+
         return candidates.subList(0, Math.min(count, candidates.size()));
+    }
+
+    /**
+     * Select replicas to contact ensuring that the first replica is a full replica
+     * followed by the required number of additional replicas in proximity order.
+     * This fixes the bug where CL.ONE could contact only a transient replica.
+     */
+    private static <E extends Endpoints<E>> E contactWithFullReplicaFirst(E candidates, int count)
+    {
+        // Find the best full replica (first one in proximity-sorted candidates)
+        Replica fullReplica = null;
+        int fullReplicaIndex = -1;
+
+        for (int i = 0; i < candidates.size(); i++)
+        {
+            Replica replica = candidates.get(i);
+            if (replica.isFull())
+            {
+                fullReplica = replica;
+                fullReplicaIndex = i;
+                break;
+            }
+        }
+
+        if (fullReplica == null)
+        {
+            // No full replicas available - throw error similar to assureSufficientLiveReplicas
+            throw UnavailableException.create(ConsistencyLevel.ONE, count, 1, candidates.size(), 0);
+        }
+
+        // Build the contact list with full replica first
+        ReplicaCollection.Builder<E> contacts = candidates.newBuilder(count);
+        contacts.add(fullReplica);
+
+        int remaining = count - 1;
+        if (remaining > 0)
+        {
+            // Add the remaining replicas in proximity order, skipping the full replica we already added
+            int added = 0;
+            for (int i = 0; i < candidates.size() && added < remaining; i++)
+            {
+                if (i != fullReplicaIndex)
+                {
+                    contacts.add(candidates.get(i));
+                    added++;
+                }
+            }
+        }
+
+        return contacts.build();
     }
 
 

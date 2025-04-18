@@ -413,7 +413,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return totalRows;
     }
 
-    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SerializationHeader header, ByteBuffer firstKey, ByteBuffer lastKey)
+    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, TimeUUID pendingRepair, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SerializationHeader header, ByteBuffer firstKey, ByteBuffer lastKey)
     {
         assert minClustering.kind() == ClusteringPrefix.Kind.CLUSTERING || minClustering.kind().isStart();
         assert maxClustering.kind() == ClusteringPrefix.Kind.CLUSTERING || maxClustering.kind().isEnd();
@@ -448,7 +448,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              tokenSpaceCoverage,
                                                              originatingHostId,
                                                              pendingRepair,
-                                                             isTransient,
                                                              hasPartitionLevelDeletions,
                                                              coordinatorLogOffsets,
                                                              firstKey,

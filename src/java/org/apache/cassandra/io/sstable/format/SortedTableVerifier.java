@@ -129,7 +129,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
         {
             try
             {
-                sstable.mutateRepairedAndReload(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getPendingRepair(), sstable.isTransient());
+                sstable.mutateRepairedAndReload(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getPendingRepair());
                 cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
             }
             catch (IOException ioe)

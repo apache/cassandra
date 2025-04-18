@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
@@ -63,7 +62,6 @@ class PendingRepairManager
 
     private final ColumnFamilyStore cfs;
     private final CompactionParams params;
-    private final boolean isTransient;
     private volatile ImmutableMap<TimeUUID, AbstractCompactionStrategy> strategies = ImmutableMap.of();
 
     /**
@@ -77,11 +75,10 @@ class PendingRepairManager
         }
     }
 
-    PendingRepairManager(ColumnFamilyStore cfs, CompactionParams params, boolean isTransient)
+    PendingRepairManager(ColumnFamilyStore cfs, CompactionParams params)
     {
         this.cfs = cfs;
         this.params = params;
-        this.isTransient = isTransient;
     }
 
     private ImmutableMap.Builder<TimeUUID, AbstractCompactionStrategy> mapBuilder()
@@ -162,7 +159,6 @@ class PendingRepairManager
 
     synchronized void addSSTable(SSTableReader sstable)
     {
-        Preconditions.checkArgument(sstable.isTransient() == isTransient);
         getOrCreate(sstable).addSSTable(sstable);
     }
 
@@ -517,36 +513,18 @@ class PendingRepairManager
         protected void runMayThrow() throws Exception
         {
             boolean completed = false;
-            boolean obsoleteSSTables = isTransient && repairedAt > 0;
             try
             {
-                if (obsoleteSSTables)
-                {
-                    logger.info("Obsoleting transient repaired sstables for {}", sessionID);
-                    Preconditions.checkState(Iterables.all(transaction.originals(), SSTableReader::isTransient));
-                    transaction.obsoleteOriginals();
-                }
-                else
-                {
-                    logger.info("Moving {} from pending to repaired with repaired at = {} and session id = {}", transaction.originals(), repairedAt, sessionID);
-                    cfs.getCompactionStrategyManager().mutateRepaired(transaction.originals(), repairedAt, ActiveRepairService.NO_PENDING_REPAIR, false);
-                }
+                logger.info("Moving {} from pending to repaired with repaired at = {} and session id = {}", transaction.originals(), repairedAt, sessionID);
+                cfs.getCompactionStrategyManager().mutateRepaired(transaction.originals(), repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
                 completed = true;
             }
             finally
             {
-                if (obsoleteSSTables)
-                {
-                    transaction.prepareToCommit();
-                    transaction.commit();
-                }
-                else
-                {
-                    // we abort here because mutating metadata isn't guarded by LifecycleTransaction, so this won't roll
-                    // anything back. Also, we don't want to obsolete the originals. We're only using it to prevent other
-                    // compactions from marking these sstables compacting, and unmarking them when we're done
-                    transaction.abort();
-                }
+                // we abort here because mutating metadata isn't guarded by LifecycleTransaction, so this won't roll
+                // anything back. Also, we don't want to obsolete the originals. We're only using it to prevent other
+                // compactions from marking these sstables compacting, and unmarking them when we're done
+                transaction.abort();
                 if (completed)
                 {
                     removeSessionIfEmpty(sessionID);

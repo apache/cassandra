@@ -838,7 +838,6 @@ public class ScrubTest
                                          .setKeyCount(keyCount)
                                          .setRepairedAt(0)
                                          .setPendingRepair(null)
-                                         .setTransientSSTable(false)
                                          .setTableMetadataRef(cfs.metadata)
                                          .setMetadataCollector(collector)
                                          .setSerializationHeader(header)

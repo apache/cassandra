@@ -29,6 +29,7 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -107,6 +108,7 @@ public abstract class AbstractReadCommandVerbHandler<T> implements IVerbHandler<
 
     private ClusterMetadata checkTokenOwnership(ClusterMetadata metadata, Message<T> message)
     {
+        boolean acceptsTransient = message.verb() == Verb.TRACKED_SUMMARY_REQ;
         ReadCommand command = getCommand(message.payload);
 
         if (command.metadata().isVirtual())
@@ -136,11 +138,11 @@ public abstract class AbstractReadCommandVerbHandler<T> implements IVerbHandler<
                 throw InvalidRoutingException.forTokenRead(message.from(), token, metadata.epoch, command);
             }
 
-            if (!command.acceptsTransient() && localReplica.isTransient())
+            if (!acceptsTransient && localReplica.isTransient())
             {
                 MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
                 throw new InvalidRequestException(String.format("Attempted to serve %s data request from %s node in %s",
-                                                                command.acceptsTransient() ? "transient" : "full",
+                                                                acceptsTransient ? "transient" : "full",
                                                                 localReplica.isTransient() ? "transient" : "full",
                                                                 this));
             }
@@ -164,11 +166,11 @@ public abstract class AbstractReadCommandVerbHandler<T> implements IVerbHandler<
             }
 
             // TODO: preexisting issue: we should change the whole range for transient-ness, not just the right token
-            if (command.acceptsTransient() != maxTokenLocalReplica.isTransient())
+            if (!acceptsTransient && maxTokenLocalReplica.isTransient())
             {
                 MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
                 throw new InvalidRequestException(String.format("Attempted to serve %s data request from %s node in %s",
-                                                                command.acceptsTransient() ? "transient" : "full",
+                                                                acceptsTransient ? "transient" : "full",
                                                                 maxTokenLocalReplica.isTransient() ? "transient" : "full",
                                                                 this));
             }

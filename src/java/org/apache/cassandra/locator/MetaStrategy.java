@@ -25,6 +25,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.ReversedLongLocalPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -59,9 +60,9 @@ public class MetaStrategy extends SystemStrategy
 
     private final ReplicationFactor rf;
 
-    public MetaStrategy(String keyspaceName, Map<String, String> configOptions)
+    public MetaStrategy(String keyspaceName, Map<String, String> configOptions, ReplicationType replicationType)
     {
-        super(keyspaceName, configOptions);
+        super(keyspaceName, configOptions, replicationType);
         int replicas = 0;
         if (configOptions != null)
         {

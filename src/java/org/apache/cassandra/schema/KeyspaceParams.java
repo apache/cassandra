@@ -138,6 +138,11 @@ public final class KeyspaceParams
         return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), EMPTY_COMMENT, EMPTY_SECURITY_LABEL, ReplicationType.untracked);
     }
 
+    public static KeyspaceParams simpleWitness(String replicationFactor)
+    {
+        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), ReplicationType.tracked);
+    }
+
     public static KeyspaceParams simpleTransient(int replicationFactor)
     {
         return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), EMPTY_COMMENT, EMPTY_SECURITY_LABEL, ReplicationType.untracked);
@@ -148,6 +153,10 @@ public final class KeyspaceParams
         return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple(), replicationType);
     }
 
+    public static KeyspaceParams ntsTracked(Object... args)
+    {
+        return nts(ReplicationType.tracked, args);
+    }
 
     public static KeyspaceParams nts(Object... args)
     {
@@ -171,7 +180,7 @@ public final class KeyspaceParams
 
     public void validate(String name, ClientState state, ClusterMetadata metadata)
     {
-        replication.validate(name, state, metadata);
+        replication.validate(name, state, metadata, replicationType);
     }
 
     @Override

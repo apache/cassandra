@@ -420,7 +420,7 @@ public final class CassandraGenerators
             return this;
         }
 
-        public Gen<AbstractReplicationStrategy> build()
+        public Gen<AbstractReplicationStrategy> build(ReplicationType replicationType)
         {
             return rs -> {
                 Strategy strategy = strategyGen.generate(rs);
@@ -428,18 +428,19 @@ public final class CassandraGenerators
                 {
                     case Simple:
                         return new SimpleStrategy(keyspaceNameGen.generate(rs),
-                                                  ImmutableMap.of(SimpleStrategy.REPLICATION_FACTOR, rfGen.generate(rs).toString()));
+                                                  ImmutableMap.of(SimpleStrategy.REPLICATION_FACTOR, rfGen.generate(rs).toString()),
+                                                  replicationType);
                     case NetworkTopology:
                         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
                         List<String> names = networkTopologyDCGen.generate(rs);
                         for (String name : names)
                             builder.put(name, rfGen.generate(rs).toString());
                         ImmutableMap<String, String> map = builder.build();
-                        return new TestableNetworkTopologyStrategy(keyspaceNameGen.generate(rs), map);
+                        return new TestableNetworkTopologyStrategy(keyspaceNameGen.generate(rs), map, replicationType);
                     case Meta:
-                        return new MetaStrategy(keyspaceNameGen.generate(rs), ImmutableMap.of());
+                        return new MetaStrategy(keyspaceNameGen.generate(rs), ImmutableMap.of(), replicationType);
                     case Local:
-                        return new LocalStrategy(keyspaceNameGen.generate(rs), ImmutableMap.of());
+                        return new LocalStrategy(keyspaceNameGen.generate(rs), ImmutableMap.of(), replicationType);
                     default:
                         throw new UnsupportedOperationException(strategy.name());
                 }
@@ -449,9 +450,9 @@ public final class CassandraGenerators
 
     public static class TestableNetworkTopologyStrategy extends NetworkTopologyStrategy
     {
-        public TestableNetworkTopologyStrategy(String keyspaceName, Map<String, String> configOptions) throws ConfigurationException
+        public TestableNetworkTopologyStrategy(String keyspaceName, Map<String, String> configOptions, ReplicationType replicationType) throws ConfigurationException
         {
-            super(keyspaceName, configOptions);
+            super(keyspaceName, configOptions, replicationType);
         }
 
         @Override
@@ -514,11 +515,12 @@ public final class CassandraGenerators
             return rs -> {
                 String name = nameGen.generate(rs);
                 KeyspaceMetadata.Kind kind = kindGen.generate(rs);
-                AbstractReplicationStrategy replication = replicationGen.generate(rs).withKeyspace(nameGen).build().generate(rs);
+                ReplicationType replicationType = ReplicationType.untracked;
+                AbstractReplicationStrategy replication = replicationGen.generate(rs).withKeyspace(nameGen).build(replicationType).generate(rs);
                 ReplicationParams replicationParams = ReplicationParams.fromStrategy(replication);
                 boolean durableWrites = durableWritesGen.generate(rs);
                 // TODO: Support tracked
-                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, FastPathStrategy.simple(), ReplicationType.untracked);
+                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, FastPathStrategy.simple(), replicationType);
                 Tables tables = Tables.none();
                 Views views = Views.none();
                 Types types = Types.none();

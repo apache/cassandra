@@ -236,7 +236,7 @@ public class SSTableUtils
             if (cfs.metadata().replicationType().isTracked())
                 throw new IllegalStateException("Can't create writer for table with mutation tracking enabled");
             SerializationHeader header = appender.header();
-            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFileWithComponent(datafile, false).left, expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, ImmutableCoordinatorLogOffsets.NONE, header);
+            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFileWithComponent(datafile, false).left, expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, ImmutableCoordinatorLogOffsets.NONE, header);
             while (appender.append(writer)) { /* pass */ }
             Collection<SSTableReader> readers = writer.finish(true);
 

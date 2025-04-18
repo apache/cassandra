@@ -71,7 +71,7 @@ public class NemesisAccordSegmentCompactor<V> extends AbstractAccordSegmentCompa
         {
             Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
             SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
-            writers[i] = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, CoordinatorLogOffsets.NONE, header);
+            writers[i] = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, CoordinatorLogOffsets.NONE, header);
         }
     }
 

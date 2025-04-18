@@ -469,10 +469,15 @@ public class StatefulASTBase extends TestBaseImpl
             cluster.schemaChange(metadata.toCqlString(false, false, false));
         }
 
-        private String createKeyspaceCQL(TableMetadata metadata)
+        protected String createKeyspaceCQL(TableMetadata metadata)
         {
-            return "CREATE KEYSPACE IF NOT EXISTS " + metadata.keyspace + 
-                   " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + Math.min(3, cluster.size()) + '}' +
+            return createKeyspaceCQL(metadata, String.valueOf(Math.min(3, cluster.size())));
+        }
+
+        protected String createKeyspaceCQL(TableMetadata metadata, String replicationFactor)
+        {
+            return "CREATE KEYSPACE IF NOT EXISTS " + metadata.keyspace +
+                   " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '" + replicationFactor + "'}" +
                    " AND replication_type='" + metadata.keyspaceReplicationType + "';";
         }
 

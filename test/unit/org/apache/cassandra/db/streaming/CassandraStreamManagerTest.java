@@ -134,10 +134,10 @@ public class CassandraStreamManagerTest
         return Iterables.getOnlyElement(diff);
     }
 
-    private static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
+    private static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair) throws IOException
     {
         Descriptor descriptor = sstable.descriptor;
-        descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, repairedAt, pendingRepair, isTransient);
+        descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, repairedAt, pendingRepair);
         sstable.reloadSSTableMetadata();
 
     }
@@ -186,9 +186,9 @@ public class CassandraStreamManagerTest
 
         TimeUUID pendingRepair = nextTimeUUID();
         long repairedAt = System.currentTimeMillis();
-        mutateRepaired(sstable2, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, false);
-        mutateRepaired(sstable3, UNREPAIRED_SSTABLE, nextTimeUUID(), false);
-        mutateRepaired(sstable4, repairedAt, NO_PENDING_REPAIR, false);
+        mutateRepaired(sstable2, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair);
+        mutateRepaired(sstable3, UNREPAIRED_SSTABLE, nextTimeUUID());
+        mutateRepaired(sstable4, repairedAt, NO_PENDING_REPAIR);
 
 
 

@@ -191,10 +191,10 @@ public final class ReplicationParams
         return new ReplicationParams(NetworkTopologyStrategy.class, options);
     }
 
-    public void validate(String name, ClientState state, ClusterMetadata metadata)
+    public void validate(String name, ClientState state, ClusterMetadata metadata, ReplicationType replicationType)
     {
         // Attempt to instantiate the ARS, which will throw a ConfigurationException if the options aren't valid.
-        AbstractReplicationStrategy.validateReplicationStrategy(name, klass, metadata, options, state);
+        AbstractReplicationStrategy.validateReplicationStrategy(name, klass, metadata, options, replicationType, state);
     }
 
     public static ReplicationParams fromMap(Map<String, String> map) {

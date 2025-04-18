@@ -177,8 +177,7 @@ public class PreviewRepairSnapshotTest extends TestBaseImpl
                 {
                     sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor,
                                                                                     System.currentTimeMillis(),
-                                                                                    null,
-                                                                                    false);
+                                                                                    null);
                     sstable.reloadSSTableMetadata();
                 }
                 catch (IOException e)

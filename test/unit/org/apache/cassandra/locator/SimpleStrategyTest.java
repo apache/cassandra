@@ -52,6 +52,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientWarn;
@@ -82,10 +83,11 @@ public class SimpleStrategyTest extends CassandraTestBase
     @Before
     public void defineSchema()
     {
+        DatabaseDescriptor.setMutationTrackingEnabled(true);
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         recreateCMS();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
         SchemaLoader.createKeyspace(MULTIDC, KeyspaceParams.simple(3));
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
     @Test
@@ -286,7 +288,7 @@ public class SimpleStrategyTest extends CassandraTestBase
         Map<String, String> configOptions = new HashMap<String, String>();
         configOptions.put(ReplicationParams.CLASS, SimpleStrategy.class.getName());
         configOptions.put("replication_factor", "3/1");
-        SchemaLoader.createKeyspace("ks", KeyspaceParams.create(false, configOptions));
+        SchemaLoader.createKeyspace("ks", KeyspaceParams.simpleWitness("3/1"));
         Range<Token> range1 = range(Murmur3Partitioner.MINIMUM.getLongValue(), 100);
 
         Util.assertRCEquals(EndpointsForToken.of(range1.right,
@@ -327,7 +329,7 @@ public class SimpleStrategyTest extends CassandraTestBase
         Map<String, String> configOptions = new HashMap<>();
 
         @SuppressWarnings("unused")
-        SimpleStrategy strategy = new SimpleStrategy("ks", configOptions);
+        SimpleStrategy strategy = new SimpleStrategy("ks", configOptions, ReplicationType.untracked);
     }
     
     @Test
@@ -339,7 +341,7 @@ public class SimpleStrategyTest extends CassandraTestBase
         HashMap<String, String> configOptions = new HashMap<>();
         configOptions.put("replication_factor", "1");
         
-        SimpleStrategy strategy = new SimpleStrategy("ks", configOptions);
+        SimpleStrategy strategy = new SimpleStrategy("ks", configOptions, ReplicationType.untracked);
 
         EndpointsForRange replicas = strategy.calculateNaturalReplicas(null, new ClusterMetadata(Murmur3Partitioner.instance));
         assertTrue(replicas.endpoints().isEmpty());
@@ -353,7 +355,7 @@ public class SimpleStrategyTest extends CassandraTestBase
         HashMap<String, String> configOptions = new HashMap<>();
         configOptions.put("replication_factor", "2");
 
-        SimpleStrategy strategy = new SimpleStrategy("ks", configOptions);
+        SimpleStrategy strategy = new SimpleStrategy("ks", configOptions, ReplicationType.untracked);
         ClusterMetadataTestHelper.addEndpoint(1);
         ClientWarn.instance.captureWarnings();
         strategy.maybeWarnOnOptions(null);
@@ -365,7 +367,8 @@ public class SimpleStrategyTest extends CassandraTestBase
         KeyspaceMetadata ksmd = Schema.instance.getKeyspaceMetadata(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(keyspaceName,
                                                                      ksmd.params.replication.klass,
-                                                                     ksmd.params.replication.options);
+                                                                     ksmd.params.replication.options,
+                                                                     ksmd.params.replicationType);
     }
 
     public static EndpointsForToken getWriteEndpoints(ClusterMetadata metadata,

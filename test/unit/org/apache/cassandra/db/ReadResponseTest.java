@@ -254,7 +254,6 @@ public class ReadResponseTest
             super(metadata.epoch,
                   isDigest,
                   0,
-                  false,
                   PotentialTxnConflicts.DISALLOW,
                   metadata,
                   FBUtilities.nowInSeconds(),

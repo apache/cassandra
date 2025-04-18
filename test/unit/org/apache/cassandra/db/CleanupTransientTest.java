@@ -41,6 +41,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -73,9 +74,10 @@ public class CleanupTransientTest extends CassandraTestBase
     @BeforeClass
     public static void setup() throws Exception
     {
+        DatabaseDescriptor.setMutationTrackingEnabled(true);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    KeyspaceParams.simple("2/1"),
+                                    KeyspaceParams.simpleWitness("2/1"),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEXED1, true));
 
@@ -132,7 +134,7 @@ public class CleanupTransientTest extends CassandraTestBase
         }
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, null, false);
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, null);
         sstable.reloadSSTableMetadata();
 
         // This should remove approximately 50% of the data, specifically whatever was transiently replicated
@@ -153,10 +155,11 @@ public class CleanupTransientTest extends CassandraTestBase
         {
             String key = String.valueOf(i);
             // create a row and update the birthdate value, test that the index query fetches the new version
-            new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), ByteBufferUtil.bytes(key))
-                    .clustering(COLUMN)
-                    .add(colName, VALUE)
-                    .build()
+            Mutation mutation = new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), ByteBufferUtil.bytes(key))
+                                    .clustering(COLUMN)
+                                    .add(colName, VALUE)
+                                    .build();
+            mutation.withMutationId(MutationTrackingService.instance.nextMutationId(cfs.metadata().keyspace, mutation.key().getToken()))
                     .applyUnsafe();
         }
 

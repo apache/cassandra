@@ -127,7 +127,6 @@ public class CompactionStrategyManager implements INotificationConsumer
     /**
      * Variables guarded by read and write lock above
      */
-    private final PendingRepairHolder transientRepairs;
     private final PendingRepairHolder pendingRepairs;
     private final CompactionStrategyHolder repaired;
     private final CompactionStrategyHolder unrepaired;
@@ -175,11 +174,10 @@ public class CompactionStrategyManager implements INotificationConsumer
                 return compactionStrategyIndexForDirectory(descriptor);
             }
         };
-        transientRepairs = new PendingRepairHolder(cfs, router, true);
-        pendingRepairs = new PendingRepairHolder(cfs, router, false);
+        pendingRepairs = new PendingRepairHolder(cfs, router);
         repaired = new CompactionStrategyHolder(cfs, router, true);
         unrepaired = new CompactionStrategyHolder(cfs, router, false);
-        holders = ImmutableList.of(transientRepairs, pendingRepairs, repaired, unrepaired);
+        holders = ImmutableList.of(pendingRepairs, repaired, unrepaired);
 
         cfs.getTracker().subscribe(this);
         logger.trace("Compaction manager for {}.{} subscribed to the data tracker.", cfs.keyspace.getName(), cfs.name);
@@ -214,10 +212,6 @@ public class CompactionStrategyManager implements INotificationConsumer
             // first try to promote/demote sstables from completed repairs
             Collection<AbstractCompactionTask> repairFinishedTasks;
             repairFinishedTasks = pendingRepairs.getNextRepairFinishedTasks();
-            if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
-                return repairFinishedTasks;
-
-            repairFinishedTasks = transientRepairs.getNextRepairFinishedTasks();
             if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
                 return repairFinishedTasks;
 
@@ -430,18 +424,12 @@ public class CompactionStrategyManager implements INotificationConsumer
         return pendingRepairs;
     }
 
-    @VisibleForTesting
-    PendingRepairHolder getTransientRepairsUnsafe()
-    {
-        return transientRepairs;
-    }
-
     public boolean hasDataForPendingRepair(TimeUUID sessionID)
     {
         readLock.lock();
         try
         {
-            return pendingRepairs.hasDataForSession(sessionID) || transientRepairs.hasDataForSession(sessionID);
+            return pendingRepairs.hasDataForSession(sessionID);
         }
         finally
         {
@@ -455,7 +443,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            return pendingRepairs.hasPendingRepairSSTable(sessionID, sstable) || transientRepairs.hasPendingRepairSSTable(sessionID, sstable);
+            return pendingRepairs.hasPendingRepairSSTable(sessionID, sstable);
         }
         finally
         {
@@ -948,19 +936,18 @@ public class CompactionStrategyManager implements INotificationConsumer
         throw new IllegalStateException("No holder claimed " + sstable);
     }
 
-    private AbstractStrategyHolder getHolder(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    private AbstractStrategyHolder getHolder(long repairedAt, TimeUUID pendingRepair)
     {
         return getHolder(repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE,
-                         pendingRepair != ActiveRepairService.NO_PENDING_REPAIR,
-                         isTransient);
+                         pendingRepair != ActiveRepairService.NO_PENDING_REPAIR);
     }
 
     @VisibleForTesting
-    AbstractStrategyHolder getHolder(boolean isRepaired, boolean isPendingRepair, boolean isTransient)
+    AbstractStrategyHolder getHolder(boolean isRepaired, boolean isPendingRepair)
     {
         for (AbstractStrategyHolder holder : holders)
         {
-            if (holder.managesRepairedGroup(isRepaired, isPendingRepair, isTransient))
+            if (holder.managesRepairedGroup(isRepaired, isPendingRepair))
                 return holder;
         }
 
@@ -1411,7 +1398,6 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        long keyCount,
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
-                                                       boolean isTransient,
                                                        ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
@@ -1419,16 +1405,15 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        Collection<Index.Group> indexGroups,
                                                        ILifecycleTransaction txn)
     {
-        SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
+        SSTable.validateRepairedMetadata(repairedAt, pendingRepair);
         maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
-            return getHolder(repairedAt, pendingRepair, isTransient).createSSTableMultiWriter(descriptor,
+            return getHolder(repairedAt, pendingRepair).createSSTableMultiWriter(descriptor,
                                                                                               keyCount,
                                                                                               repairedAt,
                                                                                               pendingRepair,
-                                                                                              isTransient,
                                                                                               coordinatorLogOffsets,
                                                                                               commitLogPositions,
                                                                                               sstableLevel,
@@ -1499,7 +1484,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * Mutates sstable repairedAt times and notifies listeners of the change with the writeLock held. Prevents races
      * with other processes between when the metadata is changed and when sstables are moved between strategies.
       */
-    public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
+    public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, TimeUUID pendingRepair) throws IOException
     {
         if (sstables.isEmpty())
             return;
@@ -1510,8 +1495,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             for (SSTableReader sstable: sstables)
             {
-                sstable.mutateRepairedAndReload(repairedAt, pendingRepair, isTransient);
-                verifyMetadata(sstable, repairedAt, pendingRepair, isTransient);
+                sstable.mutateRepairedAndReload(repairedAt, pendingRepair);
+                verifyMetadata(sstable, repairedAt, pendingRepair);
                 changed.add(sstable);
             }
         }
@@ -1530,14 +1515,12 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    private static void verifyMetadata(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    private static void verifyMetadata(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair)
     {
         if (!Objects.equals(pendingRepair, sstable.getPendingRepair()))
             throw new IllegalStateException(String.format("Failed setting pending repair to %s on %s (pending repair is %s)", pendingRepair, sstable, sstable.getPendingRepair()));
         if (repairedAt != sstable.getRepairedAt())
             throw new IllegalStateException(String.format("Failed setting repairedAt to %d on %s (repairedAt is %d)", repairedAt, sstable, sstable.getRepairedAt()));
-        if (isTransient != sstable.isTransient())
-            throw new IllegalStateException(String.format("Failed setting isTransient to %b on %s (isTransient is %b)", isTransient, sstable, sstable.isTransient()));
     }
 
     public CleanupSummary releaseRepairData(Collection<TimeUUID> sessions)
@@ -1546,7 +1529,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            for (PendingRepairManager prm : Iterables.concat(pendingRepairs.getManagers(), transientRepairs.getManagers()))
+            for (PendingRepairManager prm : pendingRepairs.getManagers())
                 cleanupTasks.add(prm.releaseSessionData(sessions));
         }
         finally

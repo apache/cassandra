@@ -40,6 +40,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
@@ -78,9 +79,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     private final ReplicationFactor aggregateRf;
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
 
-    public NetworkTopologyStrategy(String keyspaceName, Map<String, String> configOptions) throws ConfigurationException
+    public NetworkTopologyStrategy(String keyspaceName, Map<String, String> configOptions, ReplicationType replicationType) throws ConfigurationException
     {
-        super(keyspaceName, configOptions);
+        super(keyspaceName, configOptions, replicationType);
 
         int replicas = 0;
         int trans = 0;

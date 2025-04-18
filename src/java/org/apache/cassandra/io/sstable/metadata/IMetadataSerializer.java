@@ -94,7 +94,7 @@ public interface IMetadataSerializer
      * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming, please use
      * {@link SSTableReader#mutateLevelAndReload} instead on live sstable.
      */
-    public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, TimeUUID newPendingRepair, boolean isTransient) throws IOException;
+    public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, TimeUUID newPendingRepair) throws IOException;
 
     /**
      * Replace the sstable metadata file ({@code -Statistics.db}) with the given components.

@@ -96,6 +96,7 @@ public class BootstrapTransientTest extends CassandraTestBase
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
+        DatabaseDescriptor.setMutationTrackingEnabled(true);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         address02 = InetAddressAndPort.getByName("127.0.0.2");
         address03 = InetAddressAndPort.getByName("127.0.0.3");
@@ -111,7 +112,7 @@ public class BootstrapTransientTest extends CassandraTestBase
         ClusterMetadataTestHelper.addEndpoint(address02, range30_10.right);
         ClusterMetadataTestHelper.addEndpoint(address03, range10_20.right);
         ClusterMetadataTestHelper.addEndpoint(address04, range20_30.right);
-        KeyspaceMetadata ksm = KeyspaceMetadata.create(KEYSPACE, KeyspaceParams.simple("3/1"));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(KEYSPACE, KeyspaceParams.simpleWitness("3/1"));
         SchemaTestUtil.addOrUpdateKeyspace(ksm);
     }
 
@@ -239,7 +240,8 @@ public class BootstrapTransientTest extends CassandraTestBase
 
     private AbstractReplicationStrategy simpleStrategy(ClusterMetadata metadata)
     {
-        return AbstractReplicationStrategy.createReplicationStrategy(KEYSPACE, metadata.schema.getKeyspaceMetadata(KEYSPACE).params.replication);
+        KeyspaceParams keyspaceParams = metadata.schema.getKeyspaceMetadata(KEYSPACE).params;
+        return AbstractReplicationStrategy.createReplicationStrategy(KEYSPACE, keyspaceParams.replication, keyspaceParams.replicationType);
     }
 
 }

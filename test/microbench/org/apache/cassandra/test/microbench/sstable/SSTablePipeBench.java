@@ -34,6 +34,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.replication.CoordinatorLogOffsets;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tools.Util;
 
@@ -54,7 +55,7 @@ public class SSTablePipeBench extends SSTableAbstractPipeBench
     public void readAndWrite() throws Throwable
     {
         SSTableReader ssTableReader = SSTableReader.openNoValidation(null, desc, TableMetadataRef.forOfflineTools(metadata));
-        try (SSTableWriter ssTableWriter = CompactionManager.createWriter(cfs, new org.apache.cassandra.io.util.File(tmpDir), -1, -1, null, false, ssTableReader, LifecycleTransaction.offline(OperationType.COMPACTION));)
+        try (SSTableWriter ssTableWriter = CompactionManager.createWriter(cfs, new org.apache.cassandra.io.util.File(tmpDir), -1, -1, null, CoordinatorLogOffsets.NONE, ssTableReader, LifecycleTransaction.offline(OperationType.COMPACTION));)
         {
             final ISSTableScanner currentScanner = ssTableReader.getScanner();
             Stream<UnfilteredRowIterator> partitions = Util.iterToStream(currentScanner);

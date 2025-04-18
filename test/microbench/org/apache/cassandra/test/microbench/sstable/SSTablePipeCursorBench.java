@@ -32,6 +32,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
 import org.apache.cassandra.io.sstable.SSTableCursorWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
+import org.apache.cassandra.replication.CoordinatorLogOffsets;
 
 
 @State(Scope.Benchmark)
@@ -50,7 +51,7 @@ public class SSTablePipeCursorBench extends SSTableAbstractPipeBench
     public void readAndWrite() throws Throwable
     {
         try(SSTableCursorReader cursorReader = SSTableCursorReader.fromDescriptor(desc);
-            SortedTableWriter ssTableWriter = (SortedTableWriter) CompactionManager.createWriter(cfs, new org.apache.cassandra.io.util.File(tmpDir), 0, 0, null, false, cursorReader.ssTableReader(), LifecycleTransaction.offline(OperationType.COMPACTION));
+            SortedTableWriter ssTableWriter = (SortedTableWriter) CompactionManager.createWriter(cfs, new org.apache.cassandra.io.util.File(tmpDir), 0, 0, null, CoordinatorLogOffsets.NONE, cursorReader.ssTableReader(), LifecycleTransaction.offline(OperationType.COMPACTION));
             SSTableCursorWriter cursorWriter = new SSTableCursorWriter(ssTableWriter);){
             SSTableCursorPipeUtil.copySSTable(cursorReader, cursorWriter);
         }

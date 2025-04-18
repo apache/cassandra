@@ -38,6 +38,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -618,6 +619,7 @@ public class PendingRangesTest
     private static AbstractReplicationStrategy simpleStrategy(int replicationFactor)
     {
         return new SimpleStrategy(KEYSPACE,
-                                  Collections.singletonMap("replication_factor", Integer.toString(replicationFactor)));
+                                  Collections.singletonMap("replication_factor", Integer.toString(replicationFactor)),
+                                  ReplicationType.untracked);
     }
 }

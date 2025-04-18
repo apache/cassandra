@@ -110,7 +110,7 @@ public class CountersTest extends TestBaseImpl
                     try
                     {
                         descriptor.getMetadataSerializer()
-                                  .mutateRepairMetadata(descriptor, System.currentTimeMillis(), null, false);
+                                  .mutateRepairMetadata(descriptor, System.currentTimeMillis(), null);
                         sstable.reloadSSTableMetadata();
                     }
                     catch (IOException e)

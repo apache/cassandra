@@ -132,12 +132,12 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
             if (i % 3 == 0)
             {
                 //make 1 third of sstables repaired
-                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, System.currentTimeMillis(), null, false);
+                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, System.currentTimeMillis(), null);
             }
             else if (i % 3 == 1)
             {
                 //make 1 third of sstables pending repair
-                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, 0, nextTimeUUID(), false);
+                cfs.getCompactionStrategyManager().mutateRepaired(newSSTables, 0, nextTimeUUID());
             }
             previousSSTables = currentSSTables;
         }
@@ -275,19 +275,19 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(false);
     }
 
-    private static void assertHolderExclusivity(boolean isRepaired, boolean isPendingRepair, boolean isTransient, Class<? extends AbstractStrategyHolder> expectedType)
+    private static void assertHolderExclusivity(boolean isRepaired, boolean isPendingRepair, Class<? extends AbstractStrategyHolder> expectedType)
     {
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
 
-        AbstractStrategyHolder holder = csm.getHolder(isRepaired, isPendingRepair, isTransient);
+        AbstractStrategyHolder holder = csm.getHolder(isRepaired, isPendingRepair);
         assertNotNull(holder);
         assertSame(expectedType, holder.getClass());
 
         int matches = 0;
         for (AbstractStrategyHolder other : csm.getHolders())
         {
-            if (other.managesRepairedGroup(isRepaired, isPendingRepair, isTransient))
+            if (other.managesRepairedGroup(isRepaired, isPendingRepair))
             {
                 assertSame("holder assignment should be mutually exclusive", holder, other);
                 matches++;
@@ -296,13 +296,13 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         assertEquals(1, matches);
     }
 
-    private static void assertInvalieHolderConfig(boolean isRepaired, boolean isPendingRepair, boolean isTransient)
+    private static void assertInvalidHolderConfig(boolean isRepaired, boolean isPendingRepair)
     {
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
         try
         {
-            csm.getHolder(isRepaired, isPendingRepair, isTransient);
+            csm.getHolder(isRepaired, isPendingRepair);
             fail("Expected IllegalArgumentException");
         }
         catch (IllegalArgumentException e)
@@ -318,14 +318,11 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
     @Test
     public void testMutualExclusiveHolderClassification() throws Exception
     {
-        assertHolderExclusivity(false, false, false, CompactionStrategyHolder.class);
-        assertHolderExclusivity(true, false, false, CompactionStrategyHolder.class);
-        assertHolderExclusivity(false, true, false, PendingRepairHolder.class);
-        assertHolderExclusivity(false, true, true, PendingRepairHolder.class);
-        assertInvalieHolderConfig(true, true, false);
-        assertInvalieHolderConfig(true, true, true);
-        assertInvalieHolderConfig(false, false, true);
-        assertInvalieHolderConfig(true, false, true);
+        assertHolderExclusivity(false, false, CompactionStrategyHolder.class);
+        assertHolderExclusivity(true, false, CompactionStrategyHolder.class);
+        assertHolderExclusivity(false, true, PendingRepairHolder.class);
+        assertHolderExclusivity(false, true, PendingRepairHolder.class);
+        assertInvalidHolderConfig(true, true);
     }
 
     PartitionPosition forKey(int key)
@@ -344,7 +341,6 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         ColumnFamilyStore cfs = createJBODMockCFS(numDir);
         Keyspace.open(cfs.getKeyspaceName()).getColumnFamilyStore(cfs.name).disableAutoCompaction();
         assertTrue(cfs.getLiveSSTables().isEmpty());
-        List<SSTableReader> transientRepairs = new ArrayList<>();
         List<SSTableReader> pendingRepair = new ArrayList<>();
         List<SSTableReader> unrepaired = new ArrayList<>();
         List<SSTableReader> repaired = new ArrayList<>();
@@ -352,15 +348,13 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         for (int i = 0; i < numDir; i++)
         {
             int key = 100 * i;
-            transientRepairs.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
             pendingRepair.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
             unrepaired.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
             repaired.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
         }
 
-        cfs.getCompactionStrategyManager().mutateRepaired(transientRepairs, 0, nextTimeUUID(), true);
-        cfs.getCompactionStrategyManager().mutateRepaired(pendingRepair, 0, nextTimeUUID(), false);
-        cfs.getCompactionStrategyManager().mutateRepaired(repaired, 1000, null, false);
+        cfs.getCompactionStrategyManager().mutateRepaired(pendingRepair, 0, nextTimeUUID());
+        cfs.getCompactionStrategyManager().mutateRepaired(repaired, 1000, null);
 
         DiskBoundaries boundaries = new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(),
                                                        Lists.newArrayList(forKey(100), forKey(200), forKey(300)),
@@ -368,7 +362,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
 
         CompactionStrategyManager csm = new CompactionStrategyManager(cfs, () -> boundaries, true);
 
-        List<GroupedSSTableContainer> grouped = csm.groupSSTables(Iterables.concat( transientRepairs, pendingRepair, repaired, unrepaired));
+        List<GroupedSSTableContainer> grouped = csm.groupSSTables(Iterables.concat( pendingRepair, repaired, unrepaired));
 
         for (int x=0; x<grouped.size(); x++)
         {
@@ -383,14 +377,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
                     expected = repaired.get(y);
                 else if (sstable.isPendingRepair())
                 {
-                    if (sstable.isTransient())
-                    {
-                        expected = transientRepairs.get(y);
-                    }
-                    else
-                    {
-                        expected = pendingRepair.get(y);
-                    }
+                    expected = pendingRepair.get(y);
                 }
                 else
                     expected = unrepaired.get(y);

@@ -418,12 +418,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public boolean isTransient()
-    {
-        return delegate.isTransient();
-    }
-
-    @Override
     public boolean intersects(Collection<Range<Token>> ranges)
     {
         return delegate.intersects(ranges);
@@ -532,9 +526,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public void mutateRepairedAndReload(long newRepairedAt, TimeUUID newPendingRepair, boolean isTransient) throws IOException
+    public void mutateRepairedAndReload(long newRepairedAt, TimeUUID newPendingRepair) throws IOException
     {
-        delegate.mutateRepairedAndReload(newRepairedAt, newPendingRepair, isTransient);
+        delegate.mutateRepairedAndReload(newRepairedAt, newPendingRepair);
     }
 
     @Override

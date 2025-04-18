@@ -46,6 +46,7 @@ import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -89,6 +90,8 @@ public class WriteResponseHandlerTransientTest
     public static void setupClass() throws Throwable
     {
         SchemaLoader.loadSchema();
+        MutationJournal.instance.start();
+        DatabaseDescriptor.setMutationTrackingEnabled(true);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
@@ -100,7 +103,7 @@ public class WriteResponseHandlerTransientTest
         ClusterMetadataTestHelper.register(EP4, DC2, "r1");
         ClusterMetadataTestHelper.register(EP5, DC2, "r1");
         ClusterMetadataTestHelper.register(EP6, DC2, "r1");
-        SchemaLoader.createKeyspace("ks", KeyspaceParams.nts(DC1, "3/1", DC2, "3/1"), SchemaLoader.standardCFMD("ks", "tbl"));
+        SchemaLoader.createKeyspace("ks", KeyspaceParams.ntsTracked(DC1, "3/1", DC2, "3/1"), SchemaLoader.standardCFMD("ks", "tbl"));
         ks = Keyspace.open("ks");
         cfs = ks.getColumnFamilyStore("tbl");
         dummy = DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0));
@@ -126,7 +129,7 @@ public class WriteResponseHandlerTransientTest
     private static ReplicaPlan.ForWrite getSpeculationContext(EndpointsForToken natural, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaLayout.ForTokenWrite liveAndDown = new ReplicaLayout.ForTokenWrite(ks.getReplicationStrategy(), natural, EndpointsForToken.empty(dummy.getToken()));
-        return ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, (cm) -> liveAndDown, r -> livePredicate.test(r.endpoint()), ReplicaPlans.writeNormal);
+        return ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, (cm) -> liveAndDown, r -> livePredicate.test(r.endpoint()), ReplicaPlans.writeAll);
     }
 
     private static void assertSpeculationReplicas(ReplicaPlan.ForWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)
@@ -159,19 +162,9 @@ public class WriteResponseHandlerTransientTest
     {
         EndpointsForToken all = replicas(full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
         // in happy path, transient replica should be classified as a backup
-        assertSpeculationReplicas(expected(all, replicas(full(EP1), full(EP2), full(EP4), full(EP5))),
+        assertSpeculationReplicas(expected(all, all),
                                   all,
                                   dead());
-
-        // full replicas must always be in the contact list, and will occur first
-        assertSpeculationReplicas(expected(replicas(full(EP1), trans(EP3), full(EP4), trans(EP6)), replicas(full(EP1), full(EP2), full(EP4), full(EP5), trans(EP3), trans(EP6))),
-                                  all,
-                                  dead(EP2, EP5));
-
-        // only one transient used as backup
-        assertSpeculationReplicas(expected(replicas(full(EP1), trans(EP3), full(EP4), full(EP5), trans(EP6)), replicas(full(EP1), full(EP2), full(EP4), full(EP5), trans(EP3))),
-                all,
-                dead(EP2));
     }
 
     @Test (expected = UnavailableException.class)

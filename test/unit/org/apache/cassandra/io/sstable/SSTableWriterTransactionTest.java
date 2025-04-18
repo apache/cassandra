@@ -73,7 +73,7 @@ public class SSTableWriterTransactionTest extends AbstractTransactionalTest
 
         private TestableBTW(Descriptor desc)
         {
-            this(desc, SSTableTxnWriter.create(cfs, desc, 0, 0, null, false, ImmutableCoordinatorLogOffsets.NONE,
+            this(desc, SSTableTxnWriter.create(cfs, desc, 0, 0, null, ImmutableCoordinatorLogOffsets.NONE,
                                                new SerializationHeader(true, cfs.metadata(),
                                                                        cfs.metadata().regularAndStaticColumns(),
                                                                        EncodingStats.NO_STATS)));

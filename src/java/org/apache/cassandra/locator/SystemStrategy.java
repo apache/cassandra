@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
@@ -30,9 +31,9 @@ import org.apache.cassandra.tcm.ClusterMetadata;
  */
 public abstract class SystemStrategy extends AbstractReplicationStrategy
 {
-    public SystemStrategy(String keyspaceName, Map<String, String> configOptions)
+    public SystemStrategy(String keyspaceName, Map<String, String> configOptions, ReplicationType replicationType)
     {
-        super(keyspaceName, configOptions);
+        super(keyspaceName, configOptions, replicationType);
     }
 
     public void validateOptions() throws ConfigurationException

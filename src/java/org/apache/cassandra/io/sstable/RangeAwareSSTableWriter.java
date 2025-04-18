@@ -45,7 +45,6 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final long estimatedKeys;
     private final long repairedAt;
     private final TimeUUID pendingRepair;
-    private final boolean isTransient;
     private final ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
     private final SSTableFormat<?, ?> format;
     private final SerializationHeader header;
@@ -55,7 +54,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final List<SSTableMultiWriter> finishedWriters = new ArrayList<>();
     private SSTableMultiWriter currentWriter = null;
 
-    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SSTableFormat<?, ?> format, int sstableLevel, long totalSize, ILifecycleTransaction txn, SerializationHeader header) throws IOException
+    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, TimeUUID pendingRepair, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SSTableFormat<?, ?> format, int sstableLevel, long totalSize, ILifecycleTransaction txn, SerializationHeader header) throws IOException
     {
         DiskBoundaries db = cfs.getDiskBoundaries();
         directories = db.directories;
@@ -64,7 +63,6 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         this.estimatedKeys = estimatedKeys / directories.size();
         this.repairedAt = repairedAt;
         this.pendingRepair = pendingRepair;
-        this.isTransient = isTransient;
         this.coordinatorLogOffsets = coordinatorLogOffsets;
         this.format = format;
         this.txn = txn;
@@ -77,7 +75,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
                 throw new IOException(String.format("Insufficient disk space to store %s",
                                                     FBUtilities.prettyPrintMemory(totalSize)));
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(localDir), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, null, sstableLevel, header, txn);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, coordinatorLogOffsets, null, sstableLevel, header, txn);
         }
     }
 
@@ -99,7 +97,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
                 finishedWriters.add(currentWriter);
 
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(directories.get(currentIndex)), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, null, sstableLevel, header, txn);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, coordinatorLogOffsets, null, sstableLevel, header, txn);
         }
     }
 

@@ -39,6 +39,7 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Location;
@@ -104,7 +105,7 @@ public class AccordTopologyUtils
         for (KeyspaceMetadata keyspace : keyspaces)
         {
             ReplicationParams replication = keyspace.params.replication;
-            AbstractReplicationStrategy strategy = AbstractReplicationStrategy.createReplicationStrategy(keyspace.name, replication);
+            AbstractReplicationStrategy strategy = AbstractReplicationStrategy.createReplicationStrategy(keyspace.name, replication, ReplicationType.untracked);
             DataPlacements.Builder placements = metadata.placements.unbuild();
             DataPlacement placement = strategy.calculateDataPlacement(Epoch.EMPTY, metadata.tokenMap.toRanges(), metadata);
             placements.with(replication, placement);

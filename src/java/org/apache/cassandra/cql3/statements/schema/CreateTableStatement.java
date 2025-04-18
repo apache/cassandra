@@ -73,7 +73,6 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
@@ -176,11 +175,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
         TableMetadata table = builder.build();
         table.validate();
 
-        if (keyspace.replicationStrategy.hasTransientReplicas()
-            && table.params.readRepair != ReadRepairStrategy.NONE)
-        {
-            throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
-        }
+        // TODO (review): This can be removed right? ReadRepair is effectively not done anymore so the setting doesn't matter
+//        if (keyspace.replicationStrategy.hasTransientReplicas()
+//            && table.params.readRepair != ReadRepairStrategy.NONE)
+//        {
+//            throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
+//        }
 
         if (!table.params.compression.isEnabled() && !SchemaConstants.isSystemKeyspace(table.keyspace))
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);

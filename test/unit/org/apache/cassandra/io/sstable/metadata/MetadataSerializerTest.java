@@ -159,7 +159,7 @@ public class MetadataSerializerTest
         ImmutableCoordinatorLogOffsets.Builder logOffsetsBuilder = new ImmutableCoordinatorLogOffsets.Builder();
         logOffsetsBuilder.add(new MutationId(1, 12345));
         logOffsetsBuilder.add(new MutationId(2, 56789));
-        return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, logOffsetsBuilder.build(), SerializationHeader.make(cfm, Collections.emptyList()), first, last);
+        return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, logOffsetsBuilder.build(), SerializationHeader.make(cfm, Collections.emptyList()), first, last);
     }
 
     private void testVersions(List<String> versions) throws Throwable

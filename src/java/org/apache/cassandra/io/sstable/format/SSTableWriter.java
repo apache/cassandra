@@ -82,7 +82,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected long repairedAt;
     protected TimeUUID pendingRepair;
-    protected boolean isTransient;
     protected ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
     protected long maxDataAge = -1;
     protected final long keyCount;
@@ -112,7 +111,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.keyCount = builder.getKeyCount();
         this.repairedAt = builder.getRepairedAt();
         this.pendingRepair = builder.getPendingRepair();
-        this.isTransient = builder.isTransientSSTable();
         this.coordinatorLogOffsets = builder.getCoordinatorLogOffsets();
         this.metadataCollector = builder.getMetadataCollector();
         this.header = builder.getSerializationHeader();
@@ -368,7 +366,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
                                                   pendingRepair,
-                                                  isTransient,
                                                   coordinatorLogOffsets,
                                                   header,
                                                   first.retainable().getKey(),
@@ -489,7 +486,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         private long keyCount;
         private long repairedAt;
         private TimeUUID pendingRepair;
-        private boolean transientSSTable;
         private SerializationHeader serializationHeader;
         private List<Index.Group> indexGroups;
         @Nullable
@@ -523,12 +519,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         public B setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets coordinatorLogOffsets)
         {
             this.coordinatorLogOffsets = coordinatorLogOffsets;
-            return (B) this;
-        }
-
-        public B setTransientSSTable(boolean transientSSTable)
-        {
-            this.transientSSTable = transientSSTable;
             return (B) this;
         }
 
@@ -611,11 +601,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return pendingRepair;
         }
 
-        public boolean isTransientSSTable()
-        {
-            return transientSSTable;
-        }
-
         public ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets()
         {
             return coordinatorLogOffsets;
@@ -642,7 +627,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         {
             checkNotNull(getComponents());
 
-            validateRepairedMetadata(getRepairedAt(), getPendingRepair(), isTransientSSTable());
+            validateRepairedMetadata(getRepairedAt(), getPendingRepair());
 
             return buildInternal(txn, owner);
         }

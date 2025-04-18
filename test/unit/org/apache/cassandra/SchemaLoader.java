@@ -225,6 +225,8 @@ public class SchemaLoader
                              + "v2 int"
                              + ")";
         // CQLKeyspace
+//        ReplicationType replicationType = DatabaseDescriptor.getMutationTrackingEnabled() ? ReplicationType.tracked : ReplicationType.untracked;
+//        schema.add(KeyspaceMetadata.create(ks_cql, KeyspaceParams.simple(1, replicationType), Tables.of(
         schema.add(KeyspaceMetadata.create(ks_cql, KeyspaceParams.simple(1), Tables.of(
 
         // Column Families
@@ -241,7 +243,8 @@ public class SchemaLoader
         schema.add(KeyspaceMetadata.create(ks_cql_replicated, KeyspaceParams.simple(3),
                                            Tables.of(CreateTableStatement.parse(simpleTable, ks_cql_replicated).build())));
 
-        schema.add(KeyspaceMetadata.create(ks_with_transient, KeyspaceParams.simple("3/1"),
+        schema.add(KeyspaceMetadata.create(ks_with_transient,
+                                           KeyspaceParams.simpleWitness("3/1"),
                                            Tables.of(CreateTableStatement.parse(simpleTable, ks_with_transient).build())));
 
         if (DatabaseDescriptor.getPartitioner() instanceof Murmur3Partitioner)

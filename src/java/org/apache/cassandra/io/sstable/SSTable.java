@@ -309,12 +309,10 @@ public abstract class SSTable
         return String.format("%s:%s(path='%s')", getClass().getSimpleName(), descriptor.version.format.name(), getFilename());
     }
 
-    public static void validateRepairedMetadata(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    public static void validateRepairedMetadata(long repairedAt, TimeUUID pendingRepair)
     {
         Preconditions.checkArgument((pendingRepair == NO_PENDING_REPAIR) || (repairedAt == UNREPAIRED_SSTABLE),
                                     "pendingRepair cannot be set on a repaired sstable");
-        Preconditions.checkArgument(!isTransient || (pendingRepair != NO_PENDING_REPAIR),
-                                    "isTransient can only be true for sstables pending repair");
     }
 
     /**
