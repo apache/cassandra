@@ -66,6 +66,15 @@ public class SequentialWriterOption
         return new Builder();
     }
 
+    public Builder unbuild()
+    {
+        return new Builder()
+               .bufferSize(bufferSize)
+               .bufferType(bufferType)
+               .trickleFsync(trickleFsync)
+               .finishOnClose(finishOnClose);
+    }
+
     public int bufferSize()
     {
         return bufferSize;
