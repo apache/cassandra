@@ -603,6 +603,7 @@ public class StorageServiceServerTest
         assertTrue(AuditLogManager.instance.isEnabled());
         StorageService.instance.disableAuditLog();
     }
+
     /**
      Create a new AuditLogOptions instance with the log dir set appropriately to a temp dir for unit testing.
      */

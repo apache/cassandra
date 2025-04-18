@@ -93,8 +93,8 @@ public class NodeTool
         List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
                 AbortBootstrap.class,
                 AlterTopology.class,
-                AutoRepairStatus.class,
                 Assassinate.class,
+                AutoRepairStatus.class,
                 CassHelp.class,
                 CIDRFilteringStats.class,
                 Cleanup.class,

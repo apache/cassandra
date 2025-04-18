@@ -83,7 +83,7 @@ public class RepairTokenRangeSplitterTest extends CQLTester
     {
         CQLTester.setUpClass();
         AutoRepairService.setup();
-        FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumToken());
+        FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMaximumTokenForSplitting());
     }
 
     @Before

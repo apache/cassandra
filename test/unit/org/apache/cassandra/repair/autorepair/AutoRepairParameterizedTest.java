@@ -81,7 +81,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -814,7 +813,7 @@ public class AutoRepairParameterizedTest extends CQLTester
     {
         RepairOption options = new RepairOption(RepairParallelism.PARALLEL, true, repairType == AutoRepairConfig.RepairType.INCREMENTAL, false,
                                                 AutoRepairService.instance.getAutoRepairConfig().getRepairThreads(repairType), Collections.emptySet(),
-                                                 false, false, PreviewKind.NONE, false, true, false, false, false, false);
+                                                 false, false, PreviewKind.NONE, false, true, true, false, false, false);
         AutoRepairState repairState = AutoRepair.instance.repairStates.get(repairType);
         AutoRepairState spyState = spy(repairState);
         AtomicReference<AutoRepair.RepairProgressListener> failingListener = new AtomicReference<>();
