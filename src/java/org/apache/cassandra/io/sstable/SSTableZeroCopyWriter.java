@@ -36,6 +36,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -91,7 +92,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
     private SequentialWriter makeWriter(Descriptor descriptor, Component component)
     {
-        return new SequentialWriter(descriptor.fileFor(component), ioOptions.writerOptions, false);
+        return new SequentialWriter(descriptor.fileFor(component), ioOptions.writerOptions.unbuild().bufferType(BufferType.NONE).build(), false);
     }
 
     private void write(DataInputPlus in, long size, SequentialWriter out) throws FSWriteError

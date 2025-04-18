@@ -217,8 +217,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
     private void completeIndexFlush(long cellCount, long startTime, Stopwatch stopwatch) throws IOException
     {
-        // create a completion marker indicating that the index is complete and not-empty
-        ColumnCompletionMarkerUtil.create(indexDescriptor, indexIdentifier, false);
+        // create a completion marker indicating that the index is complete
+        ColumnCompletionMarkerUtil.create(indexDescriptor, indexIdentifier, cellCount == 0);
 
         indexMetrics.memtableIndexFlushCount.inc();
 

@@ -25,7 +25,7 @@ import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-@Ignore("CASSANDRA-20567: Repair is failing due to missing SAI index files when using zero copy streaming")
+@Ignore("It was believed that these tests were failing due to CASSANDRA-20567, but in fixing that issue it was found that the tests are still failing!  Harry is detecting an incorrect response...")
 public class AccordInteropMultiNodeSAITest extends MultiNodeSAITestBase
 {
     public AccordInteropMultiNodeSAITest()

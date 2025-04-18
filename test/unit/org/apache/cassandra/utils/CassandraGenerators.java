@@ -50,6 +50,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
@@ -563,11 +565,39 @@ public final class CassandraGenerators
             Map<String, String> options = new HashMap<>();
             if (nextBoolean(rnd))
                 options.putAll(sizeTieredOptions.generate(rnd));
+            int maxSSTableSizeInMB = LeveledCompactionStrategy.DEFAULT_MAX_SSTABLE_SIZE_MIB;
             if (nextBoolean(rnd))
+            {
                 // size in mb
-                options.put(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, SourceDSL.integers().between(1, 2_000).generate(rnd).toString());
+                maxSSTableSizeInMB = SourceDSL.integers().between(1, 2_000).generate(rnd);
+                options.put(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, Integer.toString(maxSSTableSizeInMB));
+            }
             if (nextBoolean(rnd))
-                options.put(LeveledCompactionStrategy.LEVEL_FANOUT_SIZE_OPTION, SourceDSL.integers().between(1, 100).generate(rnd).toString());
+            {
+                // there is a relationship between sstable size and fanout, so respect it
+                // see CASSANDRA-20570: Leveled Compaction doesn't validate maxBytesForLevel when the table is altered/created
+                long maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024L * 1024L;
+                Gen<Integer> gen = SourceDSL.integers().between(1, 100);
+                Integer value = gen.generate(rnd);
+                while (true)
+                {
+                    try
+                    {
+                        // see org.apache.cassandra.db.compaction.LeveledGenerations.MAX_LEVEL_COUNT for why 8 is hard coded here
+                        LeveledManifest.maxBytesForLevel(8, value, maxSSTableSizeInBytes);
+                        break; // value is good, keep it
+                    }
+                    catch (RuntimeException e)
+                    {
+                        // this value is too large... lets shrink it
+                        if (value.intValue() == 1)
+                            throw new AssertionError("There is no possible fanout size that works with maxSSTableSizeInMB=" + maxSSTableSizeInMB);
+                        gen = SourceDSL.integers().between(1, value - 1);
+                        value = gen.generate(rnd);
+                    }
+                }
+                options.put(LeveledCompactionStrategy.LEVEL_FANOUT_SIZE_OPTION, value.toString());
+            }
             if (nextBoolean(rnd))
                 options.put(LeveledCompactionStrategy.SINGLE_SSTABLE_UPLEVEL_OPTION, nextBoolean(rnd).toString());
             return options;
