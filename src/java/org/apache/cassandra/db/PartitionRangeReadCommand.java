@@ -404,7 +404,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     @Override
-    protected InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
+    protected InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator,
+                                                  ReadExecutionController executionController,
+                                                  Index.Searcher searcher,
+                                                  ColumnFamilyStore cfs,
+                                                  long startTimeNanos)
     {
         throw new UnsupportedOperationException("TODO");
     }

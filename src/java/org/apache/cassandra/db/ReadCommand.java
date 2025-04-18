@@ -193,9 +193,94 @@ public abstract class ReadCommand extends AbstractReadQuery
     public interface InProgressRead
     {
         UnfilteredPartitionIterator read();
-        void augment(Collection<Mutation> mutations);
-        void augment(UnfilteredPartitionIterator iterator);
+        void augment(Mutation mutation);
+        default void augment(Collection<Mutation> mutations)
+        {
+            mutations.forEach(this::augment);
+        }
         void close();
+    }
+
+    static abstract class AbstractInProgressRead implements InProgressRead
+    {
+        // TODO: remove synchronized?
+
+        private enum State
+        {
+            INITIALIZED,
+            PREPARED,
+            READING,
+            FINISHED
+        }
+
+        final ReadExecutionController executionController;
+        final Index.Searcher searcher;
+        final ColumnFamilyStore cfs;
+        final long startTimeNano;
+        volatile State state = State.INITIALIZED;
+        private Slices slices = null;
+
+        // TODO: do we really need the execution controller and the op-order?
+        public AbstractInProgressRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNano)
+        {
+            this.executionController = executionController;
+            this.searcher = searcher;
+            this.cfs = cfs;
+            this.startTimeNano = startTimeNano;
+        }
+
+        abstract TableMetadata metadata();
+        abstract void freezeInitialData();
+        abstract UnfilteredPartitionIterator initialData();
+        abstract UnfilteredPartitionIterator augmentedData();
+        abstract void augmentResponse(PartitionUpdate update);
+        abstract UnfilteredRowIterator queryMutation(Mutation mutation);
+
+        /**
+         * Implementors need to call this before returning this from createInProgressRead
+         */
+        synchronized void prepare()
+        {
+            Preconditions.checkState(state == State.INITIALIZED);
+            freezeInitialData();
+            state = State.PREPARED;
+        }
+
+        @Override
+        public void augment(Mutation mutation)
+        {
+            Preconditions.checkState(state == State.PREPARED);
+            PartitionUpdate update = mutation.getPartitionUpdate(metadata());
+            if (update != null)
+                augmentResponse(update);
+        }
+
+        @Override
+        public synchronized UnfilteredPartitionIterator read()
+        {
+            Preconditions.checkState(state == State.PREPARED);
+
+            UnfilteredPartitionIterator initial = initialData();
+            UnfilteredPartitionIterator augmented = augmentedData();
+            if (augmented == null)
+                return initial;
+
+            List<UnfilteredPartitionIterator> partitions = new ArrayList<>(2);
+            partitions.add(initial);
+            partitions.add(augmented);
+            UnfilteredPartitionIterator result = UnfilteredPartitionIterators.merge(partitions, NOOP);
+            state = State.FINISHED;
+            return result;
+        }
+
+        @Override
+        public synchronized void close()
+        {
+            if (state == State.FINISHED)
+                return;
+
+            executionController.close();
+        }
     }
 
     private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
@@ -660,7 +745,11 @@ public abstract class ReadCommand extends AbstractReadQuery
      * the contents of the iterator into memory. Once this method returns, subsequent writes against this table should
      * not be reflected in the result of the InProgressRead
      */
-    protected abstract InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos);
+    protected abstract InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator,
+                                                           ReadExecutionController executionController,
+                                                           Index.Searcher searcher,
+                                                           ColumnFamilyStore cfs,
+                                                           long startTimeNanos);
 
     public InProgressRead beginRead(ReadExecutionController executionController)
     {

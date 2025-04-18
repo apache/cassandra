@@ -48,15 +48,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.partitions.CachedBTreePartition;
-import org.apache.cassandra.db.partitions.CachedPartition;
-import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
-import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionIterators;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
@@ -72,6 +64,7 @@ import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -102,6 +95,61 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     protected final DecoratedKey partitionKey;
     protected final ClusteringIndexFilter clusteringIndexFilter;
+
+    static class InProgress extends AbstractInProgressRead
+    {
+        private final SinglePartitionReadCommand command;
+        private final UnfilteredPartitionIterator initialData;
+        private SimpleBTreePartition augmentedData;
+
+        public InProgress(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNano, SinglePartitionReadCommand command, UnfilteredPartitionIterator initialData)
+        {
+            super(executionController, searcher, cfs, startTimeNano);
+            this.command = command;
+            this.initialData = initialData;
+        }
+
+        @Override
+        TableMetadata metadata()
+        {
+            return command.metadata();
+        }
+
+        @Override
+        void freezeInitialData()
+        {
+            // the iterators from queryStorage grabs sstable references and a
+            // snapshot of the memtable partition so we don't need to do anything here
+        }
+
+        @Override
+        UnfilteredPartitionIterator initialData()
+        {
+            return initialData;
+        }
+
+        @Override
+        UnfilteredPartitionIterator augmentedData()
+        {
+            return new SingletonUnfilteredPartitionIterator(augmentedData.unfilteredIterator());
+        }
+
+        @Override
+        void augmentResponse(PartitionUpdate update)
+        {
+            Preconditions.checkArgument(update.partitionKey().equals(command.partitionKey()));
+            if (augmentedData == null)
+                augmentedData = new SimpleBTreePartition(command.partitionKey(), command.metadata(), UpdateTransaction.NO_OP);
+
+            augmentedData.update(update);
+        }
+
+        @Override
+        UnfilteredRowIterator queryMutation(Mutation mutation)
+        {
+            return null;
+        }
+    }
 
     @VisibleForTesting
     protected SinglePartitionReadCommand(Epoch serializedAtEpoch,
@@ -516,9 +564,23 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     }
 
     @Override
-    protected InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
+    protected InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator,
+                                                  ReadExecutionController executionController,
+                                                  Index.Searcher searcher,
+                                                  ColumnFamilyStore cfs,
+                                                  long startTimeNanos)
     {
-        throw new UnsupportedOperationException("TODO");
+        InProgress read = new InProgress(executionController, searcher, cfs, startTimeNanos, this, iterator);
+        try
+        {
+            read.prepare();
+            return read;
+        }
+        catch (Throwable e)
+        {
+            read.close();
+            throw e;
+        }
     }
 
     /**

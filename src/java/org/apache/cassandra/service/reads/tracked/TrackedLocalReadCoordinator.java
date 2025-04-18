@@ -30,6 +30,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.ReconciliationPlan;
 import org.apache.cassandra.replication.ShortMutationId;
@@ -499,13 +500,11 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             ArrayList<ShortMutationId> delta = new ArrayList<>();
             MutationSummary.difference(secondarySummary, initialSummary, delta);
 
-            if (!delta.isEmpty())
-            {
-                // Merge the potentially missed mutations together, and send the merged result
-                // alongside initial data read. Some redundancy is possible, but it should be minimal to non-existant
-                // most of the time.
-                read.augment(command.queryJournal(delta));
-            }
+            delta.forEach(mutationId -> {
+                Mutation mutation = MutationJournal.instance.read(mutationId);
+                Preconditions.checkNotNull(mutation);
+                read.augment(mutation);
+            });
         }
         catch (Exception e)
         {
