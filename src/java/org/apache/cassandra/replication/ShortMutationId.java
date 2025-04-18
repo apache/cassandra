@@ -50,6 +50,11 @@ public class ShortMutationId extends CoordinatorLogId
         this.offset = offset;
     }
 
+    public ShortMutationId(MutationId mutationId)
+    {
+        this(mutationId.hostId(), mutationId.offset());
+    }
+
     public long logId()
     {
         return super.asLong();
