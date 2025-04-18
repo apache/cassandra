@@ -1,4 +1,5 @@
 4.1.9
+ * Grant permission on keyspaces system_views and system_virtual_schema not possible (CASSANDRA-20171)
  * Fix mixed mode paxos ttl commit hang (CASSANDRA-20514)
  * Fix paxos mixed mode infinite loop (CASSANDRA-20493)
  * Optionally skip exception logging on invalid legacy protocol magic exception (CASSANDRA-19483)
