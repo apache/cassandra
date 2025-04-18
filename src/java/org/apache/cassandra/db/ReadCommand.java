@@ -546,18 +546,14 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
-    /**
-     * Executes this command on the local host.
-     *
-     * @param executionController the execution controller spanning this command
-     *
-     * @return an iterator over the result of executing this command locally.
-     */
-                                  // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
-    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+    private interface ReadCompleter<T>
+    {
+        T complete(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos);
+    }
+
+    private <T> T beginRead(ReadExecutionController executionController, ReadCompleter<T> completer)
     {
         long startTimeNanos = nanoTime();
-
         COMMAND.set(this);
         try
         {
@@ -586,54 +582,113 @@ public abstract class ReadCommand extends AbstractReadQuery
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
             iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
-            try
+            return completer.complete(iterator, executionController, searcher, cfs, startTimeNanos);
+        }
+        finally
+        {
+            COMMAND.set(null);
+        }
+    }
+
+    private UnfilteredPartitionIterator completeRead(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
+    {
+        COMMAND.set(this);
+        try
+        {
+            iterator = withQuerySizeTracking(iterator);
+            iterator = maybeSlowDownForTesting(iterator);
+            iterator = withQueryCancellation(iterator);
+            iterator = maybeRecordPurgeableTombstones(iterator, cfs);
+            iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
+            iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
+
+            // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
+            // no point in checking it again.
+            RowFilter filter = (null == searcher) ? rowFilter() : indexQueryPlan.postIndexQueryFilter();
+
+            /*
+             * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
+             * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
+             * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
+             * processing we do on it).
+             */
+            iterator = filter.filter(iterator, nowInSec());
+
+            // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
+            // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
+            // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
+            // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
+            if (executionController.isTrackingRepairedStatus())
             {
-                iterator = withQuerySizeTracking(iterator);
-                iterator = maybeSlowDownForTesting(iterator);
-                iterator = withQueryCancellation(iterator);
-                iterator = maybeRecordPurgeableTombstones(iterator, cfs);
-                iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
-                iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
-
-                // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
-                // no point in checking it again.
-                RowFilter filter = (null == searcher) ? rowFilter() : indexQueryPlan.postIndexQueryFilter();
-
-                /*
-                 * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
-                 * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
-                 * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
-                 * processing we do on it).
-                 */
-                iterator = filter.filter(iterator, nowInSec());
-
-                // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
-                // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
-                // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
-                // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
-                if (executionController.isTrackingRepairedStatus())
-                {
-                    DataLimits.Counter limit =
-                    limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
-                    iterator = limit.applyTo(iterator);
-                    // ensure that a consistent amount of repaired data is read on each replica. This causes silent
-                    // overreading from the repaired data set, up to limits(). The extra data is not visible to
-                    // the caller, only iterated to produce the repaired data digest.
-                    iterator = executionController.getRepairedDataInfo().extend(iterator, limit);
-                }
-                else
-                {
-                    iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
-                }
-
-                // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
-                return RTBoundCloser.close(iterator);
+                DataLimits.Counter limit =
+                        limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
+                iterator = limit.applyTo(iterator);
+                // ensure that a consistent amount of repaired data is read on each replica. This causes silent
+                // overreading from the repaired data set, up to limits(). The extra data is not visible to
+                // the caller, only iterated to produce the repaired data digest.
+                iterator = executionController.getRepairedDataInfo().extend(iterator, limit);
             }
-            catch (RuntimeException | Error e)
+            else
             {
-                iterator.close();
-                throw e;
+                iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
             }
+
+            // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
+            return RTBoundCloser.close(iterator);
+        }
+        catch (RuntimeException | Error e)
+        {
+            iterator.close();
+            throw e;
+        }
+        finally
+        {
+            COMMAND.set(null);
+        }
+    }
+
+    public interface InProgressRead
+    {
+        UnfilteredPartitionIterator read();
+        void augment(Collection<Mutation> mutations);
+        void augment(UnfilteredPartitionIterator iterator);
+        void close();
+    }
+
+    /**
+     * Convert the initial iterator into a snapshot of data, either by capturing immutable references or materializing
+     * the contents of the iterator into memory. Once this method returns, subsequent writes against this table should
+     * not be reflected in the result of the InProgressRead
+     */
+    protected abstract InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos);
+
+    public InProgressRead beginRead(ReadExecutionController executionController)
+    {
+        COMMAND.set(this);
+        try
+        {
+            return beginRead(executionController, this::createInProgressRead);
+        }
+        finally
+        {
+            COMMAND.set(null);
+        }
+    }
+
+    /**
+     * Executes this command on the local host.
+     *
+     * @param executionController the execution controller spanning this command
+     *
+     * @return an iterator over the result of executing this command locally.
+     */
+                                  // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
+    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+    {
+        COMMAND.set(this);
+        try
+        {
+            return beginRead(executionController, this::completeRead);
         }
         finally
         {
