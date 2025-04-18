@@ -111,7 +111,6 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             long keyCount,
                                             long repairedAt,
                                             TimeUUID pendingRepair,
-                                            boolean isTransient,
                                             ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                             TableMetadataRef metadata,
                                             IntervalSet<CommitLogPosition> commitLogPositions,
@@ -128,7 +127,6 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             .setKeyCount(keyCount)
                                             .setRepairedAt(repairedAt)
                                             .setPendingRepair(pendingRepair)
-                                            .setTransientSSTable(isTransient)
                                             .setCoordinatorLogOffsets(coordinatorLogOffsets)
                                             .setTableMetadataRef(metadata)
                                             .setMetadataCollector(metadataCollector)

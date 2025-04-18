@@ -460,7 +460,7 @@ public class VerifyTest
 
         // make the sstable repaired:
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, System.currentTimeMillis(), sstable.getPendingRepair(), sstable.isTransient());
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, System.currentTimeMillis(), sstable.getPendingRepair());
         sstable.reloadSSTableMetadata();
 
         // break the sstable:
@@ -523,7 +523,7 @@ public class VerifyTest
         fillCF(cfs, 2);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, sstable.getPendingRepair(), sstable.isTransient());
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, sstable.getPendingRepair());
         sstable.reloadSSTableMetadata();
         cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
         assertTrue(sstable.isRepaired());

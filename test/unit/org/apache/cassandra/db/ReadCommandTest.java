@@ -1697,7 +1697,7 @@ public class ReadCommandTest
     {
         try
         {
-            sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingSession, false);
+            sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingSession);
             sstable.reloadSSTableMetadata();
         }
         catch (IOException e)

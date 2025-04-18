@@ -62,7 +62,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     protected final long maxAge;
     protected final long minRepairedAt;
     protected final TimeUUID pendingRepair;
-    protected final boolean isTransient;
     protected final ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
 
     protected final SSTableRewriter sstableWriter;
@@ -98,7 +97,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         sstableWriter = SSTableRewriter.construct(cfs, txn, keepOriginals, maxAge, earlyOpenAllowed);
         minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
         pendingRepair = CompactionTask.getPendingRepair(nonExpiredSSTables);
-        isTransient = CompactionTask.getIsTransient(nonExpiredSSTables);
         coordinatorLogOffsets = CompactionTask.getCoordinatorLogOffsets(nonExpiredSSTables);
         DiskBoundaries db = cfs.getDiskBoundaries();
         diskBoundaries = db.positions;
@@ -328,7 +326,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     {
         return descriptor.getFormat().getWriterFactory().builder(descriptor)
                          .setTableMetadataRef(cfs.metadata)
-                         .setTransientSSTable(isTransient)
                          .setRepairedAt(minRepairedAt)
                          .setPendingRepair(pendingRepair)
                          .setCoordinatorLogOffsets(coordinatorLogOffsets)

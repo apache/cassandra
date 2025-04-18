@@ -210,7 +210,6 @@ public class Flushing
                                             partitionCount,
                                             ActiveRepairService.UNREPAIRED_SSTABLE,
                                             ActiveRepairService.NO_PENDING_REPAIR,
-                                            false,
                                             flushSet.coordinatorLogOffsets(),
                                             new IntervalSet<>(flushSet.commitLogLowerBound(),
                                                               flushSet.commitLogUpperBound()),
