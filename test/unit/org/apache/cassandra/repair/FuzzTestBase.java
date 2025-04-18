@@ -116,6 +116,7 @@ import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
@@ -1148,9 +1149,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     public static class HackStrat extends LocalStrategy
     {
-        public HackStrat(String keyspaceName, Map<String, String> configOptions)
+        public HackStrat(String keyspaceName, Map<String, String> configOptions, ReplicationType replicationType)
         {
-            super(keyspaceName, configOptions);
+            super(keyspaceName, configOptions, replicationType);
         }
     }
 

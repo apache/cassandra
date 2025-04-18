@@ -238,7 +238,8 @@ public class BootstrapTransientTest extends CassandraTestBase
 
     private AbstractReplicationStrategy simpleStrategy(ClusterMetadata metadata)
     {
-        return AbstractReplicationStrategy.createReplicationStrategy(KEYSPACE, metadata.schema.getKeyspaceMetadata(KEYSPACE).params.replication);
+        KeyspaceParams keyspaceParams = metadata.schema.getKeyspaceMetadata(KEYSPACE).params;
+        return AbstractReplicationStrategy.createReplicationStrategy(KEYSPACE, keyspaceParams.replication, keyspaceParams.replicationType);
     }
 
 }

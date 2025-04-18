@@ -129,7 +129,6 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
                                        0,
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        ActiveRepairService.NO_PENDING_REPAIR,
-                                       false,
                                        ImmutableCoordinatorLogOffsets.NONE,
                                        header,
                                        indexGroups,

@@ -85,7 +85,7 @@ public final class KeyspaceMetadata implements SchemaElement
         this.views = views;
         this.types = types;
         this.userFunctions = functions;
-        this.replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(keyspaceName, params.replication);
+        this.replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(keyspaceName, params.replication, params.replicationType);
     }
 
     @VisibleForTesting
@@ -273,7 +273,7 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public boolean useMutationTracking()
     {
-        return params.replicationType.isTracked();
+        return replicationStrategy.usesMutationTracking();
     }
 
     @Override

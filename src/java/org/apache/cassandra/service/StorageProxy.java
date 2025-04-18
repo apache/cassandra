@@ -1548,7 +1548,7 @@ public class StorageProxy implements StorageProxyMBean
                         return;
 
                     // Always construct the replica plan to check availability
-                    ReplicaPlan.ForWrite dataReplicaPlan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+                    ReplicaPlan.ForWrite dataReplicaPlan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
 
                     if (dataReplicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
                         writeMetrics.localRequests.mark();
@@ -1808,7 +1808,7 @@ public class StorageProxy implements StorageProxyMBean
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token tk = mutation.key().getToken();
 
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
 
         if (replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
             writeMetrics.localRequests.mark();

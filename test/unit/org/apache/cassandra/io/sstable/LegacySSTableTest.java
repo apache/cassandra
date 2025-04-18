@@ -209,26 +209,21 @@ public class LegacySSTableTest
             {
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
-                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1234, NO_PENDING_REPAIR, false);
+                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1234, NO_PENDING_REPAIR);
                     sstable.reloadSSTableMetadata();
                     assertEquals(1234, sstable.getRepairedAt());
                     if (sstable.descriptor.version.hasPendingRepair())
                         assertEquals(NO_PENDING_REPAIR, sstable.getPendingRepair());
                 }
 
-                boolean isTransient = false;
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
                     TimeUUID random = nextTimeUUID();
-                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, UNREPAIRED_SSTABLE, random, isTransient);
+                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, UNREPAIRED_SSTABLE, random);
                     sstable.reloadSSTableMetadata();
                     assertEquals(UNREPAIRED_SSTABLE, sstable.getRepairedAt());
                     if (sstable.descriptor.version.hasPendingRepair())
                         assertEquals(random, sstable.getPendingRepair());
-                    if (sstable.descriptor.version.hasIsTransient())
-                        assertEquals(isTransient, sstable.isTransient());
-
-                    isTransient = !isTransient;
                 }
             }
         }

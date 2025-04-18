@@ -75,7 +75,6 @@ public class RangeAwareSSTableWriterTest
                                                                      0,
                                                                      0,
                                                                      null,
-                                                                     false,
                                                                      ImmutableCoordinatorLogOffsets.NONE,
                                                                      DatabaseDescriptor.getSelectedSSTableFormat(),
                                                                      0,

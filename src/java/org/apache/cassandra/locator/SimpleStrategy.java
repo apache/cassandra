@@ -31,6 +31,7 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
@@ -58,9 +59,9 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     private static final Logger logger = LoggerFactory.getLogger(SimpleStrategy.class);
     private final ReplicationFactor rf;
 
-    public SimpleStrategy(String keyspaceName, Map<String, String> configOptions)
+    public SimpleStrategy(String keyspaceName, Map<String, String> configOptions, ReplicationType replicationType)
     {
-        super(keyspaceName, configOptions);
+        super(keyspaceName, configOptions, replicationType);
         validateOptionsInternal(configOptions);
         this.rf = ReplicationFactor.fromString(this.configOptions.get(REPLICATION_FACTOR));
     }

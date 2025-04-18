@@ -78,6 +78,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
+import static com.google.common.base.Preconditions.checkState;
+
 /**
  * Helper in charge of collecting additional queries to be done on the coordinator to protect against invalid results
  * being included due to replica-side filtering (secondary indexes or {@code ALLOW * FILTERING}).
@@ -169,15 +171,14 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             new DataResolver<>(coordinator, cmd, replicaPlan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, requestTime);
 
         ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
-
+        // TODO No tracked path here yet so assert it doesn't handle transient replication correctly
+        checkState(!source.isTransient());
         if (source.isSelf() && coordinator.localReadSupported())
         {
             Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
         }
         else
         {
-            if (source.isTransient())
-                cmd = cmd.copyAsTransientQuery(source);
             cmd = coordinator.maybeAllowOutOfRangeReads(cmd, consistency);
             MessagingService.instance().sendWithCallback(cmd.createMessage(false, requestTime), source.endpoint(), handler);
         }
@@ -196,7 +197,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         final EncodingStats stats;
         final boolean[] silentRowAt;
         final boolean[] silentColumnAt;
-        
+
         PartitionMergeListerner(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
         {
             key = partitionKey;
@@ -253,8 +254,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
                 }
 
                 for (int i = 0; i < versions.length; i++)
-                    // Mark the replica silent if it is silent about this column and there is actually 
-                    // divergence between the replicas. (i.e. If all replicas are silent for this 
+                    // Mark the replica silent if it is silent about this column and there is actually
+                    // divergence between the replicas. (i.e. If all replicas are silent for this
                     // column, there is nothing to fetch to complete the row anyway.)
                     silentRowAt[i] |= silentColumnAt[i] && !allSilent;
             }

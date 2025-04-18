@@ -87,7 +87,7 @@ public class TrackedWriteRequest
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token token = mutation.key().getToken();
 
-        ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(keyspace, consistencyLevel, token, ReplicaPlans.writeNormal);
+        ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(keyspace, consistencyLevel, token, ReplicaPlans.writeAll);
         AbstractReplicationStrategy rs = plan.replicationStrategy();
 
         if (plan.lookup(FBUtilities.getBroadcastAddressAndPort()) == null)

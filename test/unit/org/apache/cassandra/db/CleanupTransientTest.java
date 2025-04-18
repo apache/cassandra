@@ -132,7 +132,7 @@ public class CleanupTransientTest extends CassandraTestBase
         }
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, null, false);
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, null);
         sstable.reloadSSTableMetadata();
 
         // This should remove approximately 50% of the data, specifically whatever was transiently replicated
