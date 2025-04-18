@@ -36,6 +36,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
@@ -60,6 +61,7 @@ public class GrantAndRevokeTest extends CQLTester
         CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
+        CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
     }
 
     @After
@@ -471,6 +473,18 @@ public class GrantAndRevokeTest extends CQLTester
         maybeReadSystemTables(true);
         // and also write to them, though this is still strongly discouraged
         executeNet(ProtocolVersion.CURRENT, "INSERT INTO system.peers_v2(peer, peer_port, data_center) VALUES ('127.0.100.100', 7012, 'invalid_dc')");
+    }
+
+    @Test
+    public void testGrantOnVirtualKeyspaces() throws Throwable
+    {
+        useSuperUser();
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+
+        executeNet(ProtocolVersion.CURRENT, format("GRANT SELECT PERMISSION ON KEYSPACE system_virtual_schema TO %s", user));
+        executeNet(ProtocolVersion.CURRENT, format("GRANT SELECT PERMISSION ON KEYSPACE system_views TO %s", user));
+        executeNet(ProtocolVersion.CURRENT, format("REVOKE SELECT PERMISSION ON KEYSPACE system_virtual_schema FROM %s", user));
+        executeNet(ProtocolVersion.CURRENT, format("REVOKE SELECT PERMISSION ON KEYSPACE system_views FROM %s", user));
     }
 
     private void maybeReadSystemTables(boolean superuser) throws Throwable
