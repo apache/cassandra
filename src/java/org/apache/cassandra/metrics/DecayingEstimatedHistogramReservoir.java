@@ -1008,13 +1008,16 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                 return decaying;
 
             boolean success;
-            DecayingArray candidate = new DecayingArray(decaying.data.length, decayLandmark);
+            DecayingArray candidate;
             long stamp = stampedLock.tryWriteLock();
             if (stamp > 0)
             {
                 try
                 {
-                    success = decayingRef.compareAndSet(decaying, candidate);
+                    decaying = decayingRef.get();
+                    if (decaying.decayLandmark == decayLandmark)
+                        return decaying;
+                    success = decayingRef.compareAndSet(decaying, candidate = new DecayingArray(decaying.data.length, decayLandmark));
                     assert success : "The decaying array was updated by another thread while we were waiting for the lock";
                     decayingPending.offer(decaying);
                     flushPendingExclusive();
@@ -1026,7 +1029,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             }
             else
             {
-                success = decayingRef.compareAndSet(decaying, candidate);
+                success = decayingRef.compareAndSet(decaying, candidate = new DecayingArray(decaying.data.length, decayLandmark));
                 // If the CAS failed, the thread local was updated by the rescale thread and all the values were already flushed.
                 if (success)
                     decayingPending.offer(decaying);
