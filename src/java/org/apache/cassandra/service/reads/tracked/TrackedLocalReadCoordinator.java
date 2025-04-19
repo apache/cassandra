@@ -160,6 +160,12 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         {
             return false;
         }
+
+        @Override
+        public String toString()
+        {
+            return name();
+        }
     }
 
     // if we start receiving summaries before we receive the read command, they're
@@ -268,11 +274,13 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
             if (reconciliations.isEmpty())
             {
+                logger.trace("Read complete for {}", Long.toHexString(readId));
                 complete(read, command.columnFilter());
                 return COMPLETED;
             }
             else
             {
+                logger.trace("Beginning reconciliation for {}", Long.toHexString(readId));
                 Reconciling reconciling = new Reconciling(command, read, expiresAtNanos, reconciliations);
                 reconciling.sendSyncMessages();  // TODO: don't do this until after the coordinator state is set to reconciling if converting to lock free
                 return reconciling;
@@ -284,6 +292,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             if (read != null)
                 return this;
 
+            logger.trace("In progress read received for {}", Long.toHexString(readId));
             this.read = read;
             summaries.add(ReceivedSummary.create(FBUtilities.getBroadcastAddressAndPort(), summary));
 
@@ -292,6 +301,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         public State receiveSummary(ReceivedSummary summary)
         {
+            logger.trace("Summary received from {} for {}", summary.from, Long.toHexString(readId));
             summaries.add(summary);
             return maybeComplete();
         }
@@ -304,6 +314,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         @Override
         void abort()
         {
+            logger.trace("Aborting read {}", Long.toHexString(readId));
             if (read != null)
                 read.close();
         }
@@ -371,6 +382,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
                 }
             }
 
+            logger.trace("Reconciling {} syncs, {} mutations for {}", syncs, outstandingMutations.size(), Long.toHexString(readId));
             this.blockFor = syncs;
         }
 
@@ -408,7 +420,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             for (Map.Entry<InetAddressAndPort, List<ReadReconcileSend.PeerSync>> entry : peerSync.entrySet())
             {
                 Message<ReadReconcileSend> message = Message.out(Verb.READ_RECONCILE_SEND, new ReadReconcileSend(readId, entry.getValue()));
-                logger.trace("Sending read reconciliation {} to {}", message.payload, entry.getKey());
+                logger.trace("Sending read reconciliation for {} {} to {}", Long.toHexString(readId), message.payload, entry.getKey());
                 MessagingService.instance().send(message, entry.getKey());
             }
         }
@@ -418,6 +430,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             if (!pendingSync.isEmpty())
                 return this;
 
+            logger.trace("Reconciliation completed for read {}", Long.toHexString(readId));
             Preconditions.checkState(outstandingMutations.isEmpty());
 
             complete(read, command.columnFilter());
@@ -426,7 +439,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         public State acknowledgeSync(int syncId)
         {
-            logger.trace("Reconciliation sync {} received for {}", syncId, readId);
+            logger.trace("Reconciliation sync {} received for {}", syncId, Long.toHexString(readId));
             pendingSync.remove(syncId);
             return maybeComplete();
         }
@@ -461,7 +474,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
     @Override
     public String toString()
     {
-        return "TrackedLocalReadCoordinator{" + readId + ':' + state.name() + '}';
+        return "TrackedLocalReadCoordinator{" + Long.toHexString(readId) + ':' + state.name() + '}';
     }
 
     public long readId()
@@ -527,6 +540,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
     public synchronized void receiveSummary(InetAddressAndPort from, MutationSummary summary)
     {
+        logger.trace("Received summary {} from {}, for {}", summary, from, state);
         if (state.isReading())
         {
             state = state.asReading().receiveSummary(from, summary);

@@ -136,7 +136,7 @@ public class ReadReconcileSend
                 Preconditions.checkArgument(ids.size() == mutations.size());
 
                 ReadReconcileReceive receive = new ReadReconcileReceive(payload.reconcileId, sync.syncId, message.from(), mutations);
-                logger.info("Sending {} to replica {}", receive, sync.to);
+                logger.trace("Sending {} to replica {}", receive, sync.to);
                 MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_RCV, receive), sync.to);
             }
         }

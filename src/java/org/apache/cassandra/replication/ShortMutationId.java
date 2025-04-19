@@ -52,7 +52,7 @@ public class ShortMutationId extends CoordinatorLogId
 
     public ShortMutationId(MutationId mutationId)
     {
-        this(mutationId.hostId(), mutationId.offset());
+        this(mutationId.logId(), mutationId.offset());
     }
 
     public long logId()
