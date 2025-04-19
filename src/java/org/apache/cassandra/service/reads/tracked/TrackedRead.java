@@ -20,21 +20,20 @@ package org.apache.cassandra.service.reads.tracked;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.*;
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.net.*;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.CollectionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
@@ -42,9 +41,10 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 
-public class TrackedRead extends AsyncPromise<PartitionIterator>
+public class TrackedRead extends AsyncPromise<PartitionIterator> implements RequestCallback<TrackedDataResponse>
 {
     // TODO: use something durable
     private static final AtomicInteger nextReadId = new AtomicInteger();
@@ -95,6 +95,12 @@ public class TrackedRead extends AsyncPromise<PartitionIterator>
         return replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null;
     }
 
+    @Override
+    public void onResponse(Message<TrackedDataResponse> msg)
+    {
+        throw new UnsupportedOperationException("TODO");
+    }
+
     public void start()
     {
         if (hasLocalRead())
@@ -109,14 +115,64 @@ public class TrackedRead extends AsyncPromise<PartitionIterator>
         Replica dataNode = Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
         EndpointsForToken summaryNodes = selected.filter(r -> !r.equals(dataNode));
 
+        long readId = nextReadId();
+        DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryNodes.endpoints());
+        MessagingService.instance().sendWithCallback(Message.out(Verb.TRACKED_READ_REQ, dataRequest), dataNode.endpoint(), this);
 
+        if (summaryNodes.isEmpty())
+            return;
+
+        SummaryRequest summaryRequest = new SummaryRequest(readId, command, dataNode.endpoint());
+        Message<SummaryRequest> summaryMessage = Message.out(Verb.TRACKED_READ_REQ, summaryRequest);
+        for (InetAddressAndPort endpoint : summaryNodes.endpoints())
+            MessagingService.instance().send(summaryMessage, endpoint);
     }
 
     public abstract static class Request
     {
         public enum Kind
         {
-            DATA, SUMMARY
+            DATA, SUMMARY;
+
+            static final IVersionedSerializer<Kind> serializer = new IVersionedSerializer<Kind>()
+            {
+                @Override
+                public void serialize(Kind kind, DataOutputPlus out, int version) throws IOException
+                {
+                    switch (kind)
+                    {
+                        case DATA:
+                            out.writeByte(0);
+                            break;
+                        case SUMMARY:
+                            out.writeByte(1);
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported kind: " + kind);
+                    }
+                }
+
+                @Override
+                public Kind deserialize(DataInputPlus in, int version) throws IOException
+                {
+                    byte b = in.readByte();
+                    switch (b)
+                    {
+                        case 0:
+                            return Kind.DATA;
+                        case 1:
+                            return Kind.SUMMARY;
+                        default:
+                            throw new IllegalArgumentException("Unknown kind byte: " + b);
+                    }
+                }
+
+                @Override
+                public long serializedSize(Kind kind, int version)
+                {
+                    return TypeSizes.BYTE_SIZE;
+                }
+            };
         }
 
         private final long readId;
@@ -144,21 +200,49 @@ public class TrackedRead extends AsyncPromise<PartitionIterator>
         public static final IVersionedSerializer<Request> serializer = new IVersionedSerializer<Request>()
         {
             @Override
-            public void serialize(Request t, DataOutputPlus out, int version) throws IOException
+            public void serialize(Request request, DataOutputPlus out, int version) throws IOException
             {
-                throw new UnsupportedOperationException();
+                Kind.serializer.serialize(request.kind(),out, version);
+                switch (request.kind())
+                {
+                    case DATA:
+                        DataRequest.serializer.serialize((DataRequest) request, out, version);
+                        break;
+                    case SUMMARY:
+                        SummaryRequest.serializer.serialize((SummaryRequest) request, out, version);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported kind: " + request.kind());
+                }
             }
 
             @Override
             public Request deserialize(DataInputPlus in, int version) throws IOException
             {
-                throw new UnsupportedOperationException();
+                Kind kind = Kind.serializer.deserialize(in, version);
+                switch (kind)
+                {
+                    case DATA:
+                        return DataRequest.serializer.deserialize(in, version);
+                    case SUMMARY:
+                        return SummaryRequest.serializer.deserialize(in, version);
+                    default:
+                        throw new IllegalArgumentException("Unsupported kind: " + kind);
+                }
             }
 
             @Override
-            public long serializedSize(Request t, int version)
+            public long serializedSize(Request request, int version)
             {
-                throw new UnsupportedOperationException();
+                switch (request.kind())
+                {
+                    case DATA:
+                        return DataRequest.serializer.serializedSize((DataRequest) request, version);
+                    case SUMMARY:
+                        return SummaryRequest.serializer.serializedSize((SummaryRequest) request, version);
+                    default:
+                        throw new IllegalArgumentException("Unsupported kind: " + request.kind());
+                }
             }
         };
     }
@@ -167,6 +251,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator>
     {
         private final ConsistencyLevel consistencyLevel;
         private final Set<InetAddressAndPort> summaryNodes;
+
         public DataRequest(long readId, SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes)
         {
             super(readId, command);
@@ -189,6 +274,36 @@ public class TrackedRead extends AsyncPromise<PartitionIterator>
                 MessagingService.instance().send(reply, message.from());
             });
         }
+
+        static final IVersionedSerializer<DataRequest> serializer = new IVersionedSerializer<DataRequest>()
+        {
+            @Override
+            public void serialize(DataRequest request, DataOutputPlus out, int version) throws IOException
+            {
+                out.writeLong(request.readId());
+                SinglePartitionReadCommand.serializer.serialize(request.command(), out, version);
+                out.writeInt(request.consistencyLevel.code);
+                CollectionSerializer.serializeCollection(inetAddressAndPortSerializer, request.summaryNodes, out, version);
+            }
+
+            @Override
+            public DataRequest deserialize(DataInputPlus in, int version) throws IOException
+            {
+                return new DataRequest(in.readLong(),
+                                       (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version),
+                                       ConsistencyLevel.fromCode(in.readInt()),
+                                       CollectionSerializer.deserializeCollection(inetAddressAndPortSerializer, Sets::newHashSetWithExpectedSize, in, version));
+            }
+
+            @Override
+            public long serializedSize(DataRequest request, int version)
+            {
+                return TypeSizes.LONG_SIZE +
+                        SinglePartitionReadCommand.serializer.serializedSize(request.command(), version) +
+                        TypeSizes.INT_SIZE +
+                        CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, request.summaryNodes, version);
+            }
+        };
     }
 
     public static class SummaryRequest extends Request
@@ -216,6 +331,33 @@ public class TrackedRead extends AsyncPromise<PartitionIterator>
             TrackedReadSummary response = new TrackedReadSummary(readId(), summary);
             MessagingService.instance().send(Message.out(Verb.TRACKED_READ_SUMMARY, response), respondTo);
         }
+
+        static final IVersionedSerializer<SummaryRequest> serializer = new IVersionedSerializer<SummaryRequest>()
+        {
+            @Override
+            public void serialize(SummaryRequest request, DataOutputPlus out, int version) throws IOException
+            {
+                out.writeLong(request.readId());
+                SinglePartitionReadCommand.serializer.serialize(request.command(), out, version);
+                inetAddressAndPortSerializer.serialize(request.respondTo, out, version);
+            }
+
+            @Override
+            public SummaryRequest deserialize(DataInputPlus in, int version) throws IOException
+            {
+                return new SummaryRequest(in.readLong(),
+                                          (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version),
+                                          inetAddressAndPortSerializer.deserialize(in, version));
+            }
+
+            @Override
+            public long serializedSize(SummaryRequest request, int version)
+            {
+                return TypeSizes.LONG_SIZE +
+                        SinglePartitionReadCommand.serializer.serializedSize(request.command(), version) +
+                        inetAddressAndPortSerializer.serializedSize(request.respondTo, version);
+            }
+        };
     }
 
     public static final IVerbHandler<Request> verbHandler = new AbstractReadCommandVerbHandler<Request>()

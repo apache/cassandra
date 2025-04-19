@@ -24,7 +24,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
@@ -263,7 +265,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
             if (reconciliations.isEmpty())
             {
-                complete(read);
+                complete(read, command.columnFilter());
                 return COMPLETED;
             }
             else
@@ -415,7 +417,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
             Preconditions.checkState(outstandingMutations.isEmpty());
 
-            complete(read);
+            complete(read, command.columnFilter());
             return COMPLETED;
         }
 
@@ -539,13 +541,16 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
     }
 
-    private void complete(ReadCommand.InProgressRead read)
+    private void complete(ReadCommand.InProgressRead read, ColumnFilter selection)
     {
         Stage.READ.submit(() -> {
             try (UnfilteredPartitionIterator iterator = read.read())
             {
-                // materialize into a read response
-                throw new UnsupportedOperationException("TODO");
+                trySuccess(TrackedDataResponse.create(UnfilteredPartitionIterators.filter(iterator, read.nowInSec()), selection));
+            }
+            catch (Exception e)
+            {
+                tryFailure(e);
             }
             finally
             {

@@ -198,6 +198,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             mutations.forEach(this::augment);
         }
+
+        int nowInSec();
         void close();
     }
 

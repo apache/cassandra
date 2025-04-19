@@ -17,11 +17,17 @@
  */
 package org.apache.cassandra.db.partitions;
 
+import java.io.IOError;
+import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
 import org.apache.cassandra.db.SinglePartitionReadQuery;
@@ -182,4 +188,37 @@ public abstract class PartitionIterators
             iterator.close();
         }
     }
+
+    public static class Serializer
+    {
+        public static void serialize(PartitionIterator iterator, ColumnFilter selection, DataOutputPlus out, int version) throws IOException
+        {
+            while (iterator.hasNext())
+            {
+                out.writeBoolean(true);
+                RowIterators.Serializer.serialize(iterator.next(), selection, out, version);
+            }
+            out.writeBoolean(false);
+        }
+
+        public static PartitionIterator deserialize(TableMetadata metadata, ColumnFilter selection, DataInputPlus in, int version) throws IOException
+        {
+            return new AbstractPartitionIterator()
+            {
+                @Override
+                protected RowIterator computeNext()
+                {
+                    try
+                    {
+                        boolean hasNext = in.readBoolean();
+                        return hasNext ? RowIterators.Serializer.deserialize(metadata, selection, in, version) : endOfData();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new IOError(e);
+                    }
+                }
+            };
+        }
+    };
 }
