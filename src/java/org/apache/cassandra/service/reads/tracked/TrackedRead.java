@@ -98,7 +98,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
     @Override
     public void onResponse(Message<TrackedDataResponse> msg)
     {
-        throw new UnsupportedOperationException("TODO");
+        trySuccess(msg.payload.makeIterator(command));
     }
 
     public void start()
@@ -234,12 +234,13 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
             @Override
             public long serializedSize(Request request, int version)
             {
+                long size = TypeSizes.BYTE_SIZE;
                 switch (request.kind())
                 {
                     case DATA:
-                        return DataRequest.serializer.serializedSize((DataRequest) request, version);
+                        return size + DataRequest.serializer.serializedSize((DataRequest) request, version);
                     case SUMMARY:
-                        return SummaryRequest.serializer.serializedSize((SummaryRequest) request, version);
+                        return size + SummaryRequest.serializer.serializedSize((SummaryRequest) request, version);
                     default:
                         throw new IllegalArgumentException("Unsupported kind: " + request.kind());
                 }

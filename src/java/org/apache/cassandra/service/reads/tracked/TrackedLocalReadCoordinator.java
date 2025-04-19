@@ -289,7 +289,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         public State receiveInProgressRead(ReadCommand.InProgressRead read, MutationSummary summary)
         {
-            if (read != null)
+            if (this.read != null)
                 return this;
 
             logger.trace("In progress read received for {}", Long.toHexString(readId));
@@ -452,7 +452,11 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         State receiveMutations(List<Mutation> mutations)
         {
             // TODO: just use offsets
-            mutations.forEach(mutation -> outstandingMutations.remove(new ShortMutationId(mutation.id())));
+            mutations.forEach(mutation -> {
+                logger.trace("Received mutation {} for read {}", mutation.id(), Long.toHexString(readId));
+                outstandingMutations.remove(new ShortMutationId(mutation.id()));
+            });
+            logger.trace("Received {} mutations, {} mutations outstanding for {}", mutations.size(), outstandingMutations.size(), Long.toHexString(readId));
             read.augment(mutations);
             return maybeComplete();
         }

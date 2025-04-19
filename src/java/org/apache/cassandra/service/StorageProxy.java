@@ -30,11 +30,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -2165,7 +2161,25 @@ public class StorageProxy implements StorageProxyMBean
         for (TrackedRead read : reads)
             read.start();
 
-        throw new UnsupportedOperationException("TODO");
+        try
+        {
+            if (cmdCount == 1)
+                return reads[0].get();
+
+            List<PartitionIterator> iterators = new ArrayList<>(cmdCount);
+            for (TrackedRead read : reads)
+                iterators.add(read.get());
+
+            return PartitionIterators.concat(iterators);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
