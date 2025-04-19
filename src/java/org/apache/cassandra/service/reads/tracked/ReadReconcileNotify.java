@@ -64,7 +64,7 @@ public class ReadReconcileNotify
         {
             ReadReconcileNotify notify = message.payload;
             logger.trace("Received read reconcile notify from {}: {}", message.from(), notify);
-            MutationTrackingService.instance.reconciliations().acknowledgeSync(notify.reconciliationId, notify.syncId);
+            MutationTrackingService.instance.localReads().acknowledgeSync(notify.reconciliationId, notify.syncId);
         }
     };
 

@@ -131,15 +131,15 @@ public class ReadReconcileReceive
         };
     }
 
-    public final long reconciliationId;
+    public final long readId;
     public final int syncId;
     public final InetAddressAndPort coordinator;
     public final Kind kind;
     public final List<Mutation> mutations;
 
-    public ReadReconcileReceive(long reconciliationId, int syncId, InetAddressAndPort coordinator, Kind kind, List<Mutation> mutations)
+    public ReadReconcileReceive(long readId, int syncId, InetAddressAndPort coordinator, Kind kind, List<Mutation> mutations)
     {
-        this.reconciliationId = reconciliationId;
+        this.readId = readId;
         this.syncId = syncId;
         this.coordinator = coordinator;
         this.kind = kind;
@@ -167,7 +167,7 @@ public class ReadReconcileReceive
     public String toString()
     {
         return "ReadReconcileReceive{" +
-               "reconciliationId=" + reconciliationId +
+               "reconciliationId=" + readId +
                ", syncId=" + syncId +
                ", coordinator=" + coordinator +
                ", kind=" + kind +
@@ -183,15 +183,13 @@ public class ReadReconcileReceive
             // TODO: check epoch and tokens?
             ReadReconcileReceive receive = message.payload;
             logger.trace("Received read reconciliation from {}: {}", message.from(), receive);
-            if (receive.kind.writeLocally())
+            receive.mutations.forEach(Mutation::apply);
+
+            if (!MutationTrackingService.instance.localReads().receiveMutations(receive.readId, receive.syncId, receive.mutations))
             {
-                receive.mutations.forEach(Mutation::apply);
-                ReadReconcileNotify notify = new ReadReconcileNotify(receive.reconciliationId, receive.syncId);
+                // if this isn't a locally coordinated read, notify the coordinator
+                ReadReconcileNotify notify = new ReadReconcileNotify(receive.readId, receive.syncId);
                 MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_NOTIFY, notify), receive.coordinator);
-            }
-            if (receive.kind.applyToRead())
-            {
-                MutationTrackingService.instance.reconciliations().addMutationsToRead(receive.reconciliationId, receive.mutations);
             }
         }
     };
@@ -201,7 +199,7 @@ public class ReadReconcileReceive
         @Override
         public void serialize(ReadReconcileReceive rcv, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(rcv.reconciliationId);
+            out.writeLong(rcv.readId);
             out.writeInt(rcv.syncId);
             inetAddressAndPortSerializer.serialize(rcv.coordinator, out, version);
             Kind.serializer.serialize(rcv.kind, out, version);
@@ -222,7 +220,7 @@ public class ReadReconcileReceive
         @Override
         public long serializedSize(ReadReconcileReceive t, int version)
         {
-            return TypeSizes.sizeof(t.reconciliationId)
+            return TypeSizes.sizeof(t.readId)
                    + TypeSizes.sizeof(t.syncId)
                    + inetAddressAndPortSerializer.serializedSize(t.coordinator, version)
                    + Kind.serializer.serializedSize(t.kind, version)

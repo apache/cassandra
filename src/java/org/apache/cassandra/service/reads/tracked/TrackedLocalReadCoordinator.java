@@ -111,6 +111,9 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             boolean isTimedOutOrComplete(long nanoTime) { return true; }
 
             @Override
+            boolean isComplete() { return true; }
+
+            @Override
             void abort() {}
         };
 
@@ -558,6 +561,20 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             }
         });
     }
+
+    public synchronized boolean acknowledgeSync(int syncId)
+    {
+        if (state.isReconciling())
+            state.asReconciling().acknowledgeSync(syncId);
+
+        return state.isComplete();
+    }
+
+    public synchronized boolean receiveAugmentingMutations(List<Mutation> mutations)
+    {
+        throw new UnsupportedOperationException("TODO");
+    }
+
 
     boolean isTimedOutOrComplete(long nanoTime)
     {

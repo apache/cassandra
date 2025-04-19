@@ -31,6 +31,7 @@ import org.apache.cassandra.utils.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -79,14 +80,14 @@ public class TrackedLocalReads implements Shutdownable
             logger.trace("Expired {} entries", n);
     }
 
-    private TrackedLocalReadCoordinator get(long id)
+    private TrackedLocalReadCoordinator getOrCreate(long id)
     {
         return reads.computeIfAbsent(id, TrackedLocalReadCoordinator::new);
     }
 
     public void receiveSummary(InetAddressAndPort from, TrackedReadSummary summary)
     {
-        get(summary.readId()).receiveSummary(from, summary.summary());
+        getOrCreate(summary.readId()).receiveSummary(from, summary.summary());
     }
 
     public TrackedLocalReadCoordinator beginRead(long readId, ClusterMetadata metadata, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos)
@@ -114,6 +115,27 @@ public class TrackedLocalReads implements Shutdownable
         TrackedLocalReadCoordinator coordinator = reads.get(readId);
         coordinator.startLocalRead(command, replicaPlan, summaryNodes, expiresAtNanos);
         return coordinator;
+    }
+
+    public void acknowledgeSync(long readId, int syncId)
+    {
+        TrackedLocalReadCoordinator read = reads.get(readId);
+        if (read == null)
+            return;
+
+        if (read.acknowledgeSync(syncId))
+            reads.remove(readId);
+    }
+
+    public boolean receiveMutations(long readId, int syncId, List<Mutation> mutations)
+    {
+        TrackedLocalReadCoordinator read = reads.get(readId);
+        if (read == null)
+            return false;
+
+        read.receiveAugmentingMutations(mutations);
+        read.acknowledgeSync(syncId);
+        return true;
     }
 
     public static long defaultExpirationInterval()
