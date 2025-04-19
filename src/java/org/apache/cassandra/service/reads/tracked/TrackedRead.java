@@ -41,11 +41,15 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 
 public class TrackedRead extends AsyncPromise<PartitionIterator> implements RequestCallback<TrackedDataResponse>
 {
+    private static final Logger logger = LoggerFactory.getLogger(TrackedRead.class);
     // TODO: use something durable
     private static final AtomicInteger nextReadId = new AtomicInteger();
 
@@ -271,6 +275,12 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         {
             TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId(), metadata, command(), consistencyLevel, summaryNodes, message.expiresAtNanos());
             coordinator.addCallback((response, error) -> {
+                if (error != null)
+                {
+                    // TODO: notify coordinator that read has failed
+                    logger.error("Error while processing read", error);
+                    return;
+                }
                 Message<TrackedDataResponse> reply = message.responseWith(response);
                 MessagingService.instance().send(reply, message.from());
             });

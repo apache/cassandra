@@ -137,6 +137,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         @Override
         UnfilteredPartitionIterator augmentedData()
         {
+            if (augmentedData == null)
+                return null;
             return new SingletonUnfilteredPartitionIterator(augmentedData.unfilteredIterator());
         }
 
