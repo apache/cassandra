@@ -81,7 +81,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             boolean isInitialized() { return true; }
 
             @Override
-            boolean hasTimedOutAt(long nanoTime) { return false; }
+            boolean isTimedOutOrComplete(long nanoTime) { return false; }
 
             @Override
             void abort() {}
@@ -96,7 +96,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             boolean isInitialized() { return false; }
 
             @Override
-            boolean hasTimedOutAt(long nanoTime) { return true; }
+            boolean isTimedOutOrComplete(long nanoTime) { return true; }
 
             @Override
             void abort() {}
@@ -108,14 +108,14 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             String name() { return "COMPLETED"; }
 
             @Override
-            boolean hasTimedOutAt(long nanoTime) { return true; }
+            boolean isTimedOutOrComplete(long nanoTime) { return true; }
 
             @Override
             void abort() {}
         };
 
         abstract String name();
-        abstract boolean hasTimedOutAt(long nanoTime);
+        abstract boolean isTimedOutOrComplete(long nanoTime);
         abstract void abort();
 
         boolean isInitialized()
@@ -190,7 +190,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
 
         @Override
-        boolean hasTimedOutAt(long nanoTime)
+        boolean isTimedOutOrComplete(long nanoTime)
         {
             return nanoTime - lastUpdateNanos > DatabaseDescriptor.getReadRpcTimeout(TimeUnit.NANOSECONDS);
         }
@@ -248,7 +248,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
 
         @Override
-        boolean hasTimedOutAt(long nanoTime)
+        boolean isTimedOutOrComplete(long nanoTime)
         {
             return nanoTime - expiresAtNanos > 0;
         }
@@ -390,7 +390,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
 
         @Override
-        boolean hasTimedOutAt(long nanoTime)
+        boolean isTimedOutOrComplete(long nanoTime)
         {
             return nanoTime - expiresAtNanos > 0;
         }
@@ -559,9 +559,9 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         });
     }
 
-    boolean hasTimedOutAt(long nanoTime)
+    boolean isTimedOutOrComplete(long nanoTime)
     {
-        return state.hasTimedOutAt(nanoTime);
+        return state.isTimedOutOrComplete(nanoTime);
     }
 
     public synchronized void abort()

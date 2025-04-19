@@ -68,7 +68,7 @@ public class TrackedLocalReads implements Shutdownable
         for (Map.Entry<Long, TrackedLocalReadCoordinator> entry : reads.entrySet())
         {
             TrackedLocalReadCoordinator read = entry.getValue();
-            if (read.hasTimedOutAt(start))
+            if (read.isTimedOutOrComplete(start))
             {
                 read.abort();
                 if (reads.remove(entry.getKey(), entry.getValue()))
