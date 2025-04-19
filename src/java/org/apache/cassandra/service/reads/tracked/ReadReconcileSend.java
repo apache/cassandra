@@ -54,14 +54,12 @@ public class ReadReconcileSend
         final int syncId;
         final InetAddressAndPort to;
         final PeerReconciliation plan;
-        final boolean mirrorToCoordinator;
 
-        public PeerSync(int syncId, InetAddressAndPort to, PeerReconciliation plan, boolean mirrorToCoordinator)
+        public PeerSync(int syncId, InetAddressAndPort to, PeerReconciliation plan)
         {
             this.syncId = syncId;
             this.to = to;
             this.plan = plan;
-            this.mirrorToCoordinator = mirrorToCoordinator;
         }
 
         @Override
@@ -71,7 +69,6 @@ public class ReadReconcileSend
                    "syncId=" + syncId +
                    ", to=" + to +
                    ", plan=" + plan +
-                   ", mirrorToCoordinator=" + mirrorToCoordinator +
                    '}';
         }
 
@@ -83,7 +80,6 @@ public class ReadReconcileSend
                 out.writeInt(sync.syncId);
                 InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(sync.to, out, version);
                 PeerReconciliation.serializer.serialize(sync.plan, out, version);
-                out.writeBoolean(sync.mirrorToCoordinator);
             }
 
             @Override
@@ -91,8 +87,7 @@ public class ReadReconcileSend
             {
                 return new PeerSync(in.readInt(),
                                     InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version),
-                                    PeerReconciliation.serializer.deserialize(in, version),
-                                    in.readBoolean());
+                                    PeerReconciliation.serializer.deserialize(in, version));
             }
 
             @Override
@@ -100,8 +95,7 @@ public class ReadReconcileSend
             {
                 return TypeSizes.sizeof(sync.syncId)
                        + InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(sync.to, version)
-                       + PeerReconciliation.serializer.serializedSize(sync.plan, version)
-                       + TypeSizes.sizeof(sync.mirrorToCoordinator);
+                       + PeerReconciliation.serializer.serializedSize(sync.plan, version);
             }
         };
     }
@@ -141,27 +135,9 @@ public class ReadReconcileSend
                 MutationJournal.instance.readAll(ids, mutations);
                 Preconditions.checkArgument(ids.size() == mutations.size());
 
-                boolean mirrorToCoordinator = sync.mirrorToCoordinator;
-                ReadReconcileReceive.Kind kind = ReadReconcileReceive.Kind.REPLICA;
-
-                if (mirrorToCoordinator && sync.to.equals(message.from()))
-                {
-                    mirrorToCoordinator = false;
-                    kind = ReadReconcileReceive.Kind.BOTH;
-                }
-
-                {
-                    ReadReconcileReceive receive = new ReadReconcileReceive(payload.reconcileId, sync.syncId, message.from(), kind, mutations);
-                    logger.info("Sending {} to replica {}", receive, sync.to);
-                    MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_RCV, receive), sync.to);
-                }
-
-                if (mirrorToCoordinator)
-                {
-                    ReadReconcileReceive receive = new ReadReconcileReceive(payload.reconcileId, sync.syncId, message.from(), ReadReconcileReceive.Kind.COORDINATOR, mutations);
-                    logger.info("Sending {} to coordinator {}", receive, message.from());
-                    MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_RCV, receive), message.from());
-                }
+                ReadReconcileReceive receive = new ReadReconcileReceive(payload.reconcileId, sync.syncId, message.from(), mutations);
+                logger.info("Sending {} to replica {}", receive, sync.to);
+                MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_RCV, receive), sync.to);
             }
         }
     };

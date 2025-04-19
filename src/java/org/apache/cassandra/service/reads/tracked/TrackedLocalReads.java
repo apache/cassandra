@@ -133,8 +133,9 @@ public class TrackedLocalReads implements Shutdownable
         if (read == null)
             return false;
 
-        read.receiveAugmentingMutations(mutations);
-        read.acknowledgeSync(syncId);
+        read.receiveMutations(mutations);
+        if (read.acknowledgeSync(syncId))
+            reads.remove(readId);
         return true;
     }
 

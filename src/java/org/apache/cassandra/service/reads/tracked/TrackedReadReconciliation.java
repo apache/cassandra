@@ -197,10 +197,10 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                     for (InetAddressAndPort to : plan.nodes())
                     {
                         int syncId = nextSyncId++;
-                        PendingSync sync = new PendingSync(syncId, from, to, plan.peerReconciliation(to), to.equals(dataNode));
+                        PendingSync sync = new PendingSync(syncId, from, to, plan.peerReconciliation(to));
                         pendingSync.put(syncId, sync);
                         syncs++;
-                        if (sync.mirrorToCoordinator)
+                        if (to.equals(dataNode))
                         {
                             // TODO: should we use offsets here?
                             outstandingMutations.addAll(plan.idsFor(to));
@@ -314,20 +314,18 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         final InetAddressAndPort from;
         final InetAddressAndPort to;
         final PeerReconciliation plan;
-        final boolean mirrorToCoordinator;
 
-        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, PeerReconciliation plan, boolean mirrorToCoordinator)
+        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, PeerReconciliation plan)
         {
             this.syncId = syncId;
             this.from = from;
             this.to = to;
             this.plan = plan;
-            this.mirrorToCoordinator = mirrorToCoordinator;
         }
 
         public ReadReconcileSend.PeerSync toPeerSync()
         {
-            return new ReadReconcileSend.PeerSync(syncId, to, plan, mirrorToCoordinator);
+            return new ReadReconcileSend.PeerSync(syncId, to, plan);
         }
     }
 

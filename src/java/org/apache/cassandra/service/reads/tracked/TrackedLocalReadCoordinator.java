@@ -326,7 +326,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         public ReadReconcileSend.PeerSync toPeerSync()
         {
-            return new ReadReconcileSend.PeerSync(syncId, to, plan, false);
+            return new ReadReconcileSend.PeerSync(syncId, to, plan);
         }
     }
 
@@ -436,11 +436,12 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             return blockFor - pendingSync.size();
         }
 
-        void receiveMutations(List<Mutation> mutations)
+        State receiveMutations(List<Mutation> mutations)
         {
             // TODO: just use offsets
             mutations.forEach(mutation -> outstandingMutations.remove(new ShortMutationId(mutation.id())));
             read.augment(mutations);
+            return maybeComplete();
         }
 
         @Override
@@ -565,14 +566,16 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
     public synchronized boolean acknowledgeSync(int syncId)
     {
         if (state.isReconciling())
-            state.asReconciling().acknowledgeSync(syncId);
+            state = state.asReconciling().acknowledgeSync(syncId);
 
         return state.isComplete();
     }
 
-    public synchronized boolean receiveAugmentingMutations(List<Mutation> mutations)
+    public synchronized boolean receiveMutations(List<Mutation> mutations)
     {
-        throw new UnsupportedOperationException("TODO");
+        if (state.isReconciling())
+            state = state.asReconciling().receiveMutations(mutations);
+        return state.isComplete();
     }
 
 

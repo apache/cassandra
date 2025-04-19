@@ -44,105 +44,16 @@ public class ReadReconcileReceive
 {
     private static final Logger logger = LoggerFactory.getLogger(ReadReconcileReceive.class);
 
-    public enum Kind
-    {
-        REPLICA, COORDINATOR, BOTH;
-
-        public static Kind kindFor(boolean replica, boolean coordinator)
-        {
-            if (replica && coordinator)
-                return BOTH;
-            else if (replica)
-                return REPLICA;
-            else if (coordinator)
-                return COORDINATOR;
-
-            throw new IllegalArgumentException("Neither replica nor coordinator are true");
-        }
-
-        public boolean writeLocally()
-        {
-            switch (this)
-            {
-                case REPLICA:
-                case BOTH:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        public boolean applyToRead()
-        {
-            switch (this)
-            {
-                case COORDINATOR:
-                case BOTH:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        public static IVersionedSerializer<Kind> serializer = new IVersionedSerializer<Kind>()
-        {
-            @Override
-            public void serialize(Kind kind, DataOutputPlus out, int version) throws IOException
-            {
-                switch (kind)
-                {
-                    case REPLICA:
-                        out.writeByte(0);
-                        break;
-                    case COORDINATOR:
-                        out.writeByte(1);
-                        break;
-                    case BOTH:
-                        out.writeByte(2);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown kind: " + kind);
-                }
-
-            }
-
-            @Override
-            public Kind deserialize(DataInputPlus in, int version) throws IOException
-            {
-                int kind = in.readByte();
-                switch (kind)
-                {
-                    case 0:
-                        return Kind.REPLICA;
-                    case 1:
-                        return Kind.COORDINATOR;
-                    case 2:
-                        return Kind.BOTH;
-                    default:
-                        throw new IllegalArgumentException("Unknown kind value: " + kind);
-                }
-            }
-
-            @Override
-            public long serializedSize(Kind t, int version)
-            {
-                return TypeSizes.BYTE_SIZE;
-            }
-        };
-    }
-
     public final long readId;
     public final int syncId;
     public final InetAddressAndPort coordinator;
-    public final Kind kind;
     public final List<Mutation> mutations;
 
-    public ReadReconcileReceive(long readId, int syncId, InetAddressAndPort coordinator, Kind kind, List<Mutation> mutations)
+    public ReadReconcileReceive(long readId, int syncId, InetAddressAndPort coordinator, List<Mutation> mutations)
     {
         this.readId = readId;
         this.syncId = syncId;
         this.coordinator = coordinator;
-        this.kind = kind;
         this.mutations = mutations;
     }
 
@@ -170,7 +81,6 @@ public class ReadReconcileReceive
                "reconciliationId=" + readId +
                ", syncId=" + syncId +
                ", coordinator=" + coordinator +
-               ", kind=" + kind +
                ", mutations=" + mutationString(mutations) +
                '}';
     }
@@ -202,7 +112,6 @@ public class ReadReconcileReceive
             out.writeLong(rcv.readId);
             out.writeInt(rcv.syncId);
             inetAddressAndPortSerializer.serialize(rcv.coordinator, out, version);
-            Kind.serializer.serialize(rcv.kind, out, version);
             CollectionSerializer.serializeCollection(Mutation.serializer, rcv.mutations, out, version);
 
         }
@@ -213,7 +122,6 @@ public class ReadReconcileReceive
             return new ReadReconcileReceive(in.readLong(),
                                             in.readInt(),
                                             inetAddressAndPortSerializer.deserialize(in, version),
-                                            Kind.serializer.deserialize(in, version),
                                             CollectionSerializer.deserializeCollection(Mutation.serializer, ArrayList::new, in, version));
         }
 
@@ -223,7 +131,6 @@ public class ReadReconcileReceive
             return TypeSizes.sizeof(t.readId)
                    + TypeSizes.sizeof(t.syncId)
                    + inetAddressAndPortSerializer.serializedSize(t.coordinator, version)
-                   + Kind.serializer.serializedSize(t.kind, version)
                    + CollectionSerializer.serializedSizeCollection(Mutation.serializer, t.mutations, version);
         }
     };

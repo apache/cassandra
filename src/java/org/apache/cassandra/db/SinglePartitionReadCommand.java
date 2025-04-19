@@ -116,6 +116,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         @Override
+        public long nowInSec()
+        {
+            return command.nowInSec();
+        }
+
+        @Override
         void freezeInitialData()
         {
             // the iterators from queryStorage grabs sstable references and a
