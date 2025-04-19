@@ -212,24 +212,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     private final StampedLock bucketsStampedLock = new StampedLock();
     private final DecayingEstimatedBuckets decayingEstimatedBuckets;
     private final Set<BucketsThreadLocal> bucketsThreadLocals = Collections.newSetFromMap(new ConcurrentHashMap<>());
-
-    private final FastThreadLocal<BucketsThreadLocal> bucketsThreadLocal = new FastThreadLocal<>()
-    {
-        @Override
-        protected BucketsThreadLocal initialValue()
-        {
-            BucketsThreadLocal holder = new BucketsThreadLocal(DecayingEstimatedHistogramReservoir.this.size());
-            bucketsThreadLocals.add(holder);
-            phantomReferences.add(new BucketsPhantomReference(retirementPhantomRefsQueue, holder::release));
-            return holder;
-        }
-
-        @Override
-        protected void onRemoval(BucketsThreadLocal hodler)
-        {
-            hodler.release();
-        }
-    };
+    private final FastThreadLocal<BucketsThreadLocal> bucketsThreadLocal = new HistogramFastThreadLocal(this::createBuckets);
 
     // Wrapper around System.nanoTime() to simplify unit testing.
     private final MonotonicClock clock;
@@ -302,9 +285,9 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      *
      * @param value the data point to add to the histogram
      */
-    public void update(long value)
+    public final void update(long value)
     {
-        int index = getIndex(value);
+        int index = findIndex(bucketOffsets, value);
         BucketsThreadLocal local = getBucketsThreadLocal();
         local.update(index, clock.now());
     }
@@ -312,11 +295,6 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     private BucketsThreadLocal getBucketsThreadLocal()
     {
         return bucketsThreadLocal.get();
-    }
-
-    private int getIndex(long value)
-    {
-        return findIndex(bucketOffsets, value);
     }
 
     public static void release() throws InterruptedException
@@ -345,6 +323,13 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             logger.info("Rescaled decaying histogram buckets with configured interval of {} ms",
                         TimeUnit.NANOSECONDS.toMillis(LANDMARK_RESET_INTERVAL_IN_NS));
         }
+    }
+
+    private BucketsThreadLocal createBuckets()
+    {
+        BucketsThreadLocal holder = new BucketsThreadLocal(size());
+        bucketsThreadLocals.add(holder);
+        return holder;
     }
 
     @VisibleForTesting
@@ -899,7 +884,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      * <p>
      * The class is aslso being tracked by a phantom reference queue to release the accumulated buckets when the thread is dead.
      */
-    protected class BucketsThreadLocal
+    private final class BucketsThreadLocal
     {
         // try to use int[] instead of long[] to reduce memory usage, and move to the sum array when overflow
         private final AtomicReference<DecayingArray> decayingRef;
@@ -1181,6 +1166,35 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
                 lastDecayedWeight = forwardDecayWeight(tick);
             }
             data[index] += lastDecayedWeight;
+        }
+    }
+
+    private interface BucketsThreadLocalFactory
+    {
+        BucketsThreadLocal create();
+    }
+
+    private static class HistogramFastThreadLocal extends FastThreadLocal<BucketsThreadLocal>
+    {
+        private final BucketsThreadLocalFactory factory;
+
+        public HistogramFastThreadLocal(BucketsThreadLocalFactory factory)
+        {
+            this.factory = factory;
+        }
+
+        @Override
+        protected BucketsThreadLocal initialValue()
+        {
+            BucketsThreadLocal holder = factory.create();
+            phantomReferences.add(new BucketsPhantomReference(retirementPhantomRefsQueue, holder::release));
+            return holder;
+        }
+
+        @Override
+        protected void onRemoval(BucketsThreadLocal hodler)
+        {
+            hodler.release();
         }
     }
 }
