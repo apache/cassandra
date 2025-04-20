@@ -107,6 +107,9 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
 
     public void start()
     {
+        // TODO: do the coordination locally if this is a replica
+        // TODO: skip local coordination if this node knows its recovering from an outage
+        // TODO: read speculation
         if (hasLocalRead())
             readMetrics.localRequests.mark();
         else

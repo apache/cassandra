@@ -274,15 +274,17 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
             if (reconciliations.isEmpty())
             {
-                logger.trace("Read complete for {}", Long.toHexString(readId));
+                if (logger.isTraceEnabled())
+                    logger.trace("Read complete for {}", Long.toHexString(readId));
                 complete(read, command.columnFilter());
                 return COMPLETED;
             }
             else
             {
-                logger.trace("Beginning reconciliation for {}", Long.toHexString(readId));
+                if (logger.isTraceEnabled())
+                    logger.trace("Beginning reconciliation for {}", Long.toHexString(readId));
                 Reconciling reconciling = new Reconciling(command, read, expiresAtNanos, reconciliations);
-                reconciling.sendSyncMessages();  // TODO: don't do this until after the coordinator state is set to reconciling if converting to lock free
+                reconciling.start();  // TODO: don't do this until after the coordinator state is set to reconciling if converting to lock free
                 return reconciling;
             }
         }
@@ -292,7 +294,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             if (this.read != null)
                 return this;
 
-            logger.trace("In progress read received for {}", Long.toHexString(readId));
+            if (logger.isTraceEnabled())
+                logger.trace("In progress read received for {}", Long.toHexString(readId));
             this.read = read;
             summaries.add(ReceivedSummary.create(FBUtilities.getBroadcastAddressAndPort(), summary));
 
@@ -301,7 +304,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         public State receiveSummary(ReceivedSummary summary)
         {
-            logger.trace("Summary received from {} for {}", summary.from, Long.toHexString(readId));
+            if (logger.isTraceEnabled())
+                logger.trace("Summary received from {} for {}", summary.from, Long.toHexString(readId));
             summaries.add(summary);
             return maybeComplete();
         }
@@ -410,8 +414,9 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             return nanoTime - expiresAtNanos > 0;
         }
 
-        void sendSyncMessages()
+        void start()
         {
+            // TODO: update metrics
             Map<InetAddressAndPort, List<ReadReconcileSend.PeerSync>> peerSync = new HashMap<>();
             pendingSync.values().forEach(pending -> {
                 peerSync.computeIfAbsent(pending.from, node -> new ArrayList<>()).add(pending.toPeerSync());
@@ -425,12 +430,13 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             }
         }
 
-        State maybeComplete()
+        private State maybeComplete()
         {
             if (!pendingSync.isEmpty())
                 return this;
 
-            logger.trace("Reconciliation completed for read {}", Long.toHexString(readId));
+            if (logger.isTraceEnabled())
+                logger.trace("Reconciliation completed for read {}", Long.toHexString(readId));
             Preconditions.checkState(outstandingMutations.isEmpty());
 
             complete(read, command.columnFilter());
@@ -439,7 +445,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         public State acknowledgeSync(int syncId)
         {
-            logger.trace("Reconciliation sync {} received for {}", syncId, Long.toHexString(readId));
+            if (logger.isTraceEnabled())
+                logger.trace("Reconciliation sync {} received for {}", syncId, Long.toHexString(readId));
             pendingSync.remove(syncId);
             return maybeComplete();
         }
@@ -453,10 +460,12 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         {
             // TODO: just use offsets
             mutations.forEach(mutation -> {
-                logger.trace("Received mutation {} for read {}", mutation.id(), Long.toHexString(readId));
+                if (logger.isTraceEnabled())
+                    logger.trace("Received mutation {} for read {}", mutation.id(), Long.toHexString(readId));
                 outstandingMutations.remove(new ShortMutationId(mutation.id()));
             });
-            logger.trace("Received {} mutations, {} mutations outstanding for {}", mutations.size(), outstandingMutations.size(), Long.toHexString(readId));
+            if (logger.isTraceEnabled())
+                logger.trace("Received {} mutations, {} mutations outstanding for {}", mutations.size(), outstandingMutations.size(), Long.toHexString(readId));
             read.augment(mutations);
             return maybeComplete();
         }
@@ -544,7 +553,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
     public synchronized void receiveSummary(InetAddressAndPort from, MutationSummary summary)
     {
-        logger.trace("Received summary {} from {}, for {}", summary, from, state);
+        if (logger.isTraceEnabled())
+            logger.trace("Received summary {} from {}, for {}", summary, from, state);
         if (state.isReading())
         {
             state = state.asReading().receiveSummary(from, summary);
@@ -559,7 +569,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
         else
         {
-            logger.trace("Ignoring summary from {} with state {}", from, state.name());
+            if (logger.isTraceEnabled())
+                logger.trace("Ignoring summary from {} with state {} for {}", from, state.name(), Long.toHexString(readId));
         }
     }
 
