@@ -889,16 +889,24 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
         // try to use int[] instead of long[] to reduce memory usage, and move to the sum array when overflow
         private final AtomicReference<DecayingArray> decayingRef;
         private final long[] estimated;
+        /** Updated only in the writer thread itself, so no need for atomic operations. */
+        private DecayingArray decayingLocal;
 
         public BucketsThreadLocal(int size)
         {
-            this.decayingRef = new AtomicReference<>(new DecayingArray(size, decayingEstimatedBuckets.decayLandmark));
+            DecayingArray decaying = new DecayingArray(size, decayingEstimatedBuckets.decayLandmark);
+            this.decayingRef = new AtomicReference<>(decaying);
             this.estimated = new long[size];
+            this.decayingLocal = decaying;
         }
 
         public void update(int index, long now)
         {
-            decayingEstimatedBuckets.getDecayingArraySafely(decayingRef).update(index, now);
+            // single volatile read to avoid the CAS in the common case
+            // If the decaying array was updated by the rescale thread and the landmark has changed, we need to update the reference.
+            if (decayingLocal.decayLandmark != decayingEstimatedBuckets.decayLandmark)
+                decayingLocal = decayingEstimatedBuckets.getDecayingArraySafely(decayingRef);
+            decayingLocal.update(index, now);
             estimated[index]++;
         }
 
@@ -986,15 +994,16 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
             }
         }
 
-        public void updateExclusive(LongBinaryOperator decayingOp, LongBinaryOperator estimatedOp, long decayLandmark)
+        public void updateExclusive(LongBinaryOperator decayingOp, LongBinaryOperator estimatedOp, long prevLandmark)
         {
             assert stampedLock.isWriteLocked();
-            this.decayLandmark = decayLandmark;
             for (int i = 0; i < size; i++)
             {
                 buckets[i] = decayingOp.applyAsLong(i, buckets[i]);
                 buckets[size + i] = estimatedOp.applyAsLong(i, buckets[size + i]);
             }
+            if (prevLandmark < decayLandmark)
+                decay(LongBuffer.wrap(buckets, 0, size), prevLandmark, this.decayLandmark);
         }
 
         /**
