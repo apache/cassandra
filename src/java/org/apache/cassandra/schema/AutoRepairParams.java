@@ -89,10 +89,8 @@ public final class AutoRepairParams
     public boolean repairEnabled(AutoRepairConfig.RepairType type)
     {
         String option = LocalizeString.toLowerCaseLocalized(type.toString()) + "_enabled";
-        String enabled = options.get(option);
-        return enabled == null
-               ? Boolean.parseBoolean(DEFAULT_OPTIONS.get(option))
-               : Boolean.parseBoolean(enabled);
+        String enabled = options.getOrDefault(option, DEFAULT_OPTIONS.get(option));
+        return Boolean.parseBoolean(enabled);
     }
 
     public int priority()
