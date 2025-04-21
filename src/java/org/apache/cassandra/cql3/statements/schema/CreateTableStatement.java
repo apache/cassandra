@@ -104,6 +104,14 @@ public final class CreateTableStatement extends AlterSchemaStatement
     {
         // collect metrics for number of create statements executed (regardless it's valid or not)
         QueryProcessor.metrics.createStatementCount.inc();
+
+        // Check for counter columns to increment the counter metric
+        boolean hasCounters = rawColumns.values().stream().anyMatch(CQL3Type.Raw::isCounter);
+        if (hasCounters)
+        {
+            QueryProcessor.metrics.createCounterCount.inc();
+        }
+
         if (attrs.hasOption(TableParams.Option.COMPACTION)) {
             QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.inc();
             logger.info(String.format("Schema %s.%s is created with compaction option: %s",

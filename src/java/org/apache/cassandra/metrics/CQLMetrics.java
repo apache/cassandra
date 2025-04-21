@@ -42,6 +42,7 @@ public class CQLMetrics
 
     public final Counter createStatementCount;
     public final Counter createStatementWithCompactionSpecifiedCount;
+    public final Counter createCounterCount;
     public final Counter alterStatementCount;
     public final Counter alterStatementWithCompactionSpecifiedCount;
 
@@ -87,6 +88,7 @@ public class CQLMetrics
         });
         createStatementCount = Metrics.counter(factory.createMetricName("CreateStatementCount"));
         createStatementWithCompactionSpecifiedCount = Metrics.counter(factory.createMetricName("CreateStatementWithCompactionSpecifiedCount"));
+        createCounterCount = Metrics.counter(factory.createMetricName("CreateCounterCount"));
         alterStatementCount = Metrics.counter(factory.createMetricName("AlterStatementCount"));
         alterStatementWithCompactionSpecifiedCount = Metrics.counter(factory.createMetricName("AlterStatementWithCompactionSpecifiedCount"));
 

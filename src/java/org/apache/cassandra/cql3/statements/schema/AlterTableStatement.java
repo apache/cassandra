@@ -278,6 +278,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                     throw ire("Cannot re-add previously dropped counter column %s", name);
             }
 
+            if (type.isCounter())
+                QueryProcessor.metrics.createCounterCount.inc();
+
             if (isStatic)
                 tableBuilder.addStaticColumn(name, type);
             else

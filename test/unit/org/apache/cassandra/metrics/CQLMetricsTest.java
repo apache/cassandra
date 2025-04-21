@@ -456,6 +456,53 @@ public class CQLMetricsTest
         }
     }
 
+    @Test
+    public void testCreateCounterTableStatementCount()
+    {
+        clearMetrics();
+
+        // Create a counter table
+        session.execute("CREATE TABLE IF NOT EXISTS junit.countertable (id uuid PRIMARY KEY, count counter);");
+        assertEquals(1, QueryProcessor.metrics.createCounterCount.getCount());
+
+        // Create another counter table
+        session.execute("CREATE TABLE IF NOT EXISTS junit.countertable2 (id uuid PRIMARY KEY, count1 counter, count2 counter);");
+        assertEquals(2, QueryProcessor.metrics.createCounterCount.getCount());
+
+        // Create a non-counter table - should not increment counter
+        session.execute("CREATE TABLE IF NOT EXISTS junit.noncountertable (id uuid PRIMARY KEY, value text);");
+        assertEquals(2, QueryProcessor.metrics.createCounterCount.getCount());
+
+        // Invalid creation of counter table should still be counted
+        try {
+            session.execute("CREATE TABLE IF NOT EXISTS junit.invalidcountertable (id counter PRIMARY KEY, count counter);");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(3, QueryProcessor.metrics.createCounterCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testAlterTableAddCounterColumnCount()
+    {
+        clearMetrics();
+
+        // Create a counter table (has to have at least one counter column to start with)
+        session.execute("CREATE TABLE IF NOT EXISTS junit.countertable_toalter (id uuid PRIMARY KEY, countcol counter);");
+        assertEquals(1, QueryProcessor.metrics.createCounterCount.getCount());
+
+        // Alter the table to add another counter column - should increment counter
+        session.execute("ALTER TABLE junit.countertable_toalter ADD anothercountcol counter;");
+        assertEquals(2, QueryProcessor.metrics.createCounterCount.getCount());
+
+        // Alter the table to add a third counter column - should increment counter again
+        session.execute("ALTER TABLE junit.countertable_toalter ADD thirdcountcol counter;");
+        assertEquals(3, QueryProcessor.metrics.createCounterCount.getCount());
+    }
+
     private void clearMetrics()
     {
         QueryProcessor.metrics.preparedStatementsExecuted.dec(QueryProcessor.metrics.preparedStatementsExecuted.getCount());
@@ -465,6 +512,15 @@ public class CQLMetricsTest
         QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.dec(QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.getCount());
         QueryProcessor.metrics.alterStatementCount.dec(QueryProcessor.metrics.alterStatementCount.getCount());
         QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.dec(QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.getCount());
+        QueryProcessor.metrics.dropKeyspaceStatementCount.dec(QueryProcessor.metrics.dropKeyspaceStatementCount.getCount());
+        QueryProcessor.metrics.dropTableStatementCount.dec(QueryProcessor.metrics.dropTableStatementCount.getCount());
+        QueryProcessor.metrics.dropIndexStatementCount.dec(QueryProcessor.metrics.dropIndexStatementCount.getCount());
+        QueryProcessor.metrics.dropAggregateStatementCount.dec(QueryProcessor.metrics.dropAggregateStatementCount.getCount());
+        QueryProcessor.metrics.dropViewStatementCount.dec(QueryProcessor.metrics.dropViewStatementCount.getCount());
+        QueryProcessor.metrics.dropTriggerStatementCount.dec(QueryProcessor.metrics.dropTriggerStatementCount.getCount());
+        QueryProcessor.metrics.dropTypeStatementCount.dec(QueryProcessor.metrics.dropTypeStatementCount.getCount());
+        QueryProcessor.metrics.dropFunctionStatementCount.dec(QueryProcessor.metrics.dropFunctionStatementCount.getCount());
+        QueryProcessor.metrics.truncateStatementCount.dec(QueryProcessor.metrics.truncateStatementCount.getCount());
+        QueryProcessor.metrics.createCounterCount.dec(QueryProcessor.metrics.createCounterCount.getCount());
     }
 }
-
