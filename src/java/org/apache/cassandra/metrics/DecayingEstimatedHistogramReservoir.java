@@ -374,7 +374,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
     private void rescaleReservoir()
     {
         long now = clock.now();
-        if (now - decayingEstimatedBuckets.decayLandmark > LANDMARK_RESET_INTERVAL_IN_NS)
+        if (now - decayingEstimatedBuckets.decayLandmark > LANDMARK_RESET_INTERVAL_IN_NS || decayingEstimatedBuckets.decayLandmark == 0)
             decayingEstimatedBuckets.rescale(bucketsThreadLocals, now);
     }
 
@@ -961,7 +961,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         public void rescale(Set<BucketsThreadLocal> locals, long now)
         {
-            if (now - decayLandmark <= LANDMARK_RESET_INTERVAL_IN_NS)
+            if (now - decayLandmark <= LANDMARK_RESET_INTERVAL_IN_NS && decayLandmark != 0)
                 return;
             long stamp = stampedLock.writeLock();
             try
@@ -1134,7 +1134,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
          * and the precision of the clock is not guaranteed to be nanoseconds (approximately 2ms),
          * we can avoid calculating the decay weight for every sample and instead use the last calculated weight.
          */
-        private long lastTick;
+        private long lastTick = -1;
         private long lastDecayedWeight;
 
         public DecayingArray(int size, long decayLandmark)
@@ -1145,8 +1145,8 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
 
         public void update(int index, long now)
         {
-            long tick = now - decayLandmark / oneSecond;
-            if (tick != lastTick)
+            long tick = (now - decayLandmark) / oneSecond;
+            if (tick != lastTick || lastTick == -1)
             {
                 // The decay weight is calculated only once per second.
                 // The decay weight is calculated using the forward decay formula.
