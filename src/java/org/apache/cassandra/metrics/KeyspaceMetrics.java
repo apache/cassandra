@@ -62,6 +62,8 @@ public class KeyspaceMetrics
     public final Gauge<Long> memtableSwitchCount;
     /** Estimated number of tasks pending for this column family */
     public final Gauge<Long> pendingFlushes;
+    /** Memtable flushing time histogram for this table */
+    public final Histogram flushingTimeHistogram;
     /** Estimate of number of pending compactios for this CF */
     public final Gauge<Long> pendingCompactions;
     /** Disk space used by SSTables belonging to this CF */
@@ -251,6 +253,7 @@ public class KeyspaceMetrics
                 metric -> metric.memtableSwitchCount.getCount());
         pendingCompactions = createKeyspaceGauge("PendingCompactions", metric -> metric.pendingCompactions.getValue());
         pendingFlushes = createKeyspaceGauge("PendingFlushes", metric -> metric.pendingFlushes.getCount());
+        flushingTimeHistogram = createKeyspaceHistogram("FlushingTimeHistogram", false);
         liveDiskSpaceUsed = createKeyspaceGauge("LiveDiskSpaceUsed", metric -> metric.liveDiskSpaceUsed.getCount());
         totalDiskSpaceUsed = createKeyspaceGauge("TotalDiskSpaceUsed", metric -> metric.totalDiskSpaceUsed.getCount());
         bloomFilterDiskSpaceUsed = createKeyspaceGauge("BloomFilterDiskSpaceUsed",

@@ -1089,10 +1089,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         final CountDownLatch latch = newCountDownLatch(1);
         final Memtable mainMemtable;
         volatile Throwable flushFailure = null;
+        // metric for finish time per flushing task
+        final long startNanos;
 
-        private PostFlush(Memtable mainMemtable)
+        private PostFlush(Memtable mainMemtable, long startNanos)
         {
             this.mainMemtable = mainMemtable;
+            this.startNanos = startNanos;
         }
 
         public CommitLogPosition call()
@@ -1117,6 +1120,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             }
 
             metric.pendingFlushes.dec();
+            metric.flushingTimeHistogram.update(nanoTime() - startNanos);
 
             if (flushFailure != null)
                 throw propagate(flushFailure);
@@ -1149,6 +1153,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             this.truncate = truncate;
 
             metric.pendingFlushes.inc();
+            long startNanos = nanoTime();
             /*
              * To ensure correctness of switch without blocking writes, run() needs to wait for all write operations
              * started prior to the switch to complete. We do this by creating a Barrier on the writeOrdering
@@ -1183,7 +1188,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
             // commit log segment position have also completed, i.e. the memtables are done and ready to flush
             writeBarrier.issue();
-            postFlush = new PostFlush(Iterables.get(memtables.values(), 0, null));
+            postFlush = new PostFlush(Iterables.get(memtables.values(), 0, null), startNanos);
             postFlushTask = new FutureTask<>(postFlush);
         }
 

@@ -113,6 +113,8 @@ public class TableMetrics
     public final LatencyMetrics writeLatency;
     /** Estimated number of tasks pending for this table */
     public final Counter pendingFlushes;
+    /** Memtable flushing time histogram for this table */
+    public final TableHistogram flushingTimeHistogram;
     /** Total number of bytes flushed since server [re]start */
     public final Counter bytesFlushed;
     /** Total number of bytes written by compaction since server [re]start */
@@ -706,6 +708,7 @@ public class TableMetrics
         writeLatency = createLatencyMetrics("Write", cfs.keyspace.metric.writeLatency, GLOBAL_WRITE_LATENCY);
         rangeLatency = createLatencyMetrics("Range", cfs.keyspace.metric.rangeLatency, GLOBAL_RANGE_LATENCY);
         pendingFlushes = createTableCounter("PendingFlushes");
+        flushingTimeHistogram = createTableHistogram("FlushingTimeHistogram", cfs.keyspace.metric.flushingTimeHistogram, false);
         bytesFlushed = createTableCounter("BytesFlushed");
 
         compactionBytesWritten = createTableCounter("CompactionBytesWritten");

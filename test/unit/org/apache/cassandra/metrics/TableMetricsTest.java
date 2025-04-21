@@ -39,11 +39,13 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.IndexSummaryBuilder;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.junit.Assert.assertEquals;
@@ -327,6 +329,21 @@ public class TableMetricsTest
         assertEquals(2, second.metric.coordinatorWriteLatency.getCount()); // 2 for previous batch and this batch
         assertGreaterThan(first.metric.coordinatorWriteLatency.getMeanRate(), 0);
         assertGreaterThan(second.metric.coordinatorWriteLatency.getMeanRate(), 0);
+    }
+
+    @Test
+    public void testFlushingTimeHistogram() throws InterruptedException
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        assertEquals(0, cfs.metric.flushingTimeHistogram.cf.getCount());
+        for (int i = 0; i < 10; i++)
+        {
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TABLE, i, "val" + i, "val" + i));
+        }
+        Future<CommitLogPosition> f = cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        f.await();
+        assertEquals(1, cfs.metric.flushingTimeHistogram.cf.getCount());
+        assertTrue(cfs.metric.flushingTimeHistogram.cf.getSnapshot().get99thPercentile() > 0);
     }
 
     @Test
