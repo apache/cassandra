@@ -69,11 +69,7 @@ public final class AutoRepairParams
 
     public static AutoRepairParams create(Map<String, String> options)
     {
-        Map<String, String> optionsMap = new TreeMap<>();
-        for (Map.Entry<String, String> entry : DEFAULT_OPTIONS.entrySet())
-        {
-            optionsMap.put(entry.getKey(), entry.getValue());
-        }
+        Map<String, String> optionsMap = new TreeMap<>(DEFAULT_OPTIONS);
         if (options != null)
         {
             for (Map.Entry<String, String> entry : options.entrySet())
