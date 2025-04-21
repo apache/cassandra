@@ -157,6 +157,12 @@ public abstract class RowIterators
             serializeRowBody(row, flags, helper, out);
         }
 
+        public static void serializeStaticRow(Row row, SerializationHelper helper, DataOutputPlus out, int version) throws IOException
+        {
+            Preconditions.checkArgument(row.isStatic());
+            serializeRow(row, helper, out, version);
+        }
+
         @Inline
         private static void serializeRowBody(Row row, int flags, SerializationHelper helper, DataOutputPlus out)
                 throws IOException
@@ -216,7 +222,8 @@ public abstract class RowIterators
                 throws IOException
         {
             int flags = in.readUnsignedByte();
-            assert !isEndOfPartition(flags) : flags;
+            Preconditions.checkState(!isEndOfPartition(flags));
+            Preconditions.checkState(isStatic(flags));
             Row.Builder builder = BTreeRow.sortedBuilder();
             builder.newRow(Clustering.STATIC_CLUSTERING);
             return deserializeRowBody(in, header, helper, flags, builder);
@@ -368,7 +375,7 @@ public abstract class RowIterators
 
             if (iterator.isEmpty())
             {
-                out.writeByte(IS_EMPTY);
+                out.writeByte(flags | IS_EMPTY);
                 return;
             }
 
@@ -383,7 +390,7 @@ public abstract class RowIterators
             SerializationHelper helper = new SerializationHelper(header);
 
             if (hasStatic)
-                UnfilteredSerializer.serializer.serializeStaticRow(staticRow, helper, out, version);
+                RowSerializer.serializeStaticRow(staticRow, helper, out, version);
 
             while (iterator.hasNext())
                 RowSerializer.serializeRow(iterator.next(), helper, out, version);
