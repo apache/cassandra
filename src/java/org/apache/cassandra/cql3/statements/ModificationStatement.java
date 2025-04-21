@@ -278,6 +278,14 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public void validate(ClientState state) throws InvalidRequestException
     {
+        if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
+        {
+            ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
+            if (cfs != null && cfs.viewManager.hasViews() && attrs.isTimestampSet())
+            {
+                cfs.metric.viewBaseTableModificationWithTimestamp.inc();
+            }
+        }
         checkFalse(hasConditions() && attrs.isTimestampSet(), "Cannot provide custom timestamp for conditional updates");
         checkFalse(isCounter() && attrs.isTimestampSet(), "Cannot provide custom timestamp for counter updates");
         checkFalse(isCounter() && attrs.isTimeToLiveSet(), "Cannot provide custom TTL for counter updates");

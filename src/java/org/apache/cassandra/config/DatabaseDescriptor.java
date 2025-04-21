@@ -3984,6 +3984,16 @@ public class DatabaseDescriptor
         conf.materialized_views_enabled = enableMaterializedViews;
     }
 
+    public static boolean getMaterializedViewsBasetableMetricCollectionEnabled()
+    {
+        return conf.materialized_view_base_table_metric_collection_enabled;
+    }
+
+    public static void setMaterializedViewsBasetableMetricCollectionEnabled(boolean enabled)
+    {
+        conf.materialized_view_base_table_metric_collection_enabled = enabled;
+    }
+
     public static boolean getSkipSufficientLiveCheckForMV()
     {
         return conf.skip_sufficient_live_check_for_mv;

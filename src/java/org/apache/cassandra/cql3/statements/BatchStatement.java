@@ -196,6 +196,15 @@ public class BatchStatement implements CQLStatement
 
         for (ModificationStatement statement : statements)
         {
+            if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
+            {
+                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(statement.metadata());
+                if (cfs != null && cfs.viewManager.hasViews())
+                {
+                    cfs.metric.viewBaseTableUsedInBatchStatement.inc();
+                }
+            }
+
             if (timestampSet && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
 
