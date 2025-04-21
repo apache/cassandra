@@ -21,6 +21,7 @@ package org.apache.cassandra.service.reads.tracked;
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -29,6 +30,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
@@ -416,7 +418,9 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         void start()
         {
-            // TODO: update metrics
+            ReadRepairMetrics.trackedReconcile.mark();
+            ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
+
             Map<InetAddressAndPort, List<ReadReconcileSend.PeerSync>> peerSync = new HashMap<>();
             pendingSync.values().forEach(pending -> {
                 peerSync.computeIfAbsent(pending.from, node -> new ArrayList<>()).add(pending.toPeerSync());
