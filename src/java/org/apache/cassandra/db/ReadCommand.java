@@ -231,12 +231,17 @@ public abstract class ReadCommand extends AbstractReadQuery
             this.startTimeNano = startTimeNano;
         }
 
-        abstract TableMetadata metadata();
+        protected abstract ReadCommand command();
         abstract void freezeInitialData();
         abstract UnfilteredPartitionIterator initialData();
         abstract UnfilteredPartitionIterator augmentedData();
         abstract void augmentResponse(PartitionUpdate update);
-        abstract UnfilteredRowIterator queryMutation(Mutation mutation);
+
+        @Override
+        public long nowInSec()
+        {
+            return command().nowInSec();
+        }
 
         /**
          * Implementors need to call this before returning this from createInProgressRead
@@ -252,7 +257,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         public void augment(Mutation mutation)
         {
             Preconditions.checkState(state == State.PREPARED);
-            PartitionUpdate update = mutation.getPartitionUpdate(metadata());
+            PartitionUpdate update = mutation.getPartitionUpdate(command().metadata());
             if (update != null)
                 augmentResponse(update);
         }
@@ -270,7 +275,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             List<UnfilteredPartitionIterator> partitions = new ArrayList<>(2);
             partitions.add(initial);
             partitions.add(augmented);
-            UnfilteredPartitionIterator result = UnfilteredPartitionIterators.merge(partitions, NOOP);
+            UnfilteredPartitionIterator result = command().completeRead(UnfilteredPartitionIterators.merge(partitions, NOOP),
+                                                                        executionController, searcher, cfs, startTimeNano);
             state = State.FINISHED;
             return result;
         }

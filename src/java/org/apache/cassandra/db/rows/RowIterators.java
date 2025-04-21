@@ -20,10 +20,8 @@ package org.apache.cassandra.db.rows;
 import com.google.common.base.Preconditions;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SearchIterator;
@@ -118,15 +116,12 @@ public abstract class RowIterators
     private static class RowSerializer
     {
         /*
-         * Unfiltered flags constants.
+         * Row flags constants.
          */
         private final static int END_OF_PARTITION     = 0x01; // Signal the end of the partition. Nothing follows a <flags> field with that flag.
-        private final static int HAS_ALL_COLUMNS      = 0x20; // Whether the encoded row has all of the columns from the header present.
-        private final static int IS_STATIC            = 0x40; // Whether the encoded row is a static. If there is no extended flag, the row is assumed not static.
+        private final static int HAS_ALL_COLUMNS      = 0x02; // Whether the encoded row has all of the columns from the header present.
+        private final static int IS_STATIC            = 0x04; // Whether the encoded row is a static. If there is no extended flag, the row is assumed not static.
 
-        /*
-         * Extended flags
-         */
 
         public static void writeEndOfPartition(DataOutputPlus out) throws IOException
         {
@@ -170,6 +165,7 @@ public abstract class RowIterators
             boolean isStatic = row.isStatic();
 
             SerializationHeader header = helper.header;
+            Preconditions.checkState(!header.isForSSTable());
             Columns headerColumns = header.columns(isStatic);
 
             if ((flags & HAS_ALL_COLUMNS) == 0)
@@ -193,7 +189,7 @@ public abstract class RowIterators
                         if (cd.column.isSimple())
                             Cell.serializer.serialize((Cell<?>) cd, column, out, LivenessInfo.EMPTY, header);
                         else
-                            writeComplexColumn((ComplexColumnData) cd, column, LivenessInfo.EMPTY, header, out);
+                            UnfilteredSerializer.writeComplexColumn((ComplexColumnData) cd, column, false, LivenessInfo.EMPTY, header, out);
                     }
                     catch (IOException e)
                     {
@@ -208,14 +204,6 @@ public abstract class RowIterators
 
                 throw e;
             }
-        }
-
-        private static void writeComplexColumn(ComplexColumnData data, ColumnMetadata column, LivenessInfo rowLiveness, SerializationHeader header, DataOutputPlus out)
-                throws IOException
-        {
-            out.writeUnsignedVInt32(data.cellsCount());
-            for (Cell<?> cell : data)
-                Cell.serializer.serialize(cell, column, out, rowLiveness, header);
         }
 
         public static Row deserializeStaticRow(DataInputPlus in, SerializationHeader header, DeserializationHelper helper)
@@ -251,12 +239,7 @@ public abstract class RowIterators
                 boolean hasAllColumns = (flags & HAS_ALL_COLUMNS) != 0;
                 Columns headerColumns = header.columns(isStatic);
 
-                if (header.isForSSTable())
-                {
-                    long rowSize = in.readUnsignedVInt();
-                    in.readUnsignedVInt(); // previous unfiltered size
-                    in = new TrackedDataInputPlus(in, rowSize);
-                }
+                Preconditions.checkState(!header.isForSSTable());
 
                 Columns columns = hasAllColumns ? headerColumns : Columns.serializer.deserializeSubset(headerColumns, in);
 
@@ -267,9 +250,9 @@ public abstract class RowIterators
                         try
                         {
                             if (column.isSimple())
-                                readSimpleColumn(column, finalIn, header, helper, builder);
+                                UnfilteredSerializer.readSimpleColumn(column, finalIn, header, helper, builder, LivenessInfo.EMPTY);
                             else
-                                readComplexColumn(column, finalIn, header, helper, builder);
+                                UnfilteredSerializer.readComplexColumn(column, finalIn, header, helper, false, builder, LivenessInfo.EMPTY);
                         }
                         catch (IOException e)
                         {
@@ -295,52 +278,6 @@ public abstract class RowIterators
                 // exception, it just make we catch it properly and mark the sstable as corrupted.
                 throw new IOException("Error building row with data deserialized from " + in, e);
             }
-        }
-
-        private static void readSimpleColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, Row.Builder builder)
-                throws IOException
-        {
-            if (helper.includes(column))
-            {
-                Cell<byte[]> cell = Cell.serializer.deserialize(in, LivenessInfo.EMPTY, column, header, helper, ByteArrayAccessor.instance);
-                if (helper.includes(cell, LivenessInfo.EMPTY) && !helper.isDropped(cell, false))
-                    builder.addCell(cell);
-            }
-            else
-            {
-                Cell.serializer.skip(in, column, header);
-            }
-        }
-
-        private static void readComplexColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, Row.Builder builder)
-                throws IOException
-        {
-            if (helper.includes(column))
-            {
-                helper.startOfComplexColumn(column);
-
-                int count = in.readUnsignedVInt32();
-                while (--count >= 0)
-                {
-                    Cell<byte[]> cell = Cell.serializer.deserialize(in, LivenessInfo.EMPTY, column, header, helper, ByteArrayAccessor.instance);
-                    if (helper.includes(cell, LivenessInfo.EMPTY) && !helper.isDropped(cell, true))
-                        builder.addCell(cell);
-                }
-
-                helper.endOfComplexColumn();
-            }
-            else
-            {
-                skipComplexColumn(in, column, header);
-            }
-        }
-
-        private static void skipComplexColumn(DataInputPlus in, ColumnMetadata column, SerializationHeader header)
-                throws IOException
-        {
-            int count = in.readUnsignedVInt32();
-            while (--count >= 0)
-                Cell.serializer.skip(in, column, header);
         }
 
         public static boolean isEndOfPartition(int flags)

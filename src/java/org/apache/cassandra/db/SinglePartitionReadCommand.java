@@ -110,22 +110,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         @Override
-        TableMetadata metadata()
-        {
-            return command.metadata();
-        }
-
-        @Override
-        public long nowInSec()
-        {
-            return command.nowInSec();
-        }
-
-        @Override
         void freezeInitialData()
         {
             // the iterators from queryStorage grabs sstable references and a
             // snapshot of the memtable partition so we don't need to do anything here
+        }
+
+        @Override
+        protected ReadCommand command()
+        {
+            return command;
         }
 
         @Override
@@ -139,7 +133,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             if (augmentedData == null)
                 return null;
-            return new SingletonUnfilteredPartitionIterator(augmentedData.unfilteredIterator());
+            Slices slices = command.clusteringIndexFilter().getSlices(command.metadata());
+            UnfilteredRowIterator augmented = augmentedData.unfilteredIterator(command.columnFilter(), slices, command.clusteringIndexFilter().isReversed());
+            return new SingletonUnfilteredPartitionIterator(augmented);
         }
 
         @Override
@@ -150,12 +146,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 augmentedData = new SimpleBTreePartition(command.partitionKey(), command.metadata(), UpdateTransaction.NO_OP);
 
             augmentedData.update(update);
-        }
-
-        @Override
-        UnfilteredRowIterator queryMutation(Mutation mutation)
-        {
-            return null;
         }
     }
 
