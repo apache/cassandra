@@ -33,6 +33,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.service.StorageProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -822,7 +823,13 @@ public class Paxos
                         //   1) reached a majority, in which case it was agreed, had no effect and we can do nothing; or
                         //   2) did not reach a majority, was not agreed, and was not user visible as a result so we can ignore it
                         if (!proposal.update.isEmpty())
+                        {
+                            if (metadata.strictMVEnabled())
+                            {
+                                StorageProxy.applyMVMutationsBasedOnBaseTableMutation(proposal.update, current, consistencyForCommit, requestTime);
+                            }
                             commit = commit(proposal.agreed(), participants, consistencyForConsensus, consistencyForCommit, true);
+                        }
 
                         break done;
                     }
@@ -1095,6 +1102,10 @@ public class Paxos
                             throw proposeResult.maybeFailure().markAndThrowAsTimeoutOrFailure(isWrite, consistencyForConsensus, failedAttemptsDueToContention);
 
                         case SUCCESS:
+                            if (query.metadata().strictMVEnabled() && !repropose.update.isEmpty())
+                            {
+                                getCurrentAndApplyMVMutations(query, repropose.update, inProgress, consistencyForConsensus, requestTime);
+                            }
                             retry = commitAndPrepare(repropose.agreed(), inProgress.participants, query, isWrite, acceptEarlyReadPermission);
                             break retry;
 
@@ -1166,6 +1177,29 @@ public class Paxos
 
             preparing = retry;
         }
+    }
+
+    public static void getCurrentAndApplyMVMutations(SinglePartitionReadCommand query,
+                                                      PartitionUpdate update,
+                                                      PaxosPrepare.FoundIncompleteAccepted inProgress,
+                                                      ConsistencyLevel consistencyForConsensus,
+                                                      Dispatcher.RequestTime requestTime)
+    {
+        // process to get current value of base table
+        Supplier<Participants> plan = () -> inProgress.participants;
+        DataResolver<?, ?> resolver = new DataResolver(ReadCoordinator.DEFAULT, query, plan, NoopReadRepair.instance, requestTime);
+        for (int i = 0 ; i < inProgress.responses.size() ; ++i)
+            resolver.preprocess(inProgress.responses.get(i));
+        PartitionIterator result = resolver.resolve();
+        FilteredPartition current;
+        try (RowIterator iter = PartitionIterators.getOnlyElement(result, query))
+        {
+            current = FilteredPartition.create(iter);
+        }
+        final ConsistencyLevel consistencyLevelForMVMutation = consistencyForConsensus == ConsistencyLevel.LOCAL_SERIAL
+                ? ConsistencyLevel.LOCAL_QUORUM
+                : ConsistencyLevel.QUORUM;
+        StorageProxy.applyMVMutationsBasedOnBaseTableMutation(update, current, consistencyLevelForMVMutation, requestTime);
     }
 
     public static boolean isInRangeAndShouldProcess(InetAddressAndPort from, DecoratedKey key, TableMetadata table, boolean includesRead)

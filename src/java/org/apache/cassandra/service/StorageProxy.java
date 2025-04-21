@@ -50,6 +50,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.view.TableViews;
+import org.apache.cassandra.db.view.View;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1091,6 +1094,20 @@ public class StorageProxy implements StorageProxyMBean
 
         return ReplicaLayout.forTokenWriteLiveAndDown(metadata, Keyspace.open(keyspaceName), token)
                 .all().endpoints().contains(local);
+    }
+
+    public static void applyMVMutationsBasedOnBaseTableMutation(PartitionUpdate upd, FilteredPartition exisitings, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime){
+        List<Mutation> MVmutations = generateMVMutations(upd, exisitings.unfilteredIterator());
+        if (MVmutations.isEmpty())
+            return;
+        StorageProxy.mutateWithTriggers(MVmutations, consistencyLevel, false, requestTime, PreserveTimestamp.no);
+    }
+
+    private static List<Mutation> generateMVMutations(PartitionUpdate upd, UnfilteredRowIterator exisitings){
+        // genenerate mv mutations
+        TableViews tableViews = Keyspace.open(upd.metadata().keyspace).viewManager.forTable(upd.metadata());
+        Collection<View> viewsToUpdate = tableViews.updatedViews(upd, ClusterMetadata.currentNullable());
+        return (List<Mutation>) Iterators.getOnlyElement(tableViews.generateViewUpdates(viewsToUpdate, upd.unfilteredIterator(), exisitings, FBUtilities.nowInSeconds(), false));
     }
 
     /**

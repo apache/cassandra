@@ -24,6 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
@@ -960,5 +961,53 @@ public class AlterTest extends CQLTester
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
 
         assertInvalidThrow(InvalidRequestException.class, "ALTER KEYSPACE ks1 WITH replication= { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+    }
+
+    @Test
+    public void testAlterTableWithStrictMVConsistency() throws Throwable
+    {
+        // setup config, enable MV creation and enable metric collection
+        DatabaseDescriptor.setMaterializedViewsEnabled(true);
+        DatabaseDescriptor.setMaterializedViewsBasetableMetricCollectionEnabled(true);
+        requireNetwork();
+
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b)); ");
+        assertAlterTableThrowsException(InvalidRequestException.class,
+                                        "Not qualified for strict mv consistency because node level setting materialized_view_strict_consistency_enabled is disabled.",
+                                        "ALTER TABLE %s WITH strict_mv_consistency = true");
+        DatabaseDescriptor.setMaterializedViewStrictConsistencyEnabled(true);
+        assertAlterTableThrowsException(InvalidRequestException.class,
+                                        "Not qualified for strict mv consistency because maximum number of MVs per table is not set.",
+                                        "ALTER TABLE %s WITH strict_mv_consistency = true");
+        // set max number of MVs per table to 2
+        Guardrails.instance.setMaterializedViewsPerTableThreshold(-1, 2);
+        // alter table to enable strict mv consistency worked
+        alterTable("ALTER TABLE %s WITH strict_mv_consistency = true");
+        // alter table to disable strict mv consistency worked
+        alterTable("ALTER TABLE %s WITH strict_mv_consistency = false");
+
+        String mv1 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                                "WHERE a IS NOT NULL AND b IS NOT NULL and c IS NOT NULL PRIMARY KEY (c, a, b)");
+        String mv2 = createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
+                                "WHERE a IS NOT NULL AND b IS NOT NULL and d IS NOT NULL PRIMARY KEY (d, a, b)");
+
+        // set max number of MVs per table to 1 and we have 2 MVs now, enable strict mv consistency should fail
+        Guardrails.instance.setMaterializedViewsPerTableThreshold(-1, 1);
+        assertAlterTableThrowsException(InvalidRequestException.class,
+                                        "Not qualified for strict mv consistency because base table has 2 MVs which is more than limit: 1",
+                                        "ALTER TABLE %s WITH strict_mv_consistency = true");
+
+        // set threshold to 2
+        Guardrails.instance.setMaterializedViewsPerTableThreshold(-1, 2);
+        alterTable("ALTER TABLE %s WITH strict_mv_consistency = true");
+        alterTable("ALTER TABLE %s WITH strict_mv_consistency = false");
+
+        // send non-LWT compatible queries
+        execute("DELETE from %s WHERE a = 3");
+        assertAlterTableThrowsException(InvalidRequestException.class,
+                                        "Not qualified for strict mv consistency because base table has non-LWT compatible queries, modification with ts: 0, batch statement: 0, delete without full primary key: 1, IN restrictions used: 0",
+                                        "ALTER TABLE %s WITH strict_mv_consistency = true");
+
+
     }
 }

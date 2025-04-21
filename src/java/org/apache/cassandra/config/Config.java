@@ -653,6 +653,14 @@ public class Config
     // When false, it behaves the same as normal streaming.
     public volatile boolean materialized_views_on_repair_enabled = true;
 
+    public boolean materialized_view_base_table_metric_collection_enabled = false;
+
+    // node level setting, both materialized_view_strict_consistency_enabled and table level option
+    // strict_mv_consistency need to be enabled to enable the feature.
+    public boolean materialized_view_strict_consistency_enabled = false;
+
+    public boolean materialized_view_strict_consistency_enforced = false;
+
     @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)
     public boolean transient_replication_enabled = false;
 

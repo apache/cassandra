@@ -171,6 +171,14 @@ public class TableMetrics
     public final TableTimer viewLockAcquireTime;
     /** time taken during the local read of a materialized view update */
     public final TableTimer viewReadTime;
+    /** Number of delete statements without specifying all primary key columns for MV base table */
+    public final Counter viewBaseTableDeleteStatementWithoutFullPrimaryKey;
+    /** Number of batch statements used for MV base table */
+    public final Counter viewBaseTableUsedInBatchStatement;
+    /** Number of modification statements with timestamp used for MV base table */
+    public final Counter viewBaseTableModificationWithTimestamp;
+    /** Number of modification statements has IN restrictions in primary key used for MV base table */
+    public final Counter viewBaseTableInRestirctionsUsed;
     /** Disk space used by snapshot files which */
     public final Gauge<Long> trueSnapshotsSize;
     /** Row cache hits, but result out of range */
@@ -825,6 +833,12 @@ public class TableMetrics
             viewLockAcquireTime = createTableTimer("ViewLockAcquireTime", cfs.keyspace.metric.viewLockAcquireTime);
             viewReadTime = createTableTimer("ViewReadTime", cfs.keyspace.metric.viewReadTime);
         }
+
+        // MV base table metrics used by determine if a base table is qualified to convert to strict_mv_consistency mode
+        viewBaseTableDeleteStatementWithoutFullPrimaryKey = createTableCounter("ViewBaseTableDeleteStatementWithoutFullPrimaryKey");
+        viewBaseTableUsedInBatchStatement = createTableCounter("ViewBaseTableUsedInBatchStatement");
+        viewBaseTableModificationWithTimestamp = createTableCounter("ViewBaseTableModificationWithTimestamp");
+        viewBaseTableInRestirctionsUsed = createTableCounter("ViewBaseTableInRestirctionsUsed");
 
         trueSnapshotsSize = createTableGauge("SnapshotsSize", cfs::trueSnapshotsSize);
         rowCacheHitOutOfRange = createTableCounter("RowCacheHitOutOfRange");

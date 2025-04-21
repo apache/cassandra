@@ -52,9 +52,11 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slice;
@@ -233,6 +235,20 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
 
         for (ModificationStatement statement : statements)
         {
+            if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
+            {
+                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(statement.metadata());
+                if (cfs != null && cfs.viewManager.hasViews())
+                {
+                    cfs.metric.viewBaseTableUsedInBatchStatement.inc();
+                }
+            }
+
+            if (statement.metadata().strictMVEnabled())
+            {
+                throw new InvalidRequestException("Cannot use batch statement for strict MV enabled table: " + statement.table());
+            }
+
             if (timestampSet && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements: " + statement.source);
 

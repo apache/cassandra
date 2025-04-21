@@ -24,6 +24,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.Operations;
@@ -36,6 +37,8 @@ import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.conditions.Conditions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -190,6 +193,21 @@ public class DeleteStatement extends ModificationStatement
                                                        attrs,
                                                        source);
 
+            if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
+            {
+                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
+                if (cfs != null && cfs.viewManager.hasViews() && !restrictions.hasAllPrimaryKeyColumnsRestrictedByEqualities())
+                {
+                    cfs.metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.inc();
+                }
+            }
+
+            if (stmt.metadata().strictMVEnabled())
+            {
+                checkTrue(restrictions.hasAllPrimaryKeyColumnsRestrictedByEqualities(),
+                        "DELETE statements must restrict all PRIMARY KEY columns with equality relations for Strict MV consistency enabled table.");
+            }
+            
             if (stmt.hasConditions() && !restrictions.hasAllPrimaryKeyColumnsRestrictedByEqualities())
             {
                 checkFalse(stmt.isVirtual(), "DELETE statements must restrict all PRIMARY KEY columns with equality relations");

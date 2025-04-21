@@ -131,7 +131,7 @@ public class PaxosRepair2Test extends TestBaseImpl
         return uncommitted;
     }
 
-    private static void assertUncommitted(IInvokableInstance instance, String ks, String table, int expected)
+    public static void assertUncommitted(IInvokableInstance instance, String ks, String table, int expected)
     {
         Assert.assertEquals(expected, getUncommitted(instance, ks, table));
     }

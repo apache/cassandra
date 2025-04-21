@@ -200,6 +200,9 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(Option.AUTO_REPAIR))
             builder.automatedRepair(AutoRepairParams.fromMap(getMap(Option.AUTO_REPAIR)));
 
+        if (hasOption(Option.STRICT_MV_CONSISTENCY))
+            builder.strictMVConsistency(getBoolean(Option.STRICT_MV_CONSISTENCY.toString(), false));
+
         return builder.build();
     }
 

@@ -36,11 +36,14 @@ import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.paxos.Paxos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -69,6 +72,7 @@ import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
@@ -396,6 +400,26 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public void validate(ClientState state) throws InvalidRequestException
     {
+        if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
+        {
+            ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
+            if (cfs != null && cfs.viewManager.hasViews())
+            {
+                if (attrs.isTimestampSet())
+                    cfs.metric.viewBaseTableModificationWithTimestamp.inc();
+
+                if (restrictions.clusteringKeyRestrictionsHasIN() || restrictions.keyIsInRelation())
+                    cfs.metric.viewBaseTableInRestirctionsUsed.inc();
+            }
+        }
+
+        if (metadata().strictMVEnabled())
+        {
+            checkFalse(attrs.isTimestampSet(), "Cannot provide custom timestamp for strict MV consistency enabled table");
+            checkFalse(restrictions.clusteringKeyRestrictionsHasIN() || restrictions.keyIsInRelation(),
+                       "Cannot use IN restritions in statement for strict MV consistency enabled table");
+        }
+
         checkFalse(hasConditions() && attrs.isTimestampSet(), "Cannot provide custom timestamp for conditional updates");
         checkFalse(isCounter() && attrs.isTimestampSet(), "Cannot provide custom timestamp for counter updates");
         checkFalse(isCounter() && attrs.isTimeToLiveSet(), "Cannot provide custom TTL for counter updates");
@@ -624,6 +648,11 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
                                                     queryState.getClientState());
 
+        if (metadata.strictMVEnabled())
+        {
+            return executeWithStrictMVConsistency(queryState, options, requestTime);
+        }
+
         return hasConditions()
              ? executeWithCondition(queryState, options, requestTime)
              : executeWithoutCondition(queryState, options, requestTime);
@@ -678,6 +707,28 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    requestTime))
         {
             return new ResultMessage.Rows(buildCasResultSet(result, queryState, options));
+        }
+    }
+
+    private ResultMessage executeWithStrictMVConsistency(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
+    {
+        // Strict MV consistency currently requires Paxos V2. Once additional transaction modes for strict MV are supported, we can relax this restriction.
+        assert metadata().params.transactionalMode == TransactionalMode.off && Paxos.useV2();
+        CQL3CasRequest request = makeCasRequest(queryState, options, requestTime);
+
+        try (RowIterator result = StorageProxy.cas(keyspace(),
+                table(),
+                request.key,
+                request,
+                options.getSerialConsistency(),
+                options.getConsistency(),
+                queryState.getClientState(),
+                options.getNowInSeconds(queryState),
+                requestTime))
+        {
+            if (hasConditions())
+                return new ResultMessage.Rows(buildCasResultSet(result, queryState, options));
+            return null;
         }
     }
 
