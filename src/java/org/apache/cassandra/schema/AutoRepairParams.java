@@ -97,10 +97,8 @@ public final class AutoRepairParams
 
     public int priority()
     {
-        String priority = options.get(Option.PRIORITY.toString());
-        return priority == null
-               ? Integer.parseInt(DEFAULT_OPTIONS.get(Option.PRIORITY.toString()))
-               : Integer.parseInt(priority);
+        String priority = options.getOrDefault(Option.PRIORITY.toString(), DEFAULT_OPTIONS.get(Option.PRIORITY.toString()));
+        return Integer.parseInt(priority);
     }
 
     public void validate()
