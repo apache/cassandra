@@ -2159,7 +2159,7 @@ public class StorageProxy implements StorageProxyMBean
             reads[i] = TrackedRead.create(metadata, commands.get(i), consistencyLevel, requestTime);
 
         for (TrackedRead read : reads)
-            read.start();
+            read.start(requestTime);
 
         try
         {

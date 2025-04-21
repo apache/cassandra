@@ -21,6 +21,9 @@ package org.apache.cassandra.service.reads.tracked;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -39,6 +42,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -94,23 +98,13 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         return new TrackedRead(metadata, command, replicaPlan, consistencyLevel, requestTime);
     }
 
-    public boolean hasLocalRead()
-    {
-        return replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null;
-    }
-
-    @Override
-    public void onResponse(Message<TrackedDataResponse> msg)
-    {
-        trySuccess(msg.payload.makeIterator(command));
-    }
-
-    public void start()
+    public void start(Dispatcher.RequestTime requestTime)
     {
         // TODO: do the coordination locally if this is a replica
         // TODO: skip local coordination if this node knows its recovering from an outage
         // TODO: read speculation
-        if (hasLocalRead())
+        Replica localReplica = replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort());
+        if (localReplica != null)
             readMetrics.localRequests.mark();
         else
             readMetrics.remoteRequests.mark();
@@ -119,12 +113,34 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         // select data node
         // select summary nodes
         EndpointsForToken selected = replicaPlan.contacts();
-        Replica dataNode = Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
+        Replica dataNode = localReplica != null && localReplica.isFull()
+                           ? localReplica
+                           : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
         EndpointsForToken summaryNodes = selected.filter(r -> !r.equals(dataNode));
 
         long readId = nextReadId();
-        DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryNodes.endpoints());
-        MessagingService.instance().sendWithCallback(Message.out(Verb.TRACKED_READ_REQ, dataRequest), dataNode.endpoint(), this);
+
+        if (dataNode == localReplica)
+        {
+            Stage.READ.submit(() -> {
+                long expiresAt = requestTime.computeDeadline(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.NANOSECONDS));
+                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, metadata, command, consistencyLevel, summaryNodes.endpoints(), expiresAt);
+                coordinator.addCallback(((response, error) -> {
+                    if (error != null)
+                    {
+                        // TODO: notify coordinator that read has failed
+                        logger.error("Error while processing read", error);
+                        return;
+                    }
+                    onResponse(response);
+                }));
+            });
+        }
+        else
+        {
+            DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryNodes.endpoints());
+            MessagingService.instance().sendWithCallback(Message.out(Verb.TRACKED_READ_REQ, dataRequest), dataNode.endpoint(), this);
+        }
 
         if (summaryNodes.isEmpty())
             return;
@@ -133,6 +149,17 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         Message<SummaryRequest> summaryMessage = Message.out(Verb.TRACKED_READ_REQ, summaryRequest);
         for (InetAddressAndPort endpoint : summaryNodes.endpoints())
             MessagingService.instance().send(summaryMessage, endpoint);
+    }
+
+    private void onResponse(TrackedDataResponse response)
+    {
+        trySuccess(response.makeIterator(command));
+    }
+
+    @Override
+    public void onResponse(Message<TrackedDataResponse> msg)
+    {
+        onResponse(msg.payload);
     }
 
     public abstract static class Request
