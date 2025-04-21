@@ -179,11 +179,11 @@ Retrieving the current date and time:
 |===
 |Function name |Output type
 
-| `current_timestamp` | `timestamp`
-
 | `current_date` | `date`
 
 | `current_time` | `time`
+
+| `current_timestamp` | `timestamp`
 
 | `current_timeuuid` | `timeUUID`
 |===
@@ -217,6 +217,13 @@ A number of functions are provided to convert a `timeuuid`, a `timestamp` or a `
 
 | `to_unix_timestamp` | `date` | Converts the `date` argument into a `bigInt` raw value
 |===
+
+For example, a timestamp can be converted to a date with the following:
+
+[source,cql]
+----
+include::cassandra:example$CQL/to_date.cql[]
+----
 
 ==== Blob conversion functions
 
