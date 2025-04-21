@@ -23,9 +23,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.partitions.AbstractPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -39,10 +40,11 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.CollectionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -51,22 +53,18 @@ import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 
-public class TrackedRead extends AsyncPromise<PartitionIterator> implements RequestCallback<TrackedDataResponse>
+public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends AsyncPromise<PartitionIterator> implements RequestCallback<TrackedDataResponse>
 {
     private static final Logger logger = LoggerFactory.getLogger(TrackedRead.class);
     // TODO: use something durable
     private static final AtomicInteger nextReadId = new AtomicInteger();
 
-    private final ClusterMetadata metadata;
-    private final SinglePartitionReadCommand command;
-    private final ReplicaPlan.ForTokenRead replicaPlan;
+    private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
     private final ConsistencyLevel consistencyLevel;
     private final Dispatcher.RequestTime requestTime;
 
-    public TrackedRead(ClusterMetadata metadata, SinglePartitionReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public TrackedRead(ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
-        this.metadata = metadata;
-        this.command = command;
         this.replicaPlan = replicaPlan;
         this.consistencyLevel = consistencyLevel;
         this.requestTime = requestTime;
@@ -78,10 +76,13 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         return ((long) ClusterMetadata.current().myNodeId().id() << 32) | nextReadId.getAndIncrement();
     }
 
-    public static TrackedRead create(ClusterMetadata metadata,
-                                     SinglePartitionReadCommand command,
-                                     ConsistencyLevel consistencyLevel,
-                                     Dispatcher.RequestTime requestTime)
+    protected abstract ReadCommand command();
+    protected abstract Verb verb();
+
+    public static Partition create(ClusterMetadata metadata,
+                                   SinglePartitionReadCommand command,
+                                   ConsistencyLevel consistencyLevel,
+                                   Dispatcher.RequestTime requestTime)
     {
         Preconditions.checkArgument(command.metadata().replicationType().isTracked());
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
@@ -95,7 +96,63 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
                                                                     consistencyLevel,
                                                                     retry);
 
-        return new TrackedRead(metadata, command, replicaPlan, consistencyLevel, requestTime);
+        return new Partition(command, replicaPlan, consistencyLevel, requestTime);
+    }
+
+    public static TrackedRead.Range create(PartitionRangeReadCommand command,
+                                           ReplicaPlan.ForRangeRead replicaPlan,
+                                           Dispatcher.RequestTime requestTime)
+    {
+        Preconditions.checkArgument(command.metadata().replicationType().isTracked());
+        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
+
+        return new Range(command, replicaPlan, replicaPlan.consistencyLevel(), requestTime);
+    }
+
+    public static class Partition extends TrackedRead<EndpointsForToken, ReplicaPlan.ForTokenRead>
+    {
+        private final SinglePartitionReadCommand command;
+        public Partition(SinglePartitionReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+        {
+            super(replicaPlan, consistencyLevel, requestTime);
+            this.command = command;
+        }
+
+        @Override
+        protected ReadCommand command()
+        {
+            return command;
+        }
+
+        @Override
+        protected Verb verb()
+        {
+            return Verb.TRACKED_READ_REQ;
+        }
+    }
+
+    public static class Range extends TrackedRead<EndpointsForRange, ReplicaPlan.ForRangeRead>
+    {
+        private final PartitionRangeReadCommand command;
+
+        public Range(PartitionRangeReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForRange, ReplicaPlan.ForRangeRead> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+        {
+            super(replicaPlan, consistencyLevel, requestTime);
+            this.command = command;
+        }
+
+        @Override
+        protected ReadCommand command()
+        {
+            return command;
+        }
+
+        @Override
+        protected Verb verb()
+        {
+            return Verb.TRACKED_RANGE_READ_REQ;
+        }
     }
 
     public void start(Dispatcher.RequestTime requestTime)
@@ -112,19 +169,19 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         // create an id
         // select data node
         // select summary nodes
-        EndpointsForToken selected = replicaPlan.contacts();
+        E selected = replicaPlan.contacts();
         Replica dataNode = localReplica != null && localReplica.isFull()
                            ? localReplica
                            : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
-        EndpointsForToken summaryNodes = selected.filter(r -> !r.equals(dataNode));
+        E summaryNodes = selected.filter(r -> !r.equals(dataNode));
 
         long readId = nextReadId();
 
         if (dataNode == localReplica)
         {
             Stage.READ.submit(() -> {
-                long expiresAt = requestTime.computeDeadline(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.NANOSECONDS));
-                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, metadata, command, consistencyLevel, summaryNodes.endpoints(), expiresAt);
+                long expiresAt = requestTime.computeDeadline(verb().expiresAfterNanos());
+                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command(), consistencyLevel, summaryNodes.endpoints(), expiresAt);
                 coordinator.addCallback(((response, error) -> {
                     if (error != null)
                     {
@@ -138,28 +195,61 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         }
         else
         {
-            DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryNodes.endpoints());
-            MessagingService.instance().sendWithCallback(Message.out(Verb.TRACKED_READ_REQ, dataRequest), dataNode.endpoint(), this);
+            DataRequest dataRequest = new DataRequest(readId, command(), consistencyLevel, summaryNodes.endpoints());
+            MessagingService.instance().sendWithCallback(Message.out(verb(), dataRequest), dataNode.endpoint(), this);
         }
 
         if (summaryNodes.isEmpty())
             return;
 
-        SummaryRequest summaryRequest = new SummaryRequest(readId, command, dataNode.endpoint());
-        Message<SummaryRequest> summaryMessage = Message.out(Verb.TRACKED_READ_REQ, summaryRequest);
+        SummaryRequest summaryRequest = new SummaryRequest(readId, command(), dataNode.endpoint());
+        Message<SummaryRequest> summaryMessage = Message.out(verb(), summaryRequest);
         for (InetAddressAndPort endpoint : summaryNodes.endpoints())
             MessagingService.instance().send(summaryMessage, endpoint);
     }
 
     private void onResponse(TrackedDataResponse response)
     {
-        trySuccess(response.makeIterator(command));
+        trySuccess(response.makeIterator(command()));
     }
 
     @Override
     public void onResponse(Message<TrackedDataResponse> msg)
     {
         onResponse(msg.payload);
+    }
+
+    public PartitionIterator iterator()
+    {
+        return new AbstractPartitionIterator()
+        {
+            PartitionIterator result = null;
+
+            @Override
+            protected RowIterator computeNext()
+            {
+                if (result == null)
+                {
+                    try
+                    {
+                        result = get();
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new UncheckedInterruptedException(e);
+                    }
+                    catch (ExecutionException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                if (!result.hasNext())
+                    return endOfData();
+
+                return result.next();
+            }
+        };
     }
 
     public abstract static class Request
@@ -210,9 +300,9 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         }
 
         private final long readId;
-        private final SinglePartitionReadCommand command;
+        private final ReadCommand command;
 
-        public Request(long readId, SinglePartitionReadCommand command)
+        public Request(long readId, ReadCommand command)
         {
             this.readId = readId;
             this.command = command;
@@ -223,7 +313,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
             return readId;
         }
 
-        public SinglePartitionReadCommand command()
+        public ReadCommand command()
         {
             return command;
         }
@@ -287,7 +377,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
         private final ConsistencyLevel consistencyLevel;
         private final Set<InetAddressAndPort> summaryNodes;
 
-        public DataRequest(long readId, SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes)
+        public DataRequest(long readId, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes)
         {
             super(readId, command);
             this.consistencyLevel = consistencyLevel;
@@ -322,7 +412,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
             public void serialize(DataRequest request, DataOutputPlus out, int version) throws IOException
             {
                 out.writeLong(request.readId());
-                SinglePartitionReadCommand.serializer.serialize(request.command(), out, version);
+                ReadCommand.serializer.serialize(request.command(), out, version);
                 out.writeInt(request.consistencyLevel.code);
                 CollectionSerializer.serializeCollection(inetAddressAndPortSerializer, request.summaryNodes, out, version);
             }
@@ -331,7 +421,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
             public DataRequest deserialize(DataInputPlus in, int version) throws IOException
             {
                 return new DataRequest(in.readLong(),
-                                       (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version),
+                                       ReadCommand.serializer.deserialize(in, version),
                                        ConsistencyLevel.fromCode(in.readInt()),
                                        CollectionSerializer.deserializeCollection(inetAddressAndPortSerializer, Sets::newHashSetWithExpectedSize, in, version));
             }
@@ -340,7 +430,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
             public long serializedSize(DataRequest request, int version)
             {
                 return TypeSizes.LONG_SIZE +
-                        SinglePartitionReadCommand.serializer.serializedSize(request.command(), version) +
+                        ReadCommand.serializer.serializedSize(request.command(), version) +
                         TypeSizes.INT_SIZE +
                         CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, request.summaryNodes, version);
             }
@@ -351,7 +441,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
     {
         private final InetAddressAndPort respondTo;
 
-        public SummaryRequest(long readId, SinglePartitionReadCommand command, InetAddressAndPort respondTo)
+        public SummaryRequest(long readId, ReadCommand command, InetAddressAndPort respondTo)
         {
             super(readId, command);
             this.respondTo = respondTo;
@@ -379,7 +469,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
             public void serialize(SummaryRequest request, DataOutputPlus out, int version) throws IOException
             {
                 out.writeLong(request.readId());
-                SinglePartitionReadCommand.serializer.serialize(request.command(), out, version);
+                ReadCommand.serializer.serialize(request.command(), out, version);
                 inetAddressAndPortSerializer.serialize(request.respondTo, out, version);
             }
 
@@ -387,7 +477,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
             public SummaryRequest deserialize(DataInputPlus in, int version) throws IOException
             {
                 return new SummaryRequest(in.readLong(),
-                                          (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version),
+                                          ReadCommand.serializer.deserialize(in, version),
                                           inetAddressAndPortSerializer.deserialize(in, version));
             }
 
@@ -395,7 +485,7 @@ public class TrackedRead extends AsyncPromise<PartitionIterator> implements Requ
             public long serializedSize(SummaryRequest request, int version)
             {
                 return TypeSizes.LONG_SIZE +
-                        SinglePartitionReadCommand.serializer.serializedSize(request.command(), version) +
+                        ReadCommand.serializer.serializedSize(request.command(), version) +
                         inetAddressAndPortSerializer.serializedSize(request.respondTo, version);
             }
         };

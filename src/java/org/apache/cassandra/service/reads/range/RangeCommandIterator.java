@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +34,7 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadAbortException;
 import org.apache.cassandra.exceptions.ReadFailureException;
@@ -47,11 +47,10 @@ import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.service.reads.untracked.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.untracked.UntrackedReadRepair;
-import org.apache.cassandra.service.reads.tracked.TrackedReadReconciliation;
-import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -181,9 +180,19 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         return concurrencyFactor;
     }
 
-
-    private SingleRangeResponse queryUntracked(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    /**
+     * Queries the provided sub-range.
+     *
+     * @param replicaPlan the subRange to query.
+     * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
+     * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
+     * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
+     * that it's the query that "continues" whatever we're previously queried).
+     */
+    private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
     {
+        PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
+
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
@@ -211,71 +220,42 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
         }
 
-        return new SingleRangeResponse.Untracked(resolver, handler, readRepair);
+        return new SingleRangeResponse(resolver, handler, readRepair);
     }
 
-    private SingleRangeResponse queryTracked(PartitionRangeReadCommand rangeCommand, ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
+    private PartitionIterator sendNextRequestsTracked()
     {
-        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-        TrackedReadReconciliation<EndpointsForRange, ReplicaPlan.ForRangeRead> reconciliation = TrackedReadReconciliation.create(command, sharedReplicaPlan, requestTime);
-        TrackedResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new TrackedResolver<>(rangeCommand, sharedReplicaPlan, requestTime);
+        List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
 
-        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
-
-        boolean dataRequestSent = false;
-        if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
+        try
         {
-            Stage.READ.execute(new StorageProxy.LocalReadRunnable(rangeCommand, handler, requestTime, false));
-            dataRequestSent = true;
-        }
-        else
-        {
-            for (Replica replica : replicaPlan.contacts())
+            for (int i = 0; i < concurrencyFactor && replicaPlans.hasNext(); )
             {
-                Tracing.trace("Enqueuing request to {}", replica);
-                ReadCommand command;
-                if (replica.isFull())
-                {
-                    command = dataRequestSent ? rangeCommand.copyAsSummaryQuery(replica) : rangeCommand;
-                    dataRequestSent = true;
-                }
-                else
-                {
-                    command = rangeCommand.copyAsTransientQuery(replica);
+                ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
+                PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), i == 0);
 
-                }
-                Message<ReadCommand> message = command.createMessage(false, requestTime);
-                MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
+                TrackedRead.Range read = TrackedRead.create(rangeCommand, replicaPlan, requestTime);
+                read.start(requestTime);
+                concurrentQueries.add(read.iterator());
+
+                // due to RangeMerger, coordinator may fetch more ranges than required by concurrency factor.
+                rangesQueried += replicaPlan.vnodeCount();
+                i += replicaPlan.vnodeCount();
             }
+            batchesRequested++;
         }
-        Preconditions.checkState(dataRequestSent);
-        return new SingleRangeResponse.Tracked(handler, reconciliation, resolver);
+        catch (Throwable t)
+        {
+            for (PartitionIterator response : concurrentQueries)
+                response.close();
+            throw t;
+        }
+        Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
+
+        return PartitionIterators.concat(concurrentQueries);
     }
 
-    /**
-     * Queries the provided sub-range.
-     *
-     * @param replicaPlan the subRange to query.
-     * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
-     * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
-     * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
-     * that it's the query that "continues" whatever we're previously queried).
-     */
-    private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
-    {
-        PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-
-        if (command.responseType().isTracked())
-        {
-            return queryTracked(rangeCommand, replicaPlan, isFirst);
-        }
-        else
-        {
-            return queryUntracked(rangeCommand, replicaPlan, isFirst);
-        }
-    }
-
-    PartitionIterator sendNextRequests()
+    protected PartitionIterator sendNextRequestsUntracked()
     {
         List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
         List<ReadRepair<?, ?>> readRepairs = new ArrayList<>(concurrencyFactor);
@@ -301,13 +281,29 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                 response.close();
             throw t;
         }
-
         Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
+
+        return StorageProxy.concatAndBlockOnRepair(concurrentQueries, readRepairs);
+    }
+
+    PartitionIterator sendNextRequests()
+    {
+        PartitionIterator result;
+        if (command.responseType().isTracked())
+        {
+            result = sendNextRequestsTracked();
+
+        }
+        else
+        {
+            result = sendNextRequestsUntracked();
+        }
+
         // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor)
         // but we don't want to enforce any particular limit at this point (this could break code than rely on
         // postReconciliationProcessing), hence the DataLimits.NONE.
         counter = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
-        return counter.applyTo(StorageProxy.concatAndBlockOnRepair(concurrentQueries, readRepairs));
+        return counter.applyTo(result);
     }
 
     @Override
