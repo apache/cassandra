@@ -93,7 +93,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     private static final Logger logger = LoggerFactory.getLogger(RepairTokenRangeSplitter.class);
 
     // Default max bytes to 100TiB, which is much more readable than Long.MAX_VALUE
-    private static final DataStorageSpec.LongBytesBound MAX_BYTES = new DataStorageSpec.LongBytesBound(100_000, DataStorageSpec.DataStorageUnit.GIBIBYTES);
+    private static final DataStorageSpec.LongBytesBound MAX_BYTES = new DataStorageSpec.LongBytesBound(102_400, DataStorageSpec.DataStorageUnit.GIBIBYTES);
 
     /**
      * The target bytes that should be included in a repair assignment
