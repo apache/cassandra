@@ -82,6 +82,7 @@ public final class SystemDistributedKeyspace
      * gen 4: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
      * gen 5: add ttl and TWCS to repair_history tables
      * gen 6: add denylist table
+     * gen 7: add auto_repair_history and auto_repair_priority tables for AutoRepair feature
      *
      * // TODO: TCM - how do we evolve these tables?
      */

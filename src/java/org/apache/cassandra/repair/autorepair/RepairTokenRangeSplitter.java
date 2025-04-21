@@ -87,6 +87,23 @@ import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
  * shall be sensible for all {@link org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType}'s. The following
  * configuration parameters are offered.
  * </p>
+ *
+ * <p><b>Configuration parameters:</b></p>
+ * <ul>
+ *     <li><b>bytes_per_assignment</b> – Target size (in compressed bytes) for each repair. Throttles incremental repair
+ *     and anticompaction per schedule after incremental repairs are enabled.</li>
+ *
+ *     <li><b>max_bytes_per_schedule</b> – Maximum data (in compressed bytes) to cover in a single schedule. Acts as a
+ *     throttle for the repair cycle workload. Tune this up if writes are outpacing repair, or down if repairs are too
+ *     disruptive. Alternatively, adjust {@code min_repair_interval}.</li>
+ *
+ *     <li><b>partitions_per_assignment</b> – Maximum number of partitions per repair assignment. Limits the number of
+ *     partitions in Merkle tree leaves to prevent overstreaming.</li>
+ *
+ *     <li><b>max_tables_per_assignment</b> – Maximum number of tables to include in a single repair assignment.
+ *     Especially useful for keyspaces with many tables. Prevents excessive batching of tables that exceed other
+ *     parameters like {@code bytes_per_assignment} or {@code partitions_per_assignment}.</li>
+ * </ul>
  */
 public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
 {

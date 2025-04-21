@@ -5924,6 +5924,10 @@ public class DatabaseDescriptor
 
     public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
     {
+        if (value < 0.0 || value > 1.0)
+        {
+            throw new IllegalArgumentException("Value must be >= 0 and <= 1 for incremental_repair_disk_headroom_reject_ratio");
+        }
         conf.incremental_repair_disk_headroom_reject_ratio = value;
     }
 
