@@ -1143,7 +1143,7 @@ delayed because a replica was currently taking its turn. Only revelent if
 `allow_parallel_replica_repair` is false.
 
 |RepairDelayedBySchedule |Counter |Represents occurrences of a node's turn being
-delayed because it was already being repaired in another schedule. Only relevent
+delayed because it was already being repaired in another schedule. Only relevant
 if `allow_parallel_replica_repair_across_schedules` is false.
 
 |===
