@@ -21,14 +21,56 @@ package org.apache.cassandra.service.reads.tracked;
 import java.util.Collection;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.index.Index;
 
 public interface PartialTrackedRead
 {
-    UnfilteredPartitionIterator read();
+    interface Read extends AutoCloseable
+    {
+        UnfilteredPartitionIterator data();
+        int index();
+        TrackedRead<?, ?> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos);
+
+        @Override
+        void close();
+
+        static Read simple(UnfilteredPartitionIterator partition)
+        {
+            return new Read()
+            {
+                @Override
+                public UnfilteredPartitionIterator data()
+                {
+                    return partition;
+                }
+
+                @Override
+                public int index()
+                {
+                    return 0;
+                }
+
+                @Override
+                public TrackedRead<?, ?> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
+                {
+                    return null;
+                }
+
+                @Override
+                public void close()
+                {
+                    partition.close();
+                }
+            };
+        }
+    }
+
+    Read read();
 
     void augment(Mutation mutation);
 
@@ -40,9 +82,14 @@ public interface PartialTrackedRead
     long nowInSec();
 
     ReadExecutionController executionController();
+
     Index.Searcher searcher();
+
     ColumnFamilyStore cfs();
+
     long startTimeNanos();
+
+    ReadCommand command();
 
     void close();
 }

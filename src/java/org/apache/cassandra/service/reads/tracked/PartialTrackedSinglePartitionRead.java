@@ -69,7 +69,7 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
     }
 
     @Override
-    protected ReadCommand command()
+    public ReadCommand command()
     {
         return command;
     }
@@ -98,5 +98,11 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
             augmentedData = new SimpleBTreePartition(command.partitionKey(), command.metadata(), UpdateTransaction.NO_OP);
 
         augmentedData.update(update);
+    }
+
+    @Override
+    Read mergedRead(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented)
+    {
+        return PartialTrackedRead.Read.simple(mergeAndComplete(initial, augmented));
     }
 }

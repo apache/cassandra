@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.base.Preconditions;
@@ -28,9 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -56,7 +53,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     final ColumnFamilyStore cfs;
     final long startTimeNanos;
     volatile State state = State.INITIALIZED;
-    private Slices slices = null;
 
     // TODO: do we really need the execution controller and the op-order?
     public AbstractPartialTrackedRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
@@ -90,8 +86,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     {
         return startTimeNanos;
     }
-
-    protected abstract ReadCommand command();
 
     abstract void freezeInitialData();
 
@@ -127,8 +121,16 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
             augmentResponse(update);
     }
 
+    UnfilteredPartitionIterator mergeAndComplete(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented)
+    {
+        UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.merge(List.of(initial, augmented), NOOP);
+        return command().completeTrackedRead(merged, this);
+    }
+
+    abstract Read mergedRead(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented);
+
     @Override
-    public synchronized UnfilteredPartitionIterator read()
+    public synchronized Read read()
     {
         Preconditions.checkState(state == State.PREPARED);
         state = State.READING;
@@ -136,13 +138,9 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
         UnfilteredPartitionIterator initial = initialData();
         UnfilteredPartitionIterator augmented = augmentedData();
         if (augmented == null)
-            return initial;
+            return PartialTrackedRead.Read.simple(initial);
 
-        List<UnfilteredPartitionIterator> partitions = new ArrayList<>(2);
-        partitions.add(initial);
-        partitions.add(augmented);
-        UnfilteredPartitionIterator result = command().completeTrackedRead(UnfilteredPartitionIterators.merge(partitions, NOOP), this);
-        return result;
+        return mergedRead(initial, augmented);
     }
 
     @Override

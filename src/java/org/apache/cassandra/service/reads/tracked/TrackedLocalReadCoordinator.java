@@ -22,11 +22,13 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -283,14 +285,14 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             {
                 if (logger.isTraceEnabled())
                     logger.trace("Read complete for {}", Long.toHexString(readId));
-                complete(read, command.columnFilter());
+                complete(read, command.columnFilter(), replicaPlan.consistencyLevel(), expiresAtNanos);
                 return COMPLETED;
             }
             else
             {
                 if (logger.isTraceEnabled())
                     logger.trace("Beginning reconciliation for {}", Long.toHexString(readId));
-                Reconciling reconciling = new Reconciling(command, read, expiresAtNanos, reconciliations);
+                Reconciling reconciling = new Reconciling(command, read, replicaPlan.consistencyLevel(), expiresAtNanos, reconciliations);
                 reconciling.start();  // TODO: don't do this until after the coordinator state is set to reconciling if converting to lock free
                 return reconciling;
             }
@@ -358,6 +360,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         private final ReadCommand command;
         private final PartialTrackedRead read;
+        private final ConsistencyLevel consistencyLevel;
         private final long expiresAtNanos;
 
         final Map<InetAddressAndPort, ReconciliationPlan> plans;
@@ -365,9 +368,10 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         final Map<Integer, PendingSync> pendingSync = new ConcurrentHashMap<>();
         final int blockFor;
 
-        public Reconciling(ReadCommand command, PartialTrackedRead read, long expiresAtNanos, Map<InetAddressAndPort, ReconciliationPlan> plans)
+        public Reconciling(ReadCommand command, PartialTrackedRead read, ConsistencyLevel consistencyLevel, long expiresAtNanos, Map<InetAddressAndPort, ReconciliationPlan> plans)
         {
             this.command = command;
+            this.consistencyLevel = consistencyLevel;
             Preconditions.checkNotNull(read);
             this.read = read;
             this.expiresAtNanos = expiresAtNanos;
@@ -447,7 +451,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             if (logger.isTraceEnabled())
                 logger.trace("Reconciliation completed for read {}", Long.toHexString(readId));
 
-            complete(read, command.columnFilter());
+            complete(read, command.columnFilter(), consistencyLevel, expiresAtNanos);
             return COMPLETED;
         }
 
@@ -584,13 +588,32 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
     }
 
-    private void complete(PartialTrackedRead read, ColumnFilter selection)
+    private void complete(PartialTrackedRead read, ColumnFilter selection, ConsistencyLevel consistencyLevel, long expiresAtNanos)
     {
         Stage.READ.submit(() -> {
-            TrackedDataResponse response;
-            try (UnfilteredPartitionIterator iterator = read.read())
+            try (PartialTrackedRead.Read trackedRead = read.read())
             {
-                response = TrackedDataResponse.create(UnfilteredPartitionIterators.filter(iterator, read.nowInSec()), selection);
+                TrackedDataResponse response = TrackedDataResponse.create(UnfilteredPartitionIterators.filter(trackedRead.data(), read.nowInSec()), selection);
+                TrackedRead<?, ?> followUp = trackedRead.followupRead(consistencyLevel, expiresAtNanos);
+
+                if (followUp != null)
+                {
+                    ReadCommand command = read.command();
+                    followUp.addCallback((iterator, error) -> {
+                        if (error != null)
+                        {
+                            tryFailure(error);
+                            return;
+                        }
+                        PartitionIterator previous = response.makeIterator(command);
+                        TrackedDataResponse newResponse = TrackedDataResponse.create(PartitionIterators.concat(List.of(previous, iterator)), selection);
+                        trySuccess(newResponse);
+                    });
+                }
+                else
+                {
+                    trySuccess(response);
+                }
             }
             catch (Exception e)
             {
@@ -601,7 +624,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             {
                 read.close();
             }
-            trySuccess(response);
+
+
         });
     }
 

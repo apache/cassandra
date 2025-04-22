@@ -22,32 +22,54 @@ import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SimpleBTreePartition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.ExcludingBounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
 {
+    private static final Logger logger = LoggerFactory.getLogger(PartialTrackedRangeRead.class);
+
     private final PartitionRangeReadCommand command;
-    private final SortedMap<DecoratedKey, SimpleBTreePartition> data = new TreeMap<>();
+    private final SortedMap<DecoratedKey, ImmutableBTreePartition> data = new TreeMap<>();
+    private final SortedMap<DecoratedKey, SimpleBTreePartition> augmented = new TreeMap<>();
     private final UnfilteredPartitionIterator initialData;
+    private final boolean enforceStrictLiveness;
 
     public PartialTrackedRangeRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
     {
         super(executionController, searcher, cfs, startTimeNanos);
         this.command = command;
         this.initialData = initialData;
+        this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
     }
 
     public static PartialTrackedRangeRead create(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
@@ -66,16 +88,28 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     }
 
     @Override
-    protected ReadCommand command()
+    public ReadCommand command()
     {
         return command;
     }
 
-    UnfilteredRowIterator queryPartition(SimpleBTreePartition partition)
+    UnfilteredRowIterator queryPartition(AbstractBTreePartition partition)
     {
         return partition.unfilteredIterator(command.columnFilter(),
                                             command.requestedSlices(),
                                             command.clusteringIndexFilter(partition.partitionKey()).isReversed());
+    }
+
+    private static void consume(UnfilteredPartitionIterator iterator)
+    {
+        while (iterator.hasNext())
+        {
+            try (UnfilteredRowIterator partition = iterator.next())
+            {
+                while (partition.hasNext())
+                    partition.next();
+            }
+        }
     }
 
     @Override
@@ -105,9 +139,9 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             public UnfilteredRowIterator next()
             {
                 UnfilteredRowIterator rowIterator = initialData.next();
-                DecoratedKey key = rowIterator.partitionKey();
-                augmentResponse(PartitionUpdate.fromIterator(rowIterator, command.columnFilter()));
-                return queryPartition(data.get(key));
+                ImmutableBTreePartition partition = ImmutableBTreePartition.create(rowIterator);
+                data.put(rowIterator.partitionKey(), partition);
+                return queryPartition(partition);
             }
 
             @Override
@@ -118,24 +152,17 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             }
         };
 
-        DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(), false, command.selectsFullPartition(), command.metadata().enforceStrictLiveness());
+        DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(), false, command.selectsFullPartition(), enforceStrictLiveness);
         try (UnfilteredPartitionIterator iterator = counter.applyTo(materializer))
         {
-            while (iterator.hasNext())
-            {
-                try (UnfilteredRowIterator partition = iterator.next())
-                {
-                    while (partition.hasNext())
-                        partition.next();
-                }
-            }
+            consume(iterator);
         }
     }
 
     @Override
     UnfilteredPartitionIterator initialData()
     {
-        Iterator<SimpleBTreePartition> iterator = data.values().iterator();
+        Iterator<ImmutableBTreePartition> iterator = data.values().iterator();
         return new AbstractUnfilteredPartitionIterator()
         {
             @Override
@@ -161,13 +188,178 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     @Override
     UnfilteredPartitionIterator augmentedData()
     {
-        return null;
+        if (augmented.isEmpty())
+            return null;
+
+        Iterator<SimpleBTreePartition> iterator = augmented.values().iterator();
+        return new AbstractUnfilteredPartitionIterator()
+        {
+            @Override
+            public TableMetadata metadata()
+            {
+                return command.metadata();
+            }
+
+            @Override
+            public boolean hasNext()
+            {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public UnfilteredRowIterator next()
+            {
+                return queryPartition(iterator.next());
+            }
+        };
     }
 
     @Override
     void augmentResponse(PartitionUpdate update)
     {
-        SimpleBTreePartition partition = data.computeIfAbsent(update.partitionKey(), key -> new SimpleBTreePartition(key, update.metadata(), UpdateTransaction.NO_OP));
+        SimpleBTreePartition partition = augmented.computeIfAbsent(update.partitionKey(), key -> new SimpleBTreePartition(key, update.metadata(), UpdateTransaction.NO_OP));
         partition.update(update);
+    }
+
+    private class ExtendingRead extends Transformation<UnfilteredRowIterator> implements Read
+    {
+
+        final UnfilteredPartitionIterator initial;
+        final UnfilteredPartitionIterator augmented;
+
+        // unmerged per-source counter
+        final DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
+                                                                                   false,
+                                                                                   command.selectsFullPartition(),
+                                                                                   enforceStrictLiveness).onlyCount();
+        // merged end-result counter
+        final DataLimits.Counter mergedResultCounter = command.limits().newCounter(command.nowInSec(),
+                                                                                   true,
+                                                                                   command.selectsFullPartition(),
+                                                                                   enforceStrictLiveness);
+
+        private DecoratedKey lastPartitionKey; // key of the last observed partition
+        private boolean partitionsFetched; // whether we've seen any new partitions since iteration start or last moreContents() call
+
+        public ExtendingRead(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented)
+        {
+            this.initial = Transformation.apply(initial, this);
+            this.augmented = augmented;
+        }
+
+
+        @Override
+        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+        {
+            partitionsFetched = true;
+            lastPartitionKey = partition.partitionKey();
+            return partition;
+        }
+
+        @Override
+        public UnfilteredPartitionIterator data()
+        {
+            UnfilteredPartitionIterator merged = mergeAndComplete(singleResultCounter.applyTo(initial), augmented);
+            return mergedResultCounter.applyTo(merged);
+        }
+
+        @Override
+        public int index()
+        {
+            return 0;
+        }
+
+        @Override
+        public TrackedRead<?, ?> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        {
+            // never try to request additional partitions from replicas if our reconciled partitions are already filled to the limit
+            if (mergedResultCounter.isDone())
+                return null;
+
+            // we do not apply short read protection when we have no limits at all
+            if (command.limits().isUnlimited())
+                return null;
+
+            /*
+             * If this is a single partition read command or an (indexed) partition range read command with
+             * a partition key specified, then we can't and shouldn't try fetch more partitions.
+             */
+            if (command.isLimitedToOnePartition())
+                return null;
+
+            /*
+             * If the returned result doesn't have enough rows/partitions to satisfy even the original limit, don't ask for more.
+             *
+             * Can only take the short cut if there is no per partition limit set. Otherwise it's possible to hit false
+             * positives due to some rows being uncounted for in certain scenarios (see CASSANDRA-13911).
+             */
+            if (command.limits().isExhausted(singleResultCounter) && command.limits().perPartitionCount() == DataLimits.NO_LIMIT)
+                return null;
+
+            /*
+             * Either we had an empty iterator as the initial response, or our moreContents() call got us an empty iterator.
+             * There is no point to ask the replica for more rows - it has no more in the requested range.
+             */
+            if (!partitionsFetched)
+                return null;
+            partitionsFetched = false;
+
+            /*
+             * We are going to fetch one partition at a time for thrift and potentially more for CQL.
+             * The row limit will either be set to the per partition limit - if the command has no total row limit set, or
+             * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
+             * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
+             */
+            int toQuery = command.limits().count() != DataLimits.NO_LIMIT
+                          ? command.limits().count() - mergedResultCounter.rowsCounted()
+                          : command.limits().perPartitionCount();
+
+            ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
+            Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, FBUtilities.getBroadcastAddressAndPort());
+            logger.info("Requesting {} extra rows from {} for short read protection", toQuery, FBUtilities.getBroadcastAddressAndPort());
+
+            // If we've arrived here, all responses have been consumed, and we're about to request more.
+//            preFetchCallback.run();
+
+            return makeFollowupRead(toQuery, consistencyLevel, expiresAtNanos);
+        }
+
+        private TrackedRead<?, ?> makeFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        {
+            DataLimits newLimits = command.limits().forShortReadRetry(toQuery);
+
+            AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
+            AbstractBounds<PartitionPosition> newBounds = bounds.inclusiveRight()
+                                                          ? new Range<>(lastPartitionKey, bounds.right)
+                                                          : new ExcludingBounds<>(lastPartitionKey, bounds.right);
+
+            DataRange newDataRange = command.dataRange().forSubRange(newBounds);
+
+            Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
+            PartitionRangeReadCommand followUpCmd = command.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
+            ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forRangeRead(keyspace,
+                                                                             followUpCmd.indexQueryPlan(),
+                                                                             consistencyLevel,
+                                                                             followUpCmd.dataRange().keyRange(),
+                                                                             1);
+
+            TrackedRead.Range read = TrackedRead.create(followUpCmd, replicaPlan);
+            read.start(expiresAtNanos);
+            return read;
+        }
+
+        @Override
+        public void close()
+        {
+            initial.close();
+            augmented.close();
+        }
+    }
+
+    @Override
+    Read mergedRead(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented)
+    {
+//        return new ExtendingRead(initial, augmented);
+        return PartialTrackedRead.Read.simple(mergeAndComplete(initial, augmented));
     }
 }
