@@ -558,6 +558,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                             .withType(repairTypeGen)
                             .withPreviewType(previewTypeGen)
                             .withParallelism(repairParallelismGen)
+                            .withPrimaryOrLocalRanges(i -> true)
                             .build()
                             .next(rs);
         RepairOption options = RepairOption.parse(Repair.parseOptionMap(() -> "test", args), DatabaseDescriptor.getPartitioner());
