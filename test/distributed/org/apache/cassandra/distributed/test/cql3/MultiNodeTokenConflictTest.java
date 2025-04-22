@@ -63,7 +63,6 @@ public class MultiNodeTokenConflictTest extends SingleNodeTokenConflictTest
     @Override
     protected void clusterConfig(IInstanceConfig c)
     {
-        super.clusterConfig(c);
         c.set("range_request_timeout", "180s")
          .set("read_request_timeout", "180s")
          .set("write_request_timeout", "180s")

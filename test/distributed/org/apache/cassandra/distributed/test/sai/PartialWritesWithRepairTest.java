@@ -67,7 +67,6 @@ public class PartialWritesWithRepairTest extends TestBaseImpl
                 node2.executeInternal(withKeyspace("INSERT INTO %s.tbl(pk, ck, v1) VALUES (?, ?, ?)"), pk, 1, 1);
             }
 
-
             node1.nodetoolResult("repair", KEYSPACE, "-pr").asserts().success();
         }
     }

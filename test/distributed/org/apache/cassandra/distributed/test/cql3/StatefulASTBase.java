@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +34,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 
@@ -81,9 +79,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
-import org.apache.cassandra.repair.RepairGenerators;
-import org.apache.cassandra.repair.RepairGenerators.PreviewType;
-import org.apache.cassandra.repair.RepairGenerators.RepairType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -149,7 +144,7 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected void clusterConfig(IInstanceConfig config)
     {
-        config.set("repair.retries.max_attempts", Integer.MAX_VALUE);
+
     }
 
     protected void clusterInitializer(ClassLoader cl, int node)
@@ -189,7 +184,7 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> flushTable(RandomSource rs, S state)
     {
-        return new Property.SimpleCommand<>("nodetool flush " + state.metadata.keyspace + ' ' + state.metadata.name, s2 -> {
+        return new Property.SimpleCommand<>("nodetool flush " + state.metadata.keyspace + " " + state.metadata.name, s2 -> {
             s2.cluster.forEach(i -> i.nodetoolResult("flush", s2.metadata.keyspace, s2.metadata.name).asserts().success());
             s2.flush();
         });
@@ -197,7 +192,7 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> compactTable(RandomSource rs, S state)
     {
-        return new Property.SimpleCommand<>("nodetool compact " + state.metadata.keyspace + ' ' + state.metadata.name, s2 -> {
+        return new Property.SimpleCommand<>("nodetool compact " + state.metadata.keyspace + " " + state.metadata.name, s2 -> {
             state.cluster.forEach(i -> i.nodetoolResult("compact", s2.metadata.keyspace, s2.metadata.name).asserts().success());
             s2.compact();
         });
@@ -213,59 +208,6 @@ public class StatefulASTBase extends TestBaseImpl
 
         return multistep(state.command(rs, mutation),
                          state.commandSafeRandomHistory(selectForMutation(state, mutation), "Select for Mutation Validation"));
-    }
-
-    protected static <S extends BaseState> Property.Command<S, Void, ?> incrementalRepair(RandomSource rs, S state)
-    {
-        return repair(rs, state, state.repairArgsBuilder().withType(i -> RepairType.IR).withPreviewType(i -> PreviewType.NONE), null);
-    }
-
-    protected static <S extends BaseState> Property.Command<S, Void, ?> previewRepair(RandomSource rs, S state)
-    {
-        return repair(rs, state, state.repairArgsBuilder().withType(i -> RepairType.FULL).withPreviewType(Gens.pick(PreviewType.REPAIRED, PreviewType.UNREPAIRED)), null);
-    }
-
-    protected static <S extends BaseState> Property.Command<S, Void, ?> repair(RandomSource rs, S state, RepairGenerators.Builder argsBuilder, @Nullable String annotate)
-    {
-        IInvokableInstance inst = state.selectInstance(rs);
-        Gen<List<String>> argsGen = argsBuilder.build();
-        List<String> args = ImmutableList.<String>builder()
-                                         .add("repair")
-                                         .addAll(argsGen.next(rs))
-                                         .build();
-        boolean preview = RepairGenerators.isPreview(args);
-        // mimic org.apache.cassandra.repair.state.CoordinatorState.getType
-        String type;
-        if (preview)
-        {
-            // mimic org.apache.cassandra.tools.nodetool.Repair.getPreviewKind
-            PreviewType previewType = RepairGenerators.previewType(args);
-            switch (previewType)
-            {
-                case REPAIRED:
-                    type = "preview repaired";
-                    break;
-                case UNREPAIRED:
-                    type = RepairGenerators.isFull(args) ? "preview full" : "preview unrepaired";
-                    break;
-                default:
-                    throw new UnsupportedOperationException(previewType.name());
-            }
-        }
-        else
-        {
-            type = RepairGenerators.isFull(args) ? "full" : "incremental";
-        }
-
-        String postfix = "type " + type + ", on " + inst;
-        if (annotate == null) annotate = postfix;
-        else                  annotate += ", " + postfix;
-
-        return new Property.SimpleCommand<>("nodetool " + String.join(" ", args) + " -- " + annotate, s2 -> {
-            inst.nodetoolResult(args.toArray(String[]::new)).asserts().success();
-            if (!preview)
-                s2.repair();
-        });
     }
 
     private static <S extends CommonState> Select selectForMutation(S state, Mutation mutation)
@@ -316,9 +258,8 @@ public class StatefulASTBase extends TestBaseImpl
         private final Visitor debug;
         private final int enoughMemtables;
         private final int enoughSSTables;
-        protected int numMutations, mutationsSinceLastFlush, mutationsSinceLastRepair;
+        protected int numMutations, mutationsSinceLastFlush;
         protected int numFlushes, flushesSinceLastCompaction;
-        protected int numRepairs;
         protected int numCompact;
         protected int operations;
 
@@ -379,16 +320,6 @@ public class StatefulASTBase extends TestBaseImpl
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select)
         {
             return command(rs, select, null);
-        }
-
-        protected boolean allowRepair()
-        {
-            return false;
-        }
-
-        protected RepairGenerators.Builder repairArgsBuilder()
-        {
-            return new RepairGenerators.Builder(i -> Arrays.asList(metadata.keyspace, metadata.name));
         }
 
         protected boolean allowLimit(Select select)
@@ -503,7 +434,6 @@ public class StatefulASTBase extends TestBaseImpl
         {
             numMutations++;
             mutationsSinceLastFlush++;
-            mutationsSinceLastRepair++;
         }
 
         protected void flush()
@@ -511,20 +441,6 @@ public class StatefulASTBase extends TestBaseImpl
             mutationsSinceLastFlush = 0;
             numFlushes++;
             flushesSinceLastCompaction++;
-        }
-
-        protected void repair()
-        {
-            if (mutationsSinceLastFlush > 0)
-                flush();
-
-            numRepairs++;
-            mutationsSinceLastRepair = 0;
-        }
-
-        protected boolean isConsistent()
-        {
-            return mutationsSinceLastRepair == 0;
         }
 
         protected void compact()

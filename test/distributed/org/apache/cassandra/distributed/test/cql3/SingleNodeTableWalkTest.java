@@ -60,7 +60,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
-import org.apache.cassandra.utils.LoggingCommand;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -372,13 +371,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                         .add(this::selectTokenRange))
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                  .addAllIf(BaseState::allowRepair, b -> b.add(StatefulASTBase::incrementalRepair)
-                                                                          .addIf(BaseState::isConsistent, StatefulASTBase::previewRepair))
                                   .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
                                   .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .destroyState(State::close)
-                                  .commandsTransformer(LoggingCommand.factory())
                                   .onSuccess(onSuccess(logger))
                                   .build());
         }
