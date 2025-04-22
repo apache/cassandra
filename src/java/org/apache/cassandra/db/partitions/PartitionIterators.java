@@ -195,8 +195,11 @@ public abstract class PartitionIterators
         {
             while (iterator.hasNext())
             {
-                out.writeBoolean(true);
-                RowIterators.Serializer.serialize(iterator.next(), selection, out, version);
+                try (RowIterator partition = iterator.next())
+                {
+                    out.writeBoolean(true);
+                    RowIterators.Serializer.serialize(partition, selection, out, version);
+                }
             }
             out.writeBoolean(false);
         }
