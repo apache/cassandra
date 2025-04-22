@@ -43,8 +43,12 @@ public enum BufferType
         {
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }
+    };
+
+    public static BufferType[] realBuffers()
+    {
+        return new BufferType[]{ ON_HEAP, OFF_HEAP };
     }
-    ;
 
     public abstract ByteBuffer allocate(int size);
 
