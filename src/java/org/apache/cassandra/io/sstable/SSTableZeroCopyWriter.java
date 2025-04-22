@@ -208,6 +208,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
         if (in instanceof AsyncStreamingInputPlus)
             write((AsyncStreamingInputPlus) in, size, writer);
         else
+            // this code path is not valid for production and only exists to simplify unit tests
             write(in, size, writer);
     }
 
@@ -247,6 +248,8 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
         @Override
         public void write(byte[] b, int off, int len) throws IOException
         {
+            // This logic is never valid in production environments and is only here for unit tests.  By default we never
+            // allocate this buffer, but in unit tests we need one, so allocate to make those unit tests happy.
             if (this.buffer == ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 this.buffer = option.allocateBuffer();
             super.write(b, off, len);
