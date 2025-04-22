@@ -430,7 +430,11 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected RepairGenerators.Builder repairArgsBuilder()
         {
-            return new RepairGenerators.Builder(i -> Arrays.asList(metadata.keyspace, metadata.name));
+            return new RepairGenerators.Builder(i -> Arrays.asList(metadata.keyspace, metadata.name))
+                   // paxos cleanup's finish prepare is delayed based off CAS/Write timeout, but these tests make that 3 minutes (so CI is stable)
+                   // which means this step is delayed 3 minutes, making repairs suppppper slow...
+                   // see org.apache.cassandra.service.paxos.cleanup.PaxosCleanup#finishPrepare
+                   .withSkipPaxosGen(i -> true);
         }
 
         protected boolean allowLimit(Select select)

@@ -88,6 +88,8 @@ public class RepairGenerators
         Gen<Boolean> primaryOrLocalRanges = Gens.bools().all();
         Gen<Boolean> optimizeStreamsGen = Gens.bools().all();
         Gen<RepairParallelism> parallelismGen = Gens.enums().all(RepairParallelism.class);
+        Gen<Boolean> skipPaxosGen = i -> false;
+        Gen<Boolean> skipAccordGen = i -> false;
 
         public Builder(Gen<List<String>> tablesGen)
         {
@@ -124,6 +126,18 @@ public class RepairGenerators
             return this;
         }
 
+        public Builder withSkipPaxosGen(Gen<Boolean> skipPaxosGen)
+        {
+            this.skipPaxosGen = skipPaxosGen;
+            return this;
+        }
+
+        public Builder withSkipAccordGen(Gen<Boolean> skipAccordGen)
+        {
+            this.skipAccordGen = skipAccordGen;
+            return this;
+        }
+
         public Gen<List<String>> build()
         {
             return rs -> {
@@ -135,6 +149,10 @@ public class RepairGenerators
                 // --start-token, --end-token (these support MIN_TOKEN)
                 if (primaryOrLocalRanges.next(rs))
                     args.add("-pr");
+                if (skipPaxosGen.next(rs))
+                    args.add("--skip-paxos");
+                if (skipAccordGen.next(rs))
+                    args.add("--skip-accord");
                 switch (type)
                 {
                     case IR:
