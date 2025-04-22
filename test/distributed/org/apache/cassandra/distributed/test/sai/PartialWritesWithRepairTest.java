@@ -43,7 +43,7 @@ public class PartialWritesWithRepairTest extends TestBaseImpl
                 .start())
         {
             init(cluster);
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk vector<bigint, 2>, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk vector<bigint, 2>, ck int, s1 int static, v1 int, v2 int, PRIMARY KEY (pk, ck))"));
             cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.tbl(v1) USING 'sai'"));
             cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.tbl(v2) USING 'sai'"));
             IInvokableInstance node1 = cluster.get(1);
@@ -57,8 +57,8 @@ public class PartialWritesWithRepairTest extends TestBaseImpl
             for (var range : completeRanges)
             {
                 ByteBuffer pk = key(range);
-                node2.executeInternal(withKeyspace("INSERT INTO %s.tbl(pk, ck, v1, v2) VALUES (?, ?, ?, ?)"), pk, 0, 0, 0);
-                node2.executeInternal(withKeyspace("INSERT INTO %s.tbl(pk, ck, v1, v2) VALUES (?, ?, ?, ?)"), pk, 1, 1, 1);
+                node2.executeInternal(withKeyspace("INSERT INTO %s.tbl(pk, ck, s1, v1, v2) VALUES (?, ?, ?, ?, ?)"), pk, 0, 0, 0, 0);
+                node2.executeInternal(withKeyspace("INSERT INTO %s.tbl(pk, ck, s1, v1, v2) VALUES (?, ?, ?, ?, ?)"), pk, 1, 0, 1, 1);
             }
             for (var range : partialRanges)
             {
