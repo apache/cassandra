@@ -1139,7 +1139,7 @@ the automated repair has been disabled on the node
 due to priority set in the automated repair
 
 |RepairDelayedByReplica |Counter |Represents occurrences of a node's turn being
-delayed because a replica was currently taking its turn. Only revelent if
+delayed because a replica was currently taking its turn. Only relevant if
 `allow_parallel_replica_repair` is false.
 
 |RepairDelayedBySchedule |Counter |Represents occurrences of a node's turn being
