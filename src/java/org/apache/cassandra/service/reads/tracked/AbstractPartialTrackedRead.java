@@ -121,10 +121,15 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
             augmentResponse(update);
     }
 
+    private UnfilteredPartitionIterator complete(UnfilteredPartitionIterator iterator)
+    {
+        return command().completeTrackedRead(iterator, this);
+    }
+
     UnfilteredPartitionIterator mergeAndComplete(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented)
     {
         UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.merge(List.of(initial, augmented), NOOP);
-        return command().completeTrackedRead(merged, this);
+        return complete(merged);
     }
 
     abstract Read mergedRead(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented);
@@ -138,7 +143,7 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
         UnfilteredPartitionIterator initial = initialData();
         UnfilteredPartitionIterator augmented = augmentedData();
         if (augmented == null)
-            return PartialTrackedRead.Read.simple(initial);
+            return PartialTrackedRead.Read.simple(complete(initial));
 
         return mergedRead(initial, augmented);
     }
