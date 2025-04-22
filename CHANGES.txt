@@ -6,6 +6,7 @@
  * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)
  * Upgrade com.datastax.cassandra:cassandra-driver-core:3.11.5 to org.apache.cassandra:cassandra-driver-core:3.12.1 (CASSANDRA-17231)
 Merged from 4.0:
+ * Updating a column with a new TTL but same expiration time is non-deterministic and causes repair mismatches. (CASSANDRA-20561)
  * Avoid computing prepared statement size for unprepared batches (CASSANDRA-20556)
  * Fix Dropwizard Meter causes timeouts when infrequently used (CASSANDRA-19332)
 
