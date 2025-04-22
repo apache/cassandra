@@ -199,11 +199,11 @@ public class CompressorTest
         assert compressor.supports(BufferType.OFF_HEAP);
         assert compressor.supports(compressor.preferredBufferType());
 
-        for (BufferType in: BufferType.realBuffers())
+        for (BufferType in: BufferType.values())
             if (compressor.supports(in))
-                for (BufferType comp: BufferType.realBuffers())
+                for (BufferType comp: BufferType.values())
                     if (compressor.supports(comp))
-                        for (BufferType out: BufferType.realBuffers())
+                        for (BufferType out: BufferType.values())
                             if (compressor.supports(out))
                                 testByteBuffers(in, comp, out);
     }

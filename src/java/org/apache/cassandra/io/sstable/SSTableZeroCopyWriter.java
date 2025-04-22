@@ -36,12 +36,14 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
@@ -51,7 +53,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     private static final Logger logger = LoggerFactory.getLogger(SSTableZeroCopyWriter.class);
 
     private volatile SSTableReader finalReader;
-    private final Map<String, SequentialWriter> componentWriters; // indexed by component name
+    private final Map<String, ZeroCopySequentialWriter> componentWriters; // indexed by component name
 
     public SSTableZeroCopyWriter(Builder<?, ?> builder,
                                  LifecycleNewTracker lifecycleNewTracker,
@@ -90,12 +92,12 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
         throw new UnsupportedOperationException();
     }
 
-    private SequentialWriter makeWriter(Descriptor descriptor, Component component)
+    private ZeroCopySequentialWriter makeWriter(Descriptor descriptor, Component component)
     {
-        return new SequentialWriter(descriptor.fileFor(component), ioOptions.writerOptions.unbuild().bufferType(BufferType.NONE).build(), false);
+        return new ZeroCopySequentialWriter(descriptor.fileFor(component), ioOptions.writerOptions, false);
     }
 
-    private void write(DataInputPlus in, long size, SequentialWriter out) throws FSWriteError
+    private void write(DataInputPlus in, long size, ZeroCopySequentialWriter out) throws FSWriteError
     {
         final int BUFFER_SIZE = 1 << 20;
         long bytesRead = 0;
@@ -129,7 +131,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     {
         setOpenResult(openResult);
 
-        for (SequentialWriter writer : componentWriters.values())
+        for (ZeroCopySequentialWriter writer : componentWriters.values())
             writer.finish();
 
         return finished();
@@ -171,7 +173,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     @Override
     public Throwable commit(Throwable accumulate)
     {
-        for (SequentialWriter writer : componentWriters.values())
+        for (ZeroCopySequentialWriter writer : componentWriters.values())
             accumulate = writer.commit(accumulate);
         return accumulate;
     }
@@ -179,7 +181,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     @Override
     public Throwable abort(Throwable accumulate)
     {
-        for (SequentialWriter writer : componentWriters.values())
+        for (ZeroCopySequentialWriter writer : componentWriters.values())
             accumulate = writer.abort(accumulate);
         return accumulate;
     }
@@ -187,20 +189,20 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     @Override
     public void prepareToCommit()
     {
-        for (SequentialWriter writer : componentWriters.values())
+        for (ZeroCopySequentialWriter writer : componentWriters.values())
             writer.prepareToCommit();
     }
 
     @Override
     public void close()
     {
-        for (SequentialWriter writer : componentWriters.values())
+        for (ZeroCopySequentialWriter writer : componentWriters.values())
             writer.close();
     }
 
     public void writeComponent(Component component, DataInputPlus in, long size) throws ClosedChannelException
     {
-        SequentialWriter writer = componentWriters.get(component.name);
+        ZeroCopySequentialWriter writer = componentWriters.get(component.name);
         logger.info("Writing component {} to {} length {}", component, writer.getPath(), prettyPrintMemory(size));
 
         if (in instanceof AsyncStreamingInputPlus)
@@ -209,7 +211,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
             write(in, size, writer);
     }
 
-    private void write(AsyncStreamingInputPlus in, long size, SequentialWriter writer) throws ClosedChannelException
+    private void write(AsyncStreamingInputPlus in, long size, ZeroCopySequentialWriter writer) throws ClosedChannelException
     {
         logger.info("Block Writing component to {} length {}", writer.getPath(), prettyPrintMemory(size));
 
@@ -232,6 +234,22 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
         catch (IOException e)
         {
             throw new FSWriteError(e, writer.getPath());
+        }
+    }
+
+    private static class ZeroCopySequentialWriter extends SequentialWriter
+    {
+        private ZeroCopySequentialWriter(File file, SequentialWriterOption option, boolean strictFlushing)
+        {
+            super(file, ByteBufferUtil.EMPTY_BYTE_BUFFER, option, strictFlushing);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException
+        {
+            if (this.buffer == ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                this.buffer = option.allocateBuffer();
+            super.write(b, off, len);
         }
     }
 }

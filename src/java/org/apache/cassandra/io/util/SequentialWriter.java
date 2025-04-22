@@ -56,7 +56,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
     // whether to do trickling fsync() to avoid sudden bursts of dirty buffer flushing by kernel causing read
     // latency spikes
-    private final SequentialWriterOption option;
+    protected final SequentialWriterOption option;
     private int bytesSinceTrickleFsync = 0;
 
     protected long lastFlushOffset;
@@ -163,7 +163,12 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     public SequentialWriter(File file, SequentialWriterOption option, boolean strictFlushing)
     {
-        super(openChannel(file), option.allocateBuffer());
+        this(file, option.allocateBuffer(), option, strictFlushing);
+    }
+
+    protected SequentialWriter(File file, ByteBuffer buffer, SequentialWriterOption option, boolean strictFlushing)
+    {
+        super(openChannel(file), buffer);
         this.strictFlushing = strictFlushing;
         this.fchannel = (FileChannel)channel;
 
