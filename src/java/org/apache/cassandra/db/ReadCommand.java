@@ -76,6 +76,7 @@ import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.reads.IReadResponse;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
 import org.apache.cassandra.service.reads.tracked.TrackedReadResponse;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -188,108 +189,6 @@ public abstract class ReadCommand extends AbstractReadQuery
     private interface ReadCompleter<T>
     {
         T complete(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos);
-    }
-
-    public interface InProgressRead
-    {
-        UnfilteredPartitionIterator read();
-        void augment(Mutation mutation);
-        default void augment(Collection<Mutation> mutations)
-        {
-            mutations.forEach(this::augment);
-        }
-
-        long nowInSec();
-        void close();
-    }
-
-    static abstract class AbstractInProgressRead implements InProgressRead
-    {
-        // TODO: remove synchronized?
-
-        private enum State
-        {
-            INITIALIZED,
-            PREPARED,
-            READING,
-            FINISHED
-        }
-
-        final ReadExecutionController executionController;
-        final Index.Searcher searcher;
-        final ColumnFamilyStore cfs;
-        final long startTimeNano;
-        volatile State state = State.INITIALIZED;
-        private Slices slices = null;
-
-        // TODO: do we really need the execution controller and the op-order?
-        public AbstractInProgressRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNano)
-        {
-            this.executionController = executionController;
-            this.searcher = searcher;
-            this.cfs = cfs;
-            this.startTimeNano = startTimeNano;
-        }
-
-        protected abstract ReadCommand command();
-        abstract void freezeInitialData();
-        abstract UnfilteredPartitionIterator initialData();
-        abstract UnfilteredPartitionIterator augmentedData();
-        abstract void augmentResponse(PartitionUpdate update);
-
-        @Override
-        public long nowInSec()
-        {
-            return command().nowInSec();
-        }
-
-        /**
-         * Implementors need to call this before returning this from createInProgressRead
-         */
-        synchronized void prepare()
-        {
-            Preconditions.checkState(state == State.INITIALIZED);
-            freezeInitialData();
-            state = State.PREPARED;
-        }
-
-        @Override
-        public void augment(Mutation mutation)
-        {
-            Preconditions.checkState(state == State.PREPARED);
-            PartitionUpdate update = mutation.getPartitionUpdate(command().metadata());
-            if (update != null)
-                augmentResponse(update);
-        }
-
-        @Override
-        public synchronized UnfilteredPartitionIterator read()
-        {
-            Preconditions.checkState(state == State.PREPARED);
-
-            UnfilteredPartitionIterator initial = initialData();
-            UnfilteredPartitionIterator augmented = augmentedData();
-            if (augmented == null)
-                return initial;
-
-            List<UnfilteredPartitionIterator> partitions = new ArrayList<>(2);
-            partitions.add(initial);
-            partitions.add(augmented);
-            UnfilteredPartitionIterator result = command().completeRead(UnfilteredPartitionIterators.merge(partitions, NOOP),
-                                                                        executionController, searcher, cfs, startTimeNano);
-            state = State.FINISHED;
-            return result;
-        }
-
-        @Override
-        public synchronized void close()
-        {
-            if (state == State.FINISHED)
-                return;
-
-            logger.trace("Closing read {}", this);
-            executionController.close();
-        }
     }
 
     private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
@@ -754,13 +653,13 @@ public abstract class ReadCommand extends AbstractReadQuery
      * the contents of the iterator into memory. Once this method returns, subsequent writes against this table should
      * not be reflected in the result of the InProgressRead
      */
-    protected abstract InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator,
-                                                           ReadExecutionController executionController,
-                                                           Index.Searcher searcher,
-                                                           ColumnFamilyStore cfs,
-                                                           long startTimeNanos);
+    protected abstract PartialTrackedRead createInProgressRead(UnfilteredPartitionIterator iterator,
+                                                               ReadExecutionController executionController,
+                                                               Index.Searcher searcher,
+                                                               ColumnFamilyStore cfs,
+                                                               long startTimeNanos);
 
-    public InProgressRead beginRead(ReadExecutionController executionController)
+    public PartialTrackedRead beginTrackedRead(ReadExecutionController executionController)
     {
         COMMAND.set(this);
         try
@@ -771,6 +670,11 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             COMMAND.set(null);
         }
+    }
+
+    public UnfilteredPartitionIterator completeTrackedRead(UnfilteredPartitionIterator iterator, PartialTrackedRead read)
+    {
+        return completeRead(iterator, read.executionController(), read.searcher(), read.cfs(), read.startTimeNanos());
     }
 
     /**

@@ -230,7 +230,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         private static final String NAME = "READING";
 
         private final ReadCommand command;
-        private volatile ReadCommand.InProgressRead read;
+        private volatile PartialTrackedRead read;
         private final long expiresAtNanos;
         private final ReplicaPlan.AbstractForRead<?, ?> replicaPlan;
         private final Accumulator<ReceivedSummary> summaries;
@@ -296,7 +296,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             }
         }
 
-        public State receiveInProgressRead(ReadCommand.InProgressRead read, MutationSummary summary)
+        public State receiveInProgressRead(PartialTrackedRead read, MutationSummary summary)
         {
             if (this.read != null)
                 return this;
@@ -357,7 +357,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         private static final String NAME = "RECONCILING";
 
         private final ReadCommand command;
-        private final ReadCommand.InProgressRead read;
+        private final PartialTrackedRead read;
         private final long expiresAtNanos;
 
         final Map<InetAddressAndPort, ReconciliationPlan> plans;
@@ -365,7 +365,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         final Map<Integer, PendingSync> pendingSync = new ConcurrentHashMap<>();
         final int blockFor;
 
-        public Reconciling(ReadCommand command, ReadCommand.InProgressRead read, long expiresAtNanos, Map<InetAddressAndPort, ReconciliationPlan> plans)
+        public Reconciling(ReadCommand command, PartialTrackedRead read, long expiresAtNanos, Map<InetAddressAndPort, ReconciliationPlan> plans)
         {
             this.command = command;
             Preconditions.checkNotNull(read);
@@ -525,14 +525,14 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             }
         }
 
-        ReadCommand.InProgressRead read;
+        PartialTrackedRead read;
         MutationSummary secondarySummary;
 
         MutationSummary initialSummary = command.createMutationSummary(false);
         ReadExecutionController controller = command.executionController(false);
         try
         {
-            read = command.beginRead(controller);
+            read = command.beginTrackedRead(controller);
             // Create another summary once initial data has been read fully. We do this to catch
             // any mutations that may have arrived during initial read execution.
             secondarySummary = command.createMutationSummary(true);
@@ -584,7 +584,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
     }
 
-    private void complete(ReadCommand.InProgressRead read, ColumnFilter selection)
+    private void complete(PartialTrackedRead read, ColumnFilter selection)
     {
         Stage.READ.submit(() -> {
             try (UnfilteredPartitionIterator iterator = read.read())

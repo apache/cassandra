@@ -20,10 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -38,11 +35,9 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.SimpleBTreePartition;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -56,7 +51,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -70,6 +64,8 @@ import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRangeRead;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -82,126 +78,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
 
     protected final Slices requestedSlices;
-
-    static class InProgress extends AbstractInProgressRead
-    {
-        private final PartitionRangeReadCommand command;
-        private final SortedMap<DecoratedKey, SimpleBTreePartition> data = new TreeMap<>();
-        private final UnfilteredPartitionIterator initialData;
-
-        public InProgress(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNano, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
-        {
-            super(executionController, searcher, cfs, startTimeNano);
-            this.command = command;
-            this.initialData = initialData;
-        }
-
-        @Override
-        protected ReadCommand command()
-        {
-            return command;
-        }
-
-        UnfilteredRowIterator queryPartition(SimpleBTreePartition partition)
-        {
-            return partition.unfilteredIterator(command.columnFilter(),
-                                                command.requestedSlices,
-                                                command.clusteringIndexFilter(partition.partitionKey()).isReversed());
-        }
-
-        @Override
-        void freezeInitialData()
-        {
-            // memtable contents are frozen at read completion time, when the iterator is evaluated, not at the beginning
-            // of the read, when references to memtables and sstables are collected. Because of this, replica coordinated
-            // reads can cause read monotonicity to be broken by returning data that hasn't been replicated to at least
-            // CL other nodes via reconciliation. To prevent this, the contents of the initial iterator are materialized
-            // onto heap until the limits of the read are reached.
-
-            UnfilteredPartitionIterator materializer = new AbstractUnfilteredPartitionIterator()
-            {
-                @Override
-                public TableMetadata metadata()
-                {
-                    return initialData.metadata();
-                }
-
-                @Override
-                public boolean hasNext()
-                {
-                    return initialData.hasNext();
-                }
-
-                @Override
-                public UnfilteredRowIterator next()
-                {
-                    UnfilteredRowIterator rowIterator = initialData.next();
-                    DecoratedKey key = rowIterator.partitionKey();
-                    augmentResponse(PartitionUpdate.fromIterator(rowIterator, command.columnFilter()));
-                    return queryPartition(data.get(key));
-                }
-
-                @Override
-                public void close()
-                {
-                    super.close();
-                    initialData.close();
-                }
-            };
-
-            DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(), false, command.selectsFullPartition(), command.metadata().enforceStrictLiveness());
-            try (UnfilteredPartitionIterator iterator = counter.applyTo(materializer))
-            {
-                while (iterator.hasNext())
-                {
-                    try (UnfilteredRowIterator partition = iterator.next())
-                    {
-                        while (partition.hasNext())
-                            partition.next();
-                    }
-                }
-            }
-        }
-
-        @Override
-        UnfilteredPartitionIterator initialData()
-        {
-            Iterator<SimpleBTreePartition> iterator = data.values().iterator();
-            return new AbstractUnfilteredPartitionIterator()
-            {
-                @Override
-                public TableMetadata metadata()
-                {
-                    return command.metadata();
-                }
-
-                @Override
-                public boolean hasNext()
-                {
-                    return iterator.hasNext();
-                }
-
-                @Override
-                public UnfilteredRowIterator next()
-                {
-                    return queryPartition(iterator.next());
-                }
-            };
-        }
-
-        @Override
-        UnfilteredPartitionIterator augmentedData()
-        {
-            return null;
-        }
-
-        @Override
-        void augmentResponse(PartitionUpdate update)
-        {
-            SimpleBTreePartition partition = data.computeIfAbsent(update.partitionKey(), key -> new SimpleBTreePartition(key, update.metadata(), UpdateTransaction.NO_OP));
-            partition.update(update);
-        }
-    }
 
     @VisibleForTesting
     protected PartitionRangeReadCommand(Epoch serializedAtEpoch,
@@ -219,6 +95,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         super(serializedAtEpoch, Kind.PARTITION_RANGE, responseType, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         this.requestedSlices = dataRange.clusteringIndexFilter.getSlices(metadata());
+    }
+
+    public Slices requestedSlices()
+    {
+        return requestedSlices;
     }
 
     private static PartitionRangeReadCommand create(Epoch serializedAtEpoch,
@@ -530,15 +411,13 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     @Override
-    protected InProgressRead createInProgressRead(UnfilteredPartitionIterator iterator,
-                                                  ReadExecutionController executionController,
-                                                  Index.Searcher searcher,
-                                                  ColumnFamilyStore cfs,
-                                                  long startTimeNanos)
+    protected PartialTrackedRead createInProgressRead(UnfilteredPartitionIterator iterator,
+                                                      ReadExecutionController executionController,
+                                                      Index.Searcher searcher,
+                                                      ColumnFamilyStore cfs,
+                                                      long startTimeNanos)
     {
-        InProgress read = new InProgress(executionController, searcher, cfs, startTimeNanos, this, iterator);
-        read.prepare();
-        return read;
+        return PartialTrackedRangeRead.create(executionController, searcher, cfs, startTimeNanos, this, iterator);
     }
 
     @Override
