@@ -287,6 +287,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (state == State.FINISHED)
                 return;
 
+            logger.trace("Closing read {}", this);
             executionController.close();
         }
     }

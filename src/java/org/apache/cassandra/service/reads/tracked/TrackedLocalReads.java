@@ -108,7 +108,11 @@ public class TrackedLocalReads implements Shutdownable
         else
         {
             // TODO: confirm range we're reading doesn't span multiple replica sets
-            throw new UnsupportedOperationException("TODO: create replica plan for range reads");
+            replicaPlan = ReplicaPlans.forRangeRead(keyspace,
+                                                    command.indexQueryPlan(),
+                                                    consistencyLevel,
+                                                    command.dataRange().keyRange(),
+                                                    1);
         }
         // TODO: confirm all summaryNodes are present in the replica plan
 

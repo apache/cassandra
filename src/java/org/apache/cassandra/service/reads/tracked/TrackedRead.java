@@ -59,6 +59,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     // TODO: use something durable
     private static final AtomicInteger nextReadId = new AtomicInteger();
 
+    private final long readId = nextReadId();
     private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
     private final ConsistencyLevel consistencyLevel;
     private final Dispatcher.RequestTime requestTime;
@@ -74,6 +75,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     {
 
         return ((long) ClusterMetadata.current().myNodeId().id() << 32) | nextReadId.getAndIncrement();
+    }
+
+    @Override
+    public String toString()
+    {
+        return "TrackedRead." + getClass().getSimpleName() + '{' + Long.toHexString(readId) + '}';
     }
 
     protected abstract ReadCommand command();
@@ -175,7 +182,6 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                            : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
         E summaryNodes = selected.filter(r -> !r.equals(dataNode));
 
-        long readId = nextReadId();
 
         if (dataNode == localReplica)
         {
@@ -189,6 +195,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                         logger.error("Error while processing read", error);
                         return;
                     }
+                    logger.trace("Finished locally coordinating {}", this);
                     onResponse(response);
                 }));
             });

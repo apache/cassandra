@@ -2152,13 +2152,13 @@ public class StorageProxy implements StorageProxyMBean
                                                       Dispatcher.RequestTime requestTime)
     {
         int cmdCount = commands.size();
-        TrackedRead[] reads = new TrackedRead[cmdCount];
+        TrackedRead.Partition[] reads = new TrackedRead.Partition[cmdCount];
         ClusterMetadata metadata = ClusterMetadata.current();
 
         for (int i=0; i<cmdCount; i++)
             reads[i] = TrackedRead.create(metadata, commands.get(i), consistencyLevel, requestTime);
 
-        for (TrackedRead read : reads)
+        for (TrackedRead.Partition read : reads)
             read.start(requestTime);
 
         try
@@ -2167,7 +2167,7 @@ public class StorageProxy implements StorageProxyMBean
                 return reads[0].get();
 
             List<PartitionIterator> iterators = new ArrayList<>(cmdCount);
-            for (TrackedRead read : reads)
+            for (TrackedRead.Partition read : reads)
                 iterators.add(read.get());
 
             return PartitionIterators.concat(iterators);

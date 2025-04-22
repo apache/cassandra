@@ -95,7 +95,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             String name() { return "ABORTED"; }
 
             @Override
-            boolean isInitialized() { return false; }
+            boolean isAborted() { return true; }
 
             @Override
             boolean isTimedOutOrComplete(long nanoTime) { return true; }
@@ -159,6 +159,11 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
 
         boolean isComplete()
+        {
+            return false;
+        }
+
+        boolean isAborted()
         {
             return false;
         }
@@ -551,7 +556,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         synchronized (this)
         {
-            state = state.asReading().receiveInProgressRead(read, secondarySummary);
+            if (!state.isAborted())
+                state = state.asReading().receiveInProgressRead(read, secondarySummary);
         }
     }
 
