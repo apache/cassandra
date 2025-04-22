@@ -66,11 +66,19 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                                                  "min_repair_interval_in_hours", "-1"),
                                                                              AutoRepairConfig.RepairType.incremental.toString(),
                                                                              ImmutableMap.of(
-                                                                                 "initial_scheduler_delay_in_sec", "5",
+                                                                                 "initial_scheduler_delay_in_sec", "30",
                                                                                  "enabled", "true",
                                                                                  "parallel_repair_count_in_group", "1",
                                                                                  "parallel_repair_percentage_in_group", "0",
-                                                                                 "min_repair_interval_in_hours", "-1"))))
+                                                                                 "min_repair_interval_in_hours", "-1"),
+                                                                             AutoRepairConfig.RepairType.paxos_cleanup.toString(),
+                                                                             ImmutableMap.of(
+                                                                                 "initial_scheduler_delay_in_sec", "60",
+                                                                                 "enabled", "true",
+                                                                                 "parallel_repair_count_in_group", "1",
+                                                                                 "parallel_repair_percentage_in_group", "0",
+                                                                                 "min_repair_interval_in_hours", "-1"
+                                                                             ))))
                                                         .set("auto_repair.enabled", "true")
                                                         .set("auto_repair.repair_check_interval_in_sec", "10")
                                                         .set("auto_repair.repair_task_min_duration", "0s")).start();
@@ -101,6 +109,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
 
         validate(AutoRepairConfig.RepairType.full.toString());
         validate(AutoRepairConfig.RepairType.incremental.toString());
+        validate(AutoRepairConfig.RepairType.paxos_cleanup.toString());
     }
 
     private void validate(String repairType) throws ParseException

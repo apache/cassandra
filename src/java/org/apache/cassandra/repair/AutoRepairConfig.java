@@ -53,7 +53,7 @@ public class AutoRepairConfig implements Serializable
     public volatile Options global_settings;
 
     public enum RepairType
-    {full, incremental, preview_repaired}
+    {full, incremental, preview_repaired, paxos_cleanup}
 
     // repair_type_overrides overrides the global_settings for a specific repair type
     public volatile Map<RepairType, Options> repair_type_overrides = new EnumMap<>(RepairType.class);

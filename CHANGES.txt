@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-29235] Introduce paxos_cleanup type within auto-repair framework
  * [SO-41448] Metric to monitor slow memtable flushing
  * [SO-43523] Add metrics for base table mutations to check if a MV base table is qualified to migrate to LWT backed MV
  * [SO-43558] Add metric to measure new columns with counter type

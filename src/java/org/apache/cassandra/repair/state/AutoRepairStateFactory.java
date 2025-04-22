@@ -32,6 +32,8 @@ public class AutoRepairStateFactory
                 return new IncrementalRepairState();
             case preview_repaired:
                 return new PreviewRepairedState();
+            case paxos_cleanup:
+                return new PaxosCleanupState();
         }
 
         throw new IllegalArgumentException("Invalid repair type: " + repairType);

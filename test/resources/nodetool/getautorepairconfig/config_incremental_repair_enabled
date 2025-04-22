@@ -57,3 +57,20 @@ configuration for repair type: preview_repaired
 	percentage of parallel repairs within group: 0
 	mv repair enabled: true
 	initial scheduler delay in seconds: 900
+configuration for repair type: paxos_cleanup
+	enabled: false
+	minimum repair interval in hours: 24
+	repair threads: 1
+	number of repair subranges: 16
+	ignore keyspaces: \b(?!system_(auth|distributed|auto_repair)\b)system($|_.*)|.*staging.*|.*test.*|health|pingless
+	repair only keyspaces: test
+	priority hosts: /127.0.0.1:7000
+	sstable count higher threshold: 10000
+	table max repair time in sec: 21600
+	ignore datacenters: dc1,dc2
+	datacenter groups:
+	repair primary token-range: true
+	number of parallel repairs within group: 1
+	percentage of parallel repairs within group: 0
+	mv repair enabled: true
+	initial scheduler delay in seconds: 900
