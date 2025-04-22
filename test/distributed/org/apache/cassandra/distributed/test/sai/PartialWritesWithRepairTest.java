@@ -44,6 +44,7 @@ public class PartialWritesWithRepairTest extends TestBaseImpl
         {
             init(cluster);
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk vector<bigint, 2>, ck int, s1 int static, v1 int, v2 int, PRIMARY KEY (pk, ck))"));
+            cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.tbl(s1) USING 'sai'"));
             cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.tbl(v1) USING 'sai'"));
             cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.tbl(v2) USING 'sai'"));
             IInvokableInstance node1 = cluster.get(1);
