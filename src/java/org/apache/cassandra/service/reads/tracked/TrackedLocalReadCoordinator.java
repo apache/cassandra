@@ -441,12 +441,11 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         private State maybeComplete()
         {
-            if (!pendingSync.isEmpty())
+            if (!pendingSync.isEmpty() || !outstandingMutations.isEmpty())
                 return this;
 
             if (logger.isTraceEnabled())
                 logger.trace("Reconciliation completed for read {}", Long.toHexString(readId));
-            Preconditions.checkState(outstandingMutations.isEmpty());
 
             complete(read, command.columnFilter());
             return COMPLETED;
@@ -565,6 +564,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
     {
         if (logger.isTraceEnabled())
             logger.trace("Received summary {} from {}, for {}", summary, from, state);
+
         if (state.isReading())
         {
             state = state.asReading().receiveSummary(from, summary);
@@ -573,7 +573,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         {
             state = state.asAwaitingRead().receiveSummary(from, summary);
         }
-        if (state.isInitialized())
+        else if (state.isInitialized())
         {
             state = new AwaitingRead().receiveSummary(from, summary);
         }
@@ -587,18 +587,21 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
     private void complete(PartialTrackedRead read, ColumnFilter selection)
     {
         Stage.READ.submit(() -> {
+            TrackedDataResponse response;
             try (UnfilteredPartitionIterator iterator = read.read())
             {
-                trySuccess(TrackedDataResponse.create(UnfilteredPartitionIterators.filter(iterator, read.nowInSec()), selection));
+                response = TrackedDataResponse.create(UnfilteredPartitionIterators.filter(iterator, read.nowInSec()), selection);
             }
             catch (Exception e)
             {
                 tryFailure(e);
+                throw e;
             }
             finally
             {
                 read.close();
             }
+            trySuccess(response);
         });
     }
 

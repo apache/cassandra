@@ -112,6 +112,7 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
      */
     synchronized void prepare()
     {
+        logger.trace("Preparing read {}", this);
         Preconditions.checkState(state == State.INITIALIZED);
         freezeInitialData();
         state = State.PREPARED;
@@ -130,6 +131,7 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     public synchronized UnfilteredPartitionIterator read()
     {
         Preconditions.checkState(state == State.PREPARED);
+        state = State.READING;
 
         UnfilteredPartitionIterator initial = initialData();
         UnfilteredPartitionIterator augmented = augmentedData();
@@ -140,7 +142,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
         partitions.add(initial);
         partitions.add(augmented);
         UnfilteredPartitionIterator result = command().completeTrackedRead(UnfilteredPartitionIterators.merge(partitions, NOOP), this);
-        state = State.FINISHED;
         return result;
     }
 
@@ -152,5 +153,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
 
         logger.trace("Closing read {}", this);
         executionController.close();
+        state = State.FINISHED;
     }
 }
