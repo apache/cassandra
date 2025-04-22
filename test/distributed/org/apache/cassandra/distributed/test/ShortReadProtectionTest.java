@@ -92,7 +92,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
         for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM))
             for (boolean flush : BOOLEANS)
                 for (boolean paging : BOOLEANS)
-                    for (ReplicationType replication : ReplicationType.fixmeValues())
+                    for (ReplicationType replication : ReplicationType.values())
                         result.add(new Object[]{ readConsistencyLevel, flush, paging, replication});
 
         return result;
@@ -155,7 +155,8 @@ public class ShortReadProtectionTest extends TestBaseImpl
     {
         tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)")
               .allNodes(0, 10, i -> format("INSERT INTO %%s (id) VALUES (%d) USING TIMESTAMP 0", i)) // order is 5,1,8,0,2,4,7,6,9,3
-              .toNode1("DELETE FROM %s WHERE id IN (1, 0, 4, 6, 3)") // delete every other row
+//              .toNode1("DELETE FROM %s WHERE id IN (1, 0, 4, 6, 3)") // delete every other row
+              .toNode1(IntStream.of(1, 0, 4, 6, 3).mapToObj(k -> "DELETE FROM %s WHERE id=" + k).toArray(String[]::new)) // FIXME: revert once mutation tracking supports mutations with pk IN
               .assertRows("SELECT DISTINCT token(id), id FROM %s",
                           row(token(5), 5), row(token(8), 8), row(token(2), 2), row(token(7), 7), row(token(9), 9));
     }
@@ -172,8 +173,10 @@ public class ShortReadProtectionTest extends TestBaseImpl
     {
         tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)")
               .allNodes(0, 10, i -> format("INSERT INTO %%s (id) VALUES (%d) USING TIMESTAMP 0", i)) // order is 5,1,8,0,2,4,7,6,9,3
-              .toNode1("DELETE FROM %s WHERE id IN (5, 8, 2, 7, 9)") // delete every other row
-              .toNode2("DELETE FROM %s WHERE id IN (1, 0, 4, 6)") // delete every other row but the last one
+//              .toNode1("DELETE FROM %s WHERE id IN (5, 8, 2, 7, 9)") // delete every other row
+              .toNode1(IntStream.of(5, 8, 2, 7, 9).mapToObj(k -> "DELETE FROM %s WHERE id=" + k).toArray(String[]::new)) // FIXME: revert once mutation tracking supports mutations with pk IN
+//              .toNode2("DELETE FROM %s WHERE id IN (1, 0, 4, 6)") // delete every other row but the last one
+              .toNode2(IntStream.of(1, 0, 4, 6).mapToObj(k -> "DELETE FROM %s WHERE id=" + k).toArray(String[]::new)) // FIXME: revert once mutation tracking supports mutations with pk IN
               .assertRows("SELECT id FROM %s LIMIT 1", row(3))
               .assertRows("SELECT DISTINCT id FROM %s LIMIT 1", row(3));
     }
