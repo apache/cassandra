@@ -75,6 +75,11 @@ public class LivenessInfoTest
         first = LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds + 1);
         second = LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
         assertSupersedes(first, second);
+
+        // rewritten expiring with the same expiration time and a lower TTL, take the lower TTL as likely to be more recent
+        first = LivenessInfo.withExpirationTime(100, 4, nowInSeconds);
+        second = LivenessInfo.withExpirationTime(100, 5, nowInSeconds);
+        assertSupersedes(first, second);
     }
 
     @Test

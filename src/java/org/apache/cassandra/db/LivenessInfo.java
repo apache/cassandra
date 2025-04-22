@@ -193,7 +193,10 @@ public class LivenessInfo implements IMeasurableMemory
      * supersedes, ie. tombstone supersedes.
      *
      * If timestamps are the same and both of them are expired livenessInfo(Ideally it shouldn't happen),
-     * greater localDeletionTime wins.
+     * greater localDeletionTime wins. If the localDeletion times are the same, prefer the
+     * lower TTL to make the merge deterministic (it is likely that the row has been rewritten with
+     * USING TTL/TIMESTAMP with an updated TTL that computes to the same local deletion time -- perhaps
+     * from rerunning a process to migrate user data between clusters or tables).
      *
      * @param other
      *            the {@code LivenessInfo} to compare this info to.
@@ -207,7 +210,11 @@ public class LivenessInfo implements IMeasurableMemory
         if (isExpired() ^ other.isExpired())
             return isExpired();
         if (isExpiring() == other.isExpiring())
-            return localExpirationTime() > other.localExpirationTime();
+        {
+            return localExpirationTime() > other.localExpirationTime() ||
+                    (localExpirationTime() == other.localExpirationTime() && ttl() < other.ttl());
+        }
+
         return isExpiring();
     }
 
