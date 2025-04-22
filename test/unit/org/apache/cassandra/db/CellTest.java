@@ -41,7 +41,8 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static java.util.Arrays.*;
+import static java.util.Arrays.asList;
+import static org.junit.Assert.assertEquals;
 
 public class CellTest
 {
@@ -62,6 +63,8 @@ public class CellTest
                      .addRegularColumn("v", IntegerType.instance)
                      .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true))
                      .build();
+    public static final ByteBuffer TEST_VALUE = ByteBufferUtil.bytes("a");
+
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -252,6 +255,86 @@ public class CellTest
         Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, null));
         Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, 1));
     }
+
+
+    public static void assertCellsEqual(Cell<?> cellA, Cell<?> cellB)
+    {
+        assertEquals(cellA.timestamp(), cellB.timestamp());
+        assertEquals(cellA.ttl(), cellB.ttl());
+        assertEquals(cellA.localDeletionTime(), cellB.localDeletionTime());
+        assertEquals(cellA.buffer(), cellB.buffer());
+    }
+
+    static void checkCommutes(ColumnMetadata cmd, long timestamp, long tsDiff, int ttl, int ttlDiff, int nowInSeconds, int nowDiff)
+    {
+        long timestampA = timestamp;
+        long timestampB = timestampA + tsDiff;
+        int ttlA = ttl;
+        int ttlB = ttl + ttlDiff;
+        int nowInSecsA = nowInSeconds;
+        int nowInSecsB = nowInSecsA + nowDiff;
+        if (nowInSecsA < 0 || nowInSecsB < 0)
+            return;
+
+        Cell<?> cellA = ttlA == 0 ? BufferCell.tombstone(cmd, timestampA, nowInSecsA) :
+                        ttlA < 0 ? BufferCell.live(cmd, timestampA, TEST_VALUE) :
+                        BufferCell.expiring(cmd, timestampA, ttlA, nowInSecsA, TEST_VALUE);
+        Cell<?> cellB = ttlB == 0 ? BufferCell.tombstone(cmd, timestampB, nowInSecsB) :
+                        ttlB < 0 ? BufferCell.live(cmd, timestampB, TEST_VALUE) :
+                        BufferCell.expiring(cmd, timestampB, ttlB, nowInSecsB, TEST_VALUE);
+
+        Cell<?> cellAB = Cells.reconcile(cellA, cellB);
+        Cell<?> cellBA = Cells.reconcile(cellB, cellA);
+
+        assertCellsEqual(cellAB, cellBA);
+    }
+
+    @Test
+    public void checkSameValueDifferentLivenessCommutes()
+    {
+        ColumnMetadata cmd = fakeColumn("c", UTF8Type.instance);
+        long[] tsDiffs = new long[] {0L,
+                                     1L, // microsecond
+                                     1000L, // millisecond
+                                     1000000L, // second
+                                     60000000L}; // minute
+        int[] ttls = new int[] { -1, 0, 1, 3600, 24 * 3600, 7 * 24 * 3600, 60 * 24 * 3600, 366 * 24 * 3600 };
+        int[] ttlDiffs = new int[] { 0, 1, 60, 3600, 24 * 3600, 7 * 24 * 3600, 60 * 24 * 3600, 366 * 24 * 3600 };
+
+        int nowInSeconds = FBUtilities.nowInSeconds();
+        long timestamp = FBUtilities.timestampMicros();
+
+        for (long tsDiff: tsDiffs)
+        {
+            for (int ttl: ttls)
+            {
+                for (int ttlDiff : ttlDiffs)
+                {
+                    for (Integer nowDiff : ttlDiffs)
+                        checkCommutes(cmd, timestamp, tsDiff, ttl, ttlDiff, nowInSeconds, nowDiff);
+                }
+            }
+        }
+    }
+
+    // Checks that reconciling a cell with a smaller TTL reconcile commutatively
+    // Similar to rewriting data retrieved with SELECT v, TTL(v), WRITETIMESTAMP(v) with
+    // INSERT SET v=? USING TTL ? AND TIMESTAMP ?
+    @Test
+    public void rewriteCellWithSmallerTTL()
+    {
+        ColumnMetadata cmd = fakeColumn("c", UTF8Type.instance);
+        int[] nowDiffs = new int[] { 0, 1, 60, 3600, 24 * 3600, 7 * 24 * 3600, 60 * 24 * 3600, 366 * 24 * 3600 };
+        long timestamp = FBUtilities.timestampMicros();
+        int nowInSeconds = FBUtilities.nowInSeconds();
+        int ttl = 3600;
+
+        for (Integer nowDiff : nowDiffs)
+        {
+            checkCommutes(cmd, timestamp, 0L, ttl, -nowDiff, nowInSeconds, nowDiff);
+        }
+    }
+
 
     class SimplePurger implements DeletionPurger
     {

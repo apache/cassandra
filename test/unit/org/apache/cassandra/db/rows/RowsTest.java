@@ -45,6 +45,8 @@ import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.CellTest.assertCellsEqual;
+
 public class RowsTest
 {
     private static final String KEYSPACE = "rows_test";
@@ -519,6 +521,58 @@ public class RowsTest
         Assert.assertEquals(LivenessInfo.EMPTY, merged.primaryKeyLivenessInfo());
         Assert.assertEquals(0, merged.columns().size());
     }
+
+
+    public static BufferCell expiringWithExpirationTime(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value)
+    {
+        return expiringWithExpirationTime(column, timestamp, ttl, localDeletionTime, value, null);
+    }
+
+    public static BufferCell expiringWithExpirationTime(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
+    {
+        assert ttl != Cell.NO_TTL;
+        return new BufferCell(column, timestamp, ttl, localDeletionTime, value, path);
+    }
+
+    @Test
+    public void mergeRowsWithSameExpiryDifferentTTLCommutesLiveness()
+    {
+        int now1 = FBUtilities.nowInSeconds();
+        long ts1 = secondToTs(now1);
+        int ldt = now1 + 1000;
+
+        Row.Builder r1Builder = BTreeRow.unsortedBuilder();
+        r1Builder.newRow(c1);
+        LivenessInfo originalLiveness = LivenessInfo.withExpirationTime(ts1, 100, ldt);
+        r1Builder.addPrimaryKeyLivenessInfo(originalLiveness);
+
+        Row.Builder r2Builder = BTreeRow.unsortedBuilder();
+        r2Builder.newRow(c1);
+        LivenessInfo loweredTTL = LivenessInfo.withExpirationTime(ts1, 50, ldt);
+        r2Builder.addPrimaryKeyLivenessInfo(loweredTTL);
+
+        Cell<?> r2v = expiringWithExpirationTime(v, ts1, 75, ldt, BB1);
+        Cell<?> r2m2 = expiringWithExpirationTime(m, ts1, 50, ldt, BB1, CellPath.create(BB2));
+        Cell<?> r2m3 = expiringWithExpirationTime(m, ts1, 75, ldt, BB2, CellPath.create(BB3));
+        Cell<?> r2m4 = expiringWithExpirationTime(m, ts1, 100, ldt, BB3, CellPath.create(BB4));
+        List<Cell<?>> expectedCells = Lists.newArrayList(r2v, r2m2, r2m3, r2m4);
+
+        expectedCells.forEach(r1Builder::addCell);
+        expectedCells.forEach(r2Builder::addCell);
+
+        Row r1 = r1Builder.build();
+        Row r2 = r2Builder.build();
+
+        Row r1r2 = Rows.merge(r1, r2);
+        Row r2r1 = Rows.merge(r2, r1);
+
+        DiffListener mergedListener = new DiffListener();
+        Rows.diff(mergedListener, r1r2, r2r1);
+
+        mergedListener.liveness.forEach(pair -> Assert.assertEquals(pair.merged, pair.original));
+        mergedListener.cells.forEach(pair -> assertCellsEqual(pair.merged, pair.original));
+    }
+
 
     // Creates a dummy cell for a (regular) column for the provided name and without a cellPath.
     private static Cell<?> liveCell(ColumnMetadata name)
