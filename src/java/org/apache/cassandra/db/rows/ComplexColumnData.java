@@ -217,7 +217,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
 
     public ComplexColumnData withOnlyQueriedData(ColumnFilter filter)
     {
-        return transformAndFilter(complexDeletion, (cell) -> filter.fetchedCellIsQueried(column, cell.path()) ? null : cell);
+        return transformAndFilter(complexDeletion, (cell) -> filter.fetchedCellIsQueried(column, cell.path()) ? cell : null);
     }
 
     public ComplexColumnData purgeDataOlderThan(long timestamp)
