@@ -167,9 +167,9 @@ used and the role does not exist the statement is a no-op.
 DROP ROLE intentionally does not terminate any open user sessions.
 Currently connected sessions will remain connected and will retain the
 ability to perform any database actions which do not require
-xref:cassandra:developing/cql/security.adoc#authorization[authorization].
+xref:cassandra:managing/operating/authorization/security.adoc#authorization[authorization].
 However, if authorization is enabled, xref:cassandra:developing/cql/security.adoc#cql-permissions[permissions] of the dropped role are also revoked,
-subject to the xref:cassandra:developing/cql/security.adoc#auth-caching[caching options] configured in xref:cassandra:developing/cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file.
+subject to the xref:cassandra:managing/operating/security.adoc#auth-caching[caching options] configured in xref:cassandra:developing/cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file.
 Should a dropped role be subsequently recreated and have new xref:security.adoc#grant-permission-statement[permissions] or
 xref:security.adoc#grant-role-statement[roles]` granted to it, any client sessions still
 connected will acquire the newly granted permissions and roles.
@@ -346,6 +346,59 @@ include::cassandra:example$BNF/list_users_statement.bnf[]
 
 Note that this statement is equivalent to xref:security.adoc#list-roles-statement[`LIST ROLES], but only roles with the `LOGIN` privilege are included in the output.
 
+[[databaseIdentity]]
+=== Database Identities
+
+[[AddIdentityStmt]]
+==== ADD IDENTITY
+
+_Syntax:_
+
+[source,bnf]
+::= ADD IDENTITY [ IF NOT EXISTS ] id_name TO ROLE role_name
+
+_Sample:_
+
+[source,sql]
+ADD IDENTITY 'id1' TO ROLE 'role1';
+
+Only a user with privileges to add roles can add identities.
+
+Role names & Identity names should be quoted if they contain non-alphanumeric characters.
+
+[[addIdentityConditional]]
+===== Adding an identity conditionally
+
+Attempting to add an existing identity results in an invalid query
+condition unless the `IF NOT EXISTS` option is used. If the option is
+used and the identity exists, the statement is a no-op.
+
+[source,sql]
+ADD IDENTITY [ IF NOT EXISTS ] 'id1' TO ROLE 'role1';
+
+[[dropIdentityStmt]]
+==== DROP IDENTITY
+
+_Syntax:_
+
+[source,bnf]
+::= DROP IDENTITY [ IF EXISTS ]
+
+_Sample:_
+
+[source,sql]
+----
+DROP IDENTITY 'testIdentity';
+DROP IDENTITY IF EXISTS 'testIdentity';
+----
+
+Only a user with privileges to drop roles can remove identities
+
+Attempting to drop an identity which does not exist results in an invalid
+query condition unless the `IF EXISTS` option is used. If the option is
+used and the identity does not exist the statement is a no-op.
+
+[[dataControl]]
 == Data Control
 
 [[cql-permissions]]
