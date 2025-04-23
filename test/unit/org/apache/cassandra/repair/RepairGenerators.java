@@ -29,13 +29,15 @@ public class RepairGenerators
     public static final List<String> LOCAL_RANGE = List.of();
     public static final List<String> PRIMARY_RANGE = List.of("-pr"); // repair calls this partition range, but StorageService calls this primary
 
-    public enum RepairType {
+    public enum RepairType
+    {
         FULL("--full"),
         IR("");
 
         public final String arg;
 
-        RepairType(String s) {
+        RepairType(String s)
+        {
             this.arg = s;
         }
     }
