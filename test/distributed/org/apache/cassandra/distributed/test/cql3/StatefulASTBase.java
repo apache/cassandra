@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -350,6 +349,7 @@ public class StatefulASTBase extends TestBaseImpl
         protected final TableMetadata metadata;
         protected final TableReference tableRef;
         protected final ASTSingleTableModel model;
+        private final String sstableFormatName;
         private final Visitor debug;
         private final int enoughMemtables;
         private final int enoughSSTables;
@@ -388,6 +388,9 @@ public class StatefulASTBase extends TestBaseImpl
             this.tableRef = TableReference.from(metadata);
             this.model = new ASTSingleTableModel(metadata, IGNORED_ISSUES);
             createTable(metadata);
+
+            String sstableFormatName = this.sstableFormatName = Generators.toGen(CassandraGenerators.sstableFormatNames()).next(rs);
+            cluster.forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setSelectedSSTableFormat(sstableFormatName)));
         }
 
         public boolean hasPartitions()
@@ -687,7 +690,8 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected void toString(StringBuilder sb)
         {
-            sb.append(createKeyspaceCQL(metadata.keyspace));
+            sb.append("Config:\nsstable:\n\tselected_format: ").append(sstableFormatName);
+            sb.append('\n').append(createKeyspaceCQL(metadata.keyspace));
             CassandraGenerators.visitUDTs(metadata, udt -> sb.append('\n').append(udt.toCqlString(false, false, true)).append(';'));
             sb.append('\n').append(metadata.toCqlString(false, false, false));
         }
@@ -707,39 +711,6 @@ public class StatefulASTBase extends TestBaseImpl
             StringBuilder sb = new StringBuilder();
             toString(sb);
             return sb.toString();
-        }
-
-        private static final class ValueWithType
-        {
-            final ByteBuffer value;
-            final AbstractType type;
-
-            private ValueWithType(ByteBuffer value, AbstractType<?> type)
-            {
-                this.value = value;
-                this.type = type;
-            }
-
-            @Override
-            public boolean equals(Object o)
-            {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                ValueWithType value1 = (ValueWithType) o;
-                return value.equals(value1.value) && type.equals(value1.type);
-            }
-
-            @Override
-            public int hashCode()
-            {
-                return Objects.hash(value, type);
-            }
-
-            @Override
-            public String toString()
-            {
-                return type.toCQLString(value);
-            }
         }
     }
 
