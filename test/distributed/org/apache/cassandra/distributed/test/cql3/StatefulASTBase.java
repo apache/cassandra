@@ -225,7 +225,7 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> previewRepair(RandomSource rs, S state)
     {
-        return repair(rs, state, state.repairArgsBuilder().withType(i -> RepairType.FULL).withPreviewType(Gens.pick(PreviewType.REPAIRED, PreviewType.UNREPAIRED)), null);
+        return repair(rs, state, state.repairArgsBuilder().withType(i -> RepairType.FULL).withPreviewType(i -> PreviewType.REPAIRED), null);
     }
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> repair(RandomSource rs, S state, RepairGenerators.Builder argsBuilder, @Nullable String annotate)
@@ -357,7 +357,7 @@ public class StatefulASTBase extends TestBaseImpl
         private final Visitor debug;
         private final int enoughMemtables, enoughMemtablesForRepair;
         private final int enoughSSTables, enoughSSTablesForRepair;
-        protected int numMutations, mutationsSinceLastFlush, mutationsSinceLastRepair;
+        protected int numMutations, mutationsSinceLastFlush;
         protected int numFlushes, flushesSinceLastCompaction, flushesSinceLastRepair;
         protected int numCompact;
         protected int numRepairs;
@@ -588,7 +588,6 @@ public class StatefulASTBase extends TestBaseImpl
         {
             numMutations++;
             mutationsSinceLastFlush++;
-            mutationsSinceLastRepair++;
         }
 
         protected void flush()
@@ -611,13 +610,7 @@ public class StatefulASTBase extends TestBaseImpl
                 flush();
 
             numRepairs++;
-            mutationsSinceLastRepair = 0;
             flushesSinceLastRepair = 0;
-        }
-
-        protected boolean isConsistent()
-        {
-            return mutationsSinceLastRepair == 0;
         }
 
         protected Value value(RandomSource rs, ByteBuffer bb, AbstractType<?> type)

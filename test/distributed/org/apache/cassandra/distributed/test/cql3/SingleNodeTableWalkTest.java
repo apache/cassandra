@@ -374,7 +374,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
                                   .addAllIf(BaseState::allowRepair, b -> b.add(StatefulASTBase::incrementalRepair)
-                                                                          .addIf(BaseState::isConsistent, StatefulASTBase::previewRepair))
+                                                                          .add(StatefulASTBase::previewRepair))
                                   .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
                                   .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
