@@ -128,11 +128,12 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
 
     UnfilteredPartitionIterator mergeAndComplete(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented)
     {
-        UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.merge(List.of(initial, augmented), NOOP);
+        UnfilteredPartitionIterator merged = augmented != null ? UnfilteredPartitionIterators.merge(List.of(initial, augmented), NOOP) : initial;
         return complete(merged);
     }
 
-    abstract Read mergedRead(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented);
+
+    abstract Read createResult(UnfilteredPartitionIterator iterator);
 
     @Override
     public synchronized Read read()
@@ -142,10 +143,12 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
 
         UnfilteredPartitionIterator initial = initialData();
         UnfilteredPartitionIterator augmented = augmentedData();
-        if (augmented == null)
-            return PartialTrackedRead.Read.simple(complete(initial));
 
-        return mergedRead(initial, augmented);
+        UnfilteredPartitionIterator result = augmented != null ?
+                                             UnfilteredPartitionIterators.merge(List.of(initial, augmented), NOOP) :
+                                             initial;
+
+        return createResult(complete(result));
     }
 
     @Override
