@@ -26,6 +26,9 @@ import accord.utils.Gens;
 
 public class RepairGenerators
 {
+    public static final List<String> LOCAL_RANGE = List.of();
+    public static final List<String> PRIMARY_RANGE = List.of("-pr"); // repair calls this partition range, but StorageService calls this primary
+
     public enum RepairType {
         FULL("--full"),
         IR("");
@@ -85,7 +88,7 @@ public class RepairGenerators
         final Gen<List<String>> tablesGen;
         Gen<RepairType> typeGen = Gens.enums().all(RepairType.class);
         Gen<PreviewType> previewTypeGen = Gens.enums().all(PreviewType.class);
-        Gen<Boolean> primaryOrLocalRanges = Gens.bools().all();
+        Gen<List<String>> ranges = Gens.pick(List.of(), PRIMARY_RANGE);
         Gen<Boolean> optimizeStreamsGen = Gens.bools().all();
         Gen<RepairParallelism> parallelismGen = Gens.enums().all(RepairParallelism.class);
         Gen<Boolean> skipPaxosGen = i -> false;
@@ -108,9 +111,9 @@ public class RepairGenerators
             return this;
         }
 
-        public Builder withPrimaryOrLocalRanges(Gen<Boolean> primaryOrLocalRanges)
+        public Builder withRanges(Gen<List<String>> ranges)
         {
-            this.primaryOrLocalRanges = primaryOrLocalRanges;
+            this.ranges = ranges;
             return this;
         }
 
@@ -147,8 +150,7 @@ public class RepairGenerators
                 args.addAll(tablesGen.next(rs));
                 //TODO (coverage): would be good to select token ranges based off the model
                 // --start-token, --end-token (these support MIN_TOKEN)
-                if (primaryOrLocalRanges.next(rs))
-                    args.add("-pr");
+                args.addAll(ranges.next(rs));
                 if (skipPaxosGen.next(rs))
                     args.add("--skip-paxos");
                 if (skipAccordGen.next(rs))

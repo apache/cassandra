@@ -70,6 +70,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -122,6 +123,8 @@ public class StatefulASTBase extends TestBaseImpl
                                                                                                                          .collect(Collectors.toList()));
     protected static final Gen<Gen.IntGen> FETCH_SIZE_DISTRO = Gens.mixedDistribution(new int[] {1, 10, 100, 1000, 5000});
     protected static final Gen<Gen.IntGen> LIMIT_DISTRO = Gens.mixedDistribution(1, 1001);
+    protected static final Gen<Gen.IntGen> REPAIR_TYPE_EMPTY_MODEL_DISTRO = Gens.mixedDistribution(0, 2);
+    protected static final Gen<Gen.IntGen> REPAIR_TYPE_DISTRO = Gens.mixedDistribution(0, 3);
 
     static
     {
@@ -345,6 +348,7 @@ public class StatefulASTBase extends TestBaseImpl
         protected final Gen<Conditional.Where.Inequality> lessThanGen;
         protected final Gen<Conditional.Where.Inequality> greaterThanGen;
         protected final Gen<Conditional.Where.Inequality> rangeInequalityGen;
+        protected final Gen.IntGen repairTypeEmptyModelGen, repairTypeGen;
         protected final Gen.IntGen fetchSizeGen;
         protected final TableMetadata metadata;
         protected final TableReference tableRef;
@@ -380,6 +384,9 @@ public class StatefulASTBase extends TestBaseImpl
             this.useLimitGen = BOOL_DISTRIBUTION.next(rs);
             this.perPartitionLimitGen = LIMIT_DISTRO.next(rs);
             this.limitGen = LIMIT_DISTRO.next(rs);
+
+            this.repairTypeEmptyModelGen = REPAIR_TYPE_EMPTY_MODEL_DISTRO.next(rs);
+            this.repairTypeGen = REPAIR_TYPE_DISTRO.next(rs);
 
             this.enoughMemtables = rs.pickInt(1, 3, 10, 50);
             this.enoughMemtablesForRepair = rs.pickInt(1, 3, 10, 50);
@@ -439,7 +446,22 @@ public class StatefulASTBase extends TestBaseImpl
                    // paxos cleanup's finish prepare is delayed based off CAS/Write timeout, but these tests make that 3 minutes (so CI is stable)
                    // which means this step is delayed 3 minutes, making repairs suppppper slow...
                    // see org.apache.cassandra.service.paxos.cleanup.PaxosCleanup#finishPrepare
-                   .withSkipPaxosGen(i -> true);
+                   .withSkipPaxosGen(i -> true)
+                   .withRanges(rs -> {
+                       switch (model.isEmpty() ? repairTypeEmptyModelGen.next(rs) : repairTypeGen.next(rs))
+                       {
+                           case 0: return RepairGenerators.LOCAL_RANGE;
+                           case 1: return RepairGenerators.PRIMARY_RANGE;
+                           case 2:
+                           {
+                               Token a = rs.pickOrderedSet(model.partitionKeys()).token;
+                               return List.of("--start-token", Long.toString(a.getLongValue() - 1),
+                                              "--end-token", a.toString());
+                           }
+                           default: throw new UnsupportedOperationException();
+                       }
+                   })
+            ;
         }
 
         protected boolean allowLimit(Select select)
@@ -549,7 +571,7 @@ public class StatefulASTBase extends TestBaseImpl
         {
             // use last flush rather than last repair as this method cares about data in the memtable
             // and not amount of mutations since repair
-            return mutationsSinceLastFlush > enoughMemtables;
+            return mutationsSinceLastFlush > enoughMemtablesForRepair;
         }
 
         protected boolean hasEnoughSSTables()
@@ -559,7 +581,7 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected boolean hasEnoughSSTablesForRepair()
         {
-            return flushesSinceLastRepair > enoughSSTables;
+            return flushesSinceLastRepair > enoughSSTablesForRepair;
         }
 
         protected void mutation()
