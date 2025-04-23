@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -98,7 +99,8 @@ public final class TableParams
         FAST_PATH,
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
-        PENDING_DROP;
+        PENDING_DROP,
+        AUTO_REPAIR;
 
         @Override
         public String toString()
@@ -131,6 +133,8 @@ public final class TableParams
     public final TransactionalMigrationFromMode transactionalMigrationFrom;
     public final boolean pendingDrop;
 
+    public final AutoRepairParams autoRepair;
+
     private TableParams(Builder builder)
     {
         comment = builder.comment;
@@ -159,6 +163,7 @@ public final class TableParams
         transactionalMigrationFrom = builder.transactionalMigrationFrom;
         pendingDrop = builder.pendingDrop;
         checkNotNull(transactionalMigrationFrom);
+        autoRepair = builder.autoRepair;
     }
 
     public static Builder builder()
@@ -190,7 +195,8 @@ public final class TableParams
                             .fastPath(params.fastPath)
                             .transactionalMode(params.transactionalMode)
                             .transactionalMigrationFrom(params.transactionalMigrationFrom)
-                            .pendingDrop(params.pendingDrop);
+                            .pendingDrop(params.pendingDrop)
+                            .automatedRepair(params.autoRepair);
     }
 
     public Builder unbuild()
@@ -204,7 +210,7 @@ public final class TableParams
         compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
-        if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
+        if (bloomFilterFpChance <= minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
         {
             fail("%s must be larger than %s and less than or equal to 1.0 (got %s)",
                  BLOOM_FILTER_FP_CHANCE,
@@ -248,6 +254,8 @@ public final class TableParams
 
         if (transactionalMode.isTestMode() && !CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getBoolean())
             fail("Transactional mode " + transactionalMode + " can't be used if " + CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getKey() + " is not set");
+
+        autoRepair.validate();
     }
 
     private static void fail(String format, Object... args)
@@ -288,7 +296,8 @@ public final class TableParams
             && fastPath.equals(fastPath)
             && transactionalMode == p.transactionalMode
             && transactionalMigrationFrom == p.transactionalMigrationFrom
-            && pendingDrop == p.pendingDrop;
+            && pendingDrop == p.pendingDrop
+            && autoRepair.equals(p.autoRepair);
     }
 
     @Override
@@ -316,7 +325,8 @@ public final class TableParams
                                 fastPath,
                                 transactionalMode,
                                 transactionalMigrationFrom,
-                                pendingDrop);
+                                pendingDrop,
+                                autoRepair);
     }
 
     @Override
@@ -347,6 +357,7 @@ public final class TableParams
                           .add(Option.TRANSACTIONAL_MODE.toString(), transactionalMode)
                           .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
                           .add(PENDING_DROP.toString(), pendingDrop)
+                          .add(Option.AUTO_REPAIR.toString(), autoRepair)
                           .toString();
     }
 
@@ -408,6 +419,12 @@ public final class TableParams
         }
 
         builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+        if (DatabaseDescriptor.getRawConfig() != null
+            && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.newLine()
+                .append("AND auto_repair = ").append(autoRepair.asMap());
+        }
     }
 
     public static final class Builder
@@ -436,6 +453,7 @@ public final class TableParams
         public TransactionalMigrationFromMode transactionalMigrationFrom = TransactionalMigrationFromMode.none;
         public boolean pendingDrop = false;
 
+        private AutoRepairParams autoRepair = AutoRepairParams.DEFAULT;
         public Builder()
         {
         }
@@ -580,6 +598,12 @@ public final class TableParams
         public Builder pendingDrop(boolean pendingDrop)
         {
             this.pendingDrop = pendingDrop;
+            return this;
+        }
+
+        public Builder automatedRepair(AutoRepairParams val)
+        {
+            autoRepair = val;
             return this;
         }
     }

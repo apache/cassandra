@@ -190,6 +190,11 @@ public class KeyspaceMetrics
 
     public final Meter tooManySSTableIndexesReadWarnings;
     public final Meter tooManySSTableIndexesReadAborts;
+    public final Meter bytesAnticompacted;
+    public final Meter bytesMutatedAnticompaction;
+    public final Meter bytesPreviewed;
+    public final Meter tokenRangesPreviewedDesynchronized;
+    public final Meter bytesPreviewedDesynchronized;
 
     public final LatencyMetrics viewSSTableIntervalTree;
 
@@ -309,6 +314,11 @@ public class KeyspaceMetrics
         outOfRangeTokenPaxosRequests = createKeyspaceCounter("PaxosOutOfRangeToken");
 
         viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree");
+        bytesAnticompacted =  createKeyspaceMeter("BytesAnticompacted");
+        bytesMutatedAnticompaction = createKeyspaceMeter("BytesMutatedAnticompaction");
+        bytesPreviewed = createKeyspaceMeter("BytesPreviewed");
+        tokenRangesPreviewedDesynchronized = createKeyspaceMeter("TokenRangesPreviewedDesynchronized");
+        bytesPreviewedDesynchronized = createKeyspaceMeter("BytesPreviewedDesynchronized");
     }
 
     /**

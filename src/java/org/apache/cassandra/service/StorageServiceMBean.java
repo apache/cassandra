@@ -1378,4 +1378,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     boolean getPaxosRepairRaceWait();
     // Comma delimited list of "nodeId=dc:rack" or "endpoint=dc:rack"
     void alterTopology(String updates);
+    /** Gets the names of all tables for the given keyspace */
+    public List<String> getTablesForKeyspace(String keyspace);
+
+    /** Mutates the repaired state of all SSTables for the given SSTables */
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tables);
 }

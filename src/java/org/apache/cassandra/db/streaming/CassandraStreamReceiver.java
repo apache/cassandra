@@ -23,8 +23,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -190,7 +192,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         return cfs.metadata().params.cdc;
     }
 
-    // returns true iif it is a cdc table and cdc on repair is enabled.
+    // returns true if it is a cdc table and cdc on repair is enabled.
     private boolean cdcRequiresWriteCommitLog(ColumnFamilyStore cfs)
     {
         return DatabaseDescriptor.isCDCOnRepairEnabled() && hasCDC(cfs);
@@ -205,11 +207,12 @@ public class CassandraStreamReceiver implements StreamReceiver
      * For CDC-enabled tables and write path for CDC is enabled, we want to ensure that the mutations are
      * run through the CommitLog, so they can be archived by the CDC process on discard.
      */
-    private boolean requiresWritePath(ColumnFamilyStore cfs)
+    @VisibleForTesting
+    boolean requiresWritePath(ColumnFamilyStore cfs)
     {
         return cdcRequiresWriteCommitLog(cfs)
                || cfs.streamToMemtable()
-               || (session.streamOperation().requiresViewBuild() && hasViews(cfs));
+               || (session.streamOperation().requiresViewBuild() && hasViews(cfs) && DatabaseDescriptor.isMaterializedViewsOnRepairEnabled());
     }
 
     private void sendThroughWritePath(ColumnFamilyStore cfs, Collection<SSTableReader> readers)

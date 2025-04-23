@@ -249,11 +249,18 @@ during validation.
 |PartitionsValidated |Histogram |Histogram over the number of partitions
 read during validation.
 
-|BytesAnticompacted |Counter |How many bytes we anticompacted.
+|BytesAnticompacted |Meter |How many bytes we anticompacted.
 
-|BytesMutatedAnticompaction |Counter |How many bytes we avoided
+|BytesMutatedAnticompaction |Meter |How many bytes we avoided
 anticompacting because the sstable was fully contained in the repaired
 range.
+
+|BytesPreviewed |Meter |Estimated number of bytes that were scanned for local replica during preview repair
+
+|BytesPreviewedDesynchronized |Meter |Number of desynchronized bytes that were detected among all replicas during preview repair
+
+|TokenRangesPreviewedDesynchronized |Meter |Number of token ranges among all replicas where desynchronization was found
+during preview repair. These ranges would need to be streamed during subsequent repair.
 
 |MutatedAnticompactionGauge |Gauge<Double> |Ratio of bytes mutated vs
 total bytes repaired.
@@ -1080,6 +1087,67 @@ partitions processed per logged batch
 |PartitionsPerUnloggedBatch |Histogram |Distribution of the number of
 partitions processed per unlogged batch
 |===
+
+== Automated Repair Metrics
+
+Metrics specifc to automated repair.
+
+Reported name format:
+
+*Metric Name*::
+`org.apache.cassandra.metrics.AutoRepair.<MetricName>`
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=AutoRepair name=<MetricName> repairType=<RepairType>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|RepairsInProgress |Gauge<Integer> |Repair is in progress
+on the node
+
+|NodeRepairTimeInSec |Gauge<Integer> |Time taken to repair
+the node in seconds
+
+|ClusterRepairTimeInSec |Gauge<Integer> |Time taken to repair
+the entire Cassandra cluster in seconds
+
+|LongestUnrepairedSec |Gauge<Integer> |Time since the last repair
+ran on the node in seconds
+
+|RepairStartLagSec|Gauge<Integer> |If a repair has not run within min_repair_interval, how long past this value since
+repairs last completed.  Useful for determining if repairs are behind schedule.
+
+|SucceededTokenRangesCount |Gauge<Integer> |Number of token ranges successfully repaired on the node
+
+|FailedTokenRangesCount |Gauge<Integer> |Number of token ranges failed to repair on the node
+
+|SkippedTokenRangesCount |Gauge<Integer> |Number of token ranges skipped
+on the node
+
+|SkippedTablesCount |Gauge<Integer> |Number of tables skipped
+on the node
+
+|TotalMVTablesConsideredForRepair |Gauge<Integer> |Number of materialized
+views considered on the node
+
+|TotalDisabledRepairTables |Gauge<Integer> |Number of tables on which
+the automated repair has been disabled on the node
+
+|RepairTurnMyTurn |Counter |Represents the node's turn to repair
+
+|RepairTurnMyTurnDueToPriority |Counter |Represents the node's turn to repair
+due to priority set in the automated repair
+
+|RepairDelayedByReplica |Counter |Represents occurrences of a node's turn being
+delayed because a replica was currently taking its turn. Only relevant if
+`allow_parallel_replica_repair` is false.
+
+|RepairDelayedBySchedule |Counter |Represents occurrences of a node's turn being
+delayed because it was already being repaired in another schedule. Only relevant
+if `allow_parallel_replica_repair_across_schedules` is false.
+
+|===
+
 
 == JVM Metrics
 

@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
@@ -243,6 +244,9 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                                      .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
                                      .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
                         ClusterMetadataService.instance().commit(midJoin);
+
+                        // this node might have just bootstrapped; check if we should run repair immediately
+                        AutoRepairUtils.runRepairOnNewlyBootstrappedNodeIfEnabled();
                     }
                     else
                     {

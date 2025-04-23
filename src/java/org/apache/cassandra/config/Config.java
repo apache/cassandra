@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +43,7 @@ import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
@@ -368,6 +370,10 @@ public class Config
     // The number of executors to use for building secondary indexes
     public volatile int concurrent_index_builders = 2;
 
+    // at least 20% of disk must be unused to run incremental repair
+    // if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason) then set the ratio to 0.0
+    public volatile double incremental_repair_disk_headroom_reject_ratio = 0.2;
+
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */
@@ -623,6 +629,10 @@ public class Config
 
     @Replaces(oldName = "enable_materialized_views", converter = Converters.IDENTITY, deprecated = true)
     public boolean materialized_views_enabled = false;
+
+    // When true, materialized views data in SSTable go through commit logs during internodes streaming, e.g. repair
+    // When false, it behaves the same as normal streaming.
+    public volatile boolean materialized_views_on_repair_enabled = true;
 
     @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)
     public boolean transient_replication_enabled = false;
@@ -991,6 +1001,7 @@ public class Config
 
     public volatile boolean password_validator_reconfiguration_enabled = true;
     public volatile CustomGuardrailConfig password_validator = new CustomGuardrailConfig();
+    public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.

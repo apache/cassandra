@@ -71,6 +71,9 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -250,6 +253,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
+import static org.apache.cassandra.locator.InetAddressAndPort.stringify;
 import static org.apache.cassandra.schema.SchemaConstants.isLocalSystemKeyspace;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
@@ -384,8 +388,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy()
-                       .getAddressReplicas(ClusterMetadata.current(), endpoint);
+        return getReplicas(Keyspace.open(keyspaceName).getReplicationStrategy(), endpoint);
+    }
+
+    public RangesAtEndpoint getReplicas(AbstractReplicationStrategy replicationStrategy, InetAddressAndPort endpoint)
+    {
+        return replicationStrategy.getAddressReplicas(ClusterMetadata.current(), endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)
@@ -469,11 +477,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private volatile int totalCFs, remainingCFs;
 
-    private static final AtomicInteger nextRepairCommand = new AtomicInteger();
-
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
     private final String jmxObjectName;
+
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     // true when keeping strict consistency while bootstrapping
     public static final boolean useStrictConsistency = CONSISTENT_RANGE_MOVEMENT.getBoolean();
@@ -1125,6 +1133,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             AuthCacheService.initializeAndRegisterCaches();
             Schema.instance.registerListener(new AuthSchemaChangeListener());
             authSetupComplete = true;
+        }
+    }
+
+    public void doAutoRepairSetup()
+    {
+        AutoRepairService.setup();
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            logger.info("Enabling auto-repair scheduling");
+            AutoRepair.instance.setup();
+            logger.info("AutoRepair setup complete!");
         }
     }
 
@@ -2610,16 +2629,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public String getSavedCachesLocation()
     {
         return FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation());
-    }
-
-    private List<String> stringify(Iterable<InetAddressAndPort> endpoints, boolean withPort)
-    {
-        List<String> stringEndpoints = new ArrayList<>();
-        for (InetAddressAndPort ep : endpoints)
-        {
-            stringEndpoints.add(ep.getHostAddress(withPort));
-        }
-        return stringEndpoints;
     }
 
     public int getCurrentGenerationNumber()
@@ -5647,9 +5656,49 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         AlterTopology transform = new AlterTopology(updates, ClusterMetadataService.instance().placementProvider());
         ClusterMetadataService.instance()
                               .commit(transform,
-                                      m -> { logger.info("Rack changes committed successfully"); return m; },
+                                      m -> {
+                                          logger.info("Rack changes committed successfully");
+                                          return m;
+                                      },
                                       (c, r) -> {
                                           throw new IllegalArgumentException("Unable to commit rack changes: " + r);
                                       });
+    }
+
+    @Override
+    public List<String> getTablesForKeyspace(String keyspace)
+    {
+        return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tableNames)
+    {
+        Map<String, ColumnFamilyStore> tables =  Keyspace.open(keyspace).getColumnFamilyStores()
+                                                         .stream().collect(Collectors.toMap(c -> c.name, c -> c));
+        for (String tableName : tableNames)
+        {
+            if (!tables.containsKey(tableName))
+                throw new RuntimeException("Table " + tableName + " does not exist in keyspace " + keyspace);
+        }
+
+        // only select SSTables that are unrepaired when repaired is true and vice versa
+        Predicate<SSTableReader> predicate = sst -> repaired != sst.isRepaired();
+
+        // mutate SSTables
+        long repairedAt = !repaired ? 0 : currentTimeMillis();
+        List<String> sstablesTouched = new ArrayList<>();
+        for (String tableName : tableNames)
+        {
+            ColumnFamilyStore table = tables.get(tableName);
+            Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
+                Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
+                if (!preview)
+                    table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
+                return sstables;
+            }, predicate, OperationType.ANTICOMPACTION, true, false, true);
+            sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFile().name()).collect(Collectors.toList()));
+        }
+        return sstablesTouched;
     }
 }

@@ -219,9 +219,15 @@ public class TableMetrics
     /** number of partitions read creating merkle trees */
     public final TableHistogram partitionsValidated;
     /** number of bytes read while doing anticompaction */
-    public final Counter bytesAnticompacted;
+    public final TableMeter bytesAnticompacted;
     /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
-    public final Counter bytesMutatedAnticompaction;
+    public final TableMeter bytesMutatedAnticompaction;
+    /** number of bytes that were scanned during preview repair */
+    public final TableMeter bytesPreviewed;
+    /** number of desynchronized token ranges that were detected during preview repair */
+    public final TableMeter tokenRangesPreviewedDesynchronized;
+    /** number of desynchronized bytes that were detected during preview repair */
+    public final TableMeter bytesPreviewedDesynchronized;
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
@@ -831,12 +837,15 @@ public class TableMetrics
 
         bytesValidated = createTableHistogram("BytesValidated", cfs.keyspace.metric.bytesValidated, false);
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
-        bytesAnticompacted = createTableCounter("BytesAnticompacted");
-        bytesMutatedAnticompaction = createTableCounter("BytesMutatedAnticompaction");
+        bytesAnticompacted = createTableMeter("BytesAnticompacted", cfs.keyspace.metric.bytesAnticompacted, true);
+        bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction", cfs.keyspace.metric.bytesMutatedAnticompaction, true);
+        bytesPreviewed = createTableMeter("BytesPreviewed", cfs.keyspace.metric.bytesPreviewed);
+        tokenRangesPreviewedDesynchronized = createTableMeter("TokenRangesPreviewedDesynchronized", cfs.keyspace.metric.tokenRangesPreviewedDesynchronized);
+        bytesPreviewedDesynchronized = createTableMeter("BytesPreviewedDesynchronized", cfs.keyspace.metric.bytesPreviewedDesynchronized);
         mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
         {
-            double bytesMutated = bytesMutatedAnticompaction.getCount();
-            double bytesAnticomp = bytesAnticompacted.getCount();
+            double bytesMutated = bytesMutatedAnticompaction.table.getCount();
+            double bytesAnticomp = bytesAnticompacted.table.getCount();
             if (bytesAnticomp + bytesMutated > 0)
                 return bytesMutated / (bytesAnticomp + bytesMutated);
             return 0.0;
@@ -1103,16 +1112,21 @@ public class TableMetrics
 
     protected TableMeter createTableMeter(String name, Meter keyspaceMeter)
     {
-        return createTableMeter(name, name, keyspaceMeter);
+        return createTableMeter(name, keyspaceMeter, false);
     }
 
-    protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter)
+    protected TableMeter createTableMeter(String name, Meter keyspaceMeter, boolean globalMeterGaugeCompatible)
+    {
+        return createTableMeter(name, name, keyspaceMeter, globalMeterGaugeCompatible);
+    }
+
+    protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter, boolean globalMeterGaugeCompatible)
     {
         Meter meter = Metrics.meter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
         register(name, alias, meter);
         return new TableMeter(meter,
                               keyspaceMeter,
-                              Metrics.meter(GLOBAL_FACTORY.createMetricName(name),
+                              Metrics.meter(globalMeterGaugeCompatible, GLOBAL_FACTORY.createMetricName(name),
                                             GLOBAL_ALIAS_FACTORY.createMetricName(alias)));
     }
 
@@ -1171,9 +1185,14 @@ public class TableMetrics
 
         public void mark()
         {
+            mark(1L);
+        }
+
+        public void mark(long val)
+        {
             for (Meter meter : all)
             {
-                meter.mark();
+                meter.mark(val);
             }
         }
     }
