@@ -146,12 +146,15 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
             {
                 final Iterator<Pair<ByteComparable, LongArrayList>> iterator = rowMapping.merge(memtable);
 
-                try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
+                long cellCount = 0;
+                if (iterator.hasNext())
                 {
-                    long cellCount = flush(terms);
-
-                    completeIndexFlush(cellCount, start, stopwatch);
+                    try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
+                    {
+                        cellCount = flush(terms);
+                    }
                 }
+                completeIndexFlush(cellCount, start, stopwatch);
             }
         }
         catch (Throwable t)
