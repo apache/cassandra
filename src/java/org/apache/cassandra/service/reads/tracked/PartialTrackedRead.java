@@ -25,28 +25,30 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.index.Index;
 
 public interface PartialTrackedRead
 {
     interface Read extends AutoCloseable
     {
-        UnfilteredPartitionIterator data();
+        PartitionIterator data();
         int index();
         TrackedRead<?, ?> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos);
 
         @Override
         void close();
 
-        static Read simple(UnfilteredPartitionIterator partition)
+        static Read simple(UnfilteredPartitionIterator partition, long nowInSec)
         {
             return new Read()
             {
                 @Override
-                public UnfilteredPartitionIterator data()
+                public PartitionIterator data()
                 {
-                    return partition;
+                    return UnfilteredPartitionIterators.filter(partition, nowInSec);
                 }
 
                 @Override

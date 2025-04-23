@@ -581,7 +581,6 @@ public abstract class ReadCommand extends AbstractReadQuery
                 throw new UnsupportedOperationException("TODO: support tracked index reads");
 
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
-            iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
             return completer.complete(iterator, executionController, searcher, cfs, startTimeNanos);
         }
@@ -596,6 +595,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         COMMAND.set(this);
         try
         {
+            iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
             iterator = withQuerySizeTracking(iterator);
             iterator = maybeSlowDownForTesting(iterator);
             iterator = withQueryCancellation(iterator);

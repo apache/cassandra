@@ -103,6 +103,6 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
     @Override
     Read createResult(UnfilteredPartitionIterator iterator)
     {
-        return PartialTrackedRead.Read.simple(iterator);
+        return PartialTrackedRead.Read.simple(iterator, nowInSec());
     }
 }

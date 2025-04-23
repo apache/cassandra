@@ -37,10 +37,15 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SimpleBTreePartition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.transform.EmptyPartitionsDiscarder;
+import org.apache.cassandra.db.transform.Filter;
+import org.apache.cassandra.db.transform.FilteredPartitions;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
@@ -228,13 +233,16 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
 
         public ExtendingRead(UnfilteredPartitionIterator iterator)
         {
-            this.iterator = mergedResultCounter.applyTo(iterator);
+            this.iterator = iterator;
         }
 
         @Override
-        public UnfilteredPartitionIterator data()
+        public PartitionIterator data()
         {
-            return iterator;
+            Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
+            FilteredPartitions filtered = FilteredPartitions.filter(iterator, filter);
+            PartitionIterator counted = Transformation.apply(filtered, mergedResultCounter);
+            return Transformation.apply(counted, new EmptyPartitionsDiscarder());
         }
 
         @Override
@@ -332,6 +340,6 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     {
         if (wasAugmented)
             return new ExtendingRead(iterator);
-        return PartialTrackedRead.Read.simple(iterator);
+        return PartialTrackedRead.Read.simple(iterator, nowInSec());
     }
 }

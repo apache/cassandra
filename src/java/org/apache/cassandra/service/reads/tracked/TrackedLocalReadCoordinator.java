@@ -29,7 +29,6 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
@@ -593,7 +592,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         Stage.READ.submit(() -> {
             try (PartialTrackedRead.Read trackedRead = read.read())
             {
-                TrackedDataResponse response = TrackedDataResponse.create(UnfilteredPartitionIterators.filter(trackedRead.data(), read.nowInSec()), selection);
+                TrackedDataResponse response = TrackedDataResponse.create(trackedRead.data(), selection);
                 TrackedRead<?, ?> followUp = trackedRead.followupRead(consistencyLevel, expiresAtNanos);
 
                 if (followUp != null)

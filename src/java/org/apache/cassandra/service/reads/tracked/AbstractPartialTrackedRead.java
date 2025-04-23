@@ -31,6 +31,7 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.index.Index;
 
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
@@ -126,13 +127,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
         return command().completeTrackedRead(iterator, this);
     }
 
-    UnfilteredPartitionIterator mergeAndComplete(UnfilteredPartitionIterator initial, UnfilteredPartitionIterator augmented)
-    {
-        UnfilteredPartitionIterator merged = augmented != null ? UnfilteredPartitionIterators.merge(List.of(initial, augmented), NOOP) : initial;
-        return complete(merged);
-    }
-
-
     abstract Read createResult(UnfilteredPartitionIterator iterator);
 
     @Override
@@ -148,6 +142,10 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
                                              UnfilteredPartitionIterators.merge(List.of(initial, augmented), NOOP) :
                                              initial;
 
+        result = complete(result);
+        // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
+        // ends equal, and there are no dangling RT bound in any partition.
+        result = RTBoundValidator.validate(result, RTBoundValidator.Stage.PROCESSED, true);
         return createResult(complete(result));
     }
 
