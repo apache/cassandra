@@ -69,11 +69,7 @@ public final class AutoRepairParams
 
     public static AutoRepairParams create(Map<String, String> options)
     {
-        Map<String, String> optionsMap = new TreeMap<>();
-        for (Map.Entry<String, String> entry : DEFAULT_OPTIONS.entrySet())
-        {
-            optionsMap.put(entry.getKey(), entry.getValue());
-        }
+        Map<String, String> optionsMap = new TreeMap<>(DEFAULT_OPTIONS);
         if (options != null)
         {
             for (Map.Entry<String, String> entry : options.entrySet())
@@ -91,18 +87,14 @@ public final class AutoRepairParams
     public boolean repairEnabled(AutoRepairConfig.RepairType type)
     {
         String option = type.toString().toLowerCase() + "_enabled";
-        String enabled = options.get(option);
-        return enabled == null
-               ? Boolean.parseBoolean(DEFAULT_OPTIONS.get(option))
-               : Boolean.parseBoolean(enabled);
+        String enabled = options.getOrDefault(option, DEFAULT_OPTIONS.get(option));
+        return Boolean.parseBoolean(enabled);
     }
 
     public int priority()
     {
-        String priority = options.get(Option.PRIORITY.toString());
-        return priority == null
-               ? Integer.parseInt(DEFAULT_OPTIONS.get(Option.PRIORITY.toString()))
-               : Integer.parseInt(priority);
+        String priority = options.getOrDefault(Option.PRIORITY.toString(), DEFAULT_OPTIONS.get(Option.PRIORITY.toString()));
+        return Integer.parseInt(priority);
     }
 
     public void validate()
