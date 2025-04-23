@@ -590,10 +590,10 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
     private void complete(PartialTrackedRead read, ColumnFilter selection, ConsistencyLevel consistencyLevel, long expiresAtNanos)
     {
         Stage.READ.submit(() -> {
-            try (PartialTrackedRead.Read trackedRead = read.read())
+            try (PartialTrackedRead.CompletedRead completedRead = read.complete())
             {
-                TrackedDataResponse response = TrackedDataResponse.create(trackedRead.data(), selection);
-                TrackedRead<?, ?> followUp = trackedRead.followupRead(consistencyLevel, expiresAtNanos);
+                TrackedDataResponse response = TrackedDataResponse.create(completedRead.iterator(), selection);
+                TrackedRead<?, ?> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
 
                 if (followUp != null)
                 {

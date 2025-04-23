@@ -220,7 +220,7 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         wasAugmented = true;
     }
 
-    private class ExtendingRead implements Read
+    private class ExtendingCompletedRead implements CompletedRead
     {
 
         final UnfilteredPartitionIterator iterator;
@@ -230,25 +230,18 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
                                                                                    command.selectsFullPartition(),
                                                                                    enforceStrictLiveness);
 
-
-        public ExtendingRead(UnfilteredPartitionIterator iterator)
+        public ExtendingCompletedRead(UnfilteredPartitionIterator iterator)
         {
             this.iterator = iterator;
         }
 
         @Override
-        public PartitionIterator data()
+        public PartitionIterator iterator()
         {
             Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
             FilteredPartitions filtered = FilteredPartitions.filter(iterator, filter);
             PartitionIterator counted = Transformation.apply(filtered, mergedResultCounter);
             return Transformation.apply(counted, new EmptyPartitionsDiscarder());
-        }
-
-        @Override
-        public int index()
-        {
-            return 0;
         }
 
         @Override
@@ -336,10 +329,10 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     }
 
     @Override
-    Read createResult(UnfilteredPartitionIterator iterator)
+    CompletedRead createResult(UnfilteredPartitionIterator iterator)
     {
         if (wasAugmented)
-            return new ExtendingRead(iterator);
-        return PartialTrackedRead.Read.simple(iterator, nowInSec());
+            return new ExtendingCompletedRead(iterator);
+        return CompletedRead.simple(iterator, command().nowInSec());
     }
 }

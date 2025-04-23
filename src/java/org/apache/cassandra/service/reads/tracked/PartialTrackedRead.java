@@ -32,29 +32,22 @@ import org.apache.cassandra.index.Index;
 
 public interface PartialTrackedRead
 {
-    interface Read extends AutoCloseable
+    interface CompletedRead extends AutoCloseable
     {
-        PartitionIterator data();
-        int index();
+        PartitionIterator iterator();
         TrackedRead<?, ?> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos);
 
         @Override
         void close();
 
-        static Read simple(UnfilteredPartitionIterator partition, long nowInSec)
+        static CompletedRead simple(UnfilteredPartitionIterator partition, long nowInSec)
         {
-            return new Read()
+            return new CompletedRead()
             {
                 @Override
-                public PartitionIterator data()
+                public PartitionIterator iterator()
                 {
                     return UnfilteredPartitionIterators.filter(partition, nowInSec);
-                }
-
-                @Override
-                public int index()
-                {
-                    return 0;
                 }
 
                 @Override
@@ -72,7 +65,7 @@ public interface PartialTrackedRead
         }
     }
 
-    Read read();
+    CompletedRead complete();
 
     void augment(Mutation mutation);
 
@@ -80,8 +73,6 @@ public interface PartialTrackedRead
     {
         mutations.forEach(this::augment);
     }
-
-    long nowInSec();
 
     ReadExecutionController executionController();
 

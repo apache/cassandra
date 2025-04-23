@@ -96,12 +96,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
 
     abstract void augmentResponse(PartitionUpdate update);
 
-    @Override
-    public long nowInSec()
-    {
-        return command().nowInSec();
-    }
-
     /**
      * Implementors need to call this before returning this from createInProgressRead
      */
@@ -127,10 +121,10 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
         return command().completeTrackedRead(iterator, this);
     }
 
-    abstract Read createResult(UnfilteredPartitionIterator iterator);
+    abstract CompletedRead createResult(UnfilteredPartitionIterator iterator);
 
     @Override
-    public synchronized Read read()
+    public synchronized CompletedRead complete()
     {
         Preconditions.checkState(state == State.PREPARED);
         state = State.READING;
