@@ -558,6 +558,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         synchronized (this)
         {
+            // the read can't complete without data, but it could have been aborted in the mean time
             if (!state.isAborted())
                 state = state.asReading().receiveInProgressRead(read, secondarySummary);
         }

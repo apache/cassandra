@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,10 +42,9 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SimpleBTreePartition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.EmptyPartitionsDiscarder;
-import org.apache.cassandra.db.transform.Filter;
-import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
@@ -71,6 +71,7 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     private boolean partitionsFetched; // whether we've seen any new partitions since iteration start or last moreContents() call
     private boolean initialCounterExhausted;
     private boolean wasAugmented;
+    AbstractBounds<PartitionPosition> followUpBounds;
 
     public PartialTrackedRangeRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
     {
@@ -171,6 +172,14 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             consume(iterator);
         }
         initialCounterExhausted = command.limits().isExhausted(singleResultCounter);
+        if (partitionsFetched)
+        {
+            AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
+            followUpBounds = bounds.inclusiveRight()
+                             ? new Range<>(lastPartitionKey, bounds.right)
+                             : new ExcludingBounds<>(lastPartitionKey, bounds.right);
+            Preconditions.checkState(!followUpBounds.contains(lastPartitionKey));
+        }
         wasAugmented = false;
     }
 
@@ -216,7 +225,11 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     @Override
     void augmentResponse(PartitionUpdate update)
     {
-        augmentResponseInternal(update);
+        // if the update is part of the range that would be fetched as a short read follow up, we need to ignore it.
+        // We won't have materialized the local data for it, and will return just the missed mutations if the read
+        // ends up being short
+        if (followUpBounds == null || !followUpBounds.contains(update.partitionKey()))
+            augmentResponseInternal(update);
         wasAugmented = true;
     }
 
@@ -238,8 +251,7 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         @Override
         public PartitionIterator iterator()
         {
-            Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
-            FilteredPartitions filtered = FilteredPartitions.filter(iterator, filter);
+            PartitionIterator filtered = UnfilteredPartitionIterators.filter(iterator, command.nowInSec());
             PartitionIterator counted = Transformation.apply(filtered, mergedResultCounter);
             return Transformation.apply(counted, new EmptyPartitionsDiscarder());
         }
@@ -300,12 +312,7 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         {
             DataLimits newLimits = command.limits().forShortReadRetry(toQuery);
 
-            AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
-            AbstractBounds<PartitionPosition> newBounds = bounds.inclusiveRight()
-                                                          ? new Range<>(lastPartitionKey, bounds.right)
-                                                          : new ExcludingBounds<>(lastPartitionKey, bounds.right);
-
-            DataRange newDataRange = command.dataRange().forSubRange(newBounds);
+            DataRange newDataRange = command.dataRange().forSubRange(followUpBounds);
 
             Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
             PartitionRangeReadCommand followUpCmd = command.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
