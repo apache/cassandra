@@ -147,11 +147,13 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             @Override
             public UnfilteredRowIterator next()
             {
-                UnfilteredRowIterator rowIterator = initialData.next();
-                SimpleBTreePartition partition = augmentResponseInternal(PartitionUpdate.fromIterator(rowIterator, command.columnFilter()));
-                lastPartitionKey = partition.partitionKey();
-                partitionsFetched = true;
-                return queryPartition(partition);
+                try (UnfilteredRowIterator rowIterator = initialData.next())
+                {
+                    SimpleBTreePartition partition = augmentResponseInternal(PartitionUpdate.fromIterator(rowIterator, command.columnFilter()));
+                    lastPartitionKey = partition.partitionKey();
+                    partitionsFetched = true;
+                    return queryPartition(partition);
+                }
             }
 
             @Override
