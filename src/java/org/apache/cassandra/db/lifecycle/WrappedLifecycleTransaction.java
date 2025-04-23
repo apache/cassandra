@@ -28,7 +28,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 public class WrappedLifecycleTransaction implements ILifecycleTransaction
 {
 
-    final ILifecycleTransaction delegate;
+    protected final ILifecycleTransaction delegate;
     public WrappedLifecycleTransaction(ILifecycleTransaction delegate)
     {
         this.delegate = delegate;

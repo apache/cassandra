@@ -395,7 +395,7 @@ public class FileHandle extends SharedCloseableImpl
                 channel = channelProxyFactory.apply(file);
 
                 long fileLength = (compressionMetadata != null) ? compressionMetadata.compressedFileLength : channel.size();
-                long length = lengthOverride > 0 ? lengthOverride : fileLength;
+                long length = lengthOverride >= 0 ? lengthOverride : fileLength;
 
                 RebuffererFactory rebuffererFactory;
                 if (length == 0)

@@ -116,7 +116,7 @@ class PartitionIndexBuilder implements AutoCloseable
         }
         finally
         {
-            fhBuilder.withLengthOverride(-1);
+            fhBuilder.withLengthOverride(FileHandle.Builder.NO_LENGTH_OVERRIDE);
         }
 
     }
