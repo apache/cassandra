@@ -69,7 +69,7 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     // short read support
     private DecoratedKey lastPartitionKey; // key of the last observed partition
     private boolean partitionsFetched; // whether we've seen any new partitions since iteration start or last moreContents() call
-    private boolean initialCounterExhausted;
+    private boolean initialIteratorExhausted;
     private boolean wasAugmented;
     AbstractBounds<PartitionPosition> followUpBounds;
 
@@ -173,7 +173,7 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         {
             consume(iterator);
         }
-        initialCounterExhausted = command.limits().isExhausted(singleResultCounter);
+        initialIteratorExhausted = command.limits().isExhausted(singleResultCounter);
         if (partitionsFetched)
         {
             AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
@@ -227,10 +227,10 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     @Override
     void augmentResponse(PartitionUpdate update)
     {
-        // if the update is part of the range that would be fetched as a short read follow up, we need to ignore it.
-        // We won't have materialized the local data for it, and will return just the missed mutations if the read
-        // ends up being short
-        if (followUpBounds == null || !followUpBounds.contains(update.partitionKey()))
+        // if the input iterator reached the row limit, then we can't apply any augmenting mutations that are past
+        // the last materialized key. Since we wouldn't have materialized the local data for that key, applying an
+        // update would cause us to return incomplete data for it.
+        if (initialIteratorExhausted || !followUpBounds.contains(update.partitionKey()))
             augmentResponseInternal(update);
         wasAugmented = true;
     }
@@ -282,7 +282,7 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
              * Can only take the short cut if there is no per partition limit set. Otherwise it's possible to hit false
              * positives due to some rows being uncounted for in certain scenarios (see CASSANDRA-13911).
              */
-            if (initialCounterExhausted && command.limits().perPartitionCount() == DataLimits.NO_LIMIT)
+            if (initialIteratorExhausted && command.limits().perPartitionCount() == DataLimits.NO_LIMIT)
                 return null;
 
             /*
