@@ -351,12 +351,12 @@ public class StatefulASTBase extends TestBaseImpl
         protected final ASTSingleTableModel model;
         private final String sstableFormatName;
         private final Visitor debug;
-        private final int enoughMemtables;
-        private final int enoughSSTables;
+        private final int enoughMemtables, enoughMemtablesForRepair;
+        private final int enoughSSTables, enoughSSTablesForRepair;
         protected int numMutations, mutationsSinceLastFlush, mutationsSinceLastRepair;
-        protected int numFlushes, flushesSinceLastCompaction;
-        protected int numRepairs;
+        protected int numFlushes, flushesSinceLastCompaction, flushesSinceLastRepair;
         protected int numCompact;
+        protected int numRepairs;
         protected int operations;
 
         protected BaseState(RandomSource rs, Cluster cluster, TableMetadata metadata)
@@ -381,8 +381,10 @@ public class StatefulASTBase extends TestBaseImpl
             this.perPartitionLimitGen = LIMIT_DISTRO.next(rs);
             this.limitGen = LIMIT_DISTRO.next(rs);
 
-            this.enoughMemtables = rs.pickInt(3, 10, 50);
+            this.enoughMemtables = rs.pickInt(1, 3, 10, 50);
+            this.enoughMemtablesForRepair = rs.pickInt(1, 3, 10, 50);
             this.enoughSSTables = rs.pickInt(3, 10, 50);
+            this.enoughSSTablesForRepair = rs.pickInt(1, 3, 10, 50);
 
             this.metadata = metadata;
             this.tableRef = TableReference.from(metadata);
@@ -543,9 +545,21 @@ public class StatefulASTBase extends TestBaseImpl
             return mutationsSinceLastFlush > enoughMemtables;
         }
 
+        protected boolean hasEnoughMemtableForRepair()
+        {
+            // use last flush rather than last repair as this method cares about data in the memtable
+            // and not amount of mutations since repair
+            return mutationsSinceLastFlush > enoughMemtables;
+        }
+
         protected boolean hasEnoughSSTables()
         {
             return flushesSinceLastCompaction > enoughSSTables;
+        }
+
+        protected boolean hasEnoughSSTablesForRepair()
+        {
+            return flushesSinceLastRepair > enoughSSTables;
         }
 
         protected void mutation()
@@ -560,6 +574,13 @@ public class StatefulASTBase extends TestBaseImpl
             mutationsSinceLastFlush = 0;
             numFlushes++;
             flushesSinceLastCompaction++;
+            flushesSinceLastRepair++;
+        }
+
+        protected void compact()
+        {
+            flushesSinceLastCompaction = 0;
+            numCompact++;
         }
 
         protected void repair()
@@ -569,17 +590,12 @@ public class StatefulASTBase extends TestBaseImpl
 
             numRepairs++;
             mutationsSinceLastRepair = 0;
+            flushesSinceLastRepair = 0;
         }
 
         protected boolean isConsistent()
         {
             return mutationsSinceLastRepair == 0;
-        }
-
-        protected void compact()
-        {
-            flushesSinceLastCompaction = 0;
-            numCompact++;
         }
 
         protected Value value(RandomSource rs, ByteBuffer bb, AbstractType<?> type)

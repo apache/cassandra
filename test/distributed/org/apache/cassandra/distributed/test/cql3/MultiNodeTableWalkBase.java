@@ -104,7 +104,7 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
         @Override
         protected boolean allowRepair()
         {
-            return hasEnoughMemtable() || hasEnoughSSTables();
+            return hasEnoughMemtableForRepair() || hasEnoughSSTablesForRepair();
         }
 
         @Override
