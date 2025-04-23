@@ -150,8 +150,6 @@ public class RepairGenerators
                 PreviewType previewType = previewTypeGen.next(rs);
                 List<String> args = new ArrayList<>();
                 args.addAll(tablesGen.next(rs));
-                //TODO (coverage): would be good to select token ranges based off the model
-                // --start-token, --end-token (these support MIN_TOKEN)
                 args.addAll(ranges.next(rs));
                 if (skipPaxosGen.next(rs))
                     args.add("--skip-paxos");
