@@ -1,4 +1,5 @@
 5.0.5
+ * SAI marks an index as non-empty when a partial partition/row modifications is flushed due to repair (CASSANDRA-20567)
  * SAI fails queries when multiple columns exist and a non-indexed column is a composite with a map (CASSANDRA-19891)
  * Grant permission on keyspaces system_views and system_virtual_schema not possible (CASSANDRA-20171)
  * Fix marking an SSTable as suspected and BufferPool leakage in case of a corrupted SSTable read during a compaction (CASSANDRA-20396)

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.shared;
 
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.security.Permission;
@@ -60,6 +61,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
+import org.apache.cassandra.utils.Shared;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
@@ -975,6 +977,43 @@ public class ClusterUtils
             public void checkPermission(Permission perm, Object context)
             {
             }
+        });
+    }
+
+    @Shared
+    public static class Range implements Serializable
+    {
+        public final String left, right;
+
+        public Range(String left, String right)
+        {
+            this.left = left;
+            this.right = right;
+        }
+
+        public Range(long left, long right)
+        {
+            this(Long.toString(left), Long.toString(right));
+        }
+
+        public long left()
+        {
+            return Long.parseLong(left);
+        }
+
+        public long right()
+        {
+            return Long.parseLong(right);
+        }
+    }
+
+    public static List<Range> getPrimaryRanges(IInvokableInstance instance, String keyspace)
+    {
+        return instance.callOnInstance(() -> {
+            var ranges = StorageService.instance.getPrimaryRangesForEndpoint(keyspace, FBUtilities.getBroadcastAddressAndPort());
+            return ranges.stream()
+                    .flatMap(r -> r.unwrap().stream().map(r2 -> new Range(r2.left.toString(), r2.right.toString())))
+                    .collect(Collectors.toList());
         });
     }
 }
