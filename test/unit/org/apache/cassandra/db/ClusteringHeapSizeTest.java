@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.db.marshal.NativeAccessor;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -64,6 +65,8 @@ public class ClusteringHeapSizeTest
     @Test
     public void testSingletonClusteringHeapSize()
     {
+        if (this.clustering.accessor() == NativeAccessor.instance)
+            return; // factory logic is not supported for NativeAccessor, it is read-only
         Clustering<?> clustering = this.clustering.accessor().factory().staticClustering();
         Assertions.assertThat(clustering.unsharedHeapSize())
                   .isEqualTo(0);
