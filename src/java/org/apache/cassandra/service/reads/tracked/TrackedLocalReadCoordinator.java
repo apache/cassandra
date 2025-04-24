@@ -235,7 +235,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         private final long expiresAtNanos;
         private final ReplicaPlan.AbstractForRead<?, ?> replicaPlan;
         private final Accumulator<ReceivedSummary> summaries;
-        private final Set<InetAddressAndPort> summaryNodes;
+        private final Set<InetAddressAndPort> summaryNodes; // for speculating when we haven't received enough summaries
 
         public Reading(ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos)
         {
