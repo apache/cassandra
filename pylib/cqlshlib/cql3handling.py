@@ -484,10 +484,10 @@ def ks_prop_val_mapkey_completer(ctxt, cass):
               resultPeer = session.execute("SELECT data_center FROM system.peers")
               peer_dc = [row['data_center'] for row in resultPeer if row['data_center']]
 
-              dummy_dcs = ['dc_dummy1', 'dc_dummy2', 'dc_dummy3']
-              dc_list = sorted(set([dc for dc in [local_dc] + peer_dc + dummy_dcs if dc]))
+#               dummy_dcs = ['dc_dummy1', 'dc_dummy2', 'dc_dummy3']
+#               dc_list = sorted(set([dc for dc in [local_dc] + peer_dc + dummy_dcs if dc]))
 
-#               dc_list = sorted(set([dc for dc in [local_dc] + peer_dc if dc]))
+              dc_list = sorted(set([dc for dc in [local_dc] + peer_dc if dc]))
 
               return list(map(escape_value, dc_list)) if dc_list else [Hint('<dc_name_not_available>')]
 
