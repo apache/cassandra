@@ -178,9 +178,9 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         optionsWithClientPrefix.put(CLIENT_IP_PORT, clientIPPort);
                     }
 
-                    String key = startup.options.getOrDefault(SERVICE, "") + "," + startup.options.getOrDefault(HOST_NAME, "");
+                    String key = startup.options.getOrDefault(SERVICE, "") + "," + startup.options.getOrDefault(REQUEST_TENANCY, "");
                     // Logging the client context data with NoSpamLogger
-                    NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 15, TimeUnit.MINUTES, "Client context data: {}", optionsWithClientPrefix);
+                    NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 5, TimeUnit.MINUTES, "Client context data: {}", optionsWithClientPrefix);
                     // fetch the language field, if it exists
                     String language = startup.options.getOrDefault(LANGUAGE, UNDEFINED);
                     // fetch the driver name if it exists. If it does not, use the value in the "LANGUAGE" field
