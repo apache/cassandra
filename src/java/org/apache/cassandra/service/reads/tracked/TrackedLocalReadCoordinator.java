@@ -601,7 +601,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
                     if (followUp != null)
                     {
                         ReadCommand command = read.command();
-                        followUp.addCallback((iterator, error) -> {
+                        followUp.future().addCallback((iterator, error) -> {
                             if (error != null)
                             {
                                 tryFailure(error);

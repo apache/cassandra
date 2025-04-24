@@ -2161,25 +2161,14 @@ public class StorageProxy implements StorageProxyMBean
         for (TrackedRead.Partition read : reads)
             read.start(requestTime);
 
-        try
-        {
-            if (cmdCount == 1)
-                return reads[0].get();
+        if (cmdCount == 1)
+            return reads[0].awaitResults();
 
-            List<PartitionIterator> iterators = new ArrayList<>(cmdCount);
-            for (TrackedRead.Partition read : reads)
-                iterators.add(read.get());
+        List<PartitionIterator> iterators = new ArrayList<>(cmdCount);
+        for (TrackedRead.Partition read : reads)
+            iterators.add(read.awaitResults());
 
-            return PartitionIterators.concat(iterators);
-        }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return PartitionIterators.concat(iterators);
     }
 
     /**

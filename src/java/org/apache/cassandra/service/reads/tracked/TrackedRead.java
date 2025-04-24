@@ -27,6 +27,9 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.AbstractPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.exceptions.ReadFailureException;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -40,11 +43,16 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.CollectionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -53,15 +61,34 @@ import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 
-public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends AsyncPromise<PartitionIterator> implements RequestCallback<TrackedDataResponse>
+public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<TrackedDataResponse>
 {
     private static final Logger logger = LoggerFactory.getLogger(TrackedRead.class);
     // TODO: use something durable
     private static final AtomicInteger nextReadId = new AtomicInteger();
 
+    private final AsyncPromise<PartitionIterator> future = new AsyncPromise<>();
+
     private final long readId = nextReadId();
     private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
     private final ConsistencyLevel consistencyLevel;
+
+    private static class RequestFailure extends Throwable
+    {
+        private final InetAddressAndPort from;
+        private final RequestFailureReason reason;
+
+        public RequestFailure(InetAddressAndPort from, RequestFailureReason reason)
+        {
+            this.from = from;
+            this.reason = reason;
+        }
+
+        public Map<InetAddressAndPort, RequestFailureReason> reasonByEndpoint()
+        {
+            return Map.of(from, reason);
+        }
+    }
 
     public TrackedRead(ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel)
     {
@@ -216,13 +243,57 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     private void onResponse(TrackedDataResponse response)
     {
-        trySuccess(response.makeIterator(command()));
+        future.trySuccess(response.makeIterator(command()));
     }
 
     @Override
     public void onResponse(Message<TrackedDataResponse> msg)
     {
         onResponse(msg.payload);
+    }
+
+    @Override
+    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    {
+        future.tryFailure(new RequestFailure(from, failureReason));
+    }
+
+    public Future<PartitionIterator> future()
+    {
+        return future;
+    }
+
+    public PartitionIterator awaitResults()
+    {
+        try
+        {
+            return future.get(command().getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            Throwable ex = e.getCause();
+            Map<InetAddressAndPort, RequestFailureReason> reasons = Collections.emptyMap();
+            if (ex instanceof RequestFailure)
+            {
+                RequestFailure failure = (RequestFailure) ex;
+                if (failure.reason == RequestFailureReason.TIMEOUT)
+                {
+                    throw new ReadTimeoutException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false);
+                }
+
+                reasons = failure.reasonByEndpoint();
+            }
+
+            throw new ReadFailureException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false, reasons);
+        }
+        catch (TimeoutException e)
+        {
+            throw new ReadTimeoutException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false);
+        }
     }
 
     public PartitionIterator iterator()
@@ -235,20 +306,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             protected RowIterator computeNext()
             {
                 if (result == null)
-                {
-                    try
-                    {
-                        result = get();
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new UncheckedInterruptedException(e);
-                    }
-                    catch (ExecutionException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }
+                    result = awaitResults();
 
                 if (!result.hasNext())
                     return endOfData();
