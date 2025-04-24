@@ -591,41 +591,42 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
     private void complete(PartialTrackedRead read, ColumnFilter selection, ConsistencyLevel consistencyLevel, long expiresAtNanos)
     {
         Stage.READ.submit(() -> {
-            try (PartialTrackedRead.CompletedRead completedRead = read.complete())
+            synchronized (this)
             {
-                TrackedDataResponse response = TrackedDataResponse.create(completedRead.iterator(), selection);
-                TrackedRead<?, ?> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
-
-                if (followUp != null)
+                try (PartialTrackedRead.CompletedRead completedRead = read.complete())
                 {
-                    ReadCommand command = read.command();
-                    followUp.addCallback((iterator, error) -> {
-                        if (error != null)
-                        {
-                            tryFailure(error);
-                            return;
-                        }
-                        PartitionIterator previous = response.makeIterator(command);
-                        TrackedDataResponse newResponse = TrackedDataResponse.create(PartitionIterators.concat(List.of(previous, iterator)), selection);
-                        trySuccess(newResponse);
-                    });
+                    TrackedDataResponse response = TrackedDataResponse.create(completedRead.iterator(), selection);
+                    TrackedRead<?, ?> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
+
+                    if (followUp != null)
+                    {
+                        ReadCommand command = read.command();
+                        followUp.addCallback((iterator, error) -> {
+                            if (error != null)
+                            {
+                                tryFailure(error);
+                                return;
+                            }
+                            PartitionIterator previous = response.makeIterator(command);
+                            TrackedDataResponse newResponse = TrackedDataResponse.create(PartitionIterators.concat(List.of(previous, iterator)), selection);
+                            trySuccess(newResponse);
+                        });
+                    }
+                    else
+                    {
+                        trySuccess(response);
+                    }
                 }
-                else
+                catch (Exception e)
                 {
-                    trySuccess(response);
+                    tryFailure(e);
+                    throw e;
+                }
+                finally
+                {
+                    read.close();
                 }
             }
-            catch (Exception e)
-            {
-                tryFailure(e);
-                throw e;
-            }
-            finally
-            {
-                read.close();
-            }
-
-
         });
     }
 
@@ -643,7 +644,6 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             state = state.asReconciling().receiveMutations(mutations);
         return state.isComplete();
     }
-
 
     boolean isTimedOutOrComplete(long nanoTime)
     {
