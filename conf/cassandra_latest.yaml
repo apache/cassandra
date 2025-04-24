@@ -2499,7 +2499,7 @@ storage_compatibility_mode: NONE
 #     force_repair_new_node: false
 #     # Threshold to skip repairing tables with too many SSTables. Defaults to 10,000 SSTables to avoid penalizing good
 #     # tables.
-#     sstable_upper_threshold: 10000
+#     sstable_upper_threshold: 50000
 #     # Maximum time allowed for repairing one table on a given node. If exceeded, the repair proceeds to the
 #     # next table.
 #     table_max_repair_time: 6h
