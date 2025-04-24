@@ -406,14 +406,14 @@ public class FileHandle extends SharedCloseableImpl
                 {
                     if (compressionMetadata != null)
                     {
-                        regions = mmappedRegionsCache != null ? mmappedRegionsCache.getOrCreate(channel, compressionMetadata)
+                        regions = mmappedRegionsCache != null ? mmappedRegionsCache.getOrCreate(channel, compressionMetadata, bufferSize)
                                                               : MmappedRegions.map(channel, compressionMetadata);
                         rebuffererFactory = maybeCached(new CompressedChunkReader.Mmap(channel, compressionMetadata, regions, crcCheckChanceSupplier));
                     }
                     else
                     {
-                        regions = mmappedRegionsCache != null ? mmappedRegionsCache.getOrCreate(channel, length)
-                                                              : MmappedRegions.map(channel, length);
+                        regions = mmappedRegionsCache != null ? mmappedRegionsCache.getOrCreate(channel, length, bufferSize)
+                                                              : MmappedRegions.map(channel, length, bufferSize);
                         rebuffererFactory = new MmapRebufferer(channel, length, regions);
                     }
                 }
