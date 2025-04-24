@@ -24,7 +24,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.FieldIdentifier;
@@ -34,6 +36,20 @@ import static org.apache.cassandra.db.marshal.ValueAccessors.ACCESSORS;
 
 public class CompositeAndTupleTypesTest
 {
+
+    private static final TestNativeDataAllocator allocator = new TestNativeDataAllocator();
+    @BeforeClass
+    public static void setSetMemoryAllocator()
+    {
+        NativeAccessor.setNativeMemoryAllocator(allocator);
+    }
+
+    @AfterClass
+    public static void releaseMemory()
+    {
+        allocator.close();
+    }
+
     interface TypeFactory<T extends AbstractType<?>> { T createType(List<AbstractType<?>> types); }
     interface ValueCombiner<V> { V combine(AbstractType<?> type, ValueAccessor<V> accessor, V[] values); }
 
@@ -107,6 +123,7 @@ public class CompositeAndTupleTypesTest
                         Assert.assertEquals(srcString, dstString);
                     }
                 }
+                allocator.releaseMemory();
             }
         }
     }

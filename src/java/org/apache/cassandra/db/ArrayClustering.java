@@ -48,6 +48,12 @@ public class ArrayClustering extends AbstractArrayClusteringPrefix implements Cl
         return EMPTY_SIZE + ObjectSizes.sizeOfArray(values);
     }
 
+    @Override
+    public Clustering<?> ensureAccessorFactorySupport()
+    {
+        return this;
+    }
+
     public static ArrayClustering make(byte[]... values)
     {
         return new ArrayClustering(values);

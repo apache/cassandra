@@ -22,7 +22,8 @@ import java.nio.ByteBuffer;
 
 public class ValueAccessors
 {
-    public static final ValueAccessor[] ACCESSORS = new ValueAccessor[]{ ByteBufferAccessor.instance, ByteArrayAccessor.instance };
+    public static final ValueAccessor[] ACCESSORS = new ValueAccessor[]{ ByteBufferAccessor.instance, ByteArrayAccessor.instance, NativeAccessor.instance };
+    public static final ValueAccessor[] FACTORY_SUPPORTED_ACCESSORS = new ValueAccessor[]{ ByteBufferAccessor.instance, ByteArrayAccessor.instance };
 
     public static <V1, V2> void assertDataEquals(V1 expected, ValueAccessor<V1> expectedAccessor, V2 actual, ValueAccessor<V2> actualAccessor)
     {

@@ -1,4 +1,5 @@
 5.1
+ * Introduce NativeAccessor to avoid new ByteBuffer allocation on flush for each NativeCell (CASSANDRA-20173)
  * Migrate sstableloader code to its own tools directory and artifact (CASSANDRA-20328)
  * Stop AutoRepair monitoring thread upon Cassandra shutdown (CASSANDRA-20623)
  * Avoid duplicate hardlink error upon forceful taking of ephemeral snapshots during repair (CASSANDRA-20490)

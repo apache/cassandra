@@ -70,6 +70,21 @@ public class FastByteOperations
         return BestHolder.BEST.compare(b1, b2);
     }
 
+    public static int compareWithMemoryUnsigned(ByteBuffer b1, long address2, int length2)
+    {
+        return BestHolder.BEST.compare(b1, address2, length2);
+    }
+
+    public static int compareWithMemoryUnsigned(byte[] b1, int s1, int l1, long address2, int length2)
+    {
+        return BestHolder.BEST.compare(b1, s1,l1, address2, length2);
+    }
+
+    public static int compareMemoryUnsigned(long address1, int length1, long address2, int length2)
+    {
+        return BestHolder.BEST.compare(address1, length1, address2, length2);
+    }
+
     public static int compareUnsigned(byte[] b1, byte[] b2)
     {
         return compareUnsigned(b1, 0, b1.length, b2, 0, b2.length);
@@ -101,6 +116,12 @@ public class FastByteOperations
                                     byte[] buffer2, int offset2, int length2);
 
         abstract public int compare(ByteBuffer buffer1, byte[] buffer2, int offset2, int length2);
+
+        abstract public int compare(ByteBuffer buffer1, long address2, int length2);
+
+        abstract public int compare(long address1, int length1, long address2, int length2);
+
+        abstract public int compare(byte[] buffer1, int offset1, int length1, long address2, int length2);
 
         abstract public int compare(ByteBuffer buffer1, int offset1, int length1, byte[] buffer2, int offset2, int length2);
 
@@ -221,6 +242,44 @@ public class FastByteOperations
             return compare(buffer1, buffer1.position(), buffer1.remaining(), buffer2, offset2, length2);
         }
 
+        @Override
+        public int compare(ByteBuffer buffer1, long address2, int length2)
+        {
+            return compare(buffer1, buffer1.position(), buffer1.remaining(), address2, length2);
+        }
+
+        public int compare(ByteBuffer buffer1, int position1, int length1, long address2, int length2)
+        {
+            {
+                Object obj1;
+                long offset1;
+                if (buffer1.hasArray())
+                {
+                    obj1 = buffer1.array();
+                    offset1 = BYTE_ARRAY_BASE_OFFSET + buffer1.arrayOffset() + position1;
+                }
+                else
+                {
+                    obj1 = null;
+                    offset1 = theUnsafe.getLong(buffer1, DIRECT_BUFFER_ADDRESS_OFFSET) + position1;
+                }
+
+                return compareTo(obj1, offset1, length1, null, address2, length2);
+            }
+        }
+        @Override
+        public int compare(long address1, int length1, long address2, int length2)
+        {
+            return compareTo(null, address1, length1, null, address2, length2);
+        }
+
+        @Override
+        public int compare(byte[] buffer1, int offset1, int length1, long address2, int length2)
+        {
+            return compareTo(buffer1, BYTE_ARRAY_BASE_OFFSET + offset1, length1,
+                             null, address2, length2);
+        }
+
         public int compare(ByteBuffer buffer1, int position1, int length1, byte[] buffer2, int offset2, int length2)
         {
             Object obj1;
@@ -262,7 +321,7 @@ public class FastByteOperations
             if (trg.hasArray())
                 System.arraycopy(src, srcPosition, trg.array(), trg.arrayOffset() + trgPosition, length);
             else
-                copy(null, srcPosition + theUnsafe.getLong(src, Unsafe.ARRAY_BYTE_BASE_OFFSET), trg, trgPosition, length);
+                copy((Object) src, (long) srcPosition + Unsafe.ARRAY_BYTE_BASE_OFFSET, trg, trgPosition, length);
         }
 
         public void copy(ByteBuffer srcBuf, int srcPosition, ByteBuffer trgBuf, int trgPosition, int length)
@@ -463,6 +522,24 @@ public class FastByteOperations
             }
 
             return compare(buffer1, ByteBuffer.wrap(buffer2, offset2, length2));
+        }
+
+        @Override
+        public int compare(ByteBuffer b1, long address2, int length2)
+        {
+            throw new UnsupportedOperationException("native memory address is an argument, we cannot do it using a pure Java");
+        }
+
+        @Override
+        public int compare(long address1, int length1, long address2, int length2)
+        {
+            throw new UnsupportedOperationException("native memory address is an argument, we cannot do it using a pure Java");
+        }
+
+        @Override
+        public int compare(byte[] b1, int s1, int l1, long address2, int length2)
+        {
+            throw new UnsupportedOperationException("native memory address is an argument, we cannot do it using a pure Java");
         }
 
         public int compare(ByteBuffer buffer1, ByteBuffer buffer2)

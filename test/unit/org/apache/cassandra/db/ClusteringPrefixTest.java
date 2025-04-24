@@ -180,7 +180,7 @@ public class ClusteringPrefixTest
 
     public <V> void testRetainable(ValueAccessor.ObjectFactory<V> factory,
                                    Function<String, V[]> allocator,
-                                   Function<ClusteringPrefix<V>, ClusteringPrefix<V>> mapper)
+                                   Function<ClusteringPrefix<?>, ClusteringPrefix<?>> mapper)
     {
         ClusteringPrefix<V>[] clusterings = new ClusteringPrefix[]
         {

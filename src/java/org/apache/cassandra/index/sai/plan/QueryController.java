@@ -455,7 +455,12 @@ public class QueryController
         {
             nextClusterings.clear();
             for (PrimaryKey key : keys)
-                nextClusterings.add(key.clustering());
+            {
+                // primary keys privided by SAI may contain NativeCustering
+                // filter logic may use ValueAccessor.factory() for slicing, which is not supported for NativeCustering
+                Clustering<?> clustering = key.clustering().ensureAccessorFactorySupport();
+                nextClusterings.add(clustering);
+            }
             return new ClusteringIndexNamesFilter(nextClusterings, clusteringIndexFilter.isReversed());
         }
     }

@@ -21,7 +21,10 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.apache.cassandra.db.marshal.AddressBasedNativeData;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.NativeAccessor;
+import org.apache.cassandra.db.marshal.NativeData;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -31,7 +34,7 @@ import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeEndianMemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 
-public class NativeClustering implements Clustering<ByteBuffer>
+public class NativeClustering implements Clustering<NativeData>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new NativeClustering());
 
@@ -84,7 +87,7 @@ public class NativeClustering implements Clustering<ByteBuffer>
         return Kind.CLUSTERING;
     }
 
-    public ClusteringPrefix<ByteBuffer> clustering()
+    public ClusteringPrefix<NativeData> clustering()
     {
         return this;
     }
@@ -100,9 +103,50 @@ public class NativeClustering implements Clustering<ByteBuffer>
         return NativeEndianMemoryUtil.getUnsignedShort(peer + dataSizeOffset);
     }
 
-    public ByteBuffer get(int i)
+    public NativeData get(int i)
     {
-        // offset at which we store the dataOffset
+        return buildDataObject(i, AddressBasedNativeData::new);
+    }
+
+    public boolean isNull(int i)
+    {
+        return isNull(peer, size(), i);
+    }
+
+    private static boolean isNull(long peer, int size, int i)
+    {
+        if (i >= size)
+            throw new IndexOutOfBoundsException();
+
+        int metadataSize = (size * 2) + 4;
+        long bitmapStart = peer + metadataSize;
+        int b = NativeEndianMemoryUtil.getByte(bitmapStart + (i >>> 3));
+        return ((b & (1 << (i & 7))) != 0);
+    }
+
+    public boolean isEmpty(int i)
+    {
+        int size = size();
+        if (isNull(peer, size, i))
+            return true;
+
+        int startOffset = NativeEndianMemoryUtil.getUnsignedShort(peer + 2 + i * 2);
+        int endOffset = NativeEndianMemoryUtil.getUnsignedShort(peer + 4 + i * 2);
+        return (endOffset - startOffset) == 0;
+    }
+
+
+    private ByteBuffer getByteBuffer(int i)
+    {
+        return buildDataObject(i, (long address, int length) -> MemoryUtil.getByteBuffer(address, length, ByteOrder.BIG_ENDIAN));
+    }
+
+    private interface DataObjectBuilder<D> {
+        D build(long address, int length);
+    }
+
+    private <D> D buildDataObject(int i, DataObjectBuilder<D> builder)
+    {
         int size = size();
         if (i >= size)
             throw new IndexOutOfBoundsException();
@@ -116,14 +160,15 @@ public class NativeClustering implements Clustering<ByteBuffer>
 
         int startOffset = NativeEndianMemoryUtil.getUnsignedShort(peer + 2 + i * 2);
         int endOffset = NativeEndianMemoryUtil.getUnsignedShort(peer + 4 + i * 2);
-        return MemoryUtil.getByteBuffer(bitmapStart + bitmapSize + startOffset,
-                                        endOffset - startOffset,
-                                        ByteOrder.BIG_ENDIAN);
+
+        long address = bitmapStart + bitmapSize + startOffset;
+        int length = endOffset - startOffset;
+        return builder.build(address, length);
     }
 
-    public ByteBuffer[] getRawValues()
+    public NativeData[] getRawValues()
     {
-        ByteBuffer[] values = new ByteBuffer[size()];
+        NativeData[] values = new NativeData[size()];
         for (int i = 0 ; i < values.length ; i++)
             values[i] = get(i);
         return values;
@@ -131,13 +176,15 @@ public class NativeClustering implements Clustering<ByteBuffer>
 
     public ByteBuffer[] getBufferArray()
     {
-        return getRawValues();
+        ByteBuffer[] values = new ByteBuffer[size()];
+        for (int i = 0 ; i < values.length ; i++)
+            values[i] = getByteBuffer(i);
+        return values;
     }
 
-    public ValueAccessor<ByteBuffer> accessor()
+    public ValueAccessor<NativeData> accessor()
     {
-        // TODO: add a native accessor
-        return ByteBufferAccessor.instance;
+        return NativeAccessor.instance;
     }
 
     public long unsharedHeapSize()
@@ -148,6 +195,12 @@ public class NativeClustering implements Clustering<ByteBuffer>
     public long unsharedHeapSizeExcludingData()
     {
         return EMPTY_SIZE;
+    }
+
+    @Override
+    public Clustering<?> ensureAccessorFactorySupport()
+    {
+        return retainable();
     }
 
     @Override
@@ -162,8 +215,9 @@ public class NativeClustering implements Clustering<ByteBuffer>
         return ClusteringPrefix.equals(this, o);
     }
 
+    // data are copied to heap byte buffers to detach from a NativeAllocator lifecycle
     @Override
-    public ClusteringPrefix<ByteBuffer> retainable()
+    public Clustering<?> retainable()
     {
         assert kind() == Kind.CLUSTERING; // tombstones are never stored natively
 
@@ -171,10 +225,10 @@ public class NativeClustering implements Clustering<ByteBuffer>
         ByteBuffer[] values = new ByteBuffer[size()];
         for (int i = 0; i < values.length; ++i)
         {
-            ByteBuffer value = get(i);
+            ByteBuffer value = getByteBuffer(i);
             values[i] = value != null ? HeapCloner.instance.clone(value) : null;
         }
 
-        return accessor().factory().clustering(values);
+        return ByteBufferAccessor.instance.factory().clustering(values);
     }
 }
