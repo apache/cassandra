@@ -342,6 +342,8 @@ public class TableMetadata implements SchemaElement
 
     public ReplicationType replicationType()
     {
+        if (kind != Kind.REGULAR)
+            return ReplicationType.untracked;
         return keyspaceReplicationType;
     }
 
