@@ -45,12 +45,12 @@ public class MmappedRegionsCache implements AutoCloseable
      * @param length  length of the file
      * @return a shared copy of the cached mmapped regions
      */
-    public MmappedRegions getOrCreate(ChannelProxy channel, long length)
+    public MmappedRegions getOrCreate(ChannelProxy channel, long length, int bufferSize)
     {
         Preconditions.checkState(!closed);
-        MmappedRegions regions = cache.computeIfAbsent(channel.file(), ignored -> MmappedRegions.map(channel, length));
+        MmappedRegions regions = cache.computeIfAbsent(channel.file(), ignored -> MmappedRegions.map(channel, length, bufferSize));
         Preconditions.checkArgument(regions.isValid(channel));
-        regions.extend(length);
+        regions.extend(length, bufferSize);
         return regions.sharedCopy();
     }
 
@@ -62,12 +62,12 @@ public class MmappedRegionsCache implements AutoCloseable
      * @param metadata compression metadata of the file
      * @return a shared copy of the cached mmapped regions
      */
-    public MmappedRegions getOrCreate(ChannelProxy channel, CompressionMetadata metadata)
+    public MmappedRegions getOrCreate(ChannelProxy channel, CompressionMetadata metadata, int bufferSize)
     {
         Preconditions.checkState(!closed);
         MmappedRegions regions = cache.computeIfAbsent(channel.file(), ignored -> MmappedRegions.map(channel, metadata));
         Preconditions.checkArgument(regions.isValid(channel));
-        regions.extend(metadata);
+        regions.extend(metadata, bufferSize);
         return regions.sharedCopy();
     }
 
