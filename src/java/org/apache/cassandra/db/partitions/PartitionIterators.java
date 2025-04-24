@@ -208,23 +208,13 @@ public abstract class PartitionIterators
         {
             return new AbstractPartitionIterator()
             {
-                RowIterator last = null;
                 @Override
                 protected RowIterator computeNext()
                 {
                     try
                     {
-                        // per-partition limit may prevent all rows from being read, but they need to be
-                        // deserialized to prevent deserialization errors when we look for the next partition
-                        if (last != null)
-                            while (last.hasNext())
-                                last.next();
-
                         if (in.readBoolean())
-                        {
-                            last = RowIterators.Serializer.deserialize(metadata, selection, in, version);
-                            return last;
-                        }
+                            return RowIterators.Serializer.deserialize(metadata, selection, in, version);
                         return endOfData();
                     }
                     catch (IOException e)

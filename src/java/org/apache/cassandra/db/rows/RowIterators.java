@@ -295,7 +295,7 @@ public abstract class RowIterators
     {
         public  static final int IS_EMPTY               = 0x01;
         private static final int IS_REVERSED            = 0x02;
-        private static final int HAS_STATIC_ROW         = 0x08;
+        private static final int HAS_STATIC_ROW         = 0x04;
 
         public static void serialize(RowIterator iterator, ColumnFilter selection, DataOutputPlus out, int version) throws IOException
         {
@@ -367,6 +367,15 @@ public abstract class RowIterators
                     {
                         throw new IOError(e);
                     }
+                }
+
+                @Override
+                public void close()
+                {
+                    while (hasNext())
+                        next();
+
+                    super.close();
                 }
             };
         }

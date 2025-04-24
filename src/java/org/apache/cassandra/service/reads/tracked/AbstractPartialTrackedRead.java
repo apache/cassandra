@@ -39,7 +39,6 @@ import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.Me
 public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractPartialTrackedRead.class);
-    // TODO: remove synchronized?
 
     private enum State
     {
@@ -55,7 +54,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     final long startTimeNanos;
     volatile State state = State.INITIALIZED;
 
-    // TODO: do we really need the execution controller and the op-order?
     public AbstractPartialTrackedRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
     {
         this.executionController = executionController;

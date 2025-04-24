@@ -128,7 +128,7 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         // of the read, when references to memtables and sstables are collected. Because of this, replica coordinated
         // reads can cause read monotonicity to be broken by returning data that hasn't been replicated to at least
         // CL other nodes via reconciliation. To prevent this, the contents of the initial iterator are materialized
-        // onto heap until the limits of the read are reached.
+        // onto heap at partition granularity until the limits of the read are reached.
 
         UnfilteredPartitionIterator materializer = new AbstractUnfilteredPartitionIterator()
         {
