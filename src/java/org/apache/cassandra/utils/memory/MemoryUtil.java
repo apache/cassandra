@@ -184,6 +184,26 @@ public abstract class MemoryUtil
         unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, capacity);
     }
 
+    /**
+     * Transfers count bytes to Memory starting at memoryOffset from ByteBuffer starting at bufferOffset
+     *
+     * @param targetAddress target start offset in the memory
+     * @param sourceBuffer the source data buffer
+     * @param bufferOffset start offset of the buffer
+     * @param count number of bytes to transfer
+     */
+    public static void setBytes(long targetAddress, ByteBuffer sourceBuffer, int bufferOffset, int count)
+    {
+        if (count == 0)
+            return;
+        int start = sourceBuffer.position() + bufferOffset;
+
+        if (sourceBuffer.isDirect())
+            setBytes(getAddress(sourceBuffer) + start, targetAddress, count);
+        else
+            setBytes(targetAddress, sourceBuffer.array(), sourceBuffer.arrayOffset() + start, count);
+    }
+
     public static void setBytes(long address, ByteBuffer buffer)
     {
         int start = buffer.position();
@@ -254,5 +274,52 @@ public abstract class MemoryUtil
             return;
 
         unsafe.copyMemory(null, address, buffer, BYTE_ARRAY_BASE_OFFSET + bufferOffset, count);
+    }
+
+    /**
+     * Transfers count bytes from Memory starting at address to ByteBuffer starting at bufferOffset
+     *
+     * @param sourceAddress start offset in the memory
+     * @param targetBuffer the target data buffer
+     * @param bufferOffset start offset of the buffer
+     * @param length number of bytes to transfer
+     */
+    public static void getBytes(long sourceAddress, ByteBuffer targetBuffer, int bufferOffset, int length)
+    {
+        if (targetBuffer == null)
+            throw new NullPointerException();
+        else if (length < 0 || length > targetBuffer.remaining())
+            throw new IndexOutOfBoundsException();
+        else if (length == 0)
+            return;
+
+        Object obj;
+        long offset;
+        if (targetBuffer.hasArray())
+        {
+            obj = targetBuffer.array();
+            offset = BYTE_ARRAY_BASE_OFFSET + targetBuffer.arrayOffset();
+        }
+        else
+        {
+            obj = null;
+            offset = unsafe.getLong(targetBuffer, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET);
+        }
+        offset += targetBuffer.position();
+        offset += bufferOffset;
+
+        unsafe.copyMemory(null, sourceAddress, obj, offset, length);
+    }
+
+    /**
+     * Transfers count bytes from Memory starting at address to ByteBuffer
+     *
+     * @param sourceAddress start offset in the memory
+     * @param targetBuffer the target data buffer
+     * @param length number of bytes to transfer
+     */
+    public static void getBytes(long sourceAddress, ByteBuffer targetBuffer, int length)
+    {
+        getBytes(sourceAddress, targetBuffer, 0, length);
     }
 }

@@ -258,6 +258,25 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
      */
     public V get(int i);
 
+    /**
+     * The method is introduced to allow to avoid a value object retrieval/allocation for simple checks
+     */
+    public default boolean isNull(int i)
+    {
+        return get(i) == null;
+    }
+
+    /**
+     * The method is introduced to allow to avoid a value object retrieval/allocation for simple checks
+     */
+    public default boolean isEmpty(int i)
+    {
+        V v = get(i);
+        if (v == null)
+            return true;
+        return accessor().isEmpty(v);
+    }
+
     public ValueAccessor<V> accessor();
 
     default ByteBuffer bufferAt(int i)
@@ -402,7 +421,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
      * memory (i.e. in memtables) to minimized on-heap versions.
      * If the object is already in minimal form, no action will be taken.
      */
-    public ClusteringPrefix<V> retainable();
+    public ClusteringPrefix<?> retainable();
 
     public static class Serializer
     {
@@ -549,14 +568,12 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
         private static <V> long makeHeader(ClusteringPrefix<V> clustering, int offset, int limit)
         {
             long header = 0;
-            ValueAccessor<V> accessor = clustering.accessor();
             for (int i = offset ; i < limit ; i++)
             {
-                V v = clustering.get(i);
                 // no need to do modulo arithmetic for i, since the left-shift execute on the modulus of RH operand by definition
-                if (v == null)
+                if (clustering.isNull(i))
                     header |= (1L << (i * 2) + 1);
-                else if (accessor.isEmpty(v))
+                else if (clustering.isEmpty(i))
                     header |= (1L << (i * 2));
             }
             return header;

@@ -30,7 +30,12 @@ public class UUIDGen
     /** creates a type 1 uuid from raw bytes. */
     public static UUID getUUID(ByteBuffer raw)
     {
-        return new UUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
+        return getUUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
+    }
+
+    public static UUID getUUID(long mostSigBits, long leastSigBits)
+    {
+        return new UUID(mostSigBits, leastSigBits);
     }
 
     public static ByteBuffer toByteBuffer(UUID uuid)
