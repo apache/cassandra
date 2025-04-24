@@ -1,4 +1,5 @@
 5.1
+ * Switch memtable-related off-heap objects to Native Endian and Memory to Little Endian (CASSANDRA-20190)
  * Change SSTableSimpleScanner to use SSTableReader#openDataReaderForScan (CASSANDRA-20538)
  * Automated Repair Inside Cassandra [CEP-37] (CASSANDRA-19918)
  * Grant permission on keyspaces system_views and system_virtual_schema not possible (CASSANDRA-20171)

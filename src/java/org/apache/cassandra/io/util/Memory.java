@@ -22,14 +22,15 @@ import java.nio.ByteBuffer;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 
-import org.apache.cassandra.utils.Architecture;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.memory.LittleEndianMemoryUtil;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import sun.misc.Unsafe;
 
 /**
  * An off-heap region of memory that must be manually free'd when no longer needed.
+ * It uses Little Endian (LE).
  */
 public class Memory implements AutoCloseable, ReadableMemory
 {
@@ -90,7 +91,7 @@ public class Memory implements AutoCloseable, ReadableMemory
     public void setByte(long offset, byte b)
     {
         checkBounds(offset, offset + 1);
-        unsafe.putByte(peer + offset, b);
+        LittleEndianMemoryUtil.setByte(peer + offset, b);
     }
 
     public void setMemory(long offset, long bytes, byte b)
@@ -103,86 +104,13 @@ public class Memory implements AutoCloseable, ReadableMemory
     public void setLong(long offset, long l)
     {
         checkBounds(offset, offset + 8);
-        if (Architecture.IS_UNALIGNED)
-            unsafe.putLong(peer + offset, Architecture.BIG_ENDIAN ? Long.reverseBytes(l) : l);
-        else
-            putLongByByte(peer + offset, l);
-    }
-
-    private void putLongByByte(long address, long value)
-    {
-        if (Architecture.BIG_ENDIAN)
-        {
-            unsafe.putByte(address, (byte) (value >> 56));
-            unsafe.putByte(address + 1, (byte) (value >> 48));
-            unsafe.putByte(address + 2, (byte) (value >> 40));
-            unsafe.putByte(address + 3, (byte) (value >> 32));
-            unsafe.putByte(address + 4, (byte) (value >> 24));
-            unsafe.putByte(address + 5, (byte) (value >> 16));
-            unsafe.putByte(address + 6, (byte) (value >> 8));
-            unsafe.putByte(address + 7, (byte) (value));
-        }
-        else
-        {
-            unsafe.putByte(address + 7, (byte) (value >> 56));
-            unsafe.putByte(address + 6, (byte) (value >> 48));
-            unsafe.putByte(address + 5, (byte) (value >> 40));
-            unsafe.putByte(address + 4, (byte) (value >> 32));
-            unsafe.putByte(address + 3, (byte) (value >> 24));
-            unsafe.putByte(address + 2, (byte) (value >> 16));
-            unsafe.putByte(address + 1, (byte) (value >> 8));
-            unsafe.putByte(address, (byte) (value));
-        }
+        LittleEndianMemoryUtil.setLong(peer + offset, l);
     }
 
     public void setInt(long offset, int l)
     {
         checkBounds(offset, offset + 4);
-        if (Architecture.IS_UNALIGNED)
-            unsafe.putInt(peer + offset, Architecture.BIG_ENDIAN ? Integer.reverseBytes(l) : l);
-        else
-            putIntByByte(peer + offset, l);
-    }
-
-    private void putIntByByte(long address, int value)
-    {
-        if (Architecture.BIG_ENDIAN)
-        {
-            unsafe.putByte(address, (byte) (value >> 24));
-            unsafe.putByte(address + 1, (byte) (value >> 16));
-            unsafe.putByte(address + 2, (byte) (value >> 8));
-            unsafe.putByte(address + 3, (byte) (value));
-        }
-        else
-        {
-            unsafe.putByte(address + 3, (byte) (value >> 24));
-            unsafe.putByte(address + 2, (byte) (value >> 16));
-            unsafe.putByte(address + 1, (byte) (value >> 8));
-            unsafe.putByte(address, (byte) (value));
-        }
-    }
-
-    public void setShort(long offset, short l)
-    {
-        checkBounds(offset, offset + 2);
-        if (Architecture.IS_UNALIGNED)
-            unsafe.putShort(peer + offset, Architecture.BIG_ENDIAN ? Short.reverseBytes(l) : l);
-        else
-            putShortByByte(peer + offset, l);
-    }
-
-    private void putShortByByte(long address, short value)
-    {
-        if (Architecture.BIG_ENDIAN)
-        {
-            unsafe.putByte(address, (byte) (value >> 8));
-            unsafe.putByte(address + 1, (byte) (value));
-        }
-        else
-        {
-            unsafe.putByte(address + 1, (byte) (value >> 8));
-            unsafe.putByte(address, (byte) (value));
-        }
+        LittleEndianMemoryUtil.setInt(peer + offset, l);
     }
 
     public void setBytes(long memoryOffset, ByteBuffer buffer)
@@ -230,69 +158,19 @@ public class Memory implements AutoCloseable, ReadableMemory
     public byte getByte(long offset)
     {
         checkBounds(offset, offset + 1);
-        return unsafe.getByte(peer + offset);
+        return LittleEndianMemoryUtil.getByte(peer + offset);
     }
 
     public long getLong(long offset)
     {
         checkBounds(offset, offset + 8);
-        if (Architecture.IS_UNALIGNED)
-            return Architecture.BIG_ENDIAN ? Long.reverseBytes(unsafe.getLong(peer+offset)) : unsafe.getLong(peer+offset);
-        else
-            return getLongByByte(peer + offset);
-    }
-
-    private long getLongByByte(long address)
-    {
-        if (Architecture.BIG_ENDIAN)
-        {
-            return  (((long) unsafe.getByte(address    )       ) << 56) |
-                    (((long) unsafe.getByte(address + 1) & 0xff) << 48) |
-                    (((long) unsafe.getByte(address + 2) & 0xff) << 40) |
-                    (((long) unsafe.getByte(address + 3) & 0xff) << 32) |
-                    (((long) unsafe.getByte(address + 4) & 0xff) << 24) |
-                    (((long) unsafe.getByte(address + 5) & 0xff) << 16) |
-                    (((long) unsafe.getByte(address + 6) & 0xff) <<  8) |
-                    (((long) unsafe.getByte(address + 7) & 0xff)      );
-        }
-        else
-        {
-            return  (((long) unsafe.getByte(address + 7)       ) << 56) |
-                    (((long) unsafe.getByte(address + 6) & 0xff) << 48) |
-                    (((long) unsafe.getByte(address + 5) & 0xff) << 40) |
-                    (((long) unsafe.getByte(address + 4) & 0xff) << 32) |
-                    (((long) unsafe.getByte(address + 3) & 0xff) << 24) |
-                    (((long) unsafe.getByte(address + 2) & 0xff) << 16) |
-                    (((long) unsafe.getByte(address + 1) & 0xff) <<  8) |
-                    (((long) unsafe.getByte(address    ) & 0xff)      );
-        }
+        return LittleEndianMemoryUtil.getLong(peer + offset);
     }
 
     public int getInt(long offset)
     {
         checkBounds(offset, offset + 4);
-        if (Architecture.IS_UNALIGNED)
-            return Architecture.BIG_ENDIAN ? Integer.reverseBytes(unsafe.getInt(peer+offset)) : unsafe.getInt(peer+offset);
-        else
-            return getIntByByte(peer + offset);
-    }
-
-    private int getIntByByte(long address)
-    {
-        if (Architecture.BIG_ENDIAN)
-        {
-            return  ((unsafe.getByte(address    )       ) << 24) |
-                    ((unsafe.getByte(address + 1) & 0xff) << 16) |
-                    ((unsafe.getByte(address + 2) & 0xff) << 8 ) |
-                    ((unsafe.getByte(address + 3) & 0xff)      );
-        }
-        else
-        {
-            return  ((unsafe.getByte(address + 3)       ) << 24) |
-                    ((unsafe.getByte(address + 2) & 0xff) << 16) |
-                    ((unsafe.getByte(address + 1) & 0xff) <<  8) |
-                    ((unsafe.getByte(address    ) & 0xff)      );
-        }
+        return LittleEndianMemoryUtil.getInt(peer + offset);
     }
 
     /**
@@ -378,18 +256,18 @@ public class Memory implements AutoCloseable, ReadableMemory
         int size = (int) (size() / result.length);
         for (int i = 0 ; i < result.length - 1 ; i++)
         {
-            result[i] = MemoryUtil.getByteBuffer(peer + offset, size);
+            result[i] = LittleEndianMemoryUtil.getByteBuffer(peer + offset, size);
             offset += size;
             length -= size;
         }
-        result[result.length - 1] = MemoryUtil.getByteBuffer(peer + offset, (int) length);
+        result[result.length - 1] = LittleEndianMemoryUtil.getByteBuffer(peer + offset, (int) length);
         return result;
     }
 
     public ByteBuffer asByteBuffer(long offset, int length)
     {
         checkBounds(offset, offset + length);
-        return MemoryUtil.getByteBuffer(peer + offset, length);
+        return LittleEndianMemoryUtil.getByteBuffer(peer + offset, length);
     }
 
     // MUST provide a buffer created via MemoryUtil.getHollowDirectByteBuffer()
