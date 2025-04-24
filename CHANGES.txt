@@ -180,6 +180,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * SAI marks an index as non-empty when a partial partition/row modifications is flushed due to repair (CASSANDRA-20567)
  * SAI fails queries when multiple columns exist and a non-indexed column is a composite with a map (CASSANDRA-19891)
  * Avoid purging deletions in RowFilter when reconciliation is required (CASSANDRA-20541)
  * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)

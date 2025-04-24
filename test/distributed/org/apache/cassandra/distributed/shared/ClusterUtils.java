@@ -49,6 +49,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Shared;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -1644,6 +1647,43 @@ public class ClusterUtils
                     throw new RuntimeException(e);
                 }
             });
+        });
+    }
+
+    @Shared
+    public static class Range implements Serializable
+    {
+        public final String left, right;
+
+        public Range(String left, String right)
+        {
+            this.left = left;
+            this.right = right;
+        }
+
+        public Range(long left, long right)
+        {
+            this(Long.toString(left), Long.toString(right));
+        }
+
+        public long left()
+        {
+            return Long.parseLong(left);
+        }
+
+        public long right()
+        {
+            return Long.parseLong(right);
+        }
+    }
+
+    public static List<Range> getPrimaryRanges(IInvokableInstance instance, String keyspace)
+    {
+        return instance.callOnInstance(() -> {
+            var ranges = TokenRingUtils.getPrimaryRangesForEndpoint(keyspace, FBUtilities.getBroadcastAddressAndPort());
+            return ranges.stream()
+                    .flatMap(r -> r.unwrap().stream().map(r2 -> new Range(r2.left.toString(), r2.right.toString())))
+                    .collect(Collectors.toList());
         });
     }
 }
