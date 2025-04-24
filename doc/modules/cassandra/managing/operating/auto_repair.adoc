@@ -207,7 +207,7 @@ node. Defaults to true and is only evaluated when allow_parallel_replica_repair 
 immediately after a restart.
 | repair_session_timeout | 3h | Timeout for retrying stuck repair sessions.
 | force_repair_new_node | false | Force immediate repair on new nodes after they join the ring.
-| sstable_upper_threshold | 10000 | Threshold to skip repairing tables with too many SSTables.
+| sstable_upper_threshold | 50000 | Threshold to skip repairing tables with too many SSTables.
 | table_max_repair_time | 6h | Maximum time allowed for repairing one table on a given node. If exceeded, the repair
 proceeds to the next table.
 | ignore_dcs | [] | Avoid running repairs in specific data centers. By default, repairs run in all data centers. Specify
@@ -365,7 +365,7 @@ configuration for repair_type: full
 	min_repair_interval: 24h
 	repair_by_keyspace: true
 	number_of_repair_threads: 1
-	sstable_upper_threshold: 10000
+	sstable_upper_threshold: 50000
 	table_max_repair_time: 6h
 	ignore_dcs: []
 	repair_primary_token_range_only: true
@@ -387,7 +387,7 @@ configuration for repair_type: incremental
 	min_repair_interval: 1h
 	repair_by_keyspace: true
 	number_of_repair_threads: 1
-	sstable_upper_threshold: 10000
+	sstable_upper_threshold: 50000
 	table_max_repair_time: 6h
 	ignore_dcs: []
 	repair_primary_token_range_only: true
