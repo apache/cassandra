@@ -452,7 +452,7 @@ public class AutoRepairConfig implements Serializable
             opts.parallel_repair_percentage = 3;
             opts.allow_parallel_replica_repair = false;
             opts.allow_parallel_replica_repair_across_schedules = true;
-            opts.sstable_upper_threshold = 10000;
+            opts.sstable_upper_threshold = 50000;
             opts.ignore_dcs = new HashSet<>();
             opts.repair_primary_token_range_only = true;
             opts.force_repair_new_node = false;
