@@ -19,6 +19,8 @@
 package org.apache.cassandra.utils;
 
 import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collector;
 
@@ -45,6 +47,8 @@ public class Collectors3
     }
 
     private static final Collector.Characteristics[] SET_CHARACTERISTICS = new Collector.Characteristics[]{ Collector.Characteristics.UNORDERED };
+
+    private static final Collector.Characteristics[] SORTED_SET_CHARACTERISTICS = new Collector.Characteristics[]{ Collector.Characteristics.UNORDERED };
 
     public static <T> Collector<T, ?, ImmutableSet<T>> toImmutableSet()
     {
@@ -75,4 +79,15 @@ public class Collectors3
                             MAP_CHARACTERISTICS);
     }
 
+    public static <T> Collector<T, SortedSet<T>, SortedSet<T>> toSortedSet()
+    {
+        return Collector.of(() -> new TreeSet<T>(),
+                            (set, value) -> set.add(value),
+                            (set1, set2) -> {
+                                set1.addAll(set2);
+                                return set1;
+                            },
+                            set -> set,
+                            SORTED_SET_CHARACTERISTICS);
+    }
 }

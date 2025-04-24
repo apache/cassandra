@@ -39,6 +39,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -71,7 +72,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  *     message is received, {@link RequestCallback#onResponse(Message)} method will be invoked on the
  *     provided callback - in case of a success response. In case of a failure response (see {@link Verb#FAILURE_RSP}),
  *     or if a response doesn't arrive within verb's configured expiry time,
- *     {@link RequestCallback#onFailure(InetAddressAndPort, RequestFailureReason)} will be invoked instead.
+ *     {@link RequestCallback#onFailure(InetAddressAndPort, RequestFailure)} will be invoked instead.
  *  2. To send a response back, or a message that expects no response, use {@link #send(Message, InetAddressAndPort)}
  *     method.
  *
@@ -223,28 +224,20 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         VERSION_50(13),
         VERSION_51(14);
 
-        public static final Version CURRENT;
-
-        private static final Logger logger = LoggerFactory.getLogger(Version.class);
-
-        static
-        {
-             if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
-             {
-                 logger.warn("Starting in storage compatibility mode " + DatabaseDescriptor.getStorageCompatibilityMode());
-                 CURRENT = VERSION_40;
-             }
-             else
-             {
-                 CURRENT = VERSION_51;
-             }
-        }
+        public static final Version MIN_ACCORD_VERSION = Version.VERSION_51;
 
         public final int value;
 
         Version(int value)
         {
             this.value = value;
+        }
+
+        public static Version current()
+        {
+            // this enum is leveraged in yaml config so can not touch DatabaseDescriptor to figure out
+            // what the "current" is, so need to leverage MessagingService's field as it uses DatabaseDescriptor
+            return current;
         }
 
         public static List<Version> supportedVersions()
@@ -255,6 +248,17 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
                     versions.add(version);
 
             return Collections.unmodifiableList(versions);
+        }
+
+        public List<Version> greaterThanOrEqual()
+        {
+            Version[] all = Version.values();
+            if (ordinal() == all.length - 1)
+                return Collections.singletonList(this);
+            List<Version> values = new ArrayList<>(all.length - ordinal());
+            for (int i = ordinal(); i < all.length; i++)
+                values.add(all[i]);
+            return values;
         }
     }
     // Maintance Note:
@@ -274,7 +278,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     // we want to use a modified behavior for the tools and clients - that is, since they are not running a server, they
     // should not need to run in a compatibility mode. They should be able to connect to the server regardless whether
     // it uses messaving version 4 or 5
-    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_51;
+    public static final Version current = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? Version.VERSION_40 : Version.VERSION_51;
+    public static final int current_version = current.value;
     static AcceptVersions accept_messaging;
     static AcceptVersions accept_streaming;
     static
@@ -368,9 +373,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                promise.tryFailure(new FailureResponseException(from, failureReason));
+                promise.tryFailure(new FailureResponseException(from, failure));
             }
 
             @Override
@@ -387,11 +392,11 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         private final InetAddressAndPort from;
         private final RequestFailureReason failureReason;
 
-        public FailureResponseException(InetAddressAndPort from, RequestFailureReason failureReason)
+        public FailureResponseException(InetAddressAndPort from, RequestFailure failureReason)
         {
-            super(String.format("Failure from %s: %s", from, failureReason.name()));
+            super(String.format("Failure from %s: %s", from, failureReason.reason.name()), failureReason.failure);
             this.from = from;
-            this.failureReason = failureReason;
+            this.failureReason = failureReason.reason;
         }
 
         public InetAddressAndPort from()
@@ -467,6 +472,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
      * @param message messages to be sent.
      * @param response
      */
+    @Override
     public <V> void respond(V response, Message<?> message)
     {
         send(message.responseWith(response), message.respondTo());
@@ -485,9 +491,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
                                                          }
 
                                                          @Override
-                                                         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                                                         public void onFailure(InetAddressAndPort from, RequestFailure failure)
                                                          {
-                                                             future.setFailure(new RuntimeException(failureReason.toString()));
+                                                             future.setFailure(new RuntimeException(failure.toString()));
                                                          }
                                                      });
 
@@ -496,7 +502,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
     public void respondWithFailure(RequestFailureReason reason, Message<?> message)
     {
-        Message<?> r = Message.failureResponse(message.id(), message.expiresAtNanos(), reason);
+        Message<?> r = Message.failureResponse(message.id(), message.expiresAtNanos(), new RequestFailure(reason, null));
         if (r.header.hasFlag(MessageFlag.URGENT))
             r = r.withFlag(MessageFlag.URGENT);
         send(r, message.respondTo());

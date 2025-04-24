@@ -281,6 +281,7 @@ public class RepairedDataVerifierTest
                   isDigest,
                   0,
                   false,
+                  PotentialTxnConflicts.DISALLOW,
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),

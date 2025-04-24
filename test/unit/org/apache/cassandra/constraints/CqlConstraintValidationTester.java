@@ -63,6 +63,7 @@ public abstract class CqlConstraintValidationTester extends CQLTester
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = 'default'\n" +
                "    AND crc_check_chance = 1.0\n" +
+               "    AND fast_path = 'keyspace'\n" +
                "    AND default_time_to_live = 0\n" +
                "    AND extensions = {}\n" +
                "    AND gc_grace_seconds = 864000\n" +
@@ -71,6 +72,8 @@ public abstract class CqlConstraintValidationTester extends CQLTester
                "    AND memtable_flush_period_in_ms = 0\n" +
                "    AND min_index_interval = 128\n" +
                "    AND read_repair = 'BLOCKING'\n" +
+               "    AND transactional_mode = 'off'\n" +
+               "    AND transactional_migration_from = 'none'\n" +
                "    AND speculative_retry = '99p';";
     }
 

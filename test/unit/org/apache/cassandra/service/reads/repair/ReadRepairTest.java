@@ -57,6 +57,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -79,7 +80,7 @@ public class ReadRepairTest
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
         {
-            super(Util.dk("not a valid key"), repairs, writePlan);
+            super(ReadCoordinator.DEFAULT, Util.dk("not a valid key"), repairs, writePlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();

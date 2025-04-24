@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -50,9 +49,9 @@ public abstract class AbstractLocalProcessor implements Processor
      * the time when this method returns.
      */
     @Override
-    public final Commit.Result commit(Entry.Id entryId, Transformation transform, final Epoch lastKnown, Retry.Deadline retryPolicy)
+    public final Commit.Result commit(Entry.Id entryId, Transformation transform, final Epoch lastKnown, Retry retryPolicy)
     {
-        while (!retryPolicy.reachedMax())
+        while (!retryPolicy.hasExpired())
         {
             ClusterMetadata previous = log.waitForHighestConsecutive();
             if (!previous.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
@@ -112,7 +111,8 @@ public abstract class AbstractLocalProcessor implements Processor
                 }
                 else
                 {
-                    retryPolicy.maybeSleep();
+                    if (!retryPolicy.maybeSleep())
+                        break;
                     // TODO: could also add epoch from mis-application from [applied].
                     fetchLogAndWait(null, retryPolicy);
                 }
@@ -121,13 +121,12 @@ public abstract class AbstractLocalProcessor implements Processor
             {
                 logger.error("Caught error while trying to perform a local commit", e);
                 JVMStabilityInspector.inspectThrowable(e);
-                retryPolicy.maybeSleep();
+                if (!retryPolicy.maybeSleep())
+                    break;
             }
         }
         return Commit.Result.failed(SERVER_ERROR,
-                                    String.format("Could not perform commit after %d/%d tries. Time remaining: %dms",
-                                                  retryPolicy.tries, retryPolicy.maxTries,
-                                                  TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())));
+                                    String.format("Could not perform commit; policy %s gave up", retryPolicy));
     }
 
     public Commit.Result maybeFailure(Entry.Id entryId, Epoch lastKnown, Supplier<Commit.Result.Failure> orElse)
@@ -172,7 +171,6 @@ public abstract class AbstractLocalProcessor implements Processor
         }
     }
 
-
     private LogState toLogState(Transformation.Success success, Entry.Id entryId, Epoch lastKnown, Transformation transform)
     {
         if (lastKnown == null || lastKnown.isDirectlyBefore(success.metadata.epoch))
@@ -191,15 +189,12 @@ public abstract class AbstractLocalProcessor implements Processor
             // We can use local log here since we always call this method only if local log is up-to-date:
             // in case of a successful commit, we apply against latest metadata locally before committing,
             // and in case of a rejection, we fetch latest entries to verify linearizability.
-            logState = log.getCommittedEntries(lastKnown);
+            logState = log.getLocalEntries(lastKnown);
         }
 
         return logState;
     }
 
-
-    @Override
-    public abstract ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
+    public abstract ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy);
     protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch);
-
 }

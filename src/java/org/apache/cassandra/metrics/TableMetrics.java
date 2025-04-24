@@ -87,6 +87,8 @@ public class TableMetrics
     public final static LatencyMetrics GLOBAL_READ_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Read");
     public final static LatencyMetrics GLOBAL_WRITE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Write");
     public final static LatencyMetrics GLOBAL_RANGE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Range");
+    public final static LatencyMetrics GLOBAL_KEY_MIGRATION_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "KeyMigration");
+    public final static LatencyMetrics GLOBAL_RANGE_MIGRATION_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "RangeMigration");
 
     /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOnHeapDataSize;
@@ -188,6 +190,14 @@ public class TableMetrics
     public final LatencyMetrics casPropose;
     /** CAS Commit metrics */
     public final LatencyMetrics casCommit;
+    /** Latency for locally run key migrations **/
+    public final LatencyMetrics keyMigration;
+    /** Latency for range migrations run by locally coordinated Accord repairs **/
+    public final LatencyMetrics accordRepair;
+    public final LatencyMetrics accordPostStreamRepair;
+    public final TableMeter accordRepairUnexpectedFailures;
+    public final TableMeter mutationsRejectedOnWrongSystem;
+    public final TableMeter readsRejectedOnWrongSystem;
     /** percent of the data that is repaired */
     public final Gauge<Double> percentRepaired;
     /** Reports the size of sstables in repaired, unrepaired, and any ongoing repair buckets */
@@ -209,9 +219,15 @@ public class TableMetrics
     /** number of partitions read creating merkle trees */
     public final TableHistogram partitionsValidated;
     /** number of bytes read while doing anticompaction */
-    public final Counter bytesAnticompacted;
+    public final TableMeter bytesAnticompacted;
     /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
-    public final Counter bytesMutatedAnticompaction;
+    public final TableMeter bytesMutatedAnticompaction;
+    /** number of bytes that were scanned during preview repair */
+    public final TableMeter bytesPreviewed;
+    /** number of desynchronized token ranges that were detected during preview repair */
+    public final TableMeter tokenRangesPreviewedDesynchronized;
+    /** number of desynchronized bytes that were detected during preview repair */
+    public final TableMeter bytesPreviewedDesynchronized;
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
@@ -624,6 +640,7 @@ public class TableMetrics
         readLatency = createLatencyMetrics("Read", cfs.keyspace.metric.readLatency, GLOBAL_READ_LATENCY);
         writeLatency = createLatencyMetrics("Write", cfs.keyspace.metric.writeLatency, GLOBAL_WRITE_LATENCY);
         rangeLatency = createLatencyMetrics("Range", cfs.keyspace.metric.rangeLatency, GLOBAL_RANGE_LATENCY);
+
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
         flushSizeOnDisk = ExpMovingAverage.decayBy1000();
@@ -804,6 +821,12 @@ public class TableMetrics
         casPrepare = createLatencyMetrics("CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = createLatencyMetrics("CasPropose", cfs.keyspace.metric.casPropose);
         casCommit = createLatencyMetrics("CasCommit", cfs.keyspace.metric.casCommit);
+        keyMigration = createLatencyMetrics("KeyMigration", cfs.keyspace.metric.keyMigration, GLOBAL_KEY_MIGRATION_LATENCY);
+        accordRepair = createLatencyMetrics("AccordRepair", cfs.keyspace.metric.accordRepair, GLOBAL_RANGE_MIGRATION_LATENCY);
+        accordPostStreamRepair = createLatencyMetrics("AccordPostStreamRepair", cfs.keyspace.metric.accordPostStreamRepair);
+        accordRepairUnexpectedFailures = createTableMeter("AccordRepairUnexpectedFailures", cfs.keyspace.metric.rangeMigrationUnexpectedFailures);
+        mutationsRejectedOnWrongSystem = createTableMeter("MutationsRejectedOnWrongSystem", cfs.keyspace.metric.mutationsRejectedOnWrongSystem);
+        readsRejectedOnWrongSystem = createTableMeter("ReadsRejectedOnWrongSystem", cfs.keyspace.metric.readsRejectedOnWrongSystem);
 
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");
@@ -814,12 +837,15 @@ public class TableMetrics
 
         bytesValidated = createTableHistogram("BytesValidated", cfs.keyspace.metric.bytesValidated, false);
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
-        bytesAnticompacted = createTableCounter("BytesAnticompacted");
-        bytesMutatedAnticompaction = createTableCounter("BytesMutatedAnticompaction");
+        bytesAnticompacted = createTableMeter("BytesAnticompacted", cfs.keyspace.metric.bytesAnticompacted, true);
+        bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction", cfs.keyspace.metric.bytesMutatedAnticompaction, true);
+        bytesPreviewed = createTableMeter("BytesPreviewed", cfs.keyspace.metric.bytesPreviewed);
+        tokenRangesPreviewedDesynchronized = createTableMeter("TokenRangesPreviewedDesynchronized", cfs.keyspace.metric.tokenRangesPreviewedDesynchronized);
+        bytesPreviewedDesynchronized = createTableMeter("BytesPreviewedDesynchronized", cfs.keyspace.metric.bytesPreviewedDesynchronized);
         mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
         {
-            double bytesMutated = bytesMutatedAnticompaction.getCount();
-            double bytesAnticomp = bytesAnticompacted.getCount();
+            double bytesMutated = bytesMutatedAnticompaction.table.getCount();
+            double bytesAnticomp = bytesAnticompacted.table.getCount();
             if (bytesAnticomp + bytesMutated > 0)
                 return bytesMutated / (bytesAnticomp + bytesMutated);
             return 0.0;
@@ -1086,16 +1112,21 @@ public class TableMetrics
 
     protected TableMeter createTableMeter(String name, Meter keyspaceMeter)
     {
-        return createTableMeter(name, name, keyspaceMeter);
+        return createTableMeter(name, keyspaceMeter, false);
     }
 
-    protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter)
+    protected TableMeter createTableMeter(String name, Meter keyspaceMeter, boolean globalMeterGaugeCompatible)
+    {
+        return createTableMeter(name, name, keyspaceMeter, globalMeterGaugeCompatible);
+    }
+
+    protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter, boolean globalMeterGaugeCompatible)
     {
         Meter meter = Metrics.meter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
         register(name, alias, meter);
         return new TableMeter(meter,
                               keyspaceMeter,
-                              Metrics.meter(GLOBAL_FACTORY.createMetricName(name),
+                              Metrics.meter(globalMeterGaugeCompatible, GLOBAL_FACTORY.createMetricName(name),
                                             GLOBAL_ALIAS_FACTORY.createMetricName(alias)));
     }
 
@@ -1154,9 +1185,14 @@ public class TableMetrics
 
         public void mark()
         {
+            mark(1L);
+        }
+
+        public void mark(long val)
+        {
             for (Meter meter : all)
             {
-                meter.mark();
+                meter.mark(val);
             }
         }
     }

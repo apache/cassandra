@@ -24,15 +24,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.PrepareServerNoRegister;
+import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -43,19 +44,14 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.membership.NodeId;
 
-import static org.apache.cassandra.tcm.membership.MembershipUtils.*;
+import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 
-public class RemoveTest
+@UseRandomPartitioner
+@PrepareServerNoRegister
+public class RemoveTest extends CassandraTestBase
 {
-    static
-    {
-        DatabaseDescriptor.daemonInitialization();
-        CommitLog.instance.start();
-    }
-
     static final IPartitioner partitioner = RandomPartitioner.instance;
     StorageService ss = StorageService.instance;
-    static IPartitioner oldPartitioner;
     ArrayList<Token> endpointTokens = new ArrayList<Token>();
     ArrayList<Token> keyTokens = new ArrayList<Token>();
     List<InetAddressAndPort> hosts = new ArrayList<>();
@@ -66,15 +62,7 @@ public class RemoveTest
     @BeforeClass
     public static void setupClass() throws ConfigurationException
     {
-        oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
-        ServerTestUtils.prepareServerNoRegister();
         MessagingService.instance().listen();
-    }
-
-    @AfterClass
-    public static void tearDownClass()
-    {
-        StorageService.instance.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Before

@@ -23,9 +23,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
-
 import org.apache.commons.lang3.tuple.Pair;
 
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -51,9 +51,10 @@ public interface SinglePartitionReadQuery extends ReadQuery
                                                                         RowFilter rowFilter,
                                                                         DataLimits limits,
                                                                         List<DecoratedKey> partitionKeys,
-                                                                        ClusteringIndexFilter clusteringIndexFilter)
+                                                                        ClusteringIndexFilter clusteringIndexFilter,
+                                                                        PotentialTxnConflicts potentialTxnConflicts)
     {
-        return SinglePartitionReadCommand.Group.create(metadata, nowInSec, columnFilter, rowFilter, limits, partitionKeys, clusteringIndexFilter);
+        return SinglePartitionReadCommand.Group.create(metadata, nowInSec, columnFilter, rowFilter, limits, partitionKeys, clusteringIndexFilter, potentialTxnConflicts);
     }
 
 

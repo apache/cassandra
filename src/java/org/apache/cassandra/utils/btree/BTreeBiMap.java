@@ -29,16 +29,32 @@ public class BTreeBiMap<K, V> extends AbstractBTreeMap<K, V> implements BiMap<K,
 {
     private final Object[] inverse;
     private final KeyComparator<V, K> valueComparator;
+    private final AsymmetricKeyComparator<V> asymmetricValueComparator;
 
     protected static <K, V> BTreeBiMap<K, V> withComparators(Object[] tree, Object [] inverse, Comparator<K> comparator, Comparator<V> valueComparator)
     {
-        return new BTreeBiMap<>(tree, inverse, new KeyComparator<>(comparator), new KeyComparator<>(valueComparator));
+        KeyComparator<K, V> keyComparator = new KeyComparator<>(comparator);
+        AsymmetricKeyComparator<K> asymmetricKeyComparator = new AsymmetricKeyComparator<>(comparator);
+        KeyComparator<V, K> valueKeyComparator;
+        AsymmetricKeyComparator<V> asymmetricValueComparator;
+        if (comparator == valueComparator)
+        {
+            valueKeyComparator = (KeyComparator<V, K>) keyComparator;
+            asymmetricValueComparator = (AsymmetricKeyComparator<V>) asymmetricKeyComparator;
+        }
+        else
+        {
+            valueKeyComparator = new KeyComparator<>(valueComparator);
+            asymmetricValueComparator = new AsymmetricKeyComparator<>(valueComparator);
+        }
+        return new BTreeBiMap<>(tree, inverse, keyComparator, asymmetricKeyComparator, valueKeyComparator, asymmetricValueComparator);
     }
 
-    private BTreeBiMap(Object[] tree, Object [] inverse, KeyComparator<K, V> comparator, KeyComparator<V, K> valueComparator)
+    private BTreeBiMap(Object[] tree, Object [] inverse, KeyComparator<K, V> comparator, AsymmetricKeyComparator<K> asymmetricKeyComparator, KeyComparator<V, K> valueComparator, AsymmetricKeyComparator<V> asymmetricValueComparator)
     {
-        super(tree, comparator);
+        super(tree, comparator, asymmetricKeyComparator);
         this.valueComparator = valueComparator;
+        this.asymmetricValueComparator = asymmetricValueComparator;
         this.inverse = inverse;
     }
 
@@ -55,7 +71,7 @@ public class BTreeBiMap<K, V> extends AbstractBTreeMap<K, V> implements BiMap<K,
     @Override
     public BiMap<V, K> inverse()
     {
-        return new BTreeBiMap<>(inverse, tree, valueComparator, comparator);
+        return new BTreeBiMap<>(inverse, tree, valueComparator, asymmetricValueComparator, comparator, asymmetricComparator);
     }
 
     @Override
@@ -72,8 +88,8 @@ public class BTreeBiMap<K, V> extends AbstractBTreeMap<K, V> implements BiMap<K,
 
         return new BTreeBiMap<>(BTree.update(tree, new Object[]{ entry }, comparator, UpdateFunction.noOp()),
                                 BTree.update(inverse, new Object[] { new AbstractBTreeMap.Entry<>(value, key) }, valueComparator, UpdateFunction.noOp()),
-                                comparator,
-                                valueComparator);
+                                comparator, asymmetricComparator,
+                                valueComparator, asymmetricValueComparator);
     }
 
     @Override
@@ -92,7 +108,7 @@ public class BTreeBiMap<K, V> extends AbstractBTreeMap<K, V> implements BiMap<K,
 
         Object[] newTree = BTreeRemoval.remove(tree, comparator, new AbstractBTreeMap.Entry<>(key, null));
         Object[] newInverse = BTreeRemoval.remove(inverse, valueComparator, new AbstractBTreeMap.Entry<>(existingEntry.getValue(), null));
-        return new BTreeBiMap<>(newTree, newInverse, comparator, valueComparator);
+        return new BTreeBiMap<>(newTree, newInverse, comparator, asymmetricComparator, valueComparator, asymmetricValueComparator);
     }
 
     public Set<V> values()

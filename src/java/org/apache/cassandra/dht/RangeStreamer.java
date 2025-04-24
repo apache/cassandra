@@ -39,6 +39,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.FailureDetector;
@@ -58,7 +59,9 @@ import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.NodeProximity;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
@@ -98,6 +101,7 @@ public class RangeStreamer
     private final StreamStateStore stateStore;
     private final MovementMap movements;
     private final MovementMap strictMovements;
+    private final boolean excludeAccordTables;
 
     public static class FetchReplica
     {
@@ -298,10 +302,11 @@ public class RangeStreamer
                          boolean connectSequentially,
                          int connectionsPerHost,
                          MovementMap movements,
-                         MovementMap strictMovements)
+                         MovementMap strictMovements,
+                         boolean excludeAccordTables)
     {
         this(metadata, streamOperation, useStrictConsistency, proximity, stateStore,
-             FailureDetector.instance, connectSequentially, connectionsPerHost, movements, strictMovements);
+             FailureDetector.instance, connectSequentially, connectionsPerHost, movements, strictMovements, excludeAccordTables);
     }
 
     RangeStreamer(ClusterMetadata metadata,
@@ -313,8 +318,10 @@ public class RangeStreamer
                   boolean connectSequentially,
                   int connectionsPerHost,
                   MovementMap movements,
-                  MovementMap strictMovements)
+                  MovementMap strictMovements,
+                  boolean excludeAccordTables)
     {
+        this.excludeAccordTables = excludeAccordTables;
         Preconditions.checkArgument(streamOperation == StreamOperation.BOOTSTRAP || streamOperation == StreamOperation.REBUILD, streamOperation);
         this.metadata = metadata;
         this.description = streamOperation.getDescription();
@@ -383,8 +390,12 @@ public class RangeStreamer
 
         Multimap<InetAddressAndPort, FetchReplica> workMap;
         //Only use the optimized strategy if we don't care about strict sources, have a replication factor > 1, and no
-        //transient replicas.
-        if (useStrictSource || strat == null || strat.getReplicationFactor().allReplicas == 1 || strat.getReplicationFactor().hasTransientReplicas())
+        //transient replicas or it is intentionally skipped.
+        if (CassandraRelevantProperties.SKIP_OPTIMAL_STREAMING_CANDIDATES_CALCULATION.getBoolean() ||
+            useStrictSource ||
+            strat == null ||
+            strat.getReplicationFactor().allReplicas == 1 ||
+            strat.getReplicationFactor().hasTransientReplicas())
         {
             workMap = convertPreferredEndpointsToWorkMap(fetchMap);
         }
@@ -755,8 +766,17 @@ public class RangeStreamer
                 logger.debug("Source and our replicas {}", fetchReplicas);
                 logger.debug("Source {} Keyspace {}  streaming full {} transient {}", source, keyspace, full, transientReplicas);
 
-                /* Send messages to respective folks to stream data over to me */
-                streamPlan.requestRanges(source, keyspace, full, transientReplicas);
+                KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
+                if (excludeAccordTables && StreamPlan.hasAccordTables(ksm))
+                {
+                    String[] cfNames = StreamPlan.nonAccordTablesForKeyspace(ksm);
+                    if (cfNames != null)
+                        streamPlan.requestRanges(source, keyspace, full, transientReplicas, cfNames);
+                }
+                else
+                {
+                    streamPlan.requestRanges(source, keyspace, full, transientReplicas);
+                }
             });
         });
 

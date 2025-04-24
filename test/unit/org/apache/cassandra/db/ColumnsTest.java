@@ -485,18 +485,18 @@ public class ColumnsTest
     private static void addRegular(List<String> names, List<ColumnMetadata> results)
     {
         for (String name : names)
-            results.add(ColumnMetadata.regularColumn(TABLE_METADATA, bytes(name), UTF8Type.instance));
+            results.add(ColumnMetadata.regularColumn(TABLE_METADATA, bytes(name), UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID));
     }
 
     private static void addComplex(List<String> names, List<ColumnMetadata> results)
     {
         for (String name : names)
-            results.add(ColumnMetadata.regularColumn(TABLE_METADATA, bytes(name), SetType.getInstance(UTF8Type.instance, true)));
+            results.add(ColumnMetadata.regularColumn(TABLE_METADATA, bytes(name), SetType.getInstance(UTF8Type.instance, true), ColumnMetadata.NO_UNIQUE_ID));
     }
 
     private static ColumnMetadata def(String name, AbstractType<?> type, ColumnMetadata.Kind kind)
     {
-        return new ColumnMetadata(TABLE_METADATA, bytes(name), type, ColumnMetadata.NO_POSITION, kind, null);
+        return new ColumnMetadata(TABLE_METADATA, bytes(name), type, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, kind, null);
     }
 
     private static TableMetadata mock(Columns columns)

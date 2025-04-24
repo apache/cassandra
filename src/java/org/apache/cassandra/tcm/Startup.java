@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
@@ -75,6 +76,7 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchem
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
+import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
  /**
@@ -420,7 +422,11 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         InProgressSequences.finishInProgressSequences(self, true);
         metadata = ClusterMetadata.current();
 
-        switch (metadata.directory.peerState(self))
+        NodeState startingstate = metadata.directory.peerState(self);
+        if (startingstate != REGISTERED && startingstate != LEFT)
+            AccordService.startup(self);
+
+        switch (startingstate)
         {
             case REGISTERED:
             case LEFT:
@@ -428,6 +434,10 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     ReconfigureCMS.maybeReconfigureCMS(metadata, DatabaseDescriptor.getReplaceAddress());
 
                 ClusterMetadataService.instance().commit(initialTransformation.get());
+                // When Accord starts up it needs to check for any historic epochs that it needs to know about (in order
+                // to handle pending transactions), in order to know what nodes to check with it needs to know what the
+                // settled placement is (so it knows what peers to reach out to).
+                AccordService.startup(self);
                 InProgressSequences.finishInProgressSequences(self, true); // potentially finish the MSO committed above
                 metadata = ClusterMetadata.current();
 
@@ -552,15 +562,17 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             }
             if (seeds.isEmpty())
                 throw new IllegalArgumentException("Can not initialize CMS without any seeds");
-
             boolean hasAnyEpoch = SystemKeyspaceStorage.hasAnyEpoch();
+
             // For CCM and local dev clusters
             boolean isOnlySeed = DatabaseDescriptor.getSeeds().size() == 1
                                  && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort())
                                  && DatabaseDescriptor.getSeeds().iterator().next().getAddress().isLoopbackAddress();
             boolean hasBootedBefore = SystemKeyspace.getLocalHostId() != null;
             logger.info("hasAnyEpoch = {}, hasBootedBefore = {}", hasAnyEpoch, hasBootedBefore);
-            if (!hasAnyEpoch && hasBootedBefore)
+            if (!hasAnyEpoch && hasBootedBefore &&
+                // Atomic long processor currently does not support upgrades
+                !CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
                 return UPGRADE;
             else if (hasAnyEpoch)
                 return NORMAL;

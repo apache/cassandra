@@ -82,7 +82,7 @@ abstract public class AbstractJmxSocketFactory
                 JMXServerOptions.setJmxSystemProperties(jmxEncryptionOptions.getAcceptedProtocols(), jmxEncryptionOptions.getCipherSuites());
 
             logger.info("Enabling JMX SSL using jmx_encryption_options");
-            boolean requireClientAuth = jmxEncryptionOptions.getClientAuth() == EncryptionOptions.ClientAuth.REQUIRED;
+            boolean requireClientAuth = jmxEncryptionOptions.getClientAuth() == EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
             String[] ciphers = jmxEncryptionOptions.cipherSuitesArray();
             String[] protocols = jmxEncryptionOptions.acceptedProtocolsArray();
             SSLContext sslContext = jmxEncryptionOptions.sslContextFactoryInstance.createJSSESslContext(jmxEncryptionOptions.getClientAuth());

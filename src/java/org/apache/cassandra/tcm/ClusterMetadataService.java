@@ -41,6 +41,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
@@ -48,6 +49,8 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
@@ -78,6 +81,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE;
+import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.REMOTE;
@@ -166,16 +170,16 @@ public class ClusterMetadataService
         Processor localProcessor;
         if (CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
         {
-            log = logSpec.sync().createLog();
+            log = logSpec.sync().withStorage(new AtomicLongBackedProcessor.InMemoryStorage()).createLog();
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
-            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(e));
         }
         else
         {
             log = logSpec.async().createLog();
             localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
-            fetchLogHandler = new FetchCMSLog.Handler();
         }
+
+        fetchLogHandler = new FetchCMSLog.Handler();
 
         Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_NO_OP_REPLICATOR.getBoolean()
                                        ? Commit.Replicator.NO_OP
@@ -667,8 +671,7 @@ public class ClusterMetadataService
         if (ourEpoch.isEqualOrAfter(awaitAtLeast))
             return metadata;
 
-        Retry.Deadline deadline = Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                       new Retry.Jitter(TCMMetrics.instance.fetchLogRetries));
+        Retry deadline = Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries);
         // responses for ALL withhout knowing we have pending
         metadata = processor.fetchLogAndWait(awaitAtLeast, deadline);
         if (metadata.epoch.isBefore(awaitAtLeast))
@@ -739,7 +742,7 @@ public class ClusterMetadataService
         ScheduledExecutors.optionalTasks.submit(() -> {
             try
             {
-                future.setSuccess(ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, from, awaitAtLeast));
+                future.setSuccess(fetchLogFromPeerOrCMS(metadata, from, awaitAtLeast));
             }
             catch (Throwable t)
             {
@@ -749,6 +752,19 @@ public class ClusterMetadataService
             }
         });
         return future;
+    }
+
+    public boolean maybeFetchLogFromPeerOrCMSAsync(MessageDelivery messaging, Message<?> message, Runnable onFetchSuccess)
+    {
+        ClusterMetadata metadata = metadata();
+        if (metadata.epoch.isEqualOrAfter(metadata.epoch))
+            return false;
+        Future<ClusterMetadata> f = fetchLogFromPeerOrCMSAsync(metadata, message.from(), message.epoch());
+        f.addCallback((success, failure) -> {
+            if (failure != null) messaging.respondWithFailure(RequestFailure.UNKNOWN, message);
+            else                 message.verb().stage.execute(onFetchSuccess);
+        });
+        return true;
     }
 
     /**
@@ -785,6 +801,24 @@ public class ClusterMetadataService
             throw new IllegalStateException("Still behind after fetching log from CMS");
         logger.debug("Fetched log from CMS - caught up from epoch {} to epoch {}", before, metadata.epoch);
         return metadata;
+    }
+
+    /**
+     * Combines {@link #fetchLogFromPeer} with {@link #fetchLogFromCMS} to synchronously fetch and apply log entries
+     * up to the requested epoch. The supplied peer will be contacted first and if after doing so, the current local
+     * metadata is not caught up to at least the required epoch, a further request is made to the CMS.
+     * The returned ClusterMetadata is guaranteed to have been published, though it may have also been superceded by
+     * further updates.
+     * If the requested epoch is not reached even after fetching from the CMS, an IllegalStateException is thrown.
+     * @param from Initial peer to contact. Usually this is the sender of a message containing the requested epoch,
+     *             which means it can be assumed that this peer (if available) can supply any missing log entries.
+     * @param awaitAtLeast The requested epoch.
+     * @return A published ClusterMetadata with all entries up to (at least) the requested epoch enacted.
+     * @throws IllegalStateException if the requested epoch could not be reached, even after falling back to CMS catchup
+     */
+    public ClusterMetadata fetchLogFromPeerOrCMS(InetAddressAndPort from, Epoch awaitAtLeast)
+    {
+        return fetchLogFromPeerOrCMS(metadata(), from, awaitAtLeast);
     }
 
     public ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException
@@ -825,6 +859,7 @@ public class ClusterMetadataService
     {
         return commitsPaused.get();
     }
+
     /**
      * Switchable implementation that allow us to go between local and remote implementation whenever we need it.
      * When the node becomes a member of CMS, it switches back to being a regular member of a cluster, and all
@@ -875,9 +910,9 @@ public class ClusterMetadataService
         }
 
         @Override
-        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
         {
-            while (!retryPolicy.reachedMax())
+            while (true)
             {
                 try
                 {
@@ -890,16 +925,29 @@ public class ClusterMetadataService
                 }
                 catch (NotCMSException e)
                 {
-                    retryPolicy.maybeSleep();
+                    if (!retryPolicy.maybeSleep())
+                        break;
                 }
             }
             return Commit.Result.failed(ExceptionCode.SERVER_ERROR, "Could not commit " + transform.kind() + " at epoch " + lastKnown);
         }
 
         @Override
-        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
         {
             return delegate().fetchLogAndWait(waitFor, retryPolicy);
+        }
+
+        @Override
+        public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
+        {
+            return delegate().getLocalState(start, end, includeSnapshot);
+        }
+
+        @Override
+        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
+        {
+            return delegate().getLogState(start, end, includeSnapshot, retryPolicy);
         }
 
         public String toString()

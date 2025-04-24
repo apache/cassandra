@@ -103,7 +103,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
 
     protected List<ResultSetRow> executeWithResult(Visit visit, int node, int pageSize, CompiledStatement statement, ConsistencyLevel consistencyLevel)
     {
-        Invariants.checkState(visit.operations.length == 1);
+        Invariants.require(visit.operations.length == 1);
         Object[][] rows;
         if (consistencyLevel == ConsistencyLevel.NODE_LOCAL)
             rows = cluster.get(node).executeInternal(statement.cql(), statement.bindings());
@@ -199,7 +199,7 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
                 {
                     for (int j = 0; j < schema.clusteringKeys.size(); j++)
                     {
-                        Invariants.checkState(result[selection.indexOf(schema.clusteringKeys.get(j))] == null,
+                        Invariants.require(result[selection.indexOf(schema.clusteringKeys.get(j))] == null,
                                               "All elements of clustering key should have been null");
                     }
                     clusteringKey = NIL_KEY;
@@ -292,9 +292,10 @@ public class InJvmDTestVisitExecutor extends CQLVisitExecutor
     public interface RetryPolicy
     {
         RetryPolicy RETRY_ON_TIMEOUT = (t) -> {
-            return t.getMessage().contains("timed out") ||
-                   AssertionUtils.isInstanceof(RequestTimeoutException.class)
-                                 .matches(Throwables.getRootCause(t));
+            return t.getMessage() != null &&
+                   (t.getMessage().contains("timed out") ||
+                    AssertionUtils.isInstanceof(RequestTimeoutException.class)
+                                  .matches(Throwables.getRootCause(t)));
         };
         RetryPolicy NO_RETRY = (t) -> false;
         boolean retry(Throwable t);

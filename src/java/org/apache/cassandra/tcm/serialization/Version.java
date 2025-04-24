@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.tcm.serialization;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -39,24 +42,38 @@ public enum Version
      */
     V2(2),
     /**
-     * - down nodes serialized in PrepareCMSReconfiguration
+     *  - down nodes serialized in PrepareCMSReconfiguration
      */
     V3(3),
     /**
-     * - Serialize allowAutoSnapshot and incrementalBackups when serializing TableParams
+     *  - Serialize allowAutoSnapshot and incrementalBackups when serializing TableParams
      */
     V4(4),
     /**
-     * - AlterSchema includes execution timestamp
-     * - PreInitialize includes datacenter (affects local serialization on first CMS node only)
+     *  - AlterSchema includes execution timestamp
+     *  - PreInitialize includes datacenter (affects local serialization on first CMS node only)
      */
     V5(5),
     /**
-     * CEP-42 - Constraints framework. New version due to modifications in table metadata serialization.
+     *  - CEP-42 - Constraints framework. New version due to modifications in table metadata serialization.
      */
     V6(6),
+    /**
+     *  - Track nodes removed
+     *  - Column Metadata now stores a unique id
+     *  - Added AccordFastPath
+     *  - Added ConsensusMigrationState
+     *  - Added AccordStaleReplicas
+     *  - TableParam now has pendingDrop (accord table drop is multistep)
+     */
+    V7(7),
 
     UNKNOWN(Integer.MAX_VALUE);
+
+    /**
+     * The version that Accord was added to TCM.
+     */
+    public static final Version MIN_ACCORD_VERSION = V7;
 
     private static Map<Integer, Version> values = new HashMap<>();
     static
@@ -110,5 +127,16 @@ public enum Version
             return v;
 
         throw new IllegalArgumentException("Unsupported metadata version (" + i + ")");
+    }
+
+    public List<Version> greaterThanOrEqual()
+    {
+        Version[] all = Version.values();
+        if (ordinal() == all.length - 1)
+            return Collections.singletonList(this);
+        List<Version> values = new ArrayList<>(all.length - ordinal());
+        for (int i = ordinal(); i < all.length; i++)
+            values.add(all[i]);
+        return values;
     }
 }

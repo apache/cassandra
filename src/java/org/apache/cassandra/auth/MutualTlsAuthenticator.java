@@ -44,7 +44,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.MTLS;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 
 /**
  * Performs mTLS authentication for client connections by extracting identities from client certificate

@@ -255,6 +255,7 @@ public class ReadResponseTest
                   isDigest,
                   0,
                   false,
+                  PotentialTxnConflicts.DISALLOW,
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),

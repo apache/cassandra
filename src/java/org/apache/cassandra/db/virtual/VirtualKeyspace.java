@@ -50,7 +50,7 @@ public class VirtualKeyspace
         if (!duplicates.isEmpty())
             throw new IllegalArgumentException(String.format("Duplicate table names in virtual keyspace %s: %s", name, duplicates));
 
-        metadata = KeyspaceMetadata.virtual(name, Tables.of(Iterables.transform(tables, VirtualTable::metadata)));
+        this.metadata = KeyspaceMetadata.virtual(name, Tables.of(Iterables.transform(tables, VirtualTable::metadata)));
     }
 
     public String name()
@@ -58,13 +58,13 @@ public class VirtualKeyspace
         return name;
     }
 
-    public KeyspaceMetadata metadata()
-    {
-        return metadata;
-    }
-
     public ImmutableCollection<VirtualTable> tables()
     {
         return tables;
+    }
+
+    public KeyspaceMetadata metadata()
+    {
+        return metadata;
     }
 }

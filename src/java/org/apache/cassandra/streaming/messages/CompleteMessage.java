@@ -18,8 +18,8 @@
 package org.apache.cassandra.streaming.messages;
 
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 public class CompleteMessage extends StreamMessage
 {

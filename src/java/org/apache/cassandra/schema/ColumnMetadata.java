@@ -19,7 +19,13 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
@@ -29,24 +35,33 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
+import org.github.jamm.Unmetered;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.constraints.ColumnConstraint;
 import org.apache.cassandra.cql3.constraints.ColumnConstraints;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.selection.Selector;
 import org.apache.cassandra.cql3.selection.SimpleSelector;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.github.jamm.Unmetered;
 
 import static org.apache.cassandra.db.TypeSizes.BOOL_SIZE;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
@@ -59,6 +74,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         (a, b) -> ((ColumnData) a).column().compareTo((ColumnMetadata) b);
 
     public static final int NO_POSITION = -1;
+    public static final int NO_UNIQUE_ID = Integer.MIN_VALUE;
 
     public enum ClusteringOrder
     {
@@ -99,6 +115,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      * the first clustering column is 0.
      */
     private final int position;
+    public final int uniqueId;
 
     private final Comparator<CellPath> cellPathComparator;
     private final Comparator<Object> asymmetricCellPathComparator;
@@ -132,47 +149,48 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public static ColumnMetadata partitionKeyColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(table, name, type, position, Kind.PARTITION_KEY, null, ColumnConstraints.NO_OP);
+        return new ColumnMetadata(table, name, type, position, position, Kind.PARTITION_KEY, null, ColumnConstraints.NO_OP);
     }
 
     public static ColumnMetadata partitionKeyColumn(String keyspace, String table, String name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.PARTITION_KEY, null, ColumnConstraints.NO_OP);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, position, Kind.PARTITION_KEY, null, ColumnConstraints.NO_OP);
     }
 
     public static ColumnMetadata clusteringColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(table, name, type, position, Kind.CLUSTERING, null, ColumnConstraints.NO_OP);
+        return new ColumnMetadata(table, name, type, position, position, Kind.CLUSTERING, null, ColumnConstraints.NO_OP);
     }
 
     public static ColumnMetadata clusteringColumn(String keyspace, String table, String name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.CLUSTERING, null, ColumnConstraints.NO_OP);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, position, Kind.CLUSTERING, null, ColumnConstraints.NO_OP);
     }
 
-    public static ColumnMetadata regularColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type)
+    public static ColumnMetadata regularColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int uniqueId)
     {
-        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.REGULAR, null, ColumnConstraints.NO_OP);
+        return new ColumnMetadata(table, name, type, uniqueId, NO_POSITION, Kind.REGULAR, null, ColumnConstraints.NO_OP);
     }
 
-    public static ColumnMetadata regularColumn(String keyspace, String table, String name, AbstractType<?> type)
+    public static ColumnMetadata regularColumn(String keyspace, String table, String name, AbstractType<?> type, int uniqueId)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR, null, ColumnConstraints.NO_OP);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, uniqueId, NO_POSITION, Kind.REGULAR, null, ColumnConstraints.NO_OP);
     }
 
-    public static ColumnMetadata staticColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type)
+    public static ColumnMetadata staticColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int uniqueId)
     {
-        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.STATIC, null, ColumnConstraints.NO_OP);
+        return new ColumnMetadata(table, name, type, uniqueId, NO_POSITION, Kind.STATIC, null, ColumnConstraints.NO_OP);
     }
 
-    public static ColumnMetadata staticColumn(String keyspace, String table, String name, AbstractType<?> type)
+    public static ColumnMetadata staticColumn(String keyspace, String table, String name, AbstractType<?> type, int uniqueId)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.STATIC, null, ColumnConstraints.NO_OP);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, uniqueId, NO_POSITION, Kind.STATIC, null, ColumnConstraints.NO_OP);
     }
 
     public ColumnMetadata(TableMetadata table,
                           ByteBuffer name,
                           AbstractType<?> type,
+                          int uniqueId,
                           int position,
                           Kind kind,
                           @Nullable ColumnMask mask,
@@ -182,6 +200,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
              table.name,
              ColumnIdentifier.getInterned(name, UTF8Type.instance),
              type,
+             uniqueId,
              position,
              kind,
              mask,
@@ -191,6 +210,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public ColumnMetadata(TableMetadata table,
                           ByteBuffer name,
                           AbstractType<?> type,
+                          int uniqueId,
                           int position,
                           Kind kind,
                           @Nullable ColumnMask mask)
@@ -199,6 +219,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
              table.name,
              ColumnIdentifier.getInterned(name, UTF8Type.instance),
              type,
+             uniqueId,
              position,
              kind,
              mask,
@@ -210,11 +231,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           String cfName,
                           ColumnIdentifier name,
                           AbstractType<?> type,
+                          int uniqueId,
                           int position,
                           Kind kind,
                           @Nullable ColumnMask mask)
     {
-        this(ksName, cfName, name, type, position, kind, mask, ColumnConstraints.NO_OP);
+        this(ksName, cfName, name, type, uniqueId, position, kind, mask, ColumnConstraints.NO_OP);
     }
 
     @VisibleForTesting
@@ -222,12 +244,14 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           String cfName,
                           ColumnIdentifier name,
                           AbstractType<?> type,
+                          int uniqueId,
                           int position,
                           Kind kind,
                           @Nullable ColumnMask mask,
                           @Nonnull ColumnConstraints columnConstraints)
     {
         super(ksName, cfName, name, type);
+        this.uniqueId = uniqueId;
         assert name != null && type != null && kind != null;
         assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
                                                                       // so make sure we don't sneak it for something else since it'd breaks equals()
@@ -276,22 +300,22 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public ColumnMetadata copy()
     {
-        return new ColumnMetadata(ksName, cfName, name, type, position, kind, mask, columnConstraints);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, columnConstraints);
     }
 
     public ColumnMetadata withNewName(ColumnIdentifier newName)
     {
-        return new ColumnMetadata(ksName, cfName, newName, type, position, kind, mask, columnConstraints);
+        return new ColumnMetadata(ksName, cfName, newName, type, uniqueId, position, kind, mask, columnConstraints);
     }
 
     public ColumnMetadata withNewType(AbstractType<?> newType)
     {
-        return new ColumnMetadata(ksName, cfName, name, newType, position, kind, mask, columnConstraints);
+        return new ColumnMetadata(ksName, cfName, name, newType, uniqueId, position, kind, mask, columnConstraints);
     }
 
     public ColumnMetadata withNewMask(@Nullable ColumnMask newMask)
     {
-        return new ColumnMetadata(ksName, cfName, name, type, position, kind, newMask, columnConstraints);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, newMask, columnConstraints);
     }
 
     public boolean isPartitionKey()
@@ -371,7 +395,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public ColumnMetadata withNewColumnConstraints(ColumnConstraints constraints)
     {
         constraints.validate(this);
-        return new ColumnMetadata(ksName, cfName, name, type, position, kind, mask, constraints);
+        return new ColumnMetadata(ksName, cfName, name, type, uniqueId, position, kind, mask, constraints);
     }
 
     public void removeColumnConstraints()
@@ -396,12 +420,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     private boolean equalsWithoutType(ColumnMetadata other)
     {
         return name.equals(other.name)
-            && kind == other.kind
-            && position == other.position
-            && ksName.equals(other.ksName)
-            && cfName.equals(other.cfName)
-            && Objects.equals(mask, other.mask)
-            && Objects.equals(columnConstraints, other.columnConstraints);
+               && kind == other.kind
+               && position == other.position
+               && ksName.equals(other.ksName)
+               && cfName.equals(other.cfName)
+               && Objects.equals(mask, other.mask)
+               && Objects.equals(columnConstraints, other.columnConstraints);
     }
 
     Optional<Difference> compare(ColumnMetadata other)
@@ -711,6 +735,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                 if (hasConstraints)
                     ColumnConstraints.serializer.serialize(t.columnConstraints, out, version);
             }
+            if (version.isAtLeast(Version.V7))
+                out.writeInt(t.uniqueId);
         }
 
         public ColumnMetadata deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
@@ -734,7 +760,10 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                 constraints = ColumnConstraints.serializer.deserialize(in, version);
             else
                 constraints = ColumnConstraints.NO_OP;
-            return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, position, kind, mask, constraints);
+            int uniqueId = NO_UNIQUE_ID;
+            if (version.isAtLeast(Version.V7))
+                uniqueId = in.readInt();
+            return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, uniqueId, position, kind, mask, constraints);
         }
 
         public long serializedSize(ColumnMetadata t, Version version)
@@ -756,7 +785,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                    ByteBufferUtil.serializedSizeWithShortLength(t.name.bytes) +
                    BOOL_SIZE +
                    ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version)) +
-                   constraintsSize;
+                   constraintsSize +
+                   (version.isAtLeast(Version.V7) ? 4 : 0);
         }
     }
 }

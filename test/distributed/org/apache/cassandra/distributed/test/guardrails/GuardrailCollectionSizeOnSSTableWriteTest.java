@@ -26,9 +26,12 @@ import org.junit.Test;
 
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 
 import static java.nio.ByteBuffer.allocate;
 
@@ -57,7 +60,6 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
                                                 .set("collection_size_warn_threshold", WARN_THRESHOLD + "B")
                                                 .set("collection_size_fail_threshold", FAIL_THRESHOLD + "B"))
                               .start());
-        cluster.disableAutoCompaction(KEYSPACE);
         driverCluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
         driverSession = driverCluster.connect();
     }
@@ -84,7 +86,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testSetSize() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v set<blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, ?)", set());
@@ -108,7 +110,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testSetSizeFrozen()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v frozen<set<blob>>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<set<blob>>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, ?)", set());
@@ -123,7 +125,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testSetSizeWithUpdates()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v set<blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, ?)", set(allocate(1)));
         execute("UPDATE %s SET v = v + ? WHERE k = 0", set(allocate(1)));
@@ -145,7 +147,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testSetSizeAfterCompaction() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v set<blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, ?)", set(allocate(1)));
         assertNotWarnedOnFlush();
@@ -175,7 +177,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testListSize() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v list<blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v list<blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, ?)", list());
@@ -199,7 +201,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testListSizeFrozen()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v frozen<list<blob>>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<list<blob>>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, ?)", list());
@@ -214,7 +216,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testListSizeWithUpdates()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v list<blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v list<blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, ?)", list(allocate(1)));
         execute("UPDATE %s SET v = v + ? WHERE k = 0", list(allocate(1)));
@@ -236,7 +238,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testListSizeAfterCompaction() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v list<blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v list<blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, ?)", list(allocate(1)));
         assertNotWarnedOnFlush();
@@ -266,7 +268,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testMapSize() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v map<blob, blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v map<blob, blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, ?)", map());
@@ -297,7 +299,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testMapSizeFrozen()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v frozen<map<blob, blob>>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<map<blob, blob>>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, ?)", map());
@@ -316,7 +318,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testMapSizeWithUpdates()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v map<blob, blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v map<blob, blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, ?)", map(allocate(1), allocate(1)));
         execute("UPDATE %s SET v = v + ? WHERE k = 0", map(allocate(1), allocate(1)));
@@ -350,7 +352,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testMapSizeAfterCompaction()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v map<blob, blob>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v map<blob, blob>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, ?)", map(allocate(1), allocate(1)));
         execute("UPDATE %s SET v = v + ? WHERE k = 0", map(allocate(1), allocate(1)));
@@ -397,7 +399,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testCompositePartitionKey()
     {
-        schemaChange("CREATE TABLE %s (k1 int, k2 text, v set<blob>, PRIMARY KEY((k1, k2)))");
+        createTable("CREATE TABLE %s (k1 int, k2 text, v set<blob>, PRIMARY KEY((k1, k2)))");
 
         execute("INSERT INTO %s (k1, k2, v) VALUES (0, 'a', ?)", set(allocate(WARN_THRESHOLD)));
         assertWarnedOnFlush(warnMessage("(0, 'a')"));
@@ -409,7 +411,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     @Test
     public void testCompositeClusteringKey()
     {
-        schemaChange("CREATE TABLE %s (k int, c1 int, c2 text, v set<blob>, PRIMARY KEY(k, c1, c2))");
+        createTable("CREATE TABLE %s (k int, c1 int, c2 text, v set<blob>, PRIMARY KEY(k, c1, c2))");
 
         execute("INSERT INTO %s (k, c1, c2, v) VALUES (1, 10, 'a', ?)", set(allocate(WARN_THRESHOLD)));
         assertWarnedOnFlush(warnMessage("(1, 10, 'a')"));
@@ -433,5 +435,17 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
     private String failMessage(String key)
     {
         return String.format("Detected collection v in row %s in table %s of size", key, qualifiedTableName);
+    }
+
+    private void createTable(String cql)
+    {
+        schemaChange(cql);
+        for (IInvokableInstance instance : cluster)
+        {
+            instance.runOnInstance(() -> {
+                for (ColumnFamilyStore cs : Keyspace.open(KEYSPACE).getColumnFamilyStores())
+                    cs.disableAutoCompaction();
+            });
+        }
     }
 }

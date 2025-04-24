@@ -17,34 +17,84 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.*;
-
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.index.IndexRegistry;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.conditions.ColumnCondition;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.db.partitions.Partition;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.service.CASRequest;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.TimeUUID;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.api.Update;
+import accord.primitives.Keys;
+import accord.primitives.Txn;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.conditions.ColumnCondition;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.service.CASRequest;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
+import org.apache.cassandra.service.accord.txn.TxnCondition;
+import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
+import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnReference;
+import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
+import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static com.google.common.base.Preconditions.checkState;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.RETRY_NEW_PROTOCOL;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.casResult;
+import static org.apache.cassandra.service.accord.txn.TxnData.TxnDataNameKind.CAS_READ;
+import static org.apache.cassandra.service.accord.txn.TxnData.txnDataName;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 
 /**
  * Processed CAS conditions and update on potentially multiple rows of the same partition.
  */
 public class CQL3CasRequest implements CASRequest
 {
+    @SuppressWarnings("unused")
+    private static final Logger logger = LoggerFactory.getLogger(CQL3CasRequest.class);
+
     public final TableMetadata metadata;
     public final DecoratedKey key;
     private final RegularAndStaticColumns conditionColumns;
@@ -259,9 +309,9 @@ public class CQL3CasRequest implements CASRequest
         final long timeUuidMsb;
         long timeUuidNanos;
 
-        public CASUpdateParameters(TableMetadata metadata, RegularAndStaticColumns updatedColumns, ClientState state, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
+        public CASUpdateParameters(TableMetadata metadata, ClientState state, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
         {
-            super(metadata, updatedColumns, state, options, timestamp, nowInSec, ttl, prefetchedRows);
+            super(metadata, state, options, timestamp, nowInSec, ttl, prefetchedRows);
             this.timeUuidMsb = timeUuidMsb;
             this.timeUuidNanos = timeUuidNanos;
         }
@@ -299,7 +349,7 @@ public class CQL3CasRequest implements CASRequest
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
             CASUpdateParameters params =
-                new CASUpdateParameters(metadata, updateBuilder.columns(), state, options, timestamp, nowInSeconds,
+                new CASUpdateParameters(metadata, state, options, timestamp, nowInSeconds,
                                      stmt.getTimeToLive(options), map, timeUuidMsb, timeUuidNanos);
             stmt.addUpdateForKey(updateBuilder, clustering, params);
             return params.timeUuidNanos;
@@ -329,7 +379,6 @@ public class CQL3CasRequest implements CASRequest
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
             UpdateParameters params =
                 new UpdateParameters(metadata,
-                                     updateBuilder.columns(),
                                      state,
                                      options,
                                      timestamp,
@@ -350,6 +399,8 @@ public class CQL3CasRequest implements CASRequest
         }
 
         public abstract boolean appliesTo(FilteredPartition current) throws InvalidRequestException;
+
+        public abstract TxnCondition asTxnCondition();
     }
 
     private interface ToCQL
@@ -374,6 +425,12 @@ public class CQL3CasRequest implements CASRequest
         {
             return "IF NOT EXISTS";
         }
+
+        public TxnCondition asTxnCondition()
+        {
+            TxnReference txnReference = new TxnReference(txnDataName(CAS_READ), null, null);
+            return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NULL);
+        }
     }
 
     private static class ExistCondition extends RowCondition implements ToCQL
@@ -392,6 +449,12 @@ public class CQL3CasRequest implements CASRequest
         public String toCQL()
         {
             return "IF EXISTS";
+        }
+
+        public TxnCondition asTxnCondition()
+        {
+            TxnReference txnReference = new TxnReference(txnDataName(CAS_READ), null, null);
+            return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NOT_NULL);
         }
     }
 
@@ -422,11 +485,96 @@ public class CQL3CasRequest implements CASRequest
             }
             return true;
         }
+
+        @Override
+        public TxnCondition asTxnCondition()
+        {
+            return new TxnCondition.ColumnConditionsAdapter(clustering, conditions);
+        }
     }
     
     @Override
     public String toString()
     {
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    @Override
+    public Txn toAccordTxn(ClusterMetadata cm, ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, long nowInSecs)
+    {
+        SinglePartitionReadCommand readCommand = readCommand(nowInSecs);
+        TableMetadata metadata = getTableMetadata(cm, this.metadata.id);
+        TableMetadatas.Complete tables = TableMetadatas.of(metadata);
+        TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, Keys.of(new PartitionKey(metadata.id, readCommand.partitionKey())));
+        Update update = createUpdate(cm, tables, clientState, commitConsistencyLevel);
+        // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
+        // level since Accord will manage reading safely
+        TableParams tableParams = tables.getMetadata(metadata.id).params;
+        consistencyLevel = tableParams.transactionalMode.readCLForMode(tableParams.transactionalMigrationFrom, consistencyLevel, cm, metadata.id, readCommand.partitionKey().getToken());
+        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel, tablesAndKeys);
+        // In a CAS requesting only one key is supported and writes
+        // can't be dependent on any data that is read (only conditions)
+        // so the only relevant keys are the read key
+        return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update, tablesAndKeys);
+    }
+
+    private Update createUpdate(ClusterMetadata cm, TableMetadatas.Complete tables, ClientState clientState, ConsistencyLevel commitConsistencyLevel)
+    {
+        // Potentially ignore commit consistency level if TransactionalMode is full
+        // since it is safe to match what non-SERIAL writes do
+        TableMetadata tableMetadata = tables.getMetadata(metadata.id);
+        TableParams tableParams = tableMetadata.params;
+        commitConsistencyLevel = tableParams.transactionalMode.commitCLForMode(tableParams.transactionalMigrationFrom, commitConsistencyLevel, cm, tableMetadata.id, key.getToken());
+        // CAS requires using the new txn timestamp to correctly linearize some kinds of updates
+        return new TxnUpdate(tables, createWriteFragments(clientState), createCondition(), commitConsistencyLevel, false);
+    }
+
+    private TxnCondition createCondition()
+    {
+        List<TxnCondition> txnConditions = new ArrayList<>(conditions.size() + (staticConditions == null ? 0 : 1));
+        if (staticConditions != null)
+        {
+            txnConditions.add(staticConditions.asTxnCondition());
+        }
+        for (RowCondition condition : conditions.values())
+            txnConditions.add(condition.asTxnCondition());
+        // CAS forbids empty conditions
+        checkState(!txnConditions.isEmpty());
+        return conditions.size() == 1 ? txnConditions.get(0) : new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, txnConditions);
+    }
+
+    private List<TxnWrite.Fragment> createWriteFragments(ClientState state)
+    {
+        PartitionKey partitionKey = new PartitionKey(metadata.id, key);
+        List<TxnWrite.Fragment> fragments = new ArrayList<>();
+        int idx = 0;
+        for (RowUpdate update : updates)
+        {
+            // Some operations may need to migrate to run in the transaction, so need to call forTxn to make sure this
+            // happens.
+            // see CASSANDRA-18337
+            ModificationStatement modification = update.stmt.forTxn();
+            QueryOptions options = update.options;
+            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options, partitionKey);
+            fragments.add(fragment);
+        }
+        for (RangeDeletion rangeDeletion : rangeDeletions)
+        {
+            ModificationStatement modification = rangeDeletion.stmt;
+            QueryOptions options = rangeDeletion.options;
+            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options, partitionKey);
+            fragments.add(fragment);
+        }
+        return fragments;
+    }
+
+    @Override
+    public ConsensusAttemptResult toCasResult(TxnResult txnResult)
+    {
+        if (txnResult.kind() == retry_new_protocol)
+            return RETRY_NEW_PROTOCOL;
+        TxnData txnData = (TxnData)txnResult;
+        TxnDataKeyValue partition = (TxnDataKeyValue)txnData.get(txnDataName(CAS_READ));
+        return casResult(partition != null ? partition.rowIterator(false) : null);
     }
 }

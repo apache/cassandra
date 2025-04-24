@@ -19,7 +19,12 @@
 package org.apache.cassandra.service.paxos.cleanup;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.TypeSizes;
@@ -27,7 +32,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -78,7 +83,7 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
         tryFailure(new PaxosCleanupException("Timed out waiting on response from " + from));
     }

@@ -30,6 +30,7 @@ import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMISocketFactory;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,7 +42,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import javax.annotation.Nullable;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
@@ -55,12 +55,20 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
+import com.google.common.base.Function;
+import com.google.common.base.Strings;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogManagerMBean;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
-
-import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.auth.CIDRGroupsMappingManager;
@@ -104,31 +112,26 @@ import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
+import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.snapshot.SnapshotManagerMBean;
-import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.GCInspectorMXBean;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.accord.AccordOperations;
+import org.apache.cassandra.service.accord.AccordOperationsMBean;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
-import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-
-import com.google.common.base.Function;
-import com.google.common.base.Strings;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.apache.cassandra.tcm.CMSOperations;
+import org.apache.cassandra.tcm.CMSOperationsMBean;
+import org.apache.cassandra.tools.RepairRunner.RepairCmd;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
@@ -157,6 +160,7 @@ public class NodeProbe implements AutoCloseable
     protected StorageServiceMBean ssProxy;
     protected SnapshotManagerMBean snapshotProxy;
     protected CMSOperationsMBean cmsProxy;
+    protected AccordOperationsMBean accordProxy;
     protected GossiperMBean gossProxy;
     protected MemoryMXBean memProxy;
     protected GCInspectorMXBean gcProxy;
@@ -177,6 +181,7 @@ public class NodeProbe implements AutoCloseable
     protected CIDRGroupsMappingManagerMBean cmbProxy;
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
+    protected AutoRepairServiceMBean autoRepairProxy;
     protected Output output;
     private boolean failed;
 
@@ -273,6 +278,8 @@ public class NodeProbe implements AutoCloseable
             snapshotProxy = JMX.newMBeanProxy(mbeanServerConn, name, SnapshotManagerMBean.class);
             name = new ObjectName(CMSOperations.MBEAN_OBJECT_NAME);
             cmsProxy = JMX.newMBeanProxy(mbeanServerConn, name, CMSOperationsMBean.class);
+            name = new ObjectName(AccordOperations.MBEAN_OBJECT_NAME);
+            accordProxy = JMX.newMBeanProxy(mbeanServerConn, name, AccordOperationsMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
             msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
             name = new ObjectName(StreamManagerMBean.OBJECT_NAME);
@@ -319,6 +326,9 @@ public class NodeProbe implements AutoCloseable
 
             name = new ObjectName(CIDRFilteringMetricsTable.MBEAN_NAME);
             cfmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CIDRFilteringMetricsTableMBean.class);
+
+            name = new ObjectName(AutoRepairService.MBEAN_NAME);
+            autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -523,13 +533,28 @@ public class NodeProbe implements AutoCloseable
 
     public void repairAsync(final PrintStream out, final String keyspace, Map<String, String> options) throws IOException
     {
-        RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
+        startAndBlockOnAsyncRepairs(out, Collections.singleton(new RepairCmd(keyspace)
+        {
+            @Override
+            public Integer start()
+            {
+                return ssProxy.repairAsync(keyspace, options);
+            }
+        }));
+    }
+
+    public void startAndBlockOnAsyncRepairs(final PrintStream out, Collection<RepairCmd> cmds) throws IOException
+    {
+        List<RepairRunner> runners = new ArrayList<>(cmds.size());
+        for (RepairCmd cmd : cmds)
+            runners.add(new RepairRunner(out, jmxc, ssProxy, cmd));
+
         try
         {
-            if (jmxc != null)
-                jmxc.addConnectionNotificationListener(runner, null, null);
-            ssProxy.addNotificationListener(runner, null, null);
-            runner.run();
+            runners.forEach(RepairRunner::start);
+
+            for (RepairRunner runner : runners)
+                runner.run();
         }
         catch (Exception e)
         {
@@ -539,9 +564,7 @@ public class NodeProbe implements AutoCloseable
         {
             try
             {
-                ssProxy.removeNotificationListener(runner);
-                if (jmxc != null)
-                    jmxc.removeConnectionNotificationListener(runner);
+                runners.forEach(RepairRunner::close);
             }
             catch (Throwable e)
             {
@@ -1294,6 +1317,11 @@ public class NodeProbe implements AutoCloseable
         return cmsProxy;
     }
 
+    public AccordOperationsMBean getAccordOperationsProxy()
+    {
+        return accordProxy;
+    }
+
     public GossiperMBean getGossProxy()
     {
         return gossProxy;
@@ -1328,6 +1356,16 @@ public class NodeProbe implements AutoCloseable
     public List<String> getNonLocalStrategyKeyspaces()
     {
         return ssProxy.getNonLocalStrategyKeyspaces();
+    }
+
+    public List<String> getAccordManagedKeyspaces()
+    {
+        return ssProxy.getAccordManagedKeyspaces();
+    }
+
+    public List<String> getAccordManagedTables()
+    {
+        return ssProxy.getAccordManagedTables();
     }
 
     public String getClusterName()
@@ -2520,6 +2558,141 @@ public class NodeProbe implements AutoCloseable
     public void abortBootstrap(String nodeId, String endpoint)
     {
         ssProxy.abortBootstrap(nodeId, endpoint);
+    }
+
+    public boolean isAutoRepairDisabled()
+    {
+        return autoRepairProxy.isAutoRepairDisabled();
+    }
+
+    public String autoRepairConfiguration()
+    {
+        return autoRepairProxy.getAutoRepairConfiguration();
+    }
+
+    public void setAutoRepairTokenRangeSplitterParameter(String repairType, String key, String value)
+    {
+        autoRepairProxy.setAutoRepairTokenRangeSplitterParameter(repairType, key, value);
+    }
+
+    public void setAutoRepairEnabled(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setAutoRepairEnabled(repairType, enabled);
+    }
+
+    public void setAutoRepairThreads(String repairType, int repairThreads)
+    {
+        autoRepairProxy.setRepairThreads(repairType, repairThreads);
+    }
+
+    public void setAutoRepairPriorityForHosts(String repairType, String commaSeparatedHostSet)
+    {
+        autoRepairProxy.setRepairPriorityForHosts(repairType, commaSeparatedHostSet);
+    }
+
+    public void setAutoRepairForceRepairForHosts(String repairType, String commaSeparatedHostSet)
+    {
+        autoRepairProxy.setForceRepairForHosts(repairType, commaSeparatedHostSet);
+    }
+
+    public void setAutoRepairMinInterval(String repairType, String minRepairInterval)
+    {
+        autoRepairProxy.setRepairMinInterval(repairType, minRepairInterval);
+    }
+
+    public void setAutoRepairHistoryClearDeleteHostsBufferDuration(String duration)
+    {
+        autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferDuration(duration);
+    }
+
+    public void startAutoRepairScheduler()
+    {
+        autoRepairProxy.startScheduler();
+    }
+
+    public void setAutoRepairMinRepairTaskDuration(String duration)
+    {
+        autoRepairProxy.setAutoRepairMinRepairTaskDuration(duration);
+    }
+
+    public void setAutoRepairSSTableCountHigherThreshold(String repairType, int ssTableHigherThreshold)
+    {
+        autoRepairProxy.setRepairSSTableCountHigherThreshold(repairType, ssTableHigherThreshold);
+    }
+
+    public void setAutoRepairTableMaxRepairTime(String repairType, String autoRepairTableMaxRepairTime)
+    {
+        autoRepairProxy.setAutoRepairTableMaxRepairTime(repairType, autoRepairTableMaxRepairTime);
+    }
+
+    public void setAutoRepairIgnoreDCs(String repairType, Set<String> ignoreDCs)
+    {
+        autoRepairProxy.setIgnoreDCs(repairType, ignoreDCs);
+    }
+
+    public void setAutoRepairParallelRepairPercentage(String repairType, int percentage)
+    {
+        autoRepairProxy.setParallelRepairPercentage(repairType, percentage);
+    }
+
+    public void setAutoRepairParallelRepairCount(String repairType, int count)
+    {
+        autoRepairProxy.setParallelRepairCount(repairType, count);
+    }
+
+    public void setAutoRepairAllowParallelReplicaRepair(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setAllowParallelReplicaRepair(repairType, enabled);
+    }
+
+    public void setAutoRepairAllowParallelReplicaRepairAcrossSchedules(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setAllowParallelReplicaRepairAcrossSchedules(repairType, enabled);
+    }
+
+    public void setAutoRepairPrimaryTokenRangeOnly(String repairType, boolean primaryTokenRangeOnly)
+    {
+        autoRepairProxy.setPrimaryTokenRangeOnly(repairType, primaryTokenRangeOnly);
+    }
+
+    public void setAutoRepairMaterializedViewRepairEnabled(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setMVRepairEnabled(repairType, enabled);
+    }
+
+    public List<String> mutateSSTableRepairedState(boolean repair, boolean preview, String keyspace, List<String> tables)
+    {
+        return ssProxy.mutateSSTableRepairedState(repair, preview, keyspace, tables);
+    }
+
+    public List<String> getAutoRepairTablesForKeyspace(String keyspace)
+    {
+        return ssProxy.getTablesForKeyspace(keyspace);
+    }
+
+    public void setAutoRepairSessionTimeout(String repairType, String timeout)
+    {
+        autoRepairProxy.setRepairSessionTimeout(repairType, timeout);
+    }
+
+    public Set<String> getAutoRepairOnGoingRepairHostIds(String repairType)
+    {
+        return autoRepairProxy.getOnGoingRepairHostIds(repairType);
+    }
+
+    public void setAutoRepairRepairByKeyspace(String repairType, boolean enabled)
+    {
+        autoRepairProxy.setRepairByKeyspace(repairType, enabled);
+    }
+
+    public void setAutoRepairMaxRetriesCount(String repairType, int retries)
+    {
+        autoRepairProxy.setAutoRepairMaxRetriesCount(repairType, retries);
+    }
+
+    public void setAutoRepairRetryBackoff(String repairType, String interval)
+    {
+        autoRepairProxy.setAutoRepairRetryBackoff(repairType, interval);
     }
 }
 

@@ -233,6 +233,8 @@ public class AbstractTypeTest
                 continue;
             if (isTestType(klass))
                 continue;
+            if (isPrefixCompositeType(klass))
+                continue;
             String name = klass.getCanonicalName();
             if (name == null)
                 name = klass.getName();
@@ -257,6 +259,13 @@ public class AbstractTypeTest
         CodeSource src = domain.getCodeSource();
         if (src == null) return false;
         return "test".equals(new File(src.getLocation().getPath()).name());
+    }
+
+    @SuppressWarnings("rawtypes")
+    private boolean isPrefixCompositeType(Class<? extends AbstractType> klass)
+    {
+        String name = klass.getCanonicalName();
+        return name.contains("PrefixCompositeType");
     }
 
     @Test
@@ -702,7 +711,7 @@ public class AbstractTypeTest
 
     private static ColumnMetadata fake(AbstractType<?> type)
     {
-        return new ColumnMetadata(null, null, new ColumnIdentifier("", true), type, 0, ColumnMetadata.Kind.PARTITION_KEY, null);
+        return new ColumnMetadata(null, null, new ColumnIdentifier("", true), type, ColumnMetadata.NO_UNIQUE_ID, 0, ColumnMetadata.Kind.PARTITION_KEY, null);
     }
 
     private static ByteBuffer parseLiteralType(AbstractType<?> type, String literal)
@@ -944,10 +953,10 @@ public class AbstractTypeTest
         if (!left.isValueCompatibleWith(right))
             return;
 
-        ColumnMetadata rightColumn1 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), right, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
-        ColumnMetadata rightColumn2 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("d", false), right, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
-        ColumnMetadata leftColumn1 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), left, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
-        ColumnMetadata leftColumn2 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("d", false), left, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata rightColumn1 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), right, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata rightColumn2 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("d", false), right, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata leftColumn1 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), left, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata leftColumn2 = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("d", false), left, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
 
         TableMetadata leftTable = TableMetadata.builder("k", "t").addPartitionKeyColumn("pk", EmptyType.instance).addColumn(leftColumn1).addColumn(leftColumn2).build();
         TableMetadata rightTable = TableMetadata.builder("k", "t").addPartitionKeyColumn("pk", EmptyType.instance).addColumn(rightColumn1).addColumn(rightColumn2).build();

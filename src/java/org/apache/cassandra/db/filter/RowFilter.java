@@ -87,7 +87,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
     private static final Logger logger = LoggerFactory.getLogger(RowFilter.class);
 
     public static final Serializer serializer = new Serializer();
-    private static final RowFilter NONE = new RowFilter(Collections.emptyList(), false);
+    public static final RowFilter NONE = new RowFilter(Collections.emptyList(), false);
 
     protected final List<Expression> expressions;
 
@@ -256,7 +256,10 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             @Override
             public Row applyToRow(Row row)
             {
-                Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+                // If we purge deletions when reconciliation is required, we hide information replica filtering
+                // protection would require to filter rows that are no longer matches are the coordinator.
+                Row purged = needsReconciliation() ? row : row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+
                 if (purged == null)
                     return null;
 
@@ -391,6 +394,13 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                 newExpressions.add(e);
 
         return withNewExpressions(newExpressions);
+    }
+
+    public RowFilter withoutReconciliation()
+    {
+        if (needsReconciliation)
+            return new RowFilter(expressions, false);
+        return this;
     }
 
     public boolean hasNonKeyExpression()
@@ -924,7 +934,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         {
             // Similarly to how we handle non-defined columns in thift, we create a fake column definition to
             // represent the target index. This is definitely something that can be improved though.
-            return ColumnMetadata.regularColumn(table, ByteBuffer.wrap(index.name.getBytes()), BytesType.instance);
+            return ColumnMetadata.regularColumn(table, ByteBuffer.wrap(index.name.getBytes()), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID);
         }
 
         public IndexMetadata getTargetIndex()

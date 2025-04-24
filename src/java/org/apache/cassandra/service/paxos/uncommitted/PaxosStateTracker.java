@@ -254,7 +254,7 @@ public class PaxosStateTracker
 
         Ballot lowBound = null;
         ListType<ByteBuffer> listType = ListType.getInstance(BytesType.instance, false);
-        ColumnMetadata pointsColumn = ColumnMetadata.regularColumn(SYSTEM_KEYSPACE_NAME, PAXOS_REPAIR_HISTORY, "points", listType);
+        ColumnMetadata pointsColumn = ColumnMetadata.regularColumn(SYSTEM_KEYSPACE_NAME, PAXOS_REPAIR_HISTORY, "points", listType, ColumnMetadata.NO_UNIQUE_ID);
         try (ReadExecutionController controller = query.executionController(); PartitionIterator partitions = query.executeInternal(controller))
         {
             while (partitions.hasNext())

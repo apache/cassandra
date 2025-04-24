@@ -30,6 +30,7 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Property;
 import accord.utils.Property.Command;
@@ -38,16 +39,20 @@ import accord.utils.Property.SimpleCommand;
 import accord.utils.RandomSource;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.harry.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
 import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
+import org.apache.cassandra.harry.execution.QueryBuildingVisitExecutor;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
+import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.assertj.core.api.Condition;
 
@@ -58,8 +63,32 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
     protected static final Condition<Object> TIMEOUT_CHECKER = AssertionUtils.isInstanceof(RequestTimeoutException.class);
     private static final Logger logger = LoggerFactory.getLogger(HarryTopologyMixupTest.class);
 
+    public static class AccordMode
+    {
+        public AccordMode(Kind kind, @Nullable TransactionalMode transactionalMode)
+        {
+            this.kind = kind;
+            this.transactionalMode = transactionalMode;
+        }
+
+        public enum Kind
+        {None, Direct, Passthrough}
+
+        public final Kind kind;
+        @Nullable
+        public final TransactionalMode transactionalMode;
+    }
+
+    private final AccordMode mode;
+
     public HarryTopologyMixupTest()
     {
+        this(new AccordMode(AccordMode.Kind.None, null));
+    }
+
+    protected HarryTopologyMixupTest(AccordMode mode)
+    {
+        this.mode = mode;
     }
 
     @Override
@@ -86,16 +115,29 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         }
     }
 
-    private static BiFunction<RandomSource, Cluster, Spec> createSchemaSpec()
+    private static BiFunction<RandomSource, Cluster, Spec> createSchemaSpec(AccordMode mode)
     {
         return (rs, cluster) -> {
             EntropySource rng = new JdkRandomEntropySource(rs.nextLong());
-            Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen("harry", "table", 1000);;
-            SchemaSpec schema = schemaGen.generate(rng);
+            Generator<SchemaSpec> schemaGen;
+            SchemaSpec schema;
+            if (mode.kind != AccordMode.Kind.None)
+            {
+                schemaGen = SchemaGenerators.schemaSpecGen("harry", "table", 1000,
+                        SchemaSpec.optionsBuilder()
+                                .withTransactionalMode(mode.transactionalMode)
+                                .addWriteTimestamps(!isWriteTimeFromAccord(mode.transactionalMode)));
+            }
+            else
+                schemaGen = SchemaGenerators.schemaSpecGen("harry", "table", 1000);
+
+            schema = schemaGen.generate(rng);
 
             HistoryBuilder harry = new ReplayingHistoryBuilder(schema.valueGenerators,
                     hb -> {
                         InJvmDTestVisitExecutor.Builder builder = InJvmDTestVisitExecutor.builder();
+                        if (mode.kind == AccordMode.Kind.Direct)
+                            builder = builder.wrapQueries(QueryBuildingVisitExecutor.WrapQueries.TRANSACTION);
                         return builder.nodeSelector(new InJvmDTestVisitExecutor.NodeSelector()
                                 {
                                     private final AtomicLong cnt = new AtomicLong();
@@ -116,6 +158,25 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
                                     t = Throwables.getRootCause(t);
                                     if (!TIMEOUT_CHECKER.matches(t))
                                         return false;
+
+                                    TxnId id;
+                                    try
+                                    {
+                                        id = TxnId.parse(t.getMessage());
+                                    }
+                                    catch (Throwable t2)
+                                    {
+                                        return true;
+                                    }
+                                    try
+                                    {
+                                        int[] nodes = cluster.stream().filter(i -> !i.isShutdown()).mapToInt(i -> i.config().num()).toArray();
+                                        logger.warn("Timeout for txn {}; debug info\n{}", id, ClusterUtils.queryTxnStateAsString(cluster, id, nodes));
+                                    }
+                                    catch (Throwable t3)
+                                    {
+                                        t.addSuppressed(t3);
+                                    }
                                     return false;
                                 })
                                 .build(schema, hb, cluster);
@@ -172,6 +233,10 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         {
             long pd = spec.harry.valueGenerators().pkGen().descriptorAt(pkIdx);
             reads.add(new HarryCommand(s -> String.format("Harry Validate pd=%d%s", pd, state.commandNamePostfix()), s -> spec.harry.selectPartition(pkIdx)));
+
+            TransactionalMode transationalMode = spec.schema.options.transactionalMode();
+            if (TransactionalMode.full == transationalMode)
+                reads.add(new HarryCommand(s -> String.format("Harry Reverse Validate pd=%d%s", pd, state.commandNamePostfix()), s -> spec.harry.selectPartition(pkIdx, Operations.ClusteringOrderBy.DESC)));
         }
         reads.add(new HarryCommand(s -> "Reset Harry Write State" + state.commandNamePostfix(), s -> ((HarryState) s).numInserts = 0));
         return Property.multistep(reads);
@@ -216,7 +281,7 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
 
         public HarryState(RandomSource rs)
         {
-            super(rs, createSchemaSpec(), HarryTopologyMixupTest::cqlOperations);
+            super(rs, createSchemaSpec(mode), HarryTopologyMixupTest::cqlOperations);
         }
 
         @Override
@@ -224,5 +289,10 @@ public class HarryTopologyMixupTest extends TopologyMixupTestBase<HarryTopologyM
         {
             config.set("metadata_snapshot_frequency", 5);
         }
+    }
+
+    private static boolean isWriteTimeFromAccord(TransactionalMode transactionalMode)
+    {
+        return transactionalMode != null && transactionalMode.nonSerialWritesThroughAccord;
     }
 }

@@ -51,7 +51,7 @@ import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 
 import org.junit.Test;
@@ -92,11 +92,7 @@ import static accord.utils.Property.commands;
 import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
 import static accord.utils.Property.stateful;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.Range;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.Replica;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.ReplicatedRanges;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.ReplicationFactor;
-import static org.apache.cassandra.harry.model.TokenPlacementModel.SimpleReplicationFactor;
+import static org.apache.cassandra.harry.model.TokenPlacementModel.*;
 
 /**
  * These tests can create many instances, so mac users may need to run the following to avoid address bind failures
@@ -144,8 +140,9 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                 state -> state.cluster.get(toCoordinate).nodetoolResult("repair", state.schema.keyspace(), state.schema.table(), "--force").asserts().success());
     }
 
-    private static <S extends Schema> Command<State<S>, Void, ?> repairCommand(int toCoordinate, String ks, String... tables) {
-        return new SimpleCommand<>(state -> "nodetool repair " + ks + (tables.length == 0 ? "" : " " + Arrays.asList(tables)) + " from node" + toCoordinate + state.commandNamePostfix(),
+    private static <S extends Schema> Command<State<S>, Void, ?> repairCommand(@Nullable String reason, int toCoordinate, String ks, String... tables)
+    {
+        return new SimpleCommand<>(state -> "nodetool repair " + ks + (tables.length == 0 ? "" : " " + Arrays.asList(tables)) + (reason == null ? "" : " for " + reason) + " from node" + toCoordinate + state.commandNamePostfix(),
                 state -> {
                     if (tables.length == 0) {
                         state.cluster.get(toCoordinate).nodetoolResult("repair", ks, "--force").asserts().success();
@@ -158,6 +155,19 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                     args.add("--force");
                     state.cluster.get(toCoordinate).nodetoolResult(args.toArray(String[]::new)).asserts().success();
                 });
+    }
+
+    protected static <S extends Schema> Command<State<S>, Void, ?> repairFor(State<S> state, String reason)
+    {
+        List<Command<State<S>, Void, ?>> commands = new ArrayList<>();
+        //TODO (efficiency): rather than run on every instance, run on 1 per section of the ring?
+        for (int inst : state.topologyHistory.up())
+        {
+            commands.add(repairCommand(reason, inst, "system_auth"));
+            commands.add(repairCommand(reason, inst, "system_traces"));
+            commands.add(repairCommand(reason, inst, state.schema.keyspace(), state.schema.table()));
+        }
+        return multistep(commands);
     }
 
     private Command<State<S>, Void, ?> waitForCMSToQuiesce()
@@ -378,30 +388,30 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         Property.StatefulBuilder statefulBuilder = stateful().withSteps(20).withStepTimeout(Duration.ofMinutes(3)).withExamples(1);
         preCheck(statefulBuilder);
         statefulBuilder.check(commands(this::stateGen)
-                .preCommands(state -> state.preActions.forEach(Runnable::run))
-                .add(2, (rs, state) -> {
-                    EnumSet<TopologyChange> possibleTopologyChanges = possibleTopologyChanges(state);
-                    if (possibleTopologyChanges.isEmpty()) return ignoreCommand();
-                    return topologyCommand(state, possibleTopologyChanges).next(rs);
-                })
-                .add(1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
-                .add(7, (rs, state) -> state.statementGen.apply(rs, state))
-                .destroyState((state, cause) -> {
-                    try (state)
-                    {
-                        TopologyMixupTestBase.this.destroyState(state, cause);
-                    }
-                })
-                .commandsTransformer((state, gen) -> {
-                    for (BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>> fn : state.commandsTransformers)
-                        gen = fn.apply(state, gen);
-                    return gen;
-                })
-                .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
-                .build());
+                              .preCommands(state -> state.preActions.forEach(Runnable::run))
+                              .addIf(State::allowTopologyChanges, 2, (rs, state) -> {
+                                  EnumSet<TopologyChange> possibleTopologyChanges = possibleTopologyChanges(state);
+                                  if (possibleTopologyChanges.isEmpty()) return ignoreCommand();
+                                  return topologyCommand(state, possibleTopologyChanges).next(rs);
+                              })
+                              .add(1, (rs, state) -> repairCommand(rs.pickInt(state.topologyHistory.up())))
+                              .add(7, (rs, state) -> state.statementGen.apply(rs, state))
+                              .destroyState((state, cause) -> {
+                                  try (state)
+                                  {
+                                      TopologyMixupTestBase.this.destroyState(state, cause);
+                                  }
+                              })
+                              .commandsTransformer((state, gen) -> {
+                                  for (BiFunction<State<S>, Gen<Command<State<S>, Void, ?>>, Gen<Command<State<S>, Void, ?>>> fn : state.commandsTransformers)
+                                      gen = fn.apply(state, gen);
+                                  return gen;
+                              })
+                              .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
+                              .build());
     }
 
-    private EnumSet<TopologyChange> possibleTopologyChanges(State<S> state)
+    private static EnumSet<TopologyChange> possibleTopologyChanges(State<?> state)
     {
         EnumSet<TopologyChange> possibleTopologyChanges = EnumSet.noneOf(TopologyChange.class);
         // up or down is logically more correct, but since this runs sequentially and after the topology changes are complete, we don't have downed nodes at this point
@@ -440,13 +450,13 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             switch (task)
             {
                 case AddNode:
-                    possible.put(ignore -> multistep(addNode(), awaitClusterStable()), 1);
+                    possible.put(ignore -> multistep(repairFor(state, "add node"), addNode(), awaitClusterStable()), 1);
                     break;
                 case RemoveNode:
                     possible.put(rs -> multistep(removeNodeRandomizedDispatch(rs, state), awaitClusterStable()), 1);
                     break;
                 case HostReplace:
-                    possible.put(rs -> multistep(hostReplace(rs, state), awaitClusterStable()), 1);
+                    possible.put(rs -> multistep(repairFor(state, "host replace"), hostReplace(rs, state), awaitClusterStable()), 1);
                     break;
                 case StartNode:
                     possible.put(rs -> startInstance(rs, state), 1);
@@ -534,34 +544,34 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
 
                 this.yamlConfigOverrides = CONF_GEN.next(rs);
                 cluster = Cluster.build(topologyHistory.minNodes)
-                        .withTokenSupplier(topologyHistory)
-                        .withConfig(c -> {
-                            c.with(Feature.values())
-                                    .set("write_request_timeout", "10s")
-                                    .set("read_request_timeout", "10s")
-                                    .set("range_request_timeout", "20s")
-                                    .set("request_timeout", "20s")
-                                    .set("native_transport_timeout", "30s")
-                                    // bound startup to some value larger than the task timeout, this is to allow the
-                                    // tests to stop blocking when a startup issue is detected.  The main reason for
-                                    // this is that startup blocks forever, waiting for accord and streaming to
-                                    // complete... but if there are bugs at these layers then the startup will never
-                                    // exit, blocking the JVM from giving the needed information (logs/seed) to debug.
-                                    .set(Constants.KEY_DTEST_STARTUP_TIMEOUT, "4m")
-                                    .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false);
-                            //TODO (maintenance): where to put this?  Anything touching ConfigGenBuilder with jvm-dtest needs this...
-                            ((InstanceConfig) c).remove("commitlog_sync_period_in_ms");
-                            for (Map.Entry<String, Object> e : yamlConfigOverrides.entrySet())
-                                c.set(e.getKey(), e.getValue());
-                            onConfigure(c);
-                        })
-                        //TODO (maintenance): should TopologyHistory also be a INodeProvisionStrategy.Factory so address information is stored in the Node?
-                        //TODO (maintenance): AbstractCluster's Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology makes playing with dc/rack annoying, if this becomes an interface then TopologyHistory could own
-                        .withNodeProvisionStrategy((subnet, portMap) -> new INodeProvisionStrategy.AbstractNodeProvisionStrategy(portMap)
-                        {
-                            {
-                                Invariants.checkArgument(subnet == 0, "Unexpected subnet detected: %d", subnet);
-                            }
+                                 .withTokenSupplier(topologyHistory)
+                                 .withConfig(c -> {
+                                     c.with(Feature.values())
+                                      .set("write_request_timeout", "10s")
+                                      .set("read_request_timeout", "10s")
+                                      .set("range_request_timeout", "20s")
+                                      .set("request_timeout", "20s")
+                                      .set("native_transport_timeout", "30s")
+                                      // bound startup to some value larger than the task timeout, this is to allow the
+                                      // tests to stop blocking when a startup issue is detected.  The main reason for
+                                      // this is that startup blocks forever, waiting for accord and streaming to
+                                      // complete... but if there are bugs at these layers then the startup will never
+                                      // exit, blocking the JVM from giving the needed information (logs/seed) to debug.
+                                      .set(Constants.KEY_DTEST_STARTUP_TIMEOUT, "4m")
+                                      .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false);
+                                     //TODO (maintenance): where to put this?  Anything touching ConfigGenBuilder with jvm-dtest needs this...
+                                     ((InstanceConfig) c).remove("commitlog_sync_period_in_ms");
+                                     for (Map.Entry<String, Object> e : yamlConfigOverrides.entrySet())
+                                         c.set(e.getKey(), e.getValue());
+                                     onConfigure(c);
+                                 })
+                                 //TODO (maintenance): should TopologyHistory also be a INodeProvisionStrategy.Factory so address information is stored in the Node?
+                                 //TODO (maintenance): AbstractCluster's Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology makes playing with dc/rack annoying, if this becomes an interface then TopologyHistory could own
+                                 .withNodeProvisionStrategy((subnet, portMap) -> new INodeProvisionStrategy.AbstractNodeProvisionStrategy(portMap)
+                                 {
+                                     {
+                                         Invariants.requireArgument(subnet == 0, "Unexpected subnet detected: %d", subnet);
+                                     }
 
                             private final String ipPrefix = "127.0." + subnet + '.';
 
@@ -636,19 +646,10 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                         if (next.checkPreconditions(state) == Property.PreCheckResult.Ignore)
                             return next;
                         commandsTransformers.remove(self);
-                        int[] up = state.topologyHistory.up();
                         List<Command<State<S>, Void, ?>> commands = new ArrayList<>();
                         commands.add(fixDistributedSchemas);
-                        for (String ks : Arrays.asList("system_auth", "system_traces"))
-                        {
-                            int coordinator = rs.pickInt(up);
-                            commands.add(repairCommand(coordinator, ks));
-                        }
                         commands.add(fixTestKeyspace);
-                        {
-                            int coordinator = rs.pickInt(up);
-                            commands.add(repairCommand(coordinator, KEYSPACE));
-                        }
+                        commands.add(repairFor(state, "set RF=" + TARGET_RF));
                         commands.add(reconfig);
                         commands.add(next);
                         return multistep(commands);
@@ -686,6 +687,11 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             onStartupComplete(waitForEpoch);
         }
 
+        protected boolean allowTopologyChanges()
+        {
+            return !possibleTopologyChanges(this).isEmpty();
+        }
+
         protected void onStartupComplete(long tcmEpoch)
         {
 
@@ -707,11 +713,15 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             int quorum = topologyHistory.quorum();
             // find what ranges are able to handle 1 node loss
             Set<Range> safeRanges = new HashSet<>();
+            Set<Integer> cms = new HashSet<>();
+            for (Integer node : cmsGroup)
+                cms.add(node);
+
             ring.rangesToReplicas((range, replicas) -> {
                 IntHashSet alive = new IntHashSet();
                 for (int peer : replicas)
                 {
-                    if (up.contains(peer))
+                    if (up.contains(peer) && !cms.contains(peer))
                         alive.add(peer);
                 }
                 if (quorum < alive.size())
@@ -756,17 +766,8 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
             try
             {
                 SimpleQueryResult qr = Retry.retryWithBackoffBlocking(5, () -> cluster.get(cmsNode).executeInternalWithResult("SELECT epoch, kind, transformation FROM system_views.cluster_metadata_log"));
-                TableBuilder builder = new TableBuilder(" | ");
-                builder.add(qr.names());
-                while (qr.hasNext())
-                {
-                    Row next = qr.next();
-                    builder.add(Stream.of(next.toObjectArray())
-                            .map(Objects::toString)
-                            .map(s -> s.length() > 100 ? s.substring(0, 100) + "..." : s)
-                            .collect(Collectors.toList()));
-                }
-                epochHistory = "Epochs:\n" + builder;
+                String table = TableBuilder.toStringPiped(qr.names(), QueryResults.stringify(qr, 100));
+                epochHistory = "Epochs:\n" + table;
             }
             catch (Throwable t)
             {
@@ -985,7 +986,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         {
             String address = addressAndPort.getAddress().getHostAddress();
             String[] parts = address.split("\\.");
-            Invariants.checkState(parts.length == 4, "Unable to parse address %s", address);
+            Invariants.require(parts.length == 4, "Unable to parse address %s", address);
             return Integer.parseInt(parts[3]);
         }
     }

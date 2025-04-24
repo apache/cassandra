@@ -90,7 +90,7 @@ public class ColumnFilterTest
         SchemaLoader.prepareServer();
         DatabaseDescriptor.setSeedProvider(Arrays::asList);
         DatabaseDescriptor.setDefaultFailureDetector();
-        DatabaseDescriptor.setPartitionerUnsafe(new Murmur3Partitioner());
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
     // Select all

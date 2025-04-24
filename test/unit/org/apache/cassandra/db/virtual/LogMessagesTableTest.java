@@ -20,69 +20,34 @@ package org.apache.cassandra.db.virtual;
 
 import java.time.Instant;
 import java.util.Date;
-import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 
-import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import com.datastax.driver.core.Row;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.marshal.TimestampType;
-import org.apache.cassandra.db.virtual.AbstractVirtualTable.DataSet;
-import org.apache.cassandra.db.virtual.AbstractVirtualTable.Partition;
-import org.apache.cassandra.dht.LocalPartitioner;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LOGS_VIRTUAL_TABLE_MAX_ROWS;
+import static org.apache.cassandra.db.virtual.LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
-public class LogMessagesTableTest extends CQLTester
+public class LogMessagesTableTest extends AbstractLoggerVirtualTableTest<LoggingEvent>
 {
-    private String keyspace = createKeyspaceName();
-    private LogMessagesTable table;
-
     @Test
-    public void testTruncate() throws Throwable
+    public void testMultipleLogsInSameMillisecond()
     {
-        registerVirtualTable();
-
-        int numberOfRows = 100;
-        List<LoggingEvent> loggingEvents = getLoggingEvents(numberOfRows);
+        registerTable();
+        List<LoggingEvent> loggingEvents = getLoggingEvents(10, Instant.now(), 5);
         loggingEvents.forEach(table::add);
 
-        execute(query("truncate %s"));
-
-        assertTrue(executeNet(query("select timestamp from %s")).all().isEmpty());
+        // 2 partitions, 5 rows in each
+        assertEquals(2, numberOfPartitions());
     }
 
     @Test
-    public void empty() throws Throwable
+    public void testLimitedCapacity()
     {
-        registerVirtualTable();
-        assertEmpty(execute(query("select * from %s")));
-    }
-
-    @Test
-    public void testInsert()
-    {
-        registerVirtualTable();
-
-        int numberOfRows = 1000;
-        List<LoggingEvent> loggingEvents = getLoggingEvents(numberOfRows);
-        loggingEvents.forEach(table::add);
-
-        assertEquals(numberOfRows, numberOfPartitions());
-    }
-
-    @Test
-    public void testLimitedCapacity() throws Throwable
-    {
-        registerVirtualTable(100);
+        registerTable(100);
 
         int numberOfRows = 1000;
         List<LoggingEvent> loggingEvents = getLoggingEvents(numberOfRows);
@@ -94,7 +59,7 @@ public class LogMessagesTableTest extends CQLTester
         // the first record in the table will be the last one which we inserted
         LoggingEvent firstEvent = loggingEvents.get(999);
         assertRowsNet(executeNet(query("select timestamp from %s limit 1")),
-                      new Object[] { new Date(firstEvent.getTimeStamp()) });
+                      new Object[]{ new Date(firstEvent.getTimeStamp()) });
 
         // the last record in the table will be 900th we inserted
         List<Row> all = executeNet(query("select timestamp from %s")).all();
@@ -105,99 +70,46 @@ public class LogMessagesTableTest extends CQLTester
     }
 
     @Test
-    public void testMultipleLogsInSameMillisecond()
-    {
-        registerVirtualTable(10);
-        List<LoggingEvent> loggingEvents = getLoggingEvents(10, Instant.now(), 5);
-        loggingEvents.forEach(table::add);
-
-        // 2 partitions, 5 rows in each
-        assertEquals(2, numberOfPartitions());
-    }
-
-    @Test
     public void testResolvingBufferSize()
     {
         LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(-1);
-        assertEquals(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, LogMessagesTable.resolveBufferSize());
+        assertEquals(LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, resolveBufferSize());
 
         LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(0);
-        assertEquals(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, LogMessagesTable.resolveBufferSize());
+        assertEquals(LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, resolveBufferSize());
 
         LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(1000001);
-        assertEquals(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, LogMessagesTable.resolveBufferSize());
+        assertEquals(LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, resolveBufferSize());
 
         LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(999);
-        assertEquals(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, LogMessagesTable.resolveBufferSize());
+        assertEquals(999, resolveBufferSize());
 
         LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(50001);
-        assertEquals(50001, LogMessagesTable.resolveBufferSize());
+        assertEquals(50001, resolveBufferSize());
     }
 
-    private void registerVirtualTable()
+    private int resolveBufferSize()
     {
-        registerVirtualTable(LogMessagesTable.LOGS_VIRTUAL_TABLE_MIN_ROWS);
+        return AbstractLoggerVirtualTable.resolveBufferSize(LOGS_VIRTUAL_TABLE_MAX_ROWS.getInt(),
+                                                            LogMessagesTable.LOGS_VIRTUAL_TABLE_MAX_ROWS,
+                                                            LOGS_VIRTUAL_TABLE_DEFAULT_ROWS);
     }
 
-    private void registerVirtualTable(int size)
+    @Override
+    protected void registerTable(int maxSize)
     {
-        table = new LogMessagesTable(keyspace, size);
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(keyspace, ImmutableList.of(table)));
+        registerVirtualTable(new LogMessagesTable(keyspace, maxSize));
     }
 
-    private int numberOfPartitions()
+    @Override
+    protected void registerTable()
     {
-        DataSet data = table.data();
-
-        Iterator<Partition> partitions = data.getPartitions(DataRange.allData(new LocalPartitioner(TimestampType.instance)));
-
-        int numberOfPartitions = 0;
-
-        while (partitions.hasNext())
-        {
-            partitions.next();
-            numberOfPartitions += 1;
-        }
-
-        return numberOfPartitions;
+        registerTable(1000);
     }
 
-    private String query(String query)
+    @Override
+    protected String getMessage(long timestamp)
     {
-        return String.format(query, table.toString());
-    }
-
-    private List<LoggingEvent> getLoggingEvents(int size)
-    {
-        return getLoggingEvents(size, Instant.now(), 1);
-    }
-
-    private List<LoggingEvent> getLoggingEvents(int size, Instant firstTimestamp, int logsInMillisecond)
-    {
-        List<LoggingEvent> logs = new LinkedList<>();
-        int partitions = size / logsInMillisecond;
-
-        for (int i = 0; i < partitions; i++)
-        {
-            long timestamp = firstTimestamp.toEpochMilli();
-            firstTimestamp = firstTimestamp.plusSeconds(1);
-
-            for (int j = 0; j < logsInMillisecond; j++)
-                logs.add(getLoggingEvent(timestamp));
-        }
-
-        return logs;
-    }
-
-    private LoggingEvent getLoggingEvent(long timestamp)
-    {
-        LoggingEvent event = new LoggingEvent();
-        event.setLevel(Level.INFO);
-        event.setMessage("message " + timestamp);
-        event.setLoggerName("logger " + timestamp);
-        event.setThreadName(Thread.currentThread().getName());
-        event.setTimeStamp(timestamp);
-
-        return event;
+        return "message " + timestamp;
     }
 }

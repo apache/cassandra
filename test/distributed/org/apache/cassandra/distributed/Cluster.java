@@ -76,6 +76,11 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
         }
     }
 
+    public void forEach(IIsolatedExecutor.SerializableRunnable runnable)
+    {
+        forEach(i -> i.runOnInstance(runnable));
+    }
+
     public void enableMessageLogging()
     {
         filters().allVerbs().inbound().messagesMatching((from, to, msg) -> {

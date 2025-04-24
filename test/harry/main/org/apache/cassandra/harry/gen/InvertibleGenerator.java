@@ -74,9 +74,9 @@ public class InvertibleGenerator<T> implements HistoryBuilder.IndexedBijection<T
                                Generator<T> gen,
                                Comparator<T> comparator)
     {
-        Invariants.checkState(population > 0,
+        Invariants.require(population > 0,
                               "Population should be strictly positive %d", population);
-        Invariants.checkState(Long.compareUnsigned(typeEntropy, 0) > 0,
+        Invariants.require(Long.compareUnsigned(typeEntropy, 0) > 0,
                               "Type entropy should be strictly positive, but was %d: %s", typeEntropy, gen);
 
         // We can / will generate at most that many values
@@ -101,7 +101,7 @@ public class InvertibleGenerator<T> implements HistoryBuilder.IndexedBijection<T
 
             Object inflated = inflate(candidate);
             int hash = ArrayUtils.hashCode(inflated);
-            Invariants.checkState(hash  != System.identityHashCode(inflated), "hashCode was not overridden for type %s", inflated.getClass());
+            Invariants.require(hash  != System.identityHashCode(inflated), "hashCode was not overridden for type %s", inflated.getClass());
 
             if (hashes.add(hash))
                 allocatedDescriptors.add(candidate);
@@ -117,7 +117,7 @@ public class InvertibleGenerator<T> implements HistoryBuilder.IndexedBijection<T
             for (int i = 1; i < allocatedDescriptors.size(); i++)
             {
                 T current = inflate(allocatedDescriptors.get(i));
-                Invariants.checkState( comparator.compare(current, prev) > 0,
+                Invariants.require( comparator.compare(current, prev) > 0,
                                        () -> String.format("%s should be strictly after %s", prev, current));
             }
         }
@@ -138,7 +138,7 @@ public class InvertibleGenerator<T> implements HistoryBuilder.IndexedBijection<T
     @Override
     public T inflate(long descriptor)
     {
-        Invariants.checkState(!MagicConstants.MAGIC_DESCRIPTOR_VALS.contains(descriptor),
+        Invariants.require(!MagicConstants.MAGIC_DESCRIPTOR_VALS.contains(descriptor),
                               String.format("Should not be able to inflate %d, as it's magic value", descriptor));
         return SeedableEntropySource.computeWithSeed(descriptor, gen::generate);
     }
@@ -158,13 +158,13 @@ public class InvertibleGenerator<T> implements HistoryBuilder.IndexedBijection<T
                     {
                         Object[] valueArr = (Object[]) value;
                         Object[] expectedArr = (Object[]) expected;
-                        Invariants.checkState(comparator.compare((T) expected, value) != 0,
+                        Invariants.require(comparator.compare((T) expected, value) != 0,
                                               "%s was found: %s", Arrays.toString(expectedArr), Arrays.toString(valueArr));
 
                     }
                     else
                     {
-                        Invariants.checkState(comparator.compare((T) expected, value) != 0,
+                        Invariants.require(comparator.compare((T) expected, value) != 0,
                                               "%s was found: %s", expected, value);
                     }
 
@@ -179,13 +179,13 @@ public class InvertibleGenerator<T> implements HistoryBuilder.IndexedBijection<T
                     Object[] valueArr = (Object[]) value;
                     Object[] expectedArr = (Object[]) expected;
 
-                    Invariants.checkState(comparator.compare((T) expected, value) == 0,
+                    Invariants.require(comparator.compare((T) expected, value) == 0,
                                           "%s != %s", Arrays.toString(expectedArr), Arrays.toString(valueArr));
 
                 }
                 else
                 {
-                    Invariants.checkState(comparator.compare((T) expected, value) == 0,
+                    Invariants.require(comparator.compare((T) expected, value) == 0,
                                           "%s != %s", expected, value);
                 }
 

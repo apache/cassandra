@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -42,14 +43,16 @@ public class PreviewRepairTask extends AbstractRepairTask
 {
     private final TimeUUID parentSession;
     private final List<CommonRange> commonRanges;
+    private final boolean excludedDeadNodes;
     private final String[] cfnames;
     private volatile String successMessage = name() + " completed successfully";
 
-    protected PreviewRepairTask(RepairCoordinator coordinator, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
+    protected PreviewRepairTask(RepairCoordinator coordinator, TimeUUID parentSession, List<CommonRange> commonRanges, boolean excludedDeadNodes, String[] cfnames)
     {
         super(coordinator);
         this.parentSession = parentSession;
         this.commonRanges = commonRanges;
+        this.excludedDeadNodes = excludedDeadNodes;
         this.cfnames = cfnames;
     }
 
@@ -68,7 +71,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler)
     {
-        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, validationScheduler, commonRanges, cfnames);
+        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, validationScheduler, commonRanges, excludedDeadNodes, cfnames);
         return f.map(result -> {
             if (result.hasFailed())
                 return result;
@@ -86,14 +89,29 @@ public class PreviewRepairTask extends AbstractRepairTask
             else
             {
                 message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary;
-                RepairMetrics.previewFailures.inc();
                 if (previewKind == PreviewKind.REPAIRED)
                     maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
             }
+            emitMetrics(summary);
             successMessage += "; " + message;
             coordinator.notification(message);
 
             return result;
+        });
+    }
+
+    private void emitMetrics(SyncStatSummary summary)
+    {
+        if (!summary.isEmpty())
+            RepairMetrics.previewFailures.inc();
+
+        summary.getTotals().forEach((key, table) -> {
+            if (table.isCounter())
+                return;
+
+            ColumnFamilyStore cfs = Keyspace.open(key.left).getColumnFamilyStore(key.right);
+            cfs.metric.tokenRangesPreviewedDesynchronized.mark(table.getRanges());
+            cfs.metric.bytesPreviewedDesynchronized.mark(table.getBytes());
         });
     }
 

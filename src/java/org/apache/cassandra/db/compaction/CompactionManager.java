@@ -83,6 +83,8 @@ import org.apache.cassandra.db.lifecycle.WrappedLifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.ViewBuilderTask;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -102,6 +104,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
@@ -768,6 +771,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         DataPlacement placement = cm.placements.get(keyspace.getMetadata().params.replication);
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         RangesAtEndpoint localWrites = placement.writes.byEndpoint().get(local);
+        // TODO review: Hack to get local partitioner not to fail out because it's handled very poorly with data placements
+        IPartitioner partitioner = cfStore.getPartitioner();
+        if (partitioner.getClass() == LocalPartitioner.class)
+            localWrites = RangesAtEndpoint.of(Replica.fullReplica(local, new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())));
+
         final Set<Range<Token>> allRanges = new HashSet<>(localWrites.ranges());
         final Set<Range<Token>> transientRanges = new HashSet<>(localWrites.onlyTransient().ranges());
         final Set<Range<Token>> fullRanges = new HashSet<>(localWrites.onlyFull().ranges());
@@ -1007,7 +1015,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         Set<SSTableReader> fullyContainedSSTables = findSSTablesToAnticompact(sstableIterator, normalizedRanges, sessionID);
 
-        cfs.metric.bytesMutatedAnticompaction.inc(SSTableReader.getTotalBytes(fullyContainedSSTables));
+        cfs.metric.bytesMutatedAnticompaction.mark(SSTableReader.getTotalBytes(fullyContainedSSTables));
         cfs.getCompactionStrategyManager().mutateRepaired(fullyContainedSSTables, UNREPAIRED_SSTABLE, sessionID, isTransient);
         // since we're just re-writing the sstable metdata for the fully contained sstables, we don't want
         // them obsoleted when the anti-compaction is complete. So they're removed from the transaction here
@@ -1854,7 +1862,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         // repairedAt values for these, we still avoid anti-compacting already repaired sstables, as we currently don't
         // make use of any actual repairedAt value and splitting up sstables just for that is not worth it at this point.
         Set<SSTableReader> unrepairedSSTables = sstables.stream().filter((s) -> !s.isRepaired()).collect(Collectors.toSet());
-        cfs.metric.bytesAnticompacted.inc(SSTableReader.getTotalBytes(unrepairedSSTables));
+        cfs.metric.bytesAnticompacted.mark(SSTableReader.getTotalBytes(unrepairedSSTables));
         Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategyManager().groupSSTablesForAntiCompaction(unrepairedSSTables);
 
         // iterate over sstables to check if the full / transient / unrepaired ranges intersect them.

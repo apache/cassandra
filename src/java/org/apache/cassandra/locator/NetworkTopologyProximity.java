@@ -20,10 +20,18 @@ package org.apache.cassandra.locator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.utils.Sortable;
+
+import java.util.Comparator;
 
 public class NetworkTopologyProximity extends BaseProximity
 {
     public int compareEndpoints(InetAddressAndPort address, Replica r1, Replica r2)
+    {
+        return compareByEndpoints(address, r1, r2);
+    }
+
+    public int compareByEndpoints(InetAddressAndPort address, Endpoint r1, Endpoint r2)
     {
         InetAddressAndPort a1 = r1.endpoint();
         InetAddressAndPort a2 = r2.endpoint();
@@ -47,5 +55,19 @@ public class NetworkTopologyProximity extends BaseProximity
         if (location.rack.equals(l2.rack) && !location.rack.equals(l1.rack))
             return 1;
         return 0;
+    }
+
+    @Override
+    public boolean supportCompareByEndpoint()
+    {
+        return true;
+    }
+
+    @Override
+    public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        if (!supportCompareByEndpoint())
+            throw new UnsupportedOperationException();
+        return (a, b) -> compareByEndpoints(address, a, b);
     }
 }

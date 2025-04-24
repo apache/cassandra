@@ -101,6 +101,14 @@ public class KeyspaceMetrics
     public final LatencyMetrics casPropose;
     /** CAS Commit metrics */
     public final LatencyMetrics casCommit;
+    /** Latency for locally run key migrations **/
+    public final LatencyMetrics keyMigration;
+    /** Latency for range migrations run by locally coordinated Accord repairs **/
+    public final LatencyMetrics accordRepair;
+    public final LatencyMetrics accordPostStreamRepair;
+    public final Meter rangeMigrationUnexpectedFailures;
+    public final Meter mutationsRejectedOnWrongSystem;
+    public final Meter readsRejectedOnWrongSystem;
     /** Writes failed ideal consistency **/
     public final Counter writeFailedIdealCL;
     /** Ideal CL write latency metrics */
@@ -182,6 +190,11 @@ public class KeyspaceMetrics
 
     public final Meter tooManySSTableIndexesReadWarnings;
     public final Meter tooManySSTableIndexesReadAborts;
+    public final Meter bytesAnticompacted;
+    public final Meter bytesMutatedAnticompaction;
+    public final Meter bytesPreviewed;
+    public final Meter tokenRangesPreviewedDesynchronized;
+    public final Meter bytesPreviewedDesynchronized;
 
     public final LatencyMetrics viewSSTableIntervalTree;
 
@@ -247,6 +260,12 @@ public class KeyspaceMetrics
         casPrepare = createLatencyMetrics("CasPrepare");
         casPropose = createLatencyMetrics("CasPropose");
         casCommit = createLatencyMetrics("CasCommit");
+        keyMigration = createLatencyMetrics("KeyMigration");
+        accordRepair = createLatencyMetrics("AccordRepair");
+        accordPostStreamRepair = createLatencyMetrics("AccordPostStreamRepair");
+        rangeMigrationUnexpectedFailures = createKeyspaceMeter("RangeMigrationUnexpectedFailures");
+        mutationsRejectedOnWrongSystem = createKeyspaceMeter("MutationsRejectedOnWrongSystem");
+        readsRejectedOnWrongSystem = createKeyspaceMeter("ReadsRejectedOnWrongSystem");
         writeFailedIdealCL = createKeyspaceCounter("WriteFailedIdealCL");
         idealCLWriteLatency = createLatencyMetrics("IdealCLWrite");
 
@@ -295,6 +314,11 @@ public class KeyspaceMetrics
         outOfRangeTokenPaxosRequests = createKeyspaceCounter("PaxosOutOfRangeToken");
 
         viewSSTableIntervalTree = createLatencyMetrics("ViewSSTableIntervalTree");
+        bytesAnticompacted =  createKeyspaceMeter("BytesAnticompacted");
+        bytesMutatedAnticompaction = createKeyspaceMeter("BytesMutatedAnticompaction");
+        bytesPreviewed = createKeyspaceMeter("BytesPreviewed");
+        tokenRangesPreviewedDesynchronized = createKeyspaceMeter("TokenRangesPreviewedDesynchronized");
+        bytesPreviewedDesynchronized = createKeyspaceMeter("BytesPreviewedDesynchronized");
     }
 
     /**

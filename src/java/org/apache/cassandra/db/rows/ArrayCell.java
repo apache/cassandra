@@ -32,7 +32,7 @@ import static org.apache.cassandra.utils.ByteArrayUtil.EMPTY_BYTE_ARRAY;
 
 public class ArrayCell extends AbstractCell<byte[]>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance), 0L, 0, 0, EMPTY_BYTE_ARRAY, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance, ColumnMetadata.NO_UNIQUE_ID), 0L, 0, 0, EMPTY_BYTE_ARRAY, null));
 
     // Careful: Adding vars here has an impact on memtable size
     private final long timestamp;
@@ -94,6 +94,12 @@ public class ArrayCell extends AbstractCell<byte[]>
         return new ArrayCell(column, timestamp, ttl, localDeletionTimeUnsignedInteger, ByteBufferUtil.getArray(newValue), path);
     }
 
+    @Override
+    public Cell<?> withUpdatedTimestamp(long newTimestamp)
+    {
+        return new ArrayCell(column, newTimestamp, ttl, localDeletionTimeUnsignedInteger, value, path);
+    }
+    
     public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime)
     {
         return new ArrayCell(column, newTimestamp, ttl, newLocalDeletionTime, value, path);

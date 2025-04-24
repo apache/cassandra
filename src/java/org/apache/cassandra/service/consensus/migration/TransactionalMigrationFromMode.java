@@ -1,0 +1,102 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.service.consensus.migration;
+
+import org.apache.cassandra.service.consensus.TransactionalMode;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
+/**
+ * This tracks the state of a migration either from Paxos -> Accord, Accord [interop mode a] -> Accord [interop mode b] or Accord -> Paxos.
+ * The `TransactionalMode` associated with each transition from a system is how interoperability should be achieved during the migration with various performance/safety tradeoffs.
+ */
+public enum TransactionalMigrationFromMode
+{
+    none(null),  // No migration is in progress. The currently active transaction system could be either Accord or Paxos.
+    off(TransactionalMode.off),
+    mixed_reads(TransactionalMode.mixed_reads),
+    full(TransactionalMode.full),
+    test_unsafe(TransactionalMode.test_unsafe),
+    test_unsafe_writes(TransactionalMode.test_unsafe_writes),
+    test_interop_read(TransactionalMode.test_interop_read);
+
+    public final TransactionalMode from;
+
+    TransactionalMigrationFromMode(TransactionalMode from)
+    {
+        this.from = from;
+    }
+
+    public static TransactionalMigrationFromMode fromMode(TransactionalMode prev, TransactionalMode next)
+    {
+        if (next.accordIsEnabled == prev.accordIsEnabled)
+            return none;
+
+        switch (prev)
+        {
+            default: throw new IllegalArgumentException();
+            case off: return off;
+            case mixed_reads: return mixed_reads;
+            case full: return full;
+            case test_interop_read: return test_interop_read;
+            case test_unsafe: return test_unsafe;
+            case test_unsafe_writes: return test_unsafe_writes;
+        }
+    }
+
+    public static TransactionalMigrationFromMode fromOrdinal(int ordinal)
+    {
+        return values()[ordinal];
+    }
+
+    public static TransactionalMigrationFromMode fromString(String name)
+    {
+        return valueOf(toLowerCaseLocalized(name));
+    }
+
+    public boolean migratingFromAccord()
+    {
+        return from != null && from.accordIsEnabled;
+    }
+
+    public boolean nonSerialWritesThroughAccord()
+    {
+        return from != null && from.nonSerialWritesThroughAccord;
+    }
+
+    public boolean readRepairsThroughAccord()
+    {
+        return from != null && from.blockingReadRepairThroughAccord;
+    }
+
+    public boolean nonSerialReadsThroughAccord()
+    {
+        return from != null && from.nonSerialReadsThroughAccord;
+    }
+
+    public boolean isMigrating()
+    {
+        return this != none;
+    }
+
+    public String asCqlParam()
+    {
+        return String.format("transactional_migration_from = '%s'", toLowerCaseLocalized(this.name()));
+    }
+}

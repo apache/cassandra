@@ -41,6 +41,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.END_OF_STREAM;
 
 /*
  * The encoding of a CompositeType column name should be:
@@ -250,7 +251,7 @@ public class CompositeType extends AbstractCompositeType
         if (i * 2 + 1 < srcs.length)
             srcs = Arrays.copyOfRange(srcs, 0, i * 2 + 1);
 
-        return ByteSource.withTerminatorMaybeLegacy(version, ByteSource.END_OF_STREAM, srcs);
+        return ByteSource.withTerminatorMaybeLegacy(version, END_OF_STREAM, srcs);
     }
 
     @Override

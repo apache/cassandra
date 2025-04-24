@@ -53,6 +53,7 @@ import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.transport.Dispatcher;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -85,8 +86,9 @@ public class ReadSpeculationTest extends TestBaseImpl
                 Keyspace keyspace = Keyspace.openIfExists(KEYSPACE);
                 ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(TABLE);
                 DecoratedKey dk = cfs.decorateKey(bytes(PK_VALUE));
-                ReplicaPlan.ForTokenRead plan = ReplicaPlans.forRead(keyspace, dk.getToken(), null,
-                                                                     QUORUM, cfs.metadata().params.speculativeRetry);
+                ReplicaPlan.ForTokenRead plan = ReplicaPlans.forRead(keyspace, cfs.getTableId(), dk.getToken(), null,
+                                                                     QUORUM, cfs.metadata().params.speculativeRetry,
+                                                                     ReadCoordinator.DEFAULT);
                 return plan.contacts().endpointList().stream().map(InetSocketAddress::getAddress).collect(Collectors.toList());
             }, null);
             logger.info("Replicas provided in a read plan contacts: {}", readPlanEndpoints);

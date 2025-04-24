@@ -1004,6 +1004,7 @@ public class ASTGenerators
                                                          .withoutCas()
                                                          .withoutTimestamp()
                                                          .withoutTtl()
+                                                         .withAllowUpdateMultipleClusteringKeys(false)
                                                          .withReferences(new ArrayList<>(builder.allowedReferences()));
                     if (!allowReferences)
                         mutationBuilder.withReferences(Collections.emptyList());

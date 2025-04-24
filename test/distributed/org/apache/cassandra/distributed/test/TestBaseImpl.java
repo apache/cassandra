@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,16 +30,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableFutureTask;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -56,31 +65,74 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.IMessageSink;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.accord.AccordCache;
 
+import static java.lang.System.currentTimeMillis;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_GC_INSPECTOR;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
+import static org.assertj.core.api.Assertions.fail;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 public class TestBaseImpl extends DistributedTestBase
 {
+    private static final Logger logger = LoggerFactory.getLogger(TestBaseImpl.class);
+
     public static final Object[][] EMPTY_ROWS = new Object[0][];
     public static final boolean[] BOOLEANS = new boolean[]{ false, true };
+
+    private static final AtomicLong ZERO = new AtomicLong();
+    protected static final Map<Verb, AtomicLong> messageCounts = new ConcurrentHashMap<>();
+
+    protected static class MessageCountingSink implements IMessageSink
+    {
+        private final Cluster cluster;
+
+        public MessageCountingSink(Cluster cluster)
+        {
+            this.cluster = cluster;
+        }
+
+        @Override
+        public void accept(InetSocketAddress to, IMessage message)
+        {
+            Verb verb = Verb.fromId(message.verb());
+            logger.debug("verb {} to {} message {}", verb, to, message);
+            messageCounts.computeIfAbsent(verb, ignored -> new AtomicLong()).incrementAndGet();
+            cluster.get(to).receiveMessage(message);
+        }
+    }
+
+    // Only works if MessageCountingSink is set on the cluster
+    public static long messageCount(Verb verb)
+    {
+        return messageCounts.getOrDefault(verb, ZERO).get();
+    }
 
     @After
     public void afterEach() {
         super.afterEach();
+        messageCounts.clear();
     }
 
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
+        CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
         ICluster.setup();
         SKIP_GC_INSPECTOR.setBoolean(true);
+        AccordCache.validateLoadOnEvict(true);
     }
 
     @Override
@@ -130,13 +182,20 @@ public class TestBaseImpl extends DistributedTestBase
             bbs.add(value == null ? null : type.decompose(value));
         }
         TupleType tupleType = new TupleType(types);
-        return tupleType.pack(bbs);
+        return tupleType.pack(bbs, ByteBufferAccessor.instance);
     }
 
-    public static String batch(String... queries)
+    public static String unloggedBatch(String... queries)
+    {
+        return batch(false, queries);
+    }
+
+    public static String batch(boolean logged, String... queries)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("BEGIN UNLOGGED BATCH\n");
+        sb.append("BEGIN ");
+        sb.append(logged ? "" : "UNLOGGED ");
+        sb.append("BATCH\n");
         for (String q : queries)
             sb.append(q).append(";\n");
         sb.append("APPLY BATCH;");
@@ -239,5 +298,66 @@ public class TestBaseImpl extends DistributedTestBase
 
         // in real live repair is needed in this case, but in the test case it doesn't matter if the tables loose
         // anything, so ignoring repair to speed up the tests.
+    }
+
+    protected static void disableCompaction(Cluster cluster, String keyspace, String table)
+    {
+        for (int i = 1; i < cluster.size() + 1; i++)
+            cluster.get(i).nodetool("disableautocompaction", keyspace, table);
+    }
+
+    public static String nodetool(IInstance instance, String... commandAndArgs)
+    {
+        NodeToolResult nodetoolResult = instance.nodetoolResult(commandAndArgs);
+        if (!nodetoolResult.getStdout().isEmpty())
+            System.out.println(nodetoolResult.getStdout());
+        if (!nodetoolResult.getStderr().isEmpty())
+            System.err.println(nodetoolResult.getStderr());
+        if (nodetoolResult.getError() != null)
+            fail("Failed nodetool " + Arrays.asList(commandAndArgs), nodetoolResult.getError());
+        // TODO why does standard out end up in stderr in nodetool?
+        return nodetoolResult.getStdout();
+    }
+
+    public static String nodetool(ICoordinator coordinator, String... commandAndArgs)
+    {
+        return nodetool(coordinator.instance(), commandAndArgs);
+    }
+
+    public static ListenableFuture<String> nodetoolAsync(IInstance instance, String... commandAndArgs)
+    {
+        return nodetoolAsync(instance.coordinator(), commandAndArgs);
+    }
+
+    public static ListenableFuture<String> nodetoolAsync(ICoordinator coordinator, String... commandAndArgs)
+    {
+        ListenableFutureTask<String> task = ListenableFutureTask.create(() -> nodetool(coordinator, commandAndArgs));
+        Thread asyncThread = new Thread(task, "NodeTool: " + Arrays.asList(commandAndArgs));
+        asyncThread.setDaemon(true);
+        asyncThread.start();
+        return task;
+    }
+
+    /**
+     * @see org.apache.cassandra.cql3.CQLTester#wrapInTxn(String...)
+     */
+    protected static String wrapInTxn(String... stmts)
+    {
+        return wrapInTxn(Arrays.asList(stmts));
+    }
+
+    protected static String wrapInTxn(List<String> stmts)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN TRANSACTION\n");
+        for (String stmt : stmts)
+        {
+            sb.append('\t').append(stmt);
+            if (!stmt.endsWith(";"))
+                sb.append(';');
+            sb.append('\n');
+        }
+        sb.append("COMMIT TRANSACTION");
+        return sb.toString();
     }
 }

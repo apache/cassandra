@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
@@ -65,7 +66,7 @@ public abstract class FailureRecordingCallback<T> implements RequestCallbackWith
 
         public static <O> void push(AtomicReferenceFieldUpdater<O, FailureResponses> headUpdater, O owner, InetAddressAndPort from, RequestFailureReason reason)
         {
-            push(headUpdater, owner, new FailureResponses(from, reason));
+            getAndPush(headUpdater, owner, new FailureResponses(from, reason));
         }
 
         public static <O> void pushExclusive(AtomicReferenceFieldUpdater<O, FailureResponses> headUpdater, O owner, InetAddressAndPort from, RequestFailureReason reason)
@@ -136,9 +137,9 @@ public abstract class FailureRecordingCallback<T> implements RequestCallbackWith
     private static final AtomicReferenceFieldUpdater<FailureRecordingCallback, FailureResponses> responsesUpdater = AtomicReferenceFieldUpdater.newUpdater(FailureRecordingCallback.class, FailureResponses.class, "failureResponses");
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
-        FailureResponses.push(responsesUpdater, this, from, failureReason);
+        FailureResponses.push(responsesUpdater, this, from, failure.reason);
     }
 
     protected void onFailureWithMutex(InetAddressAndPort from, RequestFailureReason failureReason)

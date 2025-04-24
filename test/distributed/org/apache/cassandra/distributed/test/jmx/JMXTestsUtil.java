@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.jmx;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,7 +65,17 @@ public class JMXTestsUtil
     "org.apache.cassandra.db:type=StorageService:resumeMove", // throws since there is no move in progress
     "org.apache.cassandra.db:type=StorageService:abortMove", // throws since there is no move in progress
     "org.apache.cassandra.db:type=CIDRGroupsMappingManager:loadCidrGroupsCache", // AllowAllCIDRAuthorizer doesn't support this operation, as feature is disabled by default
-    "org.apache.cassandra.db:type=StorageService:forceRemoveCompletion" // deprecated (TCM)
+    "org.apache.cassandra.db:type=StorageService:forceRemoveCompletion", // deprecated (TCM)
+    "org.apache.cassandra.db:type=StorageService:createEpochUnsafe" // for Accord testing, but will likely be removed
+    );
+    // This set of mbeans are registered early enough during the startup of a
+    // Cassandra instance for in-jvm dtests to avoid missing registration of mbeans.
+    // We ignore both "org.apache.cassandra.diag:type=DiagnosticEventService" and
+    // "org.apache.cassandra.diag:type=LastEventIdBroadcaster" because they are being intialized
+    // outside the scope of the in-jvm Instance initialization.
+    private static final Set<String> EXPECTED_MBEANS_TO_BE_REGISTERED = Set.of(
+    "org.apache.cassandra.db:type=EndpointSnitchInfo",
+    "org.apache.cassandra.db:type=LocationInfo"
     );
 
     /**
@@ -75,6 +86,7 @@ public class JMXTestsUtil
      */
     public static void testAllValidGetters(Cluster cluster, Map<String, ?> jmxEnv) throws Exception
     {
+        Set<String> missingExpectedMbeans = new HashSet<>(EXPECTED_MBEANS_TO_BE_REGISTERED);
         for (IInvokableInstance instance : cluster)
         {
             if (instance.isShutdown())
@@ -91,6 +103,7 @@ public class JMXTestsUtil
                 {
                     if (!name.getDomain().startsWith("org.apache.cassandra"))
                         continue;
+                    missingExpectedMbeans.remove(name.getCanonicalName());
                     MBeanInfo info = mbsc.getMBeanInfo(name);
                     for (MBeanAttributeInfo a : info.getAttributes())
                     {
@@ -123,7 +136,7 @@ public class JMXTestsUtil
                     }
                 }
             }
-            if (!errors.isEmpty())
+            if (!errors.isEmpty() || !missingExpectedMbeans.isEmpty())
             {
                 AssertionError root = new AssertionError();
                 for (Named error : errors)
@@ -131,6 +144,13 @@ public class JMXTestsUtil
                     // The Named object's message has the cause also so this only logs the message
                     logger.error("Error {}", error.getMessage());
                     root.addSuppressed(error);
+                }
+                for (String missingMbean : missingExpectedMbeans)
+                {
+                    // The Named object's message has the cause also so this only logs the message
+                    String errorMessage = String.format("Expected mbean %s was not found", missingMbean);
+                    logger.error(errorMessage);
+                    root.addSuppressed(new RuntimeException(errorMessage));
                 }
                 throw root;
             }

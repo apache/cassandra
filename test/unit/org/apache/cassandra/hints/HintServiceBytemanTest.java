@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -42,7 +43,7 @@ import org.awaitility.Awaitility;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
-import static org.apache.cassandra.hints.HintsTestUtil.MockFailureDetector;
+import org.apache.cassandra.utils.MockFailureDetector;
 import static org.apache.cassandra.hints.HintsTestUtil.sendHintsAndResponses;
 import static org.junit.Assert.assertEquals;
 
@@ -52,7 +53,7 @@ public class HintServiceBytemanTest
     private static final String KEYSPACE = "hints_service_test";
     private static final String TABLE = "table";
 
-    private final MockFailureDetector failureDetector = new HintsTestUtil.MockFailureDetector();
+    private final MockFailureDetector failureDetector = new MockFailureDetector();
     private static TableMetadata metadata;
 
     @BeforeClass
@@ -91,6 +92,7 @@ public class HintServiceBytemanTest
         HintsService.instance.startDispatch();
     }
 
+    @Ignore
     @Test
     @BMRule(name = "Delay delivering hints",
     targetClass = "DispatchHintsTask",

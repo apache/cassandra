@@ -35,12 +35,12 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import javax.management.openmbean.CompositeData;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -50,7 +50,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +63,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
@@ -104,6 +104,7 @@ import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
@@ -130,7 +131,14 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPA
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
 import static org.apache.cassandra.config.Config.RepairCommandPoolFullStrategy.reject;
-import static org.apache.cassandra.config.DatabaseDescriptor.*;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairCommandPoolFullStrategy;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairCommandPoolSize;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairRetrySpec;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairStateExpires;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRepairStateSize;
+import static org.apache.cassandra.config.DatabaseDescriptor.getRpcTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 import static org.apache.cassandra.repair.messages.RepairMessage.notDone;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
@@ -447,15 +455,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      */
     public RepairSession submitRepairSession(TimeUUID parentRepairSession,
                                              CommonRange range,
+                                             boolean excludedDeadNodes,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
                                              boolean isIncremental,
                                              boolean pullRepair,
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
+                                             boolean repairData,
                                              boolean repairPaxos,
-                                             boolean paxosOnly,
                                              boolean dontPurgeTombstones,
+                                             boolean repairAccord,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
                                              String... cfnames)
@@ -469,9 +479,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession, range, keyspace,
+        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession,
+                                                        range, excludedDeadNodes, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
-                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, dontPurgeTombstones, cfnames);
+                                                        previewKind, optimiseStreams, repairData, repairPaxos,
+                                                        dontPurgeTombstones, repairAccord, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);
@@ -658,6 +670,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public Future<?> prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
+        if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind(), options.isIncremental()))
+            failRepair(parentRepairSession, "Rejecting incoming repair, disk usage above threshold"); // failRepair throws exception
+
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
             failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
 
@@ -715,6 +730,24 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return promise;
     }
 
+    public static boolean verifyDiskHeadroomThreshold(TimeUUID parentRepairSession, PreviewKind previewKind, boolean isIncremental)
+    {
+        if (!isIncremental) // disk headroom is required for anti-compaction which is only performed by incremental repair
+            return true;
+
+        double diskUsage = DiskUsageMonitor.instance.getDiskUsage();
+        double rejectRatio = ActiveRepairService.instance().getIncrementalRepairDiskHeadroomRejectRatio();
+
+        if (diskUsage + rejectRatio > 1)
+        {
+            logger.error("[{}] Rejecting incoming repair, disk usage ({}%) above threshold ({}%)",
+                         previewKind.logPrefix(parentRepairSession), String.format("%.2f", diskUsage * 100), String.format("%.2f", (1 - rejectRatio) * 100));
+            return false;
+        }
+
+        return true;
+    }
+
     private void sendPrepareWithRetries(TimeUUID parentRepairSession,
                                         AtomicInteger pending,
                                         Set<String> failedNodes,
@@ -731,10 +764,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 failedNodes.add(from.toString());
-                if (failureReason == RequestFailureReason.TIMEOUT)
+                if (failure.reason == RequestFailureReason.TIMEOUT)
                 {
                     pending.set(-1);
                     promise.setFailure(failRepairException(parentRepairSession, "Did not get replies from all endpoints."));
@@ -787,7 +820,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                         }
 
                         @Override
-                        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                        public void onFailure(InetAddressAndPort from, RequestFailure failure)
                         {
                             logger.debug("Failed to clean up parent repair session {} on {}. The uncleaned sessions will " +
                                          "be removed on a node restart. This should not be a problem unless you see thousands " +
@@ -1073,6 +1106,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public void setRepairPendingCompactionRejectThreshold(int value)
     {
         DatabaseDescriptor.setRepairPendingCompactionRejectThreshold(value);
+    }
+
+    public double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return DatabaseDescriptor.getIncrementalRepairDiskHeadroomRejectRatio();
+    }
+
+    public void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(value);
     }
 
     /**

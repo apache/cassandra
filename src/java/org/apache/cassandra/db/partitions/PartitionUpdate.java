@@ -24,17 +24,46 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.CounterMutation;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.MutableDeletionInfo;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.SimpleBuilders;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.RowIterators;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.index.IndexRegistry;
@@ -43,18 +72,21 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TCMMetrics;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
 import static org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer.IS_EMPTY;
 
 /**
@@ -176,6 +208,30 @@ public class PartitionUpdate extends AbstractBTreePartition
      *
      * @param metadata the metadata for the created update.
      * @param key the partition key for the partition to update.
+     * @param rows the rows for the update (may not be static).
+     *
+     * @return the newly created partition update containing only {@code row}.
+     */
+    public static PartitionUpdate multiRowUpdate(TableMetadata metadata, DecoratedKey key, List<Row> rows)
+    {
+        if (rows.isEmpty())
+            return emptyUpdate(metadata, key);
+        MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
+        Columns columns = Columns.NONE;
+        for (Row row : rows)
+            columns = columns.mergeTo(Columns.from(row));
+
+        BTreePartitionData holder = new BTreePartitionData(new RegularAndStaticColumns(Columns.NONE, columns),
+                                                           BTree.build(rows), deletionInfo, Rows.EMPTY_STATIC_ROW,
+                                                           EncodingStats.NO_STATS);
+        return new PartitionUpdate(metadata, metadata.epoch, key, holder, deletionInfo, false);
+    }
+
+    /**
+     * Creates an immutable partition update that contains a single row update.
+     *
+     * @param metadata the metadata for the created update.
+     * @param key the partition key for the partition to update.
      * @param row the row for the update.
      *
      * @return the newly created partition update containing only {@code row}.
@@ -249,7 +305,8 @@ public class PartitionUpdate extends AbstractBTreePartition
     }
 
 
-    protected boolean canHaveShadowedData()
+    @Override
+    public boolean canHaveShadowedData()
     {
         return canHaveShadowedData;
     }
@@ -586,6 +643,15 @@ public class PartitionUpdate extends AbstractBTreePartition
         return new PartitionUpdate(metadata, metadata.epoch, key, holder, deletionInfo, canHaveShadowedData);
     }
 
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (!(obj instanceof PartitionUpdate))
+            return false;
+
+        return super.equals(obj);
+    }
+
     /**
      * Interface for building partition updates geared towards human.
      * <p>
@@ -748,6 +814,17 @@ public class PartitionUpdate extends AbstractBTreePartition
             }
         }
 
+        public void serializeWithoutKey(PartitionUpdate update, TableMetadatas tables, DataOutputPlus out, int version) throws IOException
+        {
+            try (UnfilteredRowIterator iter = update.unfilteredIterator())
+            {
+                tables.serialize(update.metadata, out);
+                Epoch.serializer.serialize(update.metadata.epoch, out);
+                SerializationHeader header = new SerializationHeader(false, update.metadata, iter.columns(), iter.stats());
+                UnfilteredRowIteratorSerializer.serializer.serializeWithoutKey(iter, header, out, version, update.rowCount(), STABLE, null);
+            }
+        }
+
         public PartitionUpdate deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
@@ -771,6 +848,19 @@ public class PartitionUpdate extends AbstractBTreePartition
                 throw e;
             }
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(tableMetadata, null, in, version, flag);
+            return deserialize(header, remoteVersion, tableMetadata, in, version, flag);
+        }
+
+        public PartitionUpdate deserialize(PartitionKey key, TableMetadatas tables, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
+            TableMetadata tableMetadata = tables.deserialize(in);
+            Epoch remoteVersion = Epoch.serializer.deserialize(in);
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeaderWithoutKey(tableMetadata, key.partitionKey(), in, version, flag, STABLE, null);
+            return deserialize(header, remoteVersion, tableMetadata, in, version, flag);
+        }
+
+        private PartitionUpdate deserialize(UnfilteredRowIteratorSerializer.Header header, Epoch remoteVersion, TableMetadata tableMetadata, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
+        {
             if (header.isEmpty)
                 return emptyUpdate(tableMetadata, header.key);
 
@@ -831,6 +921,18 @@ public class PartitionUpdate extends AbstractBTreePartition
                 return update.metadata.id.serializedSize()
                      + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(update.metadata.epoch) : 0)
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
+            }
+        }
+
+        public long serializedSizeWithoutKey(PartitionUpdate update, TableMetadatas tables, int version)
+        {
+            try (UnfilteredRowIterator iter = update.unfilteredIterator())
+            {
+                long size = tables.serializedSize(update.metadata);
+                size += Epoch.serializer.serializedSize(update.metadata.epoch);
+
+                SerializationHeader header = new SerializationHeader(false, update.metadata, iter.columns(), iter.stats());
+                return size + UnfilteredRowIteratorSerializer.serializer.serializedSizeWithoutKey(iter, header, version, update.rowCount(), STABLE, null);
             }
         }
     }
@@ -912,6 +1014,15 @@ public class PartitionUpdate extends AbstractBTreePartition
                        boolean canHaveShadowedData)
         {
             this(metadata, key, columns, initialRowCapacity, canHaveShadowedData, Rows.EMPTY_STATIC_ROW, MutableDeletionInfo.live(), BTree.empty());
+        }
+
+        public Builder(TableMetadata metadata,
+                       DecoratedKey key,
+                       RegularAndStaticColumns columns,
+                       Row staticRow,
+                       int initialRowCapacity)
+        {
+            this(metadata, key, columns, initialRowCapacity, true, staticRow, MutableDeletionInfo.live(), BTree.empty());
         }
 
         private Builder(TableMetadata metadata,
@@ -1090,6 +1201,14 @@ public class PartitionUpdate extends AbstractBTreePartition
             return this;
         }
 
+        public Builder updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
+        {
+            deletionInfo.updateAllTimestampAndLocalDeletionTime(newTimestamp - 1, newLocalDeletionTime);
+            tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
+            staticRow = this.staticRow.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime);
+            return this;
+        }
+
         @Override
         public String toString()
         {
@@ -1103,6 +1222,5 @@ public class PartitionUpdate extends AbstractBTreePartition
                    ", isBuilt=" + isBuilt +
                    '}';
         }
-
     }
 }

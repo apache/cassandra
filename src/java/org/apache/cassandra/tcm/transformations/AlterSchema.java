@@ -19,17 +19,27 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -38,14 +48,18 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaTransformation;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata.Transformer;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
@@ -57,6 +71,8 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement.NO_EXECUTION_TIMESTAMP;
 import static org.apache.cassandra.exceptions.ExceptionCode.ALREADY_EXISTS;
 import static org.apache.cassandra.exceptions.ExceptionCode.CONFIG_ERROR;
@@ -224,14 +240,14 @@ public class AlterSchema implements Transformation
             calculatedPlacements.forEach((params, newPlacement) -> {
                 DataPlacement previousPlacement = prev.placements.get(params);
                 // Preserve placement versioning that has resulted from natural application where possible
-                if (previousPlacement.equals(newPlacement))
+                if (previousPlacement.equivalentTo(newPlacement))
                     newPlacementsBuilder.with(params, previousPlacement);
                 else
                     newPlacementsBuilder.with(params, newPlacement);
             });
             next = next.with(newPlacementsBuilder.build());
         }
-
+        next = maybeUpdateConsensusMigrationState(prev.consensusMigrationState, next, diff.altered, diff.dropped);
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
@@ -245,6 +261,75 @@ public class AlterSchema implements Transformation
             forReplication.add(ksm);
         }
         return byReplication;
+    }
+
+    public static Transformer maybeUpdateConsensusMigrationState(ConsensusMigrationState prev, Transformer next, ImmutableList<KeyspaceDiff> altered, Keyspaces dropped)
+    {
+        ConsensusMigrationState migrationState = prev;
+
+        Set<TableId> droppedIds = Streams.concat(altered.stream().flatMap(diff -> diff.tables.dropped.stream().map(TableMetadata::id)),
+                                                 dropped.stream().flatMap(ks -> ks.tables.stream().map(TableMetadata::id)))
+                                         .collect(toImmutableSet());
+
+        if (!droppedIds.isEmpty())
+            migrationState = migrationState.withMigrationsRemovedFor(droppedIds);
+
+        Set<TableId> completedIds = altered.stream()
+                .flatMap(diff -> diff.tables.altered.stream())
+                .filter(alt -> alt.before.params.transactionalMigrationFrom.isMigrating()
+                        && !alt.after.params.transactionalMigrationFrom.isMigrating())
+                .map(alt -> alt.after.id)
+                .collect(toImmutableSet());
+
+        if (!completedIds.isEmpty())
+            migrationState = migrationState.withMigrationsCompletedFor(completedIds);
+
+        Map<TableId, TableMetadata> reversals = altered.stream()
+                .flatMap(diff -> diff.tables.altered.stream())
+                .filter(alt -> alt.before.params.transactionalMigrationFrom.from == alt.after.params.transactionalMode)
+                .map(alt -> alt.after)
+                .collect(Collectors.toMap(TableMetadata::id, Function.identity()));
+
+
+        // we treat explicitly switched migration types as a new migration here
+        Set<TableMetadata> started = altered.stream()
+                .flatMap(diff -> diff.tables.altered.stream())
+                .filter(alt -> !reversals.containsKey(alt.after.id))
+                .filter(alt -> alt.after.params.transactionalMigrationFrom.isMigrating()
+                        && !alt.before.params.transactionalMigrationFrom.isMigrating())
+                .map(alt -> alt.after)
+                .collect(Collectors.toUnmodifiableSet());
+
+        Set<TableId> startedAndReversed = Sets.intersection(started.stream().map(TableMetadata::id).collect(Collectors.toSet()), reversals.keySet());
+        checkState(startedAndReversed.isEmpty(), "Set of tables starting migration and reversing migration should not intersect");
+
+        if (!started.isEmpty())
+        {
+            List<Range<Token>> ranges;
+            AccordSpec.TransactionalRangeMigration migration = DatabaseDescriptor.getTransactionalRangeMigration();
+            switch (migration)
+            {
+                default: throw new IllegalStateException("Unhandled transactional range migration: " + migration);
+                case auto:
+                    Token minToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
+                    ranges = Range.normalize(Collections.singletonList(new Range<>(minToken, minToken)));
+                    break;
+                case explicit:
+                    ranges = Collections.emptyList();
+                    break;
+            }
+
+            // Always create the migration state even if nothing is currently migrating, the empty state
+            // signals that a migration is in progress with no migrating ranges and corresponds to transactionalMigrationFrom != none
+            migrationState = migrationState.withRangesMigrating(started, ranges, true);
+        }
+
+        migrationState = migrationState.withReversedMigrations(reversals, next.epoch());
+
+        if (migrationState != prev)
+            next = next.with(migrationState);
+
+        return next;
     }
 
     private static Iterable<TableMetadata> normaliseTableEpochs(Epoch nextEpoch, Stream<TableMetadata> tables)

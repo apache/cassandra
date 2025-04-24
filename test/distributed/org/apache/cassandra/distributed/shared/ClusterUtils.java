@@ -25,13 +25,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -46,14 +49,28 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
-import org.apache.cassandra.distributed.api.*;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Shared;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.TxnId;
+import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstance;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.impl.TestChangeListener;
@@ -67,7 +84,11 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
@@ -80,12 +101,12 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BROADCAST_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.distributed.impl.TestEndpointCache.toCassandraInetAddressAndPort;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Utilities for working with jvm-dtest clusters.
@@ -470,9 +491,14 @@ public class ClusterUtils
         instance.runOnInstance(() -> ClusterMetadataService.instance().log().clearFilters());
     }
 
+    public static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance, long epoch)
+    {
+        return pauseBeforeEnacting(instance, Epoch.create(epoch), 30, TimeUnit.SECONDS);
+    }
+
     public static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance, Epoch epoch)
     {
-        return pauseBeforeEnacting(instance, epoch, 10, TimeUnit.SECONDS);
+        return pauseBeforeEnacting(instance, epoch, 30, TimeUnit.SECONDS);
     }
 
     protected static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance,
@@ -483,7 +509,10 @@ public class ClusterUtils
         return instance.callOnInstance(() -> {
             TestChangeListener listener = TestChangeListener.instance;
             AsyncPromise<?> promise = new AsyncPromise<>();
-            listener.pauseBefore(epoch, () -> promise.setSuccess(null));
+            listener.pauseBefore(epoch, () -> {
+                logger.info("Notifying waiter of pausing for pauseBeforeEnacting epoch {}", epoch);
+                promise.setSuccess(null);
+            });
             return () -> {
                 try
                 {
@@ -514,7 +543,10 @@ public class ClusterUtils
         return instance.callOnInstance(() -> {
             TestChangeListener listener = TestChangeListener.instance;
             AsyncPromise<?> promise = new AsyncPromise<>();
-            listener.pauseAfter(epoch, () -> promise.setSuccess(null));
+            listener.pauseAfter(epoch, () -> {
+                logger.info("Notifying waiter of pausing for pauseAfterEnacting epoch {}", epoch);
+                promise.setSuccess(null);
+            });
             return () -> {
                 try
                 {
@@ -600,6 +632,11 @@ public class ClusterUtils
         instance.runOnInstance(() -> TestChangeListener.instance.unpause());
     }
 
+    public static void clearAndUnpause(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> TestChangeListener.instance.clearAndUnpause());
+    }
+
     public static boolean isMigrating(IInvokableInstance instance)
     {
         return instance.callOnInstance(() -> ClusterMetadataService.instance().isMigrating());
@@ -630,7 +667,7 @@ public class ClusterUtils
         }
     }
 
-    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, int[] cmsNodes)
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, int... cmsNodes)
     {
         // first step; find the largest epoch
         waitForCMSToQuiesce(cluster, maxEpoch(cluster, cmsNodes));
@@ -1550,5 +1587,103 @@ public class ClusterUtils
                 .describedAs("Unexpected StorageService operation mode")
                 .isEqualTo(StorageService.Mode.NORMAL);
     }
-}
 
+    public static <T extends IInstance> LinkedHashMap<String, SimpleQueryResult> queryTxnState(AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        String cql = String.format("SELECT * FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_BLOCKED_BY);
+        LinkedHashMap<String, SimpleQueryResult> map = new LinkedHashMap<>();
+        Iterable<T> it = nodes.length == 0 ? cluster : cluster.get(nodes);
+        for (T i : it)
+        {
+            if (i.isShutdown())
+                continue;
+            SimpleQueryResult result = i.executeInternalWithResult(cql, txnId.toString());
+            map.put(i.toString(), result);
+        }
+        return map;
+    }
+
+    public static <T extends IInstance> String queryTxnStateAsString(AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        StringBuilder sb = new StringBuilder();
+        queryTxnStateAsString(sb, cluster, txnId, nodes);
+        return sb.toString();
+    }
+
+    public static <T extends IInstance> void queryTxnStateAsString(StringBuilder sb, AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        LinkedHashMap<String, SimpleQueryResult> map = queryTxnState(cluster, txnId, nodes);
+        for (var e : map.entrySet())
+        {
+            sb.append(e.getKey()).append(":\n");
+            SimpleQueryResult result = e.getValue();
+            if (!result.names().isEmpty())
+                sb.append(result.names()).append('\n');
+            while (result.hasNext())
+            {
+                var row = result.next();
+                sb.append(Arrays.asList(row.toObjectArray())).append('\n');
+            }
+        }
+    }
+
+    public static TableId tableId(Cluster cluster, String ks, String table)
+    {
+        String str = cluster.getFirstRunningInstance().callOnInstance(() -> Schema.instance.getKeyspaceInstance(ks).getColumnFamilyStore(table).getTableId().toString());
+        return TableId.fromUUID(UUID.fromString(str));
+    }
+
+    public static void awaitAccordEpochReady(Cluster cluster, long epoch)
+    {
+        cluster.forEach(i -> {
+            if (i.isShutdown()) return;
+            i.runOnInstance(() -> {
+                try
+                {
+                    AccordService.instance().epochReady(Epoch.create(epoch)).get();
+                }
+                catch (InterruptedException | ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+        });
+    }
+
+    @Shared
+    public static class Range implements Serializable
+    {
+        public final String left, right;
+
+        public Range(String left, String right)
+        {
+            this.left = left;
+            this.right = right;
+        }
+
+        public Range(long left, long right)
+        {
+            this(Long.toString(left), Long.toString(right));
+        }
+
+        public long left()
+        {
+            return Long.parseLong(left);
+        }
+
+        public long right()
+        {
+            return Long.parseLong(right);
+        }
+    }
+
+    public static List<Range> getPrimaryRanges(IInvokableInstance instance, String keyspace)
+    {
+        return instance.callOnInstance(() -> {
+            var ranges = TokenRingUtils.getPrimaryRangesForEndpoint(keyspace, FBUtilities.getBroadcastAddressAndPort());
+            return ranges.stream()
+                    .flatMap(r -> r.unwrap().stream().map(r2 -> new Range(r2.left.toString(), r2.right.toString())))
+                    .collect(Collectors.toList());
+        });
+    }
+}

@@ -91,43 +91,9 @@ public interface InterceptingExecutor extends OrderOn
 
     OrderOn orderAppliesAfterScheduling();
 
-    static class InterceptedScheduledFutureTask<T> extends SyncFutureTask<T> implements ScheduledFuture<T>
+    interface InterceptableScheduledFuture<T> extends ScheduledFuture<T>, RunnableFuture<T>
     {
-        final long delayNanos;
-        Runnable onCancel;
-        public InterceptedScheduledFutureTask(long delayNanos, Callable<T> call)
-        {
-            super(call);
-            this.delayNanos = delayNanos;
-        }
-
-        @Override
-        public long getDelay(TimeUnit unit)
-        {
-            return unit.convert(delayNanos, NANOSECONDS);
-        }
-
-        @Override
-        public int compareTo(Delayed that)
-        {
-            return Long.compare(delayNanos, that.getDelay(NANOSECONDS));
-        }
-
-        void onCancel(Runnable onCancel)
-        {
-            this.onCancel = onCancel;
-        }
-
-        @Override
-        public boolean cancel(boolean b)
-        {
-            if (onCancel != null)
-            {
-                onCancel.run();
-                onCancel = null;
-            }
-            return super.cancel(b);
-        }
+        void onCancel(Runnable onCancel);
     }
 
     @PerClassLoader
@@ -715,6 +681,45 @@ public interface InterceptingExecutor extends OrderOn
     @PerClassLoader
     class InterceptingSequentialExecutor extends AbstractSingleThreadedExecutorPlus implements InterceptingExecutor, ScheduledExecutorPlus, OrderOn
     {
+        static class InterceptableScheduledFutureTask<T> extends SyncFutureTask<T> implements InterceptableScheduledFuture<T>
+        {
+            final long delayNanos;
+            Runnable onCancel;
+            public InterceptableScheduledFutureTask(long delayNanos, Callable<T> call)
+            {
+                super(call);
+                this.delayNanos = delayNanos;
+            }
+
+            @Override
+            public long getDelay(TimeUnit unit)
+            {
+                return unit.convert(delayNanos, NANOSECONDS);
+            }
+
+            @Override
+            public int compareTo(Delayed that)
+            {
+                return Long.compare(delayNanos, that.getDelay(NANOSECONDS));
+            }
+
+            public void onCancel(Runnable onCancel)
+            {
+                this.onCancel = onCancel;
+            }
+
+            @Override
+            public boolean cancel(boolean b)
+            {
+                if (onCancel != null)
+                {
+                    onCancel.run();
+                    onCancel = null;
+                }
+                return super.cancel(b);
+            }
+        }
+
         InterceptingSequentialExecutor(InterceptorOfExecution interceptorOfExecution, ThreadFactory threadFactory, InterceptingTaskFactory taskFactory)
         {
             super(interceptorOfExecution, threadFactory, taskFactory);
@@ -765,7 +770,7 @@ public interface InterceptingExecutor extends OrderOn
                 throw new RejectedExecutionException();
 
             long delayNanos = unit.toNanos(delay);
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, delayNanos, relativeToGlobalNanos(delayNanos), callable(run, null), this);
+            return schedule(SCHEDULED_TASK, delayNanos, relativeToGlobalNanos(delayNanos), callable(run, null));
         }
 
         public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit)
@@ -774,7 +779,7 @@ public interface InterceptingExecutor extends OrderOn
                 throw new RejectedExecutionException();
 
             long delayNanos = unit.toNanos(delay);
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, delayNanos, relativeToGlobalNanos(delayNanos), callable, this);
+            return schedule(SCHEDULED_TASK, delayNanos, relativeToGlobalNanos(delayNanos), callable);
         }
 
         public ScheduledFuture<?> scheduleTimeoutWithDelay(Runnable run, long delay, TimeUnit unit)
@@ -787,7 +792,7 @@ public interface InterceptingExecutor extends OrderOn
             if (isShutdown)
                 throw new RejectedExecutionException();
 
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_TASK, localToRelativeNanos(deadlineNanos), localToGlobalNanos(deadlineNanos), callable(run, null), this);
+            return schedule(SCHEDULED_TASK, localToRelativeNanos(deadlineNanos), localToGlobalNanos(deadlineNanos), callable(run, null));
         }
 
         public ScheduledFuture<?> scheduleTimeoutAt(Runnable run, long deadlineNanos)
@@ -795,7 +800,7 @@ public interface InterceptingExecutor extends OrderOn
             if (isShutdown)
                 throw new RejectedExecutionException();
 
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_TIMEOUT, localToRelativeNanos(deadlineNanos), localToGlobalNanos(deadlineNanos), callable(run, null), this);
+            return schedule(SCHEDULED_TIMEOUT, localToRelativeNanos(deadlineNanos), localToGlobalNanos(deadlineNanos), callable(run, null));
         }
 
         public ScheduledFuture<?> scheduleSelfRecurring(Runnable run, long delay, TimeUnit unit)
@@ -804,7 +809,7 @@ public interface InterceptingExecutor extends OrderOn
                 throw new RejectedExecutionException();
 
             long delayNanos = unit.toNanos(delay);
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_DAEMON, delayNanos, relativeToGlobalNanos(delayNanos), callable(run, null), this);
+            return schedule(SCHEDULED_DAEMON, delayNanos, relativeToGlobalNanos(delayNanos), callable(run, null));
         }
 
         public ScheduledFuture<?> scheduleAtFixedRate(Runnable run, long initialDelay, long period, TimeUnit unit)
@@ -813,7 +818,7 @@ public interface InterceptingExecutor extends OrderOn
                 throw new RejectedExecutionException();
 
             long delayNanos = unit.toNanos(initialDelay);
-            return interceptorOfExecution.intercept().schedule(SCHEDULED_DAEMON, delayNanos, relativeToGlobalNanos(delayNanos), new Callable<Object>()
+            return schedule(SCHEDULED_DAEMON, delayNanos, relativeToGlobalNanos(delayNanos), new Callable<Object>()
             {
                 @Override
                 public Object call()
@@ -829,7 +834,12 @@ public interface InterceptingExecutor extends OrderOn
                 {
                     return run.toString();
                 }
-            }, this);
+            });
+        }
+
+        <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, Callable<T> task)
+        {
+            return interceptorOfExecution.intercept().schedule(kind, delayNanos, deadlineNanos, new InterceptableScheduledFutureTask<>(delayNanos, task), this);
         }
 
         public ScheduledFuture<?> scheduleWithFixedDelay(Runnable run, long initialDelay, long delay, TimeUnit unit)
@@ -842,6 +852,8 @@ public interface InterceptingExecutor extends OrderOn
             return 1;
         }
     }
+
+
 
     @PerClassLoader
     class InterceptingPooledLocalAwareExecutor extends InterceptingPooledExecutor implements LocalAwareExecutorPlus

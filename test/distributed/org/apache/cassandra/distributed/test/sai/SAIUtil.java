@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexStatusManager;
@@ -86,23 +85,26 @@ public class SAIUtil
      */
     private static void assertIndexesQueryable(Cluster cluster, String keyspace, final Iterable<String> indexes)
     {
-        IInvokableInstance localNode = cluster.get(1);
         final List<InetAddressAndPort> nodes =
             cluster.stream()
                    .map(node -> nodeAddress(node.broadcastAddress()))
                    .collect(Collectors.toList());
 
-        localNode.runOnInstance(() -> {
-            for (String index : indexes)
-            {
-                for (InetAddressAndPort node : nodes)
+        for (var localNode : cluster)
+        {
+            if (localNode.isShutdown()) continue;
+            localNode.runOnInstance(() -> {
+                for (String index : indexes)
                 {
-                    Index.Status status = IndexStatusManager.instance.getIndexStatus(node, keyspace, index);
-                    assert status == Index.Status.BUILD_SUCCEEDED
+                    for (InetAddressAndPort node : nodes)
+                    {
+                        Index.Status status = IndexStatusManager.instance.getIndexStatus(node, keyspace, index);
+                        assert status == Index.Status.BUILD_SUCCEEDED
                         : "Index " + index + " not queryable on node " + node + " (status = " + status + ')';
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     private static InetAddressAndPort nodeAddress(InetSocketAddress address)

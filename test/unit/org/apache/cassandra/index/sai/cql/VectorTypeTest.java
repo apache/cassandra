@@ -551,7 +551,7 @@ public class VectorTypeTest extends VectorTester
     private Collection<Integer> keysWithLowerBound(Collection<Integer> keys, int leftKey, boolean leftInclusive)
     {
         return keysInTokenRange(keys, partitioner.getToken(Int32Type.instance.decompose(leftKey)), leftInclusive,
-                                partitioner.getMaximumToken().getToken(), true);
+                                partitioner.getMaximumTokenForSplitting().getToken(), true);
     }
 
     private Collection<Integer> keysWithUpperBound(Collection<Integer> keys, int rightKey, boolean rightInclusive)

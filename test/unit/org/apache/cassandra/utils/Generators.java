@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -375,6 +376,11 @@ public final class Generators
         return bytes(min, max, SourceDSL.arbitrary().pick(BBCases.DIRECT, BBCases.READ_ONLY_DIRECT));
     }
 
+    public static Gen<ByteBuffer> directAndHeapBytes(int min, int max)
+    {
+        return bytes(min, max, SourceDSL.arbitrary().pick(BBCases.DIRECT, BBCases.HEAP));
+    }
+
     public static Gen<ByteBuffer> bytesAnyType(int min, int max)
     {
         return bytes(min, max, SourceDSL.arbitrary().enumValues(BBCases.class));
@@ -494,6 +500,17 @@ public final class Generators
         };
     }
 
+    public static <T> Gen<List<T>> list(Gen<T> gen, Gen<Integer> sizeGen)
+    {
+        return rnd -> {
+            int size = sizeGen.generate(rnd);
+            List<T> list = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+                list.add(gen.generate(rnd));
+            return list;
+        };
+    }
+
     public static <T> Gen<List<T>> uniqueList(Gen<T> gen, Gen<Integer> sizeGen)
     {
         return rnd -> {
@@ -507,6 +524,17 @@ public final class Generators
                 output.add(value);
             }
             return output;
+        };
+    }
+
+    public static <T> Gen<T[]> array(Class<T> type, Gen<T> gen, Gen<Integer> sizeGen)
+    {
+        return rnd -> {
+            int size = sizeGen.generate(rnd);
+            T[] array = (T[]) Array.newInstance(type, size);
+            for (int i = 0; i < size; i++)
+                array[i] = gen.generate(rnd);
+            return array;
         };
     }
 

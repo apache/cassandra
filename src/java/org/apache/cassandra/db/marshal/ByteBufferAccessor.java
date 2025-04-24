@@ -316,6 +316,35 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     }
 
     @Override
+    public int putLeastSignificantBytes(ByteBuffer dst, int offset, long register, int bytes)
+    {
+        int pos = dst.position() + offset;
+        if (dst.limit() - pos < Long.BYTES)
+        {
+            return ValueAccessor.putLeastSignificantBytes(this, dst, offset, register, bytes);
+        }
+        else
+        {
+            dst.putLong(pos, register << (64 - (bytes * 8)));
+        }
+        return bytes;
+    }
+
+    @Override
+    public long getLeastSignificantBytes(ByteBuffer dst, int offset, int bytes)
+    {
+        int pos = dst.position() + offset;
+        if (dst.limit() - pos < Long.BYTES)
+        {
+            return ValueAccessor.getLeastSignificantBytes(this, dst, offset, bytes);
+        }
+        else
+        {
+            return dst.getLong(pos) >>> (64 - (bytes * 8));
+        }
+    }
+
+    @Override
     public ByteBuffer empty()
     {
         return ByteBufferUtil.EMPTY_BYTE_BUFFER;

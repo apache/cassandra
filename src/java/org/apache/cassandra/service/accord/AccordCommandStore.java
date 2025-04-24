@@ -1,0 +1,595 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.service.accord;
+
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.locks.Lock;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import accord.api.Agent;
+import accord.api.DataStore;
+import accord.api.Journal;
+import accord.api.LocalListeners;
+import accord.api.ProgressLog;
+import accord.api.RoutingKey;
+import accord.impl.AbstractLoader;
+import accord.impl.AbstractSafeCommandStore.CommandStoreCaches;
+import accord.local.Command;
+import accord.local.CommandStore;
+import accord.local.CommandStores;
+import accord.local.Commands;
+import accord.local.NodeCommandStoreService;
+import accord.local.PreLoadContext;
+import accord.local.RedundantBefore;
+import accord.local.SafeCommandStore;
+import accord.local.cfk.CommandsForKey;
+import accord.primitives.PartialTxn;
+import accord.primitives.RangeDeps;
+import accord.primitives.Ranges;
+import accord.primitives.RoutableKey;
+import accord.primitives.Status;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
+import accord.utils.Invariants;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
+import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
+import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static accord.api.Journal.CommandUpdate;
+import static accord.api.Journal.FieldUpdates;
+import static accord.api.Journal.Load.MINIMAL;
+import static accord.api.Journal.Loader;
+import static accord.utils.Invariants.require;
+
+public class AccordCommandStore extends CommandStore
+{
+    // TODO (required): track this via a PhantomReference, so that if we remove a CommandStore without clearing the caches we can be sure to release them
+    public static class Caches
+    {
+        private final AccordCache global;
+        private final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
+        private final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys;
+
+        Caches(AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commandCache, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
+        {
+            this.global = global;
+            this.commands = commandCache;
+            this.commandsForKeys = commandsForKeyCache;
+        }
+
+        public final AccordCache global()
+        {
+            return global;
+        }
+
+        public final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands()
+        {
+            return commands;
+        }
+
+        public final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys()
+        {
+            return commandsForKeys;
+        }
+    }
+
+    public static final class ExclusiveCaches extends Caches implements CommandStoreCaches<AccordSafeCommand, AccordSafeCommandsForKey>
+    {
+        private final Lock lock;
+
+        public ExclusiveCaches(Lock lock, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys)
+        {
+            super(global, commands, commandsForKeys);
+            this.lock = lock;
+        }
+
+
+        @Override
+        public AccordSafeCommand acquireIfLoaded(TxnId txnId)
+        {
+            return commands().acquireIfLoaded(txnId);
+        }
+
+        @Override
+        public AccordSafeCommandsForKey acquireIfLoaded(RoutingKey key)
+        {
+            return commandsForKeys().acquireIfLoaded(key);
+        }
+
+        @Override
+        public void close()
+        {
+            lock.unlock();
+        }
+    }
+
+    static final AtomicReferenceFieldUpdater<AccordCommandStore, SafeRedundantBefore> safeRedundantBeforeUpdater
+        = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, SafeRedundantBefore.class, "safeRedundantBefore");
+    static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
+
+    public final String loggingId;
+    private final Journal journal;
+    private final RangeSearcher rangeSearcher;
+    private final AccordExecutor executor;
+    private final Executor taskExecutor;
+    private final ExclusiveCaches caches;
+    private long lastSystemTimestampMicros = Long.MIN_VALUE;
+    private final CommandsForRanges.Manager commandsForRanges;
+    private final TableId tableId;
+    volatile SafeRedundantBefore safeRedundantBefore;
+
+    private AccordSafeCommandStore current;
+    private Thread currentThread;
+
+    private final CommandStoreLoader loader;
+
+    public AccordCommandStore(int id,
+                              NodeCommandStoreService node,
+                              Agent agent,
+                              DataStore dataStore,
+                              ProgressLog.Factory progressLogFactory,
+                              LocalListeners.Factory listenerFactory,
+                              EpochUpdateHolder epochUpdateHolder,
+                              Journal journal,
+                              AccordExecutor executor)
+    {
+        super(id, node, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
+        this.loggingId = String.format("[%s]", id);
+        this.journal = journal;
+        this.rangeSearcher = RangeSearcher.extractRangeSearcher(journal);
+        this.executor = executor;
+
+        final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
+        final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
+        try (AccordExecutor.ExclusiveGlobalCaches exclusive = executor.lockCaches())
+        {
+            commands = exclusive.commands.newInstance(this);
+            commandsForKey = exclusive.commandsForKey.newInstance(this);
+            this.caches = new ExclusiveCaches(executor.lock, exclusive.global, commands, commandsForKey);
+        }
+
+        this.taskExecutor = executor.executor(this);
+        this.commandsForRanges = new CommandsForRanges.Manager(this);
+        this.loader = new CommandStoreLoader(this);
+
+        maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
+        maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
+        maybeLoadSafeToRead(journal.loadSafeToRead(id()));
+        maybeLoadRangesForEpoch(journal.loadRangesForEpoch(id()));
+
+        CommandStores.RangesForEpoch ranges = this.rangesForEpoch;
+        if (ranges == null || ranges.all().isEmpty())
+        {
+            EpochUpdate update = epochUpdateHolder.get();
+            if (update != null)
+                ranges = update.newRangesForEpoch;
+            Invariants.require(ranges != null, "CommandStore %d created with no ranges", id);
+        }
+        tableId = (TableId)ranges.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
+            Invariants.require(a.equals(b), "CommandStore created with multiple distinct TableId (%s and %s)", a, b);
+            return a;
+        }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
+    }
+
+    static Factory factory(IntFunction<AccordExecutor> executorFactory)
+    {
+        return (id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal) ->
+               new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
+    }
+
+    public CommandsForRanges.Manager diskCommandsForRanges()
+    {
+        return commandsForRanges;
+    }
+
+    @Override
+    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges, Status.Durability durability)
+    {
+        if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
+            store.snapshot(ranges, globalSyncId);
+        super.markShardDurable(safeStore, globalSyncId, ranges, durability);
+        if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
+            commandsForRanges.gcBefore(globalSyncId, ranges);
+    }
+
+    @Override
+    public boolean inStore()
+    {
+        return currentThread == Thread.currentThread();
+    }
+
+    void tryPreSetup(AccordTask<?> task)
+    {
+        if (inStore() && current != null)
+            task.presetup(current.task);
+    }
+
+    public final TableId tableId()
+    {
+        return tableId;
+    }
+
+    public AccordExecutor executor()
+    {
+        return executor;
+    }
+
+    // TODO (desired): we use this for executing callbacks with mutual exclusivity,
+    //  but we don't need to block the actual CommandStore - could quite easily
+    //  inflate a separate queue dynamically in AccordExecutor
+    public Executor taskExecutor()
+    {
+        return taskExecutor;
+    }
+
+    public ExclusiveCaches lockCaches()
+    {
+        //noinspection LockAcquiredButNotSafelyReleased
+        caches.lock.lock();
+        return caches;
+    }
+
+    public ExclusiveCaches tryLockCaches()
+    {
+        if (caches.lock.tryLock())
+            return caches;
+        return null;
+    }
+
+    public Caches cachesExclusive()
+    {
+        Invariants.require(executor.isOwningThread());
+        return caches;
+    }
+
+    public Caches cachesUnsafe()
+    {
+        return caches;
+    }
+
+    public void persistFieldUpdates(FieldUpdates fieldUpdates, Runnable onFlush)
+    {
+        journal.saveStoreState(id, fieldUpdates, onFlush);
+    }
+
+    @Nullable
+    @VisibleForTesting
+    public void appendToLog(Command before, Command after, Runnable onFlush)
+    {
+        journal.saveCommand(id, new CommandUpdate(before, after), onFlush);
+    }
+
+    boolean validateCommand(TxnId txnId, Command evicting)
+    {
+        if (!Invariants.isParanoid())
+            return true;
+
+        Command reloaded = loadCommand(txnId);
+        return Objects.equals(evicting, reloaded);
+    }
+
+    @VisibleForTesting
+    public void sanityCheckCommand(RedundantBefore redundantBefore, Command command)
+    {
+        ((AccordJournal) journal).sanityCheck(id, redundantBefore, command);
+    }
+
+    CommandsForKey loadCommandsForKey(RoutableKey key)
+    {
+        return CommandsForKeyAccessor.load(id, (TokenKey) key);
+    }
+
+    boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
+    {
+        if (!Invariants.isParanoid())
+            return true;
+
+        CommandsForKey reloaded = CommandsForKeyAccessor.load(id, (TokenKey) key);
+        return Objects.equals(evicting, reloaded);
+    }
+
+    @Nullable
+    Runnable saveCommandsForKey(RoutingKey key, CommandsForKey after, Object serialized)
+    {
+        return CommandsForKeyAccessor.systemTableUpdater(id, (TokenKey) key, after, serialized, nextSystemTimestampMicros());
+    }
+
+    public long nextSystemTimestampMicros()
+    {
+        lastSystemTimestampMicros = Math.max(TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis()), lastSystemTimestampMicros + 1);
+        return lastSystemTimestampMicros;
+    }
+    @Override
+    public <T> AsyncChain<T> build(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    {
+        return AccordTask.create(this, loadCtx, function).chain();
+    }
+
+    @Override
+    public <T> AsyncChain<T> build(Callable<T> task)
+    {
+        return AsyncChains.ofCallable(taskExecutor(), task);
+    }
+
+    public DataStore dataStore()
+    {
+        return store;
+    }
+
+    NodeCommandStoreService node()
+    {
+        return node;
+    }
+
+    ProgressLog progressLog()
+    {
+        return progressLog;
+    }
+
+    @Override
+    public AsyncChain<Void> build(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    {
+        return AccordTask.create(this, preLoadContext, consumer).chain();
+    }
+
+    public void executeBlocking(Runnable runnable)
+    {
+        try
+        {
+            executor.submit(runnable).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public AccordSafeCommandStore begin(AccordTask<?> operation,
+                                        @Nullable CommandsForRanges commandsForRanges)
+    {
+        require(current == null);
+        current = AccordSafeCommandStore.create(operation, commandsForRanges, this);
+        return current;
+    }
+
+    void setOwner(Thread thread, Thread self)
+    {
+        Invariants.require(thread == null ? currentThread == self : currentThread == null);
+        currentThread = thread;
+        if (thread != null) CommandStore.register(this);
+    }
+
+    public boolean hasSafeStore()
+    {
+        return current != null;
+    }
+
+    public void complete(AccordSafeCommandStore store)
+    {
+        require(current == store);
+        current.postExecute();
+        current = null;
+    }
+
+    public void abort(AccordSafeCommandStore store)
+    {
+        checkInStore();
+        Invariants.require(store == current);
+        current = null;
+    }
+
+    @Override
+    public void shutdown()
+    {
+    }
+
+    public void registerTransitive(SafeCommandStore safeStore, RangeDeps rangeDeps)
+    {
+        if (rangeDeps.isEmpty())
+            return;
+
+        RedundantBefore redundantBefore = unsafeGetRedundantBefore();
+        CommandStores.RangesForEpoch ranges = safeStore.ranges();
+        // used in places such as accord.local.CommandStore.fetchMajorityDeps
+        // We find a set of dependencies for a range then update CommandsFor to know about them
+        Ranges allRanges = safeStore.ranges().all();
+        Ranges coordinateRanges = Ranges.EMPTY;
+        long coordinateEpoch = -1;
+        try (ExclusiveCaches caches = lockCaches())
+        {
+            for (int i = 0; i < rangeDeps.txnIdCount(); i++)
+            {
+                TxnId txnId = rangeDeps.txnId(i);
+                AccordCacheEntry<TxnId, Command> state = caches.commands().getUnsafe(txnId);
+                if (state != null && state.isLoaded() && state.getExclusive() != null && state.getExclusive().known().isDefinitionKnown())
+                    continue;
+
+                Ranges addRanges = rangeDeps.ranges(i).slice(allRanges);
+                if (addRanges.isEmpty()) continue;
+
+                if (coordinateEpoch != txnId.epoch())
+                {
+                    coordinateEpoch = txnId.epoch();
+                    coordinateRanges = ranges.allAt(txnId.epoch());
+                }
+                if (addRanges.intersects(coordinateRanges)) continue;
+                addRanges = redundantBefore.removeGcBefore(txnId, txnId, addRanges);
+                if (addRanges.isEmpty()) continue;
+                diskCommandsForRanges().mergeTransitive(txnId, addRanges, Ranges::with);
+            }
+        }
+    }
+
+    public void appendCommands(List<CommandUpdate> diffs, Runnable onFlush)
+    {
+        for (int i = 0; i < diffs.size(); i++)
+        {
+            boolean isLast = i == diffs.size() - 1;
+            CommandUpdate change = diffs.get(i);
+            journal.saveCommand(id, change, isLast ? onFlush : null);
+        }
+    }
+
+    @VisibleForTesting
+    public Command loadCommand(TxnId txnId)
+    {
+        return journal.loadCommand(id, txnId, unsafeGetRedundantBefore(), durableBefore());
+    }
+
+    public static Command prepareToCache(Command command)
+    {
+        // TODO (required): validate we don't have duplicate objects
+        if (command != null)
+        {
+            PartialTxn txn = command.partialTxn();
+            if (txn != null)
+            {
+                TxnRead read = (TxnRead) txn.read();
+                read.unmemoize();
+            }
+        }
+        return command;
+    }
+
+    public Command.Minimal loadMinimal(TxnId txnId)
+    {
+        return journal.loadMinimal(id, txnId, MINIMAL, unsafeGetRedundantBefore(), durableBefore());
+    }
+
+    public AccordCompactionInfo getCompactionInfo()
+    {
+        SafeRedundantBefore safeRedundantBefore = this.safeRedundantBefore;
+        RedundantBefore redundantBefore;
+        if (safeRedundantBefore == null) redundantBefore = RedundantBefore.EMPTY;
+        else redundantBefore = safeRedundantBefore.redundantBefore;
+        return new AccordCompactionInfo(id, redundantBefore, rangesForEpoch, tableId);
+    }
+
+    public RangeSearcher rangeSearcher()
+    {
+        return rangeSearcher;
+    }
+
+    public Loader loader()
+    {
+        return loader;
+    }
+
+    @VisibleForTesting
+    public void unsafeUpsertRedundantBefore(RedundantBefore addRedundantBefore)
+    {
+        super.unsafeUpsertRedundantBefore(addRedundantBefore);
+    }
+
+    private static class CommandStoreLoader extends AbstractLoader
+    {
+        private final AccordCommandStore store;
+
+        private CommandStoreLoader(AccordCommandStore store)
+        {
+            this.store = store;
+        }
+
+        @Override
+        public AsyncChain<Command> load(TxnId txnId)
+        {
+            return store.submit(txnId, safeStore -> {
+                maybeApplyWrites(txnId, safeStore, (safeCommand, cmd) -> {
+                    Commands.applyWrites(safeStore, txnId, cmd).begin(store.agent);
+                });
+                return safeStore.unsafeGet(txnId).current();
+            });
+        }
+    }
+
+    /**
+     * Replay/state reloading
+     */
+
+    void maybeLoadRedundantBefore(RedundantBefore redundantBefore)
+    {
+        if (redundantBefore != null)
+        {
+            loadRedundantBefore(redundantBefore);
+            Invariants.require(safeRedundantBefore == null);
+            safeRedundantBefore = new SafeRedundantBefore(0, redundantBefore);
+        }
+    }
+
+    void maybeLoadBootstrapBeganAt(NavigableMap<TxnId, Ranges> bootstrapBeganAt)
+    {
+        if (bootstrapBeganAt != null)
+            loadBootstrapBeganAt(bootstrapBeganAt);
+    }
+
+    void maybeLoadSafeToRead(NavigableMap<Timestamp, Ranges> safeToRead)
+    {
+        if (safeToRead != null)
+            loadSafeToRead(safeToRead);
+    }
+
+    void maybeLoadRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
+    {
+        if (rangesForEpoch != null)
+            loadRangesForEpoch(rangesForEpoch);
+    }
+
+    // TODO (expected): handle journal failures, and consider how we handle partial failures.
+    //  Very likely we will not be able to safely or cleanly handle partial failures of this logic, but decide and document.
+    // TODO (desired): consider merging with PersistentField? This version is cheaper to manage which may be preferable at the CommandStore level.
+    static class SafeRedundantBefore
+    {
+        final long ticket;
+        final RedundantBefore redundantBefore;
+
+        SafeRedundantBefore(long ticket, RedundantBefore redundantBefore)
+        {
+            this.ticket = ticket;
+            this.redundantBefore = redundantBefore;
+        }
+
+        static SafeRedundantBefore max(SafeRedundantBefore a, SafeRedundantBefore b)
+        {
+            return a.ticket >= b.ticket ? a : b;
+        }
+    }
+}

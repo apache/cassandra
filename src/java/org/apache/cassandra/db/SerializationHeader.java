@@ -23,6 +23,7 @@ import java.util.*;
 
 import com.google.common.collect.ImmutableList;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -39,6 +40,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.AbstractTypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.btree.BTree;
 
 public class SerializationHeader
 {
@@ -381,6 +383,97 @@ public class SerializationHeader
         public EncodingStats getEncodingStats()
         {
             return stats;
+        }
+    }
+
+    public interface ParameterizedSerializer<P>
+    {
+        SerializationHeader deserialize(DataInputPlus in, TableMetadata metadata, boolean hasStatic, P param) throws IOException;
+        void serialize(DataOutputPlus out, SerializationHeader header, boolean hasStatic, P param) throws IOException;
+        long serializedSize(SerializationHeader header, boolean hasStatic, P param);
+    }
+
+    public static class StableHeaderSerializer implements ParameterizedSerializer<Object>
+    {
+        public static StableHeaderSerializer STABLE = new StableHeaderSerializer();
+
+        @Override
+        public SerializationHeader deserialize(DataInputPlus in, TableMetadata metadata, boolean hasStatic, Object param) throws IOException
+        {
+            int count = in.readUnsignedVInt32();
+            boolean isStatic = true;
+            Columns staticColumns = Columns.NONE, regularColumns = Columns.NONE;
+            try (BTree.FastBuilder<ColumnMetadata> builder = BTree.fastBuilder())
+            {
+                while (count-- > 0)
+                {
+                    ColumnMetadata next = metadata.getColumnById(in.readUnsignedVInt32());
+                    if (isStatic != next.isStatic())
+                    {
+                        Invariants.require(isStatic);
+                        if (!builder.isEmpty())
+                        {
+                            staticColumns = Columns.from(builder);
+                            if (count > 0)
+                                builder.reset();
+                        }
+                        isStatic = false;
+                    }
+                    builder.add(next);
+                }
+                Columns columns = Columns.from(builder);
+                if (isStatic) staticColumns = columns;
+                else regularColumns = columns;
+            }
+            RegularAndStaticColumns columns = new RegularAndStaticColumns(staticColumns, regularColumns);
+            EncodingStats stats = EncodingStats.serializer.deserialize(in);
+            return new SerializationHeader(false, metadata, columns, stats);
+        }
+
+        @Override
+        public void serialize(DataOutputPlus out, SerializationHeader header, boolean hasStatic, Object param) throws IOException
+        {
+            out.writeUnsignedVInt32(header.columns.size());
+            for (ColumnMetadata c : header.columns.statics)
+                out.writeUnsignedVInt32(c.uniqueId);
+            for (ColumnMetadata c : header.columns.regulars)
+                out.writeUnsignedVInt32(c.uniqueId);
+            EncodingStats.serializer.serialize(header.stats, out);
+        }
+
+        @Override
+        public long serializedSize(SerializationHeader header, boolean hasStatic, Object param)
+        {
+            long size = TypeSizes.sizeofUnsignedVInt(header.columns.size());
+            for (ColumnMetadata c : header.columns.statics)
+                size += TypeSizes.sizeofUnsignedVInt(c.uniqueId);
+            for (ColumnMetadata c : header.columns.regulars)
+                size += TypeSizes.sizeofUnsignedVInt(c.uniqueId);
+            size += EncodingStats.serializer.serializedSize(header.stats);
+            return size;
+        }
+    }
+
+    public static class MessagingHeaderSerializer implements ParameterizedSerializer<ColumnFilter>
+    {
+        public static MessagingHeaderSerializer MESSAGING = new MessagingHeaderSerializer();
+
+        @Override
+        public SerializationHeader deserialize(DataInputPlus in, TableMetadata metadata, boolean hasStatic, ColumnFilter param) throws IOException
+        {
+            return serializer.deserializeForMessaging(in, metadata, param, hasStatic);
+        }
+
+        @Override
+        public void serialize(DataOutputPlus out, SerializationHeader header, boolean hasStatic, ColumnFilter param) throws IOException
+        {
+            serializer.serializeForMessaging(header, param, out, hasStatic);
+        }
+
+        @Override
+        public long serializedSize(SerializationHeader header, boolean hasStatic, ColumnFilter param)
+        {
+            return serializer.serializedSizeForMessaging(header, param, hasStatic);
         }
     }
 

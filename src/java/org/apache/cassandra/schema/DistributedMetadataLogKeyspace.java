@@ -26,8 +26,6 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.locator.MetaStrategy;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +34,8 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
+import org.apache.cassandra.locator.MetaStrategy;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogReader;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.tcm.Epoch.FIRST;
 
@@ -162,6 +163,20 @@ public final class DistributedMetadataLogKeyspace
         return (consistentFetch ? serialLogReader : localLogReader).getLogState(since);
     }
 
+    /**
+     * Reconstructs the log state by returning a _consistent_ base snapshot of a start epoch, and
+     * a list of transformations between start and end.
+     *
+     * TODO: this is a rather expensive operation, and should be use sparingly. If we decide we need to
+     *  rely on reconstructing arbitrary epochs during normal operation, we need to add a caching mechanism
+     *  here. One more alternative is to keep a lazily-initialized AccordTopology table on CMS nodes for a
+     *  number of recent epochs, and keep a node-local cache of this table on other nodes.
+     */
+    public static LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot)
+    {
+        return serialLogReader.getLogState(start, end, includeSnapshot);
+    }
+
     public static class DistributedTableLogReader implements LogReader
     {
         private final ConsistencyLevel consistencyLevel;
@@ -199,6 +214,27 @@ public final class DistributedMetadataLogKeyspace
             return entryHolder;
         }
 
+        public EntryHolder getEntries(Epoch since, Epoch until) throws IOException
+        {
+            // during gossip upgrade we have epoch = Long.MIN_VALUE + 1 (and the reverse partitioner doesn't support negative keys)
+            since = since.isBefore(Epoch.EMPTY) ? Epoch.EMPTY : since;
+            // note that we want all entries with epoch >= since - but since we use a reverse partitioner, we actually
+            // want all entries where the token is less than token(since)
+            UntypedResultSet resultSet = execute(String.format("SELECT epoch, kind, transformation, entry_id FROM %s.%s WHERE token(epoch) <= token(?) AND token(epoch) >= token(?)",
+                                                               SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
+                                                 consistencyLevel, since.getEpoch(), until.getEpoch());
+            EntryHolder entryHolder = new EntryHolder(since);
+            for (UntypedResultSet.Row row : resultSet)
+            {
+                long entryId = row.getLong("entry_id");
+                Epoch epoch = Epoch.create(row.getLong("epoch"));
+                Transformation.Kind kind = Transformation.Kind.fromId(row.getInt("kind"));
+                Transformation transform = kind.fromVersionedBytes(row.getBlob("transformation"));
+                entryHolder.add(new Entry(new Entry.Id(entryId), epoch, transform));
+            }
+            return entryHolder;
+        }
+
         @Override
         public MetadataSnapshots snapshots()
         {
@@ -223,7 +259,7 @@ public final class DistributedMetadataLogKeyspace
 
     public static KeyspaceMetadata initialMetadata(Set<String> knownDatacenters)
     {
-        return KeyspaceMetadata.create(SchemaConstants.METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters)), Tables.of(Log));
+        return KeyspaceMetadata.create(SchemaConstants.METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters), FastPathStrategy.simple()), Tables.of(Log));
     }
 
     public static KeyspaceMetadata initialMetadata(String datacenter)

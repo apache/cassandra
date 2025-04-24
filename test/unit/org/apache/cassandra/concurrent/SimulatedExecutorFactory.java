@@ -101,7 +101,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
 
     public SimulatedExecutorFactory(RandomSource rs, Consumer<Throwable> onError)
     {
-        this(rs, toGen(Generators.TIMESTAMP_GEN.map(Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs), onError);
+        this(rs, toGen(Generators.TIMESTAMP_GEN.map(Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).nextLong(rs), onError);
     }
 
     public SimulatedExecutorFactory(RandomSource rs)
@@ -204,7 +204,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
     }
 
     @Override
-    public Thread startThread(String name, Runnable runnable, InfiniteLoopExecutor.Daemon daemon)
+    public Thread startThread(String name, Runnable runnable, SystemThreadTag systemTag, SimulatorThreadTag simulatorTag)
     {
         throw new UnsupportedOperationException("Thread can't be simualted");
     }
@@ -213,7 +213,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
     public Interruptible infiniteLoop(String name,
                                       Interruptible.Task task,
                                       InfiniteLoopExecutor.SimulatorSafe simulatorSafe,
-                                      InfiniteLoopExecutor.Daemon daemon,
+                                      SystemThreadTag systemTag,
                                       InfiniteLoopExecutor.Interrupts interrupts)
     {
         var delegate = new UnorderedScheduledExecutorService();

@@ -58,6 +58,9 @@ import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
+import org.apache.cassandra.db.virtual.LogMessagesTable;
+import org.apache.cassandra.db.virtual.SlowQueriesTable;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
@@ -78,6 +81,7 @@ import org.apache.cassandra.net.StartupClusterConnectivityChecker;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamManager;
@@ -92,6 +96,7 @@ import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
+import org.apache.cassandra.utils.logging.SlowQueriesAppender;
 import org.apache.cassandra.utils.logging.VirtualTableAppender;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -269,6 +274,7 @@ public class CassandraDaemon
             Startup.initialize(DatabaseDescriptor.getSeeds());
             disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
             CMSOperations.initJmx();
+            AccordOperations.initJmx();
             if (ClusterMetadata.current().myNodeId() != null)
                 RegistrationStatus.instance.onRegistration();
         }
@@ -400,6 +406,8 @@ public class CassandraDaemon
 
         AuditLogManager.instance.initialize();
 
+        StorageService.instance.doAutoRepairSetup();
+
         // schedule periodic background compaction task submission. this is simply a backstop against compactions stalling
         // due to scheduling errors or race conditions
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(ColumnFamilyStore.getBackgroundCompactionTaskSubmitter(), 5, 1, TimeUnit.MINUTES);
@@ -420,7 +428,6 @@ public class CassandraDaemon
             logger.info("Prewarming of auth caches is disabled");
 
         PaxosState.startAutoRepairs();
-
         completeSetup();
     }
 
@@ -434,7 +441,6 @@ public class CassandraDaemon
         {
             exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
-
     }
 
     /**
@@ -550,11 +556,20 @@ public class CassandraDaemon
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, createMetricsKeyspaceTables()));
 
-        // flush log messages to system_views.system_logs virtual table as there were messages already logged
-        // before that virtual table was instantiated
+        if (DatabaseDescriptor.getAccord().enable_virtual_debug_only_keyspace)
+            VirtualKeyspaceRegistry.instance.register(AccordDebugKeyspace.instance);
+
+        // Flush log messages to system_views.system_logs virtual table as there were messages already logged
+        // before that virtual table was instantiated.
+        // In general, there is no need to do same treatment for slow queries as by the time queries are processed
+        // the logging framework if fully setup already but for the sake of it and to be sure, just do it as well.
         LoggingSupportFactory.getLoggingSupport()
                              .getAppender(VirtualTableAppender.class, VirtualTableAppender.APPENDER_NAME)
-                             .ifPresent(appender -> ((VirtualTableAppender) appender).flushBuffer());
+                             .ifPresent(appender -> appender.flushBuffer(LogMessagesTable.class, LogMessagesTable.TABLE_NAME));
+
+        LoggingSupportFactory.getLoggingSupport()
+                             .getAppender(SlowQueriesAppender.class, SlowQueriesAppender.APPENDER_NAME)
+                             .ifPresent(appender -> appender.flushBuffer(SlowQueriesTable.class, SlowQueriesTable.TABLE_NAME));
     }
 
     public synchronized void initializeClientTransports()

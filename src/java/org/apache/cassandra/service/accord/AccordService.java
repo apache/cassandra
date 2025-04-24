@@ -1,0 +1,990 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.service.accord;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.api.Journal;
+import accord.coordinate.CoordinateMaxConflict;
+import accord.coordinate.CoordinateTransaction;
+import accord.coordinate.KeyBarriers;
+import accord.impl.AbstractConfigurationService;
+import accord.impl.DefaultLocalListeners;
+import accord.impl.DefaultRemoteListeners;
+import accord.impl.RequestCallbacks;
+import accord.impl.SizeOfIntersectionSorter;
+import accord.impl.progresslog.DefaultProgressLogs;
+import accord.local.Command;
+import accord.local.CommandStore;
+import accord.local.CommandStores;
+import accord.local.KeyHistory;
+import accord.local.Node;
+import accord.local.Node.Id;
+import accord.local.PreLoadContext;
+import accord.local.SafeCommand;
+import accord.local.ShardDistributor.EvenSplit;
+import accord.local.UniqueTimeService.AtomicUniqueTimeWithStaleReservation;
+import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.SafeCommandsForKey;
+import accord.local.durability.DurabilityService;
+import accord.local.durability.ShardDurability;
+import accord.messages.Reply;
+import accord.messages.Request;
+import accord.primitives.FullRoute;
+import accord.primitives.Keys;
+import accord.primitives.Ranges;
+import accord.primitives.RoutingKeys;
+import accord.primitives.SaveStatus;
+import accord.primitives.Seekable;
+import accord.primitives.Seekables;
+import accord.primitives.Status;
+import accord.primitives.Timestamp;
+import accord.primitives.Txn;
+import accord.primitives.TxnId;
+import accord.topology.Topology;
+import accord.topology.TopologyManager;
+import accord.utils.DefaultRandom;
+import accord.utils.Invariants;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
+import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.journal.Params;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
+import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey;
+import org.apache.cassandra.service.accord.api.AccordScheduler;
+import org.apache.cassandra.service.accord.api.AccordTimeService;
+import org.apache.cassandra.service.accord.api.AccordTopologySorter;
+import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
+import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
+import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
+import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TableMigrationState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncRemote.All;
+import static accord.messages.SimpleReply.Ok;
+import static accord.primitives.Routable.Domain.Key;
+import static accord.primitives.Txn.Kind.Write;
+import static accord.primitives.TxnId.Cardinality.cardinality;
+import static accord.topology.TopologyManager.TopologyRange;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityCycle;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityTargetSplits;
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.ImmutableTopoloyImage;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
+public class AccordService implements IAccordService, Shutdownable
+{
+    private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
+
+    private enum State {INIT, STARTED, SHUTTING_DOWN, SHUTDOWN}
+
+    private final Node node;
+    private final Shutdownable nodeShutdown;
+    private final AccordMessageSink messageSink;
+    private final AccordConfigurationService configService;
+    private final AccordFastPathCoordinator fastPathCoordinator;
+    private final AccordScheduler scheduler;
+    private final AccordDataStore dataStore;
+    private final AccordJournal journal;
+    private final AccordVerbHandler<? extends Request> requestHandler;
+    private final AccordResponseVerbHandler<? extends Reply> responseHandler;
+
+    @GuardedBy("this")
+    private State state = State.INIT;
+
+    private static final IAccordService NOOP_SERVICE = new NoOpAccordService();
+
+    private static volatile IAccordService instance = null;
+
+    @VisibleForTesting
+    public static void unsafeSetNewAccordService(IAccordService service)
+    {
+        instance = service;
+    }
+
+    @VisibleForTesting
+    public static void unsafeSetNoop()
+    {
+        instance = NOOP_SERVICE;
+    }
+
+    public static boolean isSetup()
+    {
+        return instance != null;
+    }
+
+    public static IVerbHandler<Void> watermarkHandlerOrNoop()
+    {
+        if (!isSetup()) return ignore -> {};
+        AccordService i = (AccordService) instance();
+        return i.configService().watermarkCollector.handler;
+    }
+
+    public static IVerbHandler<? extends Request> requestHandlerOrNoop()
+    {
+        if (!isSetup()) return ignore -> {};
+        return instance().requestHandler();
+    }
+
+    public static IVerbHandler<? extends Reply> responseHandlerOrNoop()
+    {
+        if (!isSetup()) return ignore -> {};
+        return instance().responseHandler();
+    }
+
+    public synchronized static void startup(NodeId tcmId)
+    {
+        if (!DatabaseDescriptor.getAccordTransactionsEnabled())
+        {
+            instance = NOOP_SERVICE;
+            return;
+        }
+
+        if (instance != null)
+            return;
+
+        AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
+        as.startup();
+        if (StorageService.instance.isReplacingSameAddress())
+        {
+            // when replacing another node but using the same ip the hostId will also match, this causes no TCM transactions
+            // to be committed...
+            // In order to bootup correctly, need to pull in the current epoch
+            ClusterMetadata current = ClusterMetadata.current();
+            as.configService().listener.notifyPostCommit(current, current, false);
+        }
+        instance = as;
+
+        replayJournal(as);
+    }
+
+    @VisibleForTesting
+    public static void replayJournal(AccordService as)
+    {
+        logger.info("Starting journal replay.");
+        CommandsForKey.disableLinearizabilityViolationsReporting();
+        try
+        {
+            AccordKeyspace.truncateAllCaches();
+            as.journal().replay(as.node().commandStores());
+
+            logger.info("Waiting for command stores to quiesce.");
+            ((AccordCommandStores)as.node.commandStores()).waitForQuiescense();
+            as.journal.unsafeSetStarted();
+        }
+        finally
+        {
+            CommandsForKey.enableLinearizabilityViolationsReporting();
+        }
+
+        logger.info("Finished journal replay.");
+    }
+
+    public static void shutdownServiceAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        IAccordService i = instance;
+        if (i == null)
+            return;
+        i.shutdownAndWait(timeout, unit);
+    }
+
+    @Override
+    public boolean shouldAcceptMessages()
+    {
+        return state == State.STARTED && journal.started();
+    }
+
+    public static IAccordService instance()
+    {
+        if (!DatabaseDescriptor.getAccordTransactionsEnabled())
+            return NOOP_SERVICE;
+        IAccordService i = instance;
+        Invariants.require(i != null, "AccordService was not started");
+        return i;
+    }
+
+    public static boolean started()
+    {
+        if (!DatabaseDescriptor.getAccordTransactionsEnabled())
+            return false;
+        return instance != null;
+    }
+
+    @VisibleForTesting
+    public AccordService(Id localId)
+    {
+        Invariants.require(localId != null, "static localId must be set before instantiating AccordService");
+        logger.info("Starting accord with nodeId {}", localId);
+        AccordAgent agent = FBUtilities.construct(CassandraRelevantProperties.ACCORD_AGENT_CLASS.getString(AccordAgent.class.getName()), "AccordAgent");
+        agent.setNodeId(localId);
+        AccordTimeService time = new AccordTimeService();
+        final RequestCallbacks callbacks = new RequestCallbacks(time);
+        this.scheduler = new AccordScheduler();
+        this.dataStore = new AccordDataStore();
+        this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
+        this.configService = new AccordConfigurationService(localId);
+        this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
+        this.messageSink = new AccordMessageSink(agent, configService, callbacks);
+        this.node = new Node(localId,
+                             messageSink,
+                             configService,
+                             time, new AtomicUniqueTimeWithStaleReservation(time),
+                             () -> dataStore,
+                             new KeyspaceSplitter(new EvenSplit<>(getAccordCommandStoreShardCount(), getPartitioner().accordSplitter())),
+                             agent,
+                             new DefaultRandom(),
+                             scheduler,
+                             CompositeTopologySorter.create(SizeOfIntersectionSorter.SUPPLIER,
+                                                            new AccordTopologySorter.Supplier(configService, DatabaseDescriptor.getNodeProximity())),
+                             DefaultRemoteListeners::new,
+                             ignore -> callbacks,
+                             DefaultProgressLogs::new,
+                             DefaultLocalListeners.Factory::new,
+                             AccordCommandStores.factory(),
+                             new AccordInteropFactory(agent, configService),
+                             journal.durableBeforePersister(),
+                             journal);
+        this.nodeShutdown = toShutdownable(node);
+        this.requestHandler = new AccordVerbHandler<>(node, configService);
+        this.responseHandler = new AccordResponseVerbHandler<>(callbacks, configService);
+    }
+
+    @Override
+    public synchronized void startup()
+    {
+        unsafeStartupWithOverrides(null);
+    }
+
+    @VisibleForTesting
+    public synchronized void unsafeStartupWithOverrides(@Nullable Journal.TopologyUpdate overrideNullTopologyUpdate)
+    {
+        if (state != State.INIT)
+            return;
+        journal.start(node);
+        node.load();
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        configService.updateMapping(metadata);
+
+        long highestKnown = -1;
+        List<ImmutableTopoloyImage> images = new ArrayList<>();
+
+        // Collect locally known topologies
+        Iterator<ImmutableTopoloyImage> iter = journal.replayTopologies();
+        Journal.TopologyUpdate prev = null;
+        while (iter.hasNext())
+        {
+            ImmutableTopoloyImage next = iter.next();
+            // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
+            if (prev != null && next.global.epoch() > prev.global.epoch() + 1)
+                images.clear();
+
+            images.add(next);
+            prev = next;
+        }
+
+        if (prev == null)
+            prev = overrideNullTopologyUpdate;
+
+        // Instantiate latest topology from the log, if known
+        if (prev != null)
+        {
+            node.commandStores().initializeTopologyUnsafe(prev);
+            highestKnown = prev.global.epoch();
+        }
+
+        try
+        {
+            TopologyRange remote = fetchTopologies(highestKnown + 1);
+
+            // Replay local epochs
+            for (ImmutableTopoloyImage image : images)
+                configService.reportTopology(image.global);
+
+            if (remote != null)
+                remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
+            else if (images.isEmpty()) // First boot, single-node cluster
+                configService.reportTopology(AccordTopology.createAccordTopology(metadata));
+
+            ClusterMetadataService.instance().log().addListener(configService.listener);
+            {
+                metadata = ClusterMetadata.current();
+                highestKnown = configService.currentEpoch();
+                if (metadata.epoch.getEpoch() > highestKnown)
+                {
+                    remote = fetchTopologies(highestKnown + 1);
+                    if (remote != null)
+                        remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
+                }
+            }
+
+            WatermarkCollector.fetchAndReportWatermarksAsync(configService());
+
+            int attempt = 0;
+            int waitSeconds = 5;
+            while (true)
+            {
+                Epoch await = Epoch.max(Epoch.create(configService.currentEpoch()), metadata.epoch);
+                try
+                {
+                    epochReady(await).get(waitSeconds, SECONDS);
+                    break;
+                }
+                catch (TimeoutException e)
+                {
+                    logger.warn("Epoch {} is not ready after waiting for {} seconds", metadata.epoch, (++attempt) * waitSeconds);
+                }
+            }
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        configService.start();
+        fastPathCoordinator.start();
+        ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
+        node.durability().shards().setTargetShardSplits(Ints.checkedCast(getAccordShardDurabilityTargetSplits()));
+        node.durability().shards().setShardCycleTime(Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
+        node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
+        node.durability().start();
+        state = State.STARTED;
+    }
+
+    /**
+     * Queries peers to discover min epoch, and then fetches all topologies between min and current epochs
+     */
+    private TopologyRange fetchTopologies(long from) throws ExecutionException, InterruptedException
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        Set<InetAddressAndPort> peers = new HashSet<>();
+        peers.addAll(metadata.directory.allAddresses());
+        peers.remove(FBUtilities.getBroadcastAddressAndPort());
+
+        // No peers: single node cluster or first node to boot
+        if (peers.isEmpty())
+            return null;
+
+        Iterator<InetAddressAndPort> iter = peers.iterator();
+        while (iter.hasNext())
+        {
+            InetAddressAndPort peer = iter.next();
+            try
+            {
+                logger.info("Fetching topologies for epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer);
+                Invariants.require(from <= metadata.epoch.getEpoch(),
+                                   "Accord epochs should never be ahead of TCM ones, but %d was ahead of %d", from, metadata.epoch.getEpoch());
+
+                Future<TopologyRange> futures = FetchTopologies.fetch(SharedContext.Global.instance,
+                                                                      Collections.singleton(peer),
+                                                                      from,
+                                                                      Long.MAX_VALUE);
+                TopologyRange response = futures.get();
+                logger.info("Fetched topologies {}", response);
+
+                // We're behind and need to catch up CMS first.
+                if (response.current > ClusterMetadata.current().epoch.getEpoch())
+                    ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(response.current));
+
+                if (response.current >= from)
+                    return response;
+                metadata = ClusterMetadata.current();
+            }
+            catch (Throwable e)
+            {
+                logger.info("Failed to fetch epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer);
+            }
+        }
+
+        // After trying to contact all peers, and retrying according to retry spec on them, we give up.
+        // If there were no new known TCM epochs, we still allow Accord to start up, assuming there are no new epochs.
+        return null;
+    }
+
+    @Override
+    public IVerbHandler<? extends Request> requestHandler()
+    {
+        return requestHandler;
+    }
+
+    @Override
+    public IVerbHandler<? extends Reply> responseHandler()
+    {
+        return responseHandler;
+    }
+
+    public ShardDurability.ImmutableView shardDurability()
+    {
+        return node.durability().shards().immutableView();
+    }
+
+    @Override
+    public AsyncChain<Void> sync(Object requestedBy, Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+    {
+        return node.durability().sync(requestedBy, minBound, ranges, include, syncLocal, syncRemote);
+    }
+
+    @Override
+    public AsyncChain<Void> sync(Timestamp minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+    {
+        if (keys.size() != 1)
+            return syncInternal(minBound, keys, syncLocal, syncRemote);
+
+        return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote)
+                          .flatMap(found -> KeyBarriers.await(node, found, syncLocal, syncRemote))
+                          .flatMap(success -> {
+                              if (success)
+                                  return null;
+                              return syncInternal(minBound, keys, syncLocal, syncRemote);
+                          });
+    }
+
+    private AsyncChain<Void> syncInternal(Timestamp minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+    {
+        TxnId txnId = node.nextTxnId(minBound, Write, Key, cardinality(keys));
+        FullRoute<?> route = node.computeRoute(txnId, keys);
+        Txn txn = new Txn.InMemory(Write, keys, TxnRead.createNoOpRead(keys), TxnQuery.NONE, TxnUpdate.empty(), new TableMetadatasAndKeys(TableMetadatas.none(), keys));
+        return CoordinateTransaction.coordinate(node, route, txnId, txn)
+                                    .map(ignore -> (Void)null).beginAsResult();
+    }
+
+    @Override
+    public AsyncChain<Timestamp> maxConflict(Ranges ranges)
+    {
+        return node.commandStores().any().build(() -> CoordinateMaxConflict.maxConflict(node, ranges)).flatMap(i -> i);
+    }
+
+    public static <V> V getBlocking(AsyncChain<V> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
+    {
+        return getBlocking(async, null, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest);
+    }
+
+    public static <V> V getBlocking(AsyncChain<V> async, @Nullable TxnId txnId, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
+    {
+        AccordResult<V> result = new AccordResult<>(txnId, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest);
+        async.begin(result);
+        return result.awaitAndGet();
+    }
+
+    public static void getBlocking(AsyncChain<Void> async, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline)
+    {
+        getBlocking(async, keysOrRanges, bookkeeping, startedAt, deadline, false);
+    }
+
+    public static Keys intersecting(Keys keys)
+    {
+        if (keys.isEmpty())
+            return keys;
+
+        TableId tableId = tableId(keys, r -> ((AccordRoutableKey)r).table());
+        return sliceToAccord(tableId, keys, Keys::slice);
+    }
+
+    public static Ranges intersecting(Ranges ranges)
+    {
+        if (ranges.isEmpty())
+            return ranges;
+
+        TableId tableId = tableId(ranges, r -> ((TokenRange)r).table());
+        return sliceToAccord(tableId, ranges, Ranges::slice);
+    }
+
+    private static <C extends Seekables<?, ?>> C sliceToAccord(TableId tableId, C collection, BiFunction<C, Ranges, C> slice)
+    {
+        ClusterMetadata cm = ClusterMetadata.current();
+        TableMetadata tm = getTableMetadata(cm, tableId);
+
+        // Barriers can be needed just because it's an Accord managed range, but it could also be a migration back to Paxos
+        // in which case we do want to barrier the migrating/migrated ranges even though the target for the migration is not Accord
+        // In either case Accord should be aware of those ranges and not generate a topology mismatch
+        if (tm.params.transactionalMode != TransactionalMode.off || tm.params.transactionalMigrationFrom.migratingFromAccord())
+        {
+            TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tm.id);
+            // null is fine could be completely migrated or was always an Accord table on creation
+            if (tms == null)
+                return collection;
+            // Use migratingAndMigratedRanges (not accordSafeToReadRanges) because barriers are allowed even if Accord can't perform
+            // a read because they are only finishing/recovering existing Accord transactions
+            Ranges migratingAndMigratedRanges = AccordTopology.toAccordRanges(tms.tableId, tms.migratingAndMigratedRanges);
+            return slice.apply(collection, migratingAndMigratedRanges);
+        }
+
+        return slice.apply(collection, Ranges.EMPTY);
+    }
+
+
+    private static <S extends Seekable, C extends Seekables<S, ?>> TableId tableId(C collection, Function<S, TableId> getTableId)
+    {
+        TableId tableId = getTableId.apply(collection.get(0));
+        for (int i = 1, maxi = collection.size() ; i < maxi ; ++i)
+        {
+            TableId check = getTableId.apply(collection.get(i));
+            Invariants.require(tableId.equals(check), "Currently only one table is handled here.");
+        }
+        return tableId;
+    }
+
+    @Override
+    public long currentEpoch()
+    {
+        return configService.currentEpoch();
+    }
+
+
+    @Override
+    public TopologyManager topology()
+    {
+        return node.topology();
+    }
+
+    /**
+     * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
+     * with non-Accord operations.
+     */
+    @Override
+    public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime) throws RequestExecutionException
+    {
+        return coordinateAsync(minEpoch, txn, consistencyLevel, requestTime).awaitAndGet();
+    }
+
+    @Override
+    public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime)
+    {
+        TxnId txnId = node.nextTxnId(txn.kind(), txn.keys().domain(), cardinality(txn.keys()));
+        long timeout = txnId.isWrite() ? DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) : DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
+        ClientRequestBookkeeping bookkeeping = txn.isWrite() ? accordWriteBookkeeping : accordReadBookkeeping;
+        bookkeeping.metrics.keySize.update(txn.keys().size());
+        long deadlineNanos = requestTime.computeDeadline(timeout);
+        AccordResult<TxnResult> result = new AccordResult<>(txnId, txn.keys(), bookkeeping, requestTime.startedAtNanos(), deadlineNanos, true);
+        ((AsyncResult)node.coordinate(txnId, txn, minEpoch, deadlineNanos)).begin(result);
+        return result;
+    }
+
+    @Override
+    public void setCacheSize(long kb)
+    {
+        long bytes = kb << 10;
+        AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
+        commandStores.setCapacity(bytes);
+    }
+
+    @Override
+    public void setWorkingSetSize(long kb)
+    {
+        long bytes = kb << 10;
+        AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
+        commandStores.setWorkingSetSize(bytes);
+    }
+
+    @Override
+    public boolean isTerminated()
+    {
+        return scheduler.isTerminated();
+    }
+
+    @Override
+    public synchronized void shutdown()
+    {
+        if (state != State.STARTED)
+            return;
+        state = State.SHUTTING_DOWN;
+        shutdownAndWait(1, TimeUnit.MINUTES);
+        state = State.SHUTDOWN;
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        shutdown();
+        return null;
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        try
+        {
+            ExecutorUtils.awaitTermination(timeout, units, shutdownableSubsystems());
+            return true;
+        }
+        catch (TimeoutException e)
+        {
+            return false;
+        }
+    }
+
+    private List<Shutdownable> shutdownableSubsystems()
+    {
+        return Arrays.asList(scheduler, nodeShutdown, journal, configService);
+    }
+
+    @VisibleForTesting
+    @Override
+    public void shutdownAndWait(long timeout, TimeUnit unit)
+    {
+        if (!ExecutorUtils.shutdownSequentiallyAndWait(shutdownableSubsystems(), timeout, unit))
+            logger.error("One or more subsystems did not shut down cleanly.");
+    }
+
+    @Override
+    public AccordScheduler scheduler()
+    {
+        return scheduler;
+    }
+
+    public Id nodeId()
+    {
+        return node.id();
+    }
+
+    @Override
+    public List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId)
+    {
+        AsyncChain<List<CommandStoreTxnBlockedGraph>> states = loadDebug(txnId);
+        try
+        {
+            return AsyncChains.getBlocking(states);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e.getCause());
+        }
+    }
+
+    public AsyncChain<List<CommandStoreTxnBlockedGraph>> loadDebug(TxnId original)
+    {
+        CommandStores commandStores = node.commandStores();
+        if (commandStores.count() == 0)
+            return AsyncChains.success(Collections.emptyList());
+        int[] ids = commandStores.ids();
+        List<AsyncChain<CommandStoreTxnBlockedGraph>> chains = new ArrayList<>(ids.length);
+        for (int id : ids)
+            chains.add(loadDebug(original, commandStores.forId(id)));
+        return AsyncChains.allOf(chains);
+    }
+
+    private AsyncChain<CommandStoreTxnBlockedGraph> loadDebug(TxnId txnId, CommandStore store)
+    {
+        CommandStoreTxnBlockedGraph.Builder state = new CommandStoreTxnBlockedGraph.Builder(store.id());
+        return populate(state, store, txnId).map(ignore -> state.build());
+    }
+
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, CommandStore store, TxnId txnId)
+    {
+        AsyncChain<AsyncChain<Void>> submit = store.submit(txnId, in -> {
+            AsyncChain<Void> chain = populate(state, (AccordSafeCommandStore) in, txnId);
+            return chain == null ? AsyncChains.success(null) : chain;
+        });
+        return submit.flatMap(Function.identity());
+    }
+
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, CommandStore commandStore, TokenKey blockedBy, TxnId txnId, Timestamp executeAt)
+    {
+        AsyncChain<AsyncChain<Void>> submit = commandStore.submit(PreLoadContext.contextFor(txnId, RoutingKeys.of(blockedBy.toUnseekable()), KeyHistory.SYNC), in -> {
+            AsyncChain<Void> chain = populate(state, (AccordSafeCommandStore) in, blockedBy, txnId, executeAt);
+            return chain == null ? AsyncChains.success(null) : chain;
+        });
+        return submit.flatMap(Function.identity());
+    }
+
+    @Nullable
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TxnId txnId)
+    {
+        SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+        Invariants.nonNull(safeCommand, "Txn %s is not in the cache", txnId);
+        if (safeCommand.current() == null || safeCommand.current().saveStatus() == SaveStatus.Uninitialised)
+            return null;
+        CommandStoreTxnBlockedGraph.TxnState cmdTxnState = populate(state, safeCommand.current());
+        if (cmdTxnState.notBlocked())
+            return null;
+        //TODO (expected): check depth
+        List<AsyncChain<Void>> chains = new ArrayList<>();
+        for (TxnId blockedBy : cmdTxnState.blockedBy)
+        {
+            if (state.knows(blockedBy)) continue;
+            // need to fetch the state
+            if (safeStore.ifLoadedAndInitialised(blockedBy) != null)
+            {
+                AsyncChain<Void> chain = populate(state, safeStore, blockedBy);
+                if (chain != null)
+                    chains.add(chain);
+            }
+            else
+            {
+                // go fetch it
+                chains.add(populate(state, safeStore.commandStore(), blockedBy));
+            }
+        }
+        for (TokenKey blockedBy : cmdTxnState.blockedByKey)
+        {
+            if (state.keys.containsKey(blockedBy)) continue;
+            if (safeStore.ifLoadedAndInitialised(blockedBy) != null)
+            {
+                AsyncChain<Void> chain = populate(state, safeStore, blockedBy, txnId, safeCommand.current().executeAt());
+                if (chain != null)
+                    chains.add(chain);
+            }
+            else
+            {
+                // go fetch it
+                chains.add(populate(state, safeStore.commandStore(), blockedBy, txnId, safeCommand.current().executeAt()));
+            }
+        }
+        if (chains.isEmpty())
+            return null;
+        return AsyncChains.allOf(chains).map(ignore -> null);
+    }
+
+    private static AsyncChain<Void> populate(CommandStoreTxnBlockedGraph.Builder state, AccordSafeCommandStore safeStore, TokenKey pk, TxnId txnId, Timestamp executeAt)
+    {
+        SafeCommandsForKey commandsForKey = safeStore.ifLoadedAndInitialised(pk);
+        TxnId blocking = commandsForKey.current().blockedOnTxnId(txnId, executeAt);
+        if (blocking instanceof CommandsForKey.TxnInfo)
+            blocking = ((CommandsForKey.TxnInfo) blocking).plainTxnId();
+        state.keys.put(pk, blocking);
+        if (state.txns.containsKey(blocking)) return null;
+        if (safeStore.ifLoadedAndInitialised(blocking) != null) return populate(state, safeStore, blocking);
+        return populate(state, safeStore.commandStore(), blocking);
+    }
+
+    private static CommandStoreTxnBlockedGraph.TxnState populate(CommandStoreTxnBlockedGraph.Builder state, Command cmd)
+    {
+        CommandStoreTxnBlockedGraph.Builder.TxnBuilder cmdTxnState = state.txn(cmd.txnId(), cmd.executeAt(), cmd.saveStatus());
+        if (!cmd.hasBeen(Status.Applied) && cmd.hasBeen(Status.Stable))
+        {
+            // check blocking state
+            Command.WaitingOn waitingOn = cmd.asCommitted().waitingOn();
+            waitingOn.waitingOn.reverseForEach(null, null, null, null, (i1, i2, i3, i4, i) -> {
+                if (i < waitingOn.txnIdCount())
+                {
+                    // blocked on txn
+                    cmdTxnState.blockedBy.add(waitingOn.txnId(i));
+                }
+                else
+                {
+                    // blocked on key
+                    cmdTxnState.blockedByKey.add((TokenKey) waitingOn.keys.get(i - waitingOn.txnIdCount()));
+                }
+            });
+        }
+        return cmdTxnState.build();
+    }
+
+    @Nullable
+    @Override
+    public Long minEpoch()
+    {
+        return node.topology().minEpoch();
+    }
+
+    public Node node()
+    {
+        return node;
+    }
+
+    public AccordJournal journal()
+    {
+        return journal;
+    }
+
+    @Override
+    public Future<Void> epochReady(Epoch epoch)
+    {
+        AsyncPromise<Void> promise = new AsyncPromise<>();
+        AsyncChain<Void> ready = configService.epochReady(epoch.getEpoch());
+        ready.begin((result, failure) -> {
+            if (failure == null) promise.trySuccess(result);
+            else promise.tryFailure(failure);
+        });
+        return promise;
+    }
+
+    @Override
+    public void receive(Message<Notification> message)
+    {
+        receive(MessagingService.instance(), configService, message);
+    }
+
+    @VisibleForTesting
+    public static void receive(MessageDelivery sink, AbstractConfigurationService<?, ?> configService, Message<Notification> message)
+    {
+        AccordSyncPropagator.Notification notification = message.payload;
+        notification.syncComplete.forEach(id -> configService.receiveRemoteSyncComplete(id, notification.epoch));
+        if (!notification.closed.isEmpty())
+            configService.receiveClosed(notification.closed, notification.epoch);
+        if (!notification.retired.isEmpty())
+            configService.receiveRetired(notification.retired, notification.epoch);
+        sink.respond(Ok, message);
+    }
+
+    private static Shutdownable toShutdownable(Node node)
+    {
+        return new Shutdownable() {
+            private volatile boolean isShutdown = false;
+
+            @Override
+            public boolean isTerminated()
+            {
+                // we don't know about terminiated... so settle for shutdown!
+                return isShutdown;
+            }
+
+            @Override
+            public void shutdown()
+            {
+                isShutdown = true;
+                node.shutdown();
+            }
+
+            @Override
+            public Object shutdownNow()
+            {
+                // node doesn't offer shutdownNow
+                shutdown();
+                return null;
+            }
+
+            @Override
+            public boolean awaitTermination(long timeout, TimeUnit units)
+            {
+                // TODO (required): expose awaitTermination in Node
+                // node doesn't offer
+                return true;
+            }
+        };
+    }
+
+    @VisibleForTesting
+    public AccordConfigurationService configService()
+    {
+        return configService;
+    }
+
+    @Override
+    public AccordCompactionInfos getCompactionInfo()
+    {
+        AccordCompactionInfos compactionInfos = new AccordCompactionInfos(node.durableBefore(), node.topology().minEpoch());
+        node.commandStores().forEachCommandStore(commandStore -> {
+            compactionInfos.put(commandStore.id(), ((AccordCommandStore)commandStore).getCompactionInfo());
+        });
+        return compactionInfos;
+    }
+
+    @Override
+    public AccordAgent agent()
+    {
+        return (AccordAgent) node.agent();
+    }
+
+    @Override
+    public void awaitDone(TableId id, long epoch)
+    {
+        // Need to make sure no existing txn are still being processed for this table... this is only used by DROP TABLE so NEW txn are expected to be blocked, so just need to "wait" for existing ones to complete
+        Topology topology = node.topology().current();
+        List<TokenRange> rangeList = topology.reduce(new ArrayList<>(),
+                                                  s -> ((TokenRange) s.range).table().equals(id),
+                                                  (accum, s) -> {
+                                                      accum.add((TokenRange) s.range);
+                                                      return accum;
+                                                  });
+        if (rangeList.isEmpty()) return; // nothing to see here
+
+        Ranges ranges = Ranges.of(rangeList.toArray(accord.primitives.Range[]::new));
+        long startedAt = nanoTime();
+        long deadline = startedAt + DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
+        // TODO (required): relax this requirement - too expensive
+        getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', TxnId.minForEpoch(epoch), ranges, Self, All), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
+    }
+
+    public Params journalConfiguration()
+    {
+        return journal.configuration();
+    }
+}

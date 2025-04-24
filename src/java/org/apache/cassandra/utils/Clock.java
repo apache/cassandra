@@ -107,6 +107,14 @@ public interface Clock
         {
             return instance.currentTimeMillis();
         }
+
+        /**
+         * Semantically equivalent to {@link FBUtilities#nowInSeconds()}
+         */
+        public static long nowInSeconds()
+        {
+            return instance.nowInSeconds();
+        }
     }
 
     public static class Default implements Clock

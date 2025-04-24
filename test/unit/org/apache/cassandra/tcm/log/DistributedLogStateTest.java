@@ -102,9 +102,9 @@ public class DistributedLogStateTest extends LogStateTestBase
             }
 
             @Override
-            public LogState getLogState(Epoch since)
+            public LogReader reader()
             {
-                return reader.getLogState(since);
+                return reader;
             }
 
             @Override

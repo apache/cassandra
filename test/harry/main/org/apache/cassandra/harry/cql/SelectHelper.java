@@ -61,8 +61,8 @@ public class SelectHelper
         {
             ColumnSpec<?> column = schema.clusteringKeys.get(i);
             builder.where(new Symbol(column.name, column.type.asServerType()),
-                    toInequality(Relations.RelationKind.EQ),
-                    new Bind(ck[i], column.type.asServerType()));
+                          toInequality(Relations.RelationKind.EQ),
+                          new Bind(ck[i], column.type.asServerType()));
         }
 
         return toCompiled(builder.build());
@@ -81,15 +81,15 @@ public class SelectHelper
             if (select.lowerBoundRelation()[i] != null)
             {
                 builder.where(new Symbol(column.name, column.type.asServerType()),
-                        toInequality(select.lowerBoundRelation()[i]),
-                        new Bind(lowBound[i], column.type.asServerType()));
+                              toInequality(select.lowerBoundRelation()[i]),
+                              new Bind(lowBound[i], column.type.asServerType()));
             }
 
             if (select.upperBoundRelation()[i] != null)
             {
                 builder.where(new Symbol(column.name, column.type.asServerType()),
-                        toInequality(select.upperBoundRelation()[i]),
-                        new Bind(highBound[i], column.type.asServerType()));
+                              toInequality(select.upperBoundRelation()[i]),
+                              new Bind(highBound[i], column.type.asServerType()));
             }
         }
 
@@ -115,8 +115,8 @@ public class SelectHelper
             Object[] query = cache.computeIfAbsent(relation.descriptor, schema.valueGenerators.ckGen()::inflate);
             ColumnSpec<?> column = schema.clusteringKeys.get(relation.column);
             builder.where(new Symbol(column.name, column.type.asServerType()),
-                    toInequality(relation.kind),
-                    new Bind(query[relation.column], column.type.asServerType()));
+                          toInequality(relation.kind),
+                          new Bind(query[relation.column], column.type.asServerType()));
         }
 
         for (Relations.Relation relation : select.regularRelations())
@@ -133,8 +133,8 @@ public class SelectHelper
             Object query = schema.valueGenerators.staticColumnGen(relation.column).inflate(relation.descriptor);
             ColumnSpec<?> column = schema.staticColumns.get(relation.column);
             builder.where(new Symbol(column.name, column.type.asServerType()),
-                    toInequality(relation.kind),
-                    new Bind(query, column.type.asServerType()));
+                          toInequality(relation.kind),
+                          new Bind(query, column.type.asServerType()));
         }
 
         if (select.orderBy() == Operations.ClusteringOrderBy.DESC)
@@ -197,8 +197,8 @@ public class SelectHelper
             ColumnSpec<?> column = schema.partitionKeys.get(i);
             Object value = pk[i];
             builder.where(new Symbol(column.name, column.type.asServerType()),
-                    Where.Inequality.EQUAL,
-                    new Bind(value, column.type.asServerType()));
+                          Where.Inequality.EQUAL,
+                          new Bind(value, column.type.asServerType()));
         }
 
         return builder;

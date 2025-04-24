@@ -83,6 +83,7 @@ public class RowCacheTest
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingParams.CACHE_EVERYTHING),
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHEDINT, 1, IntegerType.instance)
                                                 .caching(new CachingParams(true, 100)));
+        StorageService.instance.initServer();
     }
 
     @AfterClass
@@ -299,7 +300,6 @@ public class RowCacheTest
     @Test
     public void testRowCacheCleanup() throws Exception
     {
-        StorageService.instance.initServer();
         CacheService.instance.setRowCacheCapacityInMB(1);
         rowCacheLoad(100, Integer.MAX_VALUE, 1000);
 
@@ -321,7 +321,6 @@ public class RowCacheTest
     @Test
     public void testInvalidateRowCache() throws Exception
     {
-        StorageService.instance.initServer();
         CacheService.instance.setRowCacheCapacityInMB(1);
         rowCacheLoad(100, Integer.MAX_VALUE, 1000);
 

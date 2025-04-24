@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,14 +50,27 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.schema.*;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.tcm.extensions.ExtensionKey;
+import org.apache.cassandra.tcm.extensions.ExtensionValue;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
+import accord.local.Node;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SchemaCQLHelper;
@@ -73,7 +87,6 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.EmptyType;
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -104,21 +117,13 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.PingRequest;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.CachingParams;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.MemtableParams;
-import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableParams;
-import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.schema.Types;
-import org.apache.cassandra.schema.UserFunctions;
-import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.accord.AccordFastPath;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.fastpath.InheritKeyspaceFastPathStrategy;
+import org.apache.cassandra.service.accord.fastpath.ParameterizedFastPathStrategy;
+import org.apache.cassandra.service.accord.fastpath.SimpleFastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
@@ -136,6 +141,7 @@ import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.SMALL_TIME_SPAN_NANOS;
 import static org.apache.cassandra.utils.Generators.TIMESTAMP_NANOS;
 import static org.apache.cassandra.utils.Generators.TINY_TIME_SPAN_NANOS;
+import static org.apache.cassandra.utils.Generators.directAndHeapBytes;
 
 public final class CassandraGenerators
 {
@@ -156,7 +162,7 @@ public final class CassandraGenerators
         return InetAddressAndPort.getByAddressOverrideDefaults(address, NETWORK_PORT_GEN.generate(rnd));
     };
 
-    public static final Gen<TableId> TABLE_ID_GEN = Generators.UUID_RANDOM_GEN.map(TableId::fromUUID);
+    public static final Gen<TableId> TABLE_ID_GEN = Generate.booleans().flatMap(uuid -> uuid ? Generators.UUID_RANDOM_GEN.map(TableId::fromUUID) : Generate.longRange(Long.MIN_VALUE, Long.MAX_VALUE).map(TableId::fromLong));
     private static final Gen<TableMetadata.Kind> TABLE_KIND_GEN = SourceDSL.arbitrary().pick(TableMetadata.Kind.REGULAR, TableMetadata.Kind.INDEX, TableMetadata.Kind.VIRTUAL);
     public static final Gen<TableMetadata> TABLE_METADATA_GEN = gen(rnd -> createTableMetadata(IDENTIFIER_GEN.generate(rnd), rnd)).describedAs(CassandraGenerators::toStringRecursive);
 
@@ -203,6 +209,17 @@ public final class CassandraGenerators
                                                                      cast(MUTATION_RSP_GEN),
                                                                      cast(READ_REPAIR_RSP_GEN))
                                                               .describedAs(CassandraGenerators::toStringRecursive);
+
+    private static final Constraint CLUSTERING_OPTIONS = Constraint.between(0, 2);
+    public static final Gen<Clustering<?>> CLUSTERING_GEN = rnd -> {
+        switch ((int) rnd.next(CLUSTERING_OPTIONS))
+        {
+            case 0: return Clustering.EMPTY;
+            case 1: return Clustering.STATIC_CLUSTERING;
+            case 2: return Clustering.make(Generators.array(ByteBuffer.class, directAndHeapBytes(0, 10), SourceDSL.integers().between(1, 3)).generate(rnd));
+            default: throw new AssertionError();
+        }
+    };
 
     private CassandraGenerators()
     {
@@ -481,7 +498,7 @@ public final class CassandraGenerators
                 AbstractReplicationStrategy replication = replicationGen.generate(rs).withKeyspace(nameGen).build().generate(rs);
                 ReplicationParams replicationParams = ReplicationParams.fromStrategy(replication);
                 boolean durableWrites = durableWritesGen.generate(rs);
-                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams);
+                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, FastPathStrategy.simple());
                 Tables tables = Tables.none();
                 Views views = Views.none();
                 Types types = Types.none();
@@ -548,11 +565,39 @@ public final class CassandraGenerators
             Map<String, String> options = new HashMap<>();
             if (nextBoolean(rnd))
                 options.putAll(sizeTieredOptions.generate(rnd));
+            int maxSSTableSizeInMB = LeveledCompactionStrategy.DEFAULT_MAX_SSTABLE_SIZE_MIB;
             if (nextBoolean(rnd))
+            {
                 // size in mb
-                options.put(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, SourceDSL.integers().between(1, 2_000).generate(rnd).toString());
+                maxSSTableSizeInMB = SourceDSL.integers().between(1, 2_000).generate(rnd);
+                options.put(LeveledCompactionStrategy.SSTABLE_SIZE_OPTION, Integer.toString(maxSSTableSizeInMB));
+            }
             if (nextBoolean(rnd))
-                options.put(LeveledCompactionStrategy.LEVEL_FANOUT_SIZE_OPTION, SourceDSL.integers().between(1, 100).generate(rnd).toString());
+            {
+                // there is a relationship between sstable size and fanout, so respect it
+                // see CASSANDRA-20570: Leveled Compaction doesn't validate maxBytesForLevel when the table is altered/created
+                long maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024L * 1024L;
+                Gen<Integer> gen = SourceDSL.integers().between(1, 100);
+                Integer value = gen.generate(rnd);
+                while (true)
+                {
+                    try
+                    {
+                        // see org.apache.cassandra.db.compaction.LeveledGenerations.MAX_LEVEL_COUNT for why 8 is hard coded here
+                        LeveledManifest.maxBytesForLevel(8, value, maxSSTableSizeInBytes);
+                        break; // value is good, keep it
+                    }
+                    catch (RuntimeException e)
+                    {
+                        // this value is too large... lets shrink it
+                        if (value.intValue() == 1)
+                            throw new AssertionError("There is no possible fanout size that works with maxSSTableSizeInMB=" + maxSSTableSizeInMB);
+                        gen = SourceDSL.integers().between(1, value - 1);
+                        value = gen.generate(rnd);
+                    }
+                }
+                options.put(LeveledCompactionStrategy.LEVEL_FANOUT_SIZE_OPTION, value.toString());
+            }
             if (nextBoolean(rnd))
                 options.put(LeveledCompactionStrategy.SINGLE_SSTABLE_UPLEVEL_OPTION, nextBoolean(rnd).toString());
             return options;
@@ -746,6 +791,10 @@ public final class CassandraGenerators
         private Gen<CompactionParams> compactionParamsGen = null;
         @Nullable
         private Gen<CompressionParams> compressionParamsGen = null;
+        @Nullable
+        private Gen<TransactionalMode> transactionalMode = null;
+        @Nullable
+        private Gen<FastPathStrategy> fastPathStrategy = null;
 
         public TableParamsBuilder withKnownMemtables()
         {
@@ -774,6 +823,81 @@ public final class CassandraGenerators
             return this;
         }
 
+        public TableParamsBuilder withTransactionalMode(Gen<TransactionalMode> transactionalMode)
+        {
+            this.transactionalMode = transactionalMode;
+            return this;
+        }
+
+        public TableParamsBuilder withTransactionalMode()
+        {
+            return withTransactionalMode(SourceDSL.arbitrary().enumValues(TransactionalMode.class));
+        }
+
+        public TableParamsBuilder withTransactionalMode(TransactionalMode transactionalMode)
+        {
+            return withTransactionalMode(SourceDSL.arbitrary().constant(transactionalMode));
+        }
+
+        public TableParamsBuilder withFastPathStrategy()
+        {
+            fastPathStrategy = rnd -> {
+                FastPathStrategy.Kind kind = SourceDSL.arbitrary().enumValues(FastPathStrategy.Kind.class).generate(rnd);
+                switch (kind)
+                {
+                    case SIMPLE:
+                        return SimpleFastPathStrategy.instance;
+                    case INHERIT_KEYSPACE:
+                        return InheritKeyspaceFastPathStrategy.instance;
+                    case PARAMETERIZED:
+                    {
+                        Map<String, String> map = new HashMap<>();
+                        int size = SourceDSL.integers().between(1, Integer.MAX_VALUE).generate(rnd);
+                        map.put(ParameterizedFastPathStrategy.SIZE, Integer.toString(size));
+                        Set<String> names = new HashSet<>();
+                        Gen<String> nameGen = SourceDSL.strings().allPossible().ofLengthBetween(1, 10)
+                                                       // If : is in the name then the parser will fail; we have validation to disalow this
+                                                       .map(s -> s.replace(":", "_"))
+                                                       // Names are used for DCs and those are seperated by ,
+                                                       .map(s -> s.replace(",", "_"))
+                                                       .assuming(s -> !s.trim().isEmpty());
+                        int numNames = SourceDSL.integers().between(1, 10).generate(rnd);
+                        for (int i = 0; i < numNames; i++)
+                        {
+                            while (!names.add(nameGen.generate(rnd)))
+                            {
+                            }
+                        }
+                        List<String> sortedNames = new ArrayList<>(names);
+                        sortedNames.sort(Comparator.naturalOrder());
+                        List<String> dcs = new ArrayList<>(names.size());
+                        boolean auto = SourceDSL.booleans().all().generate(rnd);
+                        if (auto)
+                        {
+                            dcs.addAll(sortedNames);
+                        }
+                        else
+                        {
+                            for (String name : sortedNames)
+                            {
+                                int weight = SourceDSL.integers().between(0, 10).generate(rnd);
+                                dcs.add(name + ":" + weight);
+                            }
+                        }
+                        // str: dcFormat(,dcFormat)*
+                        //      dcFormat: name | weight
+                        //      weight: int: >= 0
+                        //      note: can't mix auto and user defined weight; need one or the other.  Names must be unique
+                        map.put(ParameterizedFastPathStrategy.DCS, String.join(",", dcs));
+                        return ParameterizedFastPathStrategy.fromMap(map);
+                    }
+                    default:
+                        throw new UnsupportedOperationException(kind.name());
+                }
+            };
+            return this;
+        }
+
         public Gen<TableParams> build()
         {
             return rnd -> {
@@ -786,6 +910,10 @@ public final class CassandraGenerators
                     params.compaction(compactionParamsGen.generate(rnd));
                 if (compressionParamsGen != null)
                     params.compression(compressionParamsGen.generate(rnd));
+                if (transactionalMode != null)
+                    params.transactionalMode(transactionalMode.generate(rnd));
+                if (fastPathStrategy != null)
+                    params.fastPath(fastPathStrategy.generate(rnd));
                 return params.build();
             };
         }
@@ -859,6 +987,18 @@ public final class CassandraGenerators
         public TableMetadataBuilder withUseCounter(Gen<Boolean> useCounter)
         {
             this.useCounter = Objects.requireNonNull(useCounter);
+            return this;
+        }
+
+        public TableMetadataBuilder withTransactionalMode(Gen<TransactionalMode> transactionalMode)
+        {
+            paramsBuilder.withTransactionalMode(transactionalMode);
+            return this;
+        }
+
+        public TableMetadataBuilder withTransactionalMode(TransactionalMode transactionalMode)
+        {
+            paramsBuilder.withTransactionalMode(transactionalMode);
             return this;
         }
 
@@ -1079,10 +1219,16 @@ public final class CassandraGenerators
         }
     }
 
+    public static Gen<ColumnMetadata> columnMetadataGen()
+    {
+        return columnMetadataGen(SourceDSL.arbitrary().enumValues(ColumnMetadata.Kind.class), AbstractTypeGenerators.typeGen());
+    }
+
     public static Gen<ColumnMetadata> columnMetadataGen(Gen<ColumnMetadata.Kind> kindGen, Gen<AbstractType<?>> typeGen)
     {
         Gen<String> ksNameGen = CassandraGenerators.KEYSPACE_NAME_GEN;
         Gen<String> tableNameGen = IDENTIFIER_GEN;
+
         return rs -> {
             String ks = ksNameGen.generate(rs);
             String table = tableNameGen.generate(rs);
@@ -1109,7 +1255,7 @@ public final class CassandraGenerators
             // empty type is also not supported, so filter out
             case PARTITION_KEY:
             case CLUSTERING:
-                typeGen = Generators.filter(typeGen, t -> t != EmptyType.instance).map(AbstractType::freeze);
+                typeGen = Generators.filter(typeGen, t -> t != EmptyType.instance && t != CounterColumnType.instance).map(AbstractType::freeze);
                 break;
         }
         if (kind == ColumnMetadata.Kind.CLUSTERING)
@@ -1122,7 +1268,7 @@ public final class CassandraGenerators
         ColumnIdentifier name = new ColumnIdentifier(str, true);
         int position = !kind.isPrimaryKeyKind() ? -1 : kindOffset;
         AbstractType<?> type = typeGen.generate(rnd);
-        return new ColumnMetadata(ks, table, name, type, position, kind, null);
+        return new ColumnMetadata(ks, table, name, type, ColumnMetadata.NO_UNIQUE_ID, position, kind, null);
     }
 
     public static Gen<ByteBuffer> partitionKeyDataGen(TableMetadata metadata)
@@ -1389,24 +1535,6 @@ public final class CassandraGenerators
         return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
                         .assuming(p -> p != SupportedPartitioners.Local)
                         .flatMap(SupportedPartitioners::partitioner);
-    }
-
-    /**
-     * For {@link LocalPartitioner} it can have a very complex type which can lead to generating data larger than
-     * allowed in a primary key.  If a test needs to filter out those cases, can just
-     * {@code .map(CassandraGenerators::simplify)} to resolve.
-     */
-    public static IPartitioner simplify(IPartitioner partitioner)
-    {
-        // serializers require tokens to fit within 1 << 16, but that makes the test flakey when LocalPartitioner with a nested type is found...
-        if (!(partitioner instanceof LocalPartitioner)) return partitioner;
-        if (!shouldSimplify(partitioner.getTokenValidator())) return partitioner;
-        return new LocalPartitioner(Int32Type.instance);
-    }
-
-    private static boolean shouldSimplify(AbstractType<?> type)
-    {
-        return AbstractTypeGenerators.contains(type, t -> t.isCollection());
     }
 
     public static Gen<Token> token()
@@ -1731,5 +1859,63 @@ public final class CassandraGenerators
 
             return Epoch.create(SourceDSL.longs().between(2, Long.MAX_VALUE).generate(rnd));
         };
+    }
+
+    public static Gen<Node.Id> accordNodeId()
+    {
+        return SourceDSL.integers().between(0, Integer.MAX_VALUE).map(Node.Id::new);
+    }
+
+    public static Gen<AccordStaleReplicas> accordStaleReplicas()
+    {
+        Gen<Set<Node.Id>> staleIdsGen = Generators.set(accordNodeId(), SourceDSL.integers().between(0, 10));
+        Gen<Epoch> epochGen = epochs();
+        return rnd -> new AccordStaleReplicas(staleIdsGen.generate(rnd), epochGen.generate(rnd));
+    }
+
+    public static Gen<AccordFastPath> accordFastPath()
+    {
+        Gen<List<Node.Id>> nodesGen = Generators.uniqueList(accordNodeId(), SourceDSL.integers().between(0, 10));
+        Gen<AccordFastPath.Status> statusGen = SourceDSL.arbitrary().enumValues(AccordFastPath.Status.class);
+        Gen<Long> updateTimeMillis = TIMESTAMP_NANOS.map(TimeUnit.NANOSECONDS::toMillis);
+        Gen<Long> updateDelayMillis = SourceDSL.longs().between(0, TimeUnit.HOURS.toMillis(2));
+        return rnd -> {
+            AccordFastPath accum = AccordFastPath.EMPTY;
+            for (Node.Id node : nodesGen.generate(rnd))
+            {
+                AccordFastPath.Status status = statusGen.generate(rnd);
+                // can't add a NORMAL node that doesn't exist, it must be ab-NORMAL first...
+                if (status == AccordFastPath.Status.NORMAL)
+                    accum = accum.withNodeStatusSince(node, AccordFastPath.Status.UNAVAILABLE, 0, 0);
+                accum = accum.withNodeStatusSince(node, status, updateTimeMillis.generate(rnd), updateDelayMillis.generate(rnd));
+            }
+            return accum;
+        };
+    }
+
+    public static class ClusterMetadataBuilder
+    {
+        private Gen<Epoch> epochGen = epochs();
+        private Gen<IPartitioner> partitionerGen = nonLocalPartitioners();
+        private Gen<AccordStaleReplicas> accordStaleReplicasGen = accordStaleReplicas();
+        private Gen<AccordFastPath> accordFastPathGen = accordFastPath();
+        public Gen<ClusterMetadata> build()
+        {
+            return rnd -> {
+                Epoch epoch = epochGen.generate(rnd);
+                IPartitioner partitioner = partitionerGen.generate(rnd);
+                Directory directory = Directory.EMPTY;
+                DistributedSchema schema = DistributedSchema.first(directory.knownDatacenters());
+                TokenMap tokenMap = new TokenMap(partitioner);
+                DataPlacements placements = DataPlacements.EMPTY;
+                AccordFastPath accordFastPath = accordFastPathGen.generate(rnd);
+                LockedRanges lockedRanges = LockedRanges.EMPTY;
+                InProgressSequences inProgressSequences = InProgressSequences.EMPTY;
+                ConsensusMigrationState consensusMigrationState = ConsensusMigrationState.EMPTY;
+                Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = ImmutableMap.of();
+                AccordStaleReplicas accordStaleReplicas = accordStaleReplicasGen.generate(rnd);
+                return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions, accordStaleReplicas);
+            };
+        }
     }
 }

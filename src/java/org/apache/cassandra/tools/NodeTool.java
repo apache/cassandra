@@ -17,20 +17,7 @@
  */
 package org.apache.cassandra.tools;
 
-import static com.google.common.base.Throwables.getStackTraceAsString;
-import static com.google.common.collect.Iterables.toArray;
-import static com.google.common.collect.Lists.newArrayList;
-import static java.lang.Integer.parseInt;
-import static java.lang.String.format;
-import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
-import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import static org.apache.commons.lang3.StringUtils.isEmpty;
-import static org.apache.commons.lang3.StringUtils.isNotEmpty;
-
 import java.io.Console;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileWriter;
 import java.io.FileNotFoundException;
 import java.io.IOError;
 import java.io.IOException;
@@ -44,16 +31,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.SortedMap;
-
 import javax.management.InstanceNotFoundException;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
-
-import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
-import org.apache.cassandra.tools.nodetool.*;
-import org.apache.cassandra.utils.FBUtilities;
-
 import com.google.common.collect.Maps;
 
 import io.airlift.airline.Cli;
@@ -67,6 +48,22 @@ import io.airlift.airline.ParseCommandUnrecognizedException;
 import io.airlift.airline.ParseOptionConversionException;
 import io.airlift.airline.ParseOptionMissingException;
 import io.airlift.airline.ParseOptionMissingValueException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileWriter;
+import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.tools.nodetool.*;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static com.google.common.base.Throwables.getStackTraceAsString;
+import static com.google.common.collect.Iterables.toArray;
+import static com.google.common.collect.Lists.newArrayList;
+import static java.lang.Integer.parseInt;
+import static java.lang.String.format;
+import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
+import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static org.apache.commons.lang3.StringUtils.isEmpty;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
 public class NodeTool
 {
@@ -95,7 +92,9 @@ public class NodeTool
     {
         List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
                 AbortBootstrap.class,
+                AlterTopology.class,
                 Assassinate.class,
+                AutoRepairStatus.class,
                 CassHelp.class,
                 CIDRFilteringStats.class,
                 Cleanup.class,
@@ -135,6 +134,7 @@ public class NodeTool
                 GcStats.class,
                 GetAuditLog.class,
                 GetAuthCacheConfig.class,
+                GetAutoRepairConfig.class,
                 GetBatchlogReplayTrottle.class,
                 GetCIDRGroupsOfIP.class,
                 GetColumnIndexSize.class,
@@ -199,6 +199,7 @@ public class NodeTool
                 Ring.class,
                 Scrub.class,
                 SetAuthCacheConfig.class,
+                SetAutoRepairConfig.class,
                 SetBatchlogReplayThrottle.class,
                 SetCacheCapacity.class,
                 SetCacheKeysToSave.class,
@@ -219,6 +220,7 @@ public class NodeTool
                 SetTraceProbability.class,
                 Sjk.class,
                 Snapshot.class,
+                SSTableRepairedSet.class,
                 Status.class,
                 StatusAutoCompaction.class,
                 StatusBackup.class,
@@ -269,7 +271,24 @@ public class NodeTool
                .withCommand(CMSAdmin.ReconfigureCMS.class)
                .withCommand(CMSAdmin.Snapshot.class)
                .withCommand(CMSAdmin.Unregister.class)
-               .withCommand(CMSAdmin.AbortInitialization.class);
+               .withCommand(CMSAdmin.AbortInitialization.class)
+               .withCommand(CMSAdmin.DumpDirectory.class)
+               .withCommand(CMSAdmin.DumpLog.class)
+               .withCommand(CMSAdmin.ResumeDropAccordTable.class);
+
+        builder.withGroup("consensus_admin")
+            .withDescription("List and mark ranges as migrating between consensus protocols")
+            .withDefaultCommand(CassHelp.class)
+            .withCommand(ConsensusMigrationAdmin.BeginMigration.class)
+            .withCommands(ConsensusMigrationAdmin.ListCmd.class)
+            .withCommands(ConsensusMigrationAdmin.FinishMigration.class);
+
+        builder.withGroup("accord")
+               .withDescription("Manage the operation of Accord")
+               .withDefaultCommand(AccordAdmin.Describe.class)
+               .withCommand(AccordAdmin.Describe.class)
+               .withCommand(AccordAdmin.MarkStale.class)
+               .withCommand(AccordAdmin.MarkRejoining.class);
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 
@@ -470,7 +489,7 @@ public class NodeTool
 
         protected enum KeyspaceSet
         {
-            ALL, NON_SYSTEM, NON_LOCAL_STRATEGY
+            ALL, NON_SYSTEM, NON_LOCAL_STRATEGY, ACCORD_MANAGED
         }
 
         protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe)
@@ -489,6 +508,8 @@ public class NodeTool
                     keyspaces.addAll(keyspaces = nodeProbe.getNonLocalStrategyKeyspaces());
                 else if (defaultKeyspaceSet == KeyspaceSet.NON_SYSTEM)
                     keyspaces.addAll(keyspaces = nodeProbe.getNonSystemKeyspaces());
+                else if (defaultKeyspaceSet == KeyspaceSet.ACCORD_MANAGED)
+                    keyspaces.addAll(nodeProbe.getAccordManagedKeyspaces());
                 else
                     keyspaces.addAll(nodeProbe.getKeyspaces());
             }

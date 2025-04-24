@@ -30,6 +30,7 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredSource;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.schema.TableMetadata;
@@ -178,6 +179,11 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 
     // Main write and read operations
 
+    default long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    {
+        return put(update, indexer, opGroup, false);
+    }
+
     /**
      * Put new data in the memtable. This operation may block until enough memory is available in the memory pool.
      *
@@ -185,12 +191,14 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      * @param indexer receives information about the update's effect
      * @param opGroup write operation group, used to permit the operation to complete if it is needed to complete a
      *                flush to free space.
+     * @param assumeMissing if true, the implementation MAY clone the key and attempt putIfAbsent without first
+     *                      looking for the keys' presence
      *
      * @return the smallest timestamp delta between corresponding rows from existing and update. A
      * timestamp delta being computed as the difference between the cells and DeletionTimes from any existing partition
      * and those in {@code update}. See CASSANDRA-7979.
      */
-    long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup);
+    long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
     // Read operations are provided by the UnfilteredSource interface.
 
@@ -362,6 +370,8 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      */
     boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition);
 
+    long getMemtableId();
+
     /** Approximate commit log lower bound, <= getCommitLogLowerBound, used as a time stamp for ordering */
     CommitLogPosition getApproximateCommitLogLowerBound();
 
@@ -441,4 +451,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
             super(copy.segmentId, copy.position);
         }
     }
+
+   default Token lastToken()
+   {
+       throw new UnsupportedOperationException("lastToken is not supported");
+   }
 }

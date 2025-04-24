@@ -21,15 +21,16 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.basic.SimulatedFault;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,6 +45,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.BaseProximity;
@@ -70,6 +72,7 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Sortable;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
@@ -107,6 +110,18 @@ public final class ServerTestUtils
             public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
+            }
+
+            @Override
+            public boolean supportCompareByEndpoint()
+            {
+                return true;
+            }
+
+            @Override
+            public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+            {
+                return (a, b) -> 0;
             }
         });
     }
@@ -168,7 +183,8 @@ public final class ServerTestUtils
         {
             public void uncaughtException(Thread t, Throwable e)
             {
-                logger.error("Fatal exception in thread " + t, e);
+                if (e instanceof SimulatedFault) logger.error("SimulatedFault {} in thread {}", e.getMessage(), t);
+                else logger.error("Fatal exception in thread " + t, e);
             }
         });
 
@@ -208,6 +224,7 @@ public final class ServerTestUtils
         if (cdcDir != null)
             cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
+        cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files
@@ -225,7 +242,7 @@ public final class ServerTestUtils
         }
     }
 
-    private static void cleanupDirectory(String dirName)
+    public static void cleanupDirectory(String dirName)
     {
         if (dirName != null)
             cleanupDirectory(new File(dirName));
@@ -263,7 +280,6 @@ public final class ServerTestUtils
         // log entries is always done by the dedicated log follower thread.
         DatabaseDescriptor.setMetadataSnapshotFrequency(Integer.MAX_VALUE);
 
-        Function<LocalLog, Processor> processorFactory = AtomicLongBackedProcessor::new;
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Location location = DatabaseDescriptor.getLocator().local();
         boolean addListeners = true;
@@ -271,15 +287,17 @@ public final class ServerTestUtils
         if (!Keyspace.isInitialized())
             Keyspace.setInitialized();
 
+        AtomicLongBackedProcessor.InMemoryStorage storage = new AtomicLongBackedProcessor.InMemoryStorage();
         LocalLog log = LocalLog.logSpec()
                                .withInitialState(initial)
                                .withDefaultListeners(addListeners)
+                               .withStorage(storage)
                                .createLog();
 
         ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
                                                                                         MetadataSnapshots.NO_OP,
                                                                                         log,
-                                                                                        processorFactory.apply(log),
+                                                                                        new AtomicLongBackedProcessor(log),
                                                                                         Commit.Replicator.NO_OP,
                                                                                         true);
 

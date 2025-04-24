@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
@@ -36,15 +37,15 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
+public class Query implements IIsolatedExecutor.SerializableCallable<SimpleQueryResult>
 {
     private static final long serialVersionUID = 1L;
 
-    final String query;
+    public final String query;
     final long timestamp;
     final org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin;
     final org.apache.cassandra.distributed.api.ConsistencyLevel serialConsistencyOrigin;
-    final Object[] boundValues;
+    public final Object[] boundValues;
 
     public Query(String query, long timestamp, org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin, org.apache.cassandra.distributed.api.ConsistencyLevel serialConsistencyOrigin, Object[] boundValues)
     {
@@ -55,7 +56,8 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
         this.boundValues = boundValues;
     }
 
-    public Object[][] call()
+    @Override
+    public SimpleQueryResult call()
     {
         ConsistencyLevel commitConsistency = toCassandraCL(commitConsistencyOrigin);
         ConsistencyLevel serialConsistency = serialConsistencyOrigin == null ? null : toCassandraCL(serialConsistencyOrigin);
@@ -88,7 +90,7 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
         if (res != null)
             res.setWarnings(ClientWarn.instance.getWarnings());
 
-        return RowUtil.toQueryResult(res).toObjectArrays();
+        return RowUtil.toQueryResult(res);
     }
 
     public String toString()

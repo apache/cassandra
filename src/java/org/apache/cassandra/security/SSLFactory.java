@@ -47,7 +47,7 @@ import org.apache.cassandra.security.ISslContextFactory.SocketType;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
@@ -125,7 +125,7 @@ public final class SSLFactory
     /**
      * Create a JSSE {@link SSLContext}.
      */
-    public static SSLContext createSSLContext(EncryptionOptions options, EncryptionOptions.ClientAuth clientAuth) throws IOException
+    public static SSLContext createSSLContext(EncryptionOptions options, EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth) throws IOException
     {
         return options.sslContextFactoryInstance.createJSSESslContext(clientAuth);
     }
@@ -133,7 +133,7 @@ public final class SSLFactory
     /**
      * get a netty {@link SslContext} instance
      */
-    public static SslContext getOrCreateSslContext(EncryptionOptions options, EncryptionOptions.ClientAuth clientAuth,
+    public static SslContext getOrCreateSslContext(EncryptionOptions options, EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
                                                    SocketType socketType,
                                                    String contextDescription) throws IOException
     {
@@ -157,7 +157,7 @@ public final class SSLFactory
     /**
      * Create a Netty {@link SslContext}
      */
-    static SslContext createNettySslContext(EncryptionOptions options, EncryptionOptions.ClientAuth clientAuth,
+    static SslContext createNettySslContext(EncryptionOptions options, EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
                                             SocketType socketType) throws IOException
     {
         return createNettySslContext(options, clientAuth, socketType,
@@ -167,7 +167,7 @@ public final class SSLFactory
     /**
      * Create a Netty {@link SslContext} with a supplied cipherFilter
      */
-    static SslContext createNettySslContext(EncryptionOptions options, EncryptionOptions.ClientAuth clientAuth,
+    static SslContext createNettySslContext(EncryptionOptions options, EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth,
                                             SocketType socketType, CipherSuiteFilter cipherFilter) throws IOException
     {
         return options.sslContextFactoryInstance.createNettySslContext(clientAuth, socketType,
@@ -356,7 +356,7 @@ public final class SSLFactory
         return !string.equals("SSLv2Hello");
     }
 
-    public static void validateSslContext(String contextDescription, EncryptionOptions options, EncryptionOptions.ClientAuth clientAuth, boolean logProtocolAndCiphers) throws IOException
+    public static void validateSslContext(String contextDescription, EncryptionOptions options, EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth, boolean logProtocolAndCiphers) throws IOException
     {
         if (options != null && options.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
         {

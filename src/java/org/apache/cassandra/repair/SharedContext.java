@@ -39,9 +39,11 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Access methods to shared resources and services.
@@ -50,6 +52,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
  *
  * See {@link Global#instance} for the main production path
  */
+// TODO (required, clarity): move under Util since this is a class with shared logic
 public interface SharedContext
 {
     InetAddressAndPort broadcastAddressAndPort();
@@ -81,6 +84,15 @@ public interface SharedContext
     TableRepairManager repairManager(ColumnFamilyStore store);
     StreamExecutor streamExecutor();
     PaxosRepairState paxosRepairState();
+    default Supplier<TimeUUID> timeUUID()
+    {
+        return TimeUUID.Generator::nextTimeUUID;
+    }
+
+    default ClusterMetadataService cms()
+    {
+        return ClusterMetadataService.instance();
+    }
 
     class Global implements SharedContext
     {

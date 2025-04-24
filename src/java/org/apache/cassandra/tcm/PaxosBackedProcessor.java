@@ -32,8 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
@@ -70,7 +70,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
     {
         ClusterMetadata metadata = log.waitForHighestConsecutive();
 
@@ -106,7 +106,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         for (Replica peer : replicas)
             requests.add(new FetchLogRequest(peer, MessagingService.instance(), metadata.epoch));
 
-        while (!retryPolicy.reachedMax())
+        while (!retryPolicy.hasExpired())
         {
             Iterator<FetchLogRequest> iter = requests.iterator();
             boolean hasRequestToSelf = false;
@@ -136,7 +136,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
             while (iter.hasNext())
             {
                 FetchLogRequest request = iter.next();
-                if (request.condition.awaitUninterruptibly(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS) &&
+                if (request.condition.awaitThrowUncheckedOnInterrupt(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS) &&
                     request.condition.isSuccess())
                 {
                     collected.add(request.to.endpoint());
@@ -153,7 +153,8 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
 
             if (collected.size() < blockFor)
             {
-                retryPolicy.maybeSleep();
+                if (!retryPolicy.maybeSleep())
+                    break;
                 continue;
             }
 
@@ -165,6 +166,31 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
 
         TCMMetrics.instance.cmsLogEntriesFetched(metadata.epoch, highestSeen.get());
         throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - collected.size(), blockFor, false);
+    }
+
+    @Override
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
+    {
+        return log.storage().getLogState(start, end, includeSnapshot);
+    }
+
+    @Override
+    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
+    {
+        while (true)
+        {
+            if (Thread.currentThread().isInterrupted())
+                throw new RuntimeException("Can not reconstruct during shutdown", new InterruptedException());
+            try
+            {
+                return DistributedMetadataLogKeyspace.getLogState(start, end, includeSnapshot);
+            }
+            catch (RuntimeException e) // honestly best to only retry timeouts, but everything gets wrapped in a RuntimeException...
+            {
+                if (!retryPolicy.maybeSleep())
+                   throw new RuntimeException(String.format("Could not reconstruct range %d, %d", start.getEpoch(), end.getEpoch()), new TimeoutException());
+            }
+        }
     }
 
     private static <T> T unwrap(Promise<T> promise)
@@ -202,10 +228,10 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
-            logger.debug("Error response from {} with {}", from, failureReason);
-            condition.tryFailure(new TimeoutException(failureReason.toString()));
+            logger.debug("Error response from {} with {}", from, failure.reason);
+            condition.tryFailure(new TimeoutException(failure.reason.toString()));
         }
 
         public void retry()

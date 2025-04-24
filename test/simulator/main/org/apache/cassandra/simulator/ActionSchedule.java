@@ -322,6 +322,9 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
         return false;
     }
 
+    // NOTE: this is only here for debugging, its a quick way to see if pre (0), interleave (1), or post (2) is active
+    private int step = -1;
+
     private boolean moreWork()
     {
         if (!moreWork.hasNext())
@@ -347,6 +350,8 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
         work.actors.forEach(runnableScheduler::attachTo);
         work.actors.forEach(a -> a.forEach(Action::setConsequence));
         work.actors.forEach(this::add);
+
+        step++;
         return true;
     }
 

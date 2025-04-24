@@ -20,7 +20,7 @@ package org.apache.cassandra.service;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -29,9 +29,10 @@ import org.apache.cassandra.transport.Dispatcher;
 
 public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {
-    AbstractWriteResponseHandler<T> wrapped;
-    BatchlogCleanup cleanup;
+    final AbstractWriteResponseHandler<T> wrapped;
+    final BatchlogCleanup cleanup;
     protected volatile int requiredBeforeFinish;
+
     private static final AtomicIntegerFieldUpdater<BatchlogResponseHandler> requiredBeforeFinishUpdater
             = AtomicIntegerFieldUpdater.newUpdater(BatchlogResponseHandler.class, "requiredBeforeFinish");
 
@@ -55,9 +56,9 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
             cleanup.ackMutation();
     }
 
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
-        wrapped.onFailure(from, failureReason);
+        wrapped.onFailure(from, failure);
     }
 
     public boolean invokeOnFailure()
@@ -104,6 +105,11 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
             this.callback = callback;
         }
 
+        public BatchlogCleanup(BatchlogCleanupCallback callback)
+        {
+            this.callback = callback;
+        }
+
         public int decrement()
         {
             return mutationsWaitingForUpdater.decrementAndGet(this);
@@ -113,6 +119,11 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
         {
             if (decrement() == 0)
                 callback.invoke();
+        }
+
+        public void setMutationsWaitingFor(int mutationsWaitingFor)
+        {
+            mutationsWaitingForUpdater.lazySet(this, mutationsWaitingFor);
         }
     }
 

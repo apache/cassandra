@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,9 +33,12 @@ import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -53,6 +57,8 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.atomic.AtomicIntegerFieldUpdater.newUpdater;
+import static org.apache.cassandra.exceptions.RequestFailureReason.COORDINATOR_BEHIND;
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
@@ -172,6 +178,34 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (snapshot != null)
             snapshot.maybeAbort(command, replicaPlan().consistencyLevel(), received, replicaPlan().readQuorum(), resolver.isDataPresent(), failureReasonByEndpoint);
 
+        // failures keeps incrementing, and this.failureReasonByEndpoint keeps getting new entries after signaling.
+        // Simpler to reason about what happened by copying this.failureReasonByEndpoint and then inferring
+        // failures from it
+        final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = ImmutableMap.copyOf(this.failureReasonByEndpoint);
+        int transactionRetryErrors = 0;
+        int coordinatorBehindErrors = 0;
+        for (RequestFailureReason reason : failureReasonByEndpoint.values())
+        {
+            if (reason == RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM)
+                transactionRetryErrors++;
+            if (reason == COORDINATOR_BEHIND)
+                coordinatorBehindErrors++;
+        }
+        int totalRetriableFailures = transactionRetryErrors + coordinatorBehindErrors;
+
+        // TODO (nicetohave): This could be smarter and check if retrying would succeed instead of pessimistically
+        // failing unless all errors are retriable
+        if (!timedout && totalRetriableFailures > 0 && totalRetriableFailures == failureReasonByEndpoint.size())
+        {
+            // Doesn't matter which we throw really but for clarity/metrics be specific
+            // Retrying on the correct system might make this write succeed
+            if (transactionRetryErrors > 0)
+                throw new RetryOnDifferentSystemException();
+            if (coordinatorBehindErrors > 0)
+                throw new CoordinatorBehindException("Read request failed due to coordinator behind");
+        }
+
+
         // Same as for writes, see AbstractWriteResponseHandler
         throw !timedout
             ? new ReadFailureException(replicaPlan().consistencyLevel(), received, replicaPlan().readQuorum(), resolver.isDataPresent(), failureReasonByEndpoint)
@@ -186,7 +220,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         InetAddressAndPort from = message.from();
         if (WarningContext.isSupported(params.keySet()))
         {
-            RequestFailureReason reason = getWarningContext().updateCounters(params, from);
+            RequestFailure reason = getWarningContext().updateCounters(params, from);
             replicaPlan().collectFailure(message.from(), reason);
             if (reason != null)
             {
@@ -236,11 +270,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
         assertWaitingFor(from);
                 
-        failureReasonByEndpoint.put(from, failureReason);
+        failureReasonByEndpoint.put(from, failure.reason);
 
         if (replicaPlan().readQuorum() + failuresUpdater.incrementAndGet(this) > replicaPlan().contacts().size())
             condition.signalAll();

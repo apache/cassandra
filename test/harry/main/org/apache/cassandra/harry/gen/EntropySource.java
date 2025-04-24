@@ -39,13 +39,23 @@ public interface EntropySource
     EntropySource derive();
 
     int nextInt();
+
+    /**
+     * Generates a long in range [0, max).
+     */
     int nextInt(int max);
+
+    /**
+     * Generates a long in range [min, max).
+     */
     int nextInt(int min, int max);
     float nextFloat();
     double nextDouble();
 
     /**
      * Code is adopted from a similar method in JDK 17, and has to be removed as soon as we migrate to JDK 17.
+     *
+     * Generates a long in range [min, max).
      */
     default long nextLong(long min, long max) {
         long ret = next();

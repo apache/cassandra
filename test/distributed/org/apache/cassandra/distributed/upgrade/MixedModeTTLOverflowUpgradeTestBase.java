@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
+import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;
@@ -77,8 +78,35 @@ public abstract class MixedModeTTLOverflowUpgradeTestBase extends UpgradeTestBas
 
     static volatile long clusterStatupTime = 0;
 
+    private static class AllowedErrors
+    {
+        private final IntHashSet upgraded = new IntHashSet();
+
+        private void clear()
+        {
+            upgraded.clear();
+        }
+
+        private void upgraded(int node)
+        {
+            upgraded.add(node);
+        }
+
+        private boolean uncaughtExceptionsFilter(int node, Throwable t)
+        {
+            String message = t.getMessage();
+            if (message != null && message.endsWith("In order to avoid this use a lower TTL, change the expiration date overflow policy or upgrade to a version where this limitation is fixed. See CASSANDRA-14092 for more details."))
+            {
+                // upgraded nodes should not produce these errors
+                return !upgraded.contains(node);
+            }
+            return false;
+        }
+    }
+
     static void testTTLOverflow(RunOnClusterAndNode runAfterNodeUpgrade) throws Throwable
     {
+        AllowedErrors allowedErrors = new AllowedErrors();
         new TestCase()
                 .nodes(2)
                 .nodesToUpgradeOrdered(1, 2)
@@ -87,6 +115,9 @@ public abstract class MixedModeTTLOverflowUpgradeTestBase extends UpgradeTestBas
                 .singleUpgradeToCurrentFrom(v41)
                 .withConfig(c -> c.with(Feature.GOSSIP).set("storage_compatibility_mode", "CASSANDRA_4"))
                 .setup(cluster -> {
+                    allowedErrors.clear();
+                    cluster.setUncaughtExceptionsFilter(allowedErrors::uncaughtExceptionsFilter);
+
                     cluster.schemaChange(String.format("CREATE TABLE %s.%s (k int PRIMARY KEY, v1 int, v2 int)", KEYSPACE, T_REGULAR));
                     cluster.schemaChange(String.format("CREATE TABLE %s.%s (k int, c int, v1 int, v2 int, PRIMARY KEY (k, c))", KEYSPACE, T_CLUST));
                     cluster.schemaChange(String.format("CREATE TABLE %s.%s (k int, c int, v1 int static, v2 int, PRIMARY KEY (k, c))", KEYSPACE, T_STATIC));
@@ -100,7 +131,10 @@ public abstract class MixedModeTTLOverflowUpgradeTestBase extends UpgradeTestBas
                     clusterStatupTime = Clock.Global.currentTimeMillis();
                     verify(Step.NODE1_PREV_NODE2_PREV, cluster, true);
                 })
-                .runAfterNodeUpgrade(runAfterNodeUpgrade)
+                .runAfterNodeUpgrade((c, n) -> {
+                    allowedErrors.upgraded(n);
+                    runAfterNodeUpgrade.run(c, n);
+                })
                 .run();
     }
 

@@ -18,7 +18,16 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -32,19 +41,38 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.Attributes;
+import org.apache.cassandra.cql3.BatchQueryOptions;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.metrics.BatchMetrics;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -53,13 +81,12 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.function.Predicate.isEqual;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
  */
-public class BatchStatement implements CQLStatement
+public class BatchStatement implements CQLStatement.CompositeCQLStatement
 {
     public enum Type
     {
@@ -202,7 +229,7 @@ public class BatchStatement implements CQLStatement
         for (ModificationStatement statement : statements)
         {
             if (timestampSet && statement.isTimestampSet())
-                throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
+                throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements: " + statement.source);
 
             if (statement.isCounter())
                 hasCounters = true;
@@ -243,7 +270,7 @@ public class BatchStatement implements CQLStatement
             for (ModificationStatement stmt : statements)
             {
                 if (ksName != null && (!stmt.keyspace().equals(ksName) || !stmt.table().equals(cfName)))
-                    throw new InvalidRequestException("Batch with conditions cannot span multiple tables");
+                    throw new InvalidRequestException("Batch with conditions cannot span multiple tables: " + stmt.source);
                 ksName = stmt.keyspace();
                 cfName = stmt.table();
             }
@@ -268,6 +295,7 @@ public class BatchStatement implements CQLStatement
             statement.validate(state);
     }
 
+    @Override
     public List<ModificationStatement> getStatements()
     {
         return statements;
@@ -327,7 +355,9 @@ public class BatchStatement implements CQLStatement
             ClientWarn.instance.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
                                                      .getMessage());
         }
-        return collector.toMutations(state);
+        // local is either executeWithoutConditions modifying a virtual table (doesn't support txns) or executeLocal
+        // which is called by test or internal things that are bypassing distributed system modification/checks
+        return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
     }
 
     /**
@@ -617,7 +647,7 @@ public class BatchStatement implements CQLStatement
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 
-    public static class Parsed extends QualifiedStatement
+    public static class Parsed extends QualifiedStatement.Composite
     {
         private final Type type;
         private final Attributes.Raw attrs;
@@ -625,21 +655,15 @@ public class BatchStatement implements CQLStatement
 
         public Parsed(Type type, Attributes.Raw attrs, List<ModificationStatement.Parsed> parsedStatements)
         {
-            super(null);
             this.type = type;
             this.attrs = attrs;
             this.parsedStatements = parsedStatements;
         }
 
-        // Not doing this in the constructor since we only need this for prepared statements
         @Override
-        public boolean isFullyQualified()
+        protected Iterable<? extends QualifiedStatement> getStatements()
         {
-            for (ModificationStatement.Parsed statement : parsedStatements)
-                if (!statement.isFullyQualified())
-                    return false;
-
-            return true;
+            return parsedStatements;
         }
 
         @Override

@@ -28,9 +28,13 @@ import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.service.accord.AccordFastPath;
+import org.apache.cassandra.service.accord.AccordStaleReplicas;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.Commit.Replicator;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
@@ -70,7 +74,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
 
     private ClusterMetadata metadata;
 
-    private StubClusterMetadataService(ClusterMetadata initial)
+    protected StubClusterMetadataService(ClusterMetadata initial)
     {
         super(new UniformRangePlacement(),
               MetadataSnapshots.NO_OP,
@@ -101,13 +105,18 @@ public class StubClusterMetadataService extends ClusterMetadataService
     @Override
     public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitFailureHandler<T1> onFailure)
     {
-        Transformation.Result result = transform.execute(metadata);
+        Transformation.Result result = execute(transform);
         if (result.isSuccess())
         {
-            metadata = result.success().metadata;
+            setMetadata(result.success().metadata);
             return  onSuccess.accept(result.success().metadata);
         }
         return onFailure.accept(result.rejected().code, result.rejected().reason);
+    }
+
+    protected Transformation.Result execute(Transformation transform)
+    {
+        return transform.execute(metadata());
     }
 
     @Override
@@ -133,13 +142,25 @@ public class StubClusterMetadataService extends ClusterMetadataService
         private StubProcessor() {}
 
         @Override
-        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
         {
             throw new UnsupportedOperationException();
         }
@@ -172,9 +193,12 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                               Directory.EMPTY,
                                               new TokenMap(partitioner),
                                               DataPlacements.EMPTY,
+                                              AccordFastPath.EMPTY,
                                               LockedRanges.EMPTY,
                                               InProgressSequences.EMPTY,
-                                              ImmutableMap.of());
+                                              ConsensusMigrationState.EMPTY,
+                                              ImmutableMap.of(),
+                                              AccordStaleReplicas.EMPTY);
             }
             return new StubClusterMetadataService(new UniformRangePlacement(),
                                                   snapshots != null ? snapshots : MetadataSnapshots.NO_OP,

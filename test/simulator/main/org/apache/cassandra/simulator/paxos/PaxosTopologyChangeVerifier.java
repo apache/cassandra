@@ -58,7 +58,7 @@ public class PaxosTopologyChangeVerifier implements TopologyChangeValidator
     @Override
     public void after(Topology topologyAfter)
     {
-        afterInternal(topologyAfter.select(topologyBefore.primaryKeys));
+        afterInternal(topologyBefore == null ? topologyAfter : topologyAfter.select(topologyBefore.primaryKeys));
     }
 
     public void afterInternal(Topology topologyAfter)

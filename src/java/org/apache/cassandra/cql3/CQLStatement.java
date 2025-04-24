@@ -133,4 +133,14 @@ public interface CQLStatement
     {
         String keyspace();
     }
+
+    interface CompositeCQLStatement extends CQLStatement
+    {
+        Iterable<? extends CQLStatement> getStatements();
+    }
+
+    interface ReturningCQLStatement extends CQLStatement
+    {
+        ResultSet.ResultMetadata getResultMetadata();
+    }
 }

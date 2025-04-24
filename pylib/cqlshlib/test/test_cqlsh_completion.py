@@ -114,7 +114,8 @@ class CqlshCompletionCase(BaseTestCase):
 
     def _trycompletions_inner(self, inputstring, immediate='', choices=(),
                               other_choices_ok=False,
-                              split_completed_lines=True):
+                              split_completed_lines=True,
+                              ignore_system_keyspaces=False):
         """
         Test tab completion in cqlsh. Enters in the text in inputstring, then
         simulates a tab keypress to see what is immediately completed (this
@@ -132,17 +133,22 @@ class CqlshCompletionCase(BaseTestCase):
             self.assertEqual(completed, immediate, msg=msg)
             return
 
+        if ignore_system_keyspaces:
+            completed = list(filter(lambda s: not s.startswith('system'), completed))
+
         if other_choices_ok:
             self.assertEqual(set(choices), completed.intersection(choices))
         else:
             self.assertEqual(set(choices), set(completed))
 
     def trycompletions(self, inputstring, immediate='', choices=(),
-                       other_choices_ok=False, split_completed_lines=True):
+                       other_choices_ok=False, split_completed_lines=True,
+                       ignore_system_keyspaces=False):
         try:
             self._trycompletions_inner(inputstring, immediate, choices,
                                        other_choices_ok=other_choices_ok,
-                                       split_completed_lines=split_completed_lines)
+                                       split_completed_lines=split_completed_lines,
+                                       ignore_system_keyspaces=ignore_system_keyspaces)
         finally:
             try:
                 self.cqlsh.send(CTRL_C)  # cancel any current line
@@ -175,7 +181,43 @@ class TestCqlshCompletion(CqlshCompletionCase):
         pass
 
     def test_complete_in_select(self):
-        pass
+        self.trycompletions('SELECT ',
+                            choices=('*', '<colname>',
+                                     '-', '<blobLiteral>', '<float>', '<wholenumber>', '<uuid>',
+                                     '<identifier>', '<pgStringLiteral>', '<quotedStringLiteral>',
+                                     'ABS', 'AVG', 'CAST', 'COUNT', 'DISTINCT',
+                                     'EXP', 'JSON', 'LOG', 'LOG10',
+                                     'MAP_KEYS', 'MAP_VALUES',
+                                     'MIN', 'MAX',
+                                     'MIN_WRITETIME', 'MAX_WRITETIME',
+                                     'ROUND', 'SUM', 'TOKEN',
+                                     'TO_DATE', 'TO_TIMESTAMP', 'TO_UNIX_TIMESTAMP',
+                                     'TTL', 'WRITETIME',
+                                     'COLLECTION_AVG', 'COLLECTION_COUNT', 'COLLECTION_MAX',
+                                     'COLLECTION_MIN', 'COLLECTION_SUM',
+                                     'MASK_DEFAULT', 'MASK_HASH', 'MASK_INNER', 'MASK_NULL',
+                                     'MASK_OUTER', 'MASK_REPLACE',
+                                     '[', '{', 'false', 'true', 'NULL'
+                                     ),
+                            other_choices_ok=True
+                            )
+
+    def test_complete_in_select_where(self):
+        self.trycompletions('SELECT * FROM system.peers WHERE ',
+                            choices=('<identifier>', '<quotedName>', 'peer', 'CURRENT_DATE()', 'CURRENT_TIME()',
+                                     'CURRENT_TIMEUUID()', 'CURRENT_TIMESTAMP()', 'TOKEN',
+                                     'MIN_TIMEUUID', 'MAX_TIMEUUID')
+                            )
+
+    def test_complete_in_select_where_equal(self):
+        self.trycompletions('SELECT * FROM system.peers WHERE rack = ',
+                            choices=('-', '<blobLiteral>', '<float>', '<wholenumber>', '<uuid>',
+                                     '<identifier>', '<pgStringLiteral>', '<quotedStringLiteral>',
+                                     '[', '{', 'false', 'true', 'NULL',
+                                     'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID',
+                                     'CURRENT_DATE()', 'CURRENT_TIME()', 'CURRENT_TIMEUUID()', 'CURRENT_TIMESTAMP()'
+                                     )
+                            )
 
     def test_complete_in_insert(self):
         self.trycompletions('INSERT INTO  ',
@@ -376,7 +418,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs'",
                             choices=[',', 'WHERE'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE ",
-                            choices=['TOKEN(', 'lonelykey'])
+                            choices=['CURRENT_DATE()', 'CURRENT_TIME()', 'CURRENT_TIMESTAMP()',
+                                     'CURRENT_TIMEUUID()', 'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID', 'lonelykey'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonel",
                             immediate='ykey ')
@@ -385,7 +428,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 ",
                             choices=['AND', 'IF', ';'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 AND ",
-                            choices=['TOKEN(', 'lonelykey'])
+                            choices=['CURRENT_DATE()', 'CURRENT_TIME()', 'CURRENT_TIMESTAMP()',
+                                     'CURRENT_TIMEUUID()', 'TOKEN', 'MIN_TIMEUUID', 'MAX_TIMEUUID', 'lonelykey'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey ",
                             choices=[',', ')'])
@@ -461,7 +505,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 ',
                             immediate='WHERE ')
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE ',
-                            choices=['a', 'b', 'TOKEN('])
+                            choices=['a', 'b', 'CURRENT_DATE()', 'CURRENT_TIME()', 'CURRENT_TIMESTAMP()',
+                                     'CURRENT_TIMEUUID()', 'MAX_TIMEUUID', 'MIN_TIMEUUID', 'TOKEN'])
 
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE a ',
                             choices=['<=', '>=', 'BETWEEN', 'CONTAINS', 'IN', 'NOT', '[', '=', '<', '>', '!='])
@@ -476,7 +521,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['>=', '<=', '=', '<', '>'])
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE TOKEN(a) >= ',
                             choices=['false', 'true', '<pgStringLiteral>',
-                                     'token(', '-', '<float>', 'TOKEN',
+                                     '-', '<float>', 'TOKEN',
                                      '<identifier>', '<uuid>', '{', '[', 'NULL',
                                      '<quotedStringLiteral>', '<blobLiteral>',
                                      '<wholenumber>'])

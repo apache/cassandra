@@ -19,6 +19,9 @@ package org.apache.cassandra.db.virtual;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -27,6 +30,7 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 
 import static java.lang.String.format;
@@ -34,7 +38,7 @@ import static org.apache.cassandra.cql3.QueryProcessor.execute;
 import static org.apache.cassandra.schema.DistributedMetadataLogKeyspace.TABLE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 
-final class ClusterMetadataLogTable extends AbstractVirtualTable
+public final class ClusterMetadataLogTable extends AbstractVirtualTable
 {
     private static final String EPOCH = "epoch";
     private static final String KIND = "kind";
@@ -59,21 +63,33 @@ final class ClusterMetadataLogTable extends AbstractVirtualTable
     @Override
     public DataSet data()
     {
+        SimpleDataSet result = new SimpleDataSet(metadata());
+        for (Map.Entry<Long, Map<String, Object>> entry : log(Epoch.FIRST.getEpoch(), Long.MAX_VALUE).entrySet())
+        {
+            SimpleDataSet data = result.row(entry.getKey());
+            for (Map.Entry<String, Object> rowEntry : entry.getValue().entrySet())
+                data = data.column(rowEntry.getKey(), rowEntry.getValue());
+        }
+        return result;
+    }
+
+    public static Map<Long, Map<String, Object>> log(long startEpoch, long endEpoch)
+    {
         try
         {
-            SimpleDataSet result = new SimpleDataSet(metadata());
+            Map<Long, Map<String, Object>> result = new LinkedHashMap<>();
             UntypedResultSet res = execute(format("SELECT epoch, kind, transformation, entry_id, writetime(kind) as wt " +
-                                                  "FROM %s.%s", METADATA_KEYSPACE_NAME, TABLE_NAME), ConsistencyLevel.QUORUM);
+                                                  "FROM %s.%s WHERE token(epoch) >= token(?) AND token(epoch) <= token(?)", METADATA_KEYSPACE_NAME, TABLE_NAME), ConsistencyLevel.QUORUM, endEpoch, startEpoch);
             for (UntypedResultSet.Row r : res)
             {
                 Transformation.Kind kind = Transformation.Kind.fromId(r.getInt("kind"));
                 Transformation transformation = kind.fromVersionedBytes(r.getBlob("transformation"));
-
-                result.row(r.getLong("epoch"))
-                      .column(KIND, kind.toString())
-                      .column(TRANSFORMATION, transformation.toString())
-                      .column(ENTRY_ID, r.getLong("entry_id"))
-                      .column(ENTRY_TIME, new Date(r.getLong("wt") / 1000));
+                Map<String, Object> row = new HashMap<>();
+                row.put(KIND, kind.toString());
+                row.put(TRANSFORMATION, transformation.toString());
+                row.put(ENTRY_ID, r.getLong("entry_id"));
+                row.put(ENTRY_TIME, new Date(r.getLong("wt") / 1000));
+                result.put(r.getLong("epoch"), row);
             }
             return result;
         }

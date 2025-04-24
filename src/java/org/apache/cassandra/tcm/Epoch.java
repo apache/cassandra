@@ -26,10 +26,12 @@ import java.util.Set;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class Epoch implements Comparable<Epoch>, Serializable
@@ -57,10 +59,12 @@ public class Epoch implements Comparable<Epoch>, Serializable
     };
 
     public static final Epoch FIRST = new Epoch(1);
+    public static final Epoch MAX = new Epoch(Long.MAX_VALUE);
     public static final Epoch EMPTY = new Epoch(0);
     public static final Epoch UPGRADE_STARTUP = new Epoch(Long.MIN_VALUE);
     public static final Epoch UPGRADE_GOSSIP = new Epoch(Long.MIN_VALUE + 1);
     private static final Set<Epoch> beforeFirst = Sets.newHashSet(EMPTY, UPGRADE_GOSSIP, UPGRADE_STARTUP);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY);
 
     private final long epoch;
 
@@ -85,6 +89,11 @@ public class Epoch implements Comparable<Epoch>, Serializable
     public static Epoch max(Epoch l, Epoch r)
     {
         return l.compareTo(r) > 0 ? l : r;
+    }
+
+    public static Epoch min(Epoch l, Epoch r)
+    {
+        return l.compareTo(r) < 0 ? l : r;
     }
 
     public boolean isDirectlyBefore(Epoch epoch)
@@ -168,37 +177,48 @@ public class Epoch implements Comparable<Epoch>, Serializable
         return epoch;
     }
 
-    public static class EpochSerializer implements MetadataSerializer<Epoch>
+    public static class EpochSerializer implements MetadataSerializer<Epoch>, UnversionedSerializer<Epoch>
     {
         // convenience methods for messageSerializer et al
+        @Override
         public void serialize(Epoch t, DataOutputPlus out) throws IOException
         {
             serialize(t, out, Version.V0);
         }
 
+        @Override
         public Epoch deserialize(DataInputPlus in) throws IOException
         {
             return deserialize(in, Version.V0);
         }
 
+        @Override
         public long serializedSize(Epoch t)
         {
             return serializedSize(t, Version.V0);
         }
 
+        @Override
         public void serialize(Epoch t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUnsignedVInt(t.epoch);
         }
 
+        @Override
         public Epoch deserialize(DataInputPlus in, Version version) throws IOException
         {
             return Epoch.create(in.readUnsignedVInt());
         }
 
+        @Override
         public long serializedSize(Epoch t, Version version)
         {
             return VIntCoding.computeUnsignedVIntSize(t.epoch);
         }
+    }
+
+    public long estimatedSizeOnHeap()
+    {
+        return EMPTY_SIZE;
     }
 }

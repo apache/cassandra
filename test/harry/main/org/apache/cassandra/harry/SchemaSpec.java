@@ -30,6 +30,7 @@ import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.util.IteratorsUtil;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
 import static org.apache.cassandra.harry.gen.InvertibleGenerator.MAX_ENTROPY;
@@ -174,6 +175,15 @@ public class SchemaSpec
         {
             appendWith.run();
             sb.append(" COMPACT STORAGE");
+            shouldAppendAnd = true;
+        }
+
+        if (options.transactionalMode() != null)
+        {
+            appendWith.run();
+            if (shouldAppendAnd)
+                sb.append(" AND");
+            sb.append(" ").append(options.transactionalMode().asCqlParam());
             shouldAppendAnd = true;
         }
 
@@ -339,6 +349,7 @@ public class SchemaSpec
 
     public interface Options
     {
+        TransactionalMode transactionalMode();
         boolean addWriteTimestamps();
         boolean disableReadRepair();
         String compactionStrategy();
@@ -354,6 +365,7 @@ public class SchemaSpec
 
     public static class OptionsBuilder implements Options
     {
+        private TransactionalMode transactionalMode = null;
         private boolean addWriteTimestamps = true;
         private boolean disableReadRepair = false;
         private String compactionStrategy = null;
@@ -363,6 +375,23 @@ public class SchemaSpec
 
         private OptionsBuilder()
         {
+        }
+
+        public Options build()
+        {
+            return this;
+        }
+
+        public OptionsBuilder withTransactionalMode(TransactionalMode mode)
+        {
+            this.transactionalMode = mode;
+            return this;
+        }
+
+        @Override
+        public TransactionalMode transactionalMode()
+        {
+            return transactionalMode;
         }
 
         public OptionsBuilder addWriteTimestamps(boolean newValue)

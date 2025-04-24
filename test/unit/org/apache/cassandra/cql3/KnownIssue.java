@@ -47,6 +47,8 @@ public enum KnownIssue
                       "When you do a CAS to the partition level the read is SELECT statics LIMIT 1, if the CAS doesn't apply the response includes the first row in the partition with its values redacted... this statement is partition level and not row level, would expect just the applied column like the other cases where the static row isn't present"),
     STATIC_LIST_APPEND_WITH_CLUSTERING_IN("",
                                           "When an 'UPDATE SET s += [0] WHERE pk = ? AND ck IN (?, ?)' happens the static operation happens twice, so the list append adds 2 elements!"),
+    ACCORD_JOURNAL_SUPPORT_DROP_TABLE("",
+                                      "When DROP TABLE is done, this is currently not plumbed through to Journals snapshot logic, which leads to unknown keyspace/table errors"),
     ;
 
     KnownIssue(String url, String description)

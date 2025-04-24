@@ -33,6 +33,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -77,7 +78,7 @@ public class CancelCMSReconfiguration implements Transformation
                                  .withoutWriteReplica(prev.nextEpoch(), pendingReplica)
                                  .build();
         }
-        if (!placement.reads.equals(placement.writes))
+        if (!placement.reads.equivalentTo(placement.writes))
             return new Rejected(ExceptionCode.INVALID, String.format("Placements will be inconsistent if this transformation is applied:\nReads %s\nWrites: %s",
                                                                      placement.reads,
                                                                      placement.writes));
@@ -94,7 +95,7 @@ public class CancelCMSReconfiguration implements Transformation
 
             // Also update schema with the corrected params
             KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
-            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, fromPlacement));
+            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, fromPlacement, FastPathStrategy.simple()));
             transformer = transformer.with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace)));
         }
 

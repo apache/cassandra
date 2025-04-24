@@ -81,9 +81,9 @@ public class CassandraStreamManager implements TableStreamManager
     }
 
     @Override
-    public StreamReceiver createStreamReceiver(StreamSession session, int totalStreams)
+    public StreamReceiver createStreamReceiver(StreamSession session, List<Range<Token>> ranges, int totalStreams)
     {
-        return new CassandraStreamReceiver(cfs, session, totalStreams);
+        return new CassandraStreamReceiver(cfs, session, ranges, totalStreams);
     }
 
     @Override

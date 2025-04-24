@@ -1,4 +1,13 @@
 5.1
+ * Change SSTableSimpleScanner to use SSTableReader#openDataReaderForScan (CASSANDRA-20538)
+ * Automated Repair Inside Cassandra [CEP-37] (CASSANDRA-19918)
+ * Grant permission on keyspaces system_views and system_virtual_schema not possible (CASSANDRA-20171)
+ * General Purpose Transactions (Accord) [CEP-15] (CASSANDRA-17092)
+ * Improve performance when getting writePlacementsAllSettled from ClusterMetadata (CASSANDRA-20526)
+ * Add nodetool command to dump the contents of the system_views.{cluster_metadata_log, cluster_metadata_directory} tables (CASSANDRA-20525)
+ * Fix TreeMap race in CollectionVirtualTableAdapter causing us to lose rows in the virtual table (CASSANDRA-20524)
+ * Improve metadata log catch up with inter-DC mutation forwarding (CASSANDRA-20523)
+ * Support topology-safe changes to Datacenter & Rack for live nodes (CASSANDRA-20528)
  * Add SSTableIntervalTree latency metric (CASSANDRA-20502)
  * Ignore repetitions of semicolon in CQLSH (CASSANDRA-19956)
  * Avoid NPE during cms initialization abort (CASSANDRA-20527)
@@ -171,6 +180,9 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * SAI marks an index as non-empty when a partial partition/row modifications is flushed due to repair (CASSANDRA-20567)
+ * SAI fails queries when multiple columns exist and a non-indexed column is a composite with a map (CASSANDRA-19891)
+ * Avoid purging deletions in RowFilter when reconciliation is required (CASSANDRA-20541)
  * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)
  * Upgrade com.datastax.cassandra:cassandra-driver-core:3.11.5 to org.apache.cassandra:cassandra-driver-core:3.12.1 (CASSANDRA-17231)
  * Update netty to 4.1.119.Final and netty-tcnative to 2.0.70.Final (CASSANDRA-20314)
@@ -226,6 +238,7 @@ Merged from 4.1:
  * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
  * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
+ * Avoid computing prepared statement size for unprepared batches (CASSANDRA-20556)
  * Fix Dropwizard Meter causes timeouts when infrequently used (CASSANDRA-19332)
  * Update OWASP dependency checker to version 12.1.0 (CASSANDRA-20501)
  * Suppress CVE-2025-25193 (CASSANDRA-20504)

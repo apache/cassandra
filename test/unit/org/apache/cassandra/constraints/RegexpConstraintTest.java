@@ -98,6 +98,6 @@ public class RegexpConstraintTest
 
     private static ColumnMetadata getColumnOfType(AbstractType<?> type)
     {
-        return new ColumnMetadata("a", "b", columnIdentifier, type, -1, REGULAR, null);
+        return new ColumnMetadata("a", "b", columnIdentifier, type, ColumnMetadata.NO_UNIQUE_ID, -1, REGULAR, null);
     }
 }

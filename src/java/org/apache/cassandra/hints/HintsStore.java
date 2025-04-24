@@ -18,6 +18,7 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -174,6 +175,8 @@ final class HintsStore
 
     boolean isLive()
     {
+        if (hostId.equals(HintsService.RETRY_ON_DIFFERENT_SYSTEM_UUID))
+            return true;
         InetAddressAndPort address = address();
         return address != null && FailureDetector.instance.isAlive(address);
     }
@@ -191,6 +194,20 @@ final class HintsStore
     void offerLast(HintsDescriptor descriptor)
     {
         dispatchDequeue.offerLast(descriptor);
+    }
+
+    void deleteAllHintsUnsafe()
+    {
+        try
+        {
+            closeWriter();
+        }
+        catch (FSWriteError e)
+        {
+            if (!(e.getCause() instanceof ClosedChannelException))
+                throw e;
+        }
+        deleteAllHints();
     }
 
     void deleteAllHints()

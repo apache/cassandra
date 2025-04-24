@@ -214,7 +214,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
         int position = row.getInt("position");
         org.apache.cassandra.schema.ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(toUpperCaseLocalized(row.getString("kind")));
-        return new ColumnMetadata(keyspace, table, name, type, position, kind, null);
+        return new ColumnMetadata(keyspace, table, name, type, ColumnMetadata.NO_UNIQUE_ID, position, kind, null);
     }
 
     private static DroppedColumn createDroppedColumnFromRow(Row row, String keyspace, String table)
@@ -222,7 +222,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         String name = row.getString("column_name");
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), Types.none());
         ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(toUpperCaseLocalized(row.getString("kind")));
-        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind, null);
+        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, kind, null);
         long droppedTime = row.getTimestamp("dropped_time").getTime();
         return new DroppedColumn(column, droppedTime);
     }

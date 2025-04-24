@@ -119,6 +119,7 @@ public class ConfigCompatibilityTest
                                                                    .add("Property role_manager used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
                                                                    .add("Property network_authorizer used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
                                                                    .add("require_client_auth types do not match; java.lang.String != java.lang.Boolean")
+                                                                   .add("available_processors types do not match; org.apache.cassandra.config.OptionaldPositiveInt != java.lang.Integer")
                                                                    .build();
 
     /**

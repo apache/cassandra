@@ -98,6 +98,11 @@ public class SchemaGenerators
 
     public static Generator<SchemaSpec> trivialSchema(String ks, String table, int population)
     {
+        return trivialSchema(ks, table, population, SchemaSpec.optionsBuilder().build());
+    }
+
+    public static Generator<SchemaSpec> trivialSchema(String ks, String table, int population, SchemaSpec.Options options)
+    {
         return (rng) -> {
             return new SchemaSpec(rng.next(),
                                   population,
@@ -105,7 +110,8 @@ public class SchemaGenerators
                                   Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.int64Type, Generators.int64())),
                                   Arrays.asList(ColumnSpec.ck("ck1", ColumnSpec.int64Type, Generators.int64(), false)),
                                   Arrays.asList(ColumnSpec.regularColumn("v1", ColumnSpec.int64Type)),
-                                  List.of(ColumnSpec.staticColumn("s1", ColumnSpec.int64Type)));
+                                  Arrays.asList(ColumnSpec.staticColumn("s1", ColumnSpec.int64Type)),
+                                  options);
         };
     }
 }

@@ -236,6 +236,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         ANTICOMPACTION,
         SCHEMA_CHANGE,
         OWNED_RANGES_CHANGE,
+        ACCORD,
+        ACCORD_TXN_GC,
         UNIT_TESTS // explicitly requested flush needed for a test
     }
 
@@ -3337,5 +3339,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public TableMetrics getMetrics()
     {
         return metric;
+    }
+
+    public TableId getTableId()
+    {
+        return metadata().id;
     }
 }

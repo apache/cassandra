@@ -31,7 +31,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.LogStorage;
 
 public class FetchPeerLog
 {
@@ -82,7 +81,9 @@ public class FetchPeerLog
 
             ClusterMetadata metadata = ClusterMetadata.current();
             logger.info("Received peer log fetch request {} from {}: start = {}, current = {}", request, message.from(), message.payload.start, metadata.epoch);
-            LogState delta = LogStorage.SystemKeyspace.getLogState(message.payload.start);
+            LogState delta = ClusterMetadataService.instance()
+                                                   .processor()
+                                                   .getLocalState(message.payload.start, Epoch.MAX, false);
             TCMMetrics.instance.peerLogEntriesServed(message.payload.start, delta.latestEpoch());
             logger.info("Responding with log delta: {}", delta);
             MessagingService.instance().send(message.responseWith(delta), message.from());

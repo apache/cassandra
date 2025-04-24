@@ -83,7 +83,7 @@ public class CMSPlacementStrategy
         {
             if (!filter.apply(metadata, peerId))
             {
-                tmpDirectory = tmpDirectory.without(peerId);
+                tmpDirectory = tmpDirectory.without(metadata.nextEpoch(), peerId);
                 tmpTokenMap = tmpTokenMap.unassignTokens(peerId);
             }
         }

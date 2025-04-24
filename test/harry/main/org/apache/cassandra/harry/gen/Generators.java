@@ -1,20 +1,20 @@
 /*
-  * Licensed to the Apache Software Foundation (ASF) under one
-  * or more contributor license agreements.  See the NOTICE file
-  * distributed with this work for additional information
-  * regarding copyright ownership.  The ASF licenses this file
-  * to you under the Apache License, Version 2.0 (the
-  * "License"); you may not use this file except in compliance
-  * with the License.  You may obtain a copy of the License at
-  *
-  *     http://www.apache.org/licenses/LICENSE-2.0
-  *
-  * Unless required by applicable law or agreed to in writing, software
-  * distributed under the License is distributed on an "AS IS" BASIS,
-  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  * See the License for the specific language governing permissions and
-  * limitations under the License.
-  */
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.apache.cassandra.harry.gen;
 
@@ -136,6 +136,11 @@ public class Generators
 
     public static Generator<ByteBuffer> bytes(int minSize, int maxSize)
     {
+        return byteArrays(minSize, maxSize).map(ByteBuffer::wrap);
+    }
+
+    public static Generator<byte[]> byteArrays(int minSize, int maxSize)
+    {
         return rng -> {
             int size = rng.nextInt(minSize, maxSize);
             byte[] bytes = new byte[size];
@@ -144,7 +149,7 @@ public class Generators
                      n = Math.min(size - i, Long.SIZE / Byte.SIZE);
                      n-- > 0; v >>= Byte.SIZE)
                     bytes[i++] = (byte) v;
-            return ByteBuffer.wrap(bytes);
+            return bytes;
         };
     }
 
@@ -282,7 +287,7 @@ public class Generators
             {
                 T v = delegate.generate(rng);
                 int hashCode = v.hashCode();
-                Invariants.checkState(hashCode != System.identityHashCode(v), "hashCode was not overridden for type %s", v.getClass());
+                Invariants.require(hashCode != System.identityHashCode(v), "hashCode was not overridden for type %s", v.getClass());
                 if (hashCodes.contains(hashCode))
                     continue;
                 hashCodes.add(hashCode);

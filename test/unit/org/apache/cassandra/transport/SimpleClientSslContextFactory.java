@@ -30,12 +30,12 @@ import io.netty.handler.ssl.SslContextBuilder;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.FileBasedSslContextFactory;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
 
 /**
  * A custom implementation of {@link FileBasedSslContextFactory} to be used by tests utilizing {@link SimpleClient}.
  * <p>
- * Provides a subtly different implementation of {@link #createNettySslContext(EncryptionOptions.ClientAuth, SocketType, CipherSuiteFilter)}
+ * Provides a subtly different implementation of {@link #createNettySslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth, SocketType, CipherSuiteFilter)}
  * that only configures an {@link SslContext} for clients and most importantly only configures a key manager if an
  * outbound keystore is configured, where the existing implementation always does this.  This is useful for tests
  * that try to create a client that uses encryption but does not provide a certificate.
@@ -49,7 +49,7 @@ public class SimpleClientSslContextFactory extends FileBasedSslContextFactory
     }
 
     @Override
-    public SSLContext createJSSESslContext(EncryptionOptions.ClientAuth clientAuth) throws SSLException
+    public SSLContext createJSSESslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth) throws SSLException
     {
         TrustManager[] trustManagers = null;
         if (clientAuth != NOT_REQUIRED)
@@ -76,7 +76,7 @@ public class SimpleClientSslContextFactory extends FileBasedSslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(EncryptionOptions.ClientAuth clientAuth, SocketType socketType,
+    public SslContext createNettySslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
         SslContextBuilder builder = SslContextBuilder.forClient();

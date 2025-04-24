@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.locator;
 
+import org.apache.cassandra.utils.Sortable;
+
+import java.util.Comparator;
+
 public interface NodeProximity
 {
     /**
@@ -35,4 +39,14 @@ public interface NodeProximity
      * to be faster than 2 sequential queries, one against l1 followed by one against l2.
      */
     public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2);
+
+    default boolean supportCompareByEndpoint()
+    {
+        return false;
+    }
+
+    default <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        throw new UnsupportedOperationException();
+    }
 }

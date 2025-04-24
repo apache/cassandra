@@ -22,12 +22,22 @@ import java.nio.ByteBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.CassandraIndexSearcher;
 import org.apache.cassandra.schema.TableMetadata;
@@ -91,7 +101,7 @@ public class KeysSearcher extends CassandraIndexSearcher
                                                                                            DataLimits.NONE,
                                                                                            key,
                                                                                            command.clusteringIndexFilter(key),
-                                                                                           null);
+                                                                                           (Index.QueryPlan) null);
 
                                                   // Otherwise, we close right away if empty, and if it's assigned to next it will be called either
                                                   // by the next caller of next, or through closing this iterator is this come before.

@@ -18,8 +18,11 @@
 package org.apache.cassandra.exceptions;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.index.IndexBuildInProgressException;
@@ -34,21 +37,30 @@ import static org.apache.cassandra.net.MessagingService.VERSION_40;
 
 public enum RequestFailureReason
 {
-    UNKNOWN                  (0),
-    READ_TOO_MANY_TOMBSTONES (1),
-    TIMEOUT                  (2),
-    INCOMPATIBLE_SCHEMA      (3),
-    READ_SIZE                (4),
+    UNKNOWN                                 (0),
+    READ_TOO_MANY_TOMBSTONES                (1),
+    TIMEOUT                                 (2),
+    INCOMPATIBLE_SCHEMA                     (3),
+    READ_SIZE                               (4),
     // below reason is only logged, but it does not have associated exception
-    NODE_DOWN                (5),
-    INDEX_NOT_AVAILABLE      (6),
+    NODE_DOWN                               (5),
+    INDEX_NOT_AVAILABLE                     (6),
     // below reason does not have an associated exception
-    READ_TOO_MANY_INDEXES    (7),
-    NOT_CMS                  (8),
-    INVALID_ROUTING          (9),
-    COORDINATOR_BEHIND       (10),
+    READ_TOO_MANY_INDEXES                   (7),
+    NOT_CMS                                 (8),
+    INVALID_ROUTING                         (9),
+    COORDINATOR_BEHIND                      (10),
+    RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM   (11),
     // The following codes have been ported from an external fork, where they were offset explicitly to avoid conflicts.
-    INDEX_BUILD_IN_PROGRESS  (503);
+    INDEX_BUILD_IN_PROGRESS                 (503),
+    ;
+
+    static
+    {
+        // Load RequestFailure class to check that all request failure reasons are handled
+        RequestFailure.init();
+    }
+
     public static final Serializer serializer = new Serializer();
 
     public final int code;
@@ -60,10 +72,11 @@ public enum RequestFailureReason
 
     private static final Map<Integer, RequestFailureReason> codeToReasonMap = new HashMap<>();
     private static final Map<Class<? extends Throwable>, RequestFailureReason> exceptionToReasonMap = new HashMap<>();
-    private static final int REASONS_WITHOUT_EXCEPTIONS = 3; // UNKNOWN, NODE_DOWN, and READ_TOO_MANY_INDEXES
 
     static
     {
+        EnumSet<RequestFailureReason> withoutExceptions = EnumSet.of(UNKNOWN, NODE_DOWN, READ_TOO_MANY_INDEXES);
+        Sets.SetView<RequestFailureReason> withExceptions =  Sets.difference(EnumSet.allOf(RequestFailureReason.class), withoutExceptions);
         RequestFailureReason[] reasons = values();
 
         for (RequestFailureReason reason : reasons)
@@ -81,9 +94,20 @@ public enum RequestFailureReason
         exceptionToReasonMap.put(InvalidRoutingException.class, INVALID_ROUTING);
         exceptionToReasonMap.put(CoordinatorBehindException.class, COORDINATOR_BEHIND);
         exceptionToReasonMap.put(IndexBuildInProgressException.class, INDEX_BUILD_IN_PROGRESS);
+        exceptionToReasonMap.put(RetryOnDifferentSystemException.class, RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
 
-        if (exceptionToReasonMap.size() != reasons.length - REASONS_WITHOUT_EXCEPTIONS)
-            throw new RuntimeException("A new RequestFailureReasons was probably added and you may need to update the exceptionToReasonMap");
+        if (exceptionToReasonMap.size() != reasons.length - withoutExceptions.size())
+        {
+            EnumSet<RequestFailureReason> actual = EnumSet.copyOf(exceptionToReasonMap.values());
+            Sets.SetView<RequestFailureReason> missing = Sets.difference(withExceptions, actual);
+            Sets.SetView<RequestFailureReason> added = Sets.difference(actual, withExceptions);
+            StringBuilder sb = new StringBuilder();
+            if (!missing.isEmpty())
+                sb.append("Expected the following RequestFailureReason, but were missing: ").append(missing).append('\n');
+            if (!added.isEmpty())
+                sb.append("Unexpected RequestFailureReason found: ").append(added);
+            throw new AssertionError(sb.toString());
+        }
     }
 
     public static RequestFailureReason fromCode(int code)

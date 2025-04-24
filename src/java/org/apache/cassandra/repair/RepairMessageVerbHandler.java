@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +30,14 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.repair.messages.CleanupMessage;
+import org.apache.cassandra.repair.messages.FailSession;
+import org.apache.cassandra.repair.messages.PrepareMessage;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.StatusRequest;
+import org.apache.cassandra.repair.messages.StatusResponse;
+import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.repair.state.AbstractCompletable;
 import org.apache.cassandra.repair.state.AbstractState;
 import org.apache.cassandra.repair.state.Completable;
@@ -84,8 +93,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         return prs != null ? prs.previewKind : PreviewKind.NONE;
     }
 
+    @Override
     public void doVerb(final Message<RepairMessage> message)
     {
+        if (DatabaseDescriptor.getAccordTransactionsEnabled()
+            && ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
+            return;
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
         try
@@ -107,6 +120,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         // error is logged in verifyCompactionsPendingThreshold
                         state.phase.fail("Too many pending compactions");
 
+                        sendFailureResponse(message);
+                        return;
+                    }
+                    if (!ActiveRepairService.verifyDiskHeadroomThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind, prepareMessage.isIncremental))
+                    {
+                        // error is logged in verifyDiskHeadroomThreshold
+                        state.phase.fail("Not enough disk headroom to perform incremental repair");
                         sendFailureResponse(message);
                         return;
                     }

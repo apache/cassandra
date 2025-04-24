@@ -29,6 +29,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Ordering;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.LongAccumulator;
@@ -138,6 +139,13 @@ public class BTree
             return buildLeaf(source, size, updateF);
 
         return buildRoot(source, size, updateF);
+    }
+
+    public static Object[] unsafeAllocateNonEmptyLeaf(int size)
+    {
+        Invariants.requireArgument(size > 0, "size should be non-zero");
+        Invariants.requireArgument(size <= MAX_KEYS, "size (%s) should be no more than %s", size, MAX_KEYS);
+        return new Object[size | 1];
     }
 
     /**
@@ -2393,7 +2401,7 @@ public class BTree
         /**
          * Are we empty, i.e. we have no contents in either {@link #buffer} or {@link #savedBuffer}
          */
-        final boolean isEmpty()
+        public final boolean isEmpty()
         {
             return count == 0 && savedNextKey == null;
         }
@@ -3326,7 +3334,7 @@ public class BTree
         }
 
         @Override
-        void reset()
+        public void reset()
         {
             Arrays.fill(leaf().buffer, null);
             leaf().count = 0;

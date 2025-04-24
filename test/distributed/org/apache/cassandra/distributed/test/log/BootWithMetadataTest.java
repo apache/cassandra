@@ -52,6 +52,8 @@ public class BootWithMetadataTest extends TestBaseImpl
     public void resetTest() throws IOException, ExecutionException, InterruptedException
     {
         try (Cluster cluster = init(builder().withNodes(3)
+                                             // Accord tracks epochs, and if the expose no longer exist it is not able to process anything, causing it to crash...
+                                             .withConfig(c -> c.set("accord.enabled", false))
                                              .start()))
         {
             long epoch = 0;
@@ -83,9 +85,10 @@ public class BootWithMetadataTest extends TestBaseImpl
                 assertEquals(1, ClusterMetadata.current().fullCMSMembers().size());
                 assertTrue(ClusterMetadata.current().fullCMSMembers().contains(InetAddressAndPort.getByNameUnchecked("127.0.0.1")));
                 Keyspace ks = Keyspace.open(KEYSPACE);
-                assertEquals(6, ks.getColumnFamilyStores().size());
+                assertEquals(7, ks.getColumnFamilyStores().size());
                 for (int i = 0; i < 6; i++)
                     assertTrue(ks.getColumnFamilyStore("x"+i) != null); // getColumnFamilyStore throws
+                assertTrue(ks.getColumnFamilyStore("yy") != null);
             });
         }
     }
@@ -94,6 +97,8 @@ public class BootWithMetadataTest extends TestBaseImpl
     public void newCMSTest() throws IOException, ExecutionException, InterruptedException
     {
         try (Cluster cluster = init(builder().withNodes(4)
+                                             // Accord tracks epochs, and if the expose no longer exist it is not able to process anything, causing it to crash...
+                                             .withConfig(c -> c.set("accord.enabled", false))
                                              .start()))
         {
             for (int i = 0; i < 10; i++)

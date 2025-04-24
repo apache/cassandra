@@ -127,7 +127,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
         try (Cluster cluster = builder().withNodes(1)
                                         .withConfig(cfg -> cfg.set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                                                                                                           Collections.singletonMap("seeds", fakeCmsNode.id() + ":7012"))))
+                                                                                                           Collections.singletonMap("seeds", fakeCmsNode.id() + ":7012")))
+                                                              // Accord depends on Processor.reconstruct, but those verbs are not simulated, causing the tests to fail
+                                                              .set("accord.enabled", false))
                                         .withTokenSupplier(factory)
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(10, "dc0", "rack0"))
                                         .createWithoutStarting();
@@ -732,7 +734,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                        log,
                                        new Processor()
                                        {
-                                           public Commit.Result commit(Entry.Id entryId, Transformation event, Epoch lastKnown, Retry.Deadline retryPolicy)
+                                           @Override
+                                           public Commit.Result commit(Entry.Id entryId, Transformation event, Epoch lastKnown, Retry retryPolicy)
                                            {
                                                if (lastKnown == null)
                                                    lastKnown = log.waitForHighestConsecutive().epoch;
@@ -745,12 +748,25 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                return result;
                                            }
 
-                                           public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+                                           @Override
+                                           public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
                                            {
                                                Epoch since = log.waitForHighestConsecutive().epoch;
                                                LogState logState = driver.requestResponse(new FetchCMSLog(since, true));
                                                log.append(logState);
                                                return log.waitForHighestConsecutive();
+                                           }
+
+                                           @Override
+                                           public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
+                                           {
+                                               return log.getLocalEntries(start, end, includeSnapshot);
+                                           }
+
+                                           @Override
+                                           public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
+                                           {
+                                               return getLocalState(start, end, includeSnapshot);
                                            }
                                        },
                                        (a,b) -> {},

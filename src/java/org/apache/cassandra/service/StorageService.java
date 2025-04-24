@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.ListenerNotFoundException;
 import javax.management.NotificationBroadcasterSupport;
@@ -61,7 +62,6 @@ import javax.management.openmbean.TabularData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -71,6 +71,9 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,6 +127,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.gms.VersionedValue.VersionedValueFactory;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.IndexStatusManager;
@@ -167,6 +171,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosCommit;
@@ -186,6 +193,7 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -199,6 +207,7 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.SingleNodeSequences;
 import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
+import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
@@ -224,6 +233,8 @@ import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -242,6 +253,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
+import static org.apache.cassandra.locator.InetAddressAndPort.stringify;
 import static org.apache.cassandra.schema.SchemaConstants.isLocalSystemKeyspace;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
@@ -251,6 +263,8 @@ import static org.apache.cassandra.service.StorageService.Mode.JOINING_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.LEAVING;
 import static org.apache.cassandra.service.StorageService.Mode.MOVE_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.NORMAL;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigration.finishMigrationToConsensusProtocol;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigration.startMigrationToConsensusProtocol;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
@@ -258,6 +272,7 @@ import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
 import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
+import static org.apache.cassandra.utils.PojoToString.pojoMapToString;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -312,6 +327,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
     public volatile boolean skipNotificationListeners = false;
+
+    // For tests that unsafely change the partitioner store the original here
+    private IPartitioner originalPartitioner;
 
     private final java.util.function.Predicate<Keyspace> anyOutOfRangeOpsRecorded
     = keyspace -> keyspace.metric.outOfRangeTokenReads.getCount() > 0
@@ -370,8 +388,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy()
-                       .getAddressReplicas(ClusterMetadata.current(), endpoint);
+        return getReplicas(Keyspace.open(keyspaceName).getReplicationStrategy(), endpoint);
+    }
+
+    public RangesAtEndpoint getReplicas(AbstractReplicationStrategy replicationStrategy, InetAddressAndPort endpoint)
+    {
+        return replicationStrategy.getAddressReplicas(ClusterMetadata.current(), endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)
@@ -455,11 +477,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private volatile int totalCFs, remainingCFs;
 
-    private static final AtomicInteger nextRepairCommand = new AtomicInteger();
-
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
     private final String jmxObjectName;
+
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     // true when keeping strict consistency while bootstrapping
     public static final boolean useStrictConsistency = CONSISTENT_RANGE_MOVEMENT.getBoolean();
@@ -800,8 +822,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,
                                                    valueFactory.sstableVersions(sstablesTracker.versionsInUse()));
 
-        if (ClusterMetadataService.state() == ClusterMetadataService.State.REMOTE)
-            Gossiper.instance.triggerRoundWithCMS();
+        Gossiper.instance.triggerRoundWithCMS();
+
         // Has to be called after the host id has potentially changed
         try
         {
@@ -1111,6 +1133,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             AuthCacheService.initializeAndRegisterCaches();
             Schema.instance.registerListener(new AuthSchemaChangeListener());
             authSetupComplete = true;
+        }
+    }
+
+    public void doAutoRepairSetup()
+    {
+        AutoRepairService.setup();
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            logger.info("Enabling auto-repair scheduling");
+            AutoRepair.instance.setup();
+            logger.info("AutoRepair setup complete!");
         }
     }
 
@@ -1649,6 +1682,36 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             default:
                 throw new RuntimeException("Can't abort bootstrap for node " + nodeId + " since the state is " + nodeState);
         }
+    }
+
+    @Override
+    public void migrateConsensusProtocol(@Nonnull List<String> keyspaceNames,
+                                         @Nullable List<String> maybeTableNames,
+                                         @Nullable String maybeRangesStr)
+    {
+        checkArgument(!keyspaceNames.contains(SchemaConstants.METADATA_KEYSPACE_NAME));
+        startMigrationToConsensusProtocol(keyspaceNames, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
+    }
+
+    @Override
+    public Integer finishConsensusMigration(@Nonnull String keyspace,
+                                            @Nullable List<String> maybeTableNames,
+                                            @Nullable String maybeRangesStr,
+                                            @Nonnull String target)
+    {
+        checkArgument(!keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME));
+        return finishMigrationToConsensusProtocol(keyspace, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr), ConsensusMigrationTarget.valueOf(target));
+    }
+
+    @Override
+    public String listConsensusMigrations(@Nullable Set<String> keyspaceNames,
+                                          @Nullable Set<String> tableNames,
+                                          @Nonnull String format)
+    {
+        ClusterMetadata cm = ClusterMetadata.current();
+        ConsensusMigrationState snapshot = cm.consensusMigrationState;
+        Map<String, Object> snapshotAsMap = snapshot.toMap(keyspaceNames, tableNames);
+        return pojoMapToString(snapshotAsMap, format);
     }
 
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
@@ -2566,16 +2629,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public String getSavedCachesLocation()
     {
         return FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation());
-    }
-
-    private List<String> stringify(Iterable<InetAddressAndPort> endpoints, boolean withPort)
-    {
-        List<String> stringEndpoints = new ArrayList<>();
-        for (InetAddressAndPort ep : endpoints)
-        {
-            stringEndpoints.add(ep.getHostAddress(withPort));
-        }
-        return stringEndpoints;
     }
 
     public int getCurrentGenerationNumber()
@@ -3753,7 +3806,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (daemon != null)
                 shutdownClientServers();
-            ScheduledExecutors.optionalTasks.shutdown();
+
             Gossiper.instance.stop();
             ActiveRepairService.instance().stop();
 
@@ -3762,6 +3815,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.debug("shutting down MessageService");
                 transientMode = Optional.of(Mode.DRAINING);
             }
+
+            if (AccordService.isSetup())
+                AccordService.instance().shutdownAndWait(1, MINUTES);
 
             // In-progress writes originating here could generate hints to be written,
             // which is currently scheduled on the mutation stage. So shut down MessagingService
@@ -3776,6 +3832,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // drain process; otherwise drain and/or shutdown might throw
                 logger.error("Messaging service timed out shutting down", t);
             }
+
+            // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
+            ScheduledExecutors.optionalTasks.shutdown();
 
             if (!isFinalShutdown)
             {
@@ -3967,9 +4026,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting
     public IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
     {
-        IPartitioner oldPartitioner = DatabaseDescriptor.setPartitionerUnsafe(newPartitioner);
+        checkNotNull(newPartitioner, "newPartitioner is null");
+        checkState(originalPartitioner == null, "Already changed the partitioner without resetting");
+        originalPartitioner = DatabaseDescriptor.setPartitionerUnsafe(newPartitioner);
         valueFactory = new VersionedValue.VersionedValueFactory(newPartitioner);
-        return oldPartitioner;
+        return originalPartitioner;
+    }
+
+    @VisibleForTesting
+    public void resetPartitionerUnsafe()
+    {
+        checkState(originalPartitioner != null, "Original partitioner was never changed");
+        DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
+        valueFactory = new VersionedValueFactory(originalPartitioner);
+        originalPartitioner = null;
     }
 
     public void truncate(String keyspace, String table) throws TimeoutException, IOException
@@ -4150,6 +4220,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public List<String> getNonLocalStrategyKeyspaces()
     {
         return Lists.newArrayList(Schema.instance.distributedKeyspaces().names());
+    }
+
+    @Override
+    public List<String> getAccordManagedKeyspaces()
+    {
+        Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        return keyspaces.stream().flatMap(ks -> ks.tables.stream())
+                .filter(TableMetadata::requiresAccordSupport)
+                .map(tbm -> tbm.keyspace)
+                .distinct()
+                .sorted()
+                .collect(toList());
+    }
+
+    @Override
+    public List<String> getAccordManagedTables()
+    {
+        Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        return keyspaces.stream().flatMap(ks -> ks.tables.stream())
+                        .filter(TableMetadata::requiresAccordSupport)
+                        .map(tbm -> tbm.keyspace + '.' + tbm.name)
+                        .collect(toList());
     }
 
     public Map<String, String> getViewBuildStatuses(String keyspace, String view, boolean withPort)
@@ -4981,7 +5073,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         archiveCommand = archiveCommand != null ? archiveCommand : fqlOptions.archive_command;
         maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
 
-        Preconditions.checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
+        checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
         FullQueryLogger.instance.enableWithoutClean(File.getPath(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
     }
 
@@ -5346,7 +5438,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setRepairRpcTimeout(Long timeoutInMillis)
     {
-        Preconditions.checkState(timeoutInMillis > 0);
+        checkState(timeoutInMillis > 0);
         DatabaseDescriptor.setRepairRpcTimeout(timeoutInMillis);
         logger.info("RepairRpcTimeout set to {}ms via JMX", timeoutInMillis);
     }
@@ -5552,5 +5644,61 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean getPaxosRepairRaceWait()
     {
         return DatabaseDescriptor.getPaxosRepairRaceWait();
+    }
+
+    public void alterTopology(String changes)
+    {
+        Map<NodeId, Location> updates = AlterTopology.parseArgs(changes, ClusterMetadata.current().directory);
+        logger.info("Received request to modify rack assignments. Proposed changes: {}", updates);
+        if (updates.isEmpty())
+            return;
+
+        AlterTopology transform = new AlterTopology(updates, ClusterMetadataService.instance().placementProvider());
+        ClusterMetadataService.instance()
+                              .commit(transform,
+                                      m -> {
+                                          logger.info("Rack changes committed successfully");
+                                          return m;
+                                      },
+                                      (c, r) -> {
+                                          throw new IllegalArgumentException("Unable to commit rack changes: " + r);
+                                      });
+    }
+
+    @Override
+    public List<String> getTablesForKeyspace(String keyspace)
+    {
+        return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tableNames)
+    {
+        Map<String, ColumnFamilyStore> tables =  Keyspace.open(keyspace).getColumnFamilyStores()
+                                                         .stream().collect(Collectors.toMap(c -> c.name, c -> c));
+        for (String tableName : tableNames)
+        {
+            if (!tables.containsKey(tableName))
+                throw new RuntimeException("Table " + tableName + " does not exist in keyspace " + keyspace);
+        }
+
+        // only select SSTables that are unrepaired when repaired is true and vice versa
+        Predicate<SSTableReader> predicate = sst -> repaired != sst.isRepaired();
+
+        // mutate SSTables
+        long repairedAt = !repaired ? 0 : currentTimeMillis();
+        List<String> sstablesTouched = new ArrayList<>();
+        for (String tableName : tableNames)
+        {
+            ColumnFamilyStore table = tables.get(tableName);
+            Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
+                Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
+                if (!preview)
+                    table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
+                return sstables;
+            }, predicate, OperationType.ANTICOMPACTION, true, false, true);
+            sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFile().name()).collect(Collectors.toList()));
+        }
+        return sstablesTouched;
     }
 }

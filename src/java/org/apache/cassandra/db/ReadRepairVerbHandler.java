@@ -25,9 +25,14 @@ public class ReadRepairVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
     public static final ReadRepairVerbHandler instance = new ReadRepairVerbHandler();
 
+    public void applyMutation(Mutation mutation)
+    {
+        mutation.apply();
+    }
+
     void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
     {
-        message.payload.apply();
+        applyMutation(message.payload);
         MessagingService.instance().send(message.emptyResponse(), respondToAddress);
     }
 }

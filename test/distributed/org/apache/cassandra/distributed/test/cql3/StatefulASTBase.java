@@ -27,12 +27,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
@@ -45,6 +47,8 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
+import com.datastax.driver.core.exceptions.ReadFailureException;
+import com.datastax.driver.core.exceptions.WriteFailureException;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
@@ -72,6 +76,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -137,9 +142,25 @@ public class StatefulASTBase extends TestBaseImpl
         return "ks" + COUNTER.incrementAndGet();
     }
 
-    protected static Cluster createCluster(int nodeCount, Consumer<IInstanceConfig> config) throws IOException
+    protected void clusterConfig(IInstanceConfig config)
+    {
+
+    }
+
+    protected void clusterInitializer(ClassLoader cl, int node)
+    {
+
+    }
+
+    protected Cluster createCluster(int nodeCount) throws IOException
+    {
+        return createCluster(nodeCount, this::clusterConfig, this::clusterInitializer);
+    }
+
+    protected static Cluster createCluster(int nodeCount, Consumer<IInstanceConfig> config, BiConsumer<ClassLoader, Integer> instanceInitializer) throws IOException
     {
         Cluster cluster = Cluster.build(nodeCount)
+                                 .withInstanceInitializer(instanceInitializer)
                                  .withConfig(c -> {
                                      c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP)
                                       // When drop tables or truncate are performed, we attempt to take snapshots.  This can be costly and isn't needed by these tests
@@ -479,8 +500,32 @@ public class StatefulASTBase extends TestBaseImpl
                                  .findAny()
                                  .get();
                 ss.setHost(host);
-                ResultSet result = session.execute(ss);
+                ResultSet result;
+                try
+                {
+                    result = session.execute(ss);
+                }
+                catch (ReadFailureException t)
+                {
+                    throw new AssertionError("failed from=" + Maps.transformValues(t.getFailuresMap(), BaseState::safeErrorCode), t);
+                }
+                catch (WriteFailureException t)
+                {
+                    throw new AssertionError("failed from=" + Maps.transformValues(t.getFailuresMap(), BaseState::safeErrorCode), t);
+                }
                 return getRowsAsByteBuffer(result);
+            }
+        }
+
+        private static String safeErrorCode(Integer code)
+        {
+            try
+            {
+                return RequestFailureReason.fromCode(code).name();
+            }
+            catch (IllegalArgumentException e)
+            {
+                return "Unexpected code " + code + ": " + e.getMessage();
             }
         }
 

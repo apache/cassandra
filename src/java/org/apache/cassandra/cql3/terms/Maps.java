@@ -267,7 +267,7 @@ public final class Maps
 
     public static class SetterByKey extends Operation
     {
-        private final Term k;
+        public final Term k;
 
         public SetterByKey(ColumnMetadata column, Term k, Term t)
         {

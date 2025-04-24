@@ -90,6 +90,11 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(getKey(), otherKey.getKey()) : cmp;
     }
 
+    public int compareBytesOnly(DecoratedKey that)
+    {
+        return ByteBufferUtil.compareUnsigned(getKey(), that.getKey());
+    }
+
     public static int compareTo(IPartitioner partitioner, ByteBuffer key, PartitionPosition position)
     {
         // delegate to Token.KeyBound if needed
@@ -97,7 +102,7 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
             return -position.compareTo(partitioner.decorateKey(key));
 
         DecoratedKey otherKey = (DecoratedKey) position;
-        int cmp = partitioner.getToken(key).compareTo(otherKey.getToken());
+        int cmp = partitioner.compareToken(key, otherKey.getToken());
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.getKey()) : cmp;
     }
 

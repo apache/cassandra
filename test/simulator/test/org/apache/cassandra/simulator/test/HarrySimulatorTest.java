@@ -52,22 +52,23 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.harry.SchemaSpec;
-import org.apache.cassandra.harry.op.Visit;
-import org.apache.cassandra.harry.op.Operations;
-import org.apache.cassandra.harry.gen.OperationsGenerators;
 import org.apache.cassandra.harry.execution.CompiledStatement;
 import org.apache.cassandra.harry.execution.DataTracker;
 import org.apache.cassandra.harry.execution.QueryBuildingVisitExecutor;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Generator;
+import org.apache.cassandra.harry.gen.OperationsGenerators;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.model.QuiescentChecker;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
+import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -201,7 +202,7 @@ public class HarrySimulatorTest
         HarrySimulatorTest test = SingleCommand.singleCommand(HarrySimulatorTest.class).parse(args);
         if (test.helpOption.showHelpIfRequested())
             return;
-        test.harryTest();
+        test.testInternal();
         System.exit(1);
     }
 
@@ -210,11 +211,10 @@ public class HarrySimulatorTest
     {
         // To rerun a failing test for a given seed, uncomment the below and set the seed
 //        this.seed = "<your seed here>";
-        this.seed = "0xdd3bb3793a6b925a";
-        harryTest();
+        testInternal();
     }
 
-    private void harryTest() throws Exception
+    protected void testInternal() throws Exception
     {
         int bootstrapNode1 = 4;
         int bootstrapNode2 = 8;
@@ -288,7 +288,7 @@ public class HarrySimulatorTest
 
                      work.add(interleave("Start generating", HarrySimulatorTest.generateWrites(rowsPerPhase, simulation, cl)));
                      work.add(work("Validate all data locally",
-                                   lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
+                                   lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf, validateQueryConsistency(), simulation.rng))));
 
                      return arr(work.toArray(new ActionSchedule.Work[0]));
                  },
@@ -339,8 +339,8 @@ public class HarrySimulatorTest
                                            run(() -> simulation.nodeState.decommission(node))));
                              work.add(work("Check node state", assertNodeState(simulation.simulated, simulation.cluster, node, NodeState.LEFT)));
                          }
-                         work.add(work("Validate data locally",
-                                       lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
+                         work.add(work("Validate data with " + validateQueryConsistency(),
+                                       lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf, validateQueryConsistency(), simulation.rng))));
                          boolean tmp = shouldBootstrap;
                          work.add(work("Output message",
                                        run(() -> logger.warn("Finished {} of {} and data validation!\n", tmp ? "bootstrap" : "decommission", node))));
@@ -513,7 +513,7 @@ public class HarrySimulatorTest
         }
     }
 
-    static class HarrySimulationBuilder extends ClusterSimulation.Builder<HarrySimulation>
+    class HarrySimulationBuilder extends ClusterSimulation.Builder<HarrySimulation>
     {
         protected final Consumer<IInstanceConfig> configUpdater;
 
@@ -525,7 +525,7 @@ public class HarrySimulatorTest
         @Override
         public Map<Verb, FutureActionScheduler> perVerbFutureActionSchedulers(int nodeCount, SimulatedTime time, RandomSource random)
         {
-            return HarrySimulatorTest.networkSchedulers(nodeCount, time, random);
+            return networkSchedulers(nodeCount, time, random);
         }
 
         @Override
@@ -599,7 +599,7 @@ public class HarrySimulatorTest
     /**
      * Custom network scheduler for testing TCM.
      */
-    public static Map<Verb, FutureActionScheduler> networkSchedulers(int nodes, SimulatedTime time, RandomSource random)
+    public Map<Verb, FutureActionScheduler> networkSchedulers(int nodes, SimulatedTime time, RandomSource random)
     {
         Set<Verb> extremelyLossy = new HashSet<>(Arrays.asList(Verb.TCM_ABORT_MIG, Verb.TCM_REPLICATION,
                                                                Verb.TCM_COMMIT_REQ, Verb.TCM_NOTIFY_REQ,
@@ -632,7 +632,7 @@ public class HarrySimulatorTest
         return schedulers;
     }
 
-    public Action reconfigureCMS(SimulatedSystems simulated, Cluster cluster, int rf, boolean inEachDc)
+    public static Action reconfigureCMS(SimulatedSystems simulated, Cluster cluster, int rf, boolean inEachDc)
     {
         return new SimulatedActionTask("", Action.Modifiers.RELIABLE_NO_TIMEOUTS, Action.Modifiers.RELIABLE_NO_TIMEOUTS, null, simulated,
                                        new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) cluster.get(1).executor(),
@@ -689,7 +689,7 @@ public class HarrySimulatorTest
                                                                                              cluster.get(node).transfer(runnable)));
     }
 
-    public Action decommission(SimulatedSystems simulated, Cluster cluster, int node)
+    public static Action decommission(SimulatedSystems simulated, Cluster cluster, int node)
     {
         IIsolatedExecutor.SerializableRunnable runnable = () -> {
             try
@@ -757,18 +757,20 @@ public class HarrySimulatorTest
 
             Visit visit = new Visit(lts, new Operations.Operation[]{ simulation.insertGen.generate(simulation.rng).toOp(lts) });
             Visit prev_ = simulation.log.put(lts, visit);
-            Invariants.checkState(prev_ == null);
+            Invariants.require(prev_ == null);
 
             actions[i] = new Actions.LambdaAction("", Action.Modifiers.RELIABLE_NO_TIMEOUTS, () -> {
                 CompiledStatement compiledStatement = simulation.queryBuilder.compile(visit);
                 DataTracker tracker = simulation.tracker;
 
+                int[] joined = simulation.nodeState.joined();
+                int coordinator = joined[simulation.rng.nextInt(joined.length)];
                 RetryingQuery query = new RetryingQuery(compiledStatement.cql(), cl, compiledStatement.bindings());
                 Action wrapper = new SimulatedActionCallable<>("Query",
                                                                Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                                                Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                                                simulation.simulated,
-                                                               simulation.cluster.get((int) ((lts % simulation.cluster.size()) + 1)),
+                                                               simulation.cluster.get(coordinator),
                                                                query)
                 {
                     @Override
@@ -779,7 +781,6 @@ public class HarrySimulatorTest
                             public void run()
                             {
                                 tracker.begin(visit);
-                                System.out.println("Started visit = " + visit);
                                 // we'll be invoked on the node's executor, but we need to ensure the task is loaded on its classloader
                                 try
                                 {
@@ -798,15 +799,12 @@ public class HarrySimulatorTest
                     }
 
                     @Override
-                    public void accept(Object[][] result, Throwable failure)
+                    public void accept(SimpleQueryResult result, Throwable failure)
                     {
                         if (failure != null)
                             simulated.failures.accept(failure);
                         else
-                        {
-                            System.out.println("Finished visit = " + visit);
                             tracker.end(visit);
-                        }
                     }
                 };
 
@@ -824,7 +822,7 @@ public class HarrySimulatorTest
         }
 
         @Override
-        public Object[][] call()
+        public SimpleQueryResult call()
         {
             while (true)
             {
@@ -848,7 +846,7 @@ public class HarrySimulatorTest
      * Given you have used `generate` methods to generate data with Harry, you can use this method to check whether all
      * data has been propagated everywhere it should be, be it via streaming, read repairs, or regular writes.
      */
-    public static Action validateAllLocal(HarrySimulation simulation, List<TokenPlacementModel.Node> owernship, TokenPlacementModel.ReplicationFactor rf)
+    public static Action validateAllLocal(HarrySimulation simulation, List<TokenPlacementModel.Node> owernship, TokenPlacementModel.ReplicationFactor rf, ConsistencyLevel consistencyLevel, EntropySource rng)
     {
         return new Actions.LambdaAction("Validate", Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                         () -> {
@@ -863,10 +861,17 @@ public class HarrySimulatorTest
                                                 Operations.SelectPartition select = new Operations.SelectPartition(Long.MAX_VALUE, pd);
                                                 actions.add(new HarryValidatingQuery(simulation, simulation.cluster, rf,
                                                                                      owernship, new Visit(Long.MAX_VALUE, new Operations.Operation[]{ select }),
-                                                                                     simulation.queryBuilder));
+                                                                                     simulation.queryBuilder,
+                                                                                     consistencyLevel,
+                                                                                     rng));
                                             }
                                             return ActionList.of(actions).setStrictlySequential();
                                         });
+    }
+
+    protected ConsistencyLevel validateQueryConsistency()
+    {
+        return ConsistencyLevel.NODE_LOCAL;
     }
 
     private static Set<Long> visitedPds(HarrySimulation simulation)
@@ -1037,7 +1042,7 @@ public class HarrySimulatorTest
         return arr;
     }
 
-    public static Generator<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
+    public Generator<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
     {
         return SchemaGenerators.schemaSpecGen(keyspace, prefix, 1000);
     }

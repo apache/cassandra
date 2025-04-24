@@ -36,7 +36,7 @@ import static org.junit.Assert.assertTrue;
 
 public class NativeTransportServiceTest
 {
-    static EncryptionOptions defaultOptions;
+    static EncryptionOptions.ClientEncryptionOptions defaultOptions;
 
     @BeforeClass
     public static void setupDD()
@@ -48,7 +48,7 @@ public class NativeTransportServiceTest
     @After
     public void resetConfig()
     {
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(update -> new EncryptionOptions(defaultOptions).applyConfig());
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(update -> new EncryptionOptions.ClientEncryptionOptions.Builder(defaultOptions).build());
     }
 
     @Test
@@ -127,8 +127,11 @@ public class NativeTransportServiceTest
     public void testSSLOnly()
     {
         // default ssl settings: client encryption enabled and default native transport port used for ssl only
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(true)
-                                                                                   .withOptional(false));
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options ->
+                                                                 new EncryptionOptions.ClientEncryptionOptions.Builder(options)
+                                                                 .withEnabled(true)
+                                                                 .withOptional(false)
+                                                                 .build());
 
         withService((NativeTransportService service) ->
                     {
@@ -144,8 +147,11 @@ public class NativeTransportServiceTest
     public void testSSLOptional()
     {
         // default ssl settings: client encryption enabled and default native transport port used for optional ssl
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(true)
-                                                                                   .withOptional(true));
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options ->
+                                                                 new EncryptionOptions.ClientEncryptionOptions.Builder(options)
+                                                                 .withEnabled(true)
+                                                                 .withOptional(true)
+                                                                 .build());
 
         withService((NativeTransportService service) ->
                     {

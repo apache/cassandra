@@ -18,46 +18,80 @@
 package org.apache.cassandra.cql3.conditions;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
-import org.apache.cassandra.cql3.terms.*;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.*;
+import accord.utils.Gen;
+import accord.utils.Gens;
+import accord.utils.RandomSource;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnsExpression;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.InMarker;
+import org.apache.cassandra.cql3.terms.Marker;
 import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.Serializers;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.utils.AbstractTypeGenerators;
+import org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CassandraGenerators;
+import org.apache.cassandra.utils.Generators;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
+import org.assertj.core.api.Assertions;
+import org.quicktheories.generators.SourceDSL;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static accord.utils.Property.qt;
 import static java.util.Arrays.asList;
-
-import static org.apache.cassandra.cql3.Operator.EQ;
-import static org.apache.cassandra.cql3.Operator.NEQ;
-import static org.apache.cassandra.cql3.Operator.LT;
-import static org.apache.cassandra.cql3.Operator.LTE;
-import static org.apache.cassandra.cql3.Operator.GT;
-import static org.apache.cassandra.cql3.Operator.GTE;
 import static org.apache.cassandra.cql3.Operator.CONTAINS;
 import static org.apache.cassandra.cql3.Operator.CONTAINS_KEY;
-import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.simpleCondition;
+import static org.apache.cassandra.cql3.Operator.EQ;
+import static org.apache.cassandra.cql3.Operator.GT;
+import static org.apache.cassandra.cql3.Operator.GTE;
+import static org.apache.cassandra.cql3.Operator.LT;
+import static org.apache.cassandra.cql3.Operator.LTE;
+import static org.apache.cassandra.cql3.Operator.NEQ;
 import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.collectionElementCondition;
+import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.simpleCondition;
 import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.udtFieldCondition;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 
 public class ColumnConditionTest
@@ -65,6 +99,17 @@ public class ColumnConditionTest
     public static final ByteBuffer ZERO = Int32Type.instance.fromString("0");
     public static final ByteBuffer ONE = Int32Type.instance.fromString("1");
     public static final ByteBuffer TWO = Int32Type.instance.fromString("2");
+    public static final String KEYSPACE = "ks";
+    public static final FieldIdentifier UDT_FIELD_A = FieldIdentifier.forUnquoted("a");
+    public static final FieldIdentifier UDT_FIELD_B = FieldIdentifier.forUnquoted("b");
+    public static final UserType UDT_FROZEN = new UserType(KEYSPACE, ByteBufferUtil.bytes("simple"),
+                                                           Arrays.asList(UDT_FIELD_A, UDT_FIELD_B),
+                                                           Arrays.asList(Int32Type.instance, Int32Type.instance),
+                                                           false);
+    public static final UserType UDT_MULTI_CELL = new UserType(KEYSPACE, ByteBufferUtil.bytes("simple"),
+                                                               Arrays.asList(UDT_FIELD_A, UDT_FIELD_B),
+                                                               Arrays.asList(Int32Type.instance, Int32Type.instance),
+                                                               true);
 
     private static Row newRow(ColumnMetadata definition, ByteBuffer value)
     {
@@ -138,8 +183,8 @@ public class ColumnConditionTest
 
     private static boolean appliesSimpleCondition(ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", Int32Type.instance);
-        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", Int32Type.instance, ColumnMetadata.NO_UNIQUE_ID);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition, null);
         Terms terms = Terms.of(new Constants.Value(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, terms);
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
@@ -149,8 +194,8 @@ public class ColumnConditionTest
     private static boolean appliesListCondition(List<ByteBuffer> rowValue, Operator op, List<ByteBuffer> conditionValue)
     {
         ListType<Integer> type = ListType.getInstance(Int32Type.instance, true);
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
-        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type, ColumnMetadata.NO_UNIQUE_ID);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition, null);
         Term term = conditionValue == null ? Constants.NULL_VALUE : new MultiElements.Value(type, conditionValue);
         ColumnCondition condition = new ColumnCondition(column, op, Terms.of(term));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
@@ -159,8 +204,8 @@ public class ColumnConditionTest
 
     private static boolean conditionContainsApplies(List<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
-        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true), ColumnMetadata.NO_UNIQUE_ID);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition, null);
         Terms terms = Terms.of(new Constants.Value(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, terms);
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
@@ -169,8 +214,8 @@ public class ColumnConditionTest
 
     private static boolean conditionContainsApplies(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
-        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true), ColumnMetadata.NO_UNIQUE_ID);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition, null);
         Terms terms = Terms.of(new Constants.Value(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, terms);
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
@@ -180,8 +225,8 @@ public class ColumnConditionTest
     private static boolean appliesSetCondition(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue)
     {
         SetType<Integer> type = SetType.getInstance(Int32Type.instance, true);
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
-        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type, ColumnMetadata.NO_UNIQUE_ID);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition, null);
         Term term = conditionValue == null ? Constants.NULL_VALUE : new MultiElements.Value(type, new ArrayList<>(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, Terms.of(term));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
@@ -190,8 +235,8 @@ public class ColumnConditionTest
 
     private static boolean conditionContainsApplies(SortedSet<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
-        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true), ColumnMetadata.NO_UNIQUE_ID);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition, null);
         Terms terms = Terms.of(new Constants.Value(conditionValue));
         ColumnCondition condition = new ColumnCondition(column, op, terms);
 
@@ -199,10 +244,51 @@ public class ColumnConditionTest
         return bound.appliesTo(newRow(definition, rowValue));
     }
 
+    private boolean conditionUDTApplies(ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
+    {
+        boolean frozen = conditionUDTApplies(UDT_FROZEN, rowValue, op, conditionValue);
+        boolean multi = conditionUDTApplies(UDT_MULTI_CELL, rowValue, op, conditionValue);
+        Assertions.assertThat(frozen).isEqualTo(multi);
+        return frozen;
+    }
+
+    private boolean conditionUDTApplies(UserType ut, ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
+    {
+        ColumnMetadata column = ColumnMetadata.regularColumn(KEYSPACE, "tbl", "c", ut, ColumnMetadata.NO_UNIQUE_ID);
+        ColumnCondition.ElementOrFieldAccessBound bounds = new ColumnCondition.ElementOrFieldAccessBound(column, null, UDT_FIELD_A.bytes, op, conditionValue);
+        Row row;
+        if (ut.isMultiCell())
+        {
+            Row.Builder builder = BTreeRow.sortedBuilder();
+            builder.newRow(Clustering.EMPTY);
+            if (rowValue != null)
+            {
+                builder.addCell(new BufferCell(column,
+                                               0L,
+                                               Cell.NO_TTL,
+                                               Cell.NO_DELETION_TIME,
+                                               rowValue,
+                                               ut.cellPathForField(UDT_FIELD_A)));
+                builder.addCell(new BufferCell(column,
+                                               0L,
+                                               Cell.NO_TTL,
+                                               Cell.NO_DELETION_TIME,
+                                               EMPTY_BYTE_BUFFER,
+                                               ut.cellPathForField(UDT_FIELD_B)));
+            }
+            row = builder.build();
+        }
+        else
+        {
+            row = newRow(column, ut.pack(rowValue, EMPTY_BYTE_BUFFER));
+        }
+        return bounds.appliesTo(row);
+    }
+
     private static boolean appliesMapCondition(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, SortedMap<ByteBuffer, ByteBuffer> conditionValue)
     {
         MapType<Integer, Integer> type = MapType.getInstance(Int32Type.instance, Int32Type.instance, true);
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type, ColumnMetadata.NO_UNIQUE_ID);
         Term term;
         if (conditionValue == null)
         {
@@ -218,7 +304,7 @@ public class ColumnConditionTest
             }
             term = new MultiElements.Value(type, value);
         }
-        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition, null);
         ColumnCondition condition = new ColumnCondition(column, op, Terms.of(term));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
@@ -737,5 +823,161 @@ public class ColumnConditionTest
         FieldIdentifier f = FieldIdentifier.forQuoted("f1");
         assertEquals("col.f1 = ?", udtFieldCondition(col, f, EQ, Terms.Raw.of(marker)).toCQLString());
         assertEquals("col.f1 = 1", udtFieldCondition(col, f, EQ, Terms.Raw.of(one)).toCQLString());
+    }
+
+    @Test
+    public void testUDTBound() throws InvalidRequestException
+    {
+        // EQ
+        assertTrue(conditionUDTApplies(ONE, EQ, ONE));
+        assertFalse(conditionUDTApplies(ONE, EQ, ZERO));
+        assertFalse(conditionUDTApplies(ZERO, EQ, ONE));
+        assertFalse(conditionUDTApplies(ONE, EQ, null));
+
+        assertFalse(conditionUDTApplies(ONE, EQ, null));
+        assertFalse(conditionUDTApplies(null, EQ, ONE));
+        assertTrue(conditionUDTApplies(null, EQ, null));
+
+        assertFalse(conditionUDTApplies(ONE, EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, EQ, ONE));
+        assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
+        // NEQ
+        assertFalse(conditionUDTApplies(ONE, NEQ, ONE));
+        assertTrue(conditionUDTApplies(ONE, NEQ, ZERO));
+        assertTrue(conditionUDTApplies(ZERO, NEQ, ONE));
+        assertTrue(conditionUDTApplies(ONE, NEQ, null));
+        assertTrue(conditionUDTApplies(null, NEQ, ONE));
+
+        assertTrue(conditionUDTApplies(ONE, NEQ, null));
+        assertTrue(conditionUDTApplies(null, NEQ, ONE));
+        assertFalse(conditionUDTApplies(null, NEQ, null));
+
+        assertTrue(conditionUDTApplies(ONE, NEQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, NEQ, ONE));
+        assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, NEQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
+        // LT
+        assertFalse(conditionUDTApplies(ONE, LT, ONE));
+        assertThatThrownBy(() -> conditionUDTApplies(null, LT, null)).isInstanceOf(InvalidRequestException.class);
+        assertFalse(conditionUDTApplies(ONE, LT, ZERO));
+        assertTrue(conditionUDTApplies(ZERO, LT, ONE));
+        assertThatThrownBy(() -> conditionUDTApplies(ONE, LT, null)).isInstanceOf(InvalidRequestException.class);
+
+        assertFalse(conditionUDTApplies(ONE, LT, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, LT, ONE));
+        assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, LT, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
+        // LTE
+        assertTrue(conditionUDTApplies(ONE, LTE, ONE));
+        assertFalse(conditionUDTApplies(ONE, LTE, ZERO));
+        assertTrue(conditionUDTApplies(ZERO, LTE, ONE));
+        assertThatThrownBy(() -> conditionUDTApplies(ONE, LTE, null)).isInstanceOf(InvalidRequestException.class);
+
+        assertFalse(conditionUDTApplies(ONE, LTE, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, LTE, ONE));
+        assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, LTE, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
+        // GT
+        assertFalse(conditionUDTApplies(ONE, GT, ONE));
+        assertTrue(conditionUDTApplies(ONE, GT, ZERO));
+        assertFalse(conditionUDTApplies(ZERO, GT, ONE));
+        assertThatThrownBy(() -> conditionUDTApplies(ONE, GT, null)).isInstanceOf(InvalidRequestException.class);
+
+        assertTrue(conditionUDTApplies(ONE, GT, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, GT, ONE));
+        assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, GT, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
+        // GTE
+        assertTrue(conditionUDTApplies(ONE, GTE, ONE));
+        assertTrue(conditionUDTApplies(ONE, GTE, ZERO));
+        assertFalse(conditionUDTApplies(ZERO, GTE, ONE));
+        assertTrue(conditionUDTApplies(ONE, GTE, ONE));
+        assertThatThrownBy(() -> conditionUDTApplies(ONE, GTE, null)).isInstanceOf(InvalidRequestException.class);
+
+        assertTrue(conditionUDTApplies(ONE, GTE, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, GTE, ONE));
+        assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, GTE, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+    }
+
+    @Test
+    public void serde()
+    {
+        DataOutputBuffer out = new DataOutputBuffer();
+        qt().forAll(boundGen()).check(bounds -> {
+            TableMetadatas tables = TableMetadatas.of(bounds.table);
+            Serializers.testSerde(out, ColumnCondition.Bound.serializer, bounds, tables);
+        });
+    }
+
+    private static Gen<ColumnMetadata> columnMetadataGen(ColumnCondition.BoundKind kind)
+    {
+        var typeGen = selectTypes(kind);
+        var columnKindGen = selectColumnKinds(kind);
+        return Generators.toGen(CassandraGenerators.columnMetadataGen(columnKindGen, typeGen));
+    }
+
+    private static org.quicktheories.core.Gen<ColumnMetadata.Kind> selectColumnKinds(ColumnCondition.BoundKind kind)
+    {
+        if (kind == ColumnCondition.BoundKind.MultiCell || kind == ColumnCondition.BoundKind.ElementOrFieldAccess)
+            return SourceDSL.arbitrary().pick(ColumnMetadata.Kind.STATIC, ColumnMetadata.Kind.REGULAR);
+        return SourceDSL.arbitrary().enumValues(ColumnMetadata.Kind.class);
+    }
+
+    private static Pair<ColumnMetadata, TableMetadata> createColumnMetadata(RandomSource rs, ColumnCondition.BoundKind kind)
+    {
+         ColumnMetadata cm = columnMetadataGen(kind).next(rs);
+         TableMetadata.Builder tmb = TableMetadata.builder(cm.ksName, cm.cfName).addColumn(cm);
+         tmb.addPartitionKeyColumn("", Int32Type.instance);
+         TableMetadata tm = tmb.build();
+         cm = tm.getColumn(cm.name);
+         return Pair.create(cm, tm);
+    }
+
+    private static org.quicktheories.core.Gen<AbstractType<?>> selectTypes(ColumnCondition.BoundKind kind)
+    {
+        switch (kind)
+        {
+            // A condition on a single non-collection column.
+            case Simple:
+                return new AbstractTypeGenerators.TypeGenBuilder().build();
+            // A condition on a multicell column.
+            // assert column.type.isMultiCell();
+            case MultiCell:
+                return new AbstractTypeGenerators.TypeGenBuilder().withTypeKinds(TypeKind.UDT, TypeKind.LIST, TypeKind.MAP, TypeKind.SET).withMultiCell(true).build();
+            // The map key, list index or UDT fieldname.
+            case ElementOrFieldAccess:
+                return new AbstractTypeGenerators.TypeGenBuilder().withTypeKinds(TypeKind.UDT, TypeKind.LIST, TypeKind.MAP).withMultiCell(true).build();
+            default: throw new UnsupportedOperationException(kind.name());
+        }
+    }
+
+    public static Gen<ColumnCondition.Bound> boundGen()
+    {
+        Gen<ColumnCondition.BoundKind> kindGen = Gens.enums().all(ColumnCondition.BoundKind.class);
+        Gen<Operator> operatorGen = Gens.enums().all(Operator.class);
+        Gen<ByteBuffer> nonNullValuesGen = Generators.toGen(Generators.directAndHeapBytes(1, 100));
+        Gen<ByteBuffer> valueGen = rs -> {
+            if (rs.decide(.2)) return null;
+            return nonNullValuesGen.next(rs);
+        };
+
+        return rs -> {
+            ColumnCondition.BoundKind kind = kindGen.next(rs);
+            Pair<ColumnMetadata, TableMetadata> column = createColumnMetadata(rs, kind);
+            Operator operator = operatorGen.next(rs);
+            ByteBuffer value = valueGen.next(rs);
+            switch (kind)
+            {
+                // A condition on a single non-collection column.
+                case Simple: return new ColumnCondition.SimpleBound(column.left, column.right, operator, value);
+                // A condition on a multicell column.
+                // assert column.type.isMultiCell();
+                case MultiCell: return new ColumnCondition.MultiCellBound(column.left, column.right, operator, value);
+                // The map key, list index or UDT fieldname.
+                case ElementOrFieldAccess: return new ColumnCondition.ElementOrFieldAccessBound(column.left, column.right, Generators.toGen(AbstractTypeGenerators.elementAccess(column.left.type).bytesGen()).next(rs), operator, value);
+                default: throw new UnsupportedOperationException(kind.name());
+            }
+        };
     }
 }

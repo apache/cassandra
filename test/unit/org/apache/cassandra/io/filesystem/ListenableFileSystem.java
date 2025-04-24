@@ -20,6 +20,7 @@ package org.apache.cassandra.io.filesystem;
 
 import java.io.EOFException;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -35,6 +36,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -73,6 +75,16 @@ public class ListenableFileSystem extends ForwardingFileSystem
     public interface OnPostOpen extends Listener
     {
         void postOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs, FileChannel channel) throws IOException;
+    }
+
+    public interface OnPreClose extends Listener
+    {
+        void preClose(Path path, FileChannel channel) throws IOException;
+    }
+
+    public interface OnPreDelete extends Listener
+    {
+        void preDelete(Path path) throws IOException;
     }
 
     public interface OnPreRead extends Listener
@@ -153,6 +165,8 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     private final List<OnPreOpen> onPreOpen = new CopyOnWriteArrayList<>();
     private final List<OnPostOpen> onPostOpen = new CopyOnWriteArrayList<>();
+    private final List<OnPreClose> onPreClose = new CopyOnWriteArrayList<>();
+    private final List<OnPreDelete> onPreDelete = new CopyOnWriteArrayList<>();
     private final List<OnPreTransferTo> onPreTransferTo = new CopyOnWriteArrayList<>();
     private final List<OnPostTransferTo> onPostTransferTo = new CopyOnWriteArrayList<>();
     private final List<OnPreRead> onPreRead = new CopyOnWriteArrayList<>();
@@ -196,6 +210,16 @@ public class ListenableFileSystem extends ForwardingFileSystem
         {
             onPostOpen.add((OnPostOpen) listener);
             matches.add(onPostOpen);
+        }
+        if (listener instanceof OnPreClose)
+        {
+            onPreClose.add((OnPreClose) listener);
+            matches.add(onPreClose);
+        }
+        if (listener instanceof OnPreDelete)
+        {
+            onPreDelete.add((OnPreDelete) listener);
+            matches.add(onPreDelete);
         }
         if (listener instanceof OnPreRead)
         {
@@ -296,6 +320,11 @@ public class ListenableFileSystem extends ForwardingFileSystem
             if (filter.accept(path))
                 callback.postOpen(path, options, attrs, channel);
         });
+    }
+
+    public Unsubscribable onPreClose(OnPreClose callback)
+    {
+        return listen(callback);
     }
 
     public Unsubscribable onPreRead(OnPreRead callback)
@@ -542,6 +571,13 @@ public class ListenableFileSystem extends ForwardingFileSystem
         protected Path unwrap(Path p)
         {
             return ListenableFileSystem.this.unwrap(p);
+        }
+
+        @Override
+        public void delete(Path path) throws IOException
+        {
+            notifyListeners(onPreDelete, l -> l.preDelete(path));
+            super.delete(path);
         }
 
         @Override
@@ -796,17 +832,29 @@ public class ListenableFileSystem extends ForwardingFileSystem
                     long pos = position;
                     try
                     {
-                        while (local.hasRemaining())
+                        // the channel could be closed... so always create a new channel to avoid this problem
+                        try (FileChannel channel = provider().newFileChannel(path, Set.of(StandardOpenOption.WRITE)))
                         {
-                            int wrote = write(local, pos);
-                            if (wrote == -1)
-                                throw new EOFException();
-                            pos += wrote;
+                            while (local.hasRemaining())
+                            {
+                                int wrote = channel.write(local, pos);
+                                if (wrote == -1)
+                                    throw new EOFException();
+                                pos += wrote;
+                            }
+                        }
+                        catch (NoSuchFileException | FileNotFoundException e)
+                        {
+                            // nothing to see here
                         }
                     }
                     catch (IOException e)
                     {
                         throw new UncheckedIOException(e);
+                    }
+                    synchronized (this)
+                    {
+                        mutable.set(null);
                     }
                 };
                 MemoryUtil.setAttachment(bb, forcer);
@@ -823,8 +871,8 @@ public class ListenableFileSystem extends ForwardingFileSystem
         @Override
         protected void implCloseChannel() throws IOException
         {
+            notifyListeners(onPreClose, l -> l.preClose(path, this));
             super.implCloseChannel();
-            mutable.set(null);
         }
     }
 

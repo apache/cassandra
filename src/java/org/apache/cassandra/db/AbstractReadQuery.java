@@ -118,4 +118,16 @@ abstract class AbstractReadQuery extends MonitorableImpl implements ReadQuery
     }
 
     protected abstract void appendCQLWhereClause(StringBuilder sb);
+
+    @Override
+    public String monitoredOnKeyspace()
+    {
+        return metadata().keyspace;
+    }
+
+    @Override
+    public String monitoredOnTable()
+    {
+        return metadata().name;
+    }
 }

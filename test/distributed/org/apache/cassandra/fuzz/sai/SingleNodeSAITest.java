@@ -22,6 +22,6 @@ public class SingleNodeSAITest extends SingleNodeSAITestBase
 {
     public SingleNodeSAITest()
     {
-        super();
+        super(null);
     }
 }

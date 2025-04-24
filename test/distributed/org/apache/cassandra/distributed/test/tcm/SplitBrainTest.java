@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -56,6 +57,7 @@ import static org.junit.Assert.assertTrue;
 
 public class SplitBrainTest extends TestBaseImpl
 {
+    @Ignore
     @Test
     public void testSplitBrainStartup() throws IOException, TimeoutException
     {

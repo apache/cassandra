@@ -90,9 +90,12 @@ public abstract class CQLVisitExecutor
     public static void replayAfterFailure(Visit visit, CQLVisitExecutor executor, Model.Replay replay)
     {
         QueryBuildingVisitExecutor queryBuilder = executor.queryBuilder;
-        logger.error("Caught an exception at {} while replaying {}\ncluster.schemaChange(\"{}\");\nOperations _for this partition_ up to this visit:",
-                     visit, queryBuilder.compile(visit),
-                     queryBuilder.schema.compile());
+        if (!visit.hasCustom)
+        {
+            logger.error("Caught an exception at {} while replaying {}\ncluster.schemaChange(\"{}\");\nOperations _for this partition_ up to this visit:",
+                         visit, queryBuilder.compile(visit),
+                         queryBuilder.schema.compile());
+        }
 
         // Configurable yet hardcoded for a person who is trying to generate repro
         ResultDumpMode mode = ResultDumpMode.PARTITION;
@@ -136,7 +139,7 @@ public abstract class CQLVisitExecutor
         // All operations are not touching any data
         if (compiledStatement == null)
         {
-            Invariants.checkArgument(Arrays.stream(visit.operations).allMatch(op -> op.kind() == Operations.Kind.CUSTOM));
+            Invariants.requireArgument(Arrays.stream(visit.operations).allMatch(op -> op.kind() == Operations.Kind.CUSTOM));
             return;
         }
 
@@ -147,7 +150,7 @@ public abstract class CQLVisitExecutor
         }
         else
         {
-            Invariants.checkState(selects.size() == 1);
+            Invariants.require(selects.size() == 1);
             executeValidatingVisit(visit, selects, compiledStatement);
         }
         dataTracker.end(visit);

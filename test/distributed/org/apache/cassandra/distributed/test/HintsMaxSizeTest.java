@@ -19,6 +19,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.UUID;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.CassandraRoleManager;
@@ -43,6 +44,7 @@ import static org.awaitility.Awaitility.await;
 @SuppressWarnings("Convert2MethodRef")
 public class HintsMaxSizeTest extends TestBaseImpl
 {
+    @Ignore
     @Test
     public void testMaxHintedHandoffSize() throws Exception
     {

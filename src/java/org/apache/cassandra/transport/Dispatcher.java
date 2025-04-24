@@ -151,6 +151,11 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             return new RequestTime(MonotonicClock.Global.preciseTime.now());
         }
 
+        public RequestTime withStartedAt(long startedAtNanos)
+        {
+            return new RequestTime(enqueuedAtNanos, startedAtNanos);
+        }
+
         public long startedAtNanos()
         {
             return startedAtNanos;
@@ -426,7 +431,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         connection.applyStateTransition(request.type, response.type);
         return response;
     }
-    
+
     /**
      * Note: this method may be executed on the netty event loop.
      */

@@ -45,6 +45,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -263,7 +264,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
             // In a complex reconfiguration, in addition to initiating the sequence of membership changes,
             // we're modifying the replication params of the metadata keyspace so we supply a function to do that
             KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
-            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, replicationParams));
+            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, replicationParams, FastPathStrategy.simple()));
 
             return executeInternal(prev,
                                    transformer -> transformer.with(prev.placements.replaceParams(prev.nextEpoch(), ReplicationParams.meta(prev), replicationParams))

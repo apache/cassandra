@@ -61,6 +61,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -80,6 +81,7 @@ import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.config.DurationSpec.IntMillisecondsBound;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -112,12 +114,15 @@ import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.ReconnectableSnitchHelper;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.locator.SnitchAdapter;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.utils.FBUtilities;
@@ -153,7 +158,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYS
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.db.ConsistencyLevel.ALL;
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
@@ -162,6 +167,7 @@ import static org.apache.cassandra.db.ConsistencyLevel.ONE;
 import static org.apache.cassandra.db.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
+import static org.apache.cassandra.journal.Params.FlushMode.PERIODIC;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
 public class DatabaseDescriptor
@@ -223,6 +229,9 @@ public class DatabaseDescriptor
 
     private static long keyCacheSizeInMiB;
     private static long paxosCacheSizeInMiB;
+    private static long accordCacheSizeInMiB;
+    private static long accordWorkingSetSizeInMiB;
+    private static long consensusMigrationCacheSizeInMiB;
     private static long counterCacheSizeInMiB;
     private static long indexSummaryCapacityInMiB;
 
@@ -381,6 +390,14 @@ public class DatabaseDescriptor
     public static void clientInitialization(boolean failIfDaemonOrTool)
     {
         clientInitialization(failIfDaemonOrTool, Config::new);
+    }
+
+    // For simulator tests
+    public static void clientWithDaemonConfig()
+    {
+        clientInitialization(true, DatabaseDescriptor::loadConfig);
+        applyAll();
+        AuthConfig.applyAuth();
     }
 
     /**
@@ -599,6 +616,16 @@ public class DatabaseDescriptor
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
 
+        if (conf.accord.journal.flushPeriod == null)
+        {
+            conf.accord.journal.flushPeriod = conf.commitlog_sync_period;
+            if (conf.accord.journal.flushMode == PERIODIC && conf.commitlog_sync_period.toMilliseconds() == 0)
+            {
+                logger.warn("Accord journal is configured in periodic mode, while Cassandra commit log is configured in {} mode", conf.commitlog_sync);
+                conf.accord.journal.flushPeriod = conf.accord.journal.periodicFlushLagBlock;
+            }
+        }
+
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.mmap_index_only)
         {
@@ -639,6 +666,9 @@ public class DatabaseDescriptor
 
         if (conf.concurrent_counter_writes < 2)
             throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
+
+        if (conf.concurrent_accord_operations < 1)
+            throw new ConfigurationException("concurrent_accord_operations must be at least 1, but was " + conf.concurrent_accord_operations, false);
 
         if (conf.networking_cache_size == null)
             conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
@@ -710,6 +740,11 @@ public class DatabaseDescriptor
         initializeCommitLogDiskAccessMode();
         if (commitLogWriteDiskAccessMode != conf.commitlog_disk_access_mode)
             logger.info("commitlog_disk_access_mode resolved to: {}", commitLogWriteDiskAccessMode);
+
+        if (conf.accord.journal_directory == null)
+        {
+            conf.accord.journal_directory = storagedirFor("accord_journal");
+        }
 
         if (conf.hints_directory == null)
         {
@@ -786,6 +821,8 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("local_system_data_file_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.commitlog_directory))
                 throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories", false);
+            if (datadir.equals(conf.accord.journal_directory))
+                throw new ConfigurationException("accord.journal_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.hints_directory))
                 throw new ConfigurationException("hints_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.saved_caches_directory))
@@ -801,6 +838,8 @@ public class DatabaseDescriptor
         {
             if (conf.local_system_data_file_directory.equals(conf.commitlog_directory))
                 throw new ConfigurationException("local_system_data_file_directory must not be the same as the commitlog_directory", false);
+            if (conf.local_system_data_file_directory.equals(conf.accord.journal_directory))
+                throw new ConfigurationException("local_system_data_file_directory must not be the same as the accord.journal_directory", false);
             if (conf.local_system_data_file_directory.equals(conf.saved_caches_directory))
                 throw new ConfigurationException("local_system_data_file_directory must not be the same as the saved_caches_directory", false);
             if (conf.local_system_data_file_directory.equals(conf.hints_directory))
@@ -813,10 +852,18 @@ public class DatabaseDescriptor
                             FBUtilities.prettyPrintMemory(freeBytes));
         }
 
-        if (conf.commitlog_directory.equals(conf.saved_caches_directory))
-            throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory", false);
+        if (conf.commitlog_directory.equals(conf.accord.journal_directory))
+            throw new ConfigurationException("accord.journal_directory must not be the same as the commitlog_directory", false);
         if (conf.commitlog_directory.equals(conf.hints_directory))
             throw new ConfigurationException("hints_directory must not be the same as the commitlog_directory", false);
+        if (conf.commitlog_directory.equals(conf.saved_caches_directory))
+            throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory", false);
+
+        if (conf.accord.journal_directory.equals(conf.hints_directory))
+            throw new ConfigurationException("hints_directory must not be the same as the accord.journal_directory", false);
+        if (conf.accord.journal_directory.equals(conf.saved_caches_directory))
+            throw new ConfigurationException("saved_caches_directory must not be the same as the accord.journal_directory", false);
+
         if (conf.hints_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the hints_directory", false);
 
@@ -930,6 +977,52 @@ public class DatabaseDescriptor
                                              + conf.paxos_cache_size + "', supported values are <integer> >= 0.", false);
         }
 
+        try
+        {
+            // if accordCacheSizeInMiB option was set to "auto" then size of the cache should be "max(10% of Heap (in MB), 1MB)
+            accordCacheSizeInMiB = (conf.accord.cache_size == null)
+                                  ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.10) / 1024 / 1024))
+                                  : conf.accord.cache_size.toMebibytes();
+
+            if (accordCacheSizeInMiB < 0)
+                throw new NumberFormatException(); // to escape duplicating error message
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("accord.cache_size option was set incorrectly to '"
+                                             + conf.accord.cache_size + "', supported values are <integer> >= 0.", false);
+        }
+
+        try
+        {
+            // if accordWorkingSetSizeInMiB option was set to "auto" then size of the working set should be "max(5% of Heap (in MB), 1MB)
+            // if negative, there is no limit
+            accordWorkingSetSizeInMiB = (conf.accord.working_set_size == null)
+                                  ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.05) / 1024 / 1024))
+                                  : conf.accord.working_set_size.toMebibytes();
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("accord.working_set_size option was set incorrectly to '"
+                                             + conf.accord.working_set_size + "', supported values are <integer> >= 0.", false);
+        }
+
+        try
+        {
+            // if consensusMigrationCacheSizeInMiB option was set to "auto" then size of the cache should be "min(1% of Heap (in MB), 50MB)
+            consensusMigrationCacheSizeInMiB = (conf.consensus_migration_cache_size == null)
+                                               ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.01 / 1024 / 1024)), 50)
+                                               : conf.consensus_migration_cache_size.toMebibytes();
+
+            if (consensusMigrationCacheSizeInMiB < 0)
+                throw new NumberFormatException(); // to escape duplicating error message
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("consensus_migration_cache_size option was set incorrectly to '"
+                                             + conf.consensus_migration_cache_size + "', supported values are <integer> >= 0.", false);
+        }
+
         // we need this assignment for the Settings virtual table - CASSANDRA-17735
         conf.counter_cache_size = new DataStorageSpec.LongMebibytesBound(counterCacheSizeInMiB);
 
@@ -997,10 +1090,10 @@ public class DatabaseDescriptor
         }
         else if (JMXServerOptions.isEnabledBySystemProperties())
         {
-            throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
-                                             "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
-                                             "to call configure_jmx function but you have to keep jmx_server_options " +
-                                             "in cassandra.yaml commented out.");
+                throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
+                                                 "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
+                                                 "to call configure_jmx function but you have to keep jmx_server_options " +
+                                                 "in cassandra.yaml commented out.");
         }
 
         conf.jmx_server_options.jmx_encryption_options.applyConfig();
@@ -1472,6 +1565,12 @@ public class DatabaseDescriptor
         {
             logInfo("truncate_request_timeout", conf.truncate_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
             conf.truncate_request_timeout = LOWEST_ACCEPTED_TIMEOUT;
+        }
+
+        if (conf.accord_preaccept_timeout.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
+        {
+            logInfo("accord_preaccept_timeout", conf.accord_preaccept_timeout, LOWEST_ACCEPTED_TIMEOUT);
+            conf.accord_preaccept_timeout = LOWEST_ACCEPTED_TIMEOUT;
         }
     }
 
@@ -2103,6 +2202,10 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("commitlog_directory must be specified", false);
             FileUtils.createDirectory(conf.commitlog_directory);
 
+            if (conf.accord.journal_directory == null)
+                throw new ConfigurationException("accord.journal_directory must be specified", false);
+            FileUtils.createDirectory(conf.accord.journal_directory);
+
             if (conf.hints_directory == null)
                 throw new ConfigurationException("hints_directory must be specified", false);
             FileUtils.createDirectory(conf.hints_directory);
@@ -2407,6 +2510,11 @@ public class DatabaseDescriptor
         return conf.write_request_timeout.to(unit);
     }
 
+    public static long getShortRpcTimeout(TimeUnit unit)
+    {
+        return conf.short_rpc_timeout.to(unit);
+    }
+
     public static void setWriteRpcTimeout(long timeOutInMillis)
     {
         conf.write_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
@@ -2645,6 +2753,20 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
     }
 
+    public static int getAccordConcurrentOps()
+    {
+        return conf.concurrent_accord_operations;
+    }
+
+    public static void setConcurrentAccordOps(int concurrent_operations)
+    {
+        if (concurrent_operations < 0)
+        {
+            throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
+        }
+        conf.concurrent_accord_operations = concurrent_operations;
+    }
+
     public static int getFlushWriters()
     {
         return conf.memtable_flush_writers;
@@ -2652,7 +2774,13 @@ public class DatabaseDescriptor
 
     public static int getAvailableProcessors()
     {
-        return conf == null ? -1 : conf.available_processors;
+        OptionaldPositiveInt ap = conf == null ? OptionaldPositiveInt.UNDEFINED : conf.available_processors;
+        return ap.or(Runtime.getRuntime()::availableProcessors);
+    }
+
+    public static void setAvailableProcessors(int value)
+    {
+        conf.available_processors = new OptionaldPositiveInt(value);
     }
 
     public static int getConcurrentCompactors()
@@ -2988,6 +3116,16 @@ public class DatabaseDescriptor
     public static void setCommitLogCompression(ParameterizedClass compressor)
     {
         conf.commitlog_compression = compressor;
+    }
+
+    public static String getAccordJournalDirectory()
+    {
+        return conf.accord.journal_directory;
+    }
+
+    public static void setAccordJournalDirectory(String path)
+    {
+        conf.accord.journal_directory = path;
     }
 
     public static Config.FlushCompression getFlushCompression()
@@ -3545,6 +3683,11 @@ public class DatabaseDescriptor
         return conf.paxos_topology_repair_strict_each_quorum;
     }
 
+    public static TransactionalMode defaultTransactionalMode()
+    {
+        return conf.accord.default_transactional_mode;
+    }
+
     public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)
     {
         if (maxRequestDataInFlightInBytes == -1)
@@ -3832,7 +3975,7 @@ public class DatabaseDescriptor
         conf.server_encryption_options = encryptionOptions;
     }
 
-    public static EncryptionOptions getNativeProtocolEncryptionOptions()
+    public static EncryptionOptions.ClientEncryptionOptions getNativeProtocolEncryptionOptions()
     {
         return conf.client_encryption_options;
     }
@@ -3843,7 +3986,7 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions, EncryptionOptions> update)
+    public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions.ClientEncryptionOptions, EncryptionOptions.ClientEncryptionOptions> update)
     {
         conf.client_encryption_options = update.apply(conf.client_encryption_options);
     }
@@ -3892,6 +4035,11 @@ public class DatabaseDescriptor
     public static int getHintsFlushPeriodInMS()
     {
         return conf.hints_flush_period.toMilliseconds();
+    }
+
+    public static void setHintsFlushPeriodInMS(int milliseconds)
+    {
+        conf.hints_flush_period = new IntMillisecondsBound(milliseconds);
     }
 
     public static long getMaxHintsFileSize()
@@ -4130,6 +4278,21 @@ public class DatabaseDescriptor
     public static long getPaxosCacheSizeInMiB()
     {
         return paxosCacheSizeInMiB;
+    }
+
+    public static long getAccordCacheSizeInMiB()
+    {
+        return accordCacheSizeInMiB;
+    }
+
+    public static long getAccordWorkingSetSizeInMiB()
+    {
+        return accordWorkingSetSizeInMiB;
+    }
+
+    public static long getConsensusMigrationCacheSizeInMiB()
+    {
+        return consensusMigrationCacheSizeInMiB;
     }
 
     public static long getCounterCacheSizeInMiB()
@@ -4402,6 +4565,16 @@ public class DatabaseDescriptor
     public static void setMaterializedViewsEnabled(boolean enableMaterializedViews)
     {
         conf.materialized_views_enabled = enableMaterializedViews;
+    }
+
+    public static boolean isMaterializedViewsOnRepairEnabled()
+    {
+        return conf.materialized_views_on_repair_enabled;
+    }
+
+    public static void setMaterializedViewsOnRepairEnabled(boolean val)
+    {
+        conf.materialized_views_on_repair_enabled = val;
     }
 
     public static boolean getSASIIndexesEnabled()
@@ -5144,6 +5317,145 @@ public class DatabaseDescriptor
         }
     }
 
+
+    public static AccordSpec getAccord()
+    {
+        return conf.accord;
+    }
+
+    public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
+    {
+        return conf.accord.range_migration;
+    }
+
+    public static void setTransactionalRangeMigration(AccordSpec.TransactionalRangeMigration val)
+    {
+        conf.accord.range_migration = Preconditions.checkNotNull(val);
+    }
+
+    public static long getAccordRangeSyncPointTimeoutNanos()
+    {
+        return conf.accord.range_syncpoint_timeout.to(TimeUnit.NANOSECONDS);
+    }
+
+    public static long getAccordRepairTimeoutNanos()
+    {
+        return conf.accord.repair_timeout.to(TimeUnit.NANOSECONDS);
+    }
+
+    public static boolean getAccordTransactionsEnabled()
+    {
+        return conf == null ? false : conf.accord.enabled;
+    }
+
+    public static void setAccordTransactionsEnabled(boolean b)
+    {
+        conf.accord.enabled = b;
+    }
+
+    public static AccordSpec.QueueShardModel getAccordQueueShardModel()
+    {
+        return conf.accord.queue_shard_model;
+    }
+
+    public static AccordSpec.QueueSubmissionModel getAccordQueueSubmissionModel()
+    {
+        return conf.accord.queue_submission_model;
+    }
+
+    public static int getAccordQueueShardCount()
+    {
+        switch (getAccordQueueShardModel())
+        {
+            default: throw new AssertionError("Unhandled queue_shard_model: " + conf.accord.queue_shard_model);
+            case THREAD_PER_SHARD:
+            case THREAD_PER_SHARD_SYNC_QUEUE:
+                return conf.accord.queue_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
+            case THREAD_POOL_PER_SHARD:
+            case THREAD_POOL_PER_SHARD_EXCLUDES_IO:
+                int defaultMax = getAccordQueueSubmissionModel() == AccordSpec.QueueSubmissionModel.SYNC ? 8 : 4;
+                return conf.accord.queue_shard_count.or(Math.min(defaultMax, DatabaseDescriptor.getAvailableProcessors()));
+        }
+    }
+
+    public static int getAccordCommandStoreShardCount()
+    {
+        return conf.accord.command_store_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
+    }
+
+    public static int getAccordMaxQueuedLoadCount()
+    {
+        return conf.accord.max_queued_loads.or(getAccordConcurrentOps());
+    }
+
+    public static int getAccordMaxQueuedRangeLoadCount()
+    {
+        return conf.accord.max_queued_range_loads.or(Math.max(4, getAccordConcurrentOps() / 4));
+    }
+
+    public static boolean getAccordCacheShrinkingOn()
+    {
+        return conf.accord.shrink_cache_entries_before_eviction;
+    }
+
+    public static String getAccordRecoverTxnDelay()
+    {
+        return conf.accord.recover_txn;
+    }
+
+    public static void setAccordRecoverTxnDelay(String recoverTxnDelay)
+    {
+        AccordWaitStrategies.setRecoverTxn(recoverTxnDelay);
+        conf.accord.recover_txn = recoverTxnDelay;
+    }
+
+    public static String getAccordExpireTxnDelay()
+    {
+        return conf.accord.expire_txn;
+    }
+
+    public static void setAccordExpireTxnDelay(String expireTxnDelay)
+    {
+        AccordWaitStrategies.setExpireTxn(expireTxnDelay);
+        conf.accord.expire_txn = expireTxnDelay;
+    }
+
+    public static long getAccordFastPathUpdateDelayMillis()
+    {
+        DurationSpec.IntSecondsBound bound = conf.accord.fast_path_update_delay;
+        return bound == null ? -1 : bound.to(TimeUnit.MILLISECONDS);
+    }
+
+    public static long getAccordGCDelay(TimeUnit unit)
+    {
+        return conf.accord.gc_delay.to(unit);
+    }
+
+    public static int getAccordShardDurabilityTargetSplits()
+    {
+        return conf.accord.shard_durability_target_splits;
+    }
+
+    public static long getAccordScheduleDurabilityTxnIdLag(TimeUnit unit)
+    {
+        return conf.accord.durability_txnid_lag.to(unit);
+    }
+
+    public static long getAccordGlobalDurabilityCycle(TimeUnit unit)
+    {
+        return conf.accord.global_durability_cycle.to(unit);
+    }
+
+    public static long getAccordShardDurabilityCycle(TimeUnit unit)
+    {
+        return conf.accord.shard_durability_cycle.to(unit);
+    }
+
+    public static boolean getAccordStateCacheListenerJFREnabled()
+    {
+        return conf.accord.state_cache_listener_jfr_enabled;
+    }
+
     public static boolean getForceNewPreparedStatementBehaviour()
     {
         return conf.force_new_prepared_statement_behaviour;
@@ -5466,9 +5778,19 @@ public class DatabaseDescriptor
         conf.cms_default_max_retries = value;
     }
 
-    public static DurationSpec getDefaultRetryBackoff()
+    public static DurationSpec.IntMillisecondsBound getDefaultRetryBackoff()
     {
         return conf.cms_default_retry_backoff;
+    }
+
+    public static DurationSpec.IntMillisecondsBound getDefaultMaxRetryBackoff()
+    {
+        return conf.cms_default_max_retry_backoff;
+    }
+
+    public static String getCMSRetryDelay()
+    {
+        return conf.cms_retry_delay;
     }
 
     public static DurationSpec getCmsAwaitTimeout()
@@ -5583,5 +5905,35 @@ public class DatabaseDescriptor
     public static void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
     {
         conf.paxos_repair_race_wait = paxosRepairRaceWait;
+    }
+
+    public static boolean getAccordEphemeralReadEnabledEnabled()
+    {
+        return conf.accord.ephemeralReadEnabled;
+    }
+
+    public static AutoRepairConfig getAutoRepairConfig()
+    {
+        return conf.auto_repair;
+    }
+
+    public static double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return conf.incremental_repair_disk_headroom_reject_ratio;
+    }
+
+    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        if (value < 0.0 || value > 1.0)
+        {
+            throw new IllegalArgumentException("Value must be >= 0 and <= 1 for incremental_repair_disk_headroom_reject_ratio");
+        }
+        conf.incremental_repair_disk_headroom_reject_ratio = value;
+    }
+
+    @VisibleForTesting
+    public static void setPartitioner(String name)
+    {
+        partitioner = FBUtilities.newPartitioner(name);
     }
 }

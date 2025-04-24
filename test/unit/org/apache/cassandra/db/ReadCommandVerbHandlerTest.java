@@ -173,6 +173,7 @@ public class ReadCommandVerbHandlerTest
                   false,
                   0,
                   false,
+                  PotentialTxnConflicts.DISALLOW,
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),

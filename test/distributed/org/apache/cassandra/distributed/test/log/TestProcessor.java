@@ -32,6 +32,7 @@ import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,7 +55,7 @@ public class TestProcessor implements Processor
     }
 
     @Override
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
+    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
     {
         maybePause(transform);
         waitIfPaused();
@@ -64,9 +65,21 @@ public class TestProcessor implements Processor
     }
 
     @Override
-    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
     {
         return delegate.fetchLogAndWait(waitFor, retryPolicy);
+    }
+
+    @Override
+    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
+    {
+        return delegate.getLocalState(start, end, includeSnapshot);
+    }
+
+    @Override
+    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
+    {
+        return delegate.getLogState(start, end, includeSnapshot, retryPolicy);
     }
 
     protected void waitIfPaused()

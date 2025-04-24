@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.impl;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -29,6 +30,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,14 +56,18 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.LinkedHashMultimap;
 import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -88,6 +94,7 @@ import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.Shared;
@@ -165,7 +172,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private final INodeProvisionStrategy.Factory nodeProvisionStrategy;
     private final IInstanceInitializer instanceInitializer;
     private final int datadirCount;
-    private volatile Thread.UncaughtExceptionHandler previousHandler = null;
     private volatile BiPredicate<Integer, Throwable> ignoreUncaughtThrowable = null;
     private final List<Throwable> uncaughtExceptions = new CopyOnWriteArrayList<>();
 
@@ -191,6 +197,29 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES.reset();
             CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
             CassandraRelevantProperties.IO_NETTY_TRANSPORT_NONATIVE.setBoolean(false);
+            withInstanceInitializer((classLoader, threadGroup, i, i1) -> {
+                try
+                {
+                    Class<?> ef = classLoader.loadClass(ExecutorFactory.class.getName());
+                    Class<?> efd = classLoader.loadClass(ExecutorFactory.Default.class.getName());
+                    Constructor<?> newEfd = efd.getConstructor(ClassLoader.class, ThreadGroup.class, Thread.UncaughtExceptionHandler.class);
+                    Object executorFactory = newEfd.newInstance(classLoader, threadGroup, threadGroup);
+                    Class<?> efg = classLoader.loadClass(ExecutorFactory.Global.class.getName());
+                    Method setEfg = efg.getMethod("unsafeSet", ef);
+                    setEfg.invoke(null, executorFactory);
+                }
+                catch (ClassNotFoundException e)
+                {
+                    if (this instanceof Cluster.Builder)
+                        throw new RuntimeException(e);
+                    else
+                        logger.info("Unable to set ExecutorFactory for instance {}", i, e);
+                }
+                catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
         public AbstractBuilder(Factory<I, C, B> factory)
@@ -304,7 +333,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             ++generation;
             IClassTransformer transformer = classTransformer == null ? null : classTransformer.initialise();
             ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, sharedClassPredicate, transformer);
-            ThreadGroup threadGroup = new ThreadGroup(clusterThreadGroup, "node" + config.num() + (generation > 1 ? "_" + generation : ""));
+            ThreadGroup threadGroup = new ThreadGroup(clusterThreadGroup, "node" + config.num() + (generation > 1 ? "_" + generation : ""))
+            {
+                @Override
+                public void uncaughtException(Thread t, Throwable e)
+                {
+                    AbstractCluster.this.uncaughtException(get(config.num()), t, e);
+                }
+            };
             if (instanceInitializer != null)
                 instanceInitializer.initialise(classLoader, threadGroup, config.num(), generation);
 
@@ -769,11 +805,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
-    public void forEach(IIsolatedExecutor.SerializableRunnable runnable)
-    {
-        forEach(i -> i.sync(runnable));
-    }
-
     public void forEach(Consumer<? super I> consumer)
     {
         forEach(instances, consumer);
@@ -1032,8 +1063,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void startup()
     {
-        previousHandler = Thread.getDefaultUncaughtExceptionHandler();
-        Thread.setDefaultUncaughtExceptionHandler(this::uncaughtExceptions);
+        // start the JNA cleaner on the system class loader to avoid pinning an instance
+        com.sun.jna.internal.Cleaner.getCleaner();
         try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())
         {
             monitor.startPolling();
@@ -1070,22 +1101,34 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
-    private void uncaughtExceptions(Thread thread, Throwable error)
+    private void uncaughtException(I instance, Thread thread, Throwable error)
     {
+        // should no longer be possible given this is called from a ThreadGroup, but just in case
         if (!(thread.getContextClassLoader() instanceof InstanceClassLoader))
-        {
-            Thread.UncaughtExceptionHandler handler = previousHandler;
-            if (null != handler)
-                handler.uncaughtException(thread, error);
             return;
+
+        try
+        {
+            instance.uncaughtException(thread, error);
+        }
+        catch (Throwable t)
+        {
+            // mixing ClassLoaders so can't use normal instanceOf check
+            if (AssertionUtils.isInstanceof(InstanceKiller.InstanceShutdown.class).matches(Throwables.getRootCause(t)))
+            {
+                // The exception was handled by JVMStabilityInspector
+                return;
+            }
+            maybeAddUncaughtExceptions(t, instance);
         }
 
-        InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
-        get(cl.getInstanceId()).uncaughtException(thread, error);
+        maybeAddUncaughtExceptions(error, instance);
+    }
 
+    private void maybeAddUncaughtExceptions(Throwable error, I instance)
+    {
         BiPredicate<Integer, Throwable> ignore = ignoreUncaughtThrowable;
-        I instance = get(cl.getInstanceId());
-        if ((ignore == null || !ignore.test(cl.getInstanceId(), error)) && instance != null && !instance.isShutdown())
+        if ((ignore == null || !ignore.test(instance.config().num(), error)) && instance != null && !instance.isShutdown())
             uncaughtExceptions.add(error);
     }
 
@@ -1131,8 +1174,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             PathUtils.deleteRecursive(root);
         else
             logger.error("Not removing directories, as some instances haven't fully stopped.");
-        Thread.setDefaultUncaughtExceptionHandler(previousHandler);
-        previousHandler = null;
         checkAndResetUncaughtExceptions();
         //checkForThreadLeaks();
         //withThreadLeakCheck(futures);
@@ -1161,19 +1202,23 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         //This is an alternate version of the thread leak check that just checks to see if any threads are still alive
         // with the context classloader.
         Map<Thread, StackTraceElement[]> allThreads = Thread.getAllStackTraces();
-        StringBuilder sb = new StringBuilder();
+        var groupByStacktrace = LinkedHashMultimap.<List<StackTraceElement>, String>create();
         for (Map.Entry<Thread, StackTraceElement[]> e : allThreads.entrySet())
         {
 
             if (!(e.getKey().getContextClassLoader() instanceof InstanceClassLoader)) continue;
             e.getKey().setContextClassLoader(null);
-            sb.append(e.getKey().getName()).append(":\n");
-            for (StackTraceElement s : e.getValue())
+            groupByStacktrace.put(Arrays.asList(e.getValue()), e.getKey().getName());
+        }
+        if (groupByStacktrace.isEmpty()) return null;
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<List<StackTraceElement>, Collection<String>> e : groupByStacktrace.asMap().entrySet())
+        {
+            sb.append("Threads: ").append(e.getValue()).append(":\n");
+            for (StackTraceElement s : e.getKey())
                 sb.append("\t").append(s).append("\n");
         }
-        return sb.length() > 0
-               ? new IllegalStateException("Unterminated threads detected; active threads:\n" + sb)
-               : null;
+        return new IllegalStateException("Unterminated threads detected; active threads:\n" + sb);
     }
 
     public List<Token> tokens()
@@ -1183,7 +1228,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                     {
                         try
                         {
-                            IPartitioner partitioner = ((IPartitioner)Class.forName(i.config().getString("partitioner")).newInstance());
+                            IPartitioner partitioner = FBUtilities.newPartitioner(i.config().getString("partitioner"));
                             return Stream.of(i.config().getString("initial_token").split(",")).map(partitioner.getTokenFactory()::fromString);
                         }
                         catch (Throwable t)

@@ -190,6 +190,14 @@ public abstract class ColumnFilter
     }
 
     /**
+     * A filter that includes all columns for the provided table.
+     */
+    public static ColumnFilter allEver(TableMetadata metadata)
+    {
+        return new WildCardColumnFilter(metadata.regularAndStaticAndDroppedColumns());
+    }
+
+    /**
      * A filter that only fetches/queries the provided columns.
      * <p>
      * Note that this shouldn't be used for CQL queries in general as all columns should be queried to
@@ -682,7 +690,7 @@ public abstract class ColumnFilter
                                      SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections)
         {
             assert queried != null;
-            assert fetched.includes(queried);
+            assert fetched.includes(queried) : String.format("Queries columns %s are not included in the fetch strategy %s", queried, fetched);
 
             this.fetchingStrategy = fetchingStrategy;
             this.queried = queried;

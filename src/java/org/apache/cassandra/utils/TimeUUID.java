@@ -46,6 +46,7 @@ import com.google.common.hash.Hashing;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -143,7 +144,12 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
     public static TimeUUID deserialize(ByteBuffer buffer)
     {
-        return fromBytes(buffer.getLong(buffer.position()), buffer.getLong(buffer.position() + 8));
+        return deserialize(buffer, buffer.position());
+    }
+
+    public static TimeUUID deserialize(ByteBuffer buffer, int position)
+    {
+        return fromBytes(buffer.getLong(position), buffer.getLong(position + 8));
     }
 
     public static TimeUUID deserialize(DataInput in) throws IOException
@@ -235,6 +241,11 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
     public static long unixMicrosToRawTimestamp(long unixMicros)
     {
         return unixMicros * 10 - (UUID_EPOCH_UNIX_MILLIS * 10000);
+    }
+
+    public static long unixMicrosToMsb(long unixMicros)
+    {
+        return TimeUUID.rawTimestampToMsb(TimeUUID.unixMicrosToRawTimestamp(unixMicros));
     }
 
     public static long msbToRawTimestamp(long msb)
@@ -351,7 +362,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         }
     }
 
-    public static class Serializer extends AbstractSerializer<TimeUUID> implements IVersionedSerializer<TimeUUID>
+    public static class Serializer extends AbstractSerializer<TimeUUID> implements IVersionedSerializer<TimeUUID>, UnversionedSerializer<TimeUUID>
     {
         public static final Serializer instance = new Serializer();
 
@@ -372,13 +383,31 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         }
 
         @Override
+        public void serialize(TimeUUID t, DataOutputPlus out) throws IOException
+        {
+            t.serialize(out);
+        }
+
+        @Override
         public TimeUUID deserialize(DataInputPlus in, int version) throws IOException
         {
             return TimeUUID.deserialize(in);
         }
 
         @Override
+        public TimeUUID deserialize(DataInputPlus in) throws IOException
+        {
+            return TimeUUID.deserialize(in);
+        }
+
+        @Override
         public long serializedSize(TimeUUID t, int version)
+        {
+            return 16;
+        }
+
+        @Override
+        public long serializedSize(TimeUUID t)
         {
             return 16;
         }

@@ -38,7 +38,7 @@ public class CacheMetrics extends AbstractCacheMetrics
     public final Gauge<Integer> entries;
 
     /**
-     * Create metrics for given cache.
+     * Create metrics for the given cache supporting entity.
      *
      * @param type Type of Cache to identify metrics
      * @param cache Weighted Cache to measure metrics

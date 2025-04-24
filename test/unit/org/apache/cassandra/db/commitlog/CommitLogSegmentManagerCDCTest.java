@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.FileReader;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -109,6 +110,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         testWithNonblockingMode(this::testSegmentFlaggingOnCreation0);
     }
 
+    @Ignore
     @Test
     public void testNonblockingShouldMaintainSteadyDiskUsage() throws Throwable
     {

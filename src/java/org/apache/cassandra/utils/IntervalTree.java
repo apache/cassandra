@@ -25,6 +25,11 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
@@ -118,6 +123,16 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
         return EMPTY_TREE;
     }
 
+    public static <C extends Comparable<? super C>, D extends Comparable<? super D>, I extends Interval<C, D>> Builder<C, D, I> builder()
+    {
+        return new Builder<>();
+    }
+
+    public Builder<C, D, I> unbuild()
+    {
+        return new Builder<C, D, I>().addAll(this);
+    }
+
     public int intervalCount()
     {
         return intervalsByMinOrder.length;
@@ -144,19 +159,39 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
         return head.low;
     }
 
+    public List<Interval<C, D>> matches(Interval<C, D> searchInterval)
+    {
+        if (head == null)
+            return Collections.emptyList();
+
+        List<Interval<C, D>> results = new ArrayList<>();
+        head.searchInternal(searchInterval, i -> results.add(i));
+        return results;
+    }
+
+    public List<Interval<C, D>> matches(C point)
+    {
+        return matches(Interval.<C, D>create(point, point, null));
+    }
+
     public List<D> search(Interval<C, D> searchInterval)
     {
         if (head == null)
             return Collections.<D>emptyList();
 
         List<D> results = new ArrayList<D>();
-        head.searchInternal(searchInterval, results);
+        head.searchInternal(searchInterval, i -> results.add(i.data));
         return results;
     }
 
     public List<D> search(C point)
     {
         return search(Interval.<C, D>create(point, point, null));
+    }
+
+    public List<D> search(C start, C end)
+    {
+        return search(Interval.<C, D>create(start, end, null));
     }
 
     /**
@@ -282,6 +317,11 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
             return Collections.emptyIterator();
 
         return new TreeIterator(head);
+    }
+
+    public Stream<I> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
     }
 
     @Override
@@ -429,7 +469,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
         }
 
 
-        void searchInternal(Interval<C, D> searchInterval, List<D> results)
+        void searchInternal(Interval<C, D> searchInterval, Consumer<Interval<C, D>> results)
         {
             if (center.compareTo(searchInterval.min) < 0)
             {
@@ -438,7 +478,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
                     return;
 
                 while (i < intersectsRight.size())
-                    results.add(intersectsRight.get(i++).data);
+                    results.accept(intersectsRight.get(i++));
 
                 if (right != null)
                     right.searchInternal(searchInterval, results);
@@ -450,7 +490,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
                     return;
 
                 for (int i = 0 ; i < j ; i++)
-                    results.add(intersectsLeft.get(i).data);
+                    results.accept(intersectsLeft.get(i));
 
                 if (left != null)
                     left.searchInternal(searchInterval, results);
@@ -460,7 +500,7 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
                 // Adds every interval contained in this node to the result set then search left and right for further
                 // overlapping intervals
                 for (Interval<C, D> interval : intersectsLeft)
-                    results.add(interval.data);
+                    results.accept(interval);
 
                 if (left != null)
                     left.searchInternal(searchInterval, results);
@@ -508,6 +548,52 @@ public class IntervalTree<C extends Comparable<? super C>, D extends Comparable<
                 node = node.left;
             }
 
+        }
+    }
+
+    public static class Builder<C extends Comparable<? super C>, D extends Comparable<? super D>, I extends Interval<C, D>>
+    {
+        private final List<I> intervals = new ArrayList<>();
+
+        public Builder<C, D, I> addAll(IntervalTree<C, D, I> other)
+        {
+            other.forEach(intervals::add);
+            return this;
+        }
+
+        public Builder<C, D, I> add(I interval)
+        {
+            intervals.add(interval);
+            return this;
+        }
+
+        public Builder<C, D, I> removeIf(TriPredicate<C, C, D> predicate)
+        {
+            intervals.removeIf(i -> predicate.test(i.min, i.max, i.data));
+            return this;
+        }
+
+        public Builder<C, D, I> removeIf(BiPredicate<C, C> predicate)
+        {
+            intervals.removeIf(i -> predicate.test(i.min, i.max));
+            return this;
+        }
+
+        public Builder<C, D, I> removeIf(Predicate<D> predicate)
+        {
+            intervals.removeIf(i -> predicate.test(i.data));
+            return this;
+        }
+
+        public IntervalTree<C, D, I> build()
+        {
+            return IntervalTree.build(intervals);
+        }
+
+        @Override
+        public String toString()
+        {
+            return intervals.toString();
         }
     }
 }

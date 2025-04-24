@@ -18,44 +18,64 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.function.LongPredicate;
 import java.util.function.Function;
+import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Seekable;
+import accord.utils.Invariants;
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.LocalReadSizeTooLargeException;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
+import org.apache.cassandra.db.partitions.PurgeFunction;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.transform.BasePartitions;
 import org.apache.cassandra.db.transform.BaseRows;
+import org.apache.cassandra.db.transform.RTBoundCloser;
+import org.apache.cassandra.db.transform.RTBoundValidator;
+import org.apache.cassandra.db.transform.RTBoundValidator.Stage;
+import org.apache.cassandra.db.transform.StoppingTransformation;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
+import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.transform.RTBoundCloser;
-import org.apache.cassandra.db.transform.RTBoundValidator;
-import org.apache.cassandra.db.transform.RTBoundValidator.Stage;
-import org.apache.cassandra.db.transform.StoppingTransformation;
-import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -67,25 +87,28 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.accord.serializers.TableMetadatas;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
@@ -99,8 +122,32 @@ public abstract class ReadCommand extends AbstractReadQuery
     private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
 
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
-    public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
+    public static final Serializer serializer = new Serializer();
 
+    public enum PotentialTxnConflicts
+    {
+        /**
+         * Check for and raise an error if this operation should have been transactionally managed. For use
+         * by queries that aren't issued by a transaction system managing potential conflicts in contexts where
+         * conflicts would be a problem.
+         */
+        DISALLOW(false),
+
+        /**
+         * Don't check or raise an error if this operation could conflict with transactions. For use when the thing
+         * being managed doesn't support transactions or the operation is being done by a transaction that is already
+         * managing any potential conflicts.
+         */
+        ALLOW(true);
+
+        public final boolean allowed;
+
+        PotentialTxnConflicts(boolean allowed)
+        {
+            this.allowed = allowed;
+        }
+    }
+    
     // Expose the active command running so transitive calls can lookup this command.
     // This is useful for a few reasons, but mainly because the CQL query is here.
     private static final FastThreadLocal<ReadCommand> COMMAND = new FastThreadLocal<>();
@@ -110,6 +157,8 @@ public abstract class ReadCommand extends AbstractReadQuery
     private final boolean isDigestQuery;
     private final boolean acceptsTransient;
     private final Epoch serializedAtEpoch;
+    private final PotentialTxnConflicts potentialTxnConflicts;
+
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
     private int digestVersion;
 
@@ -128,6 +177,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 boolean isDigest,
                                                 int digestVersion,
                                                 boolean acceptsTransient,
+                                                PotentialTxnConflicts potentialTxnConflicts,
                                                 TableMetadata metadata,
                                                 long nowInSec,
                                                 ColumnFilter columnFilter,
@@ -138,14 +188,16 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected enum Kind
     {
-        SINGLE_PARTITION (SinglePartitionReadCommand.selectionDeserializer),
-        PARTITION_RANGE  (PartitionRangeReadCommand.selectionDeserializer);
+        SINGLE_PARTITION (SinglePartitionReadCommand.selectionDeserializer, SinglePartitionReadCommand.accordSelectionDeserializer),
+        PARTITION_RANGE  (PartitionRangeReadCommand.selectionDeserializer, ignore -> PartitionRangeReadCommand.selectionDeserializer);
 
         private final SelectionDeserializer selectionDeserializer;
+        private final Function<Seekable, SelectionDeserializer> accordSelectionDeserializer;
 
-        Kind(SelectionDeserializer selectionDeserializer)
+        Kind(SelectionDeserializer selectionDeserializer, Function<Seekable, SelectionDeserializer> accordSelectionDeserializer)
         {
             this.selectionDeserializer = selectionDeserializer;
+            this.accordSelectionDeserializer = accordSelectionDeserializer;
         }
     }
 
@@ -154,6 +206,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                           boolean isDigestQuery,
                           int digestVersion,
                           boolean acceptsTransient,
+                          PotentialTxnConflicts potentialTxnConflicts,
                           TableMetadata metadata,
                           long nowInSec,
                           ColumnFilter columnFilter,
@@ -172,6 +225,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
         this.indexQueryPlan = indexQueryPlan;
+        this.potentialTxnConflicts = potentialTxnConflicts;
         this.trackWarnings = trackWarnings;
         this.serializedAtEpoch = serializedAtEpoch;
         this.dataRange = dataRange;
@@ -183,6 +237,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     protected abstract void serializeSelection(DataOutputPlus out, int version) throws IOException;
+    protected abstract void serializeSelectionWithoutKey(DataOutputPlus out, int version) throws IOException;
     protected abstract long selectionSerializedSize(int version);
 
     public abstract boolean isLimitedToOnePartition();
@@ -323,7 +378,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand copyAsTransientQuery(Replica replica)
     {
-        Preconditions.checkArgument(replica.isTransient(),
+        checkArgument(replica.isTransient(),
                                     "Can't make a transient request on a full replica: " + replica);
         return copyAsTransientQuery();
     }
@@ -345,7 +400,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand copyAsDigestQuery(Replica replica)
     {
-        Preconditions.checkArgument(replica.isFull(),
+        checkArgument(replica.isFull(),
                                     "Can't make a digest request on a transient replica " + replica);
         return copyAsDigestQuery();
     }
@@ -440,6 +495,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         try
         {
             ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
+            if (!potentialTxnConflicts.allowed)
+                ConsensusRequestRouter.validateSafeToReadNonTransactionally(this);
             Index.QueryPlan indexQueryPlan = indexQueryPlan();
 
             Index.Searcher searcher = null;
@@ -526,6 +583,11 @@ public abstract class ReadCommand extends AbstractReadQuery
     public ReadExecutionController executionController()
     {
         return ReadExecutionController.forCommand(this, false);
+    }
+
+    public PotentialTxnConflicts potentialTxnConflicts()
+    {
+        return potentialTxnConflicts;
     }
 
     /**
@@ -874,7 +936,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     // Skip purgeable tombstones. We do this because it's safe to do (post-merge of the memtable and sstable at least), it
     // can save us some bandwith, and avoid making us throw a TombstoneOverwhelmingException for purgeable tombstones (which
     // are to some extend an artefact of compaction lagging behind and hence counting them is somewhat unintuitive).
-    protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator, 
+    protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator,
                                                                      ColumnFamilyStore cfs,
                                                                      ReadExecutionController controller)
     {
@@ -1217,6 +1279,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         private static final int HAS_INDEX = 0x04;
         private static final int ACCEPTS_TRANSIENT = 0x08;
         private static final int NEEDS_RECONCILIATION = 0x10;
+        private static final int ALLOWS_POTENTIAL_TXN_CONFLICTS = 0x20;
 
         private final SchemaProvider schema;
 
@@ -1281,21 +1344,30 @@ public abstract class ReadCommand extends AbstractReadQuery
             return (flags & NEEDS_RECONCILIATION) != 0;
         }
 
-        public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
+        private static int potentialTxnConflicts(PotentialTxnConflicts potentialTxnConflicts)
+        {
+            return potentialTxnConflicts.allowed ? ALLOWS_POTENTIAL_TXN_CONFLICTS : 0;
+        }
+
+        private static PotentialTxnConflicts potentialTxnConflicts(int flags)
+        {
+            return (flags & ALLOWS_POTENTIAL_TXN_CONFLICTS) != 0 ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW;
+        }
+
+        private void serializeHeader(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(command.kind.ordinal());
             out.writeByte(
-                    digestFlag(command.isDigestQuery())
-                    | indexFlag(null != command.indexQueryPlan())
-                    | acceptsTransientFlag(command.acceptsTransient())
-                    | needsReconciliationFlag(command.rowFilter().needsReconciliation())
+            digestFlag(command.isDigestQuery())
+            | indexFlag(null != command.indexQueryPlan())
+            | acceptsTransientFlag(command.acceptsTransient())
+            | needsReconciliationFlag(command.rowFilter().needsReconciliation())
+            | potentialTxnConflicts(command.potentialTxnConflicts)
             );
-            if (command.isDigestQuery())
-                out.writeUnsignedVInt32(command.digestVersion());
-            command.metadata().id.serialize(out);
-            if (version >= MessagingService.VERSION_51)
-                Epoch.serializer.serialize(command.serializedAtEpoch, out);
-            out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(command.nowInSec()) : (int) command.nowInSec());
+        }
+
+        private void serializeFiltersAndLimits(ReadCommand command, DataOutputPlus out, int version) throws IOException
+        {
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
             DataLimits.serializer.serialize(command.limits(), out, version, command.metadata().comparator);
@@ -1304,16 +1376,57 @@ public abstract class ReadCommand extends AbstractReadQuery
             // from the index name.
             if (null != command.indexQueryPlan)
                 IndexMetadata.serializer.serialize(command.indexQueryPlan.getFirst().getIndexMetadata(), out, version);
+        }
 
+        public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
+        {
+            serializeHeader(command, out, version);
+            if (command.isDigestQuery())
+                out.writeUnsignedVInt32(command.digestVersion());
+            command.metadata().id.serialize(out);
+            if (version >= MessagingService.VERSION_51)
+                Epoch.serializer.serialize(command.serializedAtEpoch, out);
+            out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(command.nowInSec()) : (int) command.nowInSec());
+            serializeFiltersAndLimits(command, out, version);
             command.serializeSelection(out, version);
+        }
+
+        public void serializeForAccord(ReadCommand command, TableMetadatas tables, DataOutputPlus out, int version) throws IOException
+        {
+            Invariants.require(!command.isDigestQuery);
+            serializeHeader(command, out, version);
+            tables.serialize(command.metadata(), out);
+            serializeFiltersAndLimits(command, out, version);
+            command.serializeSelectionWithoutKey(out, version);
+        }
+
+        private ReadCommand deserialize(SelectionDeserializer deserializer, int flags, Epoch schemaVersion, int digestVersion, long nowInSec, TableMetadata tableMetadata, DataInputPlus in, int version) throws IOException
+        {
+            boolean isDigest = isDigest(flags);
+            boolean acceptsTransient = acceptsTransient(flags);
+            PotentialTxnConflicts potentialTxnConflicts = potentialTxnConflicts(flags);
+            boolean hasIndex = hasIndex(flags);
+            boolean needsReconciliation = needsReconciliation(flags);
+
+            ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, tableMetadata);
+            RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, tableMetadata, needsReconciliation);
+            DataLimits limits = DataLimits.serializer.deserialize(in, version,  tableMetadata);
+            Index.QueryPlan indexQueryPlan = null;
+            if (hasIndex)
+            {
+                IndexMetadata index = deserializeIndexMetadata(in, version, tableMetadata);
+                Index.Group indexGroup =  Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
+                if (indexGroup != null)
+                    indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+            }
+
+            return deserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         public ReadCommand deserialize(DataInputPlus in, int version) throws IOException
         {
             Kind kind = Kind.values()[in.readByte()];
             int flags = in.readByte();
-            boolean isDigest = isDigest(flags);
-            boolean acceptsTransient = acceptsTransient(flags);
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
             if (isForThrift(flags))
@@ -1322,9 +1435,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 + "which is unsupported. Make sure to stop using thrift before "
                                                 + "upgrading to 4.0");
 
-            boolean hasIndex = hasIndex(flags);
-            int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
-            boolean needsReconciliation = needsReconciliation(flags);
+            int digestVersion = isDigest(flags) ? in.readUnsignedVInt32() : 0;
             TableId tableId = TableId.deserialize(in);
 
             Epoch schemaVersion = Epoch.EMPTY;
@@ -1347,19 +1458,19 @@ public abstract class ReadCommand extends AbstractReadQuery
                 throw e;
             }
             long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
-            ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, tableMetadata);
-            RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, tableMetadata, needsReconciliation);
-            DataLimits limits = DataLimits.serializer.deserialize(in, version,  tableMetadata);
-            Index.QueryPlan indexQueryPlan = null;
-            if (hasIndex)
-            {
-                IndexMetadata index = deserializeIndexMetadata(in, version, tableMetadata);
-                Index.Group indexGroup =  Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
-                if (indexGroup != null)
-                    indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
-            }
+            return deserialize(kind.selectionDeserializer, flags, schemaVersion, digestVersion, nowInSec, tableMetadata, in, version);
+        }
 
-            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
+        public ReadCommand deserializeForAccord(Seekable key, TableMetadatas tables, DataInputPlus in, int version) throws IOException
+        {
+            Kind kind = Kind.values()[in.readByte()];
+            int flags = in.readByte();
+            if (isDigest(flags) || isForThrift(flags) || acceptsTransient(flags))
+                throw new IllegalStateException("Received an Accord command with a digest/thrift/transient flag set.");
+
+            TableMetadata tableMetadata = tables.deserialize(in);
+
+            return deserialize(kind.accordSelectionDeserializer.apply(key), flags, tableMetadata.epoch, 0, 0, tableMetadata, in, version);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
@@ -1386,6 +1497,17 @@ public abstract class ReadCommand extends AbstractReadQuery
                    + command.metadata().id.serializedSize()
                    + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
+                   + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
+                   + RowFilter.serializer.serializedSize(command.rowFilter(), version)
+                   + DataLimits.serializer.serializedSize(command.limits(), version, command.metadata().comparator)
+                   + command.selectionSerializedSize(version)
+                   + command.indexSerializedSize(version);
+        }
+
+        public long serializedSizeForAccord(ReadCommand command, TableMetadatas tables, int version)
+        {
+            return 2 // kind + flags
+                   + tables.serializedSize(command.metadata())
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)
                    + DataLimits.serializer.serializedSize(command.limits(), version, command.metadata().comparator)

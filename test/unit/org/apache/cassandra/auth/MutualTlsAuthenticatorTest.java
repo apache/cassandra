@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import static org.apache.cassandra.auth.AuthTestUtils.getMockInetAddress;
 import static org.apache.cassandra.auth.AuthTestUtils.initializeIdentityRolesTable;
 import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -79,8 +79,10 @@ public class MutualTlsAuthenticatorTest
         StorageService.instance.initServer();
         ((CassandraRoleManager)DatabaseDescriptor.getRoleManager()).loadIdentityStatement();
         final Config config = DatabaseDescriptor.getRawConfig();
-        config.client_encryption_options = config.client_encryption_options.withEnabled(true)
-                                                                           .withRequireClientAuth(REQUIRED);
+        config.client_encryption_options = new EncryptionOptions.ClientEncryptionOptions.Builder(config.client_encryption_options)
+                                           .withEnabled(true)
+                                           .withRequireClientAuth(REQUIRED)
+                                           .build();
     }
 
     @After
@@ -183,8 +185,10 @@ public class MutualTlsAuthenticatorTest
                      " & client_encryption_options.require_client_auth to be true";
         MutualTlsAuthenticator mutualTlsAuthenticator = createAndInitializeMtlsAuthenticator();
 
-        config.client_encryption_options = config.client_encryption_options.withEnabled(true)
-                                                                           .withRequireClientAuth(EncryptionOptions.ClientAuth.NOT_REQUIRED);
+        config.client_encryption_options = new EncryptionOptions.ClientEncryptionOptions.Builder(config.client_encryption_options)
+                                           .withEnabled(true)
+                                           .withRequireClientAuth(EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED)
+                                           .build();
         expectedException.expect(ConfigurationException.class);
         expectedException.expectMessage(msg);
         mutualTlsAuthenticator.validateConfiguration();

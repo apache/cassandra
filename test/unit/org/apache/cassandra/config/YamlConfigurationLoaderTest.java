@@ -27,14 +27,19 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
@@ -42,6 +47,7 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBY
 import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -104,8 +110,8 @@ public class YamlConfigurationLoaderTest
         assertEquals("You have wrongly defined a config parameter of abstract type DurationSpec, DataStorageSpec or DataRateSpec." +
                      "Please check the config docs, otherwise Cassandra won't be able to start with this parameter being set in cassandra.yaml.",
                      Arrays.stream(Config.class.getFields())
-                    .filter(f -> !Modifier.isStatic(f.getModifiers()))
-                    .filter(isDurationSpec.or(isDataRateSpec).or(isDataStorageSpec)).count(), 0);
+                           .filter(f -> !Modifier.isStatic(f.getModifiers()))
+                           .filter(isDurationSpec.or(isDataRateSpec).or(isDataStorageSpec)).count(), 0);
     }
 
     @Test
@@ -113,12 +119,12 @@ public class YamlConfigurationLoaderTest
     {
         Config config = new Config();
         Map<String, Object> map = ImmutableMap.<String, Object>builder().put("storage_port", 123)
-                                                                        .put("commitlog_sync", Config.CommitLogSync.batch)
-                                                                        .put("seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider")
-                                                                        .put("client_encryption_options.cipher_suites", Collections.singletonList("FakeCipher"))
-                                                                        .put("client_encryption_options.optional", false)
-                                                                        .put("client_encryption_options.enabled", true)
-                                                                        .build();
+                                              .put("commitlog_sync", Config.CommitLogSync.batch)
+                                              .put("seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider")
+                                              .put("client_encryption_options.cipher_suites", Collections.singletonList("FakeCipher"))
+                                              .put("client_encryption_options.optional", false)
+                                              .put("client_encryption_options.enabled", true)
+                                              .build();
         Config updated = YamlConfigurationLoader.updateFromMap(map, true, config);
         assert updated == config : "Config pointers do not match";
         assertThat(config.storage_port).isEqualTo(123);
@@ -271,6 +277,12 @@ public class YamlConfigurationLoaderTest
         Map<String,Object> encryptionOptions = ImmutableMap.of("cipher_suites", Collections.singletonList("FakeCipher"),
                                                                "optional", false,
                                                                "enabled", true);
+        Map<String, Object> autoRepairConfig = ImmutableMap.of("enabled", true,
+                                                               "global_settings",
+                                                                        ImmutableMap.of("number_of_repair_threads", 1),
+                                                               "repair_type_overrides",
+                                                                        ImmutableMap.of("full",
+                                                                                    ImmutableMap.of("number_of_repair_threads", 2)));
         Map<String,Object> map = new ImmutableMap.Builder<String, Object>()
                                  .put("storage_port", storagePort)
                                  .put("commitlog_sync", commitLogSync)
@@ -279,6 +291,7 @@ public class YamlConfigurationLoaderTest
                                  .put("internode_socket_send_buffer_size", "5B")
                                  .put("internode_socket_receive_buffer_size", "5B")
                                  .put("commitlog_sync_group_window_in_ms", "42")
+                                 .put("auto_repair", autoRepairConfig)
                                  .build();
 
         Config config = YamlConfigurationLoader.fromMap(map, Config.class);
@@ -289,6 +302,9 @@ public class YamlConfigurationLoaderTest
         assertEquals(true, config.client_encryption_options.enabled); // Check a nested object
         assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_send_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
         assertEquals(new DataStorageSpec.IntBytesBound("5B"), config.internode_socket_receive_buffer_size); // Check names backward compatibility (CASSANDRA-17141 and CASSANDRA-15234)
+        assertTrue(config.auto_repair.enabled);
+        assertEquals(new DurationSpec.IntSecondsBound("6h"), config.auto_repair.getAutoRepairTableMaxRepairTime(AutoRepairConfig.RepairType.INCREMENTAL));
+        config.auto_repair.setMaterializedViewRepairEnabled(AutoRepairConfig.RepairType.INCREMENTAL, false);
     }
 
     @Test
@@ -426,6 +442,38 @@ public class YamlConfigurationLoaderTest
         assertThat(from("compaction_tombstone_warning_threshold", "0").partition_tombstones_warn_threshold).isEqualTo(0);
     }
 
+    @Test
+    public void process()
+    {
+        for (Type type : Type.values())
+        {
+            Config c = fromType(type, "available_processors", 4);
+            assertThat(c.available_processors).isEqualTo(new OptionaldPositiveInt(4));
+            assertThat(c.accord.command_store_shard_count).isEqualTo(OptionaldPositiveInt.UNDEFINED);
+            assertThat(c.accord.queue_shard_count).isEqualTo(OptionaldPositiveInt.UNDEFINED);
+
+            c = fromType(type, "available_processors", 3, "accord.queue_shard_count", 1, "accord.command_store_shard_count", 1);
+            assertThat(c.available_processors).isEqualTo(new OptionaldPositiveInt(3));
+            assertThat(c.accord.command_store_shard_count).isEqualTo(new OptionaldPositiveInt(1));
+            assertThat(c.accord.queue_shard_count).isEqualTo(new OptionaldPositiveInt(1));
+        }
+    }
+
+    private enum Type { MAP, YAML }
+
+    private static Config fromType(Type type, Object... values)
+    {
+        switch (type)
+        {
+            case MAP:
+                return from(values);
+            case YAML:
+                return fromYaml(values);
+            default:
+                throw new AssertionError("Unexpected type: " + type);
+        }
+    }
+
     private static Config from(Object... values)
     {
         assert values.length % 2 == 0 : "Map can only be created with an even number of inputs: given " + values.length;
@@ -467,6 +515,38 @@ public class YamlConfigurationLoaderTest
         Config config = load("cassandra-mtls-backward-compatibility.yaml");
         assertEquals(config.authenticator.class_name, "org.apache.cassandra.auth.AllowAllAuthenticator");
         assertTrue(config.authenticator.parameters.isEmpty());
+    }
+
+    @Test
+    public void testAccordConfig()
+    {
+        Map<String, String> accordSpec = ImmutableMap.of("fast_path_update_delay", "60s",
+                "durability_txnid_lag", "60s",
+                "shard_durability_cycle", "60s",
+                "global_durability_cycle", "60s");
+        AccordSpec spec = from("accord", accordSpec).accord;
+        assertThat(spec.fast_path_update_delay.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.durability_txnid_lag.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.shard_durability_cycle.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+        assertThat(spec.global_durability_cycle.to(TimeUnit.NANOSECONDS)).isEqualTo(60000000000L);
+    }
+
+    private static Config fromYaml(Object... values)
+    {
+        assert values.length % 2 == 0 : "Map can only be created with an even number of inputs: given " + values.length;
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+        for (int i = 0; i < values.length; i += 2)
+            builder.put((String) values[i], values[i + 1]);
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory()); // checkstyle: permit this instantiation
+        try
+        {
+            byte[] bytes = mapper.writeValueAsBytes(builder.build());
+            return YamlConfigurationLoader.loadConfig(bytes);
+        }
+        catch (JsonProcessingException e)
+        {
+            throw new AssertionError("Unable to convert map to YAML", e);
+        }
     }
 
     public static Config load(String path)

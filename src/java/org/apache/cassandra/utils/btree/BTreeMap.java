@@ -33,12 +33,12 @@ public class BTreeMap<K, V> extends AbstractBTreeMap<K, V> implements NavigableM
 {
     protected static <K, V> BTreeMap<K, V> withComparator(Object[] tree, Comparator<K> comparator)
     {
-        return new BTreeMap<>(tree, new KeyComparator<>(comparator));
+        return new BTreeMap<>(tree, new KeyComparator<>(comparator), new AsymmetricKeyComparator<>(comparator));
     }
 
-    protected BTreeMap(Object[] tree, KeyComparator<K, V> comparator)
+    protected BTreeMap(Object[] tree, KeyComparator<K, V> comparator, AsymmetricKeyComparator<K> asymmetricComparator)
     {
-        super(tree, comparator);
+        super(tree, comparator, asymmetricComparator);
     }
 
     public static <K, V> BTreeMap<K, V> empty(Comparator<K> comparator)
@@ -61,7 +61,7 @@ public class BTreeMap<K, V> extends AbstractBTreeMap<K, V> implements NavigableM
         AbstractBTreeMap.Entry<K, V> existing;
         if ((existing = BTree.find(tree, comparator, entry)) != null && !existing.equals(entry))
             throw new IllegalStateException("Map already contains " + key);
-        return new BTreeMap<>(BTree.update(tree, new Object[]{ entry }, comparator, UpdateFunction.noOp()), comparator);
+        return new BTreeMap<>(BTree.update(tree, BTree.singleton(entry), comparator, UpdateFunction.noOp()), comparator, asymmetricComparator);
     }
 
     public BTreeMap<K, V> withForce(K key, V value)
@@ -69,7 +69,7 @@ public class BTreeMap<K, V> extends AbstractBTreeMap<K, V> implements NavigableM
         if (key == null || value == null)
             throw new NullPointerException();
         AbstractBTreeMap.Entry<K, V> entry = new AbstractBTreeMap.Entry<>(key, value);
-        return new BTreeMap<>(BTree.update(tree, new Object[] { entry }, comparator, UpdateFunction.Simple.of((a, b) -> b)), comparator);
+        return new BTreeMap<>(BTree.update(tree, BTree.singleton(entry), comparator, UpdateFunction.Simple.of((a, b) -> b)), comparator, asymmetricComparator);
     }
 
     public BTreeMap<K, V> without(K key)
@@ -77,13 +77,14 @@ public class BTreeMap<K, V> extends AbstractBTreeMap<K, V> implements NavigableM
         if (key == null)
             throw new NullPointerException();
 
-        return new BTreeMap<>(BTreeRemoval.remove(tree, comparator, new AbstractBTreeMap.Entry<>(key, null)), comparator);
+        return new BTreeMap<>(BTreeRemoval.remove(tree, asymmetricComparator, key), comparator, asymmetricComparator);
     }
 
     @Override
     public Map.Entry<K, V> lowerEntry(K key)
     {
-        return BTree.lower(tree, comparator, new AbstractBTreeMap.Entry<>(key, null));
+        //noinspection unchecked
+        return (Map.Entry<K, V>) BTree.lower(tree, asymmetricComparator, key);
     }
 
     @Override
@@ -96,7 +97,8 @@ public class BTreeMap<K, V> extends AbstractBTreeMap<K, V> implements NavigableM
     @Override
     public Map.Entry<K, V> floorEntry(K key)
     {
-        return BTree.floor(tree, comparator, new AbstractBTreeMap.Entry<>(key, null));
+        //noinspection unchecked
+        return (Map.Entry<K, V>) BTree.floor(tree, asymmetricComparator, key);
     }
 
     @Override
@@ -109,7 +111,8 @@ public class BTreeMap<K, V> extends AbstractBTreeMap<K, V> implements NavigableM
     @Override
     public Map.Entry<K, V> ceilingEntry(K key)
     {
-        return BTree.ceil(tree, comparator, new AbstractBTreeMap.Entry<>(key, null));
+        //noinspection unchecked
+        return (Map.Entry<K, V>) BTree.ceil(tree, asymmetricComparator, key);
     }
 
     @Override
@@ -122,7 +125,8 @@ public class BTreeMap<K, V> extends AbstractBTreeMap<K, V> implements NavigableM
     @Override
     public Map.Entry<K, V> higherEntry(K key)
     {
-        return BTree.higher(tree, comparator, new AbstractBTreeMap.Entry<>(key, null));
+        //noinspection unchecked
+        return (Map.Entry<K, V>) BTree.higher(tree, asymmetricComparator, key);
     }
 
     @Override
@@ -151,8 +155,9 @@ public class BTreeMap<K, V> extends AbstractBTreeMap<K, V> implements NavigableM
     @Override
     public NavigableMap<K, V> descendingMap()
     {
+        Comparator<K> reversed = comparator.keyComparator.reversed();
         return new BTreeMap<>(BTree.build(BulkIterator.of(BTree.iterable(tree, BTree.Dir.DESC).iterator()), BTree.size(tree), UpdateFunction.noOp),
-                              new KeyComparator<>(comparator.keyComparator.reversed()));
+                              new KeyComparator<>(reversed), new AsymmetricKeyComparator<>(reversed));
     }
 
     @Override

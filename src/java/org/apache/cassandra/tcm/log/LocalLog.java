@@ -70,7 +70,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.tcm.Epoch.EMPTY;
@@ -300,6 +300,11 @@ public abstract class LocalLog implements Closeable
         assert metadata.epoch.is(Epoch.FIRST) : String.format("Epoch: %s. CMS: %s", metadata.epoch, metadata.fullCMSMembers());
     }
 
+    public LogStorage storage()
+    {
+        return storage;
+    }
+
     public ClusterMetadata metadata()
     {
         return committed.get();
@@ -351,9 +356,14 @@ public abstract class LocalLog implements Closeable
         }
     }
 
-    public LogState getCommittedEntries(Epoch since)
+    public LogState getLocalEntries(Epoch since)
     {
         return storage.getLogState(since, false);
+    }
+
+    public LogState getLocalEntries(Epoch since, Epoch until, boolean includeSnapshot)
+    {
+        return storage.getLogState(since, until, includeSnapshot);
     }
 
     public ClusterMetadata waitForHighestConsecutive()

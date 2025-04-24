@@ -27,7 +27,15 @@ import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.NumberType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -62,6 +70,11 @@ public abstract class Operation
         this.t = t;
     }
 
+    public Term term()
+    {
+        return t;
+    }
+
     public void addFunctionsTo(List<Function> functions)
     {
         if (t != null)
@@ -69,13 +82,22 @@ public abstract class Operation
     }
 
     /**
-     * @return whether the operation requires a read of the previous value to be executed
-     * (only lists setterByIdx, discard and discardByIdx requires that).
+     * @return whether the operation requires a read of the existing value to be executed
      */
     public boolean requiresRead()
     {
         return false;
     }
+
+
+    /**
+     * @return whether the operation requires its timestamp to be known to be executed safely
+     */
+    public boolean requiresTimestamp()
+    {
+        return false;
+    }
+
 
     /**
      * Collects the column specification for the bind variables of this operation.
@@ -178,7 +200,7 @@ public abstract class Operation
 
             if (receiver.type.isCollection())
             {
-                switch (((CollectionType) receiver.type).kind)
+                switch (((CollectionType<?>) receiver.type).kind)
                 {
                     case LIST:
                         return new Lists.Setter(receiver, v);
@@ -228,7 +250,7 @@ public abstract class Operation
             else if (!(receiver.type.isMultiCell()))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for frozen collection column %s", toString(receiver), receiver.name));
 
-            switch (((CollectionType)receiver.type).kind)
+            switch (((CollectionType<?>)receiver.type).kind)
             {
                 case LIST:
                     Term idx = selector.prepare(metadata.keyspace, Lists.indexSpecOf(receiver));
@@ -328,7 +350,7 @@ public abstract class Operation
             else if (!(receiver.type.isMultiCell()))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for frozen collection column %s", toString(receiver), receiver.name));
 
-            switch (((CollectionType)receiver.type).kind)
+            switch (((CollectionType<?>)receiver.type).kind)
             {
                 case LIST:
                     return new Lists.Appender(receiver, value.prepare(metadata.keyspace, receiver));
@@ -371,7 +393,7 @@ public abstract class Operation
         }
 
         public Operation prepare(TableMetadata metadata, ColumnMetadata receiver, boolean canReadExistingState) throws InvalidRequestException
-        {
+        {   
             if (!(receiver.type instanceof CollectionType))
             {
                 if (canReadExistingState)
@@ -389,7 +411,7 @@ public abstract class Operation
             else if (!(receiver.type.isMultiCell()))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for frozen collection column %s", toString(receiver), receiver.name));
 
-            switch (((CollectionType)receiver.type).kind)
+            switch (((CollectionType<?>)receiver.type).kind)
             {
                 case LIST:
                     return new Lists.Discarder(receiver, value.prepare(metadata.keyspace, receiver));
@@ -400,7 +422,7 @@ public abstract class Operation
                     ColumnSpecification vr = new ColumnSpecification(receiver.ksName,
                                                                      receiver.cfName,
                                                                      receiver.name,
-                                                                     SetType.getInstance(((MapType)receiver.type).getKeysType(), false));
+                                                                     SetType.getInstance(((MapType<?, ?>) receiver.type).getKeysType(), true));
                     Term term;
                     try
                     {
@@ -502,7 +524,7 @@ public abstract class Operation
             else if (!(receiver.type.isMultiCell()))
                 throw new InvalidRequestException(String.format("Invalid deletion operation for frozen collection column %s", receiver.name));
 
-            switch (((CollectionType)receiver.type).kind)
+            switch (((CollectionType<?>)receiver.type).kind)
             {
                 case LIST:
                     Term idx = element.prepare(keyspace, Lists.indexSpecOf(receiver));

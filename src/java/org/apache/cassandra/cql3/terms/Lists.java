@@ -27,6 +27,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -34,21 +38,23 @@ import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.db.marshal.MultiElementType;
-import org.apache.cassandra.schema.ColumnMetadata;
-import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MultiElementType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
 
@@ -57,6 +63,9 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
  */
 public abstract class Lists
 {
+    @SuppressWarnings("unused")
+    private static final Logger logger = LoggerFactory.getLogger(Lists.class);
+
     private Lists() {}
 
     public static ColumnSpecification indexSpecOf(ColumnSpecification column)
@@ -288,6 +297,12 @@ public abstract class Lists
             super(column, t);
         }
 
+        @Override
+        public boolean requiresTimestamp()
+        {
+            return true;
+        }
+
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
@@ -312,7 +327,7 @@ public abstract class Lists
 
     public static class SetterByIndex extends Operation
     {
-        private final Term idx;
+        public final Term idx;
 
         public SetterByIndex(ColumnMetadata column, Term idx, Term t)
         {
@@ -379,6 +394,12 @@ public abstract class Lists
             doAppend(value, column, params);
         }
 
+        @Override
+        public boolean requiresTimestamp()
+        {
+            return true;
+        }
+
         static void doAppend(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
             ListType<?> type = (ListType<?>) column.type;
@@ -409,8 +430,8 @@ public abstract class Lists
                 int dataSize = 0;
                 for (ByteBuffer buffer : elements)
                 {
-                    ByteBuffer uuid = ByteBuffer.wrap(params.nextTimeUUIDAsBytes());
-                    Cell<?> cell = params.addCell(column, CellPath.create(uuid), buffer);
+                    ByteBuffer cellPath = ByteBuffer.wrap(params.nextTimeUUIDAsBytes());
+                    Cell<?> cell = params.addCell(column, CellPath.create(cellPath), buffer);
                     dataSize += cell.dataSize();
                 }
                 Guardrails.collectionListSize.guard(dataSize, column.name.toString(), false, params.clientState);
@@ -429,6 +450,12 @@ public abstract class Lists
         public Prepender(ColumnMetadata column, Term t)
         {
             super(column, t);
+        }
+
+        @Override
+        public boolean requiresTimestamp()
+        {
+            return true;
         }
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException

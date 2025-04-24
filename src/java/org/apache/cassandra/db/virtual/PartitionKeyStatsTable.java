@@ -284,7 +284,7 @@ public class PartitionKeyStatsTable implements VirtualTable
     {
         Slices s = clusteringIndexFilter.getSlices(target);
         Token startToken = target.partitioner.getMinimumToken();
-        Token endToken = target.partitioner.getMaximumToken();
+        Token endToken = target.partitioner.getMaximumTokenForSplitting();
         BigInteger startTokenValue = new BigInteger(endToken.getTokenValue().toString(), 10);
         BigInteger endTokenValue = new BigInteger(startToken.getTokenValue().toString(), 10);
 

@@ -40,6 +40,7 @@ import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Event.SchemaChange;
@@ -180,7 +181,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         // cluster, as config can be heterogenous falling back to safe defaults may occur on some nodes.
         ClusterMetadata metadata = ClusterMetadata.current();
         apply(metadata);
-        ClusterMetadata result = Schema.instance.submit(this);
+        ClusterMetadata result = commit(metadata);
 
         KeyspacesDiff diff = Keyspaces.diff(metadata.schema.getKeyspaces(), result.schema.getKeyspaces());
         clientWarnings(diff).forEach(ClientWarn.instance::warn);
@@ -199,7 +200,15 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         if (null != user && !user.isAnonymous())
             createdResources(diff).forEach(r -> grantPermissionsOnResource(r, user));
 
+        // if the changes affected accord, wait for accord to apply them
+        AccordTopology.awaitTopologyReadiness(diff, result.epoch);
+
         return new ResultMessage.SchemaChange(schemaChangeEvent(diff));
+    }
+
+    protected ClusterMetadata commit(ClusterMetadata metadata)
+    {
+        return Schema.instance.submit(this);
     }
 
     private void validateKeyspaceName()

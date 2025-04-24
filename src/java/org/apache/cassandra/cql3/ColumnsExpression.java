@@ -252,18 +252,21 @@ public final class ColumnsExpression
      */
     private final List<ColumnMetadata> columns;
 
+    private final TableMetadata table;
+
     /**
      * The element if this is an ELEMENT expression, {@code null} otherwise.
      * Like UDT field or collection element.
      */
     private final ElementExpression element; //Only relevant for ELEMENT kind
 
-    ColumnsExpression(Kind kind, AbstractType<?> type, List<ColumnMetadata> columns,  ElementExpression element)
+    ColumnsExpression(Kind kind, AbstractType<?> type, List<ColumnMetadata> columns, TableMetadata table, ElementExpression element)
     {
         assert kind != Kind.ELEMENT || element != null: "Element expression must have an element";
         this.kind = kind;
         this.type = type;
         this.columns = columns;
+        this.table = table;
         this.element = element; // This could be null for kinds that don't use it
     }
 
@@ -281,9 +284,9 @@ public final class ColumnsExpression
      * @param column the column
      * @return an expression for a single column.
      */
-    public static ColumnsExpression singleColumn(ColumnMetadata column)
+    public static ColumnsExpression singleColumn(ColumnMetadata column, TableMetadata table)
     {
-        return new ColumnsExpression(Kind.SINGLE_COLUMN, column.type, ImmutableList.of(column), null);
+        return new ColumnsExpression(Kind.SINGLE_COLUMN, column.type, ImmutableList.of(column), table, null);
     }
 
     /**
@@ -292,10 +295,10 @@ public final class ColumnsExpression
      * @return an expression for multi-columns.
      */
     @VisibleForTesting
-    public static ColumnsExpression multiColumns(List<ColumnMetadata> columns)
+    public static ColumnsExpression multiColumns(List<ColumnMetadata> columns, TableMetadata table)
     {
         AbstractType<?> type = new TupleType(ColumnMetadata.types(columns));
-        return new ColumnsExpression(Kind.MULTI_COLUMN, type, ImmutableList.copyOf(columns),null);
+        return new ColumnsExpression(Kind.MULTI_COLUMN, type, ImmutableList.copyOf(columns), table,null);
     }
 
     /**
@@ -305,6 +308,11 @@ public final class ColumnsExpression
     public ColumnMetadata firstColumn()
     {
         return columns().get(0);
+    }
+
+    public TableMetadata table()
+    {
+        return table;
     }
 
     /**
@@ -565,7 +573,7 @@ public final class ColumnsExpression
 
             AbstractType<?> type = kind.type(table, columns, elementExpression);
 
-            return new ColumnsExpression(kind, type, columns, elementExpression);
+            return new ColumnsExpression(kind, type, columns, table, elementExpression);
         }
 
         /**

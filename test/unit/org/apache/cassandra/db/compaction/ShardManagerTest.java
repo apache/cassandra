@@ -543,7 +543,7 @@ public class ShardManagerTest
 
     private Token boundary(int numSSTables, int i)
     {
-        return partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumToken(), i * 1.0 / numSSTables);
+        return partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumTokenForSplitting(), i * 1.0 / numSSTables);
     }
 
     private SSTableReader mockSSTable(DecoratedKey first, DecoratedKey last)

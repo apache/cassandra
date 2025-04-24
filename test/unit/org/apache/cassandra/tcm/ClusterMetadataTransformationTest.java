@@ -24,8 +24,10 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.Iterables;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -50,12 +52,7 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.mockito.Mockito;
 
-import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
-import static org.apache.cassandra.tcm.MetadataKeys.IN_PROGRESS_SEQUENCES;
-import static org.apache.cassandra.tcm.MetadataKeys.LOCKED_RANGES;
-import static org.apache.cassandra.tcm.MetadataKeys.NODE_DIRECTORY;
-import static org.apache.cassandra.tcm.MetadataKeys.SCHEMA;
-import static org.apache.cassandra.tcm.MetadataKeys.TOKEN_MAP;
+import static org.apache.cassandra.tcm.MetadataKeys.*;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.affectedRanges;
@@ -66,6 +63,12 @@ import static org.junit.Assert.assertTrue;
 
 public class ClusterMetadataTransformationTest
 {
+    @BeforeClass
+    public static void init()
+    {
+        DatabaseDescriptor.toolInitialization();
+    }
+
     long seed = System.nanoTime();
     Random random = new Random(seed);
 
@@ -272,7 +275,7 @@ public class ClusterMetadataTransformationTest
         // anything modified by in this transformation, and therefore included in the modified keys,
         // should have the same epoch as the CM itself. Anything not modified now must have a strictly
         // earlier epoch
-        for (MetadataKey key : Iterables.concat(MetadataKeys.CORE_METADATA, transformed.metadata.extensions.keySet()))
+        for (MetadataKey key : Iterables.concat(MetadataKeys.CORE_METADATA.keySet(), transformed.metadata.extensions.keySet()))
         {
             MetadataValue<?> value = valueFor(key, transformed.metadata);
             if (transformed.modifiedKeys.contains(key))
@@ -284,7 +287,7 @@ public class ClusterMetadataTransformationTest
 
     private static MetadataValue<?> valueFor(MetadataKey key, ClusterMetadata metadata)
     {
-        if (!MetadataKeys.CORE_METADATA.contains(key))
+        if (!MetadataKeys.CORE_METADATA.containsKey(key))
         {
             assert key instanceof ExtensionKey<?,?>;
             return metadata.extensions.get((ExtensionKey<?, ?>)key);
@@ -302,6 +305,12 @@ public class ClusterMetadataTransformationTest
             return metadata.lockedRanges;
         else if (key == IN_PROGRESS_SEQUENCES)
             return metadata.inProgressSequences;
+        else if (key == ACCORD_FAST_PATH)
+            return metadata.accordFastPath;
+        else if (key == CONSENSUS_MIGRATION_STATE)
+            return metadata.consensusMigrationState;
+        else if (key == ACCORD_STALE_REPLICAS)
+            return metadata.accordStaleReplicas;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }

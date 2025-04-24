@@ -49,11 +49,6 @@ public class SerializationUtils
         }
     }
 
-    public static <T> T cycleSerialization(T src, IVersionedSerializer<T> serializer)
-    {
-        return cycleSerialization(src, serializer, MessagingService.current_version);
-    }
-
     public static <T> void assertSerializationCycle(T src, IVersionedSerializer<T> serializer, int version)
     {
         T dst = cycleSerialization(src, serializer, version);

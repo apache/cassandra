@@ -53,6 +53,7 @@ import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.QualifiedStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -297,6 +298,8 @@ public class QueryProcessor implements QueryHandler
             return processNodeLocalWrite(statement, queryState, options);
         else if (statement instanceof SelectStatement)
             return processNodeLocalSelect((SelectStatement) statement, queryState, options);
+        else if (statement instanceof TransactionStatement)
+            return statement.executeLocally(queryState, options);
         else
             throw new InvalidRequestException("NODE_LOCAL consistency level can only be used with BATCH, UPDATE, INSERT, DELETE, and SELECT statements");
     }
@@ -445,6 +448,11 @@ public class QueryProcessor implements QueryHandler
 
     public static Prepared parseAndPrepare(String query, ClientState clientState, boolean isInternal) throws RequestValidationException
     {
+        return parseAndPrepare(query, clientState, isInternal, true);
+    }
+
+    public static Prepared parseAndPrepare(String query, ClientState clientState, boolean isInternal, boolean measure) throws RequestValidationException
+    {
         CQLStatement.Raw raw = parseStatement(query);
 
         boolean fullyQualified = false;
@@ -472,7 +480,10 @@ public class QueryProcessor implements QueryHandler
             res = new Prepared(statement, "", fullyQualified, keyspace);
         else
             res = new Prepared(statement, query, fullyQualified, keyspace);
-        res.pstmntSize = measurePstmnt(res);
+
+        // Some prepared statements will not be cached and therefore do not require a pre-computed size.
+        if (measure)
+            res.pstmntSize = measurePstmnt(res);
 
         return res;
     }
@@ -1047,10 +1058,9 @@ public class QueryProcessor implements QueryHandler
                 statementKsName = selectStatement.keyspace();
                 statementCfName = selectStatement.table();
             }
-            else if (statement instanceof BatchStatement)
+            else if (statement instanceof CQLStatement.CompositeCQLStatement)
             {
-                BatchStatement batchStatement = ((BatchStatement) statement);
-                for (ModificationStatement stmt : batchStatement.getStatements())
+                for (CQLStatement stmt : ((CQLStatement.CompositeCQLStatement) statement).getStatements())
                 {
                     if (shouldInvalidate(ksName, cfName, stmt))
                         return true;

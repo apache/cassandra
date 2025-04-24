@@ -27,17 +27,22 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 
 public abstract class AbstractMutationVerbHandler<T extends IMutation> implements IVerbHandler<T>
 {
@@ -54,15 +59,25 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
         if (message.epoch().isAfter(Epoch.EMPTY))
         {
             ClusterMetadata metadata = ClusterMetadata.current();
-            metadata = checkTokenOwnership(metadata, message);
-            metadata = checkSchemaVersion(metadata, message);
+            metadata = checkTokenOwnership(metadata, message, respondTo);
+            metadata = checkSchemaVersion(metadata, message, respondTo);
         }
-        applyMutation(message, respondTo);
+
+        try
+        {
+            applyMutation(message, respondTo);
+        }
+        catch (RetryOnDifferentSystemException e)
+        {
+            logger.debug("Responding with retry on different system");
+            MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            Tracing.trace("Payload application resulted in RetryOnDifferentSysten");
+        }
     }
 
     abstract void applyMutation(Message<T> message, InetAddressAndPort respondToAddress);
 
-    private ClusterMetadata checkTokenOwnership(ClusterMetadata metadata, Message<T> message)
+    private ClusterMetadata checkTokenOwnership(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
     {
         String keyspace = message.payload.getKeyspaceName();
         DecoratedKey key = message.payload.key();
@@ -75,13 +90,13 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
             // since coordinator's routing may be more recent.
             if (!forToken.get().containsSelf())
             {
-                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
                 forToken = writePlacements(metadata, keyspace, key);
             }
             // Otherwise, coordinator and the replica agree about the placement of the givent token, so catch-up can be async
             else
             {
-                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, message.from(), message.epoch());
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, respondTo, message.epoch());
             }
         }
 
@@ -89,8 +104,8 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
         {
             StorageService.instance.incOutOfRangeOperationCount();
             Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
-            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, message.from(), key.getToken(), message.payload.getKeyspaceName());
-            throw InvalidRoutingException.forWrite(message.from(), key.getToken(), metadata.epoch, message.payload);
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, respondTo, key.getToken(), message.payload.getKeyspaceName());
+            throw InvalidRoutingException.forWrite(respondTo, key.getToken(), metadata.epoch, message.payload);
         }
 
         if (forToken.lastModified().isAfter(message.epoch()))
@@ -103,7 +118,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
         return metadata;
     }
 
-    private ClusterMetadata checkSchemaVersion(ClusterMetadata metadata, Message<T> message)
+    private ClusterMetadata checkSchemaVersion(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
     {
         if (SchemaConstants.isSystemKeyspace(message.payload.getKeyspaceName()) || message.epoch().is(metadata.epoch))
             return metadata;
@@ -121,10 +136,10 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
                     {
                         // the partition update was serialized after the epoch we currently know, catch up and
                         // make sure we've seen the epoch it has seen, otherwise fail request.
-                        metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
+                        metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
                         if (pu.serializedAtEpoch.isAfter(metadata.epoch))
                             throw new IllegalStateException(String.format("Coordinator %s is still ahead after fetching log, our epoch = %s, their epoch = %s",
-                                                                          message.from(),
+                                                                          respondTo,
                                                                           metadata.epoch, message.epoch()));
                     }
                 }
@@ -143,7 +158,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
                         {
                             TCMMetrics.instance.coordinatorBehindSchema.mark();
                             throw new CoordinatorBehindException(String.format("Coordinator %s is behind, our epoch = %s, their epoch = %s",
-                                                                               message.from(),
+                                                                               respondTo,
                                                                                metadata.epoch, message.epoch()));
                         }
                     }
@@ -151,7 +166,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
                     {
                         TCMMetrics.instance.coordinatorBehindSchema.mark();
                         throw new CoordinatorBehindException(String.format("Schema mismatch, coordinator %s is behind, we're missing table %s.%s, our epoch = %s, their epoch = %s",
-                                                                           message.from(),
+                                                                           respondTo,
                                                                            pu.metadata().keyspace,
                                                                            pu.metadata().name,
                                                                            metadata.epoch, message.epoch()));
@@ -165,13 +180,13 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
             {
                 TCMMetrics.instance.coordinatorBehindSchema.mark();
                 throw new CoordinatorBehindException(String.format("Schema mismatch, coordinator %s is behind, we're missing keyspace %s, our epoch = %s, their epoch = %s",
-                                                                   message.from(),
+                                                                   respondTo,
                                                                    keyspace,
                                                                    metadata.epoch, message.epoch()));
             }
             else
             {
-                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
             }
         }
 

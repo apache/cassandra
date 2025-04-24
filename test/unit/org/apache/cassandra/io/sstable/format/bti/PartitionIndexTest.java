@@ -291,7 +291,7 @@ public class PartitionIndexTest
     @Test
     public void testAddEmptyKey() throws Exception
     {
-        IPartitioner p = new RandomPartitioner();
+        IPartitioner p = RandomPartitioner.instance;
         File file = FileUtils.createTempFile("ColumnTrieReaderTest", "");
 
         FileHandle.Builder fhBuilder = makeHandle(file);

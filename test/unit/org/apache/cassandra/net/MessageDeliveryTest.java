@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Iterators;
@@ -35,26 +37,26 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery.FailedResponseException;
-import org.apache.cassandra.net.MessageDelivery.MaxRetriesException;
+import org.apache.cassandra.net.MessageDelivery.GivingUpException;
 import org.apache.cassandra.net.SimulatedMessageDelivery.Action;
 import org.apache.cassandra.net.SimulatedMessageDelivery.SimulatedMessageReceiver;
+import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
-import org.apache.cassandra.utils.Backoff;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.net.MessageDelivery.RetryErrorMessage;
+import static org.apache.cassandra.net.MessageDelivery.RetryPredicate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class MessageDeliveryTest
 {
     private static final InetAddressAndPort ID1 = InetAddressAndPort.getByNameUnchecked("127.0.0.1");
-    private static final MessageDelivery.RetryErrorMessage RETRY_ERROR_MESSAGE = (i1, i2, i3, i4) -> null;
-    private static final MessageDelivery.RetryPredicate ALWAYS_RETRY = (i1, i2, i3) -> true;
-    private static final MessageDelivery.RetryPredicate ALWAYS_REJECT = (i1, i2, i3) -> false;
 
     static
     {
@@ -73,19 +75,19 @@ public class MessageDeliveryTest
             MessageDelivery messaging = simulatedMessages(rs, scheduler, failures, (i1, i2, i3) -> Action.DROP);
 
             int expectedRetries = 3;
-            Backoff backoff = new Backoff.ExponentialBackoff(expectedRetries, 200, 1000, rs.fork()::nextDouble);
+            RetryStrategy backoff = RetryStrategy.parse("200ms*2^attempts <= 1000ms,retries=" + expectedRetries, LatencySourceFactory.none());
 
             Future<Message<Void>> result = messaging.sendWithRetries(backoff,
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
 
-            assertThat(getMaxRetriesException(result).attempts).isEqualTo(expectedRetries);
+            assertThat(getMaxRetriesException(result).attempts).isEqualTo(expectedRetries + 1);
         });
     }
 
@@ -98,21 +100,19 @@ public class MessageDeliveryTest
             ScheduledExecutorPlus scheduler = factory.scheduled("ignored");
             MessageDelivery messaging = simulatedMessages(rs, scheduler, failures, (i1, i2, i3) -> Action.DELIVER);
 
-            Backoff backoff = Mockito.mock(Backoff.class);
+            RetryStrategy backoff = Mockito.mock(RetryStrategy.class);
 
             Future<Message<Void>> result = messaging.sendWithRetries(backoff,
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
             assertThat(result.get().header.verb).isEqualTo(Verb.ECHO_RSP);
-            Mockito.verify(backoff, Mockito.never()).mayRetry(Mockito.anyInt());
-            Mockito.verify(backoff, Mockito.never()).computeWaitTime(Mockito.anyInt());
-            Mockito.verify(backoff, Mockito.never()).unit();
+            Mockito.verify(backoff, Mockito.never()).computeWait(Mockito.anyInt(), Mockito.any());
         });
     }
 
@@ -129,21 +129,20 @@ public class MessageDeliveryTest
             AtomicInteger attempts = new AtomicInteger(0);
             MessageDelivery messaging = simulatedMessages(rs, scheduler, failures, (i1, i2, i3) -> attempts.incrementAndGet() >= (expectedAttempts + 1) ? Action.DELIVER : Action.DROP);
 
-            Backoff backoff = Mockito.spy(new Backoff.ExponentialBackoff(maxAttempts, 200, 1000, rs.fork()::nextDouble));
+            RetryStrategy backoff = RetryStrategy.parse("200ms*2^attempts <= 1000ms,retries=" + (maxAttempts-1), LatencySourceFactory.none());
+            backoff = Mockito.spy(backoff);
 
             Future<Message<Void>> result = messaging.sendWithRetries(backoff,
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_RETRY,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.ALWAYS_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
             assertThat(result.get().header.verb).isEqualTo(Verb.ECHO_RSP);
-            Mockito.verify(backoff, Mockito.times(expectedAttempts)).mayRetry(Mockito.anyInt());
-            Mockito.verify(backoff, Mockito.times(expectedAttempts)).computeWaitTime(Mockito.anyInt());
-            Mockito.verify(backoff, Mockito.times(expectedAttempts)).unit();
+            Mockito.verify(backoff, Mockito.times(expectedAttempts)).computeWait(Mockito.anyInt(), Mockito.any());
         });
     }
 
@@ -157,24 +156,43 @@ public class MessageDeliveryTest
 
             MessageDelivery messaging = simulatedMessages(rs, scheduler, failures, (i1, i2, i3) -> Action.DROP);
 
-            Backoff backoff = Mockito.spy(new Backoff.ExponentialBackoff(3, 200, 1000, rs.fork()::nextDouble));
+            RetryStrategy backoff = RetryStrategy.parse("0 <= 200ms*2^attempts <= 1000ms,retries=3", LatencySourceFactory.none());
+            backoff = Mockito.spy(backoff);
 
             Future<Message<Void>> result = messaging.sendWithRetries(backoff,
                                                                      scheduler::schedule,
                                                                      Verb.ECHO_REQ, NoPayload.noPayload,
                                                                      Iterators.cycle(ID1),
-                                                                     ALWAYS_REJECT,
-                                                                     RETRY_ERROR_MESSAGE);
+                                                                     RetryPredicate.NEVER_RETRY,
+                                                                     RetryErrorMessage.EMPTY);
             assertThat(result).isNotDone();
             factory.processAll();
             assertThat(result).isDone();
             FailedResponseException e = getFailedResponseException(result);
             assertThat(e.from).isEqualTo(ID1);
-            assertThat(e.failure).isEqualTo(RequestFailureReason.TIMEOUT);
-            Mockito.verify(backoff, Mockito.times(1)).mayRetry(Mockito.anyInt());
-            Mockito.verify(backoff, Mockito.never()).computeWaitTime(Mockito.anyInt());
-            Mockito.verify(backoff, Mockito.never()).unit();
+            assertThat(e.failure).isEqualTo(RequestFailure.TIMEOUT);
+            Mockito.verify(backoff, Mockito.atMostOnce()).computeWait(Mockito.anyInt(), Mockito.any());
         });
+    }
+
+    public static FailedResponseException getFailedResponseException(Future<Message<Void>> result) throws InterruptedException
+    {
+        FailedResponseException ex;
+        try
+        {
+            result.get(1, TimeUnit.MINUTES);
+            Assert.fail("Should have failed");
+            throw new AssertionError("Not Reachable");
+        }
+        catch (ExecutionException e)
+        {
+            ex = (FailedResponseException) e.getCause();
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return ex;
     }
 
     private static MessageDelivery simulatedMessages(RandomSource rs, ScheduledExecutorPlus scheduler, List<Throwable> failures, SimulatedMessageDelivery.ActionSupplier actionSupplier)
@@ -191,9 +209,9 @@ public class MessageDeliveryTest
         return messaging;
     }
 
-    private static FailedResponseException getFailedResponseException(Future<Message<Void>> result) throws InterruptedException
+    private static GivingUpException getMaxRetriesException(Future<Message<Void>> result) throws InterruptedException
     {
-        FailedResponseException ex;
+        GivingUpException ex;
         try
         {
             result.get();
@@ -202,23 +220,7 @@ public class MessageDeliveryTest
         }
         catch (ExecutionException e)
         {
-            ex = (FailedResponseException) e.getCause();
-        }
-        return ex;
-    }
-
-    private static MaxRetriesException getMaxRetriesException(Future<Message<Void>> result) throws InterruptedException
-    {
-        MaxRetriesException ex;
-        try
-        {
-            result.get();
-            Assert.fail("Should have failed");
-            throw new AssertionError("Not Reachable");
-        }
-        catch (ExecutionException e)
-        {
-            ex = (MaxRetriesException) e.getCause();
+            ex = (GivingUpException) e.getCause();
         }
         return ex;
     }

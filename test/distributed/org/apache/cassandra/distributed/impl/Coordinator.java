@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
+import java.util.function.BiConsumer;
 
 import com.google.common.collect.Iterators;
 
@@ -41,9 +42,9 @@ import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
@@ -62,6 +63,30 @@ public class Coordinator implements ICoordinator
         return instance().sync(() -> unsafeExecuteInternal(query, consistencyLevel, boundValues)).call();
     }
 
+    @Override
+    public Future<?> executeWithResult(BiConsumer<SimpleQueryResult, Throwable> callback, String query, ConsistencyLevel consistencyLevel, Object... boundValues)
+    {
+        return executeWithResult(callback, query, null, consistencyLevel, boundValues);
+    }
+
+    @Override
+    public Future<?> executeWithResult(BiConsumer<SimpleQueryResult, Throwable> callback, String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object... boundValues)
+    {
+        return instance().async(cb -> {
+            SimpleQueryResult result;
+            try
+            {
+                result = CoordinatorHelper.unsafeExecuteInternal(query, serialConsistencyLevel, commitConsistencyLevel, boundValues);
+            }
+            catch (Throwable t)
+            {
+                callback.accept(null, t);
+                return;
+            }
+            callback.accept(result, null);
+        }).apply(callback);
+    }
+
     public Future<SimpleQueryResult> asyncExecuteWithTracingWithResult(UUID sessionId, String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)
     {
         return instance.async(() -> {
@@ -75,6 +100,12 @@ public class Coordinator implements ICoordinator
                 Tracing.instance.stopSession();
             }
         }).call();
+    }
+
+    @Override
+    public Future<SimpleQueryResult> asyncExecuteWithResult(String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)
+    {
+        return instance.async(() -> unsafeExecuteInternal(query, consistencyLevelOrigin, boundValues)).call();
     }
 
     public static org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)
@@ -127,8 +158,7 @@ public class Coordinator implements ICoordinator
                 boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
 
             prepared.validate(clientState);
-            Invariants.checkState(prepared instanceof SelectStatement,
-                                  "Only SELECT statements can be executed with paging %s", prepared);
+            Invariants.require(prepared instanceof SelectStatement, "Only SELECT statements can be executed with paging %s", prepared);
 
             Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
             SelectStatement selectStatement = (SelectStatement) prepared;
@@ -146,7 +176,7 @@ public class Coordinator implements ICoordinator
 
             ResultMessage.Rows initialRows = selectStatement.execute(queryState, initialOptions, requestTime);
             Iterator<Object[]> iter = new Iterator<Object[]>() {
-                ResultMessage.Rows rows = selectStatement.execute(queryState, initialOptions, requestTime);
+                ResultMessage.Rows rows = initialRows;
                 Iterator<Object[]> iter = RowUtil.toIter(rows);
 
                 public boolean hasNext()

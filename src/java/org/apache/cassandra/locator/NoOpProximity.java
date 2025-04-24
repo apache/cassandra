@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.locator;
 
+import org.apache.cassandra.utils.Sortable;
+
+import java.util.Comparator;
+
 public class NoOpProximity extends BaseProximity
 {
     @Override
@@ -29,6 +33,25 @@ public class NoOpProximity extends BaseProximity
 
     @Override
     public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2)
+    {
+        // Making all endpoints equal ensures we won't change the original ordering (since
+        // Collections.sort is guaranteed to be stable)
+        return 0;
+    }
+
+    @Override
+    public boolean supportCompareByEndpoint()
+    {
+        return true;
+    }
+
+    @Override
+    public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        return this::compareByEndpoint;
+    }
+
+    private int compareByEndpoint(Endpoint a, Endpoint b)
     {
         // Making all endpoints equal ensures we won't change the original ordering (since
         // Collections.sort is guaranteed to be stable)

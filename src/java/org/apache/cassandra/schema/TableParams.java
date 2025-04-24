@@ -27,23 +27,49 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.tcm.serialization.MetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.BloomCalculations;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.cassandra.schema.TableParams.Option.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
+import static org.apache.cassandra.schema.TableParams.Option.ALLOW_AUTO_SNAPSHOT;
+import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.CACHING;
+import static org.apache.cassandra.schema.TableParams.Option.CDC;
+import static org.apache.cassandra.schema.TableParams.Option.COMMENT;
+import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
+import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
+import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
+import static org.apache.cassandra.schema.TableParams.Option.EXTENSIONS;
+import static org.apache.cassandra.schema.TableParams.Option.FAST_PATH;
+import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
+import static org.apache.cassandra.schema.TableParams.Option.INCREMENTAL_BACKUPS;
+import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERIOD_IN_MS;
+import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.PENDING_DROP;
+import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
+import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public final class TableParams
@@ -69,7 +95,12 @@ public final class TableParams
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
-        READ_REPAIR;
+        READ_REPAIR,
+        FAST_PATH,
+        TRANSACTIONAL_MODE,
+        TRANSACTIONAL_MIGRATION_FROM,
+        PENDING_DROP,
+        AUTO_REPAIR;
 
         @Override
         public String toString()
@@ -97,6 +128,12 @@ public final class TableParams
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
+    public final FastPathStrategy fastPath;
+    public final TransactionalMode transactionalMode;
+    public final TransactionalMigrationFromMode transactionalMigrationFrom;
+    public final boolean pendingDrop;
+
+    public final AutoRepairParams autoRepair;
 
     private TableParams(Builder builder)
     {
@@ -121,6 +158,12 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
+        fastPath = builder.fastPath;
+        transactionalMode = builder.transactionalMode != null ? builder.transactionalMode : TransactionalMode.off;
+        transactionalMigrationFrom = builder.transactionalMigrationFrom;
+        pendingDrop = builder.pendingDrop;
+        checkNotNull(transactionalMigrationFrom);
+        autoRepair = builder.autoRepair;
     }
 
     public static Builder builder()
@@ -148,7 +191,12 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair);
+                            .readRepair(params.readRepair)
+                            .fastPath(params.fastPath)
+                            .transactionalMode(params.transactionalMode)
+                            .transactionalMigrationFrom(params.transactionalMigrationFrom)
+                            .pendingDrop(params.pendingDrop)
+                            .automatedRepair(params.autoRepair);
     }
 
     public Builder unbuild()
@@ -162,7 +210,7 @@ public final class TableParams
         compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
-        if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
+        if (bloomFilterFpChance <= minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
         {
             fail("%s must be larger than %s and less than or equal to 1.0 (got %s)",
                  BLOOM_FILTER_FP_CHANCE,
@@ -203,6 +251,11 @@ public final class TableParams
 
         if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
+
+        if (transactionalMode.isTestMode() && !CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getBoolean())
+            fail("Transactional mode " + transactionalMode + " can't be used if " + CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getKey() + " is not set");
+
+        autoRepair.validate();
     }
 
     private static void fail(String format, Object... args)
@@ -239,7 +292,12 @@ public final class TableParams
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
-            && readRepair == p.readRepair;
+            && readRepair == p.readRepair
+            && fastPath.equals(fastPath)
+            && transactionalMode == p.transactionalMode
+            && transactionalMigrationFrom == p.transactionalMigrationFrom
+            && pendingDrop == p.pendingDrop
+            && autoRepair.equals(p.autoRepair);
     }
 
     @Override
@@ -263,7 +321,12 @@ public final class TableParams
                                 memtable,
                                 extensions,
                                 cdc,
-                                readRepair);
+                                readRepair,
+                                fastPath,
+                                transactionalMode,
+                                transactionalMigrationFrom,
+                                pendingDrop,
+                                autoRepair);
     }
 
     @Override
@@ -275,6 +338,7 @@ public final class TableParams
                           .add(ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
                           .add(BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(CRC_CHECK_CHANCE.toString(), crcCheckChance)
+                          .add(FAST_PATH.toString(), fastPath)
                           .add(GC_GRACE_SECONDS.toString(), gcGraceSeconds)
                           .add(DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
                           .add(INCREMENTAL_BACKUPS.toString(), incrementalBackups)
@@ -289,6 +353,11 @@ public final class TableParams
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
+                          .add(Option.FAST_PATH.toString(), fastPath)
+                          .add(Option.TRANSACTIONAL_MODE.toString(), transactionalMode)
+                          .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
+                          .add(PENDING_DROP.toString(), pendingDrop)
+                          .add(Option.AUTO_REPAIR.toString(), autoRepair)
                           .toString();
     }
 
@@ -318,8 +387,8 @@ public final class TableParams
 
         if (!isView)
         {
-            builder.append("AND default_time_to_live = ").append(defaultTimeToLive)
-                   .newLine();
+            builder.append("AND fast_path = ").append(fastPath.asCQL()).newLine();
+            builder.append("AND default_time_to_live = ").append(defaultTimeToLive).newLine();
         }
 
         builder.append("AND extensions = ").append(extensions.entrySet()
@@ -339,8 +408,23 @@ public final class TableParams
                .append("AND min_index_interval = ").append(minIndexInterval)
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
-               .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+               .newLine();
+
+        if (!isView)
+        {
+               builder.append("AND transactional_mode = ").appendWithSingleQuotes(transactionalMode.toString())
+                      .newLine()
+                      .append("AND transactional_migration_from = ").appendWithSingleQuotes(transactionalMigrationFrom.toString())
+                      .newLine();
+        }
+
+        builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+        if (DatabaseDescriptor.getRawConfig() != null
+            && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.newLine()
+                .append("AND auto_repair = ").append(autoRepair.asMap());
+        }
     }
 
     public static final class Builder
@@ -364,7 +448,12 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
+        private FastPathStrategy fastPath = FastPathStrategy.inheritKeyspace();
+        private TransactionalMode transactionalMode = TransactionalMode.off;
+        public TransactionalMigrationFromMode transactionalMigrationFrom = TransactionalMigrationFromMode.none;
+        public boolean pendingDrop = false;
 
+        private AutoRepairParams autoRepair = AutoRepairParams.DEFAULT;
         public Builder()
         {
         }
@@ -482,9 +571,39 @@ public final class TableParams
             return this;
         }
 
+        public Builder fastPath(FastPathStrategy val)
+        {
+            fastPath = val;
+            return this;
+        }
+
+        public Builder transactionalMode(TransactionalMode val)
+        {
+            transactionalMode = val;
+            return this;
+        }
+
+        public Builder transactionalMigrationFrom(TransactionalMigrationFromMode val)
+        {
+            transactionalMigrationFrom = val;
+            return this;
+        }
+
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
+            return this;
+        }
+
+        public Builder pendingDrop(boolean pendingDrop)
+        {
+            this.pendingDrop = pendingDrop;
+            return this;
+        }
+
+        public Builder automatedRepair(AutoRepairParams val)
+        {
+            autoRepair = val;
             return this;
         }
     }
@@ -516,6 +635,13 @@ public final class TableParams
                 out.writeBoolean(t.allowAutoSnapshot);
                 out.writeBoolean(t.incrementalBackups);
             }
+            if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
+            {
+                FastPathStrategy.serializer.serialize(t.fastPath, out, version);
+                out.writeInt(t.transactionalMode.ordinal());
+                out.writeInt(t.transactionalMigrationFrom.ordinal());
+                out.writeBoolean(t.pendingDrop);
+            }
         }
 
         public TableParams deserialize(DataInputPlus in, Version version) throws IOException
@@ -540,12 +666,19 @@ public final class TableParams
                    .readRepair(ReadRepairStrategy.fromString(in.readUTF()))
                    .allowAutoSnapshot(!version.isAtLeast(Version.V4) || in.readBoolean())
                    .incrementalBackups(!version.isAtLeast(Version.V4) || in.readBoolean());
+            if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
+            {
+                builder.fastPath(FastPathStrategy.serializer.deserialize(in, version))
+                       .transactionalMode(TransactionalMode.fromOrdinal(in.readInt()))
+                       .transactionalMigrationFrom(TransactionalMigrationFromMode.fromOrdinal(in.readInt()))
+                       .pendingDrop(in.readBoolean());
+            }
             return builder.build();
         }
 
         public long serializedSize(TableParams t, Version version)
         {
-            return sizeof(t.comment) +
+            long size = sizeof(t.comment) +
                    sizeof(t.bloomFilterFpChance) +
                    sizeof(t.crcCheckChance) +
                    sizeof(t.gcGraceSeconds) +
@@ -564,6 +697,14 @@ public final class TableParams
                    sizeof(t.readRepair.name()) +
                    (version.isAtLeast(Version.V4) ? sizeof(t.allowAutoSnapshot) : 0) +
                    (version.isAtLeast(Version.V4) ? sizeof(t.incrementalBackups) : 0);
+            if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
+            {
+                size += FastPathStrategy.serializer.serializedSize(t.fastPath, version) +
+                        sizeof(t.transactionalMode.ordinal()) +
+                        sizeof(t.transactionalMigrationFrom.ordinal()) +
+                        sizeof(t.pendingDrop);
+            }
+            return size;
         }
 
         private void serializeMap(Map<String, String> map, DataOutputPlus out) throws IOException

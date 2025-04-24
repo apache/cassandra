@@ -30,6 +30,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.tracing.TraceKeyspace;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
@@ -46,23 +47,24 @@ public final class SchemaConstants
     public static final String METADATA_KEYSPACE_NAME = "system_cluster_metadata";
 
     public static final String TRACE_KEYSPACE_NAME = "system_traces";
+    public static final String ACCORD_KEYSPACE_NAME = "system_accord";
     public static final String AUTH_KEYSPACE_NAME = "system_auth";
     public static final String DISTRIBUTED_KEYSPACE_NAME = "system_distributed";
 
     public static final String VIRTUAL_SCHEMA = "system_virtual_schema";
-
     public static final String VIRTUAL_VIEWS = "system_views";
     public static final String VIRTUAL_METRICS = "system_metrics";
+    public static final String VIRTUAL_ACCORD_DEBUG = "system_accord_debug";
 
     public static final String DUMMY_KEYSPACE_OR_TABLE_NAME = "--dummy--";
 
     /* system keyspace names (the ones with LocalStrategy replication strategy) */
     public static final Set<String> LOCAL_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME);
+        ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME, ACCORD_KEYSPACE_NAME);
 
     /* virtual table system keyspace names */
     public static final Set<String> VIRTUAL_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(VIRTUAL_VIEWS, VIRTUAL_SCHEMA);
+        ImmutableSet.of(VIRTUAL_SCHEMA, VIRTUAL_VIEWS, VIRTUAL_METRICS);
 
     /* replicate system keyspace names (the ones with a "true" replication strategy) */
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =
@@ -165,6 +167,7 @@ public final class SchemaConstants
                            .addAll(TraceKeyspace.TABLE_NAMES)
                            .addAll(AuthKeyspace.TABLE_NAMES)
                            .addAll(SystemDistributedKeyspace.TABLE_NAMES)
+                           .addAll(AccordKeyspace.TABLE_NAMES)
                            .build();
     }
 }

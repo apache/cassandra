@@ -24,6 +24,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -38,15 +39,13 @@ import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Commit.Committed;
 import org.apache.cassandra.tracing.Tracing;
 
-import static org.apache.cassandra.exceptions.RequestFailureReason.TIMEOUT;
-import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REFRESH_REQ;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.PaxosRequestCallback.shouldExecuteOnSelf;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedSizeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 /**
  * Nodes that have promised in response to our prepare, may be missing the latestCommit, meaning we cannot be sure the
@@ -65,7 +64,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
 
     interface Callbacks
     {
-        void onRefreshFailure(InetAddressAndPort from, RequestFailureReason reason);
+        void onRefreshFailure(InetAddressAndPort from, RequestFailure reason);
         void onRefreshSuccess(Ballot isSupersededBy, InetAddressAndPort from);
     }
 
@@ -102,7 +101,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
         callbacks.onRefreshFailure(from, reason);
     }
@@ -124,8 +123,8 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         }
         catch (Exception ex)
         {
-            RequestFailureReason reason = UNKNOWN;
-            if (ex instanceof WriteTimeoutException) reason = TIMEOUT;
+            RequestFailure reason = RequestFailure.UNKNOWN;
+            if (ex instanceof WriteTimeoutException) reason = RequestFailure.TIMEOUT;
             else logger.error("Failed to apply paxos refresh-prepare locally", ex);
 
             onFailure(getBroadcastAddressAndPort(), reason);
@@ -167,7 +166,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         {
             Response response = execute(message.payload, message.from());
             if (response == null)
-                MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, message);
             else
                 MessagingService.instance().respond(response, message);
         }
@@ -226,18 +225,18 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
     {
         public void serialize(Response response, DataOutputPlus out, int version) throws IOException
         {
-            serializeNullable(Ballot.Serializer.instance, response.isSupersededBy, out, version);
+            serializeNullable(response.isSupersededBy, out, version, Ballot.Serializer.instance);
         }
 
         public Response deserialize(DataInputPlus in, int version) throws IOException
         {
-            Ballot isSupersededBy = deserializeNullable(Ballot.Serializer.instance, in, version);
+            Ballot isSupersededBy = deserializeNullable(in, version, Ballot.Serializer.instance);
             return new Response(isSupersededBy);
         }
 
         public long serializedSize(Response response, int version)
         {
-            return serializedSizeNullable(Ballot.Serializer.instance, response.isSupersededBy, version);
+            return serializedNullableSize(response.isSupersededBy, version, Ballot.Serializer.instance);
         }
     }
 

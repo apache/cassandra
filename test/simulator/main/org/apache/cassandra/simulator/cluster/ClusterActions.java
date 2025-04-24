@@ -61,6 +61,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NO_TIMEOUTS;
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE;
 import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.JOIN;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.LEAVE;
@@ -85,6 +86,11 @@ public class ClusterActions extends SimulatedSystems
         JOIN, LEAVE, REPLACE, CHANGE_RF
     }
 
+    public enum ConsensusChange
+    {
+        ACCORD_MIGRATE
+    }
+
     public static class Options
     {
         public final int topologyChangeLimit;
@@ -92,6 +98,9 @@ public class ClusterActions extends SimulatedSystems
         public final Choices<TopologyChange> allChoices;
         public final Choices<TopologyChange> choicesNoLeave;
         public final Choices<TopologyChange> choicesNoJoin;
+        public final int consensusChangeLimit;
+        public final KindOfSequence.Period consensusChangeInterval;
+        public final Choices<ConsensusChange> consensusChoices;
 
         public final int[] minRf, initialRf, maxRf;
         public final PaxosVariant changePaxosVariantTo;
@@ -108,32 +117,45 @@ public class ClusterActions extends SimulatedSystems
             this.allChoices = copy.allChoices;
             this.choicesNoLeave = copy.choicesNoLeave;
             this.choicesNoJoin = copy.choicesNoJoin;
+            this.consensusChangeLimit = copy.consensusChangeLimit;
+            this.consensusChangeInterval = copy.consensusChangeInterval;
+            this.consensusChoices = copy.consensusChoices;
             this.minRf = copy.minRf;
             this.initialRf = copy.initialRf;
             this.maxRf = copy.maxRf;
             this.changePaxosVariantTo = changePaxosVariantTo;
         }
 
-        public Options(int topologyChangeLimit, KindOfSequence.Period topologyChangeInterval, Choices<TopologyChange> choices, int[] minRf, int[] initialRf, int[] maxRf, PaxosVariant changePaxosVariantTo)
+        public Options(int topologyChangeLimit,
+                       KindOfSequence.Period topologyChangeInterval,
+                       Choices<TopologyChange> topologyChangeChoices,
+                       int consensusChangeLimit,
+                       KindOfSequence.Period consensusChangeInterval,
+                       Choices<ConsensusChange> consensusChangeChoices,
+                       int[] minRf, int[] initialRf, int[] maxRf,
+                       PaxosVariant changePaxosVariantTo)
         {
             if (Arrays.equals(minRf, maxRf))
-                choices = choices.without(TopologyChange.CHANGE_RF);
+                topologyChangeChoices = topologyChangeChoices.without(TopologyChange.CHANGE_RF);
 
             this.topologyChangeInterval = topologyChangeInterval;
             this.topologyChangeLimit = topologyChangeLimit;
+            this.consensusChangeInterval = consensusChangeInterval;
+            this.consensusChangeLimit = consensusChangeLimit;
             this.minRf = minRf;
             this.initialRf = initialRf;
             this.maxRf = maxRf;
-            this.allChoices = choices;
+            this.allChoices = topologyChangeChoices;
             this.choicesNoJoin = allChoices.without(JOIN).without(REPLACE);
             this.choicesNoLeave = allChoices.without(LEAVE);
+            this.consensusChoices = consensusChangeChoices;
             this.changePaxosVariantTo = changePaxosVariantTo;
         }
 
         public static Options noActions(int clusterSize)
         {
             int[] rf = new int[]{clusterSize};
-            return new Options(0, UNIFORM.period(null, null), Choices.uniform(), rf, rf, rf, null);
+            return new Options(0, UNIFORM.period(null, null), Choices.uniform(), 0, UNIFORM.period(null, null), Choices.uniform(), rf, rf, rf, null);
         }
 
         public Options changePaxosVariantTo(PaxosVariant newVariant)
@@ -195,7 +217,7 @@ public class ClusterActions extends SimulatedSystems
         return StrictAction.of("Initialise Cluster", () -> {
             List<Action> actions = new ArrayList<>();
 
-            cluster.stream().forEach(i -> actions.add(invoke("Startup " + i.broadcastAddress(), NO_TIMEOUTS, NO_TIMEOUTS,
+            cluster.stream().forEach(i -> actions.add(invoke("Startup " + i.broadcastAddress(), RELIABLE, RELIABLE,
                                                              new InterceptedRunnableExecution((InterceptingExecutor) i.executor(), i::startup))));
 
             List<InetSocketAddress> endpoints = cluster.stream().map(IInstance::broadcastAddress).collect(Collectors.toList());

@@ -1,4 +1,3 @@
-package org.apache.cassandra;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -18,6 +17,7 @@ package org.apache.cassandra;
  * under the License.
  *
  */
+package org.apache.cassandra;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
@@ -25,6 +25,7 @@ import java.io.EOFException;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -56,16 +57,13 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.AbstractReadCommandBuilder;
@@ -84,18 +82,13 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaCollection;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -121,6 +114,10 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableId;
@@ -130,8 +127,16 @@ import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
@@ -152,10 +157,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
 import org.awaitility.Awaitility;
+import org.awaitility.core.ThrowingRunnable;
 import org.hamcrest.Matcher;
 import org.mockito.Mockito;
 import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
@@ -175,6 +182,11 @@ public class Util
     public static DecoratedKey dk(String key)
     {
         return testPartitioner().decorateKey(ByteBufferUtil.bytes(key));
+    }
+
+    public static DecoratedKey dk(int key)
+    {
+        return dk(String.valueOf(key), Int32Type.instance);
     }
 
     public static DecoratedKey dk(String key, AbstractType<?> type)
@@ -230,7 +242,7 @@ public class Util
             private AtomicBoolean exhausted = new AtomicBoolean();
             public Iterator<T> iterator()
             {
-                Preconditions.checkState(!exhausted.getAndSet(true));
+                checkState(!exhausted.getAndSet(true));
                 return source;
             }
         };
@@ -373,7 +385,8 @@ public class Util
         }
         catch (Throwable e)
         {
-            assert e.getClass().equals(exception) : e.getClass().getName() + " is not " + exception.getName();
+            // Use name because in-jvm dtests will have different instances of the class
+            Invariants.require(e.getClass().getName().equals(exception.getName()), e.getClass().getName() + " is not " + exception.getName());
             thrown = true;
         }
 
@@ -699,20 +712,32 @@ public class Util
 
     public static class PartitionerSwitcher implements AutoCloseable
     {
-        final IPartitioner oldP;
         final IPartitioner newP;
+
+        boolean closed;
 
         public PartitionerSwitcher(IPartitioner partitioner)
         {
             newP = partitioner;
-            oldP = StorageService.instance.setPartitionerUnsafe(partitioner);
+            StorageService.instance.setPartitionerUnsafe(partitioner);
         }
 
         public void close()
         {
-            IPartitioner p = StorageService.instance.setPartitionerUnsafe(oldP);
-            assert p == newP;
+            checkState(!closed, "Already reset");
+            closed = true;
+            StorageService.instance.resetPartitionerUnsafe();
         }
+    }
+
+    public static void spinAssertEquals(int expected, Supplier<Object> actualSupplier)
+    {
+        spinAssertEquals((long)expected, () -> ((Number)actualSupplier.get()).longValue());
+    }
+
+    public static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier)
+    {
+        spinAssertEquals(null, expected, actualSupplier, 10, TimeUnit.SECONDS);
     }
 
     public static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier, int timeoutInSeconds)
@@ -732,6 +757,55 @@ public class Util
                   .pollDelay(0, TimeUnit.MILLISECONDS)
                   .atMost(timeout, timeUnit)
                   .untilAsserted(() -> assertThat(message, actualSupplier.get(), matcher));
+    }
+
+    public static void spinAssertEquals(Object expected, int timeoutInSeconds, Callable<Object> call)
+    {
+        spinAssertEquals(null, expected, timeoutInSeconds, TimeUnit.SECONDS,  call);
+    }
+
+    public static <T> void spinAssertEquals(String message, T expected, long timeout, TimeUnit timeUnit, Callable<? extends T> call)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeout, timeUnit)
+                  .untilAsserted(() -> assertThat(message, call.call(), equalTo(expected)));
+    }
+
+    public static void spinUntilTrue(Callable<Boolean> test)
+    {
+        spinUntilTrue(test, 10, TimeUnit.SECONDS);
+    }
+
+    public static void spinUntilTrue(Callable<Boolean> test, long timeoutInSeconds)
+    {
+        spinUntilTrue(test, timeoutInSeconds, TimeUnit.SECONDS);
+    }
+
+    public static void spinUntilTrue(Callable<Boolean> test, long timeout, TimeUnit unit)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeout, unit)
+                  .ignoreExceptions()
+                  .untilAsserted(() -> assertThat(test.call(), equalTo(true)));
+    }
+
+    public static void spinUntilSuccess(ThrowingRunnable runnable)
+    {
+        spinUntilSuccess(runnable, 10);
+    }
+
+    public static void spinUntilSuccess(ThrowingRunnable runnable, int timeoutInSeconds)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeoutInSeconds, TimeUnit.SECONDS)
+                  .ignoreExceptions()
+                  .untilAsserted(runnable);
     }
 
     public static void joinThread(Thread thread) throws InterruptedException
@@ -826,6 +900,13 @@ public class Util
     }
 
     public static UnfilteredPartitionIterator executeLocally(PartitionRangeReadCommand command,
+                                                             ColumnFamilyStore cfs,
+                                                             ReadExecutionController controller)
+    {
+        return command.queryStorage(cfs, controller);
+    }
+
+    public static UnfilteredPartitionIterator executeLocally(SinglePartitionReadCommand command,
                                                              ColumnFamilyStore cfs,
                                                              ReadExecutionController controller)
     {
@@ -1281,4 +1362,13 @@ public class Util
         return tagSnapshotsMap;
     }
 
+    // Replaces the global auto-repair config with a new config where auto-repair schedulling is enabled/disabled
+    public static void setAutoRepairEnabled(boolean enabled) throws Exception
+    {
+        Config config = DatabaseDescriptor.getRawConfig();
+        config.auto_repair = new AutoRepairConfig(enabled);
+        Field configField = DatabaseDescriptor.class.getDeclaredField("conf");
+        configField.setAccessible(true);
+        configField.set(null, config);
+    }
 }
