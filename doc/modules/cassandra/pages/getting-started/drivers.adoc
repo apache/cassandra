@@ -24,6 +24,10 @@ functionality supported by a specific driver.
 
 * https://github.com/datastax/nodejs-driver[Datastax Nodejs driver]
 
+== JDBC
+
+* https://github.com/ing-bank/cassandra-jdbc-wrapper[Cassandra JDBC Wrapper]
+
 == PHP
 
 * https://github.com/datastax/php-driver/[Datastax PHP driver]
