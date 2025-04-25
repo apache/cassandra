@@ -20,10 +20,6 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.UUID;
 
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.CoordinatorLogId;
-import org.apache.cassandra.replication.MutationSummary;
-import org.apache.cassandra.replication.Offsets;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -34,10 +30,15 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.CoordinatorLogId;
+import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
@@ -47,7 +48,10 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getOnlyLogId;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryIdSpace;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
+// TODO This test would be a lot faster if it had a shared cluster
 public class MutationTrackingTest extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingTest.class);
@@ -72,7 +76,7 @@ public class MutationTrackingTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
 
                 KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
-                Assert.assertEquals(ReplicationType.tracked, keyspace.params.replicationType);
+                assertEquals(ReplicationType.tracked, keyspace.params.replicationType);
             });
 
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.QUORUM);
@@ -83,8 +87,73 @@ public class MutationTrackingTest extends TestBaseImpl
                 MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
                 CoordinatorLogId logId = getOnlyLogId(summary);
                 Offsets summaryIds = summaryIdSpace(summary.get(logId));
-                Assert.assertEquals(1, summaryIds.offsetCount());
+                assertEquals(1, summaryIds.offsetCount());
             });
+        }
+    }
+
+    @Test
+    public void testWitnessWriteSkippedPath() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("transient_replication_enabled", "true"))
+                                      .start())
+        {
+
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': '3/1'} " +
+                                              "AND replication_type='tracked';"));
+
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
+
+            String keyspaceName = KEYSPACE;
+            cluster.get(1).runOnInstance(() -> {
+
+                KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
+                assertEquals(ReplicationType.tracked, keyspace.params.replicationType);
+            });
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.ALL);
+
+            // Only two instances should have the row
+            int rowsFound = 0;
+            String singlePartitionSelectCQL = withKeyspace("SELECT * FROM %s.tbl WHERE k = 1");
+            for (IInvokableInstance instance : cluster)
+            {
+                Object[][] result = instance.executeInternal(singlePartitionSelectCQL);
+                assertTrue("Each node should have 0-1 rows", result.length == 0 || result.length == 1);
+                rowsFound += result.length;
+            }
+            assertEquals("Only two instances should have the row", 2, rowsFound);
+
+            cluster.get(1).runOnInstance(() -> {
+                TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
+                DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
+                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                CoordinatorLogId logId = getOnlyLogId(summary);
+
+                Offsets summaryIds = summaryIdSpace(summary.get(logId));
+                assertEquals(1, summaryIds.offsetCount());
+            });
+
+            Object[][] result = cluster.coordinator(1).execute(singlePartitionSelectCQL, ConsistencyLevel.ALL);
+            assertEquals(1, result.length);
+            String partitionRangeSelectCQL = withKeyspace("SELECT * FROM %s.tbl");
+            result = cluster.coordinator(1).execute(partitionRangeSelectCQL, ConsistencyLevel.ALL);
+            assertEquals(1, result.length);
+
+            // Read time reconciliation should not propagate the row to the witness node
+            rowsFound = 0;
+            for (IInvokableInstance instance : cluster)
+            {
+                result = instance.executeInternal(singlePartitionSelectCQL);
+                assertTrue("Each node should have 0-1 rows", result.length == 0 || result.length == 1);
+                rowsFound += result.length;
+            }
+            assertEquals("Only two instances should have the row", 2, rowsFound);
         }
     }
 
@@ -111,7 +180,7 @@ public class MutationTrackingTest extends TestBaseImpl
             long hints = cluster.get(1).callOnInstance(() -> StorageMetrics.totalHints.getCount());
 
             // confirm no hints for node 3
-            cluster.get(1).runOnInstance(() -> Assert.assertEquals(0, HintsService.instance.getTotalHintsSize(node3HostId)));
+            cluster.get(1).runOnInstance(() -> assertEquals(0, HintsService.instance.getTotalHintsSize(node3HostId)));
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.QUORUM);
 
             // wait for write timeout
@@ -119,7 +188,7 @@ public class MutationTrackingTest extends TestBaseImpl
 
             // TODO: confirm hints aren't written
             cluster.get(1).runOnInstance(() -> {
-                Assert.assertEquals(hints, StorageMetrics.totalHints.getCount());
+                assertEquals(hints, StorageMetrics.totalHints.getCount());
             });
         }
     }

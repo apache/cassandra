@@ -387,7 +387,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
-        return getReplicas(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+        return  Keyspace.open(keyspaceName).getReplicationStrategy().getLocalRanges(ClusterMetadata.current());
     }
 
     public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
@@ -402,11 +402,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<Range<Token>> getLocalRanges(String ks)
     {
-        InetAddressAndPort broadcastAddress = getBroadcastAddressAndPort();
         Keyspace keyspace = Keyspace.open(ks);
         List<Range<Token>> ranges = new ArrayList<>();
-        for (Replica r : keyspace.getReplicationStrategy().getAddressReplicas(ClusterMetadata.current(),
-                                                                              broadcastAddress))
+        for (Replica r : keyspace.getReplicationStrategy().getLocalRanges(ClusterMetadata.current()))
             ranges.add(r.range());
         return ranges;
     }

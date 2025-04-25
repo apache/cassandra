@@ -56,6 +56,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.RegistrationStatus;
@@ -120,7 +121,7 @@ public class NetworkTopologyStrategyTest extends CassandraTestBase
         configOptions.put("DC1", "3");
         configOptions.put("DC2", "3");
         configOptions.put("DC3", "0");
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions, ReplicationType.untracked);
 
         Assert.assertEquals(strategy.getReplicationFactor("DC1").allReplicas, 3);
         Assert.assertEquals(strategy.getReplicationFactor("DC2").allReplicas, 3);
@@ -164,7 +165,7 @@ public class NetworkTopologyStrategyTest extends CassandraTestBase
             }
         }
 
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions, ReplicationType.untracked);
 
         for (String testToken : new String[]{"123456", "200000", "000402", "ffffff", "400200"})
         {
@@ -257,7 +258,8 @@ public class NetworkTopologyStrategyTest extends CassandraTestBase
         NetworkTopologyStrategy nts = new NetworkTopologyStrategy("ks",
                                                                   datacenters.entrySet()
                                                                              .stream()
-                                                                             .collect(Collectors.toMap(x -> x.getKey(), x -> Integer.toString(x.getValue()))));
+                                                                             .collect(Collectors.toMap(x -> x.getKey(), x -> Integer.toString(x.getValue()))),
+                                                                  ReplicationType.untracked);
         for (int i=0; i<1000; ++i)
         {
             Token token = Murmur3Partitioner.instance.getRandomToken(rand);
@@ -460,7 +462,7 @@ public class NetworkTopologyStrategyTest extends CassandraTestBase
 
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put(LOCATION.datacenter, "3/1");
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions, ReplicationType.tracked);
         Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
                                                  fullReplica(endpoints.get(1), range(400, 100)),
                                                  transientReplica(endpoints.get(2), range(400, 100))),
@@ -486,7 +488,7 @@ public class NetworkTopologyStrategyTest extends CassandraTestBase
         configOptions.put(REPLICATION_FACTOR, "1");
 
         @SuppressWarnings("unused") 
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", configOptions, ReplicationType.untracked);
     }
 
     @Test
@@ -495,7 +497,7 @@ public class NetworkTopologyStrategyTest extends CassandraTestBase
     {
         HashMap<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "2");
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", configOptions, ReplicationType.untracked);
         ClusterMetadataTestHelper.addEndpoint(FBUtilities.getBroadcastAddressAndPort(), new StringToken("123"), "DC1", "RACK1");
         ClientWarn.instance.captureWarnings();
         strategy.maybeWarnOnOptions(null);

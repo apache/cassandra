@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Supplier;
 import java.util.*;
 
@@ -34,6 +35,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
@@ -45,20 +47,28 @@ import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * A abstract parent for all replication strategies.
 */
 public abstract class AbstractReplicationStrategy
 {
+    @SuppressWarnings("rawtypes")
+    private static final AtomicReferenceFieldUpdater<AbstractReplicationStrategy, Pair> LOCAL_RANGES_UPDATER = AtomicReferenceFieldUpdater.newUpdater(AbstractReplicationStrategy.class, Pair.class, "localRanges");
+
     public final Map<String, String> configOptions;
+    public final ReplicationType replicationType;
     // TODO: remove keyspace name; add a cache that allows going between replication params and replication strategy
     protected final String keyspaceName;
 
-    protected AbstractReplicationStrategy(String keyspaceName, Map<String, String> configOptions)
+    private volatile Pair<Epoch, RangesAtEndpoint> localRanges;
+
+    protected AbstractReplicationStrategy(String keyspaceName, Map<String, String> configOptions, ReplicationType replicationType)
     {
         this.configOptions = configOptions == null ? Collections.<String, String>emptyMap() : configOptions;
         this.keyspaceName = keyspaceName;
+        this.replicationType = replicationType;
     }
 
     /**
@@ -245,15 +255,16 @@ public abstract class AbstractReplicationStrategy
 
     private static AbstractReplicationStrategy createInternal(String keyspaceName,
                                                               Class<? extends AbstractReplicationStrategy> strategyClass,
-                                                              Map<String, String> strategyOptions)
+                                                              Map<String, String> strategyOptions,
+                                                              ReplicationType replicationType)
         throws ConfigurationException
     {
         AbstractReplicationStrategy strategy;
-        Class<?>[] parameterTypes = new Class[] {String.class, Map.class};
+        Class<?>[] parameterTypes = new Class[] {String.class, Map.class, ReplicationType.class};
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = strategyClass.getConstructor(parameterTypes);
-            strategy = constructor.newInstance(keyspaceName, strategyOptions);
+            strategy = constructor.newInstance(keyspaceName, strategyOptions, replicationType);
         }
         catch (InvocationTargetException e)
         {
@@ -268,15 +279,17 @@ public abstract class AbstractReplicationStrategy
     }
 
     public static AbstractReplicationStrategy createReplicationStrategy(String keyspaceName,
-                                                                        ReplicationParams replicationParams)
+                                                                        ReplicationParams replicationParams,
+                                                                        ReplicationType replicationType)
     {
-        return createReplicationStrategy(keyspaceName, replicationParams.klass, replicationParams.options);
+        return createReplicationStrategy(keyspaceName, replicationParams.klass, replicationParams.options, replicationType);
     }
     public static AbstractReplicationStrategy createReplicationStrategy(String keyspaceName,
                                                                         Class<? extends AbstractReplicationStrategy> strategyClass,
-                                                                        Map<String, String> strategyOptions)
+                                                                        Map<String, String> strategyOptions,
+                                                                        ReplicationType replicationType)
     {
-        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, strategyOptions);
+        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, strategyOptions, replicationType);
         strategy.validateOptions();
         return strategy;
     }
@@ -318,9 +331,10 @@ public abstract class AbstractReplicationStrategy
                                                    Class<? extends AbstractReplicationStrategy> strategyClass,
                                                    ClusterMetadata metadata,
                                                    Map<String, String> strategyOptions,
+                                                   ReplicationType replicationType,
                                                    ClientState state) throws ConfigurationException
     {
-        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, strategyOptions);
+        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, strategyOptions, replicationType);
         strategy.validateExpectedOptions(metadata);
         strategy.validateOptions();
         strategy.maybeWarnOnOptions(state);
@@ -360,6 +374,8 @@ public abstract class AbstractReplicationStrategy
             {
                 if (DatabaseDescriptor.getNumTokens() > 1)
                     throw new ConfigurationException("Transient replication is not supported with vnodes yet");
+                if (!replicationType.isTracked())
+                    throw new ConfigurationException("Transient replication requires mutation tracking");
             }
         }
         catch (IllegalArgumentException e)
@@ -389,6 +405,31 @@ public abstract class AbstractReplicationStrategy
         {
             if (!expectedOptions.contains(key))
                 throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s. Expected options: %s", key, getClass().getSimpleName(), keyspaceName, expectedOptions));
+        }
+    }
+
+    public boolean usesMutationTracking()
+    {
+        return replicationType.isTracked();
+    }
+
+    /**
+     * Returns local ranges for the epoch specified in the supplied cluster metadata or some later epoch. This caches
+     * the resulting RangesAtEndpoint so it should be a little more efficient.
+     */
+    public RangesAtEndpoint getLocalRanges(ClusterMetadata cm)
+    {
+        while (true)
+        {
+            Pair<Epoch, RangesAtEndpoint> localRanges = this.localRanges;
+            if (localRanges != null && localRanges.left.isEqualOrAfter(cm.epoch))
+                return localRanges.right;
+
+            ClusterMetadata latestMetadata = ClusterMetadata.current();
+            RangesAtEndpoint newRanges = getAddressReplicas(latestMetadata, FBUtilities.getBroadcastAddressAndPort());
+            Pair<Epoch, RangesAtEndpoint> replacementLocalRanges = Pair.create(latestMetadata.epoch, newRanges);
+            if (LOCAL_RANGES_UPDATER.compareAndSet(this, localRanges, replacementLocalRanges))
+                return newRanges;
         }
     }
 }

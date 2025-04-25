@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -36,9 +37,9 @@ public class LocalStrategy extends SystemStrategy
     private static final ReplicationFactor RF = ReplicationFactor.fullOnly(1);
     private static final Map<IPartitioner, EntireRange> perPartitionerRanges = new IdentityHashMap<>();
 
-    public LocalStrategy(String keyspaceName, Map<String, String> configOptions)
+    public LocalStrategy(String keyspaceName, Map<String, String> configOptions, ReplicationType replicationType)
     {
-        super(keyspaceName, configOptions);
+        super(keyspaceName, configOptions, replicationType);
     }
 
     @Override

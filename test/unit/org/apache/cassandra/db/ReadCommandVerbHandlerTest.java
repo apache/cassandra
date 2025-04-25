@@ -172,7 +172,6 @@ public class ReadCommandVerbHandlerTest
             super(metadata.epoch,
                   false,
                   0,
-                  false,
                   PotentialTxnConflicts.DISALLOW,
                   metadata,
                   FBUtilities.nowInSeconds(),

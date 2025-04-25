@@ -1548,6 +1548,7 @@ public class StorageProxy implements StorageProxyMBean
                         return;
 
                     // Always construct the replica plan to check availability
+                    // TODO in my changes I switch ReplicaPlans.writeNormal to ReplicaPlans.writeAll and I don't remember why
                     ReplicaPlan.ForWrite dataReplicaPlan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
 
                     if (dataReplicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
@@ -1808,7 +1809,7 @@ public class StorageProxy implements StorageProxyMBean
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token tk = mutation.key().getToken();
 
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
 
         if (replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
             writeMetrics.localRequests.mark();

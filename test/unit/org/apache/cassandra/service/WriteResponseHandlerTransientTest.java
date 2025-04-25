@@ -125,7 +125,7 @@ public class WriteResponseHandlerTransientTest
     private static ReplicaPlan.ForWrite getSpeculationContext(EndpointsForToken natural, Predicate<InetAddressAndPort> livePredicate)
     {
         ReplicaLayout.ForTokenWrite liveAndDown = new ReplicaLayout.ForTokenWrite(ks.getReplicationStrategy(), natural, EndpointsForToken.empty(dummy.getToken()));
-        return ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, (cm) -> liveAndDown, r -> livePredicate.test(r.endpoint()), ReplicaPlans.writeNormal);
+        return ReplicaPlans.forWrite(ks, ConsistencyLevel.QUORUM, (cm) -> liveAndDown, r -> livePredicate.test(r.endpoint()), ReplicaPlans.writeAll);
     }
 
     private static void assertSpeculationReplicas(ReplicaPlan.ForWrite expected, EndpointsForToken replicas, Predicate<InetAddressAndPort> livePredicate)

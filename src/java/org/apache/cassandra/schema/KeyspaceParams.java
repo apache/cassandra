@@ -145,7 +145,7 @@ public final class KeyspaceParams
 
     public void validate(String name, ClientState state, ClusterMetadata metadata)
     {
-        replication.validate(name, state, metadata);
+        replication.validate(name, state, metadata, replicationType);
     }
 
     @Override

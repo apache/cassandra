@@ -632,6 +632,9 @@ public class ReplicaPlans
         }
     };
 
+    // TODO (review): Cheap quorums are not a goal for now, would really require speculation for writes
+    // and would trigger reconciliation work later, potentially quite a lot so I don't think it makes sense.
+    // So just remove selector?
     /**
      * Select all full nodes, live or down, as write targets.  If there are insufficient nodes to complete the write,
      * but there are live transient nodes, select a sufficient number of these to reach our consistency level.

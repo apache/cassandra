@@ -28,6 +28,8 @@ import java.util.stream.Collectors;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import org.apache.cassandra.schema.ReplicationType;
 import org.mockito.Mockito;
 
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -129,7 +131,7 @@ public class IndexStatusManagerTest
     {
         runTest(new Testcase.Builder()
                 .keyspace("ks1")
-                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5")))
+                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5"), ReplicationType.untracked))
                 .indexStatus(Map.of(
                         InetAddressAndPort.getByNameUnchecked("127.0.0.251"),
                         Map.of(
@@ -182,7 +184,7 @@ public class IndexStatusManagerTest
     {
         runTest(new Testcase.Builder()
                 .keyspace("ks1")
-                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5")))
+                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5"), ReplicationType.untracked))
                 .indexStatus(Map.of(
                         InetAddressAndPort.getByNameUnchecked("127.0.0.251"),
                         Map.of(
@@ -233,7 +235,7 @@ public class IndexStatusManagerTest
     {
         runTest(new Testcase.Builder()
                 .keyspace("ks1")
-                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5")))
+                .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5"), ReplicationType.untracked))
                 .indexStatus(Map.of(
                         InetAddressAndPort.getByNameUnchecked("127.0.0.251"),
                         Map.of(
@@ -285,7 +287,7 @@ public class IndexStatusManagerTest
         assertThatThrownBy(() ->
                 runTest(new Testcase.Builder()
                         .keyspace("ks1")
-                        .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5")))
+                        .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "5"), ReplicationType.untracked))
                         .indexStatus(Map.of(
                                 InetAddressAndPort.getByNameUnchecked("127.0.0.251"),
                                 Map.of(
@@ -332,7 +334,7 @@ public class IndexStatusManagerTest
         assertThatThrownBy(() ->
                 runTest(new Testcase.Builder()
                         .keyspace("ks1")
-                        .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "3")))
+                        .replicationStrategy(new NetworkTopologyStrategy("ks1", Map.of("DC", "3"), ReplicationType.untracked))
                         .indexStatus(Map.of(
                                 InetAddressAndPort.getByNameUnchecked("127.0.0.253"),
                                 Map.of(
