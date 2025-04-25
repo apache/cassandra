@@ -89,7 +89,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private static final long DEFAULT_CLOSE_WAIT_IN_MILLIS = TimeUnit.MINUTES.toMillis(5);
 
     // a simple mechansim for allowing a degree of fairnes across multiple sessions
-    private static final Semaphore fileTransferSemaphore = new Semaphore(DEFAULT_MAX_PARALLEL_TRANSFERS, true);
+    private static final Semaphore fileTransferSemaphore = new Semaphore(MAX_PARALLEL_TRANSFERS, true);
 
     private final StreamSession session;
     private final boolean isPreview;

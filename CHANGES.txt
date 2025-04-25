@@ -1,4 +1,5 @@
 4.0.18
+ * Honor MAX_PARALLEL_TRANSFERS correctly (CASSANDRA-20532)
  * Updating a column with a new TTL but same expiration time is non-deterministic and causes repair mismatches. (CASSANDRA-20561)
  * Grant permission on keyspaces system_views and system_virtual_schema not possible (CASSANDRA-20171)
  * Avoid computing prepared statement size for unprepared batches (CASSANDRA-20556)
