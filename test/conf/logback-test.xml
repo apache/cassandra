@@ -19,7 +19,7 @@
 
 <configuration debug="false" scan="true" scanPeriod="60 seconds">
   <!-- Shutdown hook ensures that async appender flushes -->
-  <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+  <shutdownHook class="ch.qos.logback.core.hook.DefaultShutdownHook"/>
 
   <!-- Status listener is used to wrap stdout/stderr and tee to log file -->
   <statusListener class="org.apache.cassandra.LogbackStatusListener" />

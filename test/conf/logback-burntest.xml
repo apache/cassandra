@@ -20,7 +20,7 @@
   <define name="instance_id" class="org.apache.cassandra.distributed.impl.InstanceIDDefiner" />
 
   <!-- Shutdown hook ensures that async appender flushes -->
-  <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+  <shutdownHook class="ch.qos.logback.core.hook.DefaultShutdownHook"/>
 
   <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
 
