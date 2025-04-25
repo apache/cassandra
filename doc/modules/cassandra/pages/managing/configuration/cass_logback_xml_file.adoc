@@ -172,8 +172,6 @@ A reader noticed that by placing custom appender implementation of `SLOW_QUERIES
 [source,XML]
 ----
 <configuration scan="true" scanPeriod="60 seconds">
-  <jmxConfigurator />
-
   <!-- No shutdown hook; we run it ourselves in StorageService after shutdown -->
 
   <!-- SYSTEMLOG rolling file appender to system.log (INFO level) -->
