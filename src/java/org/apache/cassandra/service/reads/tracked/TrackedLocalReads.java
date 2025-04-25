@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.DISCARD;
+import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 
 /**
  * Since the read reconciliations don't use 2 way callbacks, a map of active reconciliations
@@ -54,7 +54,7 @@ public class TrackedLocalReads implements Shutdownable
     private static final Logger logger = LoggerFactory.getLogger(TrackedLocalReads.class);
 
     private final ConcurrentMap<Long, TrackedLocalReadCoordinator> reads = new ConcurrentHashMap<>();
-    private final ScheduledExecutorPlus executor = executorFactory().scheduled("Reconciliation-Map-Reaper", DISCARD);
+    private final ScheduledExecutorPlus executor = executorFactory().scheduled("Reconciliation-Map-Reaper", NORMAL);
 
     public TrackedLocalReads()
     {
