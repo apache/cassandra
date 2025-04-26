@@ -21,17 +21,19 @@ package org.apache.cassandra.distributed.test.repair;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.repair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.AutoRepairV2;
@@ -41,7 +43,7 @@ import static org.junit.Assert.assertEquals;
 
 public class AutoRepairSchedulerTest extends TestBaseImpl
 {
-
+    static final Logger logger = LoggerFactory.getLogger(AutoRepairSchedulerTest.class);
     private static Cluster cluster;
     static SimpleDateFormat sdf;
 
@@ -66,7 +68,14 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                                              "min_repair_interval_in_hours", "-1"),
                                                                              AutoRepairConfig.RepairType.incremental.toString(),
                                                                              ImmutableMap.of(
-                                                                             "initial_scheduler_delay_in_sec", "30",
+                                                                             "initial_scheduler_delay_in_sec", "5",
+                                                                             "enabled", "true",
+                                                                             "parallel_repair_count_in_group", "3",
+                                                                             "parallel_repair_percentage_in_group", "0",
+                                                                             "min_repair_interval_in_hours", "-1"),
+                                                                             AutoRepairConfig.RepairType.preview_repaired.toString(),
+                                                                             ImmutableMap.of(
+                                                                             "initial_scheduler_delay_in_sec", "5",
                                                                              "enabled", "true",
                                                                              "parallel_repair_count_in_group", "3",
                                                                              "parallel_repair_percentage_in_group", "0",
@@ -111,13 +120,29 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                 throw new RuntimeException(e);
             }
         }));
-        // wait for a few minutes for repair to go through on all three nodes
-        Uninterruptibles.sleepUninterruptibly(5, TimeUnit.MINUTES);
-
-        validate(AutoRepairConfig.RepairType.full.toString());
-        validate(AutoRepairConfig.RepairType.incremental.toString());
-        validate(AutoRepairConfig.RepairType.paxos_cleanup.toString());
-        validate(AutoRepairConfig.RepairType.bootstrap.toString());
+        logger.info("Repair setup done");
+        // validate that the repair ran on all nodes
+        cluster.forEach(i -> i.runOnInstance(() -> {
+            for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+            {
+                while (AutoRepairMetricsManager.getMetrics(repairType).nodeRepairTimeInSec.getValue().longValue() <= 0)
+                {
+                    try
+                    {
+                        Thread.sleep(1000);
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+                logger.info("AutoRepair has completed one {} repair cycle", repairType);
+            }
+        }));
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        {
+            validate(repairType.toString());
+        }
     }
 
     private void validate(String repairType) throws ParseException
