@@ -75,6 +75,7 @@ import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.config.Config.LCSEnforcementLevel;
 import org.apache.cassandra.config.Config.AuthEnforcementFlag;
+import org.apache.cassandra.config.Config.ClientLibsEnforcementLevel;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
@@ -2776,6 +2777,16 @@ public class NodeProbe implements AutoCloseable
     public void setClearSnapshotFilesLogEnabled(boolean enabled)
     {
         ssProxy.setClearSnapshotFilesLogEnabled(enabled);
+    }
+
+    public ClientLibsEnforcementLevel getClientLibsEnforcementLevel()
+    {
+        return ssProxy.getClientLibsEnforcementLevel();
+    }
+
+    public void setClientLibsEnforcementLevel(ClientLibsEnforcementLevel level)
+    {
+        ssProxy.setClientLibsEnforcementLevel(level);
     }
 }
 

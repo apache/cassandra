@@ -724,6 +724,8 @@ public class Config
 
     public AuthEnforcementFlag auth_enforcement_flag = AuthEnforcementFlag.none;
 
+    public ClientLibsEnforcementLevel client_libs_enforcement_level = ClientLibsEnforcementLevel.none;
+
     public Long auth_check_interval_in_ms = 30*60*1000L;
 
     public boolean block_unqualified_prepared_statement_enabled = true;
@@ -1297,6 +1299,13 @@ public class Config
     }
 
     public enum AuthEnforcementFlag
+    {
+        hard,
+        soft,
+        none
+    }
+
+    public enum ClientLibsEnforcementLevel
     {
         hard,
         soft,

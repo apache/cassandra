@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.Config.AuthEnforcementFlag;
+import org.apache.cassandra.config.Config.ClientLibsEnforcementLevel;
 import org.apache.cassandra.config.Config.LCSEnforcementLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import javax.management.NotificationEmitter;
@@ -1224,4 +1225,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /* Set clear_snapshot_files_log_enabled */
     void setClearSnapshotFilesLogEnabled(boolean enabled);
+
+    public ClientLibsEnforcementLevel getClientLibsEnforcementLevel();
+    public void setClientLibsEnforcementLevel(ClientLibsEnforcementLevel level);
 }

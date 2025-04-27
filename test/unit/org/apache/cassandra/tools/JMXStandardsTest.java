@@ -114,6 +114,8 @@ public class JMXStandardsTest
                                                        .add(InetAddressAndPort.class)
                                                        // used in getauthenforcementflag
                                                        .add(Config.AuthEnforcementFlag.class)
+                                                       // used in getclientlibsenforcementlevel
+                                                       .add(Config.ClientLibsEnforcementLevel.class)
                                                        // used in getlcsenforcementlevel
                                                        .add(Config.LCSEnforcementLevel.class)
                                                        // used in RateLimiterService

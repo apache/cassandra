@@ -131,6 +131,7 @@ import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.Config.LCSEnforcementLevel;
 import org.apache.cassandra.config.Config.AuthEnforcementFlag;
+import org.apache.cassandra.config.Config.ClientLibsEnforcementLevel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -6859,12 +6860,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void enableSampledQueryEventLogger(double querySuccessRate, double queryFailureRate, double batchSuccessRate, double batchFailureRate, 
-                                             double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate, 
+    public void enableSampledQueryEventLogger(double querySuccessRate, double queryFailureRate, double batchSuccessRate, double batchFailureRate,
+                                             double executeSuccessRate, double executeFailureRate, double prepareSuccessRate, double prepareFailureRate,
                                              double authSuccessRate, double authFailureRate) throws IllegalStateException {
         // build from existing options, and override
         SampledQueryEventLoggerOptions.Builder optionsBuilder = new SampledQueryEventLoggerOptions.Builder(DatabaseDescriptor.getSampledQueryEventLoggingOptions());
-        
+
         if (querySuccessRate != SampledQueryEventLoggerOptions.INVALID_UNSET_SAMPLE_RATE) {
             optionsBuilder.withQuerySuccessSampleRate(querySuccessRate);
         }
@@ -6896,7 +6897,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             optionsBuilder.withAuthFailureSampleRate(authFailureRate);
         }
 
-        if (optionsBuilder.shouldEnable()) 
+        if (optionsBuilder.shouldEnable())
         {
             optionsBuilder.withEnabled(true);
         }
@@ -7775,5 +7776,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setClearSnapshotFilesLogEnabled(boolean enabled)
     {
         DatabaseDescriptor.setClearSnapshotFilesLogEnabled(enabled);
+    }
+
+    public ClientLibsEnforcementLevel getClientLibsEnforcementLevel()
+    {
+        return DatabaseDescriptor.getClientLibsEnforcementLevel();
+    }
+
+    public void setClientLibsEnforcementLevel(ClientLibsEnforcementLevel level)
+    {
+        DatabaseDescriptor.setClientLibsEnforcementLevel(level);
     }
 }

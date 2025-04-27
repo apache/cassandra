@@ -79,6 +79,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config",
     "org.apache.cassandra.config.Config$1",
     "org.apache.cassandra.config.Config$AuthEnforcementFlag",
+    "org.apache.cassandra.config.Config$ClientLibsEnforcementLevel",
     "org.apache.cassandra.config.Config$CommitLogSync",
     "org.apache.cassandra.config.Config$CommitFailurePolicy",
     "org.apache.cassandra.config.Config$CQLStartTime",

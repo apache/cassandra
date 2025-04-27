@@ -53,6 +53,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.Config.AuthEnforcementFlag;
+import org.apache.cassandra.config.Config.ClientLibsEnforcementLevel;
 import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
 import org.apache.cassandra.db.monitoring.BadQueriesInTable;
 import org.apache.cassandra.db.monitoring.IBadQueryReporter;
@@ -5129,6 +5130,14 @@ public class DatabaseDescriptor
 
     public static void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlag) {
         conf.auth_enforcement_flag = authEnforcementFlag;
+    }
+
+    public static ClientLibsEnforcementLevel getClientLibsEnforcementLevel() {
+        return conf.client_libs_enforcement_level;
+    }
+
+    public static void setClientLibsEnforcementLevel(ClientLibsEnforcementLevel clientLibsEnforcementLevel) {
+        conf.client_libs_enforcement_level = clientLibsEnforcementLevel;
     }
 
     public static Long getAuthCheckIntervalInMillis() {
