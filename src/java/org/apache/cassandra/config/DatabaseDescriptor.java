@@ -5140,6 +5140,14 @@ public class DatabaseDescriptor
         conf.client_libs_enforcement_level = clientLibsEnforcementLevel;
     }
 
+    public static Set<String> getAllowedClientLibDrivers() {
+        return conf.allowed_client_lib_drivers;
+    }
+
+    public static void setAllowedClientLibDrivers(Set<String> allowedClientLibDrivers) {
+        conf.allowed_client_lib_drivers = allowedClientLibDrivers;
+    }
+
     public static Long getAuthCheckIntervalInMillis() {
         return conf.auth_check_interval_in_ms;
     }

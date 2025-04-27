@@ -2788,6 +2788,16 @@ public class NodeProbe implements AutoCloseable
     {
         ssProxy.setClientLibsEnforcementLevel(level);
     }
+
+    public Set<String> getAllowedClientLibDrivers()
+    {
+        return ssProxy.getAllowedClientLibDrivers();
+    }
+
+    public void setAllowedClientLibDrivers(Set<String> drivers)
+    {
+        ssProxy.setAllowedClientLibDrivers(drivers);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

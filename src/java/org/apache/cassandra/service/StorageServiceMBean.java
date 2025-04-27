@@ -1228,4 +1228,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public ClientLibsEnforcementLevel getClientLibsEnforcementLevel();
     public void setClientLibsEnforcementLevel(ClientLibsEnforcementLevel level);
+
+    public Set<String> getAllowedClientLibDrivers();
+    public void setAllowedClientLibDrivers(Set<String> drivers);
 }

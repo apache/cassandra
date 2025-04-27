@@ -7787,4 +7787,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setClientLibsEnforcementLevel(level);
     }
+
+    public Set<String> getAllowedClientLibDrivers()
+    {
+        return DatabaseDescriptor.getAllowedClientLibDrivers();
+    }
+
+    public void setAllowedClientLibDrivers(Set<String> drivers)
+    {
+        DatabaseDescriptor.setAllowedClientLibDrivers(drivers);
+    }
 }

@@ -726,6 +726,12 @@ public class Config
 
     public ClientLibsEnforcementLevel client_libs_enforcement_level = ClientLibsEnforcementLevel.none;
 
+    /**
+     * List of regex patterns of allowed client library drivers.
+     * If not set, all drivers are allowed.
+     */
+    public Set<String> allowed_client_lib_drivers = new HashSet<>();
+
     public Long auth_check_interval_in_ms = 30*60*1000L;
 
     public boolean block_unqualified_prepared_statement_enabled = true;
