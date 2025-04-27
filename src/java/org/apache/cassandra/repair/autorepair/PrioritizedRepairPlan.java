@@ -19,7 +19,6 @@
 package org.apache.cassandra.repair.autorepair;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -89,11 +88,11 @@ public class PrioritizedRepairPlan
      * for their given priority.
      *
      * @param keyspacesToTableNames A mapping keyspace to table names
-     * @param repairType The repair type that is being executed
-     * @param orderFunc A function to order keyspace and tables in the returned plan.
+     * @param repairType            The repair type that is being executed
+     * @param orderFunc             A function to order keyspace and tables in the returned plan.
      * @return Ordered list of plan's by table priorities.
      */
-    public static List<PrioritizedRepairPlan> build(Map<String, List<String>> keyspacesToTableNames, AutoRepairConfig.RepairType repairType, Consumer<List<String>> orderFunc)
+    public static List<PrioritizedRepairPlan> build(Map<String, List<String>> keyspacesToTableNames, AutoRepairConfig.RepairType repairType, Consumer<List<String>> orderFunc, boolean primaryRangeOnly)
     {
         // Build a map of priority -> (keyspace -> tables)
         Map<Integer, Map<String, List<String>>> plans = new HashMap<>();
@@ -124,29 +123,18 @@ public class PrioritizedRepairPlan
             List<String> keyspaceNames = new ArrayList<>(keyspacesAndTables.keySet());
             orderFunc.accept(keyspaceNames);
 
-            for(String keyspaceName : keyspaceNames)
+            for (String keyspaceName : keyspaceNames)
             {
-               List<String> tableNames = keyspacesAndTables.get(keyspaceName);
-               orderFunc.accept(tableNames);
-               KeyspaceRepairPlan keyspaceRepairPlan = new KeyspaceRepairPlan(keyspaceName, new ArrayList<>(tableNames));
-               keyspaceRepairPlans.add(keyspaceRepairPlan);
+                List<String> tableNames = keyspacesAndTables.get(keyspaceName);
+                orderFunc.accept(tableNames);
+                KeyspaceRepairPlan keyspaceRepairPlan =
+                new KeyspaceRepairPlan(keyspaceName, new ArrayList<>(tableNames),
+                                       AutoRepairUtils.calcTotalBytesToBeRepaired(repairType, keyspaceName, tableNames, AutoRepairUtils.getTokenRanges(primaryRangeOnly, keyspaceName)));
+                keyspaceRepairPlans.add(keyspaceRepairPlan);
             }
         }
 
         return planList;
-    }
-
-    /**
-     * Convenience method to build a repair plan for a single keyspace with tables. Primarily useful in testing.
-     * @param keyspaceName Keyspace to repair
-     * @param tableNames tables to repair for the given keyspace.
-     * @return Single repair plan.
-     */
-    static List<PrioritizedRepairPlan> buildSingleKeyspacePlan(AutoRepairConfig.RepairType repairType, String keyspaceName, String ... tableNames)
-    {
-        Map<String, List<String>> keyspaceMap = new HashMap<>();
-        keyspaceMap.put(keyspaceName, Arrays.asList(tableNames));
-        return build(keyspaceMap, repairType, (l) -> {});
     }
 
     /**
