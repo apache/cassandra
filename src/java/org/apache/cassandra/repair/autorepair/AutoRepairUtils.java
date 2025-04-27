@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair.autorepair;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,9 +44,15 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
+import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
+import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -83,6 +90,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -93,6 +101,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
@@ -312,7 +321,7 @@ public class AutoRepairUtils
 
         public Set<UUID> getAllHostsWithOngoingRepair()
         {
-           return Sets.union(hostIdsWithOnGoingRepair, hostIdsWithOnGoingForceRepair);
+            return Sets.union(hostIdsWithOnGoingRepair, hostIdsWithOnGoingForceRepair);
         }
 
         public String toString()
@@ -484,6 +493,7 @@ public class AutoRepairUtils
 
     /**
      * Convenience method to resolve the broadcast address of a host id from {@link ClusterMetadata}
+     *
      * @return broadcast address if it exists in CMS, otherwise null.
      */
     @Nullable
@@ -551,7 +561,7 @@ public class AutoRepairUtils
      * Accepts the currently evaluated repairType's schedule as an optimization to avoid grabbing its repair status an
      * additional time.
      *
-     * @param myRepairType The repair type schedule being evaluated.
+     * @param myRepairType   The repair type schedule being evaluated.
      * @param myRepairStatus The repair status for that repair type.
      * @return All hosts among active schedules currently being repaired.
      */
@@ -591,6 +601,7 @@ public class AutoRepairUtils
      * Identifies the most eligible host to repair for nodes preceding or equal to this nodes' lastRepairFinishTime.
      * The criteria for this is to find the node with the oldest last repair finish time of which none of its replicas
      * are currently under repair.
+     *
      * @return The most eligible host to repair or null if no candidates before and including this nodes' current repair status.
      */
     @VisibleForTesting
@@ -666,13 +677,13 @@ public class AutoRepairUtils
 
 
     /**
-     * @return Whether the host for the given eligibleRepairHistory has any replicas in hostsBeingRepaired.
-     * @param eligibleHistory History of node to check
-     * @param myId Host id of this node, if the repair history is for this node, additional logging will take place.
-     * @param myRepairType repair type being evaluated
-     * @param hostsBeingRepaired Hosts being repaired.
-     * @param hostIdToRepairType mapping of hosts being repaired to the repair type its being repaired for.
+     * @param eligibleHistory       History of node to check
+     * @param myId                  Host id of this node, if the repair history is for this node, additional logging will take place.
+     * @param myRepairType          repair type being evaluated
+     * @param hostsBeingRepaired    Hosts being repaired.
+     * @param hostIdToRepairType    mapping of hosts being repaired to the repair type its being repaired for.
      * @param replicationStrategies Mapping of unique replication strategies to keyspaces having that strategy.
+     * @return Whether the host for the given eligibleRepairHistory has any replicas in hostsBeingRepaired.
      */
     private static boolean hasReplicaWithOngoingRepair(AutoRepairHistory eligibleHistory,
                                                        UUID myId,
@@ -726,7 +737,6 @@ public class AutoRepairUtils
                                          eligibleHistory.hostId, eligibleBroadcastAddress,
                                          hostId, inetAddressAndPort, entry.getValue().size(), entry.getValue().get(0),
                                          hostIdToRepairType.get(hostId));
-
                         }
                         return true;
                     }
@@ -871,7 +881,7 @@ public class AutoRepairUtils
             }
 
             int parallelRepairNumber = getMaxNumberOfNodeRunAutoRepair(repairType,
-                                                                              autoRepairHistories == null ? 0 : autoRepairHistories.size());
+                                                                       autoRepairHistories == null ? 0 : autoRepairHistories.size());
             logger.info("Will run repairs concurrently on {} node(s)", parallelRepairNumber);
             if (currentRepairStatus == null || parallelRepairNumber > currentRepairStatus.hostIdsWithOnGoingRepair.size())
             {
@@ -937,8 +947,8 @@ public class AutoRepairUtils
 
                     // log which node is next, which is helpful for debugging
                     logger.info("Next node to be repaired for repair type {}: {} ({})", repairType,
-                                 getBroadcastAddress(nodeToBeRepaired.hostId),
-                                 nodeToBeRepaired);
+                                getBroadcastAddress(nodeToBeRepaired.hostId),
+                                nodeToBeRepaired);
                 }
 
                 // If this node is not identified as most eligible, set the repair lag time.
@@ -1200,5 +1210,194 @@ public class AutoRepairUtils
             ranges = splitter.get().split(Collections.singleton(tokenRange), numberOfSplits);
         }
         return ranges;
+    }
+
+    /**
+     * Finds a list of SSTables for a given {@code repairType},
+     * {@code keyspace}, {@code table}, and {@code tokenRange} and then it internally calls
+     * another API {@code AutoRepairUtils.getSizesForRangeOfSSTables}, which figures out the estimated data size.
+     *
+     * @param repairType the repair type (e.g., FULL, INCREMENTAL)
+     * @param keyspace   the keyspace name
+     * @param table      the table name
+     * @param tokenRange the token range to evaluate
+     * @return an estimate representing the number of partitions, size in range, and total size
+     */
+    static SizeEstimate getRangeSizeEstimate(RepairType repairType, String keyspace, String table, Range<Token> tokenRange)
+    {
+        logger.debug("Calculating size estimate for {}.{} for range {}", keyspace, table, tokenRange);
+        try (Refs<SSTableReader> refs = RepairTokenRangeSplitter.getSSTableReaderRefs(repairType, keyspace, table, tokenRange))
+        {
+            SizeEstimate estimate = getSizesForRangeOfSSTables(repairType, keyspace, table, tokenRange, refs);
+            logger.debug("Generated size estimate {}", estimate);
+            return estimate;
+        }
+    }
+    /**
+     * Calculates the size estimation qualified to be repaired for a given {@code repairType},
+     * {@code keyspace}, {@code table}, {@code tokenRange}, and {@code refs}.
+     * <p>
+     * If the compression is enabled, then the size will be an estimate, otherwise it will be accurate.
+     * </p>
+     *
+     * @param repairType
+     * @param keyspace
+     * @param table
+     * @param tokenRange
+     * @param refs
+     * @return an estimate representing the number of partitions, size in range, and total size
+     */
+    static SizeEstimate getSizesForRangeOfSSTables(RepairType repairType, String keyspace, String table,
+                                                   Range<Token> tokenRange, Refs<SSTableReader> refs)
+    {
+        List<Range<Token>> singletonRange = Collections.singletonList(tokenRange);
+        ICardinality cardinality = new HyperLogLogPlus(13, 25);
+        long approxBytesInRange = 0L;
+        long totalBytes = 0L;
+
+        for (SSTableReader reader : refs)
+        {
+            try
+            {
+                if (reader.openReason == SSTableReader.OpenReason.EARLY)
+                    continue;
+                CompactionMetadata metadata = (CompactionMetadata) reader.descriptor.getMetadataSerializer().deserialize(reader.descriptor, MetadataType.COMPACTION);
+                if (metadata != null)
+                    cardinality = cardinality.merge(metadata.cardinalityEstimator);
+
+                // use onDiskLength, which is the actual size of the SSTable data file.
+                long sstableSize = reader.onDiskLength();
+                totalBytes += sstableSize;
+
+                // get the on disk size for the token range, note for compressed data this includes the full
+                // chunks the start and end ranges are found in.
+                long approximateRangeBytesInSSTable = reader.onDiskSizeForPartitionPositions(reader.getPositionsForRanges(singletonRange));
+                approxBytesInRange += Math.min(approximateRangeBytesInSSTable, sstableSize);
+            }
+            catch (IOException | CardinalityMergeException e)
+            {
+                logger.error("Error calculating size estimate for {}.{} for range {} on {}", keyspace, table, tokenRange, reader, e);
+            }
+        }
+
+        long partitions = 0L;
+        if (totalBytes > 0)
+        {
+            // use the ratio from size to estimate the partitions in the range as well
+            double ratio = approxBytesInRange / (double) totalBytes;
+            partitions = (long) Math.max(1, Math.ceil(cardinality.cardinality() * ratio));
+        }
+        return new SizeEstimate(repairType, keyspace, table, tokenRange, partitions, approxBytesInRange, totalBytes);
+    }
+
+    /**
+     * Calculates the token ranges owned by this node for a given keyspace.
+     *
+     * @param primaryRangeOnly whether to use only primary token ranges or include replicated ones
+     * @param keyspaceName     the name of the keyspace
+     * @return one or more token ranges owned by this node
+     */
+    static List<Range<Token>> getTokenRanges(boolean primaryRangeOnly, String keyspaceName)
+    {
+        // Collect all applicable token ranges
+        Collection<Range<Token>> wrappedRanges;
+        if (primaryRangeOnly)
+        {
+            wrappedRanges = TokenRingUtils.getPrimaryRangesForEndpoint(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+        }
+        else
+        {
+            wrappedRanges = StorageService.instance.getLocalRanges(keyspaceName);
+        }
+
+        // Unwrap each range as we need to account for ranges that overlap the ring
+        List<Range<Token>> ranges = new ArrayList<>();
+        for (Range<Token> wrappedRange : wrappedRanges)
+        {
+            ranges.addAll(wrappedRange.unwrap());
+        }
+        return ranges;
+    }
+
+    /**
+     * Calculates the total bytes to be repaired for a given keyspace and list of tables.
+     *
+     * @param repairType       the repair type (e.g., FULL, INCREMENTAL)
+     * @param keyspaceName     the name of the keyspace
+     * @param tableNames       the list of tables
+     * @return a key-value map where the key is {@code keyspaceName.tableName} and the value is the number of bytes
+     * to be repaired.
+     */
+    public static Map<String, Map<Range<Token>, SizeEstimate>> calcTotalBytesToBeRepaired(RepairType repairType, String keyspaceName, List<String> tableNames, List<Range<Token>> tokenRanges)
+    {
+        Map<String, Map<Range<Token>, SizeEstimate>> ksTablesEstimatedBytes = new HashMap<>();
+        for (String tableName : tableNames)
+        {
+            String ksTable = getKeyspaceTableName(keyspaceName, tableName);
+            ksTablesEstimatedBytes.computeIfAbsent(ksTable, k -> new HashMap<>());
+            Map<Range<Token>, SizeEstimate> tokenToSize = ksTablesEstimatedBytes.get(ksTable);
+            for (Range<Token> tokenRange : tokenRanges)
+            {
+                SizeEstimate tableAssignments = getRangeSizeEstimate(repairType, keyspaceName, tableName, tokenRange);
+                tokenToSize.put(tokenRange, tableAssignments);
+            }
+        }
+        return ksTablesEstimatedBytes;
+    }
+
+    public static String getKeyspaceTableName(String keyspace, String table)
+    {
+        return keyspace + "." + table;
+    }
+
+    /**
+     * Represents a size estimate by both bytes and partition count for a given keyspace and table for a token range.
+     */
+    @VisibleForTesting
+    protected static class SizeEstimate
+    {
+        public final RepairType repairType;
+        public final String keyspace;
+        public final String table;
+        public final Range<Token> tokenRange;
+        public final long partitions;
+        public final long sizeInRange;
+        public final long totalSize;
+        /**
+         * Size to consider in the repair. For incremental repair, we want to consider the total size
+         * of the estimate as we have to factor in anticompacting the entire SSTable.
+         * For full repair, just use the size containing the range.
+         */
+        public final long sizeForRepair;
+
+        public SizeEstimate(RepairType repairType,
+                            String keyspace, String table, Range<Token> tokenRange,
+                            long partitions, long sizeInRange, long totalSize)
+        {
+            this.repairType = repairType;
+            this.keyspace = keyspace;
+            this.table = table;
+            this.tokenRange = tokenRange;
+            this.partitions = partitions;
+            this.sizeInRange = sizeInRange;
+            this.totalSize = totalSize;
+
+            this.sizeForRepair = repairType == RepairType.INCREMENTAL ? totalSize : sizeInRange;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "SizeEstimate{" +
+                   "repairType=" + repairType +
+                   ", keyspace='" + keyspace + '\'' +
+                   ", table='" + table + '\'' +
+                   ", tokenRange=" + tokenRange +
+                   ", partitions=" + partitions +
+                   ", sizeInRange=" + sizeInRange +
+                   ", totalSize=" + totalSize +
+                   ", sizeForRepair=" + sizeForRepair +
+                   '}';
+        }
     }
 }
