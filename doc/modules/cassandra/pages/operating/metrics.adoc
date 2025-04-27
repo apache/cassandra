@@ -967,40 +967,58 @@ Reported name format:
 |===
 |Name |Type |Description
 |RepairsInProgress |Gauge<Integer> |Repair is in progress
-on the node
+on the node.
 
 |NodeRepairTimeInSec |Gauge<Integer> |Time taken to repair
-the node in seconds
+the node in seconds.
 
 |ClusterRepairTimeInSec |Gauge<Integer> |Time taken to repair
-the entire Cassandra cluster in seconds
+the entire Cassandra cluster in seconds.
 
 |LongestUnrepairedSec |Gauge<Integer> |Time since the last repair
-ran on the node in seconds
+ran on the node in seconds.
 
 |RepairStartLagSec|Gauge<Integer> |If a repair has not run within min_repair_interval, how long past this value since
 repairs last completed.  Useful for determining if repairs are behind schedule.
 
-|SucceededTokenRangesCount |Gauge<Integer> |Number of token ranges successfully repaired on the node
+|SucceededTokenRangesCount |Gauge<Integer> |Number of token ranges successfully repaired on the node.
 
-|FailedTokenRangesCount |Gauge<Integer> |Number of token ranges failed to repair on the node
+|FailedTokenRangesCount |Gauge<Integer> |Number of token ranges failed to repair on the node.
 
 |SkippedTokenRangesCount |Gauge<Integer> |Number of token ranges skipped
-on the node
+on the node.
 
 |SkippedTablesCount |Gauge<Integer> |Number of tables skipped
-on the node
+on the node.
 
 |TotalMVTablesConsideredForRepair |Gauge<Integer> |Number of materialized
-views considered on the node
+views considered on the node.
 
 |TotalDisabledRepairTables |Gauge<Integer> |Number of tables on which
-the automated repair has been disabled on the node
+the automated repair has been disabled on the node.
 
-|RepairTurnMyTurn |Counter |Represents the node's turn to repair
+|TotalBytesToRepair |Gauge<Long> |Total bytes to be repaired across all keyspaces and tables involved in the current
+repair schedule.
+
+|BytesAlreadyRepaired |Gauge<Long> |Cumulative number of bytes successfully repaired so far in the current
+repair schedule.
+NOTE: This calculation is the best effort for the FixedSplitTokenRangeSplitter. In practice, this metric
+may not give you an accurate view in case of uneven data distribution.
+
+
+|TotalKeyspaceRepairPlansToRepair |Gauge<Integer> |Represents the total number of keyspace-level repair plans scheduled
+for execution. If no table-level repair priorities are configured, this number typically matches the total number
+of keyspaces under repair. However, if certain tables have repair priorities set, this number is usually higher than
+the number of keyspaces, as multiple repair plans may be generated for different prioritized tables within the
+same keyspace.
+
+|KeyspaceRepairPlansAlreadyRepaired |Gauge<Integer> |Cumulative number of keyspace-level repair plans successfully
+repaired so far in the current repair schedule.
+
+|RepairTurnMyTurn |Counter |Represents the node's turn to repair.
 
 |RepairTurnMyTurnDueToPriority |Counter |Represents the node's turn to repair
-due to priority set in the automated repair
+due to priority set in the automated repair.
 
 |RepairDelayedByReplica |Counter |Represents occurrences of a node's turn being
 delayed because a replica was currently taking its turn. Only relevant if

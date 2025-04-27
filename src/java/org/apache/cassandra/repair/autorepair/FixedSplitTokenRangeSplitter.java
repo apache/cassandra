@@ -32,7 +32,6 @@ import org.apache.cassandra.service.AutoRepairService;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 
@@ -96,13 +95,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
         String keyspaceName = repairPlan.getKeyspaceName();
         List<String> tableNames = repairPlan.getTableNames();
 
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(keyspaceName);
-        if (!primaryRangeOnly)
-        {
-            // if we need to repair non-primary token ranges, then change the tokens accordingly
-            tokens = StorageService.instance.getLocalReplicas(keyspaceName).ranges();
-        }
-
+        Collection<Range<Token>> tokens = AutoRepairUtils.getTokenRanges(primaryRangeOnly, keyspaceName);
         boolean byKeyspace = config.getRepairByKeyspace(repairType);
         // collect all token ranges.
         List<Range<Token>> allRanges = new ArrayList<>();
@@ -115,10 +108,15 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
 
         if (byKeyspace)
         {
+
+            // This calculation is the best effort for the FixedSplitTokenRangeSplitter.
+            // In practice, this metric may not give you an accurate view in case of uneven data distribution.
+            long totalBytes = repairPlan.getEstimatedBytes();
+            long bytesPerRange = Math.max(1, totalBytes / splitsPerRange);
             for (Range<Token> splitRange : allRanges)
             {
                 // add repair assignment for each range entire keyspace's tables
-                repairAssignments.add(new RepairAssignment(splitRange, keyspaceName, tableNames));
+                repairAssignments.add(new RepairAssignment(splitRange, keyspaceName, tableNames, bytesPerRange));
             }
         }
         else
@@ -126,9 +124,11 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
             // add repair assignment per table
             for (String tableName : tableNames)
             {
+                long totalBytes = repairPlan.getTableEstimatedBytes(AutoRepairUtils.getKeyspaceTableName(keyspaceName, tableName));
+                long bytesPerRange = Math.max(1, totalBytes / splitsPerRange);
                 for (Range<Token> splitRange : allRanges)
                 {
-                    repairAssignments.add(new RepairAssignment(splitRange, keyspaceName, Collections.singletonList(tableName)));
+                    repairAssignments.add(new RepairAssignment(splitRange, keyspaceName, Collections.singletonList(tableName), bytesPerRange));
                 }
             }
         }

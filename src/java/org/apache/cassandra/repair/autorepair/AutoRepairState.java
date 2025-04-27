@@ -60,6 +60,8 @@ public abstract class AutoRepairState
     @VisibleForTesting
     protected final RepairType repairType;
     @VisibleForTesting
+    protected AutoRepairConfig config;
+    @VisibleForTesting
     protected int totalTablesConsideredForRepair = 0;
     @VisibleForTesting
     protected long lastRepairTimeInMs;
@@ -84,13 +86,22 @@ public abstract class AutoRepairState
     @VisibleForTesting
     protected int skippedTablesCount = 0;
     @VisibleForTesting
+    protected long totalBytesToRepair = 0;
+    @VisibleForTesting
+    protected long bytesAlreadyRepaired = 0;
+    @VisibleForTesting
+    protected int totalKeyspaceRepairPlansToRepair = 0;
+    @VisibleForTesting
+    protected int keyspaceRepairPlansAlreadyRepaired = 0;
+    @VisibleForTesting
     protected AutoRepairHistory longestUnrepairedNode;
     protected final AutoRepairMetrics metrics;
 
-    protected AutoRepairState(RepairType repairType)
+    protected AutoRepairState(RepairType repairType, AutoRepairConfig config)
     {
         metrics = AutoRepairMetricsManager.getMetrics(repairType);
         this.repairType = repairType;
+        this.config = config;
     }
 
     public abstract RepairRunnable getRepairRunnable(String keyspace, List<String> tables, Set<Range<Token>> ranges, boolean primaryRangeOnly);
@@ -99,6 +110,14 @@ public abstract class AutoRepairState
     {
         return new RepairRunnable(StorageService.instance, StorageService.nextRepairCommand.incrementAndGet(),
                                                  options, keyspace);
+    }
+
+    public void updateRepairScheduleStatistics(List<PrioritizedRepairPlan> repairPlans)
+    {
+        setTotalBytesToRepair(repairPlans.stream().
+                                         flatMap(repairPlan -> repairPlan.getKeyspaceRepairPlans().
+                                                                         stream()).mapToLong(KeyspaceRepairPlan::getEstimatedBytes).sum());
+        setTotalKeyspaceRepairPlansToRepair(repairPlans.stream().mapToInt(repairPlan -> repairPlan.getKeyspaceRepairPlans().size()).sum());
     }
 
     public long getLastRepairTime()
@@ -239,13 +258,53 @@ public abstract class AutoRepairState
     {
         return totalDisabledTablesRepairCount;
     }
+
+    public void setTotalBytesToRepair(long totalBytesToRepair)
+    {
+        this.totalBytesToRepair = totalBytesToRepair;
+    }
+
+    public long getTotalBytesToRepair()
+    {
+        return totalBytesToRepair;
+    }
+
+    public void setBytesAlreadyRepaired(long bytesAlreadyRepaired)
+    {
+        this.bytesAlreadyRepaired = bytesAlreadyRepaired;
+    }
+
+    public long getBytesAlreadyRepaired()
+    {
+        return bytesAlreadyRepaired;
+    }
+
+    public void setTotalKeyspaceRepairPlansToRepair(int totalKeyspaceRepairPlansToRepair)
+    {
+        this.totalKeyspaceRepairPlansToRepair = totalKeyspaceRepairPlansToRepair;
+    }
+
+    public int getTotalKeyspaceRepairPlansToRepair()
+    {
+        return totalKeyspaceRepairPlansToRepair;
+    }
+
+    public void setKeyspaceRepairPlansAlreadyRepaired(int keyspaceRepairPlansAlreadyRepaired)
+    {
+        this.keyspaceRepairPlansAlreadyRepaired = keyspaceRepairPlansAlreadyRepaired;
+    }
+
+    public int getKeyspaceRepairPlansAlreadyRepaired()
+    {
+        return keyspaceRepairPlansAlreadyRepaired;
+    }
 }
 
 class PreviewRepairedState extends AutoRepairState
 {
-    public PreviewRepairedState()
+    public PreviewRepairedState(AutoRepairConfig config)
     {
-        super(RepairType.PREVIEW_REPAIRED);
+        super(RepairType.PREVIEW_REPAIRED, config);
     }
 
     @Override
@@ -263,9 +322,9 @@ class PreviewRepairedState extends AutoRepairState
 
 class IncrementalRepairState extends AutoRepairState
 {
-    public IncrementalRepairState()
+    public IncrementalRepairState(AutoRepairConfig config)
     {
-        super(RepairType.INCREMENTAL);
+        super(RepairType.INCREMENTAL, config);
     }
 
     @Override
@@ -308,9 +367,9 @@ class IncrementalRepairState extends AutoRepairState
 
 class FullRepairState extends AutoRepairState
 {
-    public FullRepairState()
+    public FullRepairState(AutoRepairConfig config)
     {
-        super(RepairType.FULL);
+        super(RepairType.FULL, config);
     }
 
     @Override

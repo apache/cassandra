@@ -91,16 +91,16 @@ public class AutoRepairConfig implements Serializable
             return configName;
         }
 
-        public static AutoRepairState getAutoRepairState(RepairType repairType)
+        public static AutoRepairState getAutoRepairState(RepairType repairType, AutoRepairConfig config)
         {
             switch (repairType)
             {
                 case FULL:
-                    return new FullRepairState();
+                    return new FullRepairState(config);
                 case INCREMENTAL:
-                    return new IncrementalRepairState();
+                    return new IncrementalRepairState(config);
                 case PREVIEW_REPAIRED:
-                    return new PreviewRepairedState();
+                    return new PreviewRepairedState(config);
             }
 
             throw new IllegalArgumentException("Invalid repair type: " + repairType);

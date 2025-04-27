@@ -22,8 +22,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -38,10 +40,13 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.split;
 import static org.apache.cassandra.repair.autorepair.FixedSplitTokenRangeSplitter.DEFAULT_NUMBER_OF_SUBRANGES;
+import static org.apache.cassandra.repair.autorepair.FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -56,6 +61,8 @@ public class FixedSplitTokenRangeSplitterHelper extends CQLTester
     private static final String TABLE2 = "tbl2";
     private static final String TABLE3 = "tbl3";
     public static final String KEYSPACE = "ks";
+    public static final List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
+    public static final Map<String, Map<Range<Token>, AutoRepairUtils.SizeEstimate>> ksTablesEstimatedBytes = new HashMap<>();
 
     public static void setupClass(int numTokens) throws Exception
     {
@@ -70,35 +77,59 @@ public class FixedSplitTokenRangeSplitterHelper extends CQLTester
 
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.updateNormalTokens(BootStrapper.getRandomTokens(metadata, numTokens), FBUtilities.getBroadcastAddressAndPort());
+
+        Pair<Collection<Range<Token>>, Integer> tokensAndWrappedAroundCount = getTokenRangesAndTotalWrapAroundCount();
+        int totalToken = numTokens + tokensAndWrappedAroundCount.right();
+        long perTokenSizeTable1 = 512L / totalToken;
+        long perTokenSizeTable2 = 1024L / totalToken;
+        long perTokenSizeTable3 = 2048L / totalToken;
+        for (Range<Token> tokenRange : tokensAndWrappedAroundCount.left)
+        {
+            ksTablesEstimatedBytes.put(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE1), new HashMap<Range<Token>, AutoRepairUtils.SizeEstimate>()
+            {{
+                put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable1, perTokenSizeTable1));
+            }});
+            ksTablesEstimatedBytes.put(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE2), new HashMap<Range<Token>, AutoRepairUtils.SizeEstimate>()
+            {{
+                put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable2, perTokenSizeTable2));
+            }});
+            ksTablesEstimatedBytes.put(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, TABLE3), new HashMap<Range<Token>, AutoRepairUtils.SizeEstimate>()
+            {{
+                put(tokenRange, new AutoRepairUtils.SizeEstimate(AutoRepairConfig.RepairType.FULL, "", "", tokenRange, 0, perTokenSizeTable3, perTokenSizeTable3));
+            }});
+        }
     }
 
     public static void testTokenRangesSplitByTable(int numTokens, int numberOfSubRanges, AutoRepairConfig.RepairType repairType)
     {
-        int numberOfSplits = calcSplits(numTokens, numberOfSubRanges);
-        AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, false);
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setRepairByKeyspace(repairType, false);
+        Pair<Collection<Range<Token>>, Integer> tokensAndWrappedAroundCount = getTokenRangesAndTotalWrapAroundCount();
+        Collection<Range<Token>> tokens = tokensAndWrappedAroundCount.left();
+        // For the test case, the tokens are allocated dynamically, so we do not know which token-ranges wrap around.
+        // As a result, we need to adjust the token count on a need basis.
+        numTokens += tokensAndWrappedAroundCount.right();
         assertEquals(numTokens, tokens.size());
-        List<String> tables = Arrays.asList(TABLE1, TABLE2, TABLE3);
         List<Range<Token>> expectedToken = new ArrayList<>();
-        for (int i = 0; i<tables.size(); i++)
+        int numberOfSplits = Math.max(1, numberOfSubRanges / tokens.size());
+        for (int i = 0; i < tables.size(); i++)
         {
-            for (Range<Token> range : tokens)
+            for (Range<Token> token : tokens)
             {
-                expectedToken.addAll(AutoRepairUtils.split(range, numberOfSplits));
+                expectedToken.addAll(split(token, numberOfSplits));
             }
         }
 
-        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
-
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRanges)))
-                                                                  .getRepairAssignments(true, plan);
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments =
+        new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRanges)))
+        .getRepairAssignments(config.getRepairPrimaryTokenRangeOnly(repairType), getPlan(repairType));
 
         // should be only 1 entry for the keyspace.
         assertTrue(keyspaceAssignments.hasNext());
-        KeyspaceRepairAssignments keyspace = keyspaceAssignments.next();
+        KeyspaceRepairAssignments keyspaceRepairAssignment = keyspaceAssignments.next();
         assertFalse(keyspaceAssignments.hasNext());
 
-        List<RepairAssignment> assignments = keyspace.getRepairAssignments();
+        List<RepairAssignment> assignments = keyspaceRepairAssignment.getRepairAssignments();
         assertEquals(numTokens * numberOfSplits * tables.size(), assignments.size());
         assertEquals(expectedToken.size(), assignments.size());
 
@@ -109,9 +140,12 @@ public class FixedSplitTokenRangeSplitterHelper extends CQLTester
             List<Range<Token>> expectedTokensForATable = new ArrayList<>();
             for (int j = 0; j < assignmentsPerTable; j++)
             {
-                assertEquals(Collections.singletonList(tables.get(i)), assignments.get(i * assignmentsPerTable + j).getTableNames());
-                assignmentForATable.add(assignments.get(i * assignmentsPerTable + j));
-                expectedTokensForATable.add(expectedToken.get(i * assignmentsPerTable + j));
+                long expectedBytes = ksTablesEstimatedBytes.get(AutoRepairUtils.getKeyspaceTableName(KEYSPACE, tables.get(i))).values().stream().mapToLong(sizeEstimate -> sizeEstimate.sizeForRepair).sum() / numberOfSplits;
+                int theTableAssignmentIdx = i * assignmentsPerTable + j;
+                assertEquals(expectedBytes, assignments.get(theTableAssignmentIdx).estimatedBytes);
+                assertEquals(Collections.singletonList(tables.get(i)), assignments.get(theTableAssignmentIdx).getTableNames());
+                assignmentForATable.add(assignments.get(theTableAssignmentIdx));
+                expectedTokensForATable.add(expectedToken.get(theTableAssignmentIdx));
             }
             compare(numTokens, numberOfSplits, expectedTokensForATable, assignmentForATable);
         }
@@ -119,20 +153,24 @@ public class FixedSplitTokenRangeSplitterHelper extends CQLTester
 
     public static void testTokenRangesSplitByKeyspace(int numTokens, int numberOfSubRanges, AutoRepairConfig.RepairType repairType)
     {
-        int numberOfSplits = calcSplits(numTokens, numberOfSubRanges);
-        AutoRepairService.instance.getAutoRepairConfig().setRepairByKeyspace(repairType, true);
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setRepairByKeyspace(repairType, true);
+        Pair<Collection<Range<Token>>, Integer> tokensAndWrappedRanges = getTokenRangesAndTotalWrapAroundCount();
+        Collection<Range<Token>> tokens = tokensAndWrappedRanges.left();
+        // For the test case, the tokens are allocated dynamically, so we do not know which token-ranges wrap around.
+        // As a result, we need to adjust the token count on a need basis.
+        numTokens += tokensAndWrappedRanges.right();
         assertEquals(numTokens, tokens.size());
+        int numberOfSplits = Math.max(1, numberOfSubRanges / tokens.size());
         List<Range<Token>> expectedToken = new ArrayList<>();
         for (Range<Token> range : tokens)
         {
             expectedToken.addAll(AutoRepairUtils.split(range, numberOfSplits));
         }
 
-        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1, TABLE2, TABLE3);
-
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(FixedSplitTokenRangeSplitter.NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRanges)))
-                                                                  .getRepairAssignments(true, plan);
+        Iterator<KeyspaceRepairAssignments> keyspaceAssignments =
+        new FixedSplitTokenRangeSplitter(repairType, Collections.singletonMap(NUMBER_OF_SUBRANGES, Integer.toString(numberOfSubRanges)))
+        .getRepairAssignments(config.getRepairPrimaryTokenRangeOnly(repairType), getPlan(repairType));
 
         // should be only 1 entry for the keyspace.
         assertTrue(keyspaceAssignments.hasNext());
@@ -146,35 +184,20 @@ public class FixedSplitTokenRangeSplitterHelper extends CQLTester
         assertEquals(expectedToken.size(), assignments.size());
 
         compare(numTokens, numberOfSplits, expectedToken, assignments);
+
+        for (int i = 0; i < assignments.size(); i++)
+        {
+            assertEquals(assignments.get(i).estimatedBytes,
+                         ksTablesEstimatedBytes.values().stream()
+                                               .flatMap(tableMap -> tableMap.values().stream())
+                                               .mapToLong(sizeEstimate -> sizeEstimate.sizeForRepair)
+                                               .sum() / numberOfSplits);
+        }
     }
 
     public static void testTokenRangesWithDefaultSplit(int numTokens, AutoRepairConfig.RepairType repairType)
     {
-        int numberOfSplits = calcSplits(numTokens, DEFAULT_NUMBER_OF_SUBRANGES);
-        Collection<Range<Token>> tokens = StorageService.instance.getPrimaryRanges(KEYSPACE);
-        assertEquals(numTokens, tokens.size());
-        List<Range<Token>> expectedToken = new ArrayList<>();
-        for (Range<Token> range : tokens)
-        {
-            expectedToken.addAll(AutoRepairUtils.split(range, numberOfSplits));
-        }
-
-        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.buildSingleKeyspacePlan(repairType, KEYSPACE, TABLE1);
-
-        Iterator<KeyspaceRepairAssignments> keyspaceAssignments = new FixedSplitTokenRangeSplitter(repairType, Collections.emptyMap()).getRepairAssignments(true, plan);
-
-        // should be only 1 entry for the keyspace.
-        assertTrue(keyspaceAssignments.hasNext());
-        KeyspaceRepairAssignments keyspace = keyspaceAssignments.next();
-        assertFalse(keyspaceAssignments.hasNext());
-
-        List<RepairAssignment> assignments = keyspace.getRepairAssignments();
-        assertNotNull(assignments);
-
-        // should be 3 entries for the table which covers each token range.
-        assertEquals(numTokens * numberOfSplits, assignments.size());
-
-        compare(numTokens, numberOfSplits, expectedToken, assignments);
+        testTokenRangesSplitByKeyspace(numTokens, DEFAULT_NUMBER_OF_SUBRANGES, repairType);
     }
 
     private static void compare(int numTokens, int numberOfSplits, List<Range<Token>> expectedToken, List<RepairAssignment> assignments)
@@ -190,8 +213,34 @@ public class FixedSplitTokenRangeSplitterHelper extends CQLTester
         assertEquals(a, b);
     }
 
-    private static int calcSplits(int numTokens, int subRange)
+    private static Pair<Collection<Range<Token>>, Integer> getTokenRangesAndTotalWrapAroundCount()
     {
-        return Math.max(1, subRange / numTokens);
+        int wrappedRanges = 0;
+        Collection<Range<Token>> ranges = StorageService.instance.getPrimaryRangesForEndpoint(KEYSPACE, FBUtilities.getBroadcastAddressAndPort());
+        Collection<Range<Token>> tokens = new ArrayList<>();
+        for (Range<Token> wrappedRange : ranges)
+        {
+            if (wrappedRange.isWrapAround())
+            {
+                wrappedRanges++;
+            }
+            tokens.addAll(wrappedRange.unwrap());
+        }
+        return Pair.create(tokens, wrappedRanges);
+    }
+
+    private static List<PrioritizedRepairPlan> getPlan(AutoRepairConfig.RepairType repairType)
+    {
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        List<PrioritizedRepairPlan> plan = PrioritizedRepairPlan.build(new HashMap<String, List<String>>()
+                                                                       {{
+                                                                           put(KEYSPACE, tables);
+                                                                       }}, repairType, (l) -> {
+                                                                       },
+                                                                       config.getRepairPrimaryTokenRangeOnly(repairType));
+        assertEquals(1, plan.size());
+        assertEquals(1, plan.get(0).getKeyspaceRepairPlans().size());
+        plan.get(0).getKeyspaceRepairPlans().get(0).ksTablesEstimatedBytes = ksTablesEstimatedBytes;
+        return plan;
     }
 }
