@@ -18,14 +18,18 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.Lists;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -35,6 +39,13 @@ import static org.junit.Assert.assertTrue;
  */
 public class PrioritizedRepairPlanTest extends CQLTester
 {
+
+    @BeforeClass
+    public static void setup()
+    {
+        StorageService.instance.doAutoRepairSetup();
+    }
+
     @Test
     public void testBuildWithDifferentPriorities()
     {
@@ -43,7 +54,8 @@ public class PrioritizedRepairPlanTest extends CQLTester
         String table2 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '3'}");
         String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '1'}");
 
-        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.buildSingleKeyspacePlan(AutoRepairConfig.RepairType.FULL, KEYSPACE, table1, table2, table3);
+        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.build(new HashMap<>(){{put(KEYSPACE, Arrays.asList(table1, table2, table3));}}, AutoRepairConfig.RepairType.FULL, (l) -> {},
+                                                                       AutoRepairService.instance.getAutoRepairConfig().getRepairPrimaryTokenRangeOnly(AutoRepairConfig.RepairType.FULL));
         assertEquals(3, prioritizedRepairPlans.size());
 
         // Verify the order is by descending priority and matches the expected tables
@@ -66,7 +78,8 @@ public class PrioritizedRepairPlanTest extends CQLTester
         String table3 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '2'}");
 
         // Expect only 1 plan since all tables share the same priority
-        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.buildSingleKeyspacePlan(AutoRepairConfig.RepairType.FULL, KEYSPACE, table1, table2, table3);
+        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.build(new HashMap<>(){{put(KEYSPACE, Arrays.asList(table1, table2, table3));}}, AutoRepairConfig.RepairType.FULL, (l) -> {},
+                                                                                         AutoRepairService.instance.getAutoRepairConfig().getRepairPrimaryTokenRangeOnly(AutoRepairConfig.RepairType.FULL));
         assertEquals(1, prioritizedRepairPlans.size());
 
         // Verify all tables present in the plan
@@ -101,7 +114,7 @@ public class PrioritizedRepairPlanTest extends CQLTester
         keyspaceToTableMap.put(ks2, Lists.newArrayList(table6, table7));
 
         // Expect 4 plans
-        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.build(keyspaceToTableMap, AutoRepairConfig.RepairType.FULL, java.util.Collections::sort);
+        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.build(keyspaceToTableMap, AutoRepairConfig.RepairType.FULL, java.util.Collections::sort, true);
         assertEquals(4, prioritizedRepairPlans.size());
 
         // Verify the order is by descending priority and matches the expected tables
@@ -143,7 +156,8 @@ public class PrioritizedRepairPlanTest extends CQLTester
     public void testBuildWithEmptyTableList()
     {
         // Test with an empty table list (should remain empty)
-        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.buildSingleKeyspacePlan(AutoRepairConfig.RepairType.FULL, KEYSPACE);
+        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.build(new HashMap<>(){{put(KEYSPACE, Arrays.asList());}}, AutoRepairConfig.RepairType.FULL, (l) -> {},
+                                                                                         AutoRepairService.instance.getAutoRepairConfig().getRepairPrimaryTokenRangeOnly(AutoRepairConfig.RepairType.FULL));
         assertTrue(prioritizedRepairPlans.isEmpty());
     }
 
@@ -154,7 +168,8 @@ public class PrioritizedRepairPlanTest extends CQLTester
         String table1 = createTable("CREATE TABLE %s (k INT PRIMARY KEY, v INT) WITH auto_repair = {'full_enabled': 'true', 'priority': '5'}");
 
         // Expect only 1 plans
-        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.buildSingleKeyspacePlan(AutoRepairConfig.RepairType.FULL, KEYSPACE, table1);
+        List<PrioritizedRepairPlan> prioritizedRepairPlans = PrioritizedRepairPlan.build(new HashMap<>(){{put(KEYSPACE, Arrays.asList(table1));}}, AutoRepairConfig.RepairType.FULL, (l) -> {},
+                                                                                         AutoRepairService.instance.getAutoRepairConfig().getRepairPrimaryTokenRangeOnly(AutoRepairConfig.RepairType.FULL));
         assertEquals(1, prioritizedRepairPlans.size());
 
         // Verify the order is by descending priority and matches the expected tables

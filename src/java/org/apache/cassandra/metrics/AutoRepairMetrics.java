@@ -46,6 +46,11 @@ public class AutoRepairMetrics
     public final Gauge<Integer> skippedTablesCount;
     public final Gauge<Integer> totalMVTablesConsideredForRepair;
     public final Gauge<Integer> totalDisabledRepairTables;
+    public final Gauge<Long> totalBytesToRepair;
+    public final Gauge<Long> bytesAlreadyRepaired;
+    public final Gauge<Integer> totalKeyspaceRepairPlansToRepair;
+    public final Gauge<Integer> keyspaceRepairPlansAlreadyRepaired;
+
     public Counter repairTurnMyTurn;
     public Counter repairTurnMyTurnDueToPriority;
     public Counter repairTurnMyTurnForceRepair;
@@ -153,6 +158,34 @@ public class AutoRepairMetrics
             public Integer getValue()
             {
                 return AutoRepair.instance.getRepairState(repairType).getTotalDisabledTablesRepairCount();
+            }
+        });
+        totalBytesToRepair = Metrics.register(factory.createMetricName("TotalBytesToRepair"), new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return AutoRepair.instance.getRepairState(repairType).getTotalBytesToRepair();
+            }
+        });
+        bytesAlreadyRepaired = Metrics.register(factory.createMetricName("BytesAlreadyRepaired"), new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return AutoRepair.instance.getRepairState(repairType).getBytesAlreadyRepaired();
+            }
+        });
+        totalKeyspaceRepairPlansToRepair = Metrics.register(factory.createMetricName("TotalKeyspaceRepairPlansToRepair"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepair.instance.getRepairState(repairType).getTotalKeyspaceRepairPlansToRepair();
+            }
+        });
+        keyspaceRepairPlansAlreadyRepaired = Metrics.register(factory.createMetricName("KeyspaceRepairPlansAlreadyRepaired"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return AutoRepair.instance.getRepairState(repairType).getKeyspaceRepairPlansAlreadyRepaired();
             }
         });
     }

@@ -35,11 +35,14 @@ public class RepairAssignment
 
     final List<String> tableNames;
 
-    public RepairAssignment(Range<Token> tokenRange, String keyspaceName, List<String> tableNames)
+    protected final long estimatedBytes;
+
+    public RepairAssignment(Range<Token> tokenRange, String keyspaceName, List<String> tableNames, long estimatedBytes)
     {
         this.tokenRange = tokenRange;
         this.keyspaceName = keyspaceName;
         this.tableNames = tableNames;
+        this.estimatedBytes = estimatedBytes;
     }
 
     public Range<Token> getTokenRange()
@@ -57,19 +60,25 @@ public class RepairAssignment
         return tableNames;
     }
 
+    public long getEstimatedBytes()
+    {
+        return estimatedBytes;
+    }
+
     @Override
     public boolean equals(Object o)
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepairAssignment that = (RepairAssignment) o;
-        return Objects.equals(tokenRange, that.tokenRange) && Objects.equals(keyspaceName, that.keyspaceName) && Objects.equals(tableNames, that.tableNames);
+        return Objects.equals(tokenRange, that.tokenRange) && Objects.equals(keyspaceName, that.keyspaceName)
+               && Objects.equals(tableNames, that.tableNames) && Objects.equals(estimatedBytes, that.estimatedBytes);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(tokenRange, keyspaceName, tableNames);
+        return Objects.hash(tokenRange, keyspaceName, tableNames, estimatedBytes);
     }
 
     @Override
@@ -79,6 +88,7 @@ public class RepairAssignment
                "tokenRange=" + tokenRange +
                ", keyspaceName='" + keyspaceName + '\'' +
                ", tableNames=" + tableNames +
+               ", estimatedBytes=" + estimatedBytes +
                '}';
     }
 }
