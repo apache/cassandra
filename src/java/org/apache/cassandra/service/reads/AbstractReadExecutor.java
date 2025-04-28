@@ -43,8 +43,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.service.reads.untracked.DigestResolver;
-import org.apache.cassandra.service.reads.tracked.TrackedReadReconciliation;
-import org.apache.cassandra.service.reads.tracked.TrackedResolver;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceState;
@@ -87,18 +85,10 @@ public abstract class AbstractReadExecutor
         this.replicaPlan = ReplicaPlan.shared(replicaPlan);
         this.initialDataRequestCount = initialDataRequestCount;
 
-        if (command.responseType().isUntracked())
-        {
-            // TODO (expected): tighten up alter table validation so you can't adjust read repair type for tracked keyspace tables
-            this.readRepair = command.metadata().params.readRepair.create(command, this.replicaPlan, requestTime);
-            this.resolver = new DigestResolver<>(command, this.replicaPlan, requestTime);
-        }
-        else
-        {
-            Preconditions.checkArgument(command.responseType().isTracked());
-            this.readRepair = TrackedReadReconciliation.create(command, this.replicaPlan, requestTime);
-            this.resolver = new TrackedResolver<>(command, this.replicaPlan, requestTime);
-        }
+        Preconditions.checkArgument(command.responseType().isUntracked());
+        // TODO (expected): tighten up alter table validation so you can't adjust read repair type for tracked keyspace tables
+        this.readRepair = command.metadata().params.readRepair.create(command, this.replicaPlan, requestTime);
+        this.resolver = new DigestResolver<>(command, this.replicaPlan, requestTime);
         this.handler = new ReadCallback<>(resolver, command, this.replicaPlan, requestTime);
 
         // the ReadRepair and DigestResolver both need to see our updated

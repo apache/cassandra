@@ -35,7 +35,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.tracked.TrackedReadResponse;
 
 public interface IReadResponse
 {
@@ -118,9 +117,6 @@ public interface IReadResponse
                 case UNTRACKED:
                     ReadResponse.serializer.serialize((ReadResponse) response, out, version);
                     break;
-                case TRACKED:
-                    TrackedReadResponse.serializer.serialize((TrackedReadResponse) response, out, version);
-                    break;
                 default:
                     throw new IllegalStateException("Unhandled kind: " + response.kind());
             }
@@ -135,8 +131,6 @@ public interface IReadResponse
             {
                 case UNTRACKED:
                     return ReadResponse.serializer.deserialize(in, version);
-                case TRACKED:
-                    return TrackedReadResponse.serializer.deserialize(in, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + kind);
             }
@@ -155,8 +149,6 @@ public interface IReadResponse
             {
                 case UNTRACKED:
                     return size + ReadResponse.serializer.serializedSize((ReadResponse) response, version);
-                case TRACKED:
-                    return size + TrackedReadResponse.serializer.serializedSize((TrackedReadResponse) response, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + response.kind());
             }

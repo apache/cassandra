@@ -77,7 +77,6 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.reads.IReadResponse;
 import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
-import org.apache.cassandra.service.reads.tracked.TrackedReadResponse;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
@@ -502,10 +501,6 @@ public abstract class ReadCommand extends AbstractReadQuery
                 return ReadResponse.createDataResponse(iterator, this, rdi);
             case UNTRACKED_DIGEST:
                 return ReadResponse.createDigestResponse(iterator, this);
-            case TRACKED_DATA:
-                return TrackedReadResponse.createDataResponse(iterator, this, initialSummary);
-            case TRACKED_SUMMARY:
-                return TrackedReadResponse.createSummaryResponse(initialSummary);
             default:
                 throw new IllegalArgumentException("Unsupported response type: " + responseType());
         }

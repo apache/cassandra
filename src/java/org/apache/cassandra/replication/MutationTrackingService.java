@@ -37,7 +37,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.reads.tracked.ReadReconciliations;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.slf4j.Logger;
@@ -51,7 +50,6 @@ public class MutationTrackingService
     public static final MutationTrackingService instance = new MutationTrackingService();
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
-    private final ReadReconciliations reconciliations = new ReadReconciliations();
     private final ConcurrentHashMap<String, KeyspaceShards> shards = new ConcurrentHashMap<>();
 
     private volatile boolean started = false;
@@ -80,17 +78,11 @@ public class MutationTrackingService
     public void shutdownBlocking() throws InterruptedException
     {
         localReads.shutdownBlocking();
-        reconciliations.shutdownBlocking();
     }
 
     public TrackedLocalReads localReads()
     {
         return localReads;
-    }
-
-    public ReadReconciliations reconciliations()
-    {
-        return reconciliations;
     }
 
     public MutationId nextMutationId(String keyspace, Token token)
