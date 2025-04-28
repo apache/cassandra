@@ -29,40 +29,21 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-public class Offsets
+public abstract class Offsets
 {
     private static final int INITIAL_CAPACITY = 16;
 
-    private final CoordinatorLogId logId;
+    protected final CoordinatorLogId logId;
     // even index is range start, odd index is range end (inclusive)
-    private int[] bounds;
-    private int size;
+    protected int[] bounds;
+    protected int size;
 
-    public Offsets(RangeIterator rangeIterator)
-    {
-        this(rangeIterator.logId());
-        while (rangeIterator.tryAdvance())
-            append(rangeIterator.start(), rangeIterator.end());
-    }
-
-    public Offsets(CoordinatorLogId logId)
-    {
-        this(logId, INITIAL_CAPACITY);
-    }
-
-    public Offsets(CoordinatorLogId logId, int capacity)
-    {
-        this.logId = logId;
-        this.size = 0;
-        this.bounds = new int[capacity];
-    }
-
-    private Offsets(CoordinatorLogId logId, int[] bounds)
+    protected Offsets(CoordinatorLogId logId, int[] bounds)
     {
         this(logId, bounds, bounds.length);
     }
 
-    private Offsets(CoordinatorLogId logId, int[] bounds, int size)
+    protected Offsets(CoordinatorLogId logId, int[] bounds, int size)
     {
         this.logId = logId;
         this.bounds = bounds;
@@ -87,10 +68,9 @@ public class Offsets
         return result;
     }
 
-    public Offsets copy()
-    {
-        return new Offsets(logId, Arrays.copyOf(bounds, size));
-    }
+    public abstract Offsets.Immutable immutable();
+    public abstract Offsets.Mutable mutable();
+    public abstract Offsets.Mutable mutableCopy();
 
     public CoordinatorLogId logId()
     {
@@ -187,84 +167,403 @@ public class Offsets
             digest.updateWithInt(bounds[i]);
     }
 
-    public void addAll(Offsets other, RangeConsumer onAdded)
+    public static class Immutable extends Offsets
     {
-        for (int i = 0; i < other.size; i += 2)
-            add(other.bounds[i], other.bounds[i + 1], onAdded);
-    }
+        private static int[] EMPTY = new int[0];
 
-    public void addAll(Offsets other)
-    {
-        addAll(other, RangeConsumer.NONE);
-    }
-
-    public boolean add(int offset, RangeConsumer onAdded)
-    {
-        boolean added = add(offset);
-        if (added) onAdded.consume(logId, offset, offset);
-        return added;
-    }
-
-    public boolean add(int offset)
-    {
-        if (size == 0)
+        public Immutable(CoordinatorLogId logId, int[] bounds)
         {
-            append(offset, offset);
-            return true;
+            super(logId, bounds);
         }
 
-        int pos = Arrays.binarySearch(bounds, 0, size, offset);
-        if (pos >= 0) return false; // matches one of the bounds
-
-        pos = -pos - 1;
-        if (pos == size) // after all existing ranges
+        public Immutable(CoordinatorLogId logId, int[] bounds, int size)
         {
-            if (bounds[size - 1] == offset - 1)
-                bounds[size - 1] = offset; // extend the last range
+            super(logId, bounds, size);
+        }
+
+        public Immutable(CoordinatorLogId logId)
+        {
+            this(logId, EMPTY);
+        }
+
+        @Override
+        public Immutable immutable()
+        {
+            return this;
+        }
+
+        @Override
+        public Mutable mutable()
+        {
+            return new Mutable(logId, Arrays.copyOf(bounds, size));
+        }
+
+        @Override
+        public Mutable mutableCopy()
+        {
+            return mutable();
+        }
+    }
+
+    public static class Mutable extends Offsets
+    {
+        public Mutable(RangeIterator rangeIterator)
+        {
+            this(rangeIterator.logId());
+            while (rangeIterator.tryAdvance())
+                append(rangeIterator.start(), rangeIterator.end());
+        }
+
+        public Mutable(CoordinatorLogId logId)
+        {
+            this(logId, INITIAL_CAPACITY);
+        }
+
+        public Mutable(CoordinatorLogId logId, int capacity)
+        {
+            super(logId, new int[capacity], 0);
+        }
+        public Mutable(CoordinatorLogId logId, int[] bounds)
+        {
+            this(logId, bounds, bounds.length);
+        }
+
+        public Mutable(CoordinatorLogId logId, int[] bounds, int size)
+        {
+            super(logId, bounds, size);
+        }
+
+        public Offsets.Mutable copy()
+        {
+            return new Offsets.Mutable(logId, Arrays.copyOf(bounds, size));
+        }
+
+        @Override
+        public Immutable immutable()
+        {
+            return new Offsets.Immutable(logId, Arrays.copyOf(bounds, size));
+        }
+
+        @Override
+        public Mutable mutable()
+        {
+            return this;
+        }
+
+        @Override
+        public Mutable mutableCopy()
+        {
+            return copy();
+        }
+
+        public void addAll(Offsets other, RangeConsumer onAdded)
+        {
+            for (int i = 0; i < other.size; i += 2)
+                add(other.bounds[i], other.bounds[i + 1], onAdded);
+        }
+
+        public void addAll(Offsets other)
+        {
+            addAll(other, RangeConsumer.NONE);
+        }
+
+        public boolean add(int offset, RangeConsumer onAdded)
+        {
+            boolean added = add(offset);
+            if (added) onAdded.consume(logId, offset, offset);
+            return added;
+        }
+
+        public boolean add(int offset)
+        {
+            if (size == 0)
+            {
+                append(offset, offset);
+                return true;
+            }
+
+            int pos = Arrays.binarySearch(bounds, 0, size, offset);
+            if (pos >= 0) return false; // matches one of the bounds
+
+            pos = -pos - 1;
+            if (pos == size) // after all existing ranges
+            {
+                if (bounds[size - 1] == offset - 1)
+                    bounds[size - 1] = offset; // extend the last range
+                else
+                    append(offset, offset); // append a new single-offset range
+
+                return true;
+            }
+            else if (pos == 0) // before all existing ranges
+            {
+                if (bounds[0] == offset + 1)
+                    bounds[0] = offset; // extend the first range
+                else
+                    insert(0, offset, offset); // prepend a new single-offset range
+
+                return true;
+            }
+            else if ((pos - 1) % 2 == 0) // offset falls within bounds of an existing range (bound to the left is an open bound)
+            {
+                return false;
+            }
+
+            // between two existing ranges
+            boolean extendsPrev = bounds[pos - 1] == offset - 1;
+            boolean extendsNext = bounds[pos] == offset + 1;
+
+            if (extendsPrev && extendsNext) // closes the gap between two adjacent ranges
+            {
+                bounds[pos - 1] = bounds[pos + 1];
+                System.arraycopy(bounds, pos + 2, bounds, pos, size - pos - 2);
+                bounds[--size] = 0;
+                bounds[--size] = 0;
+            }
+            else if (extendsPrev)
+            {
+                bounds[pos - 1] = offset;
+            }
+            else if (extendsNext)
+            {
+                bounds[pos] = offset;
+            }
             else
-                append(offset, offset); // append a new single-offset range
+            {
+                insert(pos, offset, offset);
+            }
 
             return true;
         }
-        else if (pos == 0) // before all existing ranges
+
+        private enum AddAction
         {
-            if (bounds[0] == offset + 1)
-                bounds[0] = offset; // extend the first range
+            INSERT, MOVE, INCLUDE;
+
+            boolean isMove()
+            {
+                return this == MOVE;
+            }
+
+            boolean isInclude()
+            {
+                return this == INCLUDE;
+            }
+
+            boolean isInsert()
+            {
+                return this == INSERT;
+            }
+
+            boolean isMoveOrInclude()
+            {
+                return this == MOVE || this == INCLUDE;
+            }
+        }
+
+        public boolean add(final int start, final int end, RangeConsumer onAdded)
+        {
+            Preconditions.checkArgument(start <= end);
+
+            if (size == 0)
+            {
+                append(start, end);
+                return true;
+            }
+
+            if (start == end)
+                return add(start, onAdded);
+
+            int spos = Arrays.binarySearch(bounds, 0, size, start);
+            int epos = Arrays.binarySearch(bounds, 0, size, end);
+
+            if (spos >= 0 && spos % 2 == 0 && epos == spos + 1) return false; // matches an existing bound
+
+            if (spos < 0) spos = -spos - 1;
+            if (epos < 0) epos = -epos - 1;
+
+            int numRanges = rangeCount();
+            int sRange = Math.min(spos/2, numRanges - 1);
+            int eRange = Math.min(epos/2, numRanges - 1);
+
+            AddAction sMerge;
+            {
+                int rStart = bounds[rangeStart(sRange)];
+                int rEnd = bounds[rangeEnd(sRange)];
+                if (start >= rStart)
+                {
+                    // already included in the range or adjacent to range end
+                    sMerge = start <= rEnd + 1
+                             ? AddAction.INCLUDE // included in the range
+                             : AddAction.INSERT; // past the end of the range
+                }
+                else if (sRange > 0 && start == bounds[rangeEnd(sRange - 1)] + 1)
+                {
+                    // adjacent to the previous range, so say we're included in it to merge
+                    sRange--;
+                    sMerge = AddAction.INCLUDE;
+                }
+                else
+                {
+                    sMerge = AddAction.MOVE;
+                }
+            }
+
+            AddAction eMerge;
+            {
+                int rStart = bounds[rangeStart(eRange)];
+                int rEnd = bounds[rangeEnd(eRange)];
+
+                if (end <= rEnd)
+                {
+                    if (end >= rStart - 1)
+                    {
+                        // included in the range or adjacent to range start
+                        eMerge = AddAction.INCLUDE;
+                    }
+                    else if (sRange == eRange - 1)
+                    {
+                        // if we're before the start of this range, and the start is assigned to
+                        // the previous range, then we should just extend the previous range
+                        eRange--;
+                        eMerge = AddAction.MOVE;
+                    }
+                    else
+                    {
+                        // before the start of the range
+                        eMerge = AddAction.INSERT;
+                    }
+                }
+                else if (eRange < numRanges - 1 && end == bounds[rangeStart(eRange + 1)] - 1)
+                {
+                    // adjacent to the next range, so say we're included in it to merge
+                    eRange++;
+                    eMerge = AddAction.INCLUDE;
+                }
+
+                else
+                {
+                    eMerge = AddAction.MOVE;
+                }
+            }
+
+            // this range isn't adjacent and doesn't intersect any existing, so create a new range
+            if (sMerge.isMove() && eMerge.isInsert())
+            {
+                Preconditions.checkState(sRange == eRange);
+                onAdded.consume(logId, start, end);
+                insert(rangeStart(sRange), start, end);
+                return true;
+            }
+
+            // this should only happen if we're adding a range to the very end of the set
+            if (sMerge.isInsert() && eMerge.isMove())
+            {
+                Preconditions.checkState(sRange == eRange);
+                Preconditions.checkState(sRange == numRanges - 1);
+                onAdded.consume(logId, start, end);
+                append(start, end);
+                return true;
+            }
+
+            boolean adjusted = false;
+            if (sMerge.isMove())
+            {
+                onAdded.consume(logId, start, bounds[rangeStart(sRange)] - 1);
+                bounds[rangeStart(sRange)] = start;
+                adjusted = true;
+            }
+
+            // combine existing ranges
+            if (sRange != eRange)
+            {
+                Preconditions.checkState(sMerge.isMoveOrInclude());
+                Preconditions.checkState(eMerge.isMoveOrInclude());
+
+                adjusted = true;
+                // report merged ranges
+                for (int i = sRange; i < eRange; i++)
+                {
+                    int sEnd = bounds[rangeEnd(i)];
+                    int eStart = bounds[rangeStart(i + 1)];
+                    onAdded.consume(logId, sEnd + 1, eStart - 1);
+                }
+
+                // move array back -
+                int dstIdx = rangeEnd(sRange);
+                int srcIdx = rangeEnd(eRange);
+                System.arraycopy(bounds, srcIdx, bounds, dstIdx, size - srcIdx);
+                while (eRange > sRange)
+                {
+                    eRange--;
+                    bounds[--size] = 0;
+                    bounds[--size] = 0;
+                }
+            }
+
+            if (eMerge.isMove())
+            {
+                onAdded.consume(logId, bounds[rangeEnd(eRange)] + 1, end);
+                bounds[rangeEnd(eRange)] = end;
+                adjusted = true;
+            }
+
+            return adjusted;
+        }
+
+        public boolean add(int start, int end)
+        {
+            return add(start, end, RangeConsumer.NONE);
+        }
+
+        private void insert(int pos, int start, int end)
+        {
+            if (bounds.length == size)
+            {
+                int[] newBounds = new int[bounds.length * 2];
+                System.arraycopy(bounds, 0, newBounds, 0, pos);
+                System.arraycopy(bounds, pos, newBounds, pos + 2, size - pos);
+                bounds = newBounds;
+            }
             else
-                insert(0, offset, offset); // prepend a new single-offset range
-
-            return true;
-        }
-        else if ((pos - 1) % 2 == 0) // offset falls within bounds of an existing range (bound to the left is an open bound)
-        {
-            return false;
-        }
-
-        // between two existing ranges
-        boolean extendsPrev = bounds[pos - 1] == offset - 1;
-        boolean extendsNext = bounds[pos] == offset + 1;
-
-        if (extendsPrev && extendsNext) // closes the gap between two adjacent ranges
-        {
-            bounds[pos - 1] = bounds[pos + 1];
-            System.arraycopy(bounds, pos + 2, bounds, pos, size - pos - 2);
-            bounds[--size] = 0;
-            bounds[--size] = 0;
-        }
-        else if (extendsPrev)
-        {
-            bounds[pos - 1] = offset;
-        }
-        else if (extendsNext)
-        {
-            bounds[pos] = offset;
-        }
-        else
-        {
-            insert(pos, offset, offset);
+            {
+                System.arraycopy(bounds, pos, bounds, pos + 2, size - pos);
+            }
+            bounds[pos] = start;
+            bounds[pos + 1] = end;
+            size += 2;
         }
 
-        return true;
+        private void append(int start, int end)
+        {
+            if (bounds.length == size)
+            {
+                int[] newBounds = new int[Math.max(bounds.length * 2, INITIAL_CAPACITY)];
+                System.arraycopy(bounds, 0, newBounds, 0, bounds.length);
+                bounds = newBounds;
+            }
+            Preconditions.checkState(size == 0 || start > bounds[size - 1]);
+            bounds[size++] = start;
+            bounds[size++] = end;
+        }
+
+        public void append(int offset)
+        {
+            if (size == 0)
+            {
+                append(offset, offset);
+                return;
+            }
+
+            int tail = bounds[size - 1];
+            if (offset <= tail)
+                throw new IllegalArgumentException("Can't append " + offset + " to " + tail);
+
+            if (offset == tail + 1)
+                bounds[size-1] = offset;
+            else
+                append(offset, offset);
+        }
     }
 
     private static int rangeStart(int range)
@@ -275,235 +574,6 @@ public class Offsets
     private static int rangeEnd(int range)
     {
         return rangeStart(range) + 1;
-    }
-
-    private enum AddAction
-    {
-        INSERT, MOVE, INCLUDE;
-
-        boolean isMove()
-        {
-            return this == MOVE;
-        }
-
-        boolean isInclude()
-        {
-            return this == INCLUDE;
-        }
-
-        boolean isInsert()
-        {
-            return this == INSERT;
-        }
-
-        boolean isMoveOrInclude()
-        {
-            return this == MOVE || this == INCLUDE;
-        }
-    }
-
-    public boolean add(final int start, final int end, RangeConsumer onAdded)
-    {
-        Preconditions.checkArgument(start <= end);
-
-        if (size == 0)
-        {
-            append(start, end);
-            return true;
-        }
-
-        if (start == end)
-            return add(start, onAdded);
-
-        int spos = Arrays.binarySearch(bounds, 0, size, start);
-        int epos = Arrays.binarySearch(bounds, 0, size, end);
-
-        if (spos >= 0 && spos % 2 == 0 && epos == spos + 1) return false; // matches an existing bound
-
-        if (spos < 0) spos = -spos - 1;
-        if (epos < 0) epos = -epos - 1;
-
-        int numRanges = rangeCount();
-        int sRange = Math.min(spos/2, numRanges - 1);
-        int eRange = Math.min(epos/2, numRanges - 1);
-
-        AddAction sMerge;
-        {
-            int rStart = bounds[rangeStart(sRange)];
-            int rEnd = bounds[rangeEnd(sRange)];
-            if (start >= rStart)
-            {
-                // already included in the range or adjacent to range end
-                sMerge = start <= rEnd + 1
-                       ? AddAction.INCLUDE // included in the range
-                       : AddAction.INSERT; // past the end of the range
-            }
-            else if (sRange > 0 && start == bounds[rangeEnd(sRange - 1)] + 1)
-            {
-                // adjacent to the previous range, so say we're included in it to merge
-                sRange--;
-                sMerge = AddAction.INCLUDE;
-            }
-            else
-            {
-                sMerge = AddAction.MOVE;
-            }
-        }
-
-        AddAction eMerge;
-        {
-            int rStart = bounds[rangeStart(eRange)];
-            int rEnd = bounds[rangeEnd(eRange)];
-
-            if (end <= rEnd)
-            {
-                if (end >= rStart - 1)
-                {
-                    // included in the range or adjacent to range start
-                    eMerge = AddAction.INCLUDE;
-                }
-                else if (sRange == eRange - 1)
-                {
-                    // if we're before the start of this range, and the start is assigned to
-                    // the previous range, then we should just extend the previous range
-                    eRange--;
-                    eMerge = AddAction.MOVE;
-                }
-                else
-                {
-                    // before the start of the range
-                    eMerge = AddAction.INSERT;
-                }
-            }
-            else if (eRange < numRanges - 1 && end == bounds[rangeStart(eRange + 1)] - 1)
-            {
-                // adjacent to the next range, so say we're included in it to merge
-                eRange++;
-                eMerge = AddAction.INCLUDE;
-            }
-
-            else
-            {
-                eMerge = AddAction.MOVE;
-            }
-        }
-
-        // this range isn't adjacent and doesn't intersect any existing, so create a new range
-        if (sMerge.isMove() && eMerge.isInsert())
-        {
-            Preconditions.checkState(sRange == eRange);
-            onAdded.consume(logId, start, end);
-            insert(rangeStart(sRange), start, end);
-            return true;
-        }
-
-        // this should only happen if we're adding a range to the very end of the set
-        if (sMerge.isInsert() && eMerge.isMove())
-        {
-            Preconditions.checkState(sRange == eRange);
-            Preconditions.checkState(sRange == numRanges - 1);
-            onAdded.consume(logId, start, end);
-            append(start, end);
-            return true;
-        }
-
-        boolean adjusted = false;
-        if (sMerge.isMove())
-        {
-            onAdded.consume(logId, start, bounds[rangeStart(sRange)] - 1);
-            bounds[rangeStart(sRange)] = start;
-            adjusted = true;
-        }
-
-        // combine existing ranges
-        if (sRange != eRange)
-        {
-            Preconditions.checkState(sMerge.isMoveOrInclude());
-            Preconditions.checkState(eMerge.isMoveOrInclude());
-
-            adjusted = true;
-            // report merged ranges
-            for (int i = sRange; i < eRange; i++)
-            {
-                int sEnd = bounds[rangeEnd(i)];
-                int eStart = bounds[rangeStart(i + 1)];
-                onAdded.consume(logId, sEnd + 1, eStart - 1);
-            }
-
-            // move array back -
-            int dstIdx = rangeEnd(sRange);
-            int srcIdx = rangeEnd(eRange);
-            System.arraycopy(bounds, srcIdx, bounds, dstIdx, size - srcIdx);
-            while (eRange > sRange)
-            {
-                eRange--;
-                bounds[--size] = 0;
-                bounds[--size] = 0;
-            }
-        }
-
-        if (eMerge.isMove())
-        {
-            onAdded.consume(logId, bounds[rangeEnd(eRange)] + 1, end);
-            bounds[rangeEnd(eRange)] = end;
-            adjusted = true;
-        }
-
-        return adjusted;
-    }
-
-    public boolean add(int start, int end)
-    {
-        return add(start, end, RangeConsumer.NONE);
-    }
-
-    private void insert(int pos, int start, int end)
-    {
-        if (bounds.length == size)
-        {
-            int[] newBounds = new int[bounds.length * 2];
-            System.arraycopy(bounds, 0, newBounds, 0, pos);
-            System.arraycopy(bounds, pos, newBounds, pos + 2, size - pos);
-            bounds = newBounds;
-        }
-        else
-        {
-            System.arraycopy(bounds, pos, bounds, pos + 2, size - pos);
-        }
-        bounds[pos] = start;
-        bounds[pos + 1] = end;
-        size += 2;
-    }
-
-    private void append(int start, int end)
-    {
-        if (bounds.length == size)
-        {
-            int[] newBounds = new int[Math.max(bounds.length * 2, INITIAL_CAPACITY)];
-            System.arraycopy(bounds, 0, newBounds, 0, bounds.length);
-            bounds = newBounds;
-        }
-        Preconditions.checkState(size == 0 || start > bounds[size - 1]);
-        bounds[size++] = start;
-        bounds[size++] = end;
-    }
-
-    public void append(int offset)
-    {
-        if (size == 0)
-        {
-            append(offset, offset);
-            return;
-        }
-
-        int tail = bounds[size - 1];
-        if (offset <= tail)
-            throw new IllegalArgumentException("Can't append " + offset + " to " + tail);
-
-        if (offset == tail + 1)
-            bounds[size-1] = offset;
-        else
-            append(offset, offset);
     }
 
     public RangeIterator rangeIterator()
@@ -612,7 +682,7 @@ public class Offsets
             return newOffsets;
         }
 
-        private static Offsets addRemainder(CoordinatorLogId logId, int dstSplit, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
+        private static Offsets.Immutable addRemainder(CoordinatorLogId logId, int dstSplit, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
         {
             int capacity = (dstRange + srcNumRanges - srcRange) * 2;
             dst = ensureCapacity(dst, capacity, capacity);
@@ -634,10 +704,10 @@ public class Offsets
                 dstSplit = NO_SPLIT_SENTINEL;
                 srcRange++;
             }
-            return new Offsets(logId, dst, dstRange * 2);
+            return new Offsets.Immutable(logId, dst, dstRange * 2);
         }
 
-        private static Offsets addRemainder(CoordinatorLogId logId, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
+        private static Offsets.Immutable addRemainder(CoordinatorLogId logId, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
         {
             return addRemainder(logId, NO_SPLIT_SENTINEL, dst, dstRange, src, srcRange, srcNumRanges);
         }
@@ -648,13 +718,13 @@ public class Offsets
         }
     }
 
-    public static Offsets union(Offsets a, Offsets b)
+    public static Offsets.Immutable union(Offsets a, Offsets b)
     {
         if (a == null)
-            return b;
+            return b.immutable();
 
         if (b == null)
-            return a;
+            return a.immutable();
 
         Preconditions.checkArgument(a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
@@ -663,10 +733,10 @@ public class Offsets
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return b.copy();
+            return b.immutable();
 
         if (bNumRanges == 0)
-            return a.copy();
+            return a.immutable();
 
         int aRange = 0;
         int bRange = 0;
@@ -729,7 +799,7 @@ public class Offsets
             return SetSupport.addRemainder(logId, c, cRange, b.bounds, bRange, bNumRanges);
         }
 
-        return new Offsets(logId, c, cRange * 2);
+        return new Offsets.Immutable(logId, c, cRange * 2);
     }
 
     private static abstract class AbstractSetIterator implements RangeIterator
@@ -902,11 +972,11 @@ public class Offsets
     /**
      * Subtract b from a
      */
-    public static Offsets difference(Offsets a, Offsets b)
+    public static Offsets.Immutable difference(Offsets a, Offsets b)
     {
         Preconditions.checkArgument(a != null);
         if (b == null)
-            return a.copy();
+            return a.immutable();
 
         Preconditions.checkArgument(b == null || a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
@@ -914,10 +984,10 @@ public class Offsets
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return new Offsets(logId);
+            return new Offsets.Immutable(logId);
 
         if (bNumRanges == 0)
-            return a.copy();
+            return a.immutable();
 
         int aRange = 0;
         int bRange = 0;
@@ -1011,7 +1081,7 @@ public class Offsets
             return SetSupport.addRemainder(logId, aSplit, c, cRange, a.bounds, aRange, aNumRanges);
         }
 
-        return new Offsets(logId, c, cRange * 2);
+        return new Offsets.Immutable(logId, c, cRange * 2);
     }
 
     private static class DifferenceIterator extends AbstractSetIterator
@@ -1121,7 +1191,7 @@ public class Offsets
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0 || bNumRanges == 0)
-            return new Offsets(logId);
+            return new Offsets.Immutable(logId);
 
         int aRange = 0;
         int bRange = 0;
@@ -1199,7 +1269,7 @@ public class Offsets
             }
         }
 
-        return new Offsets(logId, c, cRange * 2);
+        return new Offsets.Immutable(logId, c, cRange * 2);
     }
 
     public interface OffsetConsumer
@@ -1231,10 +1301,10 @@ public class Offsets
     }
 
     // TODO (consider): delta-encoding + vints
-    public static final IVersionedSerializer<Offsets> serializer = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<Offsets.Immutable> serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(Offsets offsets, DataOutputPlus out, int version) throws IOException
+        public void serialize(Offsets.Immutable offsets, DataOutputPlus out, int version) throws IOException
         {
             CoordinatorLogId.serializer.serialize(offsets.logId, out, version);
             out.writeInt(offsets.size);
@@ -1243,7 +1313,7 @@ public class Offsets
         }
 
         @Override
-        public Offsets deserialize(DataInputPlus in, int version) throws IOException
+        public Offsets.Immutable deserialize(DataInputPlus in, int version) throws IOException
         {
             CoordinatorLogId logId = CoordinatorLogId.serializer.deserialize(in, version);
             int size = in.readInt();
@@ -1251,11 +1321,11 @@ public class Offsets
             int[] bounds = new int[size];
             for (int i = 0; i < size; i++)
                 bounds[i] = in.readInt();
-            return new Offsets(logId, bounds);
+            return new Offsets.Immutable(logId, bounds);
         }
 
         @Override
-        public long serializedSize(Offsets offsets, int version)
+        public long serializedSize(Offsets.Immutable offsets, int version)
         {
             long size = CoordinatorLogId.serializer.serializedSize(offsets.logId, version);
             size += TypeSizes.INT_SIZE;

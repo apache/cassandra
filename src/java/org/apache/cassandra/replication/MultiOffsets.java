@@ -30,21 +30,14 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public abstract class MultiOffsets
+public abstract class MultiOffsets<T extends Offsets>
 {
-    abstract Long2ObjectHashMap<Offsets> offsetMap();
-
-    private static Long2ObjectHashMap<Offsets> copyOffsets(Long2ObjectHashMap<Offsets> src)
-    {
-        Long2ObjectHashMap<Offsets> dst = new Long2ObjectHashMap<>();
-        src.forEachLong((key, value) -> dst.put(key, value.copy()));
-        return src;
-    }
+    abstract Long2ObjectHashMap<T> offsetMap();
 
     public int idCount()
     {
         int count = 0;
-        for (Offsets offsets : offsetMap().values())
+        for (T offsets : offsetMap().values())
             count += offsets.offsetCount();
         return count;
     }
@@ -61,12 +54,12 @@ public abstract class MultiOffsets
         return idCount() == 0;
     }
 
-    public static class Mutable extends MultiOffsets
+    public static class Mutable extends MultiOffsets<Offsets.Mutable>
     {
-        private final Long2ObjectHashMap<Offsets> offsetMap = new Long2ObjectHashMap<>();
+        private final Long2ObjectHashMap<Offsets.Mutable> offsetMap = new Long2ObjectHashMap<>();
 
         @Override
-        Long2ObjectHashMap<Offsets> offsetMap()
+        Long2ObjectHashMap<Offsets.Mutable> offsetMap()
         {
             return offsetMap;
         }
@@ -78,7 +71,7 @@ public abstract class MultiOffsets
 
         public void add(ShortMutationId id)
         {
-            Offsets offsets = offsetMap.computeIfAbsent(id.logId(), l -> new Offsets(new CoordinatorLogId(l)));
+            Offsets.Mutable offsets = offsetMap.computeIfAbsent(id.logId(), l -> new Offsets.Mutable(new CoordinatorLogId(l)));
             offsets.add(id.offset());
         }
 
@@ -87,19 +80,18 @@ public abstract class MultiOffsets
             if (offsets.isEmpty())
                 return;
 
-            Offsets existing = offsetMap.get(offsets.logId().asLong());
+            Offsets.Mutable existing = offsetMap.get(offsets.logId().asLong());
             if (existing == null)
             {
-                if (copy)
-                    offsets = offsets.copy();
-                offsetMap.put(offsets.logId().asLong(), offsets);
+                Offsets.Mutable mutable = copy ? offsets.mutableCopy() : offsets.mutable();
+                offsetMap.put(offsets.logId().asLong(), mutable);
                 return;
             }
 
             existing.addAll(offsets);
         }
 
-        public void addAll(MultiOffsets that)
+        public void addAll(MultiOffsets<?> that)
         {
             for (Offsets offsets : that.offsetMap().values())
                 add(offsets, true);
@@ -117,41 +109,48 @@ public abstract class MultiOffsets
                 return;
             }
 
-            Offsets next = Offsets.difference(existing, offsets);
+            Offsets.Immutable next = Offsets.difference(existing, offsets);
             if (next.isEmpty())
                 offsetMap.remove(offsets.logId().asLong());
             else
-                offsetMap.put(offsets.logId().asLong(), next);
+                offsetMap.put(offsets.logId().asLong(), next.mutableCopy());
         }
 
-        public void removeAll(MultiOffsets that)
+        public void removeAll(MultiOffsets<?> that)
         {
             for (Offsets offsets : that.offsetMap().values())
                 remove(offsets);
         }
     }
 
-    public static class Immutable extends MultiOffsets
+    public static class Immutable extends MultiOffsets<Offsets.Immutable>
     {
-        private final Long2ObjectHashMap<Offsets> offsetMap;
+        private final Long2ObjectHashMap<Offsets.Immutable> offsetMap;
 
-        private Immutable(Long2ObjectHashMap<Offsets> offsetMap)
+        private static Long2ObjectHashMap<Offsets.Immutable> copyOffsets(Long2ObjectHashMap<? extends Offsets> src)
+        {
+            Long2ObjectHashMap<Offsets.Immutable> dst = new Long2ObjectHashMap<>();
+            src.forEachLong((key, value) -> dst.put(key, value.immutable()));
+            return dst;
+        }
+
+        private Immutable(Long2ObjectHashMap<Offsets.Immutable> offsetMap)
         {
             this.offsetMap = offsetMap;
         }
 
-        public static Immutable copyOf(Long2ObjectHashMap<Offsets> src)
+        public static Immutable copyOf(Long2ObjectHashMap<Offsets.Immutable> src)
         {
-            return new Immutable(MultiOffsets.copyOffsets(src));
+            return new Immutable(copyOffsets(src));
         }
 
         public static Immutable copyOf(MultiOffsets.Mutable src)
         {
-            return new Immutable(MultiOffsets.copyOffsets(src.offsetMap));
+            return new Immutable(copyOffsets(src.offsetMap));
         }
 
         @Override
-        Long2ObjectHashMap<Offsets> offsetMap()
+        Long2ObjectHashMap<Offsets.Immutable> offsetMap()
         {
             return offsetMap;
         }
@@ -196,11 +195,11 @@ public abstract class MultiOffsets
             @Override
             public MultiOffsets.Immutable deserialize(DataInputPlus in, int version) throws IOException
             {
-                Long2ObjectHashMap<Offsets> offsetMap = new Long2ObjectHashMap<>();
+                Long2ObjectHashMap<Offsets.Immutable> offsetMap = new Long2ObjectHashMap<>();
                 int size = in.readInt();
                 for (int i=0; i<size; i++)
                 {
-                    Offsets offsets = Offsets.serializer.deserialize(in, version);
+                    Offsets.Immutable offsets = Offsets.serializer.deserialize(in, version);
                     long key = offsets.logId().asLong();
                     Preconditions.checkState(!offsetMap.containsKey(key));
                     offsetMap.put(key, offsets);
@@ -212,7 +211,7 @@ public abstract class MultiOffsets
             public long serializedSize(MultiOffsets.Immutable mo, int version)
             {
                 long size = TypeSizes.INT_SIZE;
-                for (Offsets offsets : mo.offsetMap.values())
+                for (Offsets.Immutable offsets : mo.offsetMap.values())
                     size += Offsets.serializer.serializedSize(offsets, version);
                 return size;
             }

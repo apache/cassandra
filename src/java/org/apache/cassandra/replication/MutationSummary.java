@@ -37,10 +37,10 @@ public class MutationSummary
         private static final Comparator<CoordinatorSummary> idComparator =
             (l, r) -> CoordinatorLogId.comparator.compare(l.logId(), r.logId());
 
-        public final Offsets reconciled;
-        public final Offsets unreconciled;
+        public final Offsets.Immutable reconciled;
+        public final Offsets.Immutable unreconciled;
 
-        public CoordinatorSummary(Offsets reconciled, Offsets unreconciled)
+        public CoordinatorSummary(Offsets.Immutable reconciled, Offsets.Immutable unreconciled)
         {
             Preconditions.checkArgument(reconciled.logId().equals(unreconciled.logId()));
             this.reconciled = reconciled;
@@ -101,14 +101,14 @@ public class MutationSummary
         public static class Builder
         {
             public final CoordinatorLogId logId;
-            public final Offsets reconciled;
-            public final Offsets unreconciled;
+            public final Offsets.Mutable reconciled;
+            public final Offsets.Mutable unreconciled;
 
             public Builder(CoordinatorLogId logId)
             {
                 this.logId = logId;
-                reconciled = new Offsets(logId);
-                unreconciled = new Offsets(logId);
+                reconciled = new Offsets.Mutable(logId);
+                unreconciled = new Offsets.Mutable(logId);
             }
 
             boolean isEmpty()
@@ -118,7 +118,7 @@ public class MutationSummary
 
             public CoordinatorSummary build()
             {
-                return new CoordinatorSummary(reconciled, unreconciled);
+                return new CoordinatorSummary(reconciled.immutable(), unreconciled.immutable());
             }
         }
 

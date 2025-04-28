@@ -135,7 +135,7 @@ public class OffsetsTest
     private static Offsets offsets(int... bounds)
     {
         Assert.assertTrue(bounds.length % 2 == 0);
-        Offsets ids = new Offsets(LOG_ID);
+        Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);
         int keys = 0;
         int last = 0;
         for (int i=0; i<bounds.length; i+=2)
@@ -160,7 +160,7 @@ public class OffsetsTest
     @Test
     public void testEmptyAndAddExisting()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
         assertEquals(0, offsets.rangeCount());
         assertEquals(0, offsets.offsetCount());
 
@@ -176,7 +176,7 @@ public class OffsetsTest
     @Test
     public void testAppend()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
 
         assertTrue(offsets.add(10));
         assertEquals(1, offsets.rangeCount());
@@ -196,7 +196,7 @@ public class OffsetsTest
     @Test
     public void testPrepend()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
 
         assertTrue(offsets.add(10));
         assertEquals(1, offsets.rangeCount());
@@ -216,7 +216,7 @@ public class OffsetsTest
     @Test
     public void testClosesGaps()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
 
         assertTrue(offsets.add(10));
         assertEquals(1, offsets.rangeCount());
@@ -246,7 +246,7 @@ public class OffsetsTest
     @Test
     public void testCreatesMoreGaps()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
 
         assertTrue(offsets.add(10));
         assertEquals(1, offsets.rangeCount());
@@ -266,7 +266,7 @@ public class OffsetsTest
     @Test
     public void testRangeAppend()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
         offsets.add(5, 7);
         TestConsumer consumer = new TestConsumer();
 
@@ -299,7 +299,7 @@ public class OffsetsTest
     @Test
     public void testRangePrepend()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
         offsets.add(10, 12);
         TestConsumer consumer = new TestConsumer();
 
@@ -334,7 +334,7 @@ public class OffsetsTest
     @Test
     public void testRangeAddition()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
         offsets.add(5, 7);
 
         assertEquals(1, offsets.rangeCount());
@@ -347,7 +347,7 @@ public class OffsetsTest
     @Test
     public void testRangeInclusion()
     {
-        Offsets offsets = new Offsets(LOG_ID);
+        Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID);
         TestConsumer consumer = new TestConsumer();
         offsets.add(0, 3);
         offsets.add(7, 10);
@@ -384,8 +384,8 @@ public class OffsetsTest
     @Test
     public void testRangeInsert()
     {
-        Supplier<Offsets> sequenceIds = () -> {
-            Offsets ids0 = new Offsets(LOG_ID);
+        Supplier<Offsets.Mutable> sequenceIds = () -> {
+            Offsets.Mutable ids0 = new Offsets.Mutable(LOG_ID);
             ids0.add(0, 3);
             ids0.add(7, 10);
             ids0.add(15, 17);
@@ -397,7 +397,7 @@ public class OffsetsTest
 
         // disjoint insert
         {
-            Offsets ids = sequenceIds.get();
+            Offsets.Mutable ids = sequenceIds.get();
             TestConsumer consumer = new TestConsumer();
 
             assertTrue(ids.add(12, 13, consumer));
@@ -408,7 +408,7 @@ public class OffsetsTest
 
         // left adjacent insert
         {
-            Offsets offsets = sequenceIds.get();
+            Offsets.Mutable offsets = sequenceIds.get();
             TestConsumer consumer = new TestConsumer();
 
             assertTrue(offsets.add(5, 6, consumer));
@@ -419,7 +419,7 @@ public class OffsetsTest
 
         // right adjacent insert
         {
-            Offsets ids = sequenceIds.get();
+            Offsets.Mutable ids = sequenceIds.get();
             TestConsumer consumer = new TestConsumer();
 
             assertTrue(ids.add(11, 12, consumer));
@@ -430,7 +430,7 @@ public class OffsetsTest
 
         // both adjacent insert
         {
-            Offsets offsets = sequenceIds.get();
+            Offsets.Mutable offsets = sequenceIds.get();
             TestConsumer consumer = new TestConsumer();
 
             assertTrue(offsets.add(11, 14, consumer));
@@ -444,8 +444,8 @@ public class OffsetsTest
     @Test
     public void testRangeMerging()
     {
-        Supplier<Offsets> sequenceIds = () -> {
-            Offsets ids0 = new Offsets(LOG_ID);
+        Supplier<Offsets.Mutable> sequenceIds = () -> {
+            Offsets.Mutable ids0 = new Offsets.Mutable(LOG_ID);
             ids0.add(0, 3);
             ids0.add(7, 10);
             ids0.add(15, 17);
@@ -457,7 +457,7 @@ public class OffsetsTest
 
         // left merge
         {
-            Offsets offsets = sequenceIds.get();
+            Offsets.Mutable offsets = sequenceIds.get();
             TestConsumer consumer = new TestConsumer();
 
             assertTrue(offsets.add(5, 8, consumer));
@@ -468,7 +468,7 @@ public class OffsetsTest
 
         // right merge
         {
-            Offsets offsets = sequenceIds.get();
+            Offsets.Mutable offsets = sequenceIds.get();
             TestConsumer consumer = new TestConsumer();
 
             assertTrue(offsets.add(8, 12, consumer));
@@ -479,7 +479,7 @@ public class OffsetsTest
 
         // right and left merge
         {
-            Offsets offsets = sequenceIds.get();
+            Offsets.Mutable offsets = sequenceIds.get();
             TestConsumer consumer = new TestConsumer();
 
             assertTrue(offsets.add(6, 11, consumer));
@@ -490,7 +490,7 @@ public class OffsetsTest
 
         // 2 range merge
         {
-            Offsets ids = sequenceIds.get();
+            Offsets.Mutable ids = sequenceIds.get();
             TestConsumer consumer = new TestConsumer();
 
             assertTrue(ids.add(2, 8, consumer));
@@ -503,7 +503,7 @@ public class OffsetsTest
     @Test
     public void appendTest()
     {
-        Offsets ids = new Offsets(LOG_ID);
+        Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);
         ids.append(5);
         assertEquals(1, ids.rangeCount());
         assertEquals(1, ids.offsetCount());
@@ -546,9 +546,9 @@ public class OffsetsTest
     private static void testUnion(Offsets expected, Offsets a, Offsets b)
     {
         Assert.assertEquals(expected, Offsets.union(a, b));
-        Assert.assertEquals(expected, new Offsets(Offsets.union(a.rangeIterator(), b.rangeIterator())));
+        Assert.assertEquals(expected, new Offsets.Mutable(Offsets.union(a.rangeIterator(), b.rangeIterator())));
         Assert.assertEquals(expected, Offsets.union(b, a));
-        Assert.assertEquals(expected, new Offsets(Offsets.union(b.rangeIterator(), a.rangeIterator())));
+        Assert.assertEquals(expected, new Offsets.Mutable(Offsets.union(b.rangeIterator(), a.rangeIterator())));
     }
 
     @Test
@@ -598,16 +598,16 @@ public class OffsetsTest
 
     private static void testDifference(Offsets expected, Offsets a, Offsets b)
     {
-        Offsets bPlus = b.copy();
+        Offsets.Mutable bPlus = b.mutableCopy();
         bPlus.add(50, 55);
 
         // check copy-remaining
         Assert.assertEquals(expected, Offsets.difference(a, b));
-        Assert.assertEquals(expected, new Offsets(Offsets.difference(a.rangeIterator(), b.rangeIterator())));
+        Assert.assertEquals(expected, new Offsets.Mutable(Offsets.difference(a.rangeIterator(), b.rangeIterator())));
 
         // check discarded tail
         Assert.assertEquals(expected, Offsets.difference(a, bPlus));
-        Assert.assertEquals(expected, new Offsets(Offsets.difference(a.rangeIterator(), bPlus.rangeIterator())));
+        Assert.assertEquals(expected, new Offsets.Mutable(Offsets.difference(a.rangeIterator(), bPlus.rangeIterator())));
     }
 
     @Test
@@ -673,9 +673,9 @@ public class OffsetsTest
 
     private static void testIntersection(Offsets expected, Offsets a, Offsets b)
     {
-        Offsets aPlus = a.copy();
+        Offsets.Mutable aPlus = a.mutableCopy();
         aPlus.add(50, 55);
-        Offsets bPlus = b.copy();
+        Offsets.Mutable bPlus = b.mutableCopy();
         bPlus.add(50, 55);
 
         Assert.assertEquals(expected, Offsets.intersection(a, b));
@@ -731,6 +731,6 @@ public class OffsetsTest
     {
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        IVersionedSerializers.testSerde(buffer, Offsets.serializer, offsets(0, 3, 7, 10, 15, 17), MessagingService.current_version);
+        IVersionedSerializers.testSerde(buffer, Offsets.serializer, offsets(0, 3, 7, 10, 15, 17).immutable(), MessagingService.current_version);
     }
 }

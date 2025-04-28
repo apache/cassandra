@@ -46,8 +46,8 @@ public abstract class CoordinatorLog
      */
     private final LocalMutationStates unreconciledMutations;
 
-    protected final Offsets[] witnessedIds;
-    protected final Offsets reconciledIds;
+    protected final Offsets.Mutable[] witnessedIds;
+    protected final Offsets.Mutable reconciledIds;
     protected final ReadWriteLock lock;
 
     CoordinatorLog(int localHostId, CoordinatorLogId logId, Participants participants)
@@ -58,12 +58,12 @@ public abstract class CoordinatorLog
         this.unreconciledMutations = new LocalMutationStates();
         this.lock = new ReentrantReadWriteLock();
 
-        Offsets[] ids = new Offsets[participants.size()];
+        Offsets.Mutable[] ids = new Offsets.Mutable[participants.size()];
         for (int i = 0; i < participants.size(); i++)
-            ids[i] = new Offsets(logId);
+            ids[i] = new Offsets.Mutable(logId);
 
         witnessedIds = ids;
-        reconciledIds = new Offsets(logId);
+        reconciledIds = new Offsets.Mutable(logId);
     }
 
     static CoordinatorLog create(int localHostId, CoordinatorLogId id, Participants participants)
@@ -159,7 +159,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean collectOffsetsFor(Token token, TableId tableId, boolean includePending, Offsets unreconciledInto, Offsets reconciledInto)
+    boolean collectOffsetsFor(Token token, TableId tableId, boolean includePending, Offsets.Mutable unreconciledInto, Offsets.Mutable reconciledInto)
     {
         lock.readLock().lock();
         try
@@ -177,7 +177,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean collectOffsetsFor(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets unreconciledInto, Offsets reconciledInto)
+    boolean collectOffsetsFor(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.Mutable unreconciledInto, Offsets.Mutable reconciledInto)
     {
         lock.readLock().lock();
         try
@@ -191,12 +191,12 @@ public abstract class CoordinatorLog
         }
     }
 
-    protected Offsets get(int hostId)
+    protected Offsets.Mutable get(int hostId)
     {
         return witnessedIds[participants.indexOf(hostId)];
     }
 
-    protected Offsets getLocal()
+    protected Offsets.Mutable getLocal()
     {
         return witnessedIds[participants.indexOf(localHostId)];
     }

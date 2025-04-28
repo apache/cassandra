@@ -66,7 +66,7 @@ public class CoordinatorLogTest
 
     private static Offsets toOffsets(MutationId... ids)
     {
-        Offsets list = new Offsets(LOG_ID);
+        Offsets.Mutable list = new Offsets.Mutable(LOG_ID);
         for (MutationId id : ids)
             list.append(id.offset());
         return list;
@@ -74,8 +74,8 @@ public class CoordinatorLogTest
 
     private static void assertUnreconciled(Token token, TableId tableId, CoordinatorLog log, boolean includePending, Offsets expectedReconciled, MutationId... expectedIds)
     {
-        Offsets reconciled = new Offsets(LOG_ID);
-        Offsets unreconciled = new Offsets(LOG_ID);
+        Offsets.Mutable reconciled = new Offsets.Mutable(LOG_ID);
+        Offsets.Mutable unreconciled = new Offsets.Mutable(LOG_ID);
         log.collectOffsetsFor(token, tableId, includePending, unreconciled, reconciled);
 
         for (MutationId mid : expectedIds)
@@ -108,7 +108,7 @@ public class CoordinatorLogTest
             log.startWriting(mutation);
         }
 
-        Offsets reconciled = new Offsets(LOG_ID);
+        Offsets.Mutable reconciled = new Offsets.Mutable(LOG_ID);
         // we've only started writing, so the ids shouldn't appear without includePending being true
         assertUnreconciled(tk, tableId, log, false, reconciled);
         assertUnreconciled(tk, tableId, log, true, reconciled, ids);
