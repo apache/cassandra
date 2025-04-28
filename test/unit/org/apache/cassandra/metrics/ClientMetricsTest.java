@@ -30,10 +30,97 @@ public class ClientMetricsTest
         String tenancy = "staging";
         String tier = "4";
         String driverName = "Java";
+        String enforcementLevelString = "none";
+        String isDriverSupportedString = "true";
         String isAuthenticated = "true";
-        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, isAuthenticated).sessions.getCount();
-        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, isAuthenticated).sessions.mark();
-        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, isAuthenticated).sessions.getCount();
+        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.mark();
+        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+        assertEquals(beforeCount+1, curCount);
+    }
+
+    @Test
+    public void testClientSessionMetricsWithSoftEnforcement() {
+        String serviceName = "service";
+        String tenancy = "staging";
+        String tier = "4";
+        String driverName = "Java";
+        String enforcementLevelString = "soft";
+        String isDriverSupportedString = "true";
+        String isAuthenticated = "true";
+
+        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.mark();
+        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+
+        assertEquals(beforeCount+1, curCount);
+    }
+
+    @Test
+    public void testClientSessionMetricsWithNoneEnforcement() {
+        String serviceName = "service";
+        String tenancy = "staging";
+        String tier = "4";
+        String driverName = "Java";
+        String enforcementLevelString = "none";
+        String isDriverSupportedString = "true";
+        String isAuthenticated = "true";
+
+        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.mark();
+        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+
+        assertEquals(beforeCount+1, curCount);
+    }
+
+    @Test
+    public void testClientSessionMetricsWithDriverNotAllowed() {
+        String serviceName = "service";
+        String tenancy = "staging";
+        String tier = "4";
+        String driverName = "Java";
+        String enforcementLevelString = "soft";
+        String isDriverSupportedString = "false";
+        String isAuthenticated = "true";
+
+        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.mark();
+        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+
+        assertEquals(beforeCount+1, curCount);
+    }
+
+    @Test
+    public void testClientSessionMetricsWithHardEnforcementAndDriverAllowed() {
+        String serviceName = "service";
+        String tenancy = "staging";
+        String tier = "4";
+        String driverName = "Java";
+        String enforcementLevelString = "hard";
+        String isDriverSupportedString = "true";
+        String isAuthenticated = "true";
+
+        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.mark();
+        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+
+        assertEquals(beforeCount+1, curCount);
+    }
+
+    @Test
+    public void testClientSessionMetricsWithHardEnforcementAndDriverNotAllowed() {
+        String serviceName = "service";
+        String tenancy = "staging";
+        String tier = "4";
+        String driverName = "Java";
+        String enforcementLevelString = "hard";
+        String isDriverSupportedString = "false";
+        String isAuthenticated = "true";
+
+        long beforeCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+        ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.mark();
+        long curCount = ClientMetricsManager.getSessionMetrics(serviceName, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated).sessions.getCount();
+
         assertEquals(beforeCount+1, curCount);
     }
 

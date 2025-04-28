@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-43638] [Part 3] Implement hard/soft enforcement for client lib based on driver name
  * [SO-43638] [Part 2] Add new config and get/set nodetool commands for allowed_client_lib_drivers
  * [SO-43638] [Part 1] Add new config and get/set nodetool commands for client_libs_enforcement_level
  * [SO-44065] Add debug log for inspect throwable

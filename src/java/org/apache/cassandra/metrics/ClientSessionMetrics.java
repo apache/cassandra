@@ -26,8 +26,8 @@ public class ClientSessionMetrics
 {
     public Meter sessions;
 
-    public ClientSessionMetrics(String clientService, String tenancy, String tier, String driverName, String authState) {
-        MetricNameFactory factory = new ClientSessionsMetricsFactory(clientService, tenancy, tier, driverName, authState);
+    public ClientSessionMetrics(String clientService, String tenancy, String tier, String driverName, String enforcementLevelString, String isDriverSupportedString, String authState) {
+        MetricNameFactory factory = new ClientSessionsMetricsFactory(clientService, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, authState);
         sessions = Metrics.meter(factory.createMetricName("ClientSessions"));
     }
 
@@ -38,13 +38,17 @@ public class ClientSessionMetrics
         private String tenancy;
         private String tier;
         private String driverName;
+        private String enforcementLevelString;
+        private String isDriverSupportedString;
         private String isAuthenticated;
 
-        protected ClientSessionsMetricsFactory(String clientService, String tenancy, String tier, String driverName, String isAuthenticated) {
+        protected ClientSessionsMetricsFactory(String clientService, String tenancy, String tier, String driverName, String enforcementLevelString, String isDriverSupportedString, String isAuthenticated) {
             this.clientService = clientService;
             this.tenancy = tenancy;
             this.tier = tier;
             this.driverName = driverName;
+            this.enforcementLevelString = enforcementLevelString;
+            this.isDriverSupportedString = isDriverSupportedString;
             this.isAuthenticated = isAuthenticated;
         }
 
@@ -61,6 +65,8 @@ public class ClientSessionMetrics
             mbeanName.append(",tenancy=").append(tenancy);
             mbeanName.append(",tier=").append(tier);
             mbeanName.append(",driverName=").append(driverName);
+            mbeanName.append(",enforcementLevel=").append(enforcementLevelString);
+            mbeanName.append(",isDriverSupported=").append(isDriverSupportedString);
             mbeanName.append(",isAuthenticated=").append(isAuthenticated);
 
             StringBuilder scope = new StringBuilder();
@@ -68,6 +74,8 @@ public class ClientSessionMetrics
             scope.append(",tenancy=").append(tenancy);
             scope.append(",tier=").append(tier);
             scope.append(",driverName=").append(driverName);
+            scope.append(",enforcementLevel=").append(enforcementLevelString);
+            scope.append(",isDriverSupported=").append(isDriverSupportedString);
             scope.append(",isAuthenticated=").append(isAuthenticated);
 
 

@@ -29,10 +29,24 @@ public class ClientMetricsManager
     {
     }
 
-    public static ClientSessionMetrics getSessionMetrics(String clientService, String tenancy, String tier, String driverName, String isAuthenticated)
+    public static ClientSessionMetrics getSessionMetrics(
+        String clientService,
+        String tenancy,
+        String tier,
+        String driverName,
+        String enforcementLevelString,
+        String isDriverSupportedString,
+        String isAuthenticated)
     {
-        String key = String.join(",", clientService, tenancy, tier, driverName, isAuthenticated);
-        return sessionMetrics.computeIfAbsent(key, k -> new ClientSessionMetrics(clientService, tenancy, tier, driverName, isAuthenticated));
+        String key = String.join(",", clientService, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated);
+        return sessionMetrics.computeIfAbsent(key, k -> new ClientSessionMetrics(
+            clientService,
+            tenancy,
+            tier,
+            driverName,
+            enforcementLevelString,
+            isDriverSupportedString,
+            isAuthenticated));
     }
 
     public static ClientQueryMetrics getQueryMetrics(String clientService, String tenancy)

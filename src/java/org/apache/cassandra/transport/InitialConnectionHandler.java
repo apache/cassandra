@@ -1,4 +1,4 @@
-/*
+ /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -26,10 +26,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.Set;
 
 import org.apache.cassandra.metrics.ClientMetricsManager;
 import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +47,8 @@ import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.transport.messages.SupportedMessage;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.config.Config.ClientLibsEnforcementLevel;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * Added to the Netty pipeline whenever a new Channel is initialized. This handler only processes
@@ -126,6 +130,16 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
                     final ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(remoteAddress);
 
+                    StringBuilder errorMsg = new StringBuilder();
+                    if (!validateAndLogClientDetails(startup.options, (ServerConnection) connection, errorMsg)) {
+                        ErrorMessage error = ErrorMessage.fromException(new ServerError(errorMsg.toString()));
+                        outbound = error.encode(inbound.header.version);
+                        ctx.writeAndFlush(outbound);
+                        if (ctx.channel().isOpen())
+                            ctx.channel().close();
+                        return;
+                    }
+
                     ChannelPromise promise;
                     if (inbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     {
@@ -165,39 +179,6 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
-                    // Add the CLIENT_ prefix and client IP address and port to the context data(SO-41503)
-                    Map<String, String> optionsWithClientPrefix = startup.options.entrySet()
-                                                                           .stream()
-                                                                           .collect(Collectors.toMap(
-                                                                           entry -> CLIENT_PREFIX + entry.getKey(),
-                                                                           Map.Entry::getValue
-                                                                           ));
-                    InetSocketAddress clientSocketAddress = ((ServerConnection) connection).getClientState().getRemoteAddress();
-                    if (clientSocketAddress != null) {
-                        String clientIPPort = String.format("%s_%s", clientSocketAddress.getAddress().getHostAddress(), clientSocketAddress.getPort());
-                        optionsWithClientPrefix.put(CLIENT_IP_PORT, clientIPPort);
-                    }
-
-                    String key = startup.options.getOrDefault(SERVICE, "") + "," + startup.options.getOrDefault(REQUEST_TENANCY, "");
-                    // Logging the client context data with NoSpamLogger
-                    NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 5, TimeUnit.MINUTES, "Client context data: {}", optionsWithClientPrefix);
-                    // fetch the language field, if it exists
-                    String language = startup.options.getOrDefault(LANGUAGE, UNDEFINED);
-                    // fetch the driver name if it exists. If it does not, use the value in the "LANGUAGE" field
-                    String driverName = startup.options.getOrDefault(DRIVER_NAME, language).toLowerCase().replaceAll("[^a-z0-9]+", "-");
-                    // Send the client session metric
-                    ClientMetricsManager.getSessionMetrics(
-                        startup.options.getOrDefault(SERVICE, ""),
-                        startup.options.getOrDefault(REQUEST_TENANCY, ""),
-                        startup.options.getOrDefault(TIER, "empty"),
-                        driverName,
-                        startup.options.getOrDefault(IS_AUTHENTICATED, "false")).sessions.mark();
-                    // Check for service vs cassandra tier mismatch
-                    BadQuery.checkForTierMismatch(
-                        startup.options.getOrDefault(TIER, "-1"),
-                        startup.options.getOrDefault(SERVICE, "")
-                    );
-
                     final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, Dispatcher.RequestTime.forImmediateExecution());
 
                     outbound = response.encode(inbound.header.version);
@@ -218,5 +199,80 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
         {
             inbound.release();
         }
+    }
+
+    /*
+     * Validate and log the client details.
+     */
+    private boolean validateAndLogClientDetails(Map<String, String> options, ServerConnection connection, StringBuilder errorMsg)
+    {
+        Map<String, String> optionsWithClientPrefix = options.entrySet()
+                                                        .stream()
+                                                        .collect(Collectors.toMap(
+                                                        entry -> CLIENT_PREFIX + entry.getKey(),
+                                                        Map.Entry::getValue
+                                                        ));
+
+        InetSocketAddress clientSocketAddress = connection.getClientState().getRemoteAddress();
+        if (clientSocketAddress != null) {
+            String clientIPPort = String.format("%s_%s", clientSocketAddress.getAddress().getHostAddress(), clientSocketAddress.getPort());
+            optionsWithClientPrefix.put(CLIENT_IP_PORT, clientIPPort);
+        }
+
+        String service = options.getOrDefault(SERVICE, "");
+        String driverName = options.getOrDefault(DRIVER_NAME, options.getOrDefault(LANGUAGE, UNDEFINED)).toLowerCase().replaceAll("[^a-z0-9]+", "-");
+        String key = service + "," + options.getOrDefault(REQUEST_TENANCY, "");
+
+        // Validate client library driver if enforcement is enabled
+        ClientLibsEnforcementLevel enforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        String enforcementLevelString = enforcementLevel.toString();
+        Set<String> allowedDrivers = DatabaseDescriptor.getAllowedClientLibDrivers();
+        boolean isDriverSupported = false;
+        boolean isDriverAllowed = true;
+
+        if (enforcementLevel == ClientLibsEnforcementLevel.none ||
+            allowedDrivers.isEmpty() ||
+            allowedDrivers.stream().anyMatch(pattern -> driverName.matches(pattern)))
+        {
+            isDriverSupported = true;
+        }
+
+        if (!isDriverSupported)
+        {
+            errorMsg.append(String.format("Client driver '%s' is not in the allowed list. cassandra node = %s",
+                            driverName,
+                            FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(true)));
+
+            if (enforcementLevel == ClientLibsEnforcementLevel.hard) {
+                logger.error("Hard enforcement: Rejecting connection: {}. Allowed drivers: {}, {}", errorMsg, allowedDrivers, optionsWithClientPrefix);
+                isDriverAllowed = false;
+            }
+            else if (enforcementLevel == ClientLibsEnforcementLevel.soft) {
+                NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 5, TimeUnit.MINUTES, "Soft enforcement: Allowing connection with unsupported driver: {}. Allowed drivers: {}, {}", errorMsg, allowedDrivers, optionsWithClientPrefix);
+                isDriverAllowed = true;
+            } else { // enforcementLevel == ClientLibsEnforcementLevel.none
+                isDriverAllowed = true;
+            }
+        }
+
+        // Logging the client context data with NoSpamLogger
+        NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 5, TimeUnit.MINUTES, "Client context data: {}", optionsWithClientPrefix);
+        // Send the client session metric
+        ClientMetricsManager.getSessionMetrics(
+            service,
+            options.getOrDefault(REQUEST_TENANCY, ""),
+            options.getOrDefault(TIER, "empty"),
+            driverName,
+            enforcementLevelString,
+            String.valueOf(isDriverSupported),
+            options.getOrDefault(IS_AUTHENTICATED, "false")).sessions.mark();
+
+        // Check for service vs cassandra tier mismatch
+        BadQuery.checkForTierMismatch(
+            options.getOrDefault(TIER, "-1"),
+            service
+        );
+
+        return isDriverAllowed;
     }
 }

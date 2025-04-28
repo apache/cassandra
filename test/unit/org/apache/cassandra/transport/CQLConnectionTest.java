@@ -47,6 +47,7 @@ import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Config.ClientLibsEnforcementLevel;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.*;
@@ -93,6 +94,8 @@ public class CQLConnectionTest
         logger.info("seed: {}", seed);
         random = new Random(seed);
         address = InetAddress.getLoopbackAddress();
+        DatabaseDescriptor.setBroadcastRpcAddress(address);
+
         try
         {
             try (ServerSocket serverSocket = new ServerSocket(0))
@@ -100,6 +103,7 @@ public class CQLConnectionTest
                 port = serverSocket.getLocalPort();
             }
             Thread.sleep(250);
+            DatabaseDescriptor.setNativeTransportPort(port);
         }
         catch (Exception e)
         {
@@ -962,6 +966,7 @@ public class CQLConnectionTest
         final int expectedResponses;
         final CountDownLatch responsesReceived;
         private volatile boolean connected = false;
+        private String driverName;
 
         final Queue<Envelope> inboundMessages = new LinkedBlockingQueue<>();
         long sendSize = 0;
@@ -975,6 +980,11 @@ public class CQLConnectionTest
             this.expectedResponses = expectedResponses;
             this.responsesReceived = new CountDownLatch(expectedResponses);
             flusher = new SimpleClient.SimpleFlusher(codec.encoder);
+        }
+
+        private void setDriverName(String driverName)
+        {
+            this.driverName = driverName;
         }
 
         private void connect(InetAddress address, int port) throws IOException, InterruptedException
@@ -1089,6 +1099,8 @@ public class CQLConnectionTest
             Map<String, String> options = new HashMap<>();
             options.put(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString());
             options.put(StartupMessage.SERVICE, "TestService");
+            if (driverName != null && !driverName.isEmpty())
+                options.put(StartupMessage.DRIVER_NAME, driverName);
             if (codec.encoder instanceof FrameEncoderLZ4)
                 options.put(StartupMessage.COMPRESSION, "LZ4");
             Connection connection = new Connection(channel, ProtocolVersion.V5, (ch, connection1) -> {});
@@ -1163,6 +1175,303 @@ public class CQLConnectionTest
             Envelope f;
             while ((f = inboundMessages.poll()) != null)
                 f.release();
+        }
+    }
+
+    // Client Library Validation Tests
+    @Test
+    public void testNoneModeWithEmptyAllowedDriversList() throws Throwable
+    {
+        // In none mode all drivers are allowed
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.none);
+            Set<String> emptySet = Collections.emptySet();
+            DatabaseDescriptor.setAllowedClientLibDrivers(emptySet);
+
+            testDriverValidation("unsupported-driver", false);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+ @Test
+    public void testNoneModeWithAllowedDriver() throws Throwable
+    {
+        // In none mode with a matching driver, connection should succeed
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.none);
+            Set<String> allowedDrivers = new HashSet<>();
+            allowedDrivers.add("java-driver.*");
+            DatabaseDescriptor.setAllowedClientLibDrivers(allowedDrivers);
+
+            testDriverValidation("java-driver-4.0", false);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    @Test
+    public void testNoneModeWithNonAllowedDriver() throws Throwable
+    {
+        // In none mode with no allowed drivers, connection should succeed
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.none);
+            Set<String> allowedDrivers = new HashSet<>();
+            allowedDrivers.add("java-driver.*");
+            DatabaseDescriptor.setAllowedClientLibDrivers(allowedDrivers);
+
+            testDriverValidation("unsupported-driver", false);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    @Test
+    public void testSoftModeWithEmptyAllowedDriversList() throws Throwable
+    {
+        // In soft mode with an empty allowed drivers list, connection should succeed
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.soft);
+            DatabaseDescriptor.setAllowedClientLibDrivers(Collections.emptySet());
+
+            testDriverValidation("java-driver-4.0", false);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    @Test
+    public void testSoftModeWithAllowedDriver() throws Throwable
+    {
+        // In soft mode with a matching driver, connection should succeed
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.soft);
+            Set<String> allowedDrivers = new HashSet<>();
+            allowedDrivers.add("java-driver.*");
+            DatabaseDescriptor.setAllowedClientLibDrivers(allowedDrivers);
+
+            testDriverValidation("java-driver-4.0", false);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    @Test
+    public void testSoftModeWithNonAllowedDriver() throws Throwable
+    {
+        // In soft mode with a non-matching driver, connection should succeed (with warning)
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.soft);
+            Set<String> allowedDrivers = new HashSet<>();
+            allowedDrivers.add("java-driver.*");
+            DatabaseDescriptor.setAllowedClientLibDrivers(allowedDrivers);
+
+            testDriverValidation("python-driver-3.0", false);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    @Test
+    public void testHardModeWithEmptyAllowedDriversList() throws Throwable
+    {
+        // When the allowed drivers list is empty, all drivers should be allowed
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.hard);
+            DatabaseDescriptor.setAllowedClientLibDrivers(Collections.emptySet());
+
+            testDriverValidation("any-driver", false);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    @Test
+    public void testHardModeWithAllowedDriver() throws Throwable
+    {
+        // In hard mode with a matching driver, connection should succeed
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.hard);
+            Set<String> allowedDrivers = new HashSet<>();
+            allowedDrivers.add("java-driver.*");
+            DatabaseDescriptor.setAllowedClientLibDrivers(allowedDrivers);
+
+            testDriverValidation("java-driver-4.0", false);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    @Test
+    public void testHardModeWithNonAllowedDriver() throws Throwable
+    {
+        // In hard mode with a non-matching driver, connection should be rejected
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.hard);
+            Set<String> allowedDrivers = new HashSet<>();
+            allowedDrivers.add("java-driver.*");
+            DatabaseDescriptor.setAllowedClientLibDrivers(allowedDrivers);
+
+            testDriverValidation("python-driver-3.0", true);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    @Test
+    public void testCompoundRegexPatterns() throws Throwable
+    {
+        // Test complex patterns with multiple drivers
+        ClientLibsEnforcementLevel originalEnforcementLevel = DatabaseDescriptor.getClientLibsEnforcementLevel();
+        Set<String> originalAllowedDrivers = new HashSet<>(DatabaseDescriptor.getAllowedClientLibDrivers());
+
+        try
+        {
+            DatabaseDescriptor.setClientLibsEnforcementLevel(ClientLibsEnforcementLevel.hard);
+            Set<String> allowedDrivers = new HashSet<>();
+            allowedDrivers.add("java-driver-[0-9].*");
+            allowedDrivers.add("python-driver-[0-9].*");
+            DatabaseDescriptor.setAllowedClientLibDrivers(allowedDrivers);
+
+            // These should all succeed
+            testDriverValidation("java-driver-4.0", false);
+            testDriverValidation("python-driver-3.2", false);
+
+            // This should be rejected
+            testDriverValidation("nodejs-driver-4.6", true);
+        }
+        finally
+        {
+            // Restore original values
+            DatabaseDescriptor.setClientLibsEnforcementLevel(originalEnforcementLevel);
+            DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
+        }
+    }
+
+    private void testDriverValidation(String driverName, boolean expectError) throws Throwable
+    {
+        AllocationObserver observer = new AllocationObserver();
+        InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                            .withAllocationObserver(observer)
+                                            .withProxyController(controller)
+                                            .build();
+
+        Server server = server(configurator);
+
+        Codec codec = Codec.crc(alloc);
+        Client client = new Client(codec, 0);
+        client.setDriverName(driverName);
+
+        try
+        {
+            server.start();
+            client.connect(address, port);
+            assert(client.isConnected() == !expectError);
+
+            // Wait for response
+            Message response = null;
+            client.awaitResponses();
+            Envelope envelope = client.pollResponses();
+            if (envelope != null) {
+                try {
+                    response = Message.responseDecoder().decode(client.channel, envelope);
+                } catch (Exception e) {
+                    logger.error("Error decoding response", e);
+                }
+            }
+
+            if (expectError)
+            {
+                assertThat(client.getConnectionError())
+                .isNotNull()
+                .extracting(message -> message.error.getMessage())
+                .asString()
+                .contains("is not in the allowed list");
+            }
+            else
+            {
+                assertTrue("Expected a successful connection",
+                          response == null || response.type != Message.Type.ERROR);
+            }
+
+        }
+        finally
+        {
+            client.stop();
+            server.stop();
+            observer.verifier().accept(0);
         }
     }
 }
