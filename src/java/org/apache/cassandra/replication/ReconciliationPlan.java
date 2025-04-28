@@ -24,7 +24,7 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -34,96 +34,9 @@ import org.apache.cassandra.replication.MutationSummary.CoordinatorSummary;
 
 public class ReconciliationPlan
 {
-    private final ImmutableMap<InetAddressAndPort, PeerReconciliation> txPlan;
+    private final ImmutableMap<InetAddressAndPort, MultiOffsets.Immutable> txPlan;
 
-    public static class PeerReconciliation
-    {
-        private final ImmutableMap<CoordinatorLogId, Offsets> coordinatorIds;
-
-        public PeerReconciliation(ImmutableMap<CoordinatorLogId, Offsets> coordinatorIds)
-        {
-            this.coordinatorIds = coordinatorIds;
-        }
-
-        @Override
-        public String toString() {
-            return "PeerReconciliation{" +
-                    "coordinatorIds=" + coordinatorIds +
-                    '}';
-        }
-
-        public Set<ShortMutationId> ids()
-        {
-            int size = 0;
-            for (Offsets offsets : coordinatorIds.values())
-                size += offsets.offsetCount();
-            Set<ShortMutationId> ids = Sets.newHashSetWithExpectedSize(size);
-            for (Offsets offsets : coordinatorIds.values())
-                offsets.collectIds(ids);
-            return ids;
-        }
-
-        static class Builder
-        {
-            private final InetAddressAndPort to;
-            private final Map<CoordinatorLogId, Offsets> coordinatorIds = new HashMap<>();
-
-            public Builder(InetAddressAndPort to)
-            {
-                this.to = to;
-            }
-
-            void send(CoordinatorLogId logId, Offsets offsets)
-            {
-                Offsets existing = coordinatorIds.get(logId);
-                if (existing != null)
-                    coordinatorIds.put(logId, Offsets.union(existing, offsets));
-                else
-                    coordinatorIds.put(logId, offsets);
-            }
-
-            PeerReconciliation build()
-            {
-                return new PeerReconciliation(ImmutableMap.copyOf(coordinatorIds));
-            }
-        }
-
-        public static final IVersionedSerializer<PeerReconciliation> serializer = new IVersionedSerializer<>()
-        {
-            @Override
-            public void serialize(PeerReconciliation reconciliation, DataOutputPlus out, int version) throws IOException
-            {
-                out.writeInt(reconciliation.coordinatorIds.size());
-                for (Offsets offsets : reconciliation.coordinatorIds.values())
-                    Offsets.serializer.serialize(offsets, out, version);
-            }
-
-            @Override
-            public PeerReconciliation deserialize(DataInputPlus in, int version) throws IOException
-            {
-                int size = in.readInt();
-                ImmutableMap.Builder<CoordinatorLogId, Offsets> builder = ImmutableMap.builderWithExpectedSize(size);
-                for (int i = 0; i < size; i++)
-                {
-                    Offsets offsets = Offsets.serializer.deserialize(in, version);
-                    builder.put(offsets.logId(), offsets);
-                }
-                return new PeerReconciliation(builder.build());
-            }
-
-            @Override
-            public long serializedSize(PeerReconciliation reconciliation, int version)
-            {
-                long size = TypeSizes.INT_SIZE;
-                for (Offsets offsets : reconciliation.coordinatorIds.values())
-                    size += Offsets.serializer.serializedSize(offsets, version);
-
-                return size;
-            }
-        };
-    }
-
-    public ReconciliationPlan(ImmutableMap<InetAddressAndPort, PeerReconciliation> txPlan)
+    public ReconciliationPlan(ImmutableMap<InetAddressAndPort, MultiOffsets.Immutable> txPlan)
     {
         this.txPlan = txPlan;
     }
@@ -133,14 +46,14 @@ public class ReconciliationPlan
         return txPlan.keySet();
     }
 
-    public PeerReconciliation peerReconciliation(InetAddressAndPort to)
+    public MultiOffsets.Immutable peerReconciliation(InetAddressAndPort to)
     {
         return txPlan.get(to);
     }
 
-    public Set<ShortMutationId> idsFor(InetAddressAndPort node)
+    public MultiOffsets.Immutable offsetsFor(InetAddressAndPort node)
     {
-        return txPlan.get(node).ids();
+        return txPlan.get(node);
     }
 
     public boolean isEmpty()
@@ -153,7 +66,7 @@ public class ReconciliationPlan
         final InetAddressAndPort node;
 
         final MutationSummary summary;
-        final Map<InetAddressAndPort, PeerReconciliation.Builder> peerReconciliations = new HashMap<>();
+        final Map<InetAddressAndPort, MultiOffsets.Mutable> peerReconciliations = new HashMap<>();
 
         public PlanBuilder(InetAddressAndPort node, MutationSummary summary)
         {
@@ -161,15 +74,15 @@ public class ReconciliationPlan
             this.summary = summary;
         }
 
-        public void send(InetAddressAndPort to, CoordinatorLogId logId, Offsets sequenceIds)
+        public void send(InetAddressAndPort to, Offsets sequenceIds)
         {
-            peerReconciliations.computeIfAbsent(to, PeerReconciliation.Builder::new).send(logId, sequenceIds);
+            peerReconciliations.computeIfAbsent(to, ep -> new MultiOffsets.Mutable()).add(sequenceIds, false);
         }
 
         ReconciliationPlan build()
         {
-            ImmutableMap.Builder<InetAddressAndPort, PeerReconciliation> builder = ImmutableMap.builder();
-            peerReconciliations.forEach((to, peerReconciliation) -> builder.put(to, peerReconciliation.build()));
+            ImmutableMap.Builder<InetAddressAndPort, MultiOffsets.Immutable> builder = ImmutableMap.builder();
+            peerReconciliations.forEach((to, ids) -> builder.put(to, ids.immutableCopy()));
             return new ReconciliationPlan(builder.build());
         }
     }
@@ -216,7 +129,7 @@ public class ReconciliationPlan
                     PlanBuilder senderPlan = plan.get(sender.getKey());
 
                     Offsets requestedIds = Offsets.intersection(missing, senderIds);
-                    senderPlan.send(receiver, logId, requestedIds);
+                    senderPlan.send(receiver, requestedIds);
 
                     missing = Offsets.difference(missing, requestedIds);
                     if (missing.rangeCount() == 0)
@@ -261,10 +174,10 @@ public class ReconciliationPlan
         public void serialize(ReconciliationPlan plan, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(plan.txPlan.size());
-            for (Map.Entry<InetAddressAndPort, PeerReconciliation> entry : plan.txPlan.entrySet())
+            for (Map.Entry<InetAddressAndPort, MultiOffsets.Immutable> entry : plan.txPlan.entrySet())
             {
                 InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(entry.getKey(), out, version);
-                PeerReconciliation.serializer.serialize(entry.getValue(), out, version);
+                MultiOffsets.Immutable.serializer.serialize(entry.getValue(), out, version);
             }
         }
 
@@ -272,10 +185,10 @@ public class ReconciliationPlan
         public ReconciliationPlan deserialize(DataInputPlus in, int version) throws IOException
         {
             int size = in.readInt();
-            ImmutableMap.Builder<InetAddressAndPort, PeerReconciliation> builder = ImmutableMap.builderWithExpectedSize(size);
+            ImmutableMap.Builder<InetAddressAndPort, MultiOffsets.Immutable> builder = ImmutableMap.builderWithExpectedSize(size);
             for (int i = 0; i < size; i++)
                 builder.put(InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version),
-                            PeerReconciliation.serializer.deserialize(in, version));
+                            MultiOffsets.Immutable.serializer.deserialize(in, version));
             return new ReconciliationPlan(builder.build());
         }
 
@@ -283,10 +196,10 @@ public class ReconciliationPlan
         public long serializedSize(ReconciliationPlan plan, int version)
         {
             long size = TypeSizes.INT_SIZE;
-            for (Map.Entry<InetAddressAndPort, PeerReconciliation> entry : plan.txPlan.entrySet())
+            for (Map.Entry<InetAddressAndPort, MultiOffsets.Immutable> entry : plan.txPlan.entrySet())
             {
                 size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(entry.getKey(), version);
-                size += PeerReconciliation.serializer.serializedSize(entry.getValue(), version);
+                size += MultiOffsets.Immutable.serializer.serializedSize(entry.getValue(), version);
             }
             return size;
         }

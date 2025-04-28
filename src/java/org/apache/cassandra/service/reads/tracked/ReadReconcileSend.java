@@ -20,7 +20,6 @@ package org.apache.cassandra.service.reads.tracked;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +36,8 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MultiOffsets;
 import org.apache.cassandra.replication.MutationJournal;
-import org.apache.cassandra.replication.ReconciliationPlan.PeerReconciliation;
-import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.utils.CollectionSerializer;
 
 /**
@@ -53,9 +51,9 @@ public class ReadReconcileSend
     {
         final int syncId;
         final InetAddressAndPort to;
-        final PeerReconciliation plan;
+        final MultiOffsets.Immutable plan;
 
-        public PeerSync(int syncId, InetAddressAndPort to, PeerReconciliation plan)
+        public PeerSync(int syncId, InetAddressAndPort to, MultiOffsets.Immutable plan)
         {
             this.syncId = syncId;
             this.to = to;
@@ -79,7 +77,7 @@ public class ReadReconcileSend
             {
                 out.writeInt(sync.syncId);
                 InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(sync.to, out, version);
-                PeerReconciliation.serializer.serialize(sync.plan, out, version);
+                MultiOffsets.Immutable.serializer.serialize(sync.plan, out, version);
             }
 
             @Override
@@ -87,7 +85,7 @@ public class ReadReconcileSend
             {
                 return new PeerSync(in.readInt(),
                                     InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version),
-                                    PeerReconciliation.serializer.deserialize(in, version));
+                                    MultiOffsets.Immutable.serializer.deserialize(in, version));
             }
 
             @Override
@@ -95,7 +93,7 @@ public class ReadReconcileSend
             {
                 return TypeSizes.sizeof(sync.syncId)
                        + InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(sync.to, version)
-                       + PeerReconciliation.serializer.serializedSize(sync.plan, version);
+                       + MultiOffsets.Immutable.serializer.serializedSize(sync.plan, version);
             }
         };
     }
@@ -130,10 +128,10 @@ public class ReadReconcileSend
             {
                 // TODO (expected): do not deser just to serialize again, if same messaging versions (common case)
                 // TODO (expected): don't materialize mutation ids, look up from offset collections
-                Set<ShortMutationId> ids = sync.plan.ids();
-                List<Mutation> mutations = new ArrayList<>(ids.size());
-                MutationJournal.instance.readAll(ids, mutations);
-                Preconditions.checkArgument(ids.size() == mutations.size());
+                int mutationCount = sync.plan.idCount();
+                List<Mutation> mutations = new ArrayList<>(mutationCount);
+                MutationJournal.instance.readAll(sync.plan, mutations);
+                Preconditions.checkArgument(mutationCount == mutations.size());
 
                 ReadReconcileReceive receive = new ReadReconcileReceive(payload.reconcileId, sync.syncId, message.from(), mutations);
                 logger.trace("Sending {} to replica {}", receive, sync.to);
@@ -161,8 +159,7 @@ public class ReadReconcileSend
         @Override
         public long serializedSize(ReadReconcileSend send, int version)
         {
-            return TrackedRead.Id.serializer.serializedSize(send.reconcileId, version) +
-                   CollectionSerializer.serializedSizeCollection(PeerSync.serializer, send.syncTasks, version);
+            return TrackedRead.Id.serializer.serializedSize(send.reconcileId, version) + CollectionSerializer.serializedSizeCollection(PeerSync.serializer, send.syncTasks, version);
         }
     };
 }

@@ -87,6 +87,15 @@ public class MutationJournal
         return journal.readLast(id, consumer);
     }
 
+    public void readAll(MultiOffsets ids, Collection<Mutation> into)
+    {
+        ids.forEachId(id -> {
+            Mutation mutation = read(id);
+            Preconditions.checkState(mutation != null);
+            into.add(mutation);
+        });
+    }
+
     public void readAll(Iterable<ShortMutationId> ids, Collection<Mutation> into)
     {
         for (ShortMutationId id : ids)
