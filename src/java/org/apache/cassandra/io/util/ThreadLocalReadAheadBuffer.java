@@ -131,18 +131,21 @@ public final class ThreadLocalReadAheadBuffer
 
     public void clear(boolean deallocate)
     {
-        Block block = getBlock();
+        // avoid calling block() here to reduce unintended allocations
+        Block block = blockMap.get().get(channel.filePath());
+        if (block == null)
+            return;
+
         block.index = -1;
+        if (block.buffer == null)
+            return;
 
         ByteBuffer blockBuffer = block.buffer;
-        if (blockBuffer != null)
+        blockBuffer.clear();
+        if (deallocate)
         {
-            blockBuffer.clear();
-            if (deallocate)
-            {
-                FileUtils.clean(blockBuffer);
-                block.buffer = null;
-            }
+            FileUtils.clean(blockBuffer);
+            block.buffer = null;
         }
     }
 
