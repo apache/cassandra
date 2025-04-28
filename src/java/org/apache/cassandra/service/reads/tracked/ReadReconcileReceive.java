@@ -44,12 +44,12 @@ public class ReadReconcileReceive
 {
     private static final Logger logger = LoggerFactory.getLogger(ReadReconcileReceive.class);
 
-    public final long readId;
+    public final TrackedRead.Id readId;
     public final int syncId;
     public final InetAddressAndPort coordinator;
     public final List<Mutation> mutations;
 
-    public ReadReconcileReceive(long readId, int syncId, InetAddressAndPort coordinator, List<Mutation> mutations)
+    public ReadReconcileReceive(TrackedRead.Id readId, int syncId, InetAddressAndPort coordinator, List<Mutation> mutations)
     {
         this.readId = readId;
         this.syncId = syncId;
@@ -109,7 +109,7 @@ public class ReadReconcileReceive
         @Override
         public void serialize(ReadReconcileReceive rcv, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(rcv.readId);
+            TrackedRead.Id.serializer.serialize(rcv.readId, out, version);
             out.writeInt(rcv.syncId);
             inetAddressAndPortSerializer.serialize(rcv.coordinator, out, version);
             CollectionSerializer.serializeCollection(Mutation.serializer, rcv.mutations, out, version);
@@ -119,7 +119,7 @@ public class ReadReconcileReceive
         @Override
         public ReadReconcileReceive deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new ReadReconcileReceive(in.readLong(),
+            return new ReadReconcileReceive(TrackedRead.Id.serializer.deserialize(in, version),
                                             in.readInt(),
                                             inetAddressAndPortSerializer.deserialize(in, version),
                                             CollectionSerializer.deserializeCollection(Mutation.serializer, ArrayList::new, in, version));
@@ -128,7 +128,7 @@ public class ReadReconcileReceive
         @Override
         public long serializedSize(ReadReconcileReceive t, int version)
         {
-            return TypeSizes.sizeof(t.readId)
+            return TrackedRead.Id.serializer.serializedSize(t.readId, version)
                    + TypeSizes.sizeof(t.syncId)
                    + inetAddressAndPortSerializer.serializedSize(t.coordinator, version)
                    + CollectionSerializer.serializedSizeCollection(Mutation.serializer, t.mutations, version);

@@ -100,10 +100,10 @@ public class ReadReconcileSend
         };
     }
 
-    public final long reconcileId;
+    public final TrackedRead.Id reconcileId;
     public final ImmutableList<PeerSync> syncTasks;
 
-    public ReadReconcileSend(long reconcileId, List<PeerSync> syncTasks)
+    public ReadReconcileSend(TrackedRead.Id reconcileId, List<PeerSync> syncTasks)
     {
         this.reconcileId = reconcileId;
         this.syncTasks = ImmutableList.copyOf(syncTasks);
@@ -147,22 +147,22 @@ public class ReadReconcileSend
         @Override
         public void serialize(ReadReconcileSend send, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(send.reconcileId);
+            TrackedRead.Id.serializer.serialize(send.reconcileId, out, version);
             CollectionSerializer.serializeList(PeerSync.serializer, send.syncTasks, out, version);
         }
 
         @Override
         public ReadReconcileSend deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new ReadReconcileSend(in.readLong(),
+            return new ReadReconcileSend(TrackedRead.Id.serializer.deserialize(in, version),
                                          CollectionSerializer.deserializeCollection(PeerSync.serializer, ArrayList::new, in, version));
         }
 
         @Override
         public long serializedSize(ReadReconcileSend send, int version)
         {
-            return TypeSizes.sizeof(send.reconcileId)
-                   + CollectionSerializer.serializedSizeCollection(PeerSync.serializer, send.syncTasks, version);
+            return TrackedRead.Id.serializer.serializedSize(send.reconcileId, version) +
+                   CollectionSerializer.serializedSizeCollection(PeerSync.serializer, send.syncTasks, version);
         }
     };
 }

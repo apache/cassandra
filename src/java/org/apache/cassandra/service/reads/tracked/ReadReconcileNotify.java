@@ -39,12 +39,12 @@ public class ReadReconcileNotify
 {
     private static final Logger logger = LoggerFactory.getLogger(ReadReconcileNotify.class);
 
-    public final long reconciliationId;
+    public final TrackedRead.Id readId;
     public final int syncId;
 
-    public ReadReconcileNotify(long reconciliationId, int syncId)
+    public ReadReconcileNotify(TrackedRead.Id readId, int syncId)
     {
-        this.reconciliationId = reconciliationId;
+        this.readId = readId;
         this.syncId = syncId;
     }
 
@@ -52,7 +52,7 @@ public class ReadReconcileNotify
     public String toString()
     {
         return "ReadReconcileNotify{" +
-               "reconciliationId=" + reconciliationId +
+               "reconciliationId=" + readId +
                ", syncId=" + syncId +
                '}';
     }
@@ -64,7 +64,7 @@ public class ReadReconcileNotify
         {
             ReadReconcileNotify notify = message.payload;
             logger.trace("Received read reconcile notify from {}: {}", message.from(), notify);
-            MutationTrackingService.instance.localReads().acknowledgeSync(notify.reconciliationId, notify.syncId);
+            MutationTrackingService.instance.localReads().acknowledgeSync(notify.readId, notify.syncId);
         }
     };
 
@@ -73,21 +73,21 @@ public class ReadReconcileNotify
         @Override
         public void serialize(ReadReconcileNotify notify, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(notify.reconciliationId);
+            TrackedRead.Id.serializer.serialize(notify.readId, out, version);
             out.writeInt(notify.syncId);
         }
 
         @Override
         public ReadReconcileNotify deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new ReadReconcileNotify(in.readLong(), in.readInt());
+            return new ReadReconcileNotify(TrackedRead.Id.serializer.deserialize(in, version), in.readInt());
         }
 
         @Override
-        public long serializedSize(ReadReconcileNotify t, int version)
+        public long serializedSize(ReadReconcileNotify notify, int version)
         {
-            return TypeSizes.sizeof(t.reconciliationId)
-                   + TypeSizes.sizeof(t.syncId);
+            return TrackedRead.Id.serializer.serializedSize(notify.readId, version)
+                   + TypeSizes.sizeof(notify.syncId);
         }
     };
 }

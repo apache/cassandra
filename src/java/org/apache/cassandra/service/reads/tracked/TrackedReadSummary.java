@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -31,16 +30,16 @@ import java.io.IOException;
 
 public class TrackedReadSummary
 {
-    private final long readId;
+    private final TrackedRead.Id readId;
     private final MutationSummary summary;
 
-    public TrackedReadSummary(long readId, MutationSummary summary)
+    public TrackedReadSummary(TrackedRead.Id readId, MutationSummary summary)
     {
         this.readId = readId;
         this.summary = summary;
     }
 
-    public long readId()
+    public TrackedRead.Id readId()
     {
         return readId;
     }
@@ -64,21 +63,22 @@ public class TrackedReadSummary
         @Override
         public void serialize(TrackedReadSummary summary, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(summary.readId);
+            TrackedRead.Id.serializer.serialize(summary.readId, out, version);
             MutationSummary.serializer.serialize(summary.summary, out, version);
         }
 
         @Override
         public TrackedReadSummary deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new TrackedReadSummary(in.readLong(),
+            return new TrackedReadSummary(TrackedRead.Id.serializer.deserialize(in, version),
                                           MutationSummary.serializer.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(TrackedReadSummary summary, int version)
         {
-            return TypeSizes.LONG_SIZE + MutationSummary.serializer.serializedSize(summary.summary, version);
+            return TrackedRead.Id.serializer.serializedSize(summary.readId, version) +
+                   MutationSummary.serializer.serializedSize(summary.summary, version);
         }
     };
 }

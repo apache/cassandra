@@ -40,6 +40,7 @@ import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.CollectionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -53,7 +54,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,12 +65,78 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetri
 public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<TrackedDataResponse>
 {
     private static final Logger logger = LoggerFactory.getLogger(TrackedRead.class);
-    // TODO: use something durable
-    private static final AtomicInteger nextReadId = new AtomicInteger();
+
+    public static class Id
+    {
+        private static final int nodeId = ClusterMetadata.current().myNodeId().id();
+        private static final AtomicLong lastHlc = new AtomicLong();
+
+        private final int node;
+        private final long hlc;
+
+        public Id(int node, long hlc)
+        {
+            this.node = node;
+            this.hlc = hlc;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == null || getClass() != o.getClass()) return false;
+            Id id = (Id) o;
+            return node == id.node && hlc == id.hlc;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Integer.hashCode(node) * 31 + Long.hashCode(hlc);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Id{" + node + ':' + hlc + '}';
+        }
+
+        public static final IVersionedSerializer<Id> serializer = new IVersionedSerializer<Id>()
+        {
+            @Override
+            public void serialize(Id id, DataOutputPlus out, int version) throws IOException
+            {
+                out.writeInt(id.node);
+                out.writeLong(id.hlc);
+            }
+
+            @Override
+            public Id deserialize(DataInputPlus in, int version) throws IOException
+            {
+                return new Id(in.readInt(), in.readLong());
+            }
+
+            @Override
+            public long serializedSize(Id id, int version)
+            {
+                return TypeSizes.INT_SIZE + TypeSizes.LONG_SIZE;
+            }
+        };
+
+        public static Id nextId()
+        {
+            while (true)
+            {
+                long lastMicros = lastHlc.get();
+                long nextMicros = Math.max(lastMicros + 1, TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis()));
+                if (lastHlc.compareAndSet(lastMicros, nextMicros))
+                    return new Id(nodeId, nextMicros);
+            }
+        }
+    }
 
     private final AsyncPromise<PartitionIterator> future = new AsyncPromise<>();
 
-    private final long readId = nextReadId();
+    private final Id readId = Id.nextId();
     private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
     private final ConsistencyLevel consistencyLevel;
 
@@ -96,16 +163,10 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         this.consistencyLevel = consistencyLevel;
     }
 
-    public static long nextReadId()
-    {
-
-        return ((long) ClusterMetadata.current().myNodeId().id() << 32) | nextReadId.getAndIncrement();
-    }
-
     @Override
     public String toString()
     {
-        return "TrackedRead." + getClass().getSimpleName() + '{' + Long.toHexString(readId) + '}';
+        return "TrackedRead." + getClass().getSimpleName() + '{' + readId + '}';
     }
 
     protected abstract ReadCommand command();
@@ -363,16 +424,16 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             };
         }
 
-        private final long readId;
+        private final TrackedRead.Id readId;
         private final ReadCommand command;
 
-        public Request(long readId, ReadCommand command)
+        public Request(TrackedRead.Id readId, ReadCommand command)
         {
             this.readId = readId;
             this.command = command;
         }
 
-        public long readId()
+        public TrackedRead.Id readId()
         {
             return readId;
         }
@@ -441,7 +502,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         private final ConsistencyLevel consistencyLevel;
         private final Set<InetAddressAndPort> summaryNodes;
 
-        public DataRequest(long readId, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes)
+        public DataRequest(TrackedRead.Id readId, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes)
         {
             super(readId, command);
             this.consistencyLevel = consistencyLevel;
@@ -475,7 +536,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             @Override
             public void serialize(DataRequest request, DataOutputPlus out, int version) throws IOException
             {
-                out.writeLong(request.readId());
+                Id.serializer.serialize(request.readId(), out, version);
                 ReadCommand.serializer.serialize(request.command(), out, version);
                 out.writeInt(request.consistencyLevel.code);
                 CollectionSerializer.serializeCollection(inetAddressAndPortSerializer, request.summaryNodes, out, version);
@@ -484,7 +545,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             @Override
             public DataRequest deserialize(DataInputPlus in, int version) throws IOException
             {
-                return new DataRequest(in.readLong(),
+                return new DataRequest(Id.serializer.deserialize(in, version),
                                        ReadCommand.serializer.deserialize(in, version),
                                        ConsistencyLevel.fromCode(in.readInt()),
                                        CollectionSerializer.deserializeCollection(inetAddressAndPortSerializer, Sets::newHashSetWithExpectedSize, in, version));
@@ -493,7 +554,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             @Override
             public long serializedSize(DataRequest request, int version)
             {
-                return TypeSizes.LONG_SIZE +
+                return Id.serializer.serializedSize(request.readId(), version) +
                         ReadCommand.serializer.serializedSize(request.command(), version) +
                         TypeSizes.INT_SIZE +
                         CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, request.summaryNodes, version);
@@ -505,7 +566,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     {
         private final InetAddressAndPort respondTo;
 
-        public SummaryRequest(long readId, ReadCommand command, InetAddressAndPort respondTo)
+        public SummaryRequest(Id readId, ReadCommand command, InetAddressAndPort respondTo)
         {
             super(readId, command);
             this.respondTo = respondTo;
@@ -532,7 +593,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             @Override
             public void serialize(SummaryRequest request, DataOutputPlus out, int version) throws IOException
             {
-                out.writeLong(request.readId());
+                Id.serializer.serialize(request.readId(), out, version);
                 ReadCommand.serializer.serialize(request.command(), out, version);
                 inetAddressAndPortSerializer.serialize(request.respondTo, out, version);
             }
@@ -540,7 +601,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             @Override
             public SummaryRequest deserialize(DataInputPlus in, int version) throws IOException
             {
-                return new SummaryRequest(in.readLong(),
+                return new SummaryRequest(Id.serializer.deserialize(in, version),
                                           ReadCommand.serializer.deserialize(in, version),
                                           inetAddressAndPortSerializer.deserialize(in, version));
             }
@@ -548,7 +609,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             @Override
             public long serializedSize(SummaryRequest request, int version)
             {
-                return TypeSizes.LONG_SIZE +
+                return Id.serializer.serializedSize(request.readId(), version) +
                         ReadCommand.serializer.serializedSize(request.command(), version) +
                         inetAddressAndPortSerializer.serializedSize(request.respondTo, version);
             }

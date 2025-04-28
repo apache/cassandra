@@ -53,7 +53,7 @@ public class TrackedLocalReads implements Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(TrackedLocalReads.class);
 
-    private final ConcurrentMap<Long, TrackedLocalReadCoordinator> reads = new ConcurrentHashMap<>();
+    private final ConcurrentMap<TrackedRead.Id, TrackedLocalReadCoordinator> reads = new ConcurrentHashMap<>();
     private final ScheduledExecutorPlus executor = executorFactory().scheduled("Reconciliation-Map-Reaper", NORMAL);
 
     public TrackedLocalReads()
@@ -66,7 +66,7 @@ public class TrackedLocalReads implements Shutdownable
     {
         long start = Clock.Global.nanoTime();
         int n = 0;
-        for (Map.Entry<Long, TrackedLocalReadCoordinator> entry : reads.entrySet())
+        for (Map.Entry<TrackedRead.Id, TrackedLocalReadCoordinator> entry : reads.entrySet())
         {
             TrackedLocalReadCoordinator read = entry.getValue();
             if (read.isTimedOutOrComplete(start))
@@ -80,7 +80,7 @@ public class TrackedLocalReads implements Shutdownable
             logger.trace("Expired {} entries", n);
     }
 
-    private TrackedLocalReadCoordinator getOrCreate(long id)
+    private TrackedLocalReadCoordinator getOrCreate(TrackedRead.Id id)
     {
         return reads.computeIfAbsent(id, TrackedLocalReadCoordinator::new);
     }
@@ -90,7 +90,7 @@ public class TrackedLocalReads implements Shutdownable
         getOrCreate(summary.readId()).receiveSummary(from, summary.summary());
     }
 
-    public TrackedLocalReadCoordinator beginRead(long readId, ClusterMetadata metadata, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos)
+    public TrackedLocalReadCoordinator beginRead(TrackedRead.Id readId, ClusterMetadata metadata, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos)
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
@@ -121,7 +121,7 @@ public class TrackedLocalReads implements Shutdownable
         return coordinator;
     }
 
-    public void acknowledgeSync(long readId, int syncId)
+    public void acknowledgeSync(TrackedRead.Id readId, int syncId)
     {
         TrackedLocalReadCoordinator read = reads.get(readId);
         if (read == null)
@@ -131,7 +131,7 @@ public class TrackedLocalReads implements Shutdownable
             reads.remove(readId);
     }
 
-    public boolean receiveMutations(long readId, int syncId, List<Mutation> mutations)
+    public boolean receiveMutations(TrackedRead.Id readId, int syncId, List<Mutation> mutations)
     {
         TrackedLocalReadCoordinator read = reads.get(readId);
         if (read == null)

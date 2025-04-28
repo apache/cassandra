@@ -42,8 +42,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.Verb;
+//import org.apache.cassandra.net.MessagingService;
+//import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.ReconciliationPlan;
@@ -239,9 +239,9 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
 
                 for (Map.Entry<InetAddressAndPort, List<ReadReconcileSend.PeerSync>> entry : peerSync.entrySet())
                 {
-                    Message<ReadReconcileSend> message = Message.out(Verb.READ_RECONCILE_SEND, new ReadReconcileSend(reconciliationId, entry.getValue()));
-                    logger.trace("Sending read reconciliation {} to {}", message.payload, entry.getKey());
-                    MessagingService.instance().send(message, entry.getKey());
+//                    Message<ReadReconcileSend> message = Message.out(Verb.READ_RECONCILE_SEND, new ReadReconcileSend(reconciliationId, entry.getValue()));
+//                    logger.trace("Sending read reconciliation {} to {}", message.payload, entry.getKey());
+//                    MessagingService.instance().send(message, entry.getKey());
                 }
             }
 
