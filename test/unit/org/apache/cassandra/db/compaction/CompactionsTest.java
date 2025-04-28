@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db.compaction;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -45,10 +46,13 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
@@ -560,6 +564,43 @@ public class CompactionsTest
                                                                        150, 199,
                                                                        200, 209,
                                                                        300, 301)));
+    }
+
+    @Test
+    public void testCleanupPropagatesReplayPositions() throws IOException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        store.clearUnsafe();
+
+        // disable compaction while flushing
+        store.disableAutoCompaction();
+
+        // write two groups of 9 keys: [001, 002, ... 008, 009] and [101, 102, ... 108, 109]
+        for (int i = 1; i < 10; i++)
+        {
+            insertRowWithKey(i);
+            insertRowWithKey(i + 100);
+        }
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        assertEquals(1, store.getSSTables(SSTableSet.LIVE).spliterator().estimateSize());
+        SSTableReader sstable = store.getSSTables(SSTableSet.LIVE).iterator().next();
+
+        CommitLogPosition upperBound = sstable.getSSTableMetadata().commitLogIntervals.upperBound().get();
+        assertTrue(upperBound != CommitLogPosition.NONE);
+
+        LifecycleTransaction txn = store.getTracker().tryModify(store.getSSTables(SSTableSet.LIVE), OperationType.UNKNOWN);
+        Collection<Range<Token>> ranges = makeRanges(100, 109);
+        CompactionManager.instance.doCleanupOne(store, txn, ranges);
+
+        assertEquals(1, store.getSSTables(SSTableSet.LIVE).spliterator().estimateSize());
+        SSTableReader cleanedSstable = store.getSSTables(SSTableSet.LIVE).iterator().next();
+
+        assertTrue(cleanedSstable.descriptor.id != sstable.descriptor.id);
+        assertEquals(cleanedSstable.getSSTableMetadata().commitLogIntervals.upperBound().get(), CommitLogPosition.NONE);
+        assertEquals(cleanedSstable.getSSTableMetadata().commitLogIntervals.lowerBound().get(), CommitLogPosition.NONE);
+
     }
 
     @Test
