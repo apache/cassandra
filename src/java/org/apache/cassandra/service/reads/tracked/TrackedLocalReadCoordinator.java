@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -505,6 +506,20 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         return readId;
     }
 
+    @VisibleForTesting
+    public static void processDelta(PartialTrackedRead read, MutationSummary initialSummary, MutationSummary secondarySummary)
+    {
+        // Compute any mutations that we could've missed during initial read execution.
+        ArrayList<ShortMutationId> delta = new ArrayList<>();
+        MutationSummary.difference(secondarySummary, initialSummary, delta);
+
+        delta.forEach(mutationId -> {
+            Mutation mutation = MutationJournal.instance.read(mutationId);
+            Preconditions.checkNotNull(mutation);
+            read.augment(mutation);
+        });
+    }
+
     public void startLocalRead(ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos)
     {
         Reading reading;
@@ -537,16 +552,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             // Create another summary once initial data has been read fully. We do this to catch
             // any mutations that may have arrived during initial read execution.
             secondarySummary = command.createMutationSummary(true);
-
-            // Compute any mutations that we could've missed during initial read execution.
-            ArrayList<ShortMutationId> delta = new ArrayList<>();
-            MutationSummary.difference(secondarySummary, initialSummary, delta);
-
-            delta.forEach(mutationId -> {
-                Mutation mutation = MutationJournal.instance.read(mutationId);
-                Preconditions.checkNotNull(mutation);
-                read.augment(mutation);
-            });
+            processDelta(read, initialSummary, secondarySummary);
         }
         catch (Exception e)
         {

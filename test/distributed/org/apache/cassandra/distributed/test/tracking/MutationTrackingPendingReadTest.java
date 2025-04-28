@@ -21,6 +21,8 @@ import java.util.Collections;
 
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.tracked.TrackedKeyspaceWriteHandler;
 import org.apache.cassandra.replication.*;
 import org.junit.Assert;
@@ -33,7 +35,6 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -43,7 +44,8 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.reads.tracked.TrackedReadResponse;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
+import org.apache.cassandra.service.reads.tracked.TrackedLocalReadCoordinator;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
@@ -58,6 +60,14 @@ public class MutationTrackingPendingReadTest
     {
         Row row = partition.getRow(Clustering.make(bytes(c)));
         Assert.assertNotNull(row);
+        Cell<?> cell = Util.cell(cfs, row, "v");
+        Assert.assertEquals(bytes(v), cell.buffer());
+    }
+
+    private static void assertKcvRow(Row row, ColumnFamilyStore cfs, int c, int v)
+    {
+        Assert.assertNotNull(row);
+        Assert.assertEquals(bytes(c), row.clustering().bufferAt(0));
         Cell<?> cell = Util.cell(cfs, row, "v");
         Assert.assertEquals(bytes(v), cell.buffer());
     }
@@ -121,19 +131,26 @@ public class MutationTrackingPendingReadTest
 
                 int nowInSeconds = (int) FBUtilities.nowInSeconds();
                 // apply it to the journal and open a pending write
-                TrackedReadResponse response;
+                PartialTrackedRead read;
+                MutationSummary initialSummary;
+                MutationSummary secondarySummary;
+
                 SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(metadata, nowInSeconds, dk);
                 TrackedKeyspaceWriteHandler trackedWriteHandler = new TrackedKeyspaceWriteHandler();
-                MutationSummary initialSummary;
                 try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
                 {
+
+
                     initialSummary = command.createMutationSummary(false);
+                    ReadExecutionController controller = command.executionController(false);
+
                     MutationTrackingService.instance.startWriting(mutation);
-                    try (ReadExecutionController controller = command.executionController(false);
-                         UnfilteredPartitionIterator iterator = command.executeLocally(controller))
-                    {
-                        response = (TrackedReadResponse) command.createResponse(iterator, controller.getRepairedDataInfo(), initialSummary);
-                    }
+
+                    read = command.beginTrackedRead(controller);
+                    // Create another summary once initial data has been read fully. We do this to catch
+                    // any mutations that may have arrived during initial read execution.
+                    secondarySummary = command.createMutationSummary(true);
+                    TrackedLocalReadCoordinator.processDelta(read, initialSummary, secondarySummary);
                 }
 
                 ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
@@ -153,22 +170,24 @@ public class MutationTrackingPendingReadTest
                 Assert.assertFalse(initialIds.contains(secondId.offset()));
 
                 // check that the summary is aware of the unapplied mutation
-                Offsets summaryIds = summaryIdSpace(response.summary.get(logId));
+                Offsets summaryIds = summaryIdSpace(secondarySummary.get(logId));
                 Assert.assertEquals(2, summaryIds.offsetCount());
                 Assert.assertTrue(summaryIds.contains(secondId.offset()));
 
                 // check that the returned data contains the unapplied mutation
-                try (UnfilteredPartitionIterator partitions = response.makeIterator(command))
+                try (PartialTrackedRead.CompletedRead completedRead = read.complete();
+                     PartitionIterator partitions = completedRead.iterator())
                 {
                     Assert.assertTrue(partitions.hasNext());
-                    try (UnfilteredRowIterator rowIterator = partitions.next())
+                    try (RowIterator rowIterator = partitions.next())
                     {
-                        ImmutableBTreePartition partition = ImmutableBTreePartition.create(rowIterator);
+                        Assert.assertTrue(rowIterator.hasNext());
+                        assertKcvRow(rowIterator.next(), cfs, 0, 0);
 
-                        Assert.assertEquals(2, partition.rowCount());
+                        Assert.assertTrue(rowIterator.hasNext());
+                        assertKcvRow(rowIterator.next(), cfs, 1, 1);
 
-                        assertKcvRow(partition, cfs, 0, 0);
-                        assertKcvRow(partition, cfs, 1, 1);
+                        Assert.assertFalse(rowIterator.hasNext());
                     }
                     Assert.assertFalse(partitions.hasNext());
                 }
