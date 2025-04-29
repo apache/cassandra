@@ -87,23 +87,6 @@ RUN sh -c '\
 # Install Antora for documentation generation
 RUN npm i -g @antora/cli@2.3 @antora/site-generator-default@2.3 @djencks/asciidoctor-openblock
 
-# install golang.  GO_VERSION_SHA must be updated with VERSION
-RUN sh -c '\
-  set -ex ;\
-  GO_VERSION="1.26.1" ;\
-  GO_VERSION_SHAS="031f088e5d955bab8657ede27ad4e3bc5b7c1ba281f05f245bcc304f327c987a a290581cfe4fe28ddd737dde3095f3dbeb7f2e4065cab4eae44dfc53b760c2f7 65773dab2f8cc4cd23d93ba6d0a805de150ca0b78378879292be0b903b8cdd08 353df43a7811ce284c8938b5f3c7df40b7bfb6f56cb165b150bc40b5e2dd541f" ;\
-  GO_OS=linux ;\
-  GO_TAR="go${GO_VERSION}.${GO_OS}-$(dpkg --print-architecture).tar.gz" ;\
-  curl -L --fail --silent --retry 2 --retry-delay 5 --max-time 3600 https://go.dev/dl/$GO_TAR -o $GO_TAR ;\
-  GO_SHA="$(sha256sum $GO_TAR | cut -d" " -f2)" ;\
-  echo "$GO_VERSION_SHAS" | sed "s/ /\n/g" | grep -q "$GO_SHA" || { echo "SHA256 mismatch for $GO_TAR $GO_SHA"; exit 1; } ;\
-  tar -C /usr/local -xzf $GO_TAR ;\
-  rm $GO_TAR'
-
-ENV GOROOT="/usr/local/go"
-ENV GOPATH="$BUILD_HOME/go"
-ENV PATH="$PATH:/usr/local/go/bin"
-
 # allow lower UIDs and GIDs
 RUN sed -i 's/UID_MIN			 1000/UID_MIN			 100/' /etc/login.defs
 RUN sed -i 's/UID_MIN			 1000/UID_MIN			 10/' /etc/login.defs
