@@ -20,6 +20,8 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableList;
@@ -61,8 +64,10 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.Schema;
@@ -102,9 +107,22 @@ public abstract class CQLSSTableWriterTest
     }
 
     @Test
-    public void testUnsortedWriter() throws Exception
+    public void testUnsortedWriterBig() throws Exception
     {
-        try (AutoCloseable switcher = Util.switchPartitioner(ByteOrderedPartitioner.instance))
+        BigFormat format = BigFormat.getInstance();
+        testWritingSstableWithFormat(format);
+    }
+
+    @Test
+    public void testUnsortedWriterBti() throws Exception
+    {
+        SSTableFormat<?, ?> btiFormat = new BtiFormat.BtiFormatFactory().getInstance(Collections.emptyMap());
+        testWritingSstableWithFormat(btiFormat);
+    }
+
+    private void testWritingSstableWithFormat(SSTableFormat<?, ?> format) throws Exception
+    {
+        try (AutoCloseable ignored = Util.switchPartitioner(ByteOrderedPartitioner.instance))
         {
             String schema = "CREATE TABLE " + qualifiedTable + " ("
                             + "  k int PRIMARY KEY,"
@@ -115,6 +133,7 @@ public abstract class CQLSSTableWriterTest
             CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                       .inDirectory(dataDir)
                                                       .forTable(schema)
+                                                      .withFormat(format)
                                                       .using(insert).build();
 
             writer.addRow(0, "test1", 24);
@@ -124,6 +143,7 @@ public abstract class CQLSSTableWriterTest
 
             writer.close();
 
+            validateFilesAreInFormat(format);
             loadSSTables(dataDir, keyspace);
 
             UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
@@ -140,7 +160,6 @@ public abstract class CQLSSTableWriterTest
             row = iter.next();
             assertEquals(1, row.getInt("k"));
             assertEquals("test2", row.getString("v1"));
-            //assertFalse(row.has("v2"));
             assertEquals(44, row.getInt("v2"));
 
             row = iter.next();
@@ -150,8 +169,20 @@ public abstract class CQLSSTableWriterTest
 
             row = iter.next();
             assertEquals(3, row.getInt("k"));
-            assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
+            assertFalse(row.has("v1"));
             assertEquals(12, row.getInt("v2"));
+        }
+    }
+
+    private void validateFilesAreInFormat(SSTableFormat<?, ?> format) throws IOException
+    {
+        try (Stream<Path> dataFilePaths = Files.list(dataDir.toPath()).filter(p -> p.toString().endsWith("Data.db")))
+        {
+            dataFilePaths.forEach(dataFilePath -> {
+                File dataFile = new File(dataFilePath.toFile());
+                Descriptor descriptor = Descriptor.fromFile(dataFile);
+                assertEquals(format, descriptor.version.format);
+            });
         }
     }
 
