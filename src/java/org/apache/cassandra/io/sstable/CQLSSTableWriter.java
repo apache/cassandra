@@ -653,6 +653,18 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
+        /**
+         * Specifies the SSTable format this CQLSSTableWriter instance should use for writing.
+         *
+         * @param format The format to use
+         * @return this builder
+         */
+        public Builder withFormat(SSTableFormat<?, ?> format)
+        {
+            this.format = format;
+            return this;
+        }
+
         public CQLSSTableWriter build()
         {
             if (directory == null)
