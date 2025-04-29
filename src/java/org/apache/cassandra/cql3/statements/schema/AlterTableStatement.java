@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -57,6 +59,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
@@ -494,6 +497,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 Guardrails.alterTableCompactionStrategyEnabled.ensureEnabled(state);
             }
 
+            // if enabling strict_mv_consistency
+            if (attrs.hasOption(TableParams.Option.STRICT_MV_CONSISTENCY) && attrs.getBoolean(TableParams.Option.STRICT_MV_CONSISTENCY.toString(), false))
+            {
+                ColumnFamilyStore cfs = Keyspace.openAndGetStore(table);
+                cfs.checkQualifiedForStrictMVConsistency();
+            }
             attrs.validate();
 
             TableParams params = attrs.asAlteredTableParams(table.params);

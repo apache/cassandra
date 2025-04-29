@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-43611] Add table option for strict_mv_consistency to indicate if a base table of MV should use strict MV consistency
  * [SO-43724] Context propagation log use service name + tenancy as key for no spam logger to reduce log volume
  * [SO-43685] Introduce bootstrap type within auto-repair framework
  * [SO-29235] Introduce paxos_cleanup type within auto-repair framework

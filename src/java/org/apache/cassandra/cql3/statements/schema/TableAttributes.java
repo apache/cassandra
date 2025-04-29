@@ -159,6 +159,9 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(Option.READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(Option.READ_REPAIR)));
 
+        if (hasOption(Option.STRICT_MV_CONSISTENCY))
+            builder.strictMVConsistency(getBoolean(Option.STRICT_MV_CONSISTENCY.toString(), false));
+
         return builder.build();
     }
 

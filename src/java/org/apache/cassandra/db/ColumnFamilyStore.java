@@ -92,6 +92,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.memtable.Flushing;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.ShardBoundaries;
@@ -113,6 +114,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.internal.CassandraIndex;
@@ -2726,6 +2728,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             forceBlockingFlush(ColumnFamilyStore.FlushReason.DROP);
         else
             FBUtilities.waitOnFuture(dumpMemtable());
+    }
+
+    public void checkQualifiedForStrictMVConsistency()
+    {
+        if (!DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled())
+        {
+            throw new InvalidRequestException("Not qualified for strict mv consistency because node level setting materialized_view_strict_consistency_enabled is disabled.");
+        }
+
+        if (Guardrails.instance.getMaterializedViewsPerTableFailThreshold() <= 0)
+        {
+            throw new InvalidRequestException("Not qualified for strict mv consistency because maximum number of MVs per table is not set.");
+        }
+
+        if (viewManager.size() > Guardrails.instance.getMaterializedViewsPerTableFailThreshold())
+        {
+            throw new InvalidRequestException(String.format("Not qualified for strict mv consistency because base table has %s MVs which is more than limit: %s", viewManager.size(), Guardrails.instance.getMaterializedViewsPerTableFailThreshold()));
+        }
+        if (metric.viewBaseTableModificationWithTimestamp.getCount() > 0 ||
+            metric.viewBaseTableUsedInBatchStatement.getCount() > 0 ||
+            metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount() > 0)
+        {
+            throw new InvalidRequestException(
+            String.format("Not qualified for strict mv consistency because base table has non-LWT compatible queries, modification with ts: %s, batch statement: %s, delete without full primary key: %s",
+                          metric.viewBaseTableModificationWithTimestamp.getCount(),
+                          metric.viewBaseTableUsedInBatchStatement.getCount(),
+                          metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount()));
+        }
     }
 
     public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews)

@@ -25,6 +25,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -57,7 +58,8 @@ public final class TableParams
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
-        READ_REPAIR;
+        READ_REPAIR,
+        STRICT_MV_CONSISTENCY;
 
         @Override
         public String toString()
@@ -83,6 +85,7 @@ public final class TableParams
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
+    public final boolean strictMVConsistency;
 
     private TableParams(Builder builder)
     {
@@ -105,6 +108,7 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
+        strictMVConsistency = builder.strictMVConsistency;
     }
 
     public static Builder builder()
@@ -130,7 +134,8 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair);
+                            .readRepair(params.readRepair)
+                            .strictMVConsistency(params.strictMVConsistency);
     }
 
     public Builder unbuild()
@@ -218,7 +223,8 @@ public final class TableParams
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
-            && readRepair == p.readRepair;
+            && readRepair == p.readRepair
+            && strictMVConsistency == p.strictMVConsistency;
     }
 
     @Override
@@ -239,7 +245,8 @@ public final class TableParams
                                 memtable,
                                 extensions,
                                 cdc,
-                                readRepair);
+                                readRepair,
+                                strictMVConsistency);
     }
 
     @Override
@@ -262,6 +269,7 @@ public final class TableParams
                           .add(Option.EXTENSIONS.toString(), extensions)
                           .add(Option.CDC.toString(), cdc)
                           .add(Option.READ_REPAIR.toString(), readRepair)
+                          .add(Option.STRICT_MV_CONSISTENCY.toString(), strictMVConsistency)
                           .toString();
     }
 
@@ -310,6 +318,12 @@ public final class TableParams
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
                .newLine()
                .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+
+        if (!isView && DatabaseDescriptor.getRawConfig() != null && DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled())
+        {
+            builder.newLine();
+            builder.append("AND strict_mv_consistency = ").append(strictMVConsistency);
+        }
     }
 
     public static final class Builder
@@ -331,6 +345,7 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
+        private boolean strictMVConsistency;
 
         public Builder()
         {
@@ -440,6 +455,12 @@ public final class TableParams
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
+            return this;
+        }
+
+        public Builder strictMVConsistency(boolean val)
+        {
+            strictMVConsistency = val;
             return this;
         }
     }
