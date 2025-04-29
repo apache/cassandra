@@ -57,6 +57,7 @@ public class ToolRunner
     protected static final Logger logger = LoggerFactory.getLogger(ToolRunner.class);
 
     public static final ImmutableList<String> DEFAULT_CLEANERS = ImmutableList.of("(?im)^picked up.*\\R",
+                                                                                  "(?im)^.*Not generating a deterministic id for table.*\\R",
                                                                                   "(?im)^.*`USE <keyspace>` with prepared statements is.*\\R");
 
     public static int runClassAsTool(String clazz, String... args)
