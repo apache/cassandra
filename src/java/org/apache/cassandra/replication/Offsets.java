@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.replication;
 
+import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Digest;
@@ -67,10 +68,6 @@ public abstract class Offsets
             result = 31 * result + Integer.hashCode(bounds[i]);
         return result;
     }
-
-    public abstract Offsets.Immutable immutable();
-    public abstract Offsets.Mutable mutable();
-    public abstract Offsets.Mutable mutableCopy();
 
     public CoordinatorLogId logId()
     {
@@ -167,93 +164,46 @@ public abstract class Offsets
             digest.updateWithInt(bounds[i]);
     }
 
-    public static class Immutable extends Offsets
+    static abstract class AbstractMutable<T extends AbstractMutable<T>> extends Offsets implements OffsetReciever
     {
-        private static int[] EMPTY = new int[0];
-
-        public Immutable(CoordinatorLogId logId, int[] bounds)
-        {
-            super(logId, bounds);
-        }
-
-        public Immutable(CoordinatorLogId logId, int[] bounds, int size)
-        {
-            super(logId, bounds, size);
-        }
-
-        public Immutable(CoordinatorLogId logId)
-        {
-            this(logId, EMPTY);
-        }
-
-        @Override
-        public Immutable immutable()
-        {
-            return this;
-        }
-
-        @Override
-        public Mutable mutable()
-        {
-            return new Mutable(logId, Arrays.copyOf(bounds, size));
-        }
-
-        @Override
-        public Mutable mutableCopy()
-        {
-            return mutable();
-        }
-    }
-
-    public static class Mutable extends Offsets
-    {
-        public Mutable(RangeIterator rangeIterator)
+        AbstractMutable(RangeIterator rangeIterator)
         {
             this(rangeIterator.logId());
             while (rangeIterator.tryAdvance())
                 append(rangeIterator.start(), rangeIterator.end());
         }
 
-        public Mutable(CoordinatorLogId logId)
+        AbstractMutable(CoordinatorLogId logId)
         {
             this(logId, INITIAL_CAPACITY);
         }
 
-        public Mutable(CoordinatorLogId logId, int capacity)
+        AbstractMutable(CoordinatorLogId logId, int capacity)
         {
             super(logId, new int[capacity], 0);
         }
-        public Mutable(CoordinatorLogId logId, int[] bounds)
+        AbstractMutable(CoordinatorLogId logId, int[] bounds)
         {
             this(logId, bounds, bounds.length);
         }
 
-        public Mutable(CoordinatorLogId logId, int[] bounds, int size)
+        AbstractMutable(CoordinatorLogId logId, int[] bounds, int size)
         {
             super(logId, bounds, size);
         }
 
-        public Offsets.Mutable copy()
+        protected static <T extends AbstractMutable<T>> T createOrNull(Offsets.RangeIterator rangeIterator, Function<CoordinatorLogId, T> ctor)
         {
-            return new Offsets.Mutable(logId, Arrays.copyOf(bounds, size));
-        }
+            T result = null;
 
-        @Override
-        public Immutable immutable()
-        {
-            return new Offsets.Immutable(logId, Arrays.copyOf(bounds, size));
-        }
+            while (rangeIterator.tryAdvance())
+            {
+                if (result == null)
+                    result = ctor.apply(rangeIterator.logId());
+                result.append(rangeIterator.start(), rangeIterator.end());
+            }
 
-        @Override
-        public Mutable mutable()
-        {
-            return this;
-        }
-
-        @Override
-        public Mutable mutableCopy()
-        {
-            return copy();
+            return result;
         }
 
         public void addAll(Offsets other, RangeConsumer onAdded)
@@ -534,7 +484,7 @@ public abstract class Offsets
             size += 2;
         }
 
-        private void append(int start, int end)
+        protected void append(int start, int end)
         {
             if (bounds.length == size)
             {
@@ -563,6 +513,94 @@ public abstract class Offsets
                 bounds[size-1] = offset;
             else
                 append(offset, offset);
+        }
+    }
+
+    public static class Mutable extends AbstractMutable<Mutable>
+    {
+        public Mutable(RangeIterator rangeIterator)
+        {
+            super(rangeIterator);
+        }
+
+        public Mutable(CoordinatorLogId logId)
+        {
+            super(logId);
+        }
+
+        public Mutable(CoordinatorLogId logId, int capacity)
+        {
+            super(logId, capacity);
+        }
+
+        public Mutable(CoordinatorLogId logId, int[] bounds)
+        {
+            super(logId, bounds);
+        }
+
+        public static Mutable createOrNull(RangeIterator rangeIterator)
+        {
+            return AbstractMutable.createOrNull(rangeIterator, Mutable::new);
+        }
+
+        public static Mutable copy(Offsets offsets)
+        {
+            return new Mutable(offsets.logId, Arrays.copyOf(offsets.bounds, offsets.size));
+        }
+    }
+
+    public static class Immutable extends Offsets
+    {
+        private static int[] EMPTY = new int[0];
+
+        public Immutable(CoordinatorLogId logId, int[] bounds)
+        {
+            super(logId, bounds);
+        }
+
+        public Immutable(CoordinatorLogId logId, int[] bounds, int size)
+        {
+            super(logId, bounds, size);
+        }
+
+        public Immutable(CoordinatorLogId logId)
+        {
+            this(logId, EMPTY);
+        }
+
+        public static Immutable copy(Offsets offsets)
+        {
+            if (offsets instanceof Immutable)
+                return (Immutable) offsets;
+            return new Immutable(offsets.logId, Arrays.copyOf(offsets.bounds, offsets.size));
+        }
+
+        public static class Builder extends AbstractMutable<Builder>
+        {
+            public Builder(CoordinatorLogId logId)
+            {
+                super(logId);
+            }
+
+            public Builder(CoordinatorLogId logId, int[] bounds)
+            {
+                super(logId, bounds);
+            }
+
+            public Immutable build()
+            {
+                return new Immutable(logId, bounds, size);
+            }
+
+            public static Builder createOrNull(RangeIterator rangeIterator)
+            {
+                return AbstractMutable.createOrNull(rangeIterator, Builder::new);
+            }
+
+            public static Builder copy(Offsets offsets)
+            {
+                return new Builder(offsets.logId, Arrays.copyOf(offsets.bounds, offsets.size));
+            }
         }
     }
 
@@ -721,10 +759,10 @@ public abstract class Offsets
     public static Offsets.Immutable union(Offsets a, Offsets b)
     {
         if (a == null)
-            return b.immutable();
+            return Immutable.copy(b);
 
         if (b == null)
-            return a.immutable();
+            return Immutable.copy(a);
 
         Preconditions.checkArgument(a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
@@ -733,10 +771,10 @@ public abstract class Offsets
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return b.immutable();
+            return Immutable.copy(b);
 
         if (bNumRanges == 0)
-            return a.immutable();
+            return Immutable.copy(a);
 
         int aRange = 0;
         int bRange = 0;
@@ -976,7 +1014,7 @@ public abstract class Offsets
     {
         Preconditions.checkArgument(a != null);
         if (b == null)
-            return a.immutable();
+            return Immutable.copy(a);
 
         Preconditions.checkArgument(b == null || a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
@@ -987,7 +1025,7 @@ public abstract class Offsets
             return new Offsets.Immutable(logId);
 
         if (bNumRanges == 0)
-            return a.immutable();
+            return Immutable.copy(a);
 
         int aRange = 0;
         int bRange = 0;
@@ -1270,6 +1308,13 @@ public abstract class Offsets
         }
 
         return new Offsets.Immutable(logId, c, cRange * 2);
+    }
+
+    public interface OffsetReciever
+    {
+        boolean add(int offset);
+
+        void addAll(Offsets offsets);
     }
 
     public interface OffsetConsumer

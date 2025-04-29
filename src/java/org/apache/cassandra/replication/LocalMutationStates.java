@@ -137,20 +137,20 @@ class LocalMutationStates
         statesSet.remove(state);
     }
 
-    boolean collect(Token token, TableId tableId, boolean includePending, Offsets.Mutable into)
+    boolean collect(Token token, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
     {
         SortedSet<Entry> subset = statesSet.subSet(Entry.start(token, true), Entry.end(token, true));
         return collect(subset, tableId, includePending, into);
     }
 
-    boolean collect(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.Mutable into)
+    boolean collect(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
     {
         Entry start = Entry.start(range.left.getToken(), range.left.kind() != PartitionPosition.Kind.MAX_BOUND);
         Entry end = Entry.end(range.right.getToken(), range.right.kind() != PartitionPosition.Kind.MIN_BOUND);
         return collect(start, end, tableId, includePending, into);
     }
 
-    private boolean collect(SortedSet<Entry> subset, TableId tableId, boolean includePending, Offsets.Mutable into)
+    private boolean collect(SortedSet<Entry> subset, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
     {
         boolean found = false;
         for (Entry entry : subset)
@@ -164,7 +164,7 @@ class LocalMutationStates
         return found;
     }
 
-    private boolean collect(Entry start, Entry end, TableId tableId, boolean includePending, Offsets.Mutable into)
+    private boolean collect(Entry start, Entry end, TableId tableId, boolean includePending, Offsets.OffsetReciever into)
     {
         int cmp = start.token.compareTo(end.token);
         if (cmp == 0)

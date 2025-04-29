@@ -54,37 +54,40 @@ public abstract class MultiOffsets<T extends Offsets>
         return idCount() == 0;
     }
 
-    public static class Mutable extends MultiOffsets<Offsets.Mutable>
+    private static abstract class AbstractMutable<T extends Offsets.AbstractMutable<T>> extends MultiOffsets<T>
     {
-        private final Long2ObjectHashMap<Offsets.Mutable> offsetMap = new Long2ObjectHashMap<>();
+        protected final Long2ObjectHashMap<T> offsetMap = new Long2ObjectHashMap<>();
 
         @Override
-        Long2ObjectHashMap<Offsets.Mutable> offsetMap()
+        Long2ObjectHashMap<T> offsetMap()
         {
             return offsetMap;
         }
 
-        public Immutable immutableCopy()
+        protected abstract T createOrNull(Offsets.RangeIterator iterator);
+        protected abstract T create(CoordinatorLogId logId);
+        protected abstract T copy(Offsets offsets);
+
+        protected T create(long logId)
         {
-            return Immutable.copyOf(this);
+            return create(new CoordinatorLogId(logId));
         }
 
         public void add(ShortMutationId id)
         {
-            Offsets.Mutable offsets = offsetMap.computeIfAbsent(id.logId(), l -> new Offsets.Mutable(new CoordinatorLogId(l)));
+            T offsets = offsetMap.computeIfAbsent(id.logId(), this::create);
             offsets.add(id.offset());
         }
 
-        public void add(Offsets offsets, boolean copy)
+        public void add(Offsets offsets)
         {
             if (offsets.isEmpty())
                 return;
 
-            Offsets.Mutable existing = offsetMap.get(offsets.logId().asLong());
+            T existing = offsetMap.get(offsets.logId().asLong());
             if (existing == null)
             {
-                Offsets.Mutable mutable = copy ? offsets.mutableCopy() : offsets.mutable();
-                offsetMap.put(offsets.logId().asLong(), mutable);
+                offsetMap.put(offsets.logId().asLong(), copy(offsets));
                 return;
             }
 
@@ -94,12 +97,12 @@ public abstract class MultiOffsets<T extends Offsets>
         public void addAll(MultiOffsets<?> that)
         {
             for (Offsets offsets : that.offsetMap().values())
-                add(offsets, true);
+                add(offsets);
         }
 
         public void remove(Offsets offsets)
         {
-            Offsets existing = offsetMap.get(offsets.logId().asLong());
+            T existing = offsetMap.get(offsets.logId().asLong());
             if (existing == null)
                 return;
 
@@ -109,11 +112,11 @@ public abstract class MultiOffsets<T extends Offsets>
                 return;
             }
 
-            Offsets.Immutable next = Offsets.difference(existing, offsets);
-            if (next.isEmpty())
+            T next = createOrNull(Offsets.difference(existing.rangeIterator(), offsets.rangeIterator()));
+            if (next == null)
                 offsetMap.remove(offsets.logId().asLong());
             else
-                offsetMap.put(offsets.logId().asLong(), next.mutableCopy());
+                offsetMap.put(offsets.logId().asLong(), next);
         }
 
         public void removeAll(MultiOffsets<?> that)
@@ -123,36 +126,68 @@ public abstract class MultiOffsets<T extends Offsets>
         }
     }
 
+    public static class Mutable extends AbstractMutable<Offsets.Mutable>
+    {
+        @Override
+        protected Offsets.Mutable createOrNull(Offsets.RangeIterator iterator)
+        {
+            return Offsets.Mutable.createOrNull(iterator);
+        }
+
+        @Override
+        protected Offsets.Mutable create(CoordinatorLogId logId)
+        {
+            return new Offsets.Mutable(logId);
+        }
+
+        @Override
+        protected Offsets.Mutable copy(Offsets offsets)
+        {
+            return Offsets.Mutable.copy(offsets);
+        }
+    }
+
     public static class Immutable extends MultiOffsets<Offsets.Immutable>
     {
         private final Long2ObjectHashMap<Offsets.Immutable> offsetMap;
-
-        private static Long2ObjectHashMap<Offsets.Immutable> copyOffsets(Long2ObjectHashMap<? extends Offsets> src)
-        {
-            Long2ObjectHashMap<Offsets.Immutable> dst = new Long2ObjectHashMap<>();
-            src.forEachLong((key, value) -> dst.put(key, value.immutable()));
-            return dst;
-        }
 
         private Immutable(Long2ObjectHashMap<Offsets.Immutable> offsetMap)
         {
             this.offsetMap = offsetMap;
         }
 
-        public static Immutable copyOf(Long2ObjectHashMap<Offsets.Immutable> src)
-        {
-            return new Immutable(copyOffsets(src));
-        }
-
-        public static Immutable copyOf(MultiOffsets.Mutable src)
-        {
-            return new Immutable(copyOffsets(src.offsetMap));
-        }
-
         @Override
         Long2ObjectHashMap<Offsets.Immutable> offsetMap()
         {
             return offsetMap;
+        }
+
+        public static class Builder extends AbstractMutable<Offsets.Immutable.Builder>
+        {
+            @Override
+            protected Offsets.Immutable.Builder createOrNull(Offsets.RangeIterator iterator)
+            {
+                return Offsets.Immutable.Builder.createOrNull(iterator);
+            }
+
+            @Override
+            protected Offsets.Immutable.Builder create(CoordinatorLogId logId)
+            {
+                return new Offsets.Immutable.Builder(logId);
+            }
+
+            @Override
+            protected Offsets.Immutable.Builder copy(Offsets offsets)
+            {
+                return Offsets.Immutable.Builder.copy(offsets);
+            }
+
+            public MultiOffsets.Immutable build()
+            {
+                Long2ObjectHashMap<Offsets.Immutable> result = new Long2ObjectHashMap<>();
+                offsetMap.forEachLong((key, builder) -> result.put(key, builder.build()));
+                return new Immutable(result);
+            }
         }
 
         private static class KeySink implements Consumer<Long>
@@ -216,6 +251,5 @@ public abstract class MultiOffsets<T extends Offsets>
                 return size;
             }
         };
-
     }
 }

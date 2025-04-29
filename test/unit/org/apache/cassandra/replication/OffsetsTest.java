@@ -132,7 +132,7 @@ public class OffsetsTest
         }
     }
 
-    private static Offsets offsets(int... bounds)
+    private static Offsets.Mutable offsets(int... bounds)
     {
         Assert.assertTrue(bounds.length % 2 == 0);
         Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);
@@ -598,7 +598,7 @@ public class OffsetsTest
 
     private static void testDifference(Offsets expected, Offsets a, Offsets b)
     {
-        Offsets.Mutable bPlus = b.mutableCopy();
+        Offsets.Mutable bPlus = Offsets.Mutable.copy(b);
         bPlus.add(50, 55);
 
         // check copy-remaining
@@ -673,9 +673,9 @@ public class OffsetsTest
 
     private static void testIntersection(Offsets expected, Offsets a, Offsets b)
     {
-        Offsets.Mutable aPlus = a.mutableCopy();
+        Offsets.Mutable aPlus = Offsets.Mutable.copy(a);
         aPlus.add(50, 55);
-        Offsets.Mutable bPlus = b.mutableCopy();
+        Offsets.Mutable bPlus = Offsets.Mutable.copy(b);
         bPlus.add(50, 55);
 
         Assert.assertEquals(expected, Offsets.intersection(a, b));
@@ -731,6 +731,6 @@ public class OffsetsTest
     {
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        IVersionedSerializers.testSerde(buffer, Offsets.serializer, offsets(0, 3, 7, 10, 15, 17).immutable(), MessagingService.current_version);
+        IVersionedSerializers.testSerde(buffer, Offsets.serializer, Offsets.Immutable.copy(offsets(0, 3, 7, 10, 15, 17)), MessagingService.current_version);
     }
 }

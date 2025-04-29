@@ -66,7 +66,7 @@ public class ReconciliationPlan
         final InetAddressAndPort node;
 
         final MutationSummary summary;
-        final Map<InetAddressAndPort, MultiOffsets.Mutable> peerReconciliations = new HashMap<>();
+        final Map<InetAddressAndPort, MultiOffsets.Immutable.Builder> peerReconciliations = new HashMap<>();
 
         public PlanBuilder(InetAddressAndPort node, MutationSummary summary)
         {
@@ -76,13 +76,13 @@ public class ReconciliationPlan
 
         public void send(InetAddressAndPort to, Offsets sequenceIds)
         {
-            peerReconciliations.computeIfAbsent(to, ep -> new MultiOffsets.Mutable()).add(sequenceIds, false);
+            peerReconciliations.computeIfAbsent(to, ep -> new MultiOffsets.Immutable.Builder()).add(sequenceIds);
         }
 
         ReconciliationPlan build()
         {
             ImmutableMap.Builder<InetAddressAndPort, MultiOffsets.Immutable> builder = ImmutableMap.builder();
-            peerReconciliations.forEach((to, ids) -> builder.put(to, ids.immutableCopy()));
+            peerReconciliations.forEach((to, ids) -> builder.put(to, ids.build()));
             return new ReconciliationPlan(builder.build());
         }
     }

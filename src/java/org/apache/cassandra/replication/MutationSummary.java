@@ -101,14 +101,14 @@ public class MutationSummary
         public static class Builder
         {
             public final CoordinatorLogId logId;
-            public final Offsets.Mutable reconciled;
-            public final Offsets.Mutable unreconciled;
+            public final Offsets.Immutable.Builder reconciled;
+            public final Offsets.Immutable.Builder unreconciled;
 
             public Builder(CoordinatorLogId logId)
             {
                 this.logId = logId;
-                reconciled = new Offsets.Mutable(logId);
-                unreconciled = new Offsets.Mutable(logId);
+                reconciled = new Offsets.Immutable.Builder(logId);
+                unreconciled = new Offsets.Immutable.Builder(logId);
             }
 
             boolean isEmpty()
@@ -118,7 +118,7 @@ public class MutationSummary
 
             public CoordinatorSummary build()
             {
-                return new CoordinatorSummary(reconciled.immutable(), unreconciled.immutable());
+                return new CoordinatorSummary(reconciled.build(), unreconciled.build());
             }
         }
 

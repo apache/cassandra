@@ -159,7 +159,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean collectOffsetsFor(Token token, TableId tableId, boolean includePending, Offsets.Mutable unreconciledInto, Offsets.Mutable reconciledInto)
+    boolean collectOffsetsFor(Token token, TableId tableId, boolean includePending, Offsets.OffsetReciever unreconciledInto, Offsets.OffsetReciever reconciledInto)
     {
         lock.readLock().lock();
         try
@@ -177,7 +177,7 @@ public abstract class CoordinatorLog
      * Look up unreconciled sequence ids of mutations witnessed by this host in this coordinataor log.
      * Adds the ids to the supplied collection, so it can be reused to aggregate lookups for multiple logs.
      */
-    boolean collectOffsetsFor(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.Mutable unreconciledInto, Offsets.Mutable reconciledInto)
+    boolean collectOffsetsFor(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending, Offsets.OffsetReciever unreconciledInto, Offsets.OffsetReciever reconciledInto)
     {
         lock.readLock().lock();
         try
