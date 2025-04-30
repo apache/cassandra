@@ -45,9 +45,9 @@
     <encoder>
       <pattern>%-5level [%thread] ${instance_id} %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
     </encoder>
-    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>DEBUG</level>
-    </filter>
+<!--    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">-->
+<!--      <level>DEBUG</level>-->
+<!--    </filter>-->
   </appender>
 
   <logger name="io.netty.*" level="WARN"/>
@@ -63,4 +63,6 @@
     <appender-ref ref="INSTANCESTDERR" />
     <appender-ref ref="INSTANCESTDOUT" />
   </root>
+  <logger name="org.apache.cassandra.replication" level="TRACE"/>
+  <logger name="org.apache.cassandra.service.reads.tracked" level="TRACE"/>
 </configuration>

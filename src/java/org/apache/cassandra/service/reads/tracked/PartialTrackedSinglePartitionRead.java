@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
+import java.util.List;
+
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -29,29 +31,31 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SimpleBTreePartition;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 
+import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
+
 public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRead
 {
+    private final Index.Searcher searcher;
     private final SinglePartitionReadCommand command;
-    private final UnfilteredPartitionIterator initialData;
-    private SimpleBTreePartition augmentedData;
 
-    public PartialTrackedSinglePartitionRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, SinglePartitionReadCommand command, UnfilteredPartitionIterator initialData)
+    public PartialTrackedSinglePartitionRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, SinglePartitionReadCommand command)
     {
-        super(executionController, searcher, cfs, startTimeNanos);
+        super(executionController, cfs, startTimeNanos);
+        this.searcher = searcher;
         this.command = command;
-        this.initialData = initialData;
     }
 
     public static PartialTrackedSinglePartitionRead create(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, SinglePartitionReadCommand command, UnfilteredPartitionIterator initialData)
     {
-        PartialTrackedSinglePartitionRead read = new PartialTrackedSinglePartitionRead(executionController, searcher, cfs, startTimeNanos, command, initialData);
+        PartialTrackedSinglePartitionRead read = new PartialTrackedSinglePartitionRead(executionController, searcher, cfs, startTimeNanos, command);
         try
         {
-            read.prepare();
+            read.prepare(initialData);
             return read;
         }
         catch (Throwable e)
@@ -61,48 +65,88 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
         }
     }
 
-    @Override
-    void freezeInitialData()
+    private class SinglePartitionPrepared extends Prepared
     {
-        // the iterators from queryStorage grabs sstable references and a
-        // snapshot of the memtable partition so we don't need to do anything here
+        private final UnfilteredPartitionIterator initialData;
+        private SimpleBTreePartition augmentedData;
+
+        private SinglePartitionPrepared(UnfilteredPartitionIterator initialData)
+        {
+            this.initialData = initialData;
+        }
+
+        @Override
+        public State augment(PartitionUpdate update)
+        {
+            Preconditions.checkArgument(update.partitionKey().equals(command.partitionKey()));
+            if (augmentedData == null)
+                augmentedData = new SimpleBTreePartition(command.partitionKey(), command.metadata(), UpdateTransaction.NO_OP);
+
+            augmentedData.update(update);
+            return this;
+        }
+
+        @Override
+        Completed complete()
+        {
+            return new SinglePartitionCompleted(initialData, augmentedData);
+        }
     }
+
+    private class SinglePartitionCompleted extends Completed
+    {
+        private final UnfilteredPartitionIterator initialData;
+        private final SimpleBTreePartition augmentedData;
+
+        public SinglePartitionCompleted(UnfilteredPartitionIterator initialData, SimpleBTreePartition augmentedData)
+        {
+            this.initialData = initialData;
+            this.augmentedData = augmentedData;
+        }
+
+        private UnfilteredPartitionIterator augmentedIterator()
+        {
+            if (augmentedData == null)
+                return null;
+            Slices slices = command.clusteringIndexFilter().getSlices(command.metadata());
+            UnfilteredRowIterator augmentedPartition = augmentedData.unfilteredIterator(command.columnFilter(), slices, command.clusteringIndexFilter().isReversed());
+            return new SingletonUnfilteredPartitionIterator(augmentedPartition);
+        }
+
+        @Override
+        protected UnfilteredPartitionIterator iterator()
+        {
+            UnfilteredPartitionIterator augmentedIterator = augmentedIterator();
+            if (augmentedIterator == null)
+                return initialData;
+
+            return UnfilteredPartitionIterators.merge(List.of(initialData, augmentedIterator), NOOP);
+        }
+
+        @Override
+        protected CompletedRead createResult(UnfilteredPartitionIterator iterator)
+        {
+            return CompletedRead.simple(iterator, command);
+        }
+    }
+
+    @Override
+    protected Prepared prepareInternal(UnfilteredPartitionIterator initialData)
+    {
+        return new SinglePartitionPrepared(initialData);
+    }
+
+    @Override
+    public Index.Searcher searcher()
+    {
+        return searcher;
+    }
+
+    // TODO: delete (almost?) ever
 
     @Override
     public ReadCommand command()
     {
         return command;
-    }
-
-    @Override
-    UnfilteredPartitionIterator initialData()
-    {
-        return initialData;
-    }
-
-    @Override
-    UnfilteredPartitionIterator augmentedData()
-    {
-        if (augmentedData == null)
-            return null;
-        Slices slices = command.clusteringIndexFilter().getSlices(command.metadata());
-        UnfilteredRowIterator augmented = augmentedData.unfilteredIterator(command.columnFilter(), slices, command.clusteringIndexFilter().isReversed());
-        return new SingletonUnfilteredPartitionIterator(augmented);
-    }
-
-    @Override
-    void augmentResponse(PartitionUpdate update)
-    {
-        Preconditions.checkArgument(update.partitionKey().equals(command.partitionKey()));
-        if (augmentedData == null)
-            augmentedData = new SimpleBTreePartition(command.partitionKey(), command.metadata(), UpdateTransaction.NO_OP);
-
-        augmentedData.update(update);
-    }
-
-    @Override
-    CompletedRead createResult(UnfilteredPartitionIterator iterator)
-    {
-        return CompletedRead.simple(iterator, command().nowInSec());
     }
 }

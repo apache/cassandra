@@ -18,9 +18,15 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.util.Arrays;
+import java.util.Comparator;
+
+import org.junit.Assume;
 import org.junit.Test;
 
-import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
@@ -156,7 +162,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnSelectedColumnOnSkinnyTable()
     {
-        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "uses ALLOW FILTERING (CASSANDRA-20555)");
         tester("WHERE a=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 2, 3)",
@@ -183,7 +188,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnSelectedColumnOnWideTable()
     {
-        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "uses ALLOW FILTERING (CASSANDRA-20555)");
         tester("WHERE a=1 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
@@ -215,8 +219,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnUnselectedColumnOnSkinnyTable()
     {
-        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "uses ALLOW FILTERING (CASSANDRA-20555)");
-
         tester("WHERE b=3 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 2, 3)",
@@ -243,8 +245,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnUnselectedColumnOnWideTable()
     {
-        if (coordinator == 2)
-            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on ALLOW FILTERING");
         tester("WHERE b=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
@@ -268,5 +268,114 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
         .tearDown(1,
                   rows(row(2, 1, 1, 1)),
                   rows());
+    }
+
+    /**
+     * Test range queries using filtering on an selected column on a table with clustering columns.
+     */
+    @Test
+    public void testRangeQueryWithFilterOnSelectedColumnConflictingUpdates()
+    {
+        Assume.assumeTrue(replicationType.isTracked());  // flaky for untracked replication
+        tester("WHERE a=1 ALLOW FILTERING")
+        .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
+        .mutate(1, "INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
+                "INSERT INTO %s (k, c, a, b) VALUES (1, 2, 2, 2)",
+                "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 2, 1)",
+                "INSERT INTO %s (k, c, a, b) VALUES (2, 2, 2, 2)")
+        .mutate(2, "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 1, 1)")
+        .mutate(1)  // updates the last coordinator for mutation tracking
+        .queryColumns("k, c, a", 2, 2,
+                      rows(row(1, 1, 1), row(2, 1, 1)),
+                      rows(row(1, 1, 1, 1), row(2, 1, 1, 1)),
+                      rows(row(1, 1, 1, null), row(2, 1, 1, 1)))
+        .tearDown(2,
+                  rows(row(1, 1, 1, 1), row(1, 2, 2, 2), row(2, 1, 1, 1), row(2, 2, 2, 2)),
+                  rows(row(1, 1, 1, 1), row(2, 1, 1, 1)));
+    }
+
+    /**
+     * Helper class for creating rows in token sorted order
+     */
+    private static class TokenSortedKey
+    {
+        final int key;
+
+        public TokenSortedKey(int key)
+        {
+            this.key = key;
+        }
+
+        Token token()
+        {
+            return Murmur3Partitioner.instance.getToken(ByteBufferUtil.bytes(key));
+        }
+
+        public Object[] row(Object... values)
+        {
+            Object[] row = new Object[values.length + 1];
+            row[0] = key;
+            System.arraycopy(values, 0, row, 1, values.length);
+            return row;
+        }
+
+        public static TokenSortedKey[] create(int numKeys)
+        {
+            TokenSortedKey[] keys = new TokenSortedKey[numKeys];
+            for (int i = 0; i < numKeys; i++)
+                keys[i] = new TokenSortedKey(i);
+            Arrays.sort(keys, Comparator.comparing(TokenSortedKey::token));
+            return keys;
+        }
+
+    }
+
+    /**
+     * Tests the allow filtering case where the local coordinator filters out a partition that hashes to a token
+     * between 2 valid matches and another replica reports a mutation that causes it to be re-added to the result
+     */
+    @Test
+    public void testFilteredInterleavedShortRead()
+    {
+        Assume.assumeTrue(replicationType.isTracked());  // flaky for untracked replication
+        TokenSortedKey[] keys = TokenSortedKey.create(4);
+
+        tester("WHERE a=1 ALLOW FILTERING")
+        .createTable("CREATE TABLE %s (k int, c int, a int, PRIMARY KEY(k, c))")
+        .mutate(1, "INSERT INTO %s (k, c, a) VALUES (" + keys[0].key + ", 1, 1)",
+                "INSERT INTO %s (k, c, a) VALUES (" + keys[0].key + ", 2, 2)",
+                "INSERT INTO %s (k, c, a) VALUES (" + keys[1].key + ", 1, 2)",
+                "INSERT INTO %s (k, c, a) VALUES (" + keys[2].key + ", 1, 1)")
+        .mutate(2, "INSERT INTO %s (k, c, a) VALUES (" + keys[1].key + ", 1, 1)") // make keys[1] match the filter
+        .mutate(1)  // updates the last coordinator for mutation tracking
+        .queryColumns("k, c, a", 3, 0,
+                      rows(keys[0].row(1, 1), keys[1].row(1, 1), keys[2].row(1, 1)),
+                      rows(keys[0].row(1, 1), keys[1].row(1, 1), keys[2].row(1, 1)),
+                      rows(keys[0].row(1, 1), keys[1].row(1, 1), keys[2].row(1, 1)))
+        .tearDown(1,
+                  rows(keys[0].row(1, 1), keys[0].row(2, 2), keys[1].row(1, 1), keys[2].row(1, 1)),
+                  rows(keys[0].row(1, 1), keys[1].row(1, 1), keys[2].row(1, 1)));
+    }
+
+    @Test
+    public void testNonFilteredInterleavedShortRead()
+    {
+        Assume.assumeTrue(replicationType.isTracked());  // flaky for untracked replication
+        TokenSortedKey[] keys = TokenSortedKey.create(4);
+
+        tester("WHERE a=1 ALLOW FILTERING")
+        .createTable("CREATE TABLE %s (k int, c int, a int, PRIMARY KEY(k, c))")
+        .mutate(1, "INSERT INTO %s (k, c, a) VALUES (" + keys[0].key + ", 1, 1)",
+                "INSERT INTO %s (k, c, a) VALUES (" + keys[0].key + ", 2, 2)",
+                "INSERT INTO %s (k, c, a) VALUES (" + keys[2].key + ", 1, 1)")
+        .mutate(2, "INSERT INTO %s (k, c, a) VALUES (" + keys[1].key + ", 1, 1)") // make keys[1] match the filter
+        .mutate(1)  // updates the last coordinator for mutation tracking
+        .queryColumns("k, c, a", 3, 0,
+                      rows(keys[0].row(1, 1), keys[1].row(1, 1), keys[2].row(1, 1)),
+                      rows(keys[0].row(1, 1), keys[1].row(1, 1), keys[2].row(1, 1)),
+                      rows(keys[0].row(1, 1), keys[1].row(1, 1), keys[2].row(1, 1)))
+        .tearDown(1,
+                  rows(keys[0].row(1, 1), keys[0].row(2, 2), keys[1].row(1, 1), keys[2].row(1, 1)),
+                  rows(keys[0].row(1, 1), keys[1].row(1, 1), keys[2].row(1, 1)));
     }
 }

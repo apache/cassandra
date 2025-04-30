@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed.test.tracking;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationSummary;
 import org.junit.Assert;
@@ -75,6 +77,31 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
     public static void awaitNodeAlive(IInvokableInstance from, IInvokableInstance node)
     {
         awaitNodeLiveness(from, InetAddressAndPort.getByAddress(node.broadcastAddress()), true);
+    }
+
+    // TODO (expected): remove after speculation is implemented
+    private static Object[][] queryWithRetries(ICoordinator coordinator, String query) throws InterruptedException
+    {
+        int attempt = 0;
+        for (;;)
+        {
+            attempt++;
+            try
+            {
+                return coordinator.execute(query, ConsistencyLevel.QUORUM);
+            }
+            catch (Throwable t)
+            {
+                if (attempt < 10 && t.getClass().getSimpleName().equals(ReadTimeoutException.class.getSimpleName()))
+                {
+                    Thread.sleep(2000);
+                }
+                else
+                {
+                    throw t;
+                }
+            }
+        }
     }
 
     /**
@@ -146,9 +173,8 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             awaitNodeAlive(cluster.get(1), cluster.get(3));
             awaitNodeDead(cluster.get(1), cluster.get(2));
 
-
             Assert.assertEquals(0, numLogReconciliations(cluster.get(1)));
-            Object[][] result = cluster.coordinator(1).execute(format("SELECT * FROM %s.%s WHERE k=1", keyspaceName, tableName), ConsistencyLevel.QUORUM);
+            Object[][] result = queryWithRetries(cluster.coordinator(1), format("SELECT * FROM %s.%s WHERE k=1", keyspaceName, tableName));
             Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1)), result);
 
             // check that node3 has the new ids
@@ -225,7 +251,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
 
             Assert.assertEquals(0, numLogReconciliations(cluster.get(1)));
-            Object[][] result = cluster.coordinator(3).execute(format("SELECT * FROM %s.%s WHERE k=1", keyspaceName, tableName), ConsistencyLevel.QUORUM);
+            Object[][] result = queryWithRetries(cluster.coordinator(3), format("SELECT * FROM %s.%s WHERE k=1", keyspaceName, tableName));
             Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1)), result);
 
             // check that node3 has the new ids
@@ -302,7 +328,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
             // No reconciliation has happened yet
             Assert.assertEquals(0, numLogReconciliations(cluster.get(1)));
-            Object[][] result = cluster.coordinator(1).execute(format("SELECT * FROM %s.%s", keyspaceName, tableName), ConsistencyLevel.QUORUM);
+            Object[][] result = queryWithRetries(cluster.coordinator(1), format("SELECT * FROM %s.%s", keyspaceName, tableName));
             Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1), row(2, 2, 2)), result);
 
             // Coordinator sends its missing mutations to 3 on read
@@ -377,7 +403,7 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 
 
             Assert.assertEquals(0, numLogReconciliations(cluster.get(3)));
-            Object[][] result = cluster.coordinator(3).execute(format("SELECT * FROM %s.%s", keyspaceName, tableName), ConsistencyLevel.QUORUM);
+            Object[][] result = queryWithRetries(cluster.coordinator(3), format("SELECT * FROM %s.%s", keyspaceName, tableName));
             Assert.assertEquals(row(row(1, 0, 0), row(1, 1, 1), row(2, 2, 2)), result);
 
             // Coordinator sends its missing mutations to 3 on read
