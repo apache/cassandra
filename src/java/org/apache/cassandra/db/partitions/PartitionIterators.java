@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.AbstractIterator;
 
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.utils.MergeIterator;
 
 public abstract class PartitionIterators
 {
@@ -98,6 +99,52 @@ public abstract class PartitionIterators
             }
         }
     }
+
+    /**
+     * Merges multiple partition iterators with the requirement that there are no keys in common between any
+     * of the iterators
+     */
+    public static PartitionIterator mergeNonOverlapping(List<PartitionIterator> iterators)
+    {
+        MergeIterator.Reducer<RowIterator, RowIterator> reducer = new MergeIterator.Reducer<>()
+        {
+            RowIterator current;
+
+            @Override
+            protected void onKeyChange()
+            {
+                current = null;
+            }
+
+            @Override
+            public void reduce(int idx, RowIterator partition)
+            {
+                if (current != null)
+                {
+                    throw new IllegalStateException("Multiple partitions received for " + current.partitionKey());
+                }
+                current = partition;
+            }
+
+            @Override
+            protected RowIterator getReduced()
+            {
+                return current;
+            }
+        };
+
+        MergeIterator<RowIterator, RowIterator> mergeIterator = MergeIterator.get(iterators, rowIteratorComparator, reducer);
+
+        return new AbstractPartitionIterator()
+        {
+            @Override
+            protected RowIterator computeNext()
+            {
+                return mergeIterator.hasNext() ? mergeIterator.next() : endOfData();
+            }
+        };
+    }
+    private static final Comparator<RowIterator> rowIteratorComparator = Comparator.comparing(BaseRowIterator::partitionKey);
 
     /**
      * Consumes all rows in the next partition of the provided partition iterator.
@@ -224,5 +271,5 @@ public abstract class PartitionIterators
                 }
             };
         }
-    };
+    }
 }
