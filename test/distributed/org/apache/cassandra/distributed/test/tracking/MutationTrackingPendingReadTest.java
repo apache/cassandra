@@ -176,7 +176,7 @@ public class MutationTrackingPendingReadTest
 
                 // check that the returned data contains the unapplied mutation
                 try (PartialTrackedRead.CompletedRead completedRead = read.complete();
-                     PartitionIterator partitions = completedRead.iterator())
+                     PartitionIterator partitions = completedRead.response().makeIterator(command))
                 {
                     Assert.assertTrue(partitions.hasNext());
                     try (RowIterator rowIterator = partitions.next())

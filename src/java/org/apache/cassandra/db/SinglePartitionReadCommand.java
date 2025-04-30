@@ -182,6 +182,23 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               dataRange);
     }
 
+    public static SinglePartitionReadCommand fromRangeRead(DecoratedKey key, PartitionRangeReadCommand command, DataLimits limits)
+    {
+        return create(command.serializedAtEpoch(),
+                      command.isDigestQuery(),
+                      command.digestVersion(),
+                      command.acceptsTransient(),
+                      command.metadata(),
+                      command.nowInSec(),
+                      command.columnFilter(),
+                      command.rowFilter(),
+                      limits,
+                      key,
+                      command.clusteringIndexFilter(key),
+                      command.indexQueryPlan(),
+                      command.isTrackingWarnings());
+    }
+
     /**
      * Creates a new read command on a single partition.
      *

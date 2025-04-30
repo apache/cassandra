@@ -27,8 +27,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
@@ -45,6 +43,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AbstractFuture;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +52,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class TrackedLocalReadCoordinator
 {
@@ -512,7 +513,7 @@ public class TrackedLocalReadCoordinator
         });
     }
 
-    public void startLocalRead(TrackedRead.Id readId, ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, int[] summaryNodes, long expiresAtNanos)
+    public void startLocalRead(TrackedRead.Id readId, ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, int[] summaryNodes, long expiresAtNanos, Consumer<PartialTrackedRead> partialReadConsumer)
     {
         synchronized (this)
         {
@@ -528,6 +529,8 @@ public class TrackedLocalReadCoordinator
         try
         {
             read = command.beginTrackedRead(controller);
+            if (partialReadConsumer != null)
+                partialReadConsumer.accept(read);
             // Create another summary once initial data has been read fully. We do this to catch
             // any mutations that may have arrived during initial read execution.
             secondarySummary = command.createMutationSummary(true);
@@ -555,20 +558,17 @@ public class TrackedLocalReadCoordinator
     {
         try (PartialTrackedRead.CompletedRead completedRead = read.complete())
         {
-            TrackedDataResponse response = TrackedDataResponse.create(completedRead.iterator(), selection);
-            TrackedRead<?, ?> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
+            TrackedDataResponse response = completedRead.response();
+            Future<TrackedDataResponse> followUp = completedRead.followupRead(response, consistencyLevel, expiresAtNanos);
 
             if (followUp != null)
             {
-                ReadCommand command = read.command();
-                followUp.future().addCallback((iterator, error) -> {
+                followUp.addCallback((newResponse, error) -> {
                     if (error != null)
                     {
                         promise.tryFailure(error);
                         return;
                     }
-                    PartitionIterator previous = response.makeIterator(command);
-                    TrackedDataResponse newResponse = TrackedDataResponse.create(PartitionIterators.concat(List.of(previous, iterator)), selection);
                     promise.trySuccess(newResponse);
                 });
             }

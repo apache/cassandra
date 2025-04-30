@@ -544,6 +544,24 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
+    public RowFilter rowFilter(Index.Searcher searcher)
+    {
+        // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
+        // no point in checking it again.
+        return  (null == searcher) ? rowFilter() : indexQueryPlan.postIndexQueryFilter();
+    }
+
+    private UnfilteredPartitionIterator withRowFilter(UnfilteredPartitionIterator iterator, Index.Searcher searcher)
+    {
+        /*
+         * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
+         * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
+         * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
+         * processing we do on it).
+         */
+        return rowFilter(searcher).filter(iterator, nowInSec());
+    }
+
     private UnfilteredPartitionIterator completeRead(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
     {
         COMMAND.set(this);
@@ -556,18 +574,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             iterator = maybeRecordPurgeableTombstones(iterator, cfs);
             iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
             iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
-
-            // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
-            // no point in checking it again.
-            RowFilter filter = (null == searcher) ? rowFilter() : indexQueryPlan.postIndexQueryFilter();
-
-            /*
-             * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
-             * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
-             * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
-             * processing we do on it).
-             */
-            iterator = filter.filter(iterator, nowInSec());
+            iterator = withRowFilter(iterator, searcher);
 
             // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
             // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.

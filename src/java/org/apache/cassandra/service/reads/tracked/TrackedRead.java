@@ -53,6 +53,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -133,7 +134,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
-    private final AsyncPromise<PartitionIterator> future = new AsyncPromise<>();
+    private final AsyncPromise<TrackedDataResponse> future = new AsyncPromise<>();
 
     private final Id readId = Id.nextId();
     private final ReadCommand command;
@@ -171,6 +172,11 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     }
 
     protected abstract Verb verb();
+
+    public boolean intersects(DecoratedKey key)
+    {
+        return command.dataRange().contains(key);
+    }
 
     public static class Partition extends TrackedRead<EndpointsForToken, ReplicaPlan.ForTokenRead>
     {
@@ -233,7 +239,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         return hostids;
     }
 
-    public void start(long expiresAt)
+    private void start(long expiresAt, Consumer<PartialTrackedRead> partialReadConsumer)
     {
         // TODO: skip local coordination if this node knows its recovering from an outage
         // TODO: read speculation
@@ -256,8 +262,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
         if (dataNode == localReplica)
         {
+            logger.trace("Locally coordinating {}", readId);
             Stage.READ.submit(() -> {
-                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryHostIds, expiresAt);
+                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryHostIds, expiresAt, partialReadConsumer);
                 coordinator.addCallback((response, error) -> {
                     if (error != null)
                     {
@@ -272,6 +279,8 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
         else
         {
+            logger.trace("Sending data request for {} to {}", readId, dataNode.endpoint());
+            Preconditions.checkArgument(partialReadConsumer == null, "Cannot supply read consumer for nonlocal reads");
             DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryHostIds);
             Message<DataRequest> dataMessage = Message.outWithFlag(verb(), dataRequest, MessageFlag.CALL_BACK_ON_FAILURE);
             MessagingService.instance().sendWithCallback(dataMessage, dataNode.endpoint(), this);
@@ -289,13 +298,25 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         {
             if (localReplica == replica)
             {
+                logger.trace("Locally processing summary request for {}", readId);
                 Stage.READ.submit(() -> summaryRequest.executeLocally(summaryMessage, ClusterMetadata.current()));
             }
             else
             {
+                logger.trace("Sending summary request for {} to {}", readId, replica.endpoint());
                 MessagingService.instance().send(summaryMessage, replica.endpoint());
             }
         }
+    }
+
+    public void start(long expiresAt)
+    {
+        start(expiresAt, null);
+    }
+
+    public void startLocal(long expiresAt, Consumer<PartialTrackedRead> partialReadConsumer)
+    {
+        start(expiresAt, partialReadConsumer);
     }
 
     public void start(Dispatcher.RequestTime requestTime)
@@ -305,7 +326,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     private void onResponse(TrackedDataResponse response)
     {
-        future.trySuccess(response.makeIterator(command));
+        future.trySuccess(response);
     }
 
     @Override
@@ -326,7 +347,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         return true;
     }
 
-    public Future<PartitionIterator> future()
+    public Future<TrackedDataResponse> future()
     {
         return future;
     }
@@ -335,7 +356,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     {
         try
         {
-            return future.get(command.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            return future.get(command.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS).makeIterator(command);
         }
         catch (InterruptedException e)
         {
@@ -413,7 +434,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         @Override
         public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
-            TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, metadata, command, consistencyLevel, summaryNodes, message.expiresAtNanos());
+            TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, metadata, command, consistencyLevel, summaryNodes, message.expiresAtNanos(), null);
             coordinator.addCallback((response, error) -> {
                 if (error != null)
                 {

@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
-import java.util.List;
-
 import com.google.common.base.Preconditions;
 
 import org.slf4j.Logger;
@@ -30,34 +28,176 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.transform.RTBoundValidator;
-import org.apache.cassandra.index.Index;
 
-import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
 
 public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractPartialTrackedRead.class);
 
-    private enum State
+    protected interface Augmentable
     {
-        INITIALIZED,
-        PREPARED,
-        READING,
-        FINISHED
+        State augment(PartitionUpdate update);
+    }
+
+    protected static abstract class State
+    {
+        protected static final State CLOSED = new State()
+        {
+            @Override
+            String name()
+            {
+                return "closed";
+            }
+
+            @Override
+            boolean isClosed()
+            {
+                return true;
+            }
+        };
+
+        abstract String name();
+
+        boolean isInitialized()
+        {
+            return false;
+        }
+
+        Initialized asInitialized()
+        {
+            throw new IllegalStateException("State is " + name() + ", not " + Initialized.NAME);
+        }
+
+        boolean isPrepared()
+        {
+            return false;
+        }
+
+        Prepared asPrepared()
+        {
+            throw new IllegalStateException("State is " + name() + ", not " + Prepared.NAME);
+        }
+
+        boolean isCompleted()
+        {
+            return false;
+        }
+
+        Completed asCompleted()
+        {
+            throw new IllegalStateException("State is " + name() + ", not " + Completed.NAME);
+        }
+
+        boolean isAugmentable()
+        {
+            return isPrepared() || isInitialized();
+        }
+
+        Augmentable asAugmentable()
+        {
+            if (isPrepared()) return asPrepared();
+            throw new IllegalStateException("State is " + name() + ", not augmentable");
+        }
+
+        boolean isClosed()
+        {
+            return false;
+        }
+
+        void close()
+        {
+        }
+    }
+
+    // TODO (expected): this is a redundant state, never exposed
+    protected final class Initialized extends State
+    {
+        static final String NAME = "initialized";
+
+        @Override
+        String name()
+        {
+            return NAME;
+        }
+
+        @Override
+        boolean isInitialized()
+        {
+            return true;
+        }
+
+        @Override
+        Initialized asInitialized()
+        {
+            return this;
+        }
+
+        Prepared prepare(UnfilteredPartitionIterator initialData)
+        {
+            return prepareInternal(initialData);
+        }
+    }
+
+    protected abstract Prepared prepareInternal(UnfilteredPartitionIterator initialData);
+
+    protected abstract class Prepared extends State implements Augmentable
+    {
+        private static final String NAME = "prepared";
+
+        @Override
+        String name()
+        {
+            return NAME;
+        }
+
+        @Override
+        boolean isPrepared()
+        {
+            return true;
+        }
+
+        @Override
+        Prepared asPrepared()
+        {
+            return this;
+        }
+
+        abstract Completed complete();
+
+    }
+
+    protected abstract class Completed extends State
+    {
+        private static final String NAME = "completed";
+
+        @Override
+        String name()
+        {
+            return NAME;
+        }
+
+        protected abstract UnfilteredPartitionIterator iterator();
+        protected abstract CompletedRead createResult(UnfilteredPartitionIterator iterator);
+
+        protected CompletedRead getResult()
+        {
+            UnfilteredPartitionIterator result = command().completeTrackedRead(iterator(), AbstractPartialTrackedRead.this);
+            // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
+            // ends equal, and there are no dangling RT bound in any partition.
+            result = RTBoundValidator.validate(result, RTBoundValidator.Stage.PROCESSED, true);
+            return createResult(result);
+        }
     }
 
     final ReadExecutionController executionController;
-    final Index.Searcher searcher;
     final ColumnFamilyStore cfs;
     final long startTimeNanos;
-    volatile State state = State.INITIALIZED;
+    private State state = new Initialized();
 
-    public AbstractPartialTrackedRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
+    public AbstractPartialTrackedRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
     {
         this.executionController = executionController;
-        this.searcher = searcher;
         this.cfs = cfs;
         this.startTimeNanos = startTimeNanos;
     }
@@ -66,12 +206,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     public ReadExecutionController executionController()
     {
         return executionController;
-    }
-
-    @Override
-    public Index.Searcher searcher()
-    {
-        return searcher;
     }
 
     @Override
@@ -86,69 +220,47 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
         return startTimeNanos;
     }
 
-    abstract void freezeInitialData();
-
-    abstract UnfilteredPartitionIterator initialData();
-
-    abstract UnfilteredPartitionIterator augmentedData();
-
-    abstract void augmentResponse(PartitionUpdate update);
+    protected synchronized State state()
+    {
+        return state;
+    }
 
     /**
      * Implementors need to call this before returning this from createInProgressRead
+     * TODO (expected): this is a redundant transition from a redundant state (INITIALIZED)
      */
-    synchronized void prepare()
+    synchronized void prepare(UnfilteredPartitionIterator initialData)
     {
         logger.trace("Preparing read {}", this);
-        Preconditions.checkState(state == State.INITIALIZED);
-        freezeInitialData();
-        state = State.PREPARED;
+        state = state.asInitialized().prepare(initialData);
     }
 
     @Override
-    public void augment(Mutation mutation)
+    public synchronized void augment(Mutation mutation)
     {
-        Preconditions.checkState(state == State.PREPARED);
         PartitionUpdate update = mutation.getPartitionUpdate(command().metadata());
         if (update != null)
-            augmentResponse(update);
+            state = state.asAugmentable().augment(update);
     }
-
-    private UnfilteredPartitionIterator complete(UnfilteredPartitionIterator iterator)
-    {
-        return command().completeTrackedRead(iterator, this);
-    }
-
-    abstract CompletedRead createResult(UnfilteredPartitionIterator iterator);
 
     @Override
     public synchronized CompletedRead complete()
     {
-        Preconditions.checkState(state == State.PREPARED);
-        state = State.READING;
-
-        UnfilteredPartitionIterator initial = initialData();
-        UnfilteredPartitionIterator augmented = augmentedData();
-
-        UnfilteredPartitionIterator result = augmented != null ?
-                                             UnfilteredPartitionIterators.merge(List.of(initial, augmented), NOOP) :
-                                             initial;
-
-        result = complete(result);
-        // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
-        // ends equal, and there are no dangling RT bound in any partition.
-        result = RTBoundValidator.validate(result, RTBoundValidator.Stage.PROCESSED, true);
-        return createResult(complete(result));
+        Preconditions.checkState(state.isPrepared());
+        Completed completed = state.asPrepared().complete();
+        state = completed;
+        return completed.getResult();
     }
 
     @Override
     public synchronized void close()
     {
-        if (state == State.FINISHED)
+        if (state.isClosed())
             return;
 
         logger.trace("Closing read {}", this);
+        state.close();
         executionController.close();
-        state = State.FINISHED;
+        state = State.CLOSED;
     }
 }

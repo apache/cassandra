@@ -54,6 +54,7 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.BaseRowIterator;
 import org.apache.cassandra.db.rows.Cell;
@@ -61,6 +62,7 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -216,6 +218,112 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         return false;
     }
 
+    public static class RowFilterTransformation extends Transformation<BaseRowIterator<?>>
+    {
+        private final TableMetadata metadata;
+        private final long nowInSec;
+        private final List<Expression> partitionLevelExpressions = new ArrayList<>();
+        private final List<Expression> rowLevelExpressions = new ArrayList<>();
+        private final boolean needsReconciliation;
+        private DecoratedKey pk;
+
+        private RowFilterTransformation(RowFilter filter, TableMetadata metadata, long nowInSec)
+        {
+            this.metadata = metadata;
+            this.nowInSec = nowInSec;
+            for (Expression e: filter.expressions)
+            {
+                if (e.column.isStatic() || e.column.isPartitionKey())
+                    partitionLevelExpressions.add(e);
+                else
+                    rowLevelExpressions.add(e);
+            }
+            this.needsReconciliation = filter.needsReconciliation();
+        }
+
+        public int potentialMatches(PartitionUpdate update)
+        {
+            try (UnfilteredRowIterator partition = update.unfilteredIterator())
+            {
+                int matches = 0;
+                for (Expression e : partitionLevelExpressions)
+                {
+                    if (e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow(), nowInSec))
+                    {
+                        matches++;
+                        break;
+                    }
+                }
+
+                while (partition.hasNext())
+                {
+                    Unfiltered unfiltered = partition.next();
+
+                    if (unfiltered instanceof Row)
+                    {
+                        Row row = (Row) unfiltered;
+
+                        for (Expression e : rowLevelExpressions)
+                        {
+                            if (e.isSatisfiedBy(metadata, pk, row, nowInSec))
+                            {
+                                matches++;
+                                break;
+                            }
+                        }
+                    }
+                }
+                return matches;
+            }
+        }
+
+        @Override
+        protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
+        {
+            pk = partition.partitionKey();
+
+            // Short-circuit all partitions that won't match based on static and partition keys
+            for (Expression e : partitionLevelExpressions)
+            {
+                if (!e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow(), nowInSec))
+                {
+                    partition.close();
+                    return null;
+                }
+            }
+
+            BaseRowIterator<?> iterator = partition instanceof UnfilteredRowIterator
+                                          ? Transformation.apply((UnfilteredRowIterator) partition, this)
+                                          : Transformation.apply((RowIterator) partition, this);
+
+            boolean filterNonStaticColumns = !rowLevelExpressions.isEmpty();
+            if (filterNonStaticColumns && !iterator.hasNext())
+            {
+                iterator.close();
+                return null;
+            }
+
+            return iterator;
+        }
+
+            @Override
+            public Row applyToRow(Row row)
+            {
+                // If we purge deletions when reconciliation is required, we hide information replica filtering
+                // protection would require to filter rows that are no longer matches are the coordinator.
+                Row purged = needsReconciliation ? row : row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+
+                if (purged == null)
+                    return null;
+
+            for (Expression e : rowLevelExpressions)
+                if (!e.isSatisfiedBy(metadata, pk, purged, nowInSec))
+                    return null;
+
+            return row;
+        }
+    }
+
     /**
      * Note that the application of this transformation does not yet take {@link #isStrict()} into account. This means
      * that even when strict filtering is not safe, expressions will be applied as intersections rather than unions.
@@ -224,68 +332,9 @@ public class RowFilter implements Iterable<RowFilter.Expression>
      * 
      * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-190007">CASSANDRA-19007</a>
      */
-    protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec)
+    public RowFilterTransformation filter(TableMetadata metadata, long nowInSec)
     {
-        List<Expression> partitionLevelExpressions = new ArrayList<>();
-        List<Expression> rowLevelExpressions = new ArrayList<>();
-        for (Expression e: expressions)
-        {
-            if (e.column.isStatic() || e.column.isPartitionKey())
-                partitionLevelExpressions.add(e);
-            else
-                rowLevelExpressions.add(e);
-        }
-
-        long numberOfRegularColumnExpressions = rowLevelExpressions.size();
-        final boolean filterNonStaticColumns = numberOfRegularColumnExpressions > 0;
-
-        return new Transformation<>()
-        {
-            DecoratedKey pk;
-
-            @Override
-            protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
-            {
-                pk = partition.partitionKey();
-
-                // Short-circuit all partitions that won't match based on static and partition keys
-                for (Expression e : partitionLevelExpressions)
-                    if (!e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow(), nowInSec))
-                    {
-                        partition.close();
-                        return null;
-                    }
-
-                BaseRowIterator<?> iterator = partition instanceof UnfilteredRowIterator
-                                              ? Transformation.apply((UnfilteredRowIterator) partition, this)
-                                              : Transformation.apply((RowIterator) partition, this);
-
-                if (filterNonStaticColumns && !iterator.hasNext())
-                {
-                    iterator.close();
-                    return null;
-                }
-
-                return iterator;
-            }
-
-            @Override
-            public Row applyToRow(Row row)
-            {
-                // If we purge deletions when reconciliation is required, we hide information replica filtering
-                // protection would require to filter rows that are no longer matches are the coordinator.
-                Row purged = needsReconciliation() ? row : row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
-
-                if (purged == null)
-                    return null;
-
-                for (Expression e : rowLevelExpressions)
-                    if (!e.isSatisfiedBy(metadata, pk, purged, nowInSec))
-                        return null;
-
-                return row;
-            }
-        };
+        return new RowFilterTransformation( this, metadata, nowInSec);
     }
 
     /**

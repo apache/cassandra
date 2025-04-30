@@ -25,33 +25,46 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public interface PartialTrackedRead
 {
     interface CompletedRead extends AutoCloseable
     {
-        PartitionIterator iterator();
-        TrackedRead<?, ?> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos);
+        TrackedDataResponse response(); // must be called from the read stage
+        Future<TrackedDataResponse> followupRead(TrackedDataResponse initialResponse, ConsistencyLevel consistencyLevel, long expiresAtNanos);
 
         @Override
         void close();
 
-        static CompletedRead simple(UnfilteredPartitionIterator partition, long nowInSec)
+        static TrackedDataResponse createResponse(UnfilteredPartitionIterator partition, ReadCommand command)
+        {
+            PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, command.nowInSec());
+            DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(),
+                                                                     false,
+                                                                     command.selectsFullPartition(),
+                                                                     command.metadata().enforceStrictLiveness()).onlyCount();
+            return TrackedDataResponse.create(counter.applyTo(iterator),
+                                              command.columnFilter());
+        }
+
+        static CompletedRead simple(UnfilteredPartitionIterator partition, ReadCommand command)
         {
             return new CompletedRead()
             {
                 @Override
-                public PartitionIterator iterator()
+                public TrackedDataResponse response()
                 {
-                    return UnfilteredPartitionIterators.filter(partition, nowInSec);
+                    return createResponse(partition, command);
                 }
 
                 @Override
-                public TrackedRead<?, ?> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
+                public Future<TrackedDataResponse> followupRead(TrackedDataResponse initialRead, ConsistencyLevel consistencyLevel, long expiresAtNanos)
                 {
                     return null;
                 }
