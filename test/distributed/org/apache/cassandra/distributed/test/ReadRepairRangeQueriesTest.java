@@ -98,8 +98,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithLimitOnSkinnyTable()
     {
-        if (coordinator == 2)
-            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on short read protection");
         tester("WHERE token(k) >= token(1) LIMIT 2")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 10, 100)",
@@ -127,9 +125,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithLimitOnWideTable()
     {
-        if (coordinator == 2)
-            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on short read protection");
-
         tester("WHERE token(k) >= token(1) LIMIT 2")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 10, 100, 1000)",
@@ -249,7 +244,7 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     public void testRangeQueryWithFilterOnUnselectedColumnOnWideTable()
     {
         if (coordinator == 2)
-            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on short read protection");
+            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on ALLOW FILTERING");
         tester("WHERE b=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
