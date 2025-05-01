@@ -20,6 +20,8 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,13 +37,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
-
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -49,8 +49,10 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.utils.UUIDs;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
 import org.apache.cassandra.cql3.functions.types.DataType;
 import org.apache.cassandra.cql3.functions.types.LocalDate;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
@@ -58,14 +60,17 @@ import org.apache.cassandra.cql3.functions.types.UDTValue;
 import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -82,6 +87,7 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -114,56 +120,85 @@ public abstract class CQLSSTableWriterTest
     }
 
     @Test
-    public void testUnsortedWriter() throws Exception
+    public void testUnsortedWriterBig() throws Exception
     {
-        String schema = "CREATE TABLE " + qualifiedTable + " ("
-                        + "  k int PRIMARY KEY,"
-                        + "  v1 text,"
-                        + "  v2 int"
-                        + ")";
-        String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                  .inDirectory(dataDir)
-                                                  .forTable(schema)
-                                                  .using(insert).build();
+        BigFormat format = BigFormat.getInstance();
+        testWritingSstableWithFormat(format);
+    }
 
-        writer.addRow(0, "test1", 24);
-        writer.addRow(1, "test2", 44);
-        writer.addRow(2, "test3", 42);
-        writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
+    @Test
+    public void testUnsortedWriterBti() throws Exception
+    {
+        SSTableFormat<?, ?> btiFormat = new BtiFormat.BtiFormatFactory().getInstance(Collections.emptyMap());
+        testWritingSstableWithFormat(btiFormat);
+    }
 
-        writer.close();
-
-        loadSSTables(dataDir, keyspace, table);
-
-        if (verifyDataAfterLoading)
+    private void testWritingSstableWithFormat(SSTableFormat<?, ?> format) throws Exception
+    {
+        try (AutoCloseable ignored = Util.switchPartitioner(ByteOrderedPartitioner.instance))
         {
-            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
-            assertEquals(4, rs.size());
+            String schema = "CREATE TABLE " + qualifiedTable + " ("
+                            + "  k int PRIMARY KEY,"
+                            + "  v1 text,"
+                            + "  v2 int"
+                            + ")";
+            String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
+            CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                      .inDirectory(dataDir)
+                                                      .forTable(schema)
+                                                      .withFormat(format)
+                                                      .using(insert).build();
 
-            Iterator<UntypedResultSet.Row> iter = rs.iterator();
-            UntypedResultSet.Row row;
+            writer.addRow(0, "test1", 24);
+            writer.addRow(1, "test2", 44);
+            writer.addRow(2, "test3", 42);
+            writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
 
-            row = iter.next();
-            assertEquals(0, row.getInt("k"));
-            assertEquals("test1", row.getString("v1"));
-            assertEquals(24, row.getInt("v2"));
+            writer.close();
 
-            row = iter.next();
-            assertEquals(1, row.getInt("k"));
-            assertEquals("test2", row.getString("v1"));
-            //assertFalse(row.has("v2"));
-            assertEquals(44, row.getInt("v2"));
+            validateFilesAreInFormat(format);
+            loadSSTables(dataDir, keyspace, table);
 
-            row = iter.next();
-            assertEquals(2, row.getInt("k"));
-            assertEquals("test3", row.getString("v1"));
-            assertEquals(42, row.getInt("v2"));
+            if (verifyDataAfterLoading)
+            {
+                UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+                assertEquals(4, rs.size());
 
-            row = iter.next();
-            assertEquals(3, row.getInt("k"));
-            assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
-            assertEquals(12, row.getInt("v2"));
+                Iterator<UntypedResultSet.Row> iter = rs.iterator();
+                UntypedResultSet.Row row;
+
+                row = iter.next();
+                assertEquals(0, row.getInt("k"));
+                assertEquals("test1", row.getString("v1"));
+                assertEquals(24, row.getInt("v2"));
+
+                row = iter.next();
+                assertEquals(1, row.getInt("k"));
+                assertEquals("test2", row.getString("v1"));
+                assertEquals(44, row.getInt("v2"));
+
+                row = iter.next();
+                assertEquals(2, row.getInt("k"));
+                assertEquals("test3", row.getString("v1"));
+                assertEquals(42, row.getInt("v2"));
+
+                row = iter.next();
+                assertEquals(3, row.getInt("k"));
+                assertFalse(row.has("v1"));
+                assertEquals(12, row.getInt("v2"));
+            }
+        }
+    }
+
+    private void validateFilesAreInFormat(SSTableFormat<?, ?> format) throws IOException
+    {
+        try (Stream<Path> dataFilePaths = Files.list(dataDir.toPath()).filter(p -> p.toString().endsWith("Data.db")))
+        {
+            dataFilePaths.forEach(dataFilePath -> {
+                File dataFile = new File(dataFilePath.toFile());
+                Descriptor descriptor = Descriptor.fromFile(dataFile);
+                assertEquals(format, descriptor.version.format);
+            });
         }
     }
 
@@ -1611,9 +1646,9 @@ public abstract class CQLSSTableWriterTest
             {
                 assertEquals(cnt, row.getInt("k"));
                 List<Float> vector = row.getVector("v1", FloatType.instance, 5);
-                Assertions.assertThat(vector).hasSize(5);
+                assertThat(vector).hasSize(5);
                 final float floatCount = (float)cnt;
-                Assertions.assertThat(vector).allMatch(val -> val == floatCount);
+                assertThat(vector).allMatch(val -> val == floatCount);
                 cnt++;
             }
         }
