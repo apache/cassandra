@@ -39,6 +39,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.schema.CDCParams;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -80,6 +81,9 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         Guardrails.ddlEnabled.ensureEnabled(state);
 
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(attrs.asAlteredKeyspaceParams(keyspace.params));
+
+        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
+            Guardrails.simpleStrategyEnabled.ensureEnabled(state);
 
         if (newKeyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");

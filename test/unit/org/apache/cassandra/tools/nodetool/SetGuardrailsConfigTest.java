@@ -74,6 +74,7 @@ public class SetGuardrailsConfigTest extends CQLTester
                                                "setReadConsistencyLevelsWarnedCSV\tjava.lang.String\n" +
                                                "setSecondaryIndexesEnabled\tboolean\n" +
                                                "setSecondaryIndexesPerTableThreshold\t[int, int]\n" +
+                                               "setSimpleStrategyEnabled\tboolean\n" +
                                                "setTablePropertiesDisallowed\tjava.util.Set\n" +
                                                "setTablePropertiesDisallowedCSV\tjava.lang.String\n" +
                                                "setTablePropertiesIgnored\tjava.util.Set\n" +

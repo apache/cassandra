@@ -249,6 +249,14 @@ public final class Guardrails implements GuardrailsMBean
                     "Querying with ALLOW FILTERING");
 
     /**
+     * Guardrail disabling setting SimpleStrategy via keyspace creation or alteration
+     */
+    public static final DisableFlag simpleStrategyEnabled =
+    new DisableFlag("simplestrategy",
+                   state -> !CONFIG_PROVIDER.getOrCreate(state).getSimpleStrategyEnabled(),
+                   "SimpleStrategy");
+
+    /**
      * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
      */
     public static final MaxThreshold inSelectCartesianProduct =
@@ -626,6 +634,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setAllowFilteringEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setAllowFilteringEnabled(enabled);
+    }
+
+    @Override
+    public boolean getSimpleStrategyEnabled()
+    {
+        return DEFAULT_CONFIG.getSimpleStrategyEnabled();
+    }
+
+    @Override
+    public void setSimpleStrategyEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setSimpleStrategyEnabled(enabled);
     }
 
     @Override

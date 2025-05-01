@@ -97,6 +97,7 @@ public class GetGuardrailsConfigTest extends CQLTester
                                                "SecondaryIndexesEnabled: true\n" +
                                                "SecondaryIndexesPerTableFailThreshold: -1\n" +
                                                "SecondaryIndexesPerTableWarnThreshold: -1\n" +
+                                               "SimpleStrategyEnabled: true\n" +
                                                "TablePropertiesDisallowedCSV: null\n" +
                                                "TablePropertiesIgnoredCSV: null\n" +
                                                "TablePropertiesWarnedCSV: null\n" +

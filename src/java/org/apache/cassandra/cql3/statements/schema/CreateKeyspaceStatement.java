@@ -40,6 +40,7 @@ import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.metrics.ConfigurationMetrics;
 import org.apache.cassandra.schema.CDCParams;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.Keyspaces;
@@ -71,6 +72,9 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         if (!attrs.hasOption(Option.REPLICATION))
             throw ire("Missing mandatory option '%s'", Option.REPLICATION);
+
+        if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
+            Guardrails.simpleStrategyEnabled.ensureEnabled("SimpleStrategy", state);
 
         if (schema.containsKeyspace(keyspaceName))
         {
