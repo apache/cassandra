@@ -79,7 +79,7 @@ public class RepairGenerators
         return args.stream().anyMatch(s -> RepairType.FULL.arg.equals(s));
     }
 
-    public static boolean isIncramental(List<String> args)
+    public static boolean isIncremental(List<String> args)
     {
         return !isFull(args);
     }
