@@ -2310,5 +2310,10 @@ basic_unreserved_keyword returns [String str]
         | K_BETWEEN
         | K_CHECK
         | K_INDEXES
+        | K_COMMIT
+        | K_END
+        | K_LET
+        | K_THEN
+        | K_TRANSACTION
         ) { $str = $k.text; }
     ;
