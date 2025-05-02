@@ -45,6 +45,8 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -601,20 +603,19 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
                 try (PartialTrackedRead.CompletedRead completedRead = read.complete())
                 {
                     TrackedDataResponse response = TrackedDataResponse.create(completedRead.iterator(), selection);
-                    TrackedRead<?, ?> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
+                    Future<PartitionIterator> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
 
                     if (followUp != null)
                     {
                         ReadCommand command = read.command();
-                        followUp.future().addCallback((iterator, error) -> {
+                        followUp.addCallback((iterator, error) -> {
                             if (error != null)
                             {
                                 tryFailure(error);
                                 return;
                             }
-                            PartitionIterator previous = response.makeIterator(command);
-                            TrackedDataResponse newResponse = TrackedDataResponse.create(PartitionIterators.concat(List.of(previous, iterator)), selection);
-                            trySuccess(newResponse);
+                            TrackedDataResponse newResponse = TrackedDataResponse.create(iterator, selection);
+                            trySuccess(response.merge(newResponse));
                         });
                     }
                     else

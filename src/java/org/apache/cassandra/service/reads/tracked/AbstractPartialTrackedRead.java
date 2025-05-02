@@ -32,7 +32,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.transform.RTBoundValidator;
-import org.apache.cassandra.index.Index;
 
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
 
@@ -49,15 +48,14 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     }
 
     final ReadExecutionController executionController;
-    final Index.Searcher searcher;
+//    final Index.Searcher searcher;
     final ColumnFamilyStore cfs;
     final long startTimeNanos;
     volatile State state = State.INITIALIZED;
 
-    public AbstractPartialTrackedRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
+    public AbstractPartialTrackedRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
     {
         this.executionController = executionController;
-        this.searcher = searcher;
         this.cfs = cfs;
         this.startTimeNanos = startTimeNanos;
     }
@@ -66,12 +64,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     public ReadExecutionController executionController()
     {
         return executionController;
-    }
-
-    @Override
-    public Index.Searcher searcher()
-    {
-        return searcher;
     }
 
     @Override

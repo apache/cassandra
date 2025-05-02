@@ -18,11 +18,18 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +42,9 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -54,15 +63,19 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
-public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
+public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
 {
     private static final Logger logger = LoggerFactory.getLogger(PartialTrackedRangeRead.class);
 
     private final PartitionRangeReadCommand command;
-    private final SortedMap<DecoratedKey, SimpleBTreePartition> data = new TreeMap<>();
+    protected final SortedMap<DecoratedKey, SimpleBTreePartition> data = new TreeMap<>();
     private final UnfilteredPartitionIterator initialData;
     private final boolean enforceStrictLiveness;
 
@@ -73,9 +86,9 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     private boolean wasAugmented;
     AbstractBounds<PartitionPosition> followUpBounds;
 
-    public PartialTrackedRangeRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
+    PartialTrackedRangeRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
     {
-        super(executionController, searcher, cfs, startTimeNanos);
+        super(executionController, cfs, startTimeNanos);
         this.command = command;
         this.initialData = initialData;
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
@@ -83,7 +96,21 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
 
     public static PartialTrackedRangeRead create(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
     {
-        PartialTrackedRangeRead read = new PartialTrackedRangeRead(executionController, searcher, cfs, startTimeNanos, command, initialData);
+        RowFilter rowFilter = command.rowFilter();
+        PartialTrackedRangeRead read;
+        if (searcher != null)
+        {
+            throw new UnsupportedOperationException("TODO: CASSANDRA-20374");
+        }
+        else if (!rowFilter.isEmpty())
+        {
+            read = new PartialTrackedRangeRead.Filtered(executionController, cfs, startTimeNanos, command, initialData);
+        }
+        else
+        {
+            read = new PartialTrackedRangeRead.Simple(executionController, cfs, startTimeNanos, command, initialData);
+        }
+
         try
         {
             read.prepare();
@@ -120,6 +147,8 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             }
         }
     }
+
+    protected abstract UnfilteredPartitionIterator filter(UnfilteredPartitionIterator partition);
 
     @Override
     void freezeInitialData()
@@ -164,12 +193,14 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             }
         };
 
+        UnfilteredPartitionIterator filtered = filter(materializer);
+
         // unmerged per-source counter
         final DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                                    false,
                                                                                    command.selectsFullPartition(),
                                                                                    enforceStrictLiveness);
-        try (UnfilteredPartitionIterator iterator = singleResultCounter.applyTo(materializer))
+        try (UnfilteredPartitionIterator iterator = singleResultCounter.applyTo(filtered))
         {
             consume(iterator);
         }
@@ -224,13 +255,18 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         return partition;
     }
 
+    protected boolean canAcceptUpdate(PartitionUpdate update)
+    {
+        return initialIteratorExhausted || !followUpBounds.contains(update.partitionKey());
+    }
+
     @Override
     void augmentResponse(PartitionUpdate update)
     {
         // if the input iterator reached the row limit, then we can't apply any augmenting mutations that are past
         // the last materialized key. Since we wouldn't have materialized the local data for that key, applying an
         // update would cause us to return incomplete data for it.
-        if (initialIteratorExhausted || !followUpBounds.contains(update.partitionKey()))
+        if (canAcceptUpdate(update))
             augmentResponseInternal(update);
         wasAugmented = true;
     }
@@ -258,23 +294,22 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             return Transformation.apply(counted, new EmptyPartitionsDiscarder());
         }
 
-        @Override
-        public TrackedRead<?, ?> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        protected boolean followUpRequired()
         {
             // never try to request additional partitions from replicas if our reconciled partitions are already filled to the limit
             if (mergedResultCounter.isDone())
-                return null;
+                return false;
 
             // we do not apply short read protection when we have no limits at all
             if (command.limits().isUnlimited())
-                return null;
+                return false;
 
             /*
              * If this is a single partition read command or an (indexed) partition range read command with
              * a partition key specified, then we can't and shouldn't try fetch more partitions.
              */
             if (command.isLimitedToOnePartition())
-                return null;
+                return false;
 
             /*
              * If the returned result doesn't have enough rows/partitions to satisfy even the original limit, don't ask for more.
@@ -283,14 +318,24 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
              * positives due to some rows being uncounted for in certain scenarios (see CASSANDRA-13911).
              */
             if (initialIteratorExhausted && command.limits().perPartitionCount() == DataLimits.NO_LIMIT)
-                return null;
+                return false;
 
             /*
              * Either we had an empty iterator as the initial response, or our moreContents() call got us an empty iterator.
              * There is no point to ask the replica for more rows - it has no more in the requested range.
              */
             if (!partitionsFetched)
+                return false;
+
+            return true;
+        }
+
+        @Override
+        public Future<PartitionIterator> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        {
+            if (!followUpRequired())
                 return null;
+
             partitionsFetched = false;
 
             /*
@@ -310,24 +355,10 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             return makeFollowupRead(toQuery, consistencyLevel, expiresAtNanos);
         }
 
-        private TrackedRead<?, ?> makeFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        protected Future<PartitionIterator> makeFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
         {
-            DataLimits newLimits = command.limits().forShortReadRetry(toQuery);
-
-            DataRange newDataRange = command.dataRange().forSubRange(followUpBounds);
-
-            Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-            PartitionRangeReadCommand followUpCmd = command.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
-            ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forRangeRead(keyspace,
-                                                                             followUpCmd.indexQueryPlan(),
-                                                                             consistencyLevel,
-                                                                             followUpCmd.dataRange().keyRange(),
-                                                                             1);
-
-            TrackedRead.Range read = TrackedRead.create(followUpCmd, replicaPlan);
-            logger.trace("Short read detected, starting followup read {}", read);
-            read.start(expiresAtNanos);
-            return read;
+            TrackedRead.Range read = makeFollowUpRead(command, followUpBounds, toQuery, consistencyLevel, expiresAtNanos);
+            return read.future();
         }
 
         @Override
@@ -337,11 +368,235 @@ public class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         }
     }
 
+    protected static TrackedRead.Range makeFollowUpRead(PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    {
+        DataLimits newLimits = command.limits().forShortReadRetry(toQuery);
+
+        DataRange newDataRange = command.dataRange().forSubRange(followUpBounds);
+
+        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
+        PartitionRangeReadCommand followUpCmd = command.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
+        ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forRangeRead(keyspace,
+                                                                         followUpCmd.indexQueryPlan(),
+                                                                         consistencyLevel,
+                                                                         followUpCmd.dataRange().keyRange(),
+                                                                         1);
+
+        TrackedRead.Range read = TrackedRead.create(followUpCmd, replicaPlan);
+        logger.trace("Short read detected, starting followup read {}", read);
+        read.start(expiresAtNanos);
+        return read;
+    }
+
+    protected abstract CompletedRead extendRead(UnfilteredPartitionIterator iterator);
+
     @Override
     CompletedRead createResult(UnfilteredPartitionIterator iterator)
     {
         if (wasAugmented)
-            return new ExtendingCompletedRead(iterator);
+            return extendRead(iterator);
         return CompletedRead.simple(iterator, command().nowInSec());
+    }
+
+
+    static class Simple extends PartialTrackedRangeRead
+    {
+        public Simple(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
+        {
+            super(executionController, cfs, startTimeNanos, command, initialData);
+        }
+
+        @Override
+        public Index.Searcher searcher()
+        {
+            return null;
+        }
+
+        @Override
+        protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
+        {
+            return new ExtendingCompletedRead(iterator);
+        }
+
+        @Override
+        protected UnfilteredPartitionIterator filter(UnfilteredPartitionIterator partition)
+        {
+            Preconditions.checkState(command().rowFilter().isEmpty());
+            return partition;
+        }
+    }
+
+    static class FilteredFollowupRead extends AsyncPromise<PartitionIterator>
+    {
+        private final int toQuery;
+        private final ConsistencyLevel consistencyLevel;
+        private final long expiresAtNanos;
+        private final SortedMap<DecoratedKey, Filtered.FollowUpReadInfo> followUpReadInfo;
+        private final PartitionRangeReadCommand command;
+        private final Filtered.FilteredCompletedRead initiatingRead;
+
+        public FilteredFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos, SortedMap<DecoratedKey, Filtered.FollowUpReadInfo> followUpReadInfo, PartitionRangeReadCommand command, Filtered.FilteredCompletedRead initiatingRead)
+        {
+            this.toQuery = toQuery;
+            this.consistencyLevel = consistencyLevel;
+            this.expiresAtNanos = expiresAtNanos;
+            this.followUpReadInfo = followUpReadInfo;
+            this.command = command;
+            this.initiatingRead = initiatingRead;
+        }
+
+        public void start()
+        {
+            ClusterMetadata metadata = ClusterMetadata.current();
+            List<Future<TrackedLocalReadCoordinator>> futures = new ArrayList<>();
+
+            int remaining = toQuery;
+            PeekingIterator<DecoratedKey> followUpKeys = Iterators.peekingIterator(followUpReadInfo.keySet().iterator());
+            while (remaining > 0 || (followUpKeys.hasNext() && followUpKeys.peek().compareTo(initiatingRead.finalKey()) < 0))
+            {
+                DecoratedKey key = followUpKeys.next();
+                Filtered.FollowUpReadInfo info = followUpReadInfo.get(key);
+                remaining -= info.potentialMatches;
+                SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fromRangeRead(key, command, command.limits().forShortReadRetry(toQuery));
+                TrackedRead.Partition read = TrackedRead.create(metadata, cmd, consistencyLevel);
+                futures.add(read.startLocal(expiresAtNanos));
+            }
+
+            if (remaining > 0)
+            {
+                throw new UnsupportedOperationException("TODO: start followup range read");
+            }
+
+            FutureCombiner.allOf(futures).addCallback((coordinators, error) -> {
+
+            });
+
+
+
+        }
+
+
+    }
+
+
+    /**
+     * Since ALLOW FILTERING reads can cover a lot of partitions without returning much data, we don't want to eagerly
+     * materialize partitions onto the heap and keep them there. So this filters out non-matching partitions from the
+     * freezeInitialData phase. However, if reconciliation receives a mutation that applies to a previously discarded
+     * partition AND the contents of that mutation matches the row filter, we also need to retry the read against that
+     * partition so we don't return incomplete data. This class handles both jobs
+     */
+    static class Filtered extends PartialTrackedRangeRead
+    {
+        private final RowFilter rowFilter;
+        private final RowFilter.RowFilterTransformation filter;
+        private final Set<ByteBuffer> filteredKeys = new HashSet<>();
+        private final SortedMap<DecoratedKey, FollowUpReadInfo> followUpReadInfo = new TreeMap<>();
+
+        private static class FollowUpReadInfo
+        {
+            int potentialMatches = 0;
+        }
+
+        class FilteredCompletedRead extends ExtendingCompletedRead
+        {
+            public FilteredCompletedRead(UnfilteredPartitionIterator iterator)
+            {
+                super(iterator);
+            }
+
+            /**
+             * Even if we reached the limit during materialization, if there are keys ahead of the first materialized key
+             * or interleaved with them, then we need to read them
+             * @return
+             */
+            private boolean hasInterleavedFollowupKeys()
+            {
+                if (followUpReadInfo.isEmpty())
+                    return false;
+
+                if (data.isEmpty())
+                    return true;
+
+                return followUpReadInfo.firstKey().compareTo(data.lastKey()) < 0;
+            }
+
+            DecoratedKey finalKey()
+            {
+                return data.lastKey();
+            }
+
+            @Override
+            protected boolean followUpRequired()
+            {
+                return hasInterleavedFollowupKeys() || super.followUpRequired();
+            }
+
+            @Override
+            protected Future<PartitionIterator> makeFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+            {
+                List<PartialTrackedRead> followUpReads = new ArrayList<>();
+                return super.makeFollowupRead(toQuery, consistencyLevel, expiresAtNanos);
+            }
+        }
+
+        public Filtered(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
+        {
+            super(executionController, cfs, startTimeNanos, command, initialData);
+            rowFilter = command.rowFilter();
+            filter = rowFilter.filter(command().metadata(), command().nowInSec());
+        }
+
+        @Override
+        public Index.Searcher searcher()
+        {
+            return null;
+        }
+
+        @Override
+        protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
+        {
+            // TODO: create reads for the follow up keys and the ranges, need to propagate remaining keys to next read or whatever for additional followups
+            return null;
+        }
+
+        @Override
+        protected synchronized boolean canAcceptUpdate(PartitionUpdate update)
+        {
+            DecoratedKey key = update.partitionKey();
+            if (filteredKeys.contains(key))
+            {
+                int matches = filter.potentialMatches(update);
+                if (matches > 0)
+                {
+                    FollowUpReadInfo info = followUpReadInfo.computeIfAbsent(key, k -> new FollowUpReadInfo());
+                    info.potentialMatches +=  matches;
+                }
+                logger.trace("Not applying update for previously filtered partition: {}", update.partitionKey());
+                return false;
+            }
+            return super.canAcceptUpdate(update);
+        }
+
+        @Override
+        protected UnfilteredPartitionIterator filter(UnfilteredPartitionIterator partition)
+        {
+            return Transformation.apply(partition, new Transformation<>()
+            {
+                @Override
+                protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+                {
+                    if (Transformation.apply(partition, filter).isEmpty())
+                    {
+                        DecoratedKey key = partition.partitionKey();
+                        data.remove(key);
+                        filteredKeys.add(key.getKey());
+                        partition.close();
+                        return null;
+                    }
+                    return partition;
+                }
+            });
+        }
     }
 }

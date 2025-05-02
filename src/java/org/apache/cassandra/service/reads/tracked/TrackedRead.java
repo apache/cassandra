@@ -55,6 +55,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -172,6 +173,11 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     protected abstract ReadCommand command();
     protected abstract Verb verb();
 
+    public boolean intersects(DecoratedKey key)
+    {
+        return command().dataRange().contains(key);
+    }
+
     public static Partition create(ClusterMetadata metadata,
                                    SinglePartitionReadCommand command,
                                    ConsistencyLevel consistencyLevel)
@@ -245,7 +251,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
-    public void start(long expiresAt)
+    private void start(long expiresAt, AsyncPromise<TrackedLocalReadCoordinator> coordinatorPromise)
     {
         // TODO: do the coordination locally if this is a replica
         // TODO: skip local coordination if this node knows its recovering from an outage
@@ -269,21 +275,33 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         if (dataNode == localReplica)
         {
             Stage.READ.submit(() -> {
-                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command(), consistencyLevel, summaryNodes.endpoints(), expiresAt);
-                coordinator.addCallback(((response, error) -> {
-                    if (error != null)
-                    {
-                        // TODO: notify coordinator that read has failed
-                        logger.error("Error while processing read", error);
-                        return;
-                    }
-                    logger.trace("Finished locally coordinating {}", this);
-                    onResponse(response);
-                }));
+                try
+                {
+                    TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command(), consistencyLevel, summaryNodes.endpoints(), expiresAt);
+                    coordinator.addCallback(((response, error) -> {
+                        if (error != null)
+                        {
+                            // TODO: notify coordinator that read has failed
+                            logger.error("Error while processing read", error);
+                            return;
+                        }
+                        logger.trace("Finished locally coordinating {}", this);
+                        onResponse(response);
+                    }));
+
+                    if (coordinatorPromise != null)
+                        coordinatorPromise.trySuccess(coordinator);
+                } catch (Throwable t)
+                {
+                    if (coordinatorPromise != null)
+                        coordinatorPromise.tryFailure(t);
+                    throw t;
+                }
             });
         }
         else
         {
+            Preconditions.checkArgument(coordinatorPromise == null, "Cannot supply coordinator consumer for nonlocal reads");
             DataRequest dataRequest = new DataRequest(readId, command(), consistencyLevel, summaryNodes.endpoints());
             MessagingService.instance().sendWithCallback(Message.out(verb(), dataRequest), dataNode.endpoint(), this);
         }
@@ -295,6 +313,18 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         Message<SummaryRequest> summaryMessage = Message.out(verb(), summaryRequest);
         for (InetAddressAndPort endpoint : summaryNodes.endpoints())
             MessagingService.instance().send(summaryMessage, endpoint);
+    }
+
+    public void start(long expiresAt)
+    {
+        start(expiresAt, null);
+    }
+
+    public Future<TrackedLocalReadCoordinator> startLocal(long expiresAt)
+    {
+        AsyncPromise<TrackedLocalReadCoordinator> promise = new AsyncPromise<>();
+        start(expiresAt, promise);
+        return promise;
     }
 
     public void start(Dispatcher.RequestTime requestTime)

@@ -33,16 +33,51 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import com.google.common.base.Preconditions;
 
 public class TrackedDataResponse
 {
     private final int serializationVersion;
-    private final ByteBuffer data;
+    private final List<ByteBuffer> data;
 
     public TrackedDataResponse(int serializationVersion, ByteBuffer data)
     {
+        this(serializationVersion, Collections.singletonList(data));
+    }
+
+    private TrackedDataResponse(int serializationVersion, List<ByteBuffer> data)
+    {
+        Preconditions.checkArgument(!data.isEmpty());
         this.serializationVersion = serializationVersion;
         this.data = data;
+    }
+
+    public TrackedDataResponse merge(TrackedDataResponse that)
+    {
+        Preconditions.checkArgument(serializationVersion == that.serializationVersion);
+        List<ByteBuffer> newData = new ArrayList<>(data.size() + that.data.size());
+        newData.addAll(data);
+        newData.addAll(that.data);
+        return new TrackedDataResponse(serializationVersion, newData);
+    }
+
+    public static TrackedDataResponse merge(List<TrackedDataResponse> responses)
+    {
+        Preconditions.checkArgument(!responses.isEmpty());
+        int serializationVersion = responses.get(0).serializationVersion;
+        int size = 0;
+        for (int i=0,mi=responses.size(); i<mi; i++)
+            size += responses.get(i).data.size();
+
+        List<ByteBuffer> newData = new ArrayList<>(size);
+        for (int i=0,mi=responses.size(); i<mi; i++)
+            newData.addAll(responses.get(i).data);
+
+        return new TrackedDataResponse(serializationVersion, newData);
     }
 
     public static TrackedDataResponse create(PartitionIterator iter, ColumnFilter selection)
@@ -59,7 +94,7 @@ public class TrackedDataResponse
         }
     }
 
-    public PartitionIterator makeIterator(ReadCommand command)
+    private static PartitionIterator makeIterator(int serializationVersion, ByteBuffer data, ReadCommand command)
     {
         try (DataInputBuffer in = new DataInputBuffer(data, true))
         {
@@ -72,25 +107,46 @@ public class TrackedDataResponse
         }
     }
 
+    public PartitionIterator makeIterator(ReadCommand command)
+    {
+        if (data.size() == 1)
+            return makeIterator(serializationVersion, data.get(0), command);
+
+        List<PartitionIterator> iterators = new ArrayList<>(data.size());
+        for (ByteBuffer buffer : data)
+            iterators.add(makeIterator(serializationVersion, buffer, command));
+        return PartitionIterators.mergeNonOverlapping(iterators);
+    }
+
     public static final IVersionedSerializer<TrackedDataResponse> serializer = new IVersionedSerializer<TrackedDataResponse>()
     {
         @Override
         public void serialize(TrackedDataResponse response, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(response.serializationVersion);
-            ByteBufferUtil.writeWithVIntLength(response.data, out);
+            out.writeInt(response.data.size());
+            for (ByteBuffer buffer : response.data)
+                ByteBufferUtil.writeWithVIntLength(buffer, out);
         }
 
         @Override
         public TrackedDataResponse deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new TrackedDataResponse(in.readInt(), ByteBufferUtil.readWithVIntLength(in));
+            int serializationVersion = in.readInt();
+            int size = in.readInt();
+            List<ByteBuffer> data = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+                data.add(ByteBufferUtil.readWithVIntLength(in));
+            return new TrackedDataResponse(serializationVersion, data);
         }
 
         @Override
         public long serializedSize(TrackedDataResponse response, int version)
         {
-            return TypeSizes.INT_SIZE + ByteBufferUtil.serializedSizeWithVIntLength(response.data);
+            long size = TypeSizes.INT_SIZE + TypeSizes.INT_SIZE;
+            for (ByteBuffer buffer : response.data)
+                size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
+            return size;
         }
     };
 }

@@ -35,13 +35,15 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 
 public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRead
 {
+    private final Index.Searcher searcher;
     private final SinglePartitionReadCommand command;
     private final UnfilteredPartitionIterator initialData;
     private SimpleBTreePartition augmentedData;
 
     public PartialTrackedSinglePartitionRead(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, SinglePartitionReadCommand command, UnfilteredPartitionIterator initialData)
     {
-        super(executionController, searcher, cfs, startTimeNanos);
+        super(executionController, cfs, startTimeNanos);
+        this.searcher = searcher;
         this.command = command;
         this.initialData = initialData;
     }
@@ -59,6 +61,12 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
             read.close();
             throw e;
         }
+    }
+
+    @Override
+    public Index.Searcher searcher()
+    {
+        return searcher;
     }
 
     @Override

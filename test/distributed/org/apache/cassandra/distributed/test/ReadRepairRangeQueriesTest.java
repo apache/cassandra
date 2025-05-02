@@ -20,8 +20,6 @@ package org.apache.cassandra.distributed.test;
 
 import org.junit.Test;
 
-import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
-
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
@@ -156,7 +154,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnSelectedColumnOnSkinnyTable()
     {
-        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "uses ALLOW FILTERING (CASSANDRA-20555)");
         tester("WHERE a=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 2, 3)",
@@ -183,7 +180,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnSelectedColumnOnWideTable()
     {
-        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "uses ALLOW FILTERING (CASSANDRA-20555)");
         tester("WHERE a=1 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
@@ -210,13 +206,33 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     }
 
     /**
+     * Test range queries using filtering on an selected column on a table with clustering columns.
+     */
+    @Test
+    public void testRangeQueryWithFilterOnSelectedColumnConflictingUpdates()
+    {
+        tester("WHERE a=1 ALLOW FILTERING")
+        .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
+        .mutate(1, "INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
+                "INSERT INTO %s (k, c, a, b) VALUES (1, 2, 2, 2)",
+                "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 2, 1)",
+                "INSERT INTO %s (k, c, a, b) VALUES (2, 2, 2, 2)")
+        .mutate(2, "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 1, 1)")
+        .queryColumns("a", 2, 2,
+                      rows(row(1), row(1)),
+                      rows(row(1, 1, 1, 1), row(2, 1, 1, 1)),
+                      rows(row(1, 1, 1, null), row(2, 1, 1, 1)))
+        .tearDown(2,
+                  rows(row(1, 1, 1, 1), row(1, 2, 2, 2), row(2, 1, 1, 1), row(2, 2, 2, 2)),
+                  rows(row(1, 1, 1, 1), row(2, 1, 1, 1)));
+    }
+
+    /**
      * Test range queries using filtering on an unselected column on a table without clustering columns.
      */
     @Test
     public void testRangeQueryWithFilterOnUnselectedColumnOnSkinnyTable()
     {
-        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "uses ALLOW FILTERING (CASSANDRA-20555)");
-
         tester("WHERE b=3 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int)")
         .mutate("INSERT INTO %s (k, a, b) VALUES (1, 2, 3)",
@@ -243,8 +259,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     @Test
     public void testRangeQueryWithFilterOnUnselectedColumnOnWideTable()
     {
-        if (coordinator == 2)
-            MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Depends on ALLOW FILTERING");
         tester("WHERE b=2 ALLOW FILTERING")
         .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
         .mutate("INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
