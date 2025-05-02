@@ -52,8 +52,8 @@ public class ReservedKeywordsTest
         // Add your keyword there and rebuild the jar (to generate the parser).
         //
         // If it is desired to make this keyword reserved, then you must first go to the mailing list and request a vote
-        // on this change, if that vote passes then you can update "reserved_keywords.txt".  Never update "reserved_keywords.txt"
-        // without a vote on the mailing list!
+        // on this change, if that vote passes then you can update "reserved_keywords.txt" (and pylib/cqlshlib/cqlhandling.py::cql_keywords_reserved).
+        // Never update "reserved_keywords.txt" without a vote on the mailing list!
         SoftAssertions asserts = new SoftAssertions();
         for (var f : Cql_Lexer.class.getDeclaredFields())
         {
