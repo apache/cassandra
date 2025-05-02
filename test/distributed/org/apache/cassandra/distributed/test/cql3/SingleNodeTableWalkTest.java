@@ -323,7 +323,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         Select select = builder.build();
         String annotate = cols.stream().map(symbol -> {
             var indexed = state.indexes.get(symbol);
-            return symbol.detailedName() + (indexed == null ? "" : " (indexed with " + indexed.indexDDL.indexer.name() + ")");
+            return symbol.detailedName() + (indexed == null ? "" : " (indexed with " + indexed.indexDDL.indexer.name() + ')');
         }).collect(Collectors.joining(", "));
         return state.command(rs, select, annotate);
     }
@@ -368,13 +368,15 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                   .add(StatefulASTBase::insert)
                                   .add(StatefulASTBase::fullTableScan)
                                   .addIf(State::hasPartitions, this::selectExisting)
-                                  .addAllIf(State::supportTokens, b -> b.add(this::selectToken)
-                                                                        .add(this::selectTokenRange)
-                                                                        .add(StatefulASTBase::selectMinTokenRange))
+                                  .addAllIf(State::supportTokens,
+                                            this::selectToken,
+                                            this::selectTokenRange,
+                                            StatefulASTBase::selectMinTokenRange)
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                  .addAllIf(BaseState::allowRepair, b -> b.add(StatefulASTBase::incrementalRepair)
-                                                                          .add(StatefulASTBase::previewRepair))
+                                  .addAllIf(BaseState::allowRepair,
+                                            StatefulASTBase::incrementalRepair,
+                                            StatefulASTBase::previewRepair)
                                   .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
                                   .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
