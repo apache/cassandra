@@ -245,14 +245,17 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
             super(file, ByteBufferUtil.EMPTY_BYTE_BUFFER, option, strictFlushing);
         }
 
-//        @Override
-//        public void write(byte[] b, int off, int len) throws IOException
-//        {
-//            // This logic is never valid in production environments and is only here for unit tests.  By default we never
-//            // allocate this buffer, but in unit tests we need one, so allocate to make those unit tests happy.
-//            if (this.buffer == ByteBufferUtil.EMPTY_BYTE_BUFFER)
-//                this.buffer = option.allocateBuffer();
-//            super.write(b, off, len);
-//        }
+        /**
+         * In production, we do not expect this method to be called, as only writeDirectlyToChannel should be invoked for zero-copy.
+         * <p>
+         * This method only exists for tests.
+         */
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException
+        {
+            if (this.buffer == ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                this.buffer = option.allocateBuffer();
+            super.write(b, off, len);
+        }
     }
 }
