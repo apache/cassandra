@@ -30,6 +30,7 @@
         <exec executable="git" failifexecutionfails="false" failonerror="false" resultproperty="git.success" output="${build.dir}/.ratinclude">
             <arg line="ls-tree -r HEAD --name-only"/>
         </exec>
+        <exec executable="${build.helpers.dir}/rat-include-accord.sh" failifexecutionfails="false" failonerror="false" resultproperty="git.success"  output="${build.dir}/.ratinclude" append="true" />
         <condition property="rat.skip" value="true">
             <not>
                 <equals arg1="${git.success}" arg2="0"/>
