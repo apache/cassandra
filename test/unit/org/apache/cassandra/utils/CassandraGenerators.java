@@ -33,8 +33,10 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -50,8 +52,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.compaction.LeveledManifest;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
-import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
@@ -311,8 +311,9 @@ public final class CassandraGenerators
 
     public static Gen<SSTableFormat<?, ?>> sstableFormat()
     {
-        return SourceDSL.arbitrary().pick(new BigFormat(Map.of()),
-                                          new BtiFormat(Map.of()));
+        // make sure ordering is determanstic, else repeatability breaks
+        NavigableMap<String, SSTableFormat<?, ?>> formats = new TreeMap<>(DatabaseDescriptor.getSSTableFormats());
+        return SourceDSL.arbitrary().pick(new ArrayList<>(formats.values()));
     }
 
     public static class AbstractReplicationStrategyBuilder
