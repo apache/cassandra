@@ -111,6 +111,6 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
     @Override
     CompletedRead createResult(UnfilteredPartitionIterator iterator)
     {
-        return CompletedRead.simple(iterator, command.columnFilter(), command().nowInSec());
+        return CompletedRead.simple(iterator, command);
     }
 }

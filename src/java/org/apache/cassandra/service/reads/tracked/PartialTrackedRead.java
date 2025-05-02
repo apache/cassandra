@@ -25,7 +25,8 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.index.Index;
@@ -41,19 +42,26 @@ public interface PartialTrackedRead
         @Override
         void close();
 
-        static TrackedDataResponse createResponse(UnfilteredPartitionIterator partition, ColumnFilter selection, long nowInSec)
+        static TrackedDataResponse createResponse(UnfilteredPartitionIterator partition, ReadCommand command)
         {
-            return TrackedDataResponse.create(UnfilteredPartitionIterators.filter(partition, nowInSec), selection);
+            PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, command.nowInSec());
+            DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(),
+                                                                     false,
+                                                                     command.selectsFullPartition(),
+                                                                     command.metadata().enforceStrictLiveness()).onlyCount();
+            return TrackedDataResponse.create(counter.applyTo(iterator),
+                                              command.columnFilter(),
+                                              counter::rowsCounted);
         }
 
-        static CompletedRead simple(UnfilteredPartitionIterator partition, ColumnFilter selection, long nowInSec)
+        static CompletedRead simple(UnfilteredPartitionIterator partition, ReadCommand command)
         {
             return new CompletedRead()
             {
                 @Override
                 public TrackedDataResponse response()
                 {
-                    return createResponse(partition, selection, nowInSec);
+                    return createResponse(partition, command);
                 }
 
                 @Override

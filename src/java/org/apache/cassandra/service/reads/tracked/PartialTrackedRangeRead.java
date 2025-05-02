@@ -292,7 +292,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             PartitionIterator filtered = UnfilteredPartitionIterators.filter(iterator, command.nowInSec());
             PartitionIterator counted = Transformation.apply(filtered, mergedResultCounter);
             PartitionIterator result = Transformation.apply(counted, new EmptyPartitionsDiscarder());
-            return TrackedDataResponse.create(result, command.columnFilter());
+            return TrackedDataResponse.create(result, command.columnFilter(), mergedResultCounter::rowsCounted);
         }
 
         protected boolean followUpRequired()
@@ -395,7 +395,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     {
         if (wasAugmented)
             return extendRead(iterator);
-        return CompletedRead.simple(iterator, command.columnFilter(), command().nowInSec());
+        return CompletedRead.simple(iterator, command);
     }
 
 
@@ -448,7 +448,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         public void start()
         {
             ClusterMetadata metadata = ClusterMetadata.current();
-            List<Future<TrackedLocalReadCoordinator>> futures = new ArrayList<>();
+            List<Future<TrackedDataResponse>> futures = new ArrayList<>();
 
             int remaining = toQuery;
             PeekingIterator<DecoratedKey> followUpKeys = Iterators.peekingIterator(followUpReadInfo.keySet().iterator());
@@ -459,7 +459,8 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
                 remaining -= info.potentialMatches;
                 SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fromRangeRead(key, command, command.limits().forShortReadRetry(toQuery));
                 TrackedRead.Partition read = TrackedRead.create(metadata, cmd, consistencyLevel);
-                futures.add(read.startLocal(expiresAtNanos));
+                read.start(expiresAtNanos);
+                futures.add(read.future());
             }
 
             if (remaining > 0)

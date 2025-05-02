@@ -274,28 +274,17 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         if (dataNode == localReplica)
         {
             Stage.READ.submit(() -> {
-                try
-                {
-                    TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command(), consistencyLevel, summaryNodes.endpoints(), expiresAt);
-                    coordinator.addCallback(((response, error) -> {
-                        if (error != null)
-                        {
-                            // TODO: notify coordinator that read has failed
-                            logger.error("Error while processing read", error);
-                            return;
-                        }
-                        logger.trace("Finished locally coordinating {}", this);
-                        onResponse(response);
-                    }));
-
-                    if (coordinatorPromise != null)
-                        coordinatorPromise.trySuccess(coordinator);
-                } catch (Throwable t)
-                {
-                    if (coordinatorPromise != null)
-                        coordinatorPromise.tryFailure(t);
-                    throw t;
-                }
+                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command(), consistencyLevel, summaryNodes.endpoints(), expiresAt);
+                coordinator.addCallback(((response, error) -> {
+                    if (error != null)
+                    {
+                        // TODO: notify coordinator that read has failed
+                        logger.error("Error while processing read", error);
+                        return;
+                    }
+                    logger.trace("Finished locally coordinating {}", this);
+                    onResponse(response);
+                }));
             });
         }
         else
@@ -317,13 +306,6 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     public void start(long expiresAt)
     {
         start(expiresAt, null);
-    }
-
-    public Future<TrackedLocalReadCoordinator> startLocal(long expiresAt)
-    {
-        AsyncPromise<TrackedLocalReadCoordinator> promise = new AsyncPromise<>();
-        start(expiresAt, promise);
-        return promise;
     }
 
     public void start(Dispatcher.RequestTime requestTime)
