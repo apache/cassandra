@@ -159,10 +159,21 @@ public final class Guardrails implements GuardrailsMBean
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getAlterTableCompactionStrategyEnabled(),
                     "ALTER TABLE compaction strategy");
 
+    /**
+     * Guardrail disabling DROP / TRUNCATE TABLE behavior
+     */
     public static final DisableFlag dropTruncateTableEnabled =
     new DisableFlag("drop_truncate_table_enabled",
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getDropTruncateTableEnabled(),
                     "DROP and TRUNCATE TABLE functionality");
+
+    /**
+     * Guardrail disabling DROP KEYSPACE behavior
+     */
+    public static final DisableFlag dropKeyspaceEnabled =
+    new DisableFlag("drop_keyspace_enabled",
+                   state -> !CONFIG_PROVIDER.getOrCreate(state).getDropKeyspaceEnabled(),
+                   "DROP KEYSPACE functionality");
 
     /**
      * Guardrail disabling bulk loading of SSTables
@@ -726,6 +737,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setDropTruncateTableEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setDropTruncateTableEnabled(enabled);
+    }
+
+    @Override
+    public boolean getDropKeyspaceEnabled()
+    {
+        return DEFAULT_CONFIG.getDropKeyspaceEnabled();
+    }
+
+    @Override
+    public void setDropKeyspaceEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDropKeyspaceEnabled(enabled);
     }
 
     @Override

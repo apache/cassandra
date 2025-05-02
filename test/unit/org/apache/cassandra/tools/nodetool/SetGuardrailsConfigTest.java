@@ -56,6 +56,7 @@ public class SetGuardrailsConfigTest extends CQLTester
                                                "setDDLEnabled\tboolean\n" +
                                                "setDataDiskUsageMaxDiskSize\tjava.lang.String\n" +
                                                "setDataDiskUsagePercentageThreshold\t[int, int]\n" +
+                                               "setDropKeyspaceEnabled\tboolean\n" +
                                                "setDropTruncateTableEnabled\tboolean\n" +
                                                "setFieldsPerUDTThreshold\t[int, int]\n" +
                                                "setGroupByEnabled\tboolean\n" +

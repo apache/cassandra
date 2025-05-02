@@ -329,6 +329,18 @@ public interface GuardrailsMBean
     void setDropTruncateTableEnabled(boolean enabled);
 
     /**
+     * Returns whether users can DROP a keyspace
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDropKeyspaceEnabled();
+
+    /**
+     * Sets whether users can DROP a keyspace
+     */
+    void setDropKeyspaceEnabled(boolean enabled);
+
+    /**
      * Returns whether bulk load of SSTables is allowed
      *
      * @return {@code true} if allowed, {@code false} otherwise.

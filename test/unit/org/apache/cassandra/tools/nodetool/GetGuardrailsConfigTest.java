@@ -71,6 +71,7 @@ public class GetGuardrailsConfigTest extends CQLTester
                                                "DataDiskUsageMaxDiskSize: null\n" +
                                                "DataDiskUsagePercentageFailThreshold: -1\n" +
                                                "DataDiskUsagePercentageWarnThreshold: -1\n" +
+                                               "DropKeyspaceEnabled: true\n" +
                                                "DropTruncateTableEnabled: true\n" +
                                                "FieldsPerUDTFailThreshold: -1\n" +
                                                "FieldsPerUDTWarnThreshold: -1\n" +

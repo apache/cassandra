@@ -177,6 +177,7 @@ Merged from 3.0:
 Unreleased
  * [SO-44028] Add guardrail to disallow COUNTER types
  * Add guardrail to allow disabling of SimpleStrategy (CASSANDRA-17647)
+ * [SO-41037] Add guardrail to disallow DROP KEYSPACE commands (CASSANDRA-17767)
 4.1.3.24
  * [SO-43685] A config to run repair for someone's token range
  * [SO-43611] Add table option for strict_mv_consistency to indicate if a base table of MV should use strict MV consistency

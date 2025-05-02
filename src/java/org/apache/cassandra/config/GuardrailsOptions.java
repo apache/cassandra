@@ -373,6 +373,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getDropKeyspaceEnabled()
+    {
+        return config.drop_keyspace_enabled;
+    }
+
+    public void setDropKeyspaceEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("drop_keyspace_enabled",
+                                  enabled,
+                                  () -> config.drop_keyspace_enabled,
+                                  x -> config.drop_keyspace_enabled = x);
+    };
+
+    @Override
     public boolean getBulkLoadEnabled()
     {
         return config.bulk_load_enabled;

@@ -1843,6 +1843,8 @@ drop_compact_storage_enabled: false
 # group_by_enabled: true
 # Guardrail to allow/disallow TRUNCATE and DROP TABLE statements
 # drop_truncate_table_enabled: true
+# Guardrail to allow/disallow DROP KEYSPACE statements
+# drop_keyspace_enabled: true
 #
 # Guardrail to allow/disallow bulk load of SSTables
 # bulk_load_enabled: true
