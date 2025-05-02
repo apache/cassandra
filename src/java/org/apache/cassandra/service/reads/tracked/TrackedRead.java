@@ -55,7 +55,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -135,7 +134,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
-    private final AsyncPromise<PartitionIterator> future = new AsyncPromise<>();
+    private final AsyncPromise<TrackedDataResponse> future = new AsyncPromise<>();
 
     private final Id readId = Id.nextId();
     private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
@@ -334,7 +333,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     private void onResponse(TrackedDataResponse response)
     {
-        future.trySuccess(response.makeIterator(command()));
+        future.trySuccess(response);
     }
 
     @Override
@@ -349,7 +348,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         future.tryFailure(new RequestFailure(from, failureReason));
     }
 
-    public Future<PartitionIterator> future()
+    public Future<TrackedDataResponse> future()
     {
         return future;
     }
@@ -358,7 +357,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     {
         try
         {
-            return future.get(command().getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            return future.get(command().getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS).makeIterator(command());
         }
         catch (InterruptedException e)
         {

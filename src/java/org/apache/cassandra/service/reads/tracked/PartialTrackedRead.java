@@ -25,7 +25,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.index.Index;
@@ -35,24 +35,29 @@ public interface PartialTrackedRead
 {
     interface CompletedRead extends AutoCloseable
     {
-        PartitionIterator iterator();
-        Future<PartitionIterator> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos);
+        TrackedDataResponse response(); // must be called from the read stage
+        Future<TrackedDataResponse> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos);
 
         @Override
         void close();
 
-        static CompletedRead simple(UnfilteredPartitionIterator partition, long nowInSec)
+        static TrackedDataResponse createResponse(UnfilteredPartitionIterator partition, ColumnFilter selection, long nowInSec)
+        {
+            return TrackedDataResponse.create(UnfilteredPartitionIterators.filter(partition, nowInSec), selection);
+        }
+
+        static CompletedRead simple(UnfilteredPartitionIterator partition, ColumnFilter selection, long nowInSec)
         {
             return new CompletedRead()
             {
                 @Override
-                public PartitionIterator iterator()
+                public TrackedDataResponse response()
                 {
-                    return UnfilteredPartitionIterators.filter(partition, nowInSec);
+                    return createResponse(partition, selection, nowInSec);
                 }
 
                 @Override
-                public Future<PartitionIterator> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
+                public Future<TrackedDataResponse> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
                 {
                     return null;
                 }

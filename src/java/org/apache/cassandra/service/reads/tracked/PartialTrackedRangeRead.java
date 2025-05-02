@@ -287,11 +287,12 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         }
 
         @Override
-        public PartitionIterator iterator()
+        public TrackedDataResponse response()
         {
             PartitionIterator filtered = UnfilteredPartitionIterators.filter(iterator, command.nowInSec());
             PartitionIterator counted = Transformation.apply(filtered, mergedResultCounter);
-            return Transformation.apply(counted, new EmptyPartitionsDiscarder());
+            PartitionIterator result = Transformation.apply(counted, new EmptyPartitionsDiscarder());
+            return TrackedDataResponse.create(result, command.columnFilter());
         }
 
         protected boolean followUpRequired()
@@ -331,7 +332,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         }
 
         @Override
-        public Future<PartitionIterator> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        public Future<TrackedDataResponse> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
         {
             if (!followUpRequired())
                 return null;
@@ -355,10 +356,9 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             return makeFollowupRead(toQuery, consistencyLevel, expiresAtNanos);
         }
 
-        protected Future<PartitionIterator> makeFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        protected Future<TrackedDataResponse> makeFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
         {
-            TrackedRead.Range read = makeFollowUpRead(command, followUpBounds, toQuery, consistencyLevel, expiresAtNanos);
-            return read.future();
+            return makeFollowUpRead(command, followUpBounds, toQuery, consistencyLevel, expiresAtNanos);
         }
 
         @Override
@@ -368,7 +368,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         }
     }
 
-    protected static TrackedRead.Range makeFollowUpRead(PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    protected static Future<TrackedDataResponse> makeFollowUpRead(PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
     {
         DataLimits newLimits = command.limits().forShortReadRetry(toQuery);
 
@@ -385,7 +385,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         TrackedRead.Range read = TrackedRead.create(followUpCmd, replicaPlan);
         logger.trace("Short read detected, starting followup read {}", read);
         read.start(expiresAtNanos);
-        return read;
+        return read.future();
     }
 
     protected abstract CompletedRead extendRead(UnfilteredPartitionIterator iterator);
@@ -395,7 +395,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     {
         if (wasAugmented)
             return extendRead(iterator);
-        return CompletedRead.simple(iterator, command().nowInSec());
+        return CompletedRead.simple(iterator, command.columnFilter(), command().nowInSec());
     }
 
 
@@ -533,7 +533,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             }
 
             @Override
-            protected Future<PartitionIterator> makeFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+            protected Future<TrackedDataResponse> makeFollowupRead(int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
             {
                 List<PartialTrackedRead> followUpReads = new ArrayList<>();
                 return super.makeFollowupRead(toQuery, consistencyLevel, expiresAtNanos);
