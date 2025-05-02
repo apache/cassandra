@@ -51,12 +51,14 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.RateLimitedTrackedDataInputPlus;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceivedOutOfTokenRangeException;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
@@ -86,6 +88,7 @@ public class CassandraStreamReader implements IStreamReader
     protected final int sstableLevel;
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
+    protected final StreamManager.StreamRateLimiter limiter;
 
     public CassandraStreamReader(StreamMessageHeader header, CassandraStreamHeader streamHeader, StreamSession session)
     {
@@ -105,6 +108,7 @@ public class CassandraStreamReader implements IStreamReader
         this.sstableLevel = streamHeader.sstableLevel;
         this.header = streamHeader.serializationHeader;
         this.fileSeqNum = header.sequenceNumber;
+        this.limiter = StreamManager.getInboundRateLimiter();
     }
 
     /**
@@ -130,7 +134,7 @@ public class CassandraStreamReader implements IStreamReader
         SSTableMultiWriter writer = null;
         try (StreamCompressionInputStream streamCompressionInputStream = new StreamCompressionInputStream(inputPlus, current_version))
         {
-            TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream);
+            RateLimitedTrackedDataInputPlus in = new RateLimitedTrackedDataInputPlus(streamCompressionInputStream, -1, limiter, totalSize, 1 << 16);
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, inputVersion.format);
             deserializer = getDeserializer(cfs.metadata(), in, inputVersion, session, writer);
             String sequenceName = writer.getFilename() + '-' + fileSeqNum;

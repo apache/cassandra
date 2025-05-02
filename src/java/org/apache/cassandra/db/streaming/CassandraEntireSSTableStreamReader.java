@@ -41,6 +41,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -60,6 +61,8 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
     private final StreamMessageHeader messageHeader;
     private final CassandraStreamHeader header;
     private final int fileSequenceNumber;
+    private final StreamManager.StreamRateLimiter limiter;
+
 
     public CassandraEntireSSTableStreamReader(StreamMessageHeader messageHeader, CassandraStreamHeader streamHeader, StreamSession session)
     {
@@ -75,6 +78,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
         this.messageHeader = messageHeader;
         this.tableId = messageHeader.tableId;
         this.fileSequenceNumber = messageHeader.sequenceNumber;
+        this.limiter = StreamManager.getEntireSSTableInboundRateLimiter();
     }
 
     /**
@@ -120,7 +124,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                              prettyPrintMemory(bytesRead),
                              prettyPrintMemory(totalSize));
 
-                writer.writeComponent(component, in, length);
+                writer.writeComponent(component, in, length, limiter);
                 session.progress(writer.descriptor.fileFor(component).toString(), ProgressInfo.Direction.IN, length, length, length);
                 bytesRead += length;
 

@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -168,7 +169,7 @@ public class SSTableZeroCopyWriterTest
 
                 try
                 {
-                    btzcw.writeComponent(component, pair.left, pair.right);
+                    btzcw.writeComponent(component, pair.left, pair.right, StreamManager.getEntireSSTableInboundRateLimiter());
                 }
                 catch (ClosedChannelException e)
                 {
