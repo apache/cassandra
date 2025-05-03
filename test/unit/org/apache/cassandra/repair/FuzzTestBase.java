@@ -47,6 +47,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -103,6 +104,8 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SimulatedMessageDelivery;
 import org.apache.cassandra.net.SimulatedMessageDelivery.SimulatedMessageReceiver;
+import org.apache.cassandra.repair.RepairGenerators.PreviewType;
+import org.apache.cassandra.repair.RepairGenerators.RepairType;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationResponse;
@@ -534,12 +537,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         }
     }
 
-    private enum RepairType
-    {FULL, IR}
-
-    private enum PreviewType
-    {NONE, REPAIRED, UNREPAIRED}
-
     static RepairOption repairOption(RandomSource rs, Cluster.Node coordinator, String ks, List<String> tableNames)
     {
         return repairOption(rs, coordinator, ks, Gens.lists(Gens.pick(tableNames)).ofSizeBetween(1, tableNames.size()), Gens.enums().all(RepairType.class), Gens.enums().all(PreviewType.class), Gens.enums().all(RepairParallelism.class));
@@ -557,53 +554,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     private static RepairOption repairOption(RandomSource rs, Cluster.Node coordinator, String ks, Gen<List<String>> tablesGen, Gen<RepairType> repairTypeGen, Gen<PreviewType> previewTypeGen, Gen<RepairParallelism> repairParallelismGen)
     {
-        RepairType type = repairTypeGen.next(rs);
-        PreviewType previewType = previewTypeGen.next(rs);
-        List<String> args = new ArrayList<>();
-        args.add(ks);
-        List<String> tables = tablesGen.next(rs);
-        args.addAll(tables);
-        args.add("-pr");
-        switch (type)
-        {
-            case IR:
-                // default
-                break;
-            case FULL:
-                args.add("--full");
-                break;
-            default:
-                throw new AssertionError("Unsupported repair type: " + type);
-        }
-        switch (previewType)
-        {
-            case NONE:
-                break;
-            case REPAIRED:
-                args.add("--validate");
-                break;
-            case UNREPAIRED:
-                args.add("--preview");
-                break;
-            default:
-                throw new AssertionError("Unsupported preview type: " + previewType);
-        }
-        RepairParallelism parallelism = repairParallelismGen.next(rs);
-        switch (parallelism)
-        {
-            case SEQUENTIAL:
-                args.add("--sequential");
-                break;
-            case PARALLEL:
-                // default
-                break;
-            case DATACENTER_AWARE:
-                args.add("--dc-parallel");
-                break;
-            default:
-                throw new AssertionError("Unknown parallelism: " + parallelism);
-        }
-        if (rs.nextBoolean()) args.add("--optimise-streams");
+        List<String> args = new RepairGenerators.Builder(tablesGen.map(l -> ImmutableList.<String>builderWithExpectedSize(l.size() + 1).add(ks).addAll(l).build()))
+                            .withType(repairTypeGen)
+                            .withPreviewType(previewTypeGen)
+                            .withParallelism(repairParallelismGen)
+                            .withRanges(i -> RepairGenerators.PRIMARY_RANGE)
+                            .build()
+                            .next(rs);
         RepairOption options = RepairOption.parse(Repair.parseOptionMap(() -> "test", args), DatabaseDescriptor.getPartitioner());
         if (options.getRanges().isEmpty())
         {

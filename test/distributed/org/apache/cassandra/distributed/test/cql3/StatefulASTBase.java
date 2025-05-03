@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -34,6 +34,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 
@@ -69,6 +70,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -80,6 +82,9 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
+import org.apache.cassandra.repair.RepairGenerators;
+import org.apache.cassandra.repair.RepairGenerators.PreviewType;
+import org.apache.cassandra.repair.RepairGenerators.RepairType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -118,6 +123,8 @@ public class StatefulASTBase extends TestBaseImpl
                                                                                                                          .collect(Collectors.toList()));
     protected static final Gen<Gen.IntGen> FETCH_SIZE_DISTRO = Gens.mixedDistribution(new int[] {1, 10, 100, 1000, 5000});
     protected static final Gen<Gen.IntGen> LIMIT_DISTRO = Gens.mixedDistribution(1, 1001);
+    protected static final Gen<Gen.IntGen> REPAIR_TYPE_EMPTY_MODEL_DISTRO = Gens.mixedDistribution(0, 2);
+    protected static final Gen<Gen.IntGen> REPAIR_TYPE_DISTRO = Gens.mixedDistribution(0, 3);
 
     static
     {
@@ -145,7 +152,7 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected void clusterConfig(IInstanceConfig config)
     {
-
+        config.set("repair.retries.max_attempts", Integer.MAX_VALUE);
     }
 
     protected void clusterInitializer(ClassLoader cl, int node)
@@ -185,7 +192,7 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> flushTable(RandomSource rs, S state)
     {
-        return new Property.SimpleCommand<>("nodetool flush " + state.metadata.keyspace + " " + state.metadata.name, s2 -> {
+        return new Property.SimpleCommand<>("nodetool flush " + state.metadata.keyspace + ' ' + state.metadata.name, s2 -> {
             s2.cluster.forEach(i -> i.nodetoolResult("flush", s2.metadata.keyspace, s2.metadata.name).asserts().success());
             s2.flush();
         });
@@ -193,7 +200,7 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected static <S extends BaseState> Property.Command<S, Void, ?> compactTable(RandomSource rs, S state)
     {
-        return new Property.SimpleCommand<>("nodetool compact " + state.metadata.keyspace + " " + state.metadata.name, s2 -> {
+        return new Property.SimpleCommand<>("nodetool compact " + state.metadata.keyspace + ' ' + state.metadata.name, s2 -> {
             state.cluster.forEach(i -> i.nodetoolResult("compact", s2.metadata.keyspace, s2.metadata.name).asserts().success());
             s2.compact();
         });
@@ -209,6 +216,59 @@ public class StatefulASTBase extends TestBaseImpl
 
         return multistep(state.command(rs, mutation),
                          state.commandSafeRandomHistory(selectForMutation(state, mutation), "Select for Mutation Validation"));
+    }
+
+    protected static <S extends BaseState> Property.Command<S, Void, ?> incrementalRepair(RandomSource rs, S state)
+    {
+        return repair(rs, state, state.repairArgsBuilder().withType(i -> RepairType.IR).withPreviewType(i -> PreviewType.NONE), null);
+    }
+
+    protected static <S extends BaseState> Property.Command<S, Void, ?> previewRepair(RandomSource rs, S state)
+    {
+        return repair(rs, state, state.repairArgsBuilder().withType(i -> RepairType.FULL).withPreviewType(i -> PreviewType.REPAIRED), null);
+    }
+
+    protected static <S extends BaseState> Property.Command<S, Void, ?> repair(RandomSource rs, S state, RepairGenerators.Builder argsBuilder, @Nullable String annotate)
+    {
+        IInvokableInstance inst = state.selectInstance(rs);
+        Gen<List<String>> argsGen = argsBuilder.build();
+        List<String> args = ImmutableList.<String>builder()
+                                         .add("repair")
+                                         .addAll(argsGen.next(rs))
+                                         .build();
+        boolean preview = RepairGenerators.isPreview(args);
+        // mimic org.apache.cassandra.repair.state.CoordinatorState.getType
+        String type;
+        if (preview)
+        {
+            // mimic org.apache.cassandra.tools.nodetool.Repair.getPreviewKind
+            PreviewType previewType = RepairGenerators.previewType(args);
+            switch (previewType)
+            {
+                case REPAIRED:
+                    type = "preview repaired";
+                    break;
+                case UNREPAIRED:
+                    type = RepairGenerators.isFull(args) ? "preview full" : "preview unrepaired";
+                    break;
+                default:
+                    throw new UnsupportedOperationException(previewType.name());
+            }
+        }
+        else
+        {
+            type = RepairGenerators.isFull(args) ? "full" : "incremental";
+        }
+
+        String postfix = "type " + type + ", on " + inst;
+        if (annotate == null) annotate = postfix;
+        else                  annotate += ", " + postfix;
+
+        return new Property.SimpleCommand<>("nodetool " + String.join(" ", args) + " -- " + annotate, s2 -> {
+            inst.nodetoolResult(args.toArray(String[]::new)).asserts().success();
+            if (!preview)
+                s2.repair();
+        });
     }
 
     private static <S extends CommonState> Select selectForMutation(S state, Mutation mutation)
@@ -288,16 +348,19 @@ public class StatefulASTBase extends TestBaseImpl
         protected final Gen<Conditional.Where.Inequality> lessThanGen;
         protected final Gen<Conditional.Where.Inequality> greaterThanGen;
         protected final Gen<Conditional.Where.Inequality> rangeInequalityGen;
+        protected final Gen.IntGen repairTypeEmptyModelGen, repairTypeGen;
         protected final Gen.IntGen fetchSizeGen;
         protected final TableMetadata metadata;
         protected final TableReference tableRef;
         protected final ASTSingleTableModel model;
+        private final String sstableFormatName;
         private final Visitor debug;
-        private final int enoughMemtables;
-        private final int enoughSSTables;
+        private final int enoughMemtables, enoughMemtablesForRepair;
+        private final int enoughSSTables, enoughSSTablesForRepair;
         protected int numMutations, mutationsSinceLastFlush;
-        protected int numFlushes, flushesSinceLastCompaction;
+        protected int numFlushes, flushesSinceLastCompaction, flushesSinceLastRepair;
         protected int numCompact;
+        protected int numRepairs;
         protected int operations;
 
         protected BaseState(RandomSource rs, Cluster cluster, TableMetadata metadata)
@@ -322,13 +385,21 @@ public class StatefulASTBase extends TestBaseImpl
             this.perPartitionLimitGen = LIMIT_DISTRO.next(rs);
             this.limitGen = LIMIT_DISTRO.next(rs);
 
-            this.enoughMemtables = rs.pickInt(3, 10, 50);
+            this.repairTypeEmptyModelGen = REPAIR_TYPE_EMPTY_MODEL_DISTRO.next(rs);
+            this.repairTypeGen = REPAIR_TYPE_DISTRO.next(rs);
+
+            this.enoughMemtables = rs.pickInt(1, 3, 10, 50);
+            this.enoughMemtablesForRepair = rs.pickInt(1, 3, 10, 50);
             this.enoughSSTables = rs.pickInt(3, 10, 50);
+            this.enoughSSTablesForRepair = rs.pickInt(1, 3, 10, 50);
 
             this.metadata = metadata;
             this.tableRef = TableReference.from(metadata);
             this.model = new ASTSingleTableModel(metadata, IGNORED_ISSUES);
             createTable(metadata);
+
+            String sstableFormatName = this.sstableFormatName = Generators.toGen(CassandraGenerators.sstableFormatNames()).next(rs);
+            cluster.forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setSelectedSSTableFormat(sstableFormatName)));
         }
 
         public boolean hasPartitions()
@@ -362,6 +433,35 @@ public class StatefulASTBase extends TestBaseImpl
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select)
         {
             return command(rs, select, null);
+        }
+
+        protected boolean allowRepair()
+        {
+            return false;
+        }
+
+        protected RepairGenerators.Builder repairArgsBuilder()
+        {
+            return new RepairGenerators.Builder(i -> Arrays.asList(metadata.keyspace, metadata.name))
+                   // paxos cleanup's finish prepare is delayed based off CAS/Write timeout, but these tests make that 3 minutes (so CI is stable)
+                   // which means this step is delayed 3 minutes, making repairs suppppper slow...
+                   // see org.apache.cassandra.service.paxos.cleanup.PaxosCleanup#finishPrepare
+                   .withSkipPaxosGen(i -> true)
+                   .withRanges(rs -> {
+                       switch (model.isEmpty() ? repairTypeEmptyModelGen.next(rs) : repairTypeGen.next(rs))
+                       {
+                           case 0: return RepairGenerators.LOCAL_RANGE;
+                           case 1: return RepairGenerators.PRIMARY_RANGE;
+                           case 2:
+                           {
+                               Token a = rs.pickOrderedSet(model.partitionKeys()).token;
+                               return List.of("--start-token", Long.toString(a.getLongValue() - 1),
+                                              "--end-token", a.toString());
+                           }
+                           default: throw new UnsupportedOperationException();
+                       }
+                   })
+            ;
         }
 
         protected boolean allowLimit(Select select)
@@ -467,9 +567,21 @@ public class StatefulASTBase extends TestBaseImpl
             return mutationsSinceLastFlush > enoughMemtables;
         }
 
+        protected boolean hasEnoughMemtableForRepair()
+        {
+            // use last flush rather than last repair as this method cares about data in the memtable
+            // and not amount of mutations since repair
+            return mutationsSinceLastFlush > enoughMemtablesForRepair;
+        }
+
         protected boolean hasEnoughSSTables()
         {
             return flushesSinceLastCompaction > enoughSSTables;
+        }
+
+        protected boolean hasEnoughSSTablesForRepair()
+        {
+            return flushesSinceLastRepair > enoughSSTablesForRepair;
         }
 
         protected void mutation()
@@ -483,12 +595,22 @@ public class StatefulASTBase extends TestBaseImpl
             mutationsSinceLastFlush = 0;
             numFlushes++;
             flushesSinceLastCompaction++;
+            flushesSinceLastRepair++;
         }
 
         protected void compact()
         {
             flushesSinceLastCompaction = 0;
             numCompact++;
+        }
+
+        protected void repair()
+        {
+            if (mutationsSinceLastFlush > 0)
+                flush();
+
+            numRepairs++;
+            flushesSinceLastRepair = 0;
         }
 
         protected Value value(RandomSource rs, ByteBuffer bb, AbstractType<?> type)
@@ -599,7 +721,8 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected void toString(StringBuilder sb)
         {
-            sb.append(createKeyspaceCQL(metadata.keyspace));
+            sb.append("Config:\nsstable:\n\tselected_format: ").append(sstableFormatName);
+            sb.append('\n').append(createKeyspaceCQL(metadata.keyspace));
             CassandraGenerators.visitUDTs(metadata, udt -> sb.append('\n').append(udt.toCqlString(false, false, true)).append(';'));
             sb.append('\n').append(metadata.toCqlString(false, false, false));
         }
@@ -619,39 +742,6 @@ public class StatefulASTBase extends TestBaseImpl
             StringBuilder sb = new StringBuilder();
             toString(sb);
             return sb.toString();
-        }
-
-        private static final class ValueWithType
-        {
-            final ByteBuffer value;
-            final AbstractType type;
-
-            private ValueWithType(ByteBuffer value, AbstractType<?> type)
-            {
-                this.value = value;
-                this.type = type;
-            }
-
-            @Override
-            public boolean equals(Object o)
-            {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                ValueWithType value1 = (ValueWithType) o;
-                return value.equals(value1.value) && type.equals(value1.type);
-            }
-
-            @Override
-            public int hashCode()
-            {
-                return Objects.hash(value, type);
-            }
-
-            @Override
-            public String toString()
-            {
-                return type.toCQLString(value);
-            }
         }
     }
 

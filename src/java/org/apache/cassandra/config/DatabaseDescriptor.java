@@ -5712,6 +5712,15 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
+    public static void setSelectedSSTableFormat(String name)
+    {
+        SSTableFormat<?, ?> format = getSSTableFormats().get(name);
+        if (format == null)
+            throw new IllegalArgumentException("Unknown sstable format: " + name);
+        setSelectedSSTableFormat(format);
+    }
+
+    @VisibleForTesting
     public static void setSelectedSSTableFormat(SSTableFormat<?, ?> format)
     {
         selectedSSTableFormat = Objects.requireNonNull(format);

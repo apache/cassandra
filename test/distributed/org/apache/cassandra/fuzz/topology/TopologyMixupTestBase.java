@@ -84,8 +84,8 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ConfigGenBuilder;
+import org.apache.cassandra.utils.LoggingCommand;
 import org.apache.cassandra.utils.Retry;
 
 import static accord.utils.Property.commands;
@@ -491,35 +491,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         Command<State<S>, Void, ?> apply(RandomSource rs, State<S> state);
     }
 
-    private static class LoggingCommand<State, SystemUnderTest, Result> extends Property.ForwardingCommand<State, SystemUnderTest, Result>
-    {
-        private static final Logger logger = LoggerFactory.getLogger(LoggingCommand.class);
-
-        private LoggingCommand(Command<State, SystemUnderTest, Result> delegate)
-        {
-            super(delegate);
-        }
-
-        @Override
-        public Result apply(State s) throws Throwable
-        {
-            String name = detailed(s);
-            long startNanos = Clock.Global.nanoTime();
-            try
-            {
-                logger.info("Starting command: {}", name);
-                Result o = super.apply(s);
-                logger.info("Command {} was success after {}", name, Duration.ofNanos(Clock.Global.nanoTime() - startNanos));
-                return o;
-            }
-            catch (Throwable t)
-            {
-                logger.warn("Command {} failed after {}: {}", name, Duration.ofNanos(Clock.Global.nanoTime() - startNanos), t.toString()); // don't want stack trace, just type/msg
-                throw t;
-            }
-        }
-    }
-
     protected static class State<S extends Schema> implements AutoCloseable
     {
         final TopologyHistory topologyHistory;
@@ -656,16 +627,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
                     };
                 }
             });
-            commandsTransformers.add((state, commandGen) -> rs2 -> {
-                Command<State<S>, Void, ?> c = commandGen.next(rs2);
-                if (!(c instanceof Property.MultistepCommand))
-                    return new LoggingCommand<>(c);
-                Property.MultistepCommand<State<S>, Void> multistep = (Property.MultistepCommand<State<S>, Void>) c;
-                List<Command<State<S>, Void, ?>> subcommands = new ArrayList<>();
-                for (var sub : multistep)
-                    subcommands.add(new LoggingCommand<>(sub));
-                return multistep(subcommands);
-            });
+            commandsTransformers.add(LoggingCommand.factory());
             preActions.add(() -> {
                 int[] up = topologyHistory.up();
                 // use the most recent node just in case the cluster isn't in-sync

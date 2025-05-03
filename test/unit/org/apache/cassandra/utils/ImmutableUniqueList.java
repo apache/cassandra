@@ -62,6 +62,14 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
         return (ImmutableUniqueList<T>) EMPTY;
     }
 
+    public static <T> ImmutableUniqueList<T> of(T... values)
+    {
+        Builder<T> builder = builder(values.length);
+        for (T v : values)
+            builder.add(v);
+        return builder.build();
+    }
+
     public AsSet asSet()
     {
         if (asSet != null) return asSet;

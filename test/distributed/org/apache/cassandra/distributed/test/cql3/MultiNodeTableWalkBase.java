@@ -66,6 +66,7 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
     @Override
     protected void clusterConfig(IInstanceConfig c)
     {
+        super.clusterConfig(c);
         c.set("range_request_timeout", "180s")
          .set("read_request_timeout", "180s")
          .set("write_request_timeout", "180s")
@@ -98,6 +99,12 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
             // When a seed fails its useful to rerun the test as a single node to see if the issue persists... but doing so corrupts the random history!
             // To avoid that, this method hard codes that the test is multi node...
             return true;
+        }
+
+        @Override
+        protected boolean allowRepair()
+        {
+            return hasEnoughMemtableForRepair() || hasEnoughSSTablesForRepair();
         }
 
         @Override
