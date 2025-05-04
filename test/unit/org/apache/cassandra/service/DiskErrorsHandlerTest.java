@@ -21,11 +21,13 @@ package org.apache.cassandra.service;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_DISK_ERROR_HANDLER;
 import static org.apache.cassandra.service.DiskErrorsHandlerService.get;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -35,17 +37,16 @@ public class DiskErrorsHandlerTest
     @Test
     public void testSetting() throws Throwable
     {
+        DiskErrorsHandler handlerA;
+        DiskErrorsHandler handlerB;
         try (WithProperties ignore = new WithProperties().set(CUSTOM_DISK_ERROR_HANDLER,
                                                               HandlerA.class.getName()))
         {
             DiskErrorsHandlerService.configure();
-
-            assertSame(HandlerA.class, get().getClass());
-
-            assertTrue(HandlerA.initialized);
-            assertFalse(HandlerA.closed);
-            assertFalse(HandlerB.initialized);
-            assertFalse(HandlerB.closed);
+            handlerA = get();
+            assertSame(HandlerA.class, handlerA.getClass());
+            assertInitialized(HandlerA.class, handlerA);
+            assertNotClosed(HandlerA.class, handlerA);
         }
 
         try (WithProperties ignore = new WithProperties().set(CUSTOM_DISK_ERROR_HANDLER,
@@ -53,96 +54,73 @@ public class DiskErrorsHandlerTest
         {
             DiskErrorsHandlerService.configure();
 
-            assertTrue(HandlerA.initialized);
-            assertTrue(HandlerA.closed);
+            handlerB = get();
+            assertSame(HandlerB.class, handlerB.getClass());
 
-            assertTrue(HandlerB.initialized);
-            assertFalse(HandlerB.closed);
+            assertInitialized(HandlerA.class, handlerA);
+            assertClosed(HandlerA.class, handlerA);
 
-            assertSame(HandlerB.class, get().getClass());
+            assertInitialized(HandlerB.class, handlerB);
+            assertNotClosed(HandlerB.class, handlerB);
 
-            get().close();
+            handlerB.close();
 
-            assertTrue(HandlerB.closed);
+            assertClosed(HandlerB.class, handlerB);
         }
     }
 
     @Test
     public void testFailures()
     {
-        // failed closing
+        DiskErrorsHandler handlerC;
         try (WithProperties ignore = new WithProperties().set(CUSTOM_DISK_ERROR_HANDLER,
                                                               HandlerC.class.getName()))
         {
             DiskErrorsHandlerService.configure();
-            assertTrue(HandlerC.initialized);
-            assertSame(HandlerC.class, get().getClass());
+            handlerC = get();
+            assertInitialized(HandlerC.class, handlerC);
         }
 
-        // this will call close() on C handler
+        DiskErrorsHandler handlerA;
+        // this will call _not_ close() on C handler
         try (WithProperties ignore = new WithProperties().set(CUSTOM_DISK_ERROR_HANDLER,
-                                                              HandlerE.class.getName()))
+                                                              HandlerA.class.getName()))
         {
             DiskErrorsHandlerService.configure();
-            assertTrue(HandlerE.initialized);
-            assertSame(HandlerE.class, get().getClass());
+            handlerA = get();
+            assertInitialized(HandlerA.class, handlerA);
+            assertNotClosed(HandlerC.class, handlerC);
         }
 
         try (WithProperties ignore = new WithProperties().set(CUSTOM_DISK_ERROR_HANDLER,
                                                               HandlerD.class.getName()))
         {
-            DiskErrorsHandlerService.configure();
-            // still handler E as handler D failed to init
-            assertSame(HandlerE.class, get().getClass());
+            assertThatThrownBy(DiskErrorsHandlerService::configure)
+            .isInstanceOf(ConfigurationException.class);
+
+            assertSame(HandlerA.class, get().getClass());
+            // still handler A as handler D failed to init
+            assertInitialized(HandlerA.class, handlerA);
+            assertNotClosed(HandlerA.class, handlerA);
+        }
+
+        // what if a user tries to set no-op handler or handler which can not be constructed (constructor is private)
+        try (WithProperties ignore = new WithProperties().set(CUSTOM_DISK_ERROR_HANDLER,
+                                                              DiskErrorsHandler.NoOpDiskErrorHandler.class.getName()))
+        {
+            assertThatThrownBy(DiskErrorsHandlerService::configure)
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining("Default constructor for disk error handler class " +
+                                  '\'' + DiskErrorsHandler.NoOpDiskErrorHandler.class.getName() + "' is inaccessible.");
         }
     }
 
-    public static class HandlerA extends DummyErrorHandler
-    {
-        public static boolean initialized = false;
-        public static boolean closed = false;
+    public static class HandlerA extends DummyErrorHandler {}
 
-        @Override
-        public void init()
-        {
-            initialized = true;
-        }
-
-        @Override
-        public void close() throws Exception
-        {
-            closed = true;
-        }
-    }
-
-    public static class HandlerB extends DummyErrorHandler
-    {
-        public static boolean initialized = false;
-        public static boolean closed = false;
-
-        @Override
-        public void init()
-        {
-            initialized = true;
-        }
-
-        @Override
-        public void close() throws Exception
-        {
-            closed = true;
-        }
-    }
+    public static class HandlerB extends DummyErrorHandler {}
 
     public static class HandlerC extends DummyErrorHandler
     {
-        public static boolean initialized = false;
-
-        @Override
-        public void init()
-        {
-            initialized = true;
-        }
-
         @Override
         public void close() throws Exception
         {
@@ -152,25 +130,35 @@ public class DiskErrorsHandlerTest
 
     public static class HandlerD extends DummyErrorHandler
     {
-        public static boolean closed = false;
-
         @Override
         public void init()
         {
             throw new RuntimeException("failed to init");
         }
-
-        @Override
-        public void close() throws Exception
-        {
-            closed = true;
-        }
     }
 
-    public static class HandlerE extends DummyErrorHandler
+    public void assertClosed(Class<?> handlerClass, DiskErrorsHandler diskErrorsHandler)
     {
-        public static boolean initialized = false;
-        public static boolean closed = false;
+        assertSame(handlerClass, diskErrorsHandler.getClass());
+        assertTrue(((DummyErrorHandler) diskErrorsHandler).closed);
+    }
+
+    public void assertNotClosed(Class<?> handlerClass, DiskErrorsHandler diskErrorsHandler)
+    {
+        assertSame(handlerClass, diskErrorsHandler.getClass());
+        assertFalse(((DummyErrorHandler) diskErrorsHandler).closed);
+    }
+
+    public void assertInitialized(Class<?> handlerClass, DiskErrorsHandler diskErrorsHandler)
+    {
+        assertSame(handlerClass, diskErrorsHandler.getClass());
+        assertTrue(((DummyErrorHandler) diskErrorsHandler).initialized);
+    }
+
+    private static abstract class DummyErrorHandler implements DiskErrorsHandler
+    {
+        public boolean initialized = false;
+        public boolean closed = false;
 
         @Override
         public void init()
@@ -183,10 +171,7 @@ public class DiskErrorsHandlerTest
         {
             closed = true;
         }
-    }
 
-    private static abstract class DummyErrorHandler implements DiskErrorsHandler
-    {
         @Override
         public void handleCorruptSSTable(CorruptSSTableException e)
         {
