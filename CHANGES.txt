@@ -1,4 +1,5 @@
 5.1
+ * When a custom disk error handler fails to initiate, fail the startup of a node instead of using the no-op handler (CASSANDRA-20614)
  * Rewrite constraint framework to remove column specification from constraint definition, introduce SQL-like NOT NULL (CASSANDRA-20563)
  * Fix a bug in AutoRepair duration metric calculation if schedule finishes quickly (CASSANDRA-20622)
  * Fix AutoRepair flaky InJvm dtest (CASSANDRA-20620)

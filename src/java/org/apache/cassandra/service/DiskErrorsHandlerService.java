@@ -35,7 +35,7 @@ public class DiskErrorsHandlerService
     private static volatile DiskErrorsHandler instance = NO_OP;
 
     @VisibleForTesting
-    public static synchronized void set(DiskErrorsHandler newInstance)
+    public static synchronized void set(DiskErrorsHandler newInstance) throws ConfigurationException
     {
         if (newInstance == null)
             return;
@@ -58,7 +58,7 @@ public class DiskErrorsHandlerService
         }
         catch (Throwable t)
         {
-            logger.warn("Exception occured while initializing disk error handler of class " + newInstance.getClass().getName(), t);
+            throw new ConfigurationException("Exception occured while initializing disk error handler of class " + newInstance.getClass().getName(), t);
         }
     }
 

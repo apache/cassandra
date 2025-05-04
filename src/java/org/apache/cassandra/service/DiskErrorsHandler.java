@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 
@@ -43,8 +41,7 @@ public interface DiskErrorsHandler extends AutoCloseable
     {
         public static final DiskErrorsHandler NO_OP = new NoOpDiskErrorHandler();
 
-        @VisibleForTesting
-        NoOpDiskErrorHandler() {}
+        private NoOpDiskErrorHandler() {}
 
         @Override
         public void inspectCommitLogError(Throwable t) {}
