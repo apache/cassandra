@@ -63,6 +63,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessageFilters.Filter;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.gms.EndpointState;
@@ -445,6 +446,7 @@ public class AccordMigrationTest extends AccordTestBase
               // Forced repair while a node is down shouldn't work, use repair instead of finish-migration because repair exposes --force
               // and regular Cassandra repairs are eligible to drive migration so it's important they check --force and down nodes
               InetAddressAndPort secondNodeBroadcastAddress = InetAddressAndPort.getByAddress(cluster.get(2).broadcastAddress());
+              Filter blockNode2 = cluster.filters().allVerbs().from(2).drop();
               cluster.get(1).runOnInstance(() -> {
                   EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(secondNodeBroadcastAddress);
                   Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.markDead(secondNodeBroadcastAddress, endpointState));
@@ -454,6 +456,7 @@ public class AccordMigrationTest extends AccordTestBase
               NormalizedRanges<Token> alreadyDataRepaired = normalizedRanges(ImmutableList.of(new Range<>(upperMidToken, maxAlignedWithLocalRanges)));
               NormalizedRanges<Token> remainingPendingDataRepair = migratingRanges.subtract(alreadyDataRepaired);
               assertMigrationState(tableName, ConsensusMigrationTarget.accord, emptyList(), remainingPendingDataRepair, migratingRanges, 1);
+              blockNode2.off();
               cluster.get(1).runOnInstance(() -> {
                   EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(secondNodeBroadcastAddress);
                   Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.realMarkAlive(secondNodeBroadcastAddress, endpointState));
