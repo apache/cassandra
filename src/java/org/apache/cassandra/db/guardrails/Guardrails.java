@@ -257,6 +257,14 @@ public final class Guardrails implements GuardrailsMBean
                    "SimpleStrategy");
 
     /**
+     * Guardrail disabling COUNTER type columns
+     */
+    public static final DisableFlag counterColumnsEnabled =
+    new DisableFlag("counter_columns",
+                   state -> !CONFIG_PROVIDER.getOrCreate(state).getCounterColumnsEnabled(),
+                   "COUNTER type columns");
+
+    /**
      * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
      */
     public static final MaxThreshold inSelectCartesianProduct =
@@ -646,6 +654,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setSimpleStrategyEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setSimpleStrategyEnabled(enabled);
+    }
+
+    @Override
+    public boolean getCounterColumnsEnabled()
+    {
+        return DEFAULT_CONFIG.getCounterColumnsEnabled();
+    }
+
+    @Override
+    public void setCounterColumnsEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setCounterColumnsEnabled(enabled);
     }
 
     @Override

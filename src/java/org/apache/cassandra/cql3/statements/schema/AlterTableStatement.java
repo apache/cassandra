@@ -282,7 +282,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             }
 
             if (type.isCounter())
+            {
                 QueryProcessor.metrics.createCounterCount.inc();
+
+                // Check guardrail for COUNTER columns
+                Guardrails.counterColumnsEnabled.ensureEnabled(state);
+            }
 
             if (isStatic)
                 tableBuilder.addStaticColumn(name, type);

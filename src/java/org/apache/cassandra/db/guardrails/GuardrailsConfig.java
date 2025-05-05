@@ -225,6 +225,13 @@ public interface GuardrailsConfig
     boolean getSimpleStrategyEnabled();
 
     /**
+     * Returns whether creating COUNTER type columns is enabled
+     *
+     * @return {@code true} if COUNTER columns are allowed, {@code false} otherwise.
+     */
+    boolean getCounterColumnsEnabled();
+
+    /**
      * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
      * -1 means disabled.
      */

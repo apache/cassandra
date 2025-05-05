@@ -247,6 +247,20 @@ public interface GuardrailsMBean
     void setSimpleStrategyEnabled(boolean enabled);
 
     /**
+     * Returns whether COUNTER type columns are allowed
+     *
+     * @return {@code true} if COUNTER type columns are allowed; {@code false} otherwise
+     */
+    boolean getCounterColumnsEnabled();
+
+    /**
+     * Sets whether COUNTER type columns are allowed
+     *
+     * @param enabled {@code true} if COUNTER type columns are allowed, {@code false} otherwise.
+     */
+    void setCounterColumnsEnabled(boolean enabled);
+
+    /**
      * Returns whether users can disable compression on tables
      *
      * @return {@code true} if users can disable compression on a table, {@code false} otherwise.

@@ -51,6 +51,7 @@ public class SetGuardrailsConfigTest extends CQLTester
                                                "setCollectionSizeThreshold\t[java.lang.String, java.lang.String]\n" +
                                                "setColumnsPerTableThreshold\t[int, int]\n" +
                                                "setCompactTablesEnabled\tboolean\n" +
+                                               "setCounterColumnsEnabled\tboolean\n" +
                                                "setDCLEnabled\tboolean\n" +
                                                "setDDLEnabled\tboolean\n" +
                                                "setDataDiskUsageMaxDiskSize\tjava.lang.String\n" +

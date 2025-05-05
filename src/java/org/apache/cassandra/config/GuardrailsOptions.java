@@ -499,6 +499,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getCounterColumnsEnabled()
+    {
+        return config.counter_columns_enabled;
+    }
+
+    public void setCounterColumnsEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("counter_columns_enabled",
+                                  enabled,
+                                  () -> config.counter_columns_enabled,
+                                  x -> config.counter_columns_enabled = x);
+    }
+
+    @Override
     public int getInSelectCartesianProductWarnThreshold()
     {
         return config.in_select_cartesian_product_warn_threshold;

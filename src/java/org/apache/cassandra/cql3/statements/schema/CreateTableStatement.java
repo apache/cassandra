@@ -229,6 +229,11 @@ public final class CreateTableStatement extends AlterSchemaStatement
         // Guardrail to check whether creation of new COMPACT STORAGE tables is allowed
         if (useCompactStorage)
             Guardrails.compactTablesEnabled.ensureEnabled(state);
+
+        // Guardrail to check whether creation of COUNTER type columns is allowed
+        boolean hasCounters = rawColumns.values().stream().anyMatch(CQL3Type.Raw::isCounter);
+        if (hasCounters)
+            Guardrails.counterColumnsEnabled.ensureEnabled(state);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)

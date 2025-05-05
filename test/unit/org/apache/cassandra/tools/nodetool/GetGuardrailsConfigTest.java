@@ -65,6 +65,7 @@ public class GetGuardrailsConfigTest extends CQLTester
                                                "ColumnsPerTableFailThreshold: -1\n" +
                                                "ColumnsPerTableWarnThreshold: -1\n" +
                                                "CompactTablesEnabled: true\n" +
+                                               "CounterColumnsEnabled: true\n" +
                                                "DCLEnabled: true\n" +
                                                "DDLEnabled: true\n" +
                                                "DataDiskUsageMaxDiskSize: null\n" +

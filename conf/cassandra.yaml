@@ -1897,6 +1897,9 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow setting SimpleStrategy via keyspace creation or alteration. Defaults to true.
 # simplestrategy_enabled: true
 #
+# Guardrail to allow/disallow using COUNTER type columns. Defaults to true.
+# counter_columns_enabled: true
+#
 # Guardrail to warn or fail when creating a user-defined-type with more fields in than threshold.
 # Default -1 to disable.
 # fields_per_udt_warn_threshold: -1
