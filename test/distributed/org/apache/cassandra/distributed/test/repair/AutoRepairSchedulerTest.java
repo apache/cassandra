@@ -44,6 +44,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.hamcrest.Matchers.greaterThan;
@@ -78,11 +79,11 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                                     ImmutableMap.of(
                                                                     "initial_scheduler_delay", "5s",
                                                                     "enabled", "true",
-                                                                    "parallel_repair_count", "2",
+                                                                    "parallel_repair_count", "3",
                                                                     // Allow parallel replica repair to allow replicas
                                                                     // to execute full repair at same time.
                                                                     "allow_parallel_replica_repair", "true",
-                                                                    "min_repair_interval", "15s"),
+                                                                    "min_repair_interval", "5s"),
                                                                     AutoRepairConfig.RepairType.INCREMENTAL.getConfigName(),
                                                                     ImmutableMap.of(
                                                                     "initial_scheduler_delay", "5s",
@@ -137,19 +138,21 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
 
         // validate that the repair ran on all nodes
         cluster.forEach(i -> i.runOnInstance(() -> {
+            String broadcastAddress  = FBUtilities.getJustBroadcastAddress().toString();
+
             // Reduce sleeping if repair finishes quickly to speed up test but make it non-zero to provoke some
             // contention.
-            AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("1s");
+            AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("2s");
 
             AutoRepairMetrics incrementalMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.INCREMENTAL);
-            Util.spinAssert("AutoRepair has not yet completed one INCREMENTAL repair cycle",
+            Util.spinAssert(String.format("%s: AutoRepair has not yet completed one INCREMENTAL repair cycle", broadcastAddress),
                             greaterThan(0L),
                             () -> incrementalMetrics.nodeRepairTimeInSec.getValue().longValue(),
                             5,
                             TimeUnit.MINUTES);
 
             // Expect some contention on incremental repair.
-            Util.spinAssert("AutoRepair has not observed any replica contention in INCREMENTAL repair",
+            Util.spinAssert(String.format("%s: AutoRepair has not observed any replica contention in INCREMENTAL repair", broadcastAddress),
                             greaterThan(0L),
                             incrementalMetrics.repairDelayedByReplica::getCount,
                             5,
@@ -159,7 +162,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
             assertEquals(0L, incrementalMetrics.repairDelayedBySchedule.getCount());
 
             AutoRepairMetrics fullMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.FULL);
-            Util.spinAssert("AutoRepair has not yet completed one FULL repair cycle",
+            Util.spinAssert(String.format("%s: AutoRepair has not yet completed one FULL repair cycle", broadcastAddress),
                             greaterThan(0L),
                             () -> fullMetrics.nodeRepairTimeInSec.getValue().longValue(),
                             5,
