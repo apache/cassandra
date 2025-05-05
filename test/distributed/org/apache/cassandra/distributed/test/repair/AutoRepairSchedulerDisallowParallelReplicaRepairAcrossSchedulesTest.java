@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
@@ -114,7 +115,8 @@ public class AutoRepairSchedulerDisallowParallelReplicaRepairAcrossSchedulesTest
         cluster.forEach(i -> i.runOnInstance(() -> {
             // Expect contention on incremental repair across schedules
             AutoRepairMetrics incrementalMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.INCREMENTAL);
-            Util.spinAssert("AutoRepair has not observed any replica contention in INCREMENTAL repair",
+            Util.spinAssert(String.format("%s: AutoRepair has not observed any replica contention in INCREMENTAL repair",
+                                          FBUtilities.getJustBroadcastAddress().toString()),
                             greaterThan(0L),
                             incrementalMetrics.repairDelayedBySchedule::getCount,
                             5,

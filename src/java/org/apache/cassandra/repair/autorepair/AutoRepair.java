@@ -196,7 +196,7 @@ public class AutoRepair
                 boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)
                                            && turn != MY_TURN_FORCE_REPAIR;
 
-                long startTime = timeFunc.get();
+                long startTimeInMillis = timeFunc.get();
                 logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId,
                             config.getRepairPrimaryTokenRangeOnly(repairType));
                 AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
@@ -242,7 +242,7 @@ public class AutoRepair
                     repairKeyspace(repairType, primaryRangeOnly, repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments(), collectedRepairStats);
                 }
 
-                cleanupAndUpdateStats(turn, repairType, repairState, myId, startTime, collectedRepairStats);
+                cleanupAndUpdateStats(turn, repairType, repairState, myId, startTimeInMillis, collectedRepairStats);
             }
             else
             {
@@ -318,8 +318,8 @@ public class AutoRepair
                     while (retryCount <= config.getRepairMaxRetries(repairType))
                     {
                         RepairCoordinator task = repairState.getRepairRunnable(keyspaceName,
-                                                                            Lists.newArrayList(curRepairAssignment.getTableNames()),
-                                                                            ranges, primaryRangeOnly);
+                                                                               Lists.newArrayList(curRepairAssignment.getTableNames()),
+                                                                               ranges, primaryRangeOnly);
                         RepairProgressListener listener = new RepairProgressListener(repairType);
                         task.addProgressListener(listener);
                         f = repairRunnableExecutors.get(repairType).submit(task);
@@ -449,7 +449,7 @@ public class AutoRepair
     }
 
     private void cleanupAndUpdateStats(RepairTurn turn, AutoRepairConfig.RepairType repairType, AutoRepairState repairState, UUID myId,
-                                       long startTime, CollectedRepairStats collectedRepairStats) throws InterruptedException
+                                       long startTimeInMillis, CollectedRepairStats collectedRepairStats) throws InterruptedException
     {
         //if it was due to priority then remove it now
         if (turn == MY_TURN_DUE_TO_PRIORITY)
@@ -457,12 +457,19 @@ public class AutoRepair
             logger.info("Remove current host from priority list");
             AutoRepairUtils.removePriorityStatus(repairType, myId);
         }
-
+        long repairScheduleElapsedInMillis = timeFunc.get() - startTimeInMillis;
+        if (repairScheduleElapsedInMillis < SLEEP_IF_REPAIR_FINISHES_QUICKLY.toMilliseconds())
+        {
+            //If repair finished quickly, happens for Cassndra cluster with empty (or tiny) data, in such cases,
+            //wait for some duration so that the JMX metrics can detect the repairInProgress
+            logger.info("Wait for {}ms for repair type {}.", SLEEP_IF_REPAIR_FINISHES_QUICKLY.toMilliseconds() - repairScheduleElapsedInMillis, repairType);
+            Thread.sleep(SLEEP_IF_REPAIR_FINISHES_QUICKLY.toMilliseconds() - repairScheduleElapsedInMillis);
+        }
         repairState.setFailedTokenRangesCount(collectedRepairStats.failedTokenRanges);
         repairState.setSucceededTokenRangesCount(collectedRepairStats.succeededTokenRanges);
         repairState.setSkippedTokenRangesCount(collectedRepairStats.skippedTokenRanges);
         repairState.setSkippedTablesCount(collectedRepairStats.skippedTables);
-        repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTime));
+        repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(repairScheduleElapsedInMillis));
         long timeInHours = TimeUnit.SECONDS.toHours(repairState.getNodeRepairTimeInSec());
         logger.info("Local {} repair time {} hour(s), stats: repairKeyspaceCount {}, " +
                     "repairTokenRangesSuccessCount {}, repairTokenRangesFailureCount {}, " +
@@ -477,13 +484,7 @@ public class AutoRepair
                         TimeUnit.SECONDS.toDays(repairState.getClusterRepairTimeInSec()));
         }
         repairState.setLastRepairTime(timeFunc.get());
-        if (timeInHours == 0 && SLEEP_IF_REPAIR_FINISHES_QUICKLY.toSeconds() > 0)
-        {
-            //If repair finished quickly, happens for an empty instance, in such case
-            //wait for some duration so that the JMX metrics can detect the repairInProgress
-            logger.info("Wait for {} for repair type {}.", SLEEP_IF_REPAIR_FINISHES_QUICKLY, repairType);
-            Thread.sleep(SLEEP_IF_REPAIR_FINISHES_QUICKLY.toMilliseconds());
-        }
+
         repairState.setRepairInProgress(false);
         AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
     }
