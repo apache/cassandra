@@ -37,7 +37,7 @@ public interface PartialTrackedRead
     interface CompletedRead extends AutoCloseable
     {
         TrackedDataResponse response(); // must be called from the read stage
-        Future<TrackedDataResponse> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos);
+        Future<TrackedDataResponse> followupRead(TrackedDataResponse initialResponse, ConsistencyLevel consistencyLevel, long expiresAtNanos);
 
         @Override
         void close();
@@ -65,7 +65,7 @@ public interface PartialTrackedRead
                 }
 
                 @Override
-                public Future<TrackedDataResponse> followupRead(ConsistencyLevel consistencyLevel, long expiresAtNanos)
+                public Future<TrackedDataResponse> followupRead(TrackedDataResponse initialRead, ConsistencyLevel consistencyLevel, long expiresAtNanos)
                 {
                     return null;
                 }

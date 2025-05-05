@@ -601,7 +601,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
                 try (PartialTrackedRead.CompletedRead completedRead = read.complete())
                 {
                     TrackedDataResponse response = completedRead.response();
-                    Future<TrackedDataResponse> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
+                    Future<TrackedDataResponse> followUp = completedRead.followupRead(response, consistencyLevel, expiresAtNanos);
 
                     if (followUp != null)
                     {
@@ -611,7 +611,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
                                 tryFailure(error);
                                 return;
                             }
-                            trySuccess(response.merge(newResponse));
+                            trySuccess(newResponse);
                         });
                     }
                     else

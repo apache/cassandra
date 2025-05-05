@@ -21,6 +21,7 @@ package org.apache.cassandra.service.reads.tracked;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -59,6 +60,11 @@ public class TrackedDataResponse
         this.data = data;
     }
 
+    public int rowCount()
+    {
+        return rowCount;
+    }
+
     public TrackedDataResponse merge(TrackedDataResponse that)
     {
         Preconditions.checkArgument(serializationVersion == that.serializationVersion);
@@ -66,6 +72,15 @@ public class TrackedDataResponse
         newData.addAll(data);
         newData.addAll(that.data);
         return new TrackedDataResponse(serializationVersion, newData, this.rowCount + that.rowCount);
+    }
+
+    public static TrackedDataResponse merge(TrackedDataResponse l, TrackedDataResponse r)
+    {
+        Preconditions.checkArgument(l.serializationVersion == r.serializationVersion);
+        List<ByteBuffer> newData = new ArrayList<>(l.data.size() + r.data.size());
+        newData.addAll(l.data);
+        newData.addAll(r.data);
+        return new TrackedDataResponse(l.serializationVersion, newData, l.rowCount + r.rowCount);
     }
 
     public static TrackedDataResponse merge(List<TrackedDataResponse> responses)
@@ -104,9 +119,13 @@ public class TrackedDataResponse
 
     private static PartitionIterator makeIterator(int serializationVersion, ByteBuffer data, ReadCommand command)
     {
+        DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(),
+                                                                 true,
+                                                                 command.selectsFullPartition(),
+                                                                 command.metadata().enforceStrictLiveness());
         try (DataInputBuffer in = new DataInputBuffer(data, true))
         {
-            return PartitionIterators.Serializer.deserialize(command.metadata(), command.columnFilter(), in, serializationVersion);
+            return counter.applyTo(PartitionIterators.Serializer.deserialize(command.metadata(), command.columnFilter(), in, serializationVersion));
         }
         catch (IOException e)
         {
