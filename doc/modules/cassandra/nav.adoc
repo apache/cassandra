@@ -106,6 +106,7 @@
 **** xref:cassandra:managing/operating/topo_changes.adoc[Topology changes]
 **** xref:cassandra:managing/operating/transientreplication.adoc[Transient replication]
 **** xref:cassandra:managing/operating/virtualtables.adoc[Virtual tables]
+**** xref:cassandra:managing/operating/password_validation.adoc[Password validation]
 *** xref:cassandra:managing/tools/index.adoc[Tools]
 **** xref:cassandra:managing/tools/cqlsh.adoc[cqlsh: the CQL shell]
 **** xref:cassandra:managing/tools/nodetool/nodetool.adoc[nodetool]

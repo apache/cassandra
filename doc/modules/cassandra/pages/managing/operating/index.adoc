@@ -19,3 +19,4 @@
 * xref:cassandra:managing/operating/topo_changes.adoc[Topology changes]
 * xref:cassandra:managing/operating/transientreplication.adoc[Transient replication]
 * xref:cassandra:managing/operating/virtualtables.adoc[Virtual tables]
+* xref:cassandra:managing/operating/password_validation.adoc[Password validation]
