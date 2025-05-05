@@ -164,6 +164,7 @@ public class CompactionTask extends AbstractCompactionTask
             long inputSizeBytes;
 
             Set<SSTableReader> actuallyCompact = Sets.difference(transaction.originals(), fullyExpiredSSTables);
+            Set<SSTableReader> all = Sets.union(transaction.originals(), fullyExpiredSSTables);
             Collection<SSTableReader> newSStables;
 
             long[] mergedRowCounts;
@@ -173,7 +174,7 @@ public class CompactionTask extends AbstractCompactionTask
             // to both ifile and dfile and SSTR will throw deletion errors on Windows if it tries to delete before scanner is closed.
             // See CASSANDRA-8019 and CASSANDRA-8399
             int nowInSec = FBUtilities.nowInSeconds();
-            try (Refs<SSTableReader> refs = Refs.ref(actuallyCompact);
+            try (Refs<SSTableReader> refs = Refs.ref(all);
                  AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact);
                  CompactionIterator ci = new CompactionIterator(compactionType, scanners.scanners, controller, nowInSec, taskId))
             {
