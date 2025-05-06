@@ -51,6 +51,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataResponse>
 {
@@ -520,7 +521,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         });
     }
 
-    public void startLocalRead(ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos)
+    public void startLocalRead(ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos, Consumer<PartialTrackedRead> partialReadConsumer)
     {
         Reading reading;
         synchronized (this)
@@ -549,6 +550,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         try
         {
             read = command.beginTrackedRead(controller);
+            if (partialReadConsumer != null)
+                partialReadConsumer.accept(read);
             // Create another summary once initial data has been read fully. We do this to catch
             // any mutations that may have arrived during initial read execution.
             secondarySummary = command.createMutationSummary(true);

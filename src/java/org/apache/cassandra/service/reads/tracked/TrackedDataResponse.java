@@ -119,13 +119,9 @@ public class TrackedDataResponse
 
     private static PartitionIterator makeIterator(int serializationVersion, ByteBuffer data, ReadCommand command)
     {
-        DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(),
-                                                                 true,
-                                                                 command.selectsFullPartition(),
-                                                                 command.metadata().enforceStrictLiveness());
         try (DataInputBuffer in = new DataInputBuffer(data, true))
         {
-            return counter.applyTo(PartitionIterators.Serializer.deserialize(command.metadata(), command.columnFilter(), in, serializationVersion));
+            return PartitionIterators.Serializer.deserialize(command.metadata(), command.columnFilter(), in, serializationVersion);
         }
         catch (IOException e)
         {
@@ -134,7 +130,7 @@ public class TrackedDataResponse
         }
     }
 
-    public PartitionIterator makeIterator(ReadCommand command)
+    public PartitionIterator makeIteratorUnlimited(ReadCommand command)
     {
         if (data.size() == 1)
             return makeIterator(serializationVersion, data.get(0), command);
@@ -143,6 +139,15 @@ public class TrackedDataResponse
         for (ByteBuffer buffer : data)
             iterators.add(makeIterator(serializationVersion, buffer, command));
         return PartitionIterators.mergeNonOverlapping(iterators);
+    }
+
+    public PartitionIterator makeIterator(ReadCommand command)
+    {
+        DataLimits.Counter counter = command.limits().newCounter(command.nowInSec(),
+                                                                 true,
+                                                                 command.selectsFullPartition(),
+                                                                 command.metadata().enforceStrictLiveness());
+        return counter.applyTo(makeIteratorUnlimited(command));
     }
 
     public static final IVersionedSerializer<TrackedDataResponse> serializer = new IVersionedSerializer<TrackedDataResponse>()

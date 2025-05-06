@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -90,7 +91,7 @@ public class TrackedLocalReads implements Shutdownable
         getOrCreate(summary.readId()).receiveSummary(from, summary.summary());
     }
 
-    public TrackedLocalReadCoordinator beginRead(TrackedRead.Id readId, ClusterMetadata metadata, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos)
+    public TrackedLocalReadCoordinator beginRead(TrackedRead.Id readId, ClusterMetadata metadata, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos, Consumer<PartialTrackedRead> partialReadConsumer)
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
@@ -117,7 +118,7 @@ public class TrackedLocalReads implements Shutdownable
         // TODO: confirm all summaryNodes are present in the replica plan
 
         TrackedLocalReadCoordinator coordinator = getOrCreate(readId);
-        coordinator.startLocalRead(command, replicaPlan, summaryNodes, expiresAtNanos);
+        coordinator.startLocalRead(command, replicaPlan, summaryNodes, expiresAtNanos, partialReadConsumer);
         return coordinator;
     }
 

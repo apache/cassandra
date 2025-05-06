@@ -19,10 +19,8 @@
 package org.apache.cassandra.service.reads.tracked;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -78,7 +76,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     protected boolean partitionsFetched; // whether we've seen any new partitions since iteration start or last moreContents() call
     protected boolean initialIteratorExhausted;
     private boolean wasAugmented;
-    protected  AbstractBounds<PartitionPosition> followUpBounds;
+    protected AbstractBounds<PartitionPosition> followUpBounds;
 
     PartialTrackedRangeRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command, UnfilteredPartitionIterator initialData)
     {
@@ -281,7 +279,6 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
 
         TrackedRead.Range read = TrackedRead.create(followUpCmd, replicaPlan);
         logger.trace("Short read detected, starting followup read {}", read);
-        read.start(expiresAtNanos);
         return read;
     }
 
@@ -361,11 +358,6 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
                 return followUpReadInfo.firstKey().compareTo(data.lastKey()) < 0;
             }
 
-            DecoratedKey finalKey()
-            {
-                return data.lastKey();
-            }
-
             @Override
             protected boolean followUpRequired()
             {
@@ -375,8 +367,20 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             @Override
             protected Future<TrackedDataResponse> makeFollowupRead(TrackedDataResponse initialResponse, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
             {
-                List<PartialTrackedRead> followUpReads = new ArrayList<>();
-                return super.makeFollowupRead(initialResponse, toQuery, consistencyLevel, expiresAtNanos);
+                if (followUpReadInfo.isEmpty())
+                    return super.makeFollowupRead(initialResponse, toQuery, consistencyLevel, expiresAtNanos);
+
+                FilteredFollowupRead followupRead = new FilteredFollowupRead(initialResponse,
+                                                                             toQuery,
+                                                                             consistencyLevel,
+                                                                             expiresAtNanos,
+                                                                             followUpReadInfo,
+                                                                             command,
+                                                                             followUpBounds,
+                                                                             data.lastKey());
+
+                followupRead.start();
+                return followupRead;
             }
         }
 
@@ -396,8 +400,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         @Override
         protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
         {
-            // TODO: create reads for the follow up keys and the ranges, need to propagate remaining keys to next read or whatever for additional followups
-            return null;
+            return new FilteredCompletedRead(command, iterator, partitionsFetched, initialIteratorExhausted, followUpBounds);
         }
 
         @Override

@@ -218,6 +218,7 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
                 "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 2, 1)",
                 "INSERT INTO %s (k, c, a, b) VALUES (2, 2, 2, 2)")
         .mutate(2, "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 1, 1)")
+        .mutate(1, "INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)")  // rewrite row for mutation tracking test
         .queryColumns("a", 2, 2,
                       rows(row(1), row(1)),
                       rows(row(1, 1, 1, 1), row(2, 1, 1, 1)),

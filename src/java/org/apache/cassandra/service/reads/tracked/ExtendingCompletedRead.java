@@ -25,6 +25,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -76,7 +77,7 @@ class ExtendingCompletedRead implements PartialTrackedRead.CompletedRead
         return TrackedDataResponse.create(result, command.columnFilter(), mergedResultCounter::rowsCounted);
     }
 
-    protected boolean followUpRequired()
+    static boolean followUpReadRequired(ReadCommand command, DataLimits.Counter mergedResultCounter, boolean initialIteratorExhausted, boolean partitionsFetched)
     {
         // never try to request additional partitions from replicas if our reconciled partitions are already filled to the limit
         if (mergedResultCounter.isDone())
@@ -112,6 +113,24 @@ class ExtendingCompletedRead implements PartialTrackedRead.CompletedRead
         return true;
     }
 
+    protected boolean followUpRequired()
+    {
+        return followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched);
+    }
+
+    static int toQuery(ReadCommand command, DataLimits.Counter mergedResultCounter)
+    {
+        /*
+         * We are going to fetch one partition at a time for thrift and potentially more for CQL.
+         * The row limit will either be set to the per partition limit - if the command has no total row limit set, or
+         * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
+         * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
+         */
+        return command.limits().count() != DataLimits.NO_LIMIT
+               ? command.limits().count() - mergedResultCounter.rowsCounted()
+               : command.limits().perPartitionCount();
+    }
+
     @Override
     public Future<TrackedDataResponse> followupRead(TrackedDataResponse initialResponse, ConsistencyLevel consistencyLevel, long expiresAtNanos)
     {
@@ -125,9 +144,7 @@ class ExtendingCompletedRead implements PartialTrackedRead.CompletedRead
          * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
          * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
          */
-        int toQuery = command.limits().count() != DataLimits.NO_LIMIT
-                      ? command.limits().count() - mergedResultCounter.rowsCounted()
-                      : command.limits().perPartitionCount();
+        int toQuery = toQuery(command, mergedResultCounter);
 
         ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
         Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, FBUtilities.getBroadcastAddressAndPort());
@@ -139,6 +156,7 @@ class ExtendingCompletedRead implements PartialTrackedRead.CompletedRead
     protected Future<TrackedDataResponse> makeFollowupRead(TrackedDataResponse initialResponse, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
     {
         TrackedRead.Range followUpRead = PartialTrackedRangeRead.makeFollowUpRead(command, followUpBounds, toQuery, consistencyLevel, expiresAtNanos);
+        followUpRead.start(expiresAtNanos);
         AsyncPromise<TrackedDataResponse> combinedRead = new AsyncPromise<>();
         followUpRead.future().addCallback((result, failure) -> {
             if (failure != null)
