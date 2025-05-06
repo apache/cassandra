@@ -26,6 +26,10 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.commons.lang3.StringUtils;
+
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -54,6 +58,8 @@ import static java.util.Collections.singleton;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
+import static org.apache.cassandra.schema.SchemaConstants.NAME_LENGTH;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -133,13 +139,21 @@ public class MigrationManagerTest
     @Test
     public void testInvalidNames()
     {
-        String[] valid = {"1", "a", "_1", "b_", "__", "1_a"};
+        String[] valid = { "1", "a", "_1", "b_", "__", "1_a" };
         for (String s : valid)
-            assertTrue(SchemaConstants.isValidName(s));
-
-        String[] invalid = {"b@t", "dash-y", "", " ", "dot.s", ".hidden"};
+        {
+            assertTrue(SchemaConstants.isValidCharsName(s));
+            KeyspaceMetadata.validateKeyspaceName(s, InvalidRequestException::new);
+        }
+        String[] invalid = { "b@t", "dash-y", "", " ", "dot.s", ".hidden" };
         for (String s : invalid)
-            assertFalse(SchemaConstants.isValidName(s));
+        {
+            assertFalse(SchemaConstants.isValidCharsName(s));
+            assertThatThrownBy(() -> KeyspaceMetadata.validateKeyspaceName(s, InvalidRequestException::new)).isInstanceOf(InvalidRequestException.class);
+        }
+
+        KeyspaceMetadata.validateKeyspaceName(StringUtils.repeat("k", NAME_LENGTH), InvalidRequestException::new);
+        assertThatThrownBy(() -> KeyspaceMetadata.validateKeyspaceName(StringUtils.repeat("k", NAME_LENGTH + 1), InvalidRequestException::new)).isInstanceOf(InvalidRequestException.class);
     }
 
     @Test
@@ -480,14 +494,22 @@ public class MigrationManagerTest
     }
 
     @Test
-    public void testValidateNullKeyspace() throws Exception
+    public void testTableMetadataBuilderWithInvalidKeyspace()
     {
-        TableMetadata.Builder builder = TableMetadata.builder(null, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
-
-        TableMetadata table1 = builder.build();
-        thrown.expect(ConfigurationException.class);
-        thrown.expectMessage(null + "." + TABLE1 + ": Keyspace name must not be empty");
-        table1.validate();
+        String[][] keyspaces =
+        {
+        { null, "Keyspace name must not be empty" },
+        { "a@b", "Keyspace name must not be empty and must contain alphanumeric or underscore characters only" },
+        { StringUtils.repeat("k", NAME_LENGTH), String.format("Keyspace name must not be more than %d characters long", NAME_LENGTH) }
+        };
+        for (String[] keyspace : keyspaces)
+        {
+            TableMetadata.Builder builder = TableMetadata.builder(keyspace[0], TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
+            TableMetadata table1 = builder.build();
+            thrown.expect(ConfigurationException.class);
+            thrown.expectMessage(String.format("%s.%s: %s", keyspace[0], TABLE1, keyspace[1]));
+            table1.validate();
+        }
     }
 
     @Test

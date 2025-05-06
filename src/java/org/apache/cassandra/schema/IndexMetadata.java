@@ -21,7 +21,6 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
@@ -42,16 +41,15 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDSerializer;
 
+import static org.apache.cassandra.schema.SchemaConstants.PATTERN_NON_WORD_CHAR;
+import static org.apache.cassandra.schema.SchemaConstants.isValidCharsName;
+
 /**
  * An immutable representation of secondary index metadata.
  */
 public final class IndexMetadata
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexMetadata.class);
-
-    private static final Pattern PATTERN_NON_WORD_CHAR = Pattern.compile("\\W");
-    private static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
-
 
     public static final Serializer serializer = new Serializer();
 
@@ -94,11 +92,6 @@ public final class IndexMetadata
         return new IndexMetadata(name, newOptions, kind);
     }
 
-    public static boolean isNameValid(String name)
-    {
-        return name != null && !name.isEmpty() && PATTERN_WORD_CHARS.matcher(name).matches();
-    }
-
     public static String generateDefaultIndexName(String table, ColumnIdentifier column)
     {
         return PATTERN_NON_WORD_CHAR.matcher(table + "_" + column.toString() + "_idx").replaceAll("");
@@ -111,7 +104,8 @@ public final class IndexMetadata
 
     public void validate(TableMetadata table)
     {
-        if (!isNameValid(name))
+        // TODO: address validating the length by CASSANDRA-20445
+        if (!isValidCharsName(name))
             throw new ConfigurationException("Illegal index name " + name);
 
         if (kind == null)
