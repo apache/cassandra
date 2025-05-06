@@ -21,6 +21,8 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -33,6 +35,10 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 
 import org.junit.Test;
 
+import static org.apache.cassandra.schema.SchemaConstants.FILENAME_LENGTH;
+import static org.apache.cassandra.schema.SchemaConstants.NAME_LENGTH;
+import static org.apache.cassandra.schema.SchemaConstants.TABLE_NAME_LENGTH;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -154,6 +160,42 @@ public class CreateTableValidationTest extends CQLTester
     {
         expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck2 ASC);",
                         "Missing CLUSTERING ORDER for column ck1");
+    }
+
+    @Test
+    public void testCreatingTableWithLongName() throws Throwable
+    {
+        int tableIdSuffix = "-1b255f4def2540a60000000000000000".length();
+        String keyspaceName = StringUtils.repeat("k", NAME_LENGTH);
+        String tableName = StringUtils.repeat("t", FILENAME_LENGTH - tableIdSuffix);
+        String tooLongTableName = StringUtils.repeat("l", FILENAME_LENGTH - tableIdSuffix + 1);
+
+        execute(String.format("CREATE KEYSPACE %s with replication = " +
+                              "{ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }",
+                              keyspaceName));
+
+        assertInvalidMessage(String.format("%s.%s: Table name must not be more than %d characters long (got %d characters for \"%2$s\")",
+                                           keyspaceName, tooLongTableName, TABLE_NAME_LENGTH, tooLongTableName.length()),
+                             String.format("CREATE TABLE %s.%s (" +
+                                           "key int PRIMARY KEY," +
+                                           "val int)", keyspaceName, tooLongTableName));
+
+        createTable(String.format("CREATE TABLE %s.%s (" +
+                                  "key int PRIMARY KEY," +
+                                  "val int)", keyspaceName, tableName));
+        execute(String.format("INSERT INTO %s.%s (key,val) VALUES (1,1)", keyspaceName, tableName));
+        assertThat(execute(String.format("SELECT * from %s.%s", keyspaceName, tableName))).hasSize(1);
+        flush(keyspaceName, tableName);
+        assertThat(execute(String.format("SELECT * from %s.%s", keyspaceName, tableName))).hasSize(1);
+    }
+
+    @Test
+    public void testNonAlphanummericTableName() throws Throwable
+    {
+        assertInvalidMessage(String.format("%s.d-3: Table name must not be empty or not contain non-alphanumeric-underscore characters (got \"d-3\")", KEYSPACE),
+                             String.format("CREATE TABLE %s.\"d-3\" (key int PRIMARY KEY, val int)", KEYSPACE));
+        assertInvalidMessage(String.format("%s.    : Table name must not be empty or not contain non-alphanumeric-underscore characters (got \"    \")", KEYSPACE),
+                             String.format("CREATE TABLE %s.\"    \" (key int PRIMARY KEY, val int)", KEYSPACE));
     }
 
     private void expectedFailure(String statement, String errorMsg)

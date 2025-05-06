@@ -48,6 +48,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -571,6 +572,14 @@ public abstract class CQLTester
         ColumnFamilyStore store = getCurrentColumnFamilyStore(keyspace);
         if (store != null)
             store.forceBlockingFlush();
+    }
+
+    public void flush(String keyspaceName, String table1, String... tables)
+    {
+        tables = ArrayUtils.add(tables, table1);
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+        for (String tableName : tables)
+            keyspace.getColumnFamilyStore(tableName).forceBlockingFlush();
     }
 
     public void disableCompaction(String keyspace)
