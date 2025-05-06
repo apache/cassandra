@@ -56,7 +56,14 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
     private final AbstractBounds<PartitionPosition> followUpBounds;
     private final DecoratedKey finalKey;
 
-    public FilteredFollowupRead(TrackedDataResponse initialResponse, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos, SortedMap<DecoratedKey, FollowUpReadInfo> followUpReadInfo, PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, DecoratedKey finalKey)
+    public FilteredFollowupRead(TrackedDataResponse initialResponse,
+                                int toQuery,
+                                ConsistencyLevel consistencyLevel,
+                                long expiresAtNanos,
+                                SortedMap<DecoratedKey, FollowUpReadInfo> followUpReadInfo,
+                                PartitionRangeReadCommand command,
+                                AbstractBounds<PartitionPosition> followUpBounds,
+                                DecoratedKey finalKey)
     {
         this.initialResponse = initialResponse;
         this.toQuery = toQuery;

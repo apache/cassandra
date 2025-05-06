@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
-import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -332,7 +331,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
     {
         private final RowFilter rowFilter;
         private final RowFilter.RowFilterTransformation filter;
-        private final Set<ByteBuffer> filteredKeys = new HashSet<>();
+        private final Set<DecoratedKey> filteredKeys = new HashSet<>();
         private final SortedMap<DecoratedKey, FollowUpReadInfo> followUpReadInfo = new TreeMap<>();
 
         class FilteredCompletedRead extends ExtendingCompletedRead
@@ -433,7 +432,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
                     {
                         DecoratedKey key = partition.partitionKey();
                         data.remove(key);
-                        filteredKeys.add(key.getKey());
+                        filteredKeys.add(key);
                         partition.close();
                         return null;
                     }
