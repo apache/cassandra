@@ -102,6 +102,9 @@ public final class JVMStabilityInspector
 
     public static void inspectThrowable(Throwable t, Consumer<Throwable> fn) throws OutOfMemoryError
     {
+        // adding this debug log so that whenever needed, we can enable debug on particular node to debug
+        logger.debug("Inspecting throwable:", t);
+
         boolean isUnstable = false;
         if (t instanceof OutOfMemoryError)
         {

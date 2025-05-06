@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44065] Add debug log for inspect throwable
  * [SO-44028] Add guardrail to disallow COUNTER types
  * Add guardrail to allow disabling of SimpleStrategy (CASSANDRA-17647)
  * [SO-41037] Add guardrail to disallow DROP KEYSPACE commands (CASSANDRA-17767)
