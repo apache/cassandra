@@ -74,7 +74,7 @@ class ExtendingCompletedRead implements PartialTrackedRead.CompletedRead
         PartitionIterator filtered = UnfilteredPartitionIterators.filter(iterator, command.nowInSec());
         PartitionIterator counted = Transformation.apply(filtered, mergedResultCounter);
         PartitionIterator result = Transformation.apply(counted, new EmptyPartitionsDiscarder());
-        return TrackedDataResponse.create(result, command.columnFilter(), mergedResultCounter::rowsCounted);
+        return TrackedDataResponse.create(result, command.columnFilter());
     }
 
     static boolean followUpReadRequired(ReadCommand command, DataLimits.Counter mergedResultCounter, boolean initialIteratorExhausted, boolean partitionsFetched)

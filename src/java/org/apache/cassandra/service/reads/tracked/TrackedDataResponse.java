@@ -37,7 +37,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.IntSupplier;
 
 import com.google.common.base.Preconditions;
 
@@ -45,24 +44,17 @@ public class TrackedDataResponse
 {
     private final int serializationVersion;
     private final List<ByteBuffer> data;
-    private final transient int rowCount;
 
-    public TrackedDataResponse(int serializationVersion, ByteBuffer data, int rowCount)
+    public TrackedDataResponse(int serializationVersion, ByteBuffer data)
     {
-        this(serializationVersion, Collections.singletonList(data), rowCount);
+        this(serializationVersion, Collections.singletonList(data));
     }
 
-    private TrackedDataResponse(int serializationVersion, List<ByteBuffer> data, int rowCount)
+    private TrackedDataResponse(int serializationVersion, List<ByteBuffer> data)
     {
-        this.rowCount = rowCount;
         Preconditions.checkArgument(!data.isEmpty());
         this.serializationVersion = serializationVersion;
         this.data = data;
-    }
-
-    public int rowCount()
-    {
-        return rowCount;
     }
 
     public TrackedDataResponse merge(TrackedDataResponse that)
@@ -71,7 +63,7 @@ public class TrackedDataResponse
         List<ByteBuffer> newData = new ArrayList<>(data.size() + that.data.size());
         newData.addAll(data);
         newData.addAll(that.data);
-        return new TrackedDataResponse(serializationVersion, newData, this.rowCount + that.rowCount);
+        return new TrackedDataResponse(serializationVersion, newData);
     }
 
     public static TrackedDataResponse merge(TrackedDataResponse l, TrackedDataResponse r)
@@ -80,7 +72,7 @@ public class TrackedDataResponse
         List<ByteBuffer> newData = new ArrayList<>(l.data.size() + r.data.size());
         newData.addAll(l.data);
         newData.addAll(r.data);
-        return new TrackedDataResponse(l.serializationVersion, newData, l.rowCount + r.rowCount);
+        return new TrackedDataResponse(l.serializationVersion, newData);
     }
 
     public static TrackedDataResponse merge(List<TrackedDataResponse> responses)
@@ -88,27 +80,24 @@ public class TrackedDataResponse
         Preconditions.checkArgument(!responses.isEmpty());
         int serializationVersion = responses.get(0).serializationVersion;
         int size = 0;
-        int rows = 0;
         for (int i=0,mi=responses.size(); i<mi; i++)
         {
             size += responses.get(i).data.size();
-            rows += responses.get(i).rowCount;
         }
 
         List<ByteBuffer> newData = new ArrayList<>(size);
         for (int i=0,mi=responses.size(); i<mi; i++)
             newData.addAll(responses.get(i).data);
 
-        return new TrackedDataResponse(serializationVersion, newData, rows);
+        return new TrackedDataResponse(serializationVersion, newData);
     }
 
-    public static TrackedDataResponse create(PartitionIterator iter, ColumnFilter selection, IntSupplier rowCountSupplier)
+    public static TrackedDataResponse create(PartitionIterator iter, ColumnFilter selection)
     {
         try (DataOutputBuffer buffer = new DataOutputBuffer())
         {
             PartitionIterators.Serializer.serialize(iter, selection, buffer, MessagingService.current_version);
-            int rowCount = rowCountSupplier != null ? rowCountSupplier.getAsInt() : 0;
-            return new TrackedDataResponse(MessagingService.current_version, buffer.buffer(), rowCount);
+            return new TrackedDataResponse(MessagingService.current_version, buffer.buffer());
         }
         catch (IOException e)
         {
@@ -169,7 +158,7 @@ public class TrackedDataResponse
             List<ByteBuffer> data = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 data.add(ByteBufferUtil.readWithVIntLength(in));
-            return new TrackedDataResponse(serializationVersion, data, -1);
+            return new TrackedDataResponse(serializationVersion, data);
         }
 
         @Override

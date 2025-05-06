@@ -50,8 +50,7 @@ public interface PartialTrackedRead
                                                                      command.selectsFullPartition(),
                                                                      command.metadata().enforceStrictLiveness()).onlyCount();
             return TrackedDataResponse.create(counter.applyTo(iterator),
-                                              command.columnFilter(),
-                                              counter::rowsCounted);
+                                              command.columnFilter());
         }
 
         static CompletedRead simple(UnfilteredPartitionIterator partition, ReadCommand command)

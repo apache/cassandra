@@ -140,7 +140,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
                 try (PartitionIterator iterator = merged.makeIteratorUnlimited(command))
                 {
                     partitionsFetched = iterator.hasNext();
-                    response = TrackedDataResponse.create(mergedResultCounter.applyTo(iterator), command.columnFilter(), mergedResultCounter::rowsCounted);
+                    response = TrackedDataResponse.create(mergedResultCounter.applyTo(iterator), command.columnFilter());
                     initialIteratorExhausted = iterator.hasNext();
                 }
 
