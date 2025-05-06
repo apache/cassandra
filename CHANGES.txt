@@ -1,4 +1,5 @@
 5.1
+ * Fix a bug in AutoRepair duration metric calculation if schedule finishes quickly (CASSANDRA-20622)
  * Fix AutoRepair flaky InJvm dtest (CASSANDRA-20620)
  * Increasing default for auto_repair.sstable_upper_threshold considering large Cassandra tables & revert three lines removed from CHANGES.txt due to a merge mistake (CASSANDRA-20586)
  * Fix token restrictions with MIN_TOKEN (CASSANDRO-20557)

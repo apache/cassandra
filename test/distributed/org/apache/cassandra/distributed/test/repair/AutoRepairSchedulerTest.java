@@ -48,6 +48,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -145,8 +146,11 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
             AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("2s");
 
             AutoRepairMetrics incrementalMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.INCREMENTAL);
+            // Since the AutoRepair sleeps up to SLEEP_IF_REPAIR_FINISHES_QUICKLY if the repair finishes quickly,
+            // so the "nodeRepairTimeInSec" metric should at least be greater than or equal to
+            // SLEEP_IF_REPAIR_FINISHES_QUICKLY
             Util.spinAssert(String.format("%s: AutoRepair has not yet completed one INCREMENTAL repair cycle", broadcastAddress),
-                            greaterThan(0L),
+                            greaterThanOrEqualTo(2L),
                             () -> incrementalMetrics.nodeRepairTimeInSec.getValue().longValue(),
                             5,
                             TimeUnit.MINUTES);
@@ -163,7 +167,7 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
 
             AutoRepairMetrics fullMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.FULL);
             Util.spinAssert(String.format("%s: AutoRepair has not yet completed one FULL repair cycle", broadcastAddress),
-                            greaterThan(0L),
+                            greaterThanOrEqualTo(2L),
                             () -> fullMetrics.nodeRepairTimeInSec.getValue().longValue(),
                             5,
                             TimeUnit.MINUTES);
