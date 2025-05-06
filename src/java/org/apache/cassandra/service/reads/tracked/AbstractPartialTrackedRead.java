@@ -48,7 +48,6 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     }
 
     final ReadExecutionController executionController;
-//    final Index.Searcher searcher;
     final ColumnFamilyStore cfs;
     final long startTimeNanos;
     volatile State state = State.INITIALIZED;
@@ -98,7 +97,7 @@ public abstract class AbstractPartialTrackedRead implements PartialTrackedRead
     }
 
     @Override
-    public void augment(Mutation mutation)
+    public synchronized void augment(Mutation mutation)
     {
         Preconditions.checkState(state == State.PREPARED);
         PartitionUpdate update = mutation.getPartitionUpdate(command().metadata());

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test;
 
+import org.junit.Assume;
 import org.junit.Test;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
@@ -206,29 +207,6 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
     }
 
     /**
-     * Test range queries using filtering on an selected column on a table with clustering columns.
-     */
-    @Test
-    public void testRangeQueryWithFilterOnSelectedColumnConflictingUpdates()
-    {
-        tester("WHERE a=1 ALLOW FILTERING")
-        .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
-        .mutate(1, "INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
-                "INSERT INTO %s (k, c, a, b) VALUES (1, 2, 2, 2)",
-                "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 2, 1)",
-                "INSERT INTO %s (k, c, a, b) VALUES (2, 2, 2, 2)")
-        .mutate(2, "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 1, 1)")
-        .mutate(1, "INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)")  // rewrite row for mutation tracking test
-        .queryColumns("a", 2, 2,
-                      rows(row(1), row(1)),
-                      rows(row(1, 1, 1, 1), row(2, 1, 1, 1)),
-                      rows(row(1, 1, 1, null), row(2, 1, 1, 1)))
-        .tearDown(2,
-                  rows(row(1, 1, 1, 1), row(1, 2, 2, 2), row(2, 1, 1, 1), row(2, 2, 2, 2)),
-                  rows(row(1, 1, 1, 1), row(2, 1, 1, 1)));
-    }
-
-    /**
      * Test range queries using filtering on an unselected column on a table without clustering columns.
      */
     @Test
@@ -283,5 +261,29 @@ public class ReadRepairRangeQueriesTest extends ReadRepairQueryTester
         .tearDown(1,
                   rows(row(2, 1, 1, 1)),
                   rows());
+    }
+
+    /**
+     * Test range queries using filtering on an selected column on a table with clustering columns.
+     */
+    @Test
+    public void testRangeQueryWithFilterOnSelectedColumnConflictingUpdates()
+    {
+        Assume.assumeTrue(replicationType.isTracked());  // very flaky for untracked replication
+        tester("WHERE a=1 ALLOW FILTERING")
+        .createTable("CREATE TABLE %s (k int, c int, a int, b int, PRIMARY KEY(k, c))")
+        .mutate(1, "INSERT INTO %s (k, c, a, b) VALUES (1, 1, 1, 1)",
+                "INSERT INTO %s (k, c, a, b) VALUES (1, 2, 2, 2)",
+                "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 2, 1)",
+                "INSERT INTO %s (k, c, a, b) VALUES (2, 2, 2, 2)")
+        .mutate(2, "INSERT INTO %s (k, c, a, b) VALUES (2, 1, 1, 1)")
+        .mutate(1)  // updates the last coordinator for mutation tracking
+        .queryColumns("k, c, a", 2, 2,
+                      rows(row(1, 1, 1), row(2, 1, 1)),
+                      rows(row(1, 1, 1, 1), row(2, 1, 1, 1)),
+                      rows(row(1, 1, 1, null), row(2, 1, 1, 1)))
+        .tearDown(2,
+                  rows(row(1, 1, 1, 1), row(1, 2, 2, 2), row(2, 1, 1, 1), row(2, 2, 2, 2)),
+                  rows(row(1, 1, 1, 1), row(2, 1, 1, 1)));
     }
 }
