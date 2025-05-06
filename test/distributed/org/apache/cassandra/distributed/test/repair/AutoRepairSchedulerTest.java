@@ -45,7 +45,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.AutoRepairService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
@@ -140,14 +139,15 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
         logger.info("Repair setup done");
         // validate that the repair ran on all nodes
         cluster.forEach(i -> i.runOnInstance(() -> {
-            String broadcastAddress  = FBUtilities.getJustBroadcastAddress().toString();
-
             // Reduce sleeping if repair finishes quickly to speed up test but make it non-zero to provoke some
             // contention.
             AutoRepair.SLEEP_IF_REPAIR_FINISHES_QUICKLY = new DurationSpec.IntSecondsBound("2s");
 
             AutoRepairMetrics incrementalMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.INCREMENTAL);
-            while (incrementalMetrics.nodeRepairTimeInSec.getValue().longValue() <= 0)
+            // Since the AutoRepair sleeps up to SLEEP_IF_REPAIR_FINISHES_QUICKLY if the repair finishes quickly,
+            // so the "nodeRepairTimeInSec" metric should at least be greater than or equal to
+            // SLEEP_IF_REPAIR_FINISHES_QUICKLY
+            while (incrementalMetrics.nodeRepairTimeInSec.getValue().longValue() <= 1)
             {
                 try
                 {
@@ -179,7 +179,10 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
             assertEquals(0L, incrementalMetrics.repairDelayedBySchedule.getCount());
 
             AutoRepairMetrics fullMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.FULL);
-            while (fullMetrics.nodeRepairTimeInSec.getValue().longValue() <= 0)
+            // Since the AutoRepair sleeps up to SLEEP_IF_REPAIR_FINISHES_QUICKLY if the repair finishes quickly,
+            // so the "nodeRepairTimeInSec" metric should at least be greater than or equal to
+            // SLEEP_IF_REPAIR_FINISHES_QUICKLY
+            while (fullMetrics.nodeRepairTimeInSec.getValue().longValue() <= 1)
             {
                 try
                 {

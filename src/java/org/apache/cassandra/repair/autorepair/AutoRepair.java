@@ -469,7 +469,7 @@ public class AutoRepair
         repairState.setSucceededTokenRangesCount(collectedRepairStats.succeededTokenRanges);
         repairState.setSkippedTokenRangesCount(collectedRepairStats.skippedTokenRanges);
         repairState.setSkippedTablesCount(collectedRepairStats.skippedTables);
-        repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(repairScheduleElapsedInMillis));
+        repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTimeInMillis));
         long timeInHours = TimeUnit.SECONDS.toHours(repairState.getNodeRepairTimeInSec());
         logger.info("Local {} repair time {} hour(s), stats: repairKeyspaceCount {}, " +
                     "repairTokenRangesSuccessCount {}, repairTokenRangesFailureCount {}, " +
