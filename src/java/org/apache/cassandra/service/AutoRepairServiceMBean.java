@@ -140,6 +140,11 @@ public interface AutoRepairServiceMBean
      */
     public void setMVRepairEnabled(RepairType repairType, boolean enabled);
 
+    /**
+     * Set if repair should be scheduled keyspace-by-keyspace
+     */
+    public void setRepairByKeyspace(RepairType repairType, boolean enabled);
+
     public AutoRepairConfig getAutoRepairConfig();
 
     /**

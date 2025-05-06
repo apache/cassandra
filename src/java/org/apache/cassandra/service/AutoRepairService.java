@@ -243,4 +243,9 @@ public class AutoRepairService implements AutoRepairServiceMBean
     {
         config.setMVRepairEnabled(repairType, enabled);
     }
+
+    public void setRepairByKeyspace(RepairType repairType, boolean enabled)
+    {
+        config.setRepairByKeyspace(repairType, enabled);
+    }
 }

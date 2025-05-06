@@ -37,9 +37,11 @@ import org.junit.runners.Suite;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
@@ -244,20 +246,20 @@ public class SetAutoRepairConfigTest
         public static Collection<Object[]> testCases()
         {
             return Stream.of(
-            forEachRepairType("enabled", "true", (type) -> verify(probe, times(1)).setAutoRepairEnabled(type, true)),
-            forEachRepairType("threads", "1", (type) -> verify(probe, times(1)).setRepairThreads(type, 1)),
-            forEachRepairType("subranges", "2", (type) -> verify(probe, times(1)).setRepairSubRangeNum(type, 2)),
-            forEachRepairType("minrepairintervalinhours", "3", (type) -> verify(probe, times(1)).setRepairMinIntervalInHours(type, 3)),
-            forEachRepairType("sstablehigherthreshold", "4", (type) -> verify(probe, times(1)).setRepairSSTableCountHigherThreshold(type, 4)),
-            forEachRepairType("ignorekeyspacesregex", "ignoreregex", (type) -> verify(probe, times(1)).setRepairIgnoreKeyspaces(type, "ignoreregex")),
-            forEachRepairType("repaironlykeyspacesregex", "onlyregex", (type) -> verify(probe, times(1)).setRepairOnlyKeyspaces(type, "onlyregex")),
-            forEachRepairType("tablemaxrepairtimeinsec", "5", (type) -> verify(probe, times(1)).setAutoRepairTableMaxRepairTimeInSec(type, 5)),
-            forEachRepairType("primarytokenrangeonly", "true", (type) -> verify(probe, times(1)).setPrimaryTokenRangeOnly(type, true)),
-            forEachRepairType("parallelrepaircount", "6", (type) -> verify(probe, times(1)).setParallelRepairCountInGroup(type, 6)),
-            forEachRepairType("parallelrepairpercentage", "7", (type) -> verify(probe, times(1)).setParallelRepairPercentageInGroup(type, 7)),
-            forEachRepairType("mvrepairenabled", "true", (type) -> verify(probe, times(1)).setMVRepairEnabled(type, true)),
-            forEachRepairType("mvrepairenabled", "true", (type) -> verify(probe, times(1)).setMVRepairEnabled(type, true)),
-            forEachRepairType("ignoredcs", "dc1,dc2", (type) -> verify(probe, times(1)).setAutoRepairIgnoreDCs(type, ImmutableSet.of("dc1", "dc2")))
+            forEachRepairType("enabled", "true", (type) -> verify(autoRepairServiceMBean, times(1)).setAutoRepairEnabled(type, true)),
+            forEachRepairType("threads", "1", (type) -> verify(autoRepairServiceMBean, times(1)).setRepairThreads(type, 1)),
+            forEachRepairType("subranges", "2", (type) -> verify(autoRepairServiceMBean, times(1)).setRepairSubRangeNum(type, 2)),
+            forEachRepairType("minrepairintervalinhours", "3", (type) -> verify(autoRepairServiceMBean, times(1)).setRepairMinIntervalInHours(type, 3)),
+            forEachRepairType("sstablehigherthreshold", "4", (type) -> verify(autoRepairServiceMBean, times(1)).setRepairSSTableCountHigherThreshold(type, 4)),
+            forEachRepairType("ignorekeyspacesregex", "ignoreregex", (type) -> verify(autoRepairServiceMBean, times(1)).setRepairIgnoreKeyspaces(type, "ignoreregex")),
+            forEachRepairType("repaironlykeyspacesregex", "onlyregex", (type) -> verify(autoRepairServiceMBean, times(1)).setRepairOnlyKeyspaces(type, "onlyregex")),
+            forEachRepairType("tablemaxrepairtimeinsec", "5", (type) -> verify(autoRepairServiceMBean, times(1)).setAutoRepairTableMaxRepairTimeInSec(type, 5)),
+            forEachRepairType("primarytokenrangeonly", "true", (type) -> verify(autoRepairServiceMBean, times(1)).setPrimaryTokenRangeOnly(type, true)),
+            forEachRepairType("parallelrepaircount", "6", (type) -> verify(autoRepairServiceMBean, times(1)).setParallelRepairCountInGroup(type, 6)),
+            forEachRepairType("parallelrepairpercentage", "7", (type) -> verify(autoRepairServiceMBean, times(1)).setParallelRepairPercentageInGroup(type, 7)),
+            forEachRepairType("mvrepairenabled", "true", (type) -> verify(autoRepairServiceMBean, times(1)).setMVRepairEnabled(type, true)),
+            forEachRepairType("repairbykeyspace", "true", (type) -> verify(autoRepairServiceMBean, times(1)).setRepairByKeyspace(type, true)),
+            forEachRepairType("ignoredcs", "dc1,dc2", (type) -> verify(autoRepairServiceMBean, times(1)).setIgnoreDCs(type, ImmutableSet.of("dc1", "dc2")))
             ).flatMap(Function.identity()).collect(Collectors.toList());
         }
 
@@ -272,8 +274,11 @@ public class SetAutoRepairConfigTest
             return Arrays.stream(testCases);
         }
 
-        @Mock
+        @Spy
         private static NodeProbe probe;
+
+        @Mock
+        private static AutoRepairServiceMBean autoRepairServiceMBean;
 
         @Mock
         private static PrintStream out;
@@ -282,6 +287,7 @@ public class SetAutoRepairConfigTest
         public void setUp()
         {
             MockitoAnnotations.initMocks(this);
+            probe.setAutoRepairProxy(autoRepairServiceMBean);
             before(probe, out);
         }
 

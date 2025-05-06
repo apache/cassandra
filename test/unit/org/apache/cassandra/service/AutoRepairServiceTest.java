@@ -263,6 +263,7 @@ public class AutoRepairServiceTest
             forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentageInGroup, config::getParallelRepairPercentageInGroup),
             forEachRepairType(700, AutoRepairService.instance::setParallelRepairCountInGroup, config::getParallelRepairCountInGroup),
             forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMVRepairEnabled),
+            forEachRepairType(true, AutoRepairService.instance::setRepairByKeyspace, config::getRepairByKeyspace),
             forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setRepairPriorityForHosts, AutoRepairUtilsV2::getPriorityHosts),
             forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setForceRepairForHosts, SetterTests::isLocalHostForceRepair)
             ).flatMap(Function.identity()).collect(Collectors.toList());

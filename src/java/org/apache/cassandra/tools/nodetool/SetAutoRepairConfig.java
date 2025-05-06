@@ -46,7 +46,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
                   "[threads|subranges|minrepairintervalinhours|sstablehigherthreshold|ignorekeyspacesregex" +
                   "|enabled|repaironlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|forcerepairhosts|ignoredcs" +
                   "|historydeletehostsclearbufferinsec|primarytokenrangeonly|parallelrepaircount|parallelrepairpercentage" +
-                  "|mvrepairenabled|maxretriescount|retrybackoffinsec|minrepairtaskdurationinsec]",
+                  "|mvrepairenabled|maxretriescount|retrybackoffinsec|minrepairtaskdurationinsec|repairbykeyspace]",
     required = true)
     protected List<String> args = new ArrayList<>();
 
@@ -156,6 +156,9 @@ public class SetAutoRepairConfig extends NodeToolCmd
                 break;
             case "mvrepairenabled":
                 probe.setMVRepairEnabled(repairType, Boolean.parseBoolean(paramVal));
+                break;
+            case "repairbykeyspace":
+                probe.setRepairByKeyspace(repairType, Boolean.parseBoolean(paramVal));
                 break;
             default:
                 throw new IllegalArgumentException("Unknown parameter: " + paramType);

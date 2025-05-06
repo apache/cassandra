@@ -60,6 +60,8 @@ import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogManagerMBean;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.auth.AuthCacheMBean;
@@ -325,6 +327,12 @@ public class NodeProbe implements AutoCloseable
                 ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
         runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
                 mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
+    }
+
+    @VisibleForTesting
+    public void setAutoRepairProxy(AutoRepairServiceMBean bean)
+    {
+        autoRepairProxy = bean;
     }
 
     private RMIClientSocketFactory getRMIClientSocketFactory()
@@ -2617,6 +2625,11 @@ public class NodeProbe implements AutoCloseable
     public void setMVRepairEnabled(RepairType repairType, boolean enabled)
     {
         autoRepairProxy.setMVRepairEnabled(repairType, enabled);
+    }
+
+    public void setRepairByKeyspace(RepairType repairType, boolean enabled)
+    {
+        autoRepairProxy.setRepairByKeyspace(repairType, enabled);
     }
 
     public boolean isDecommissionFailed()
