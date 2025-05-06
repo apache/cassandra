@@ -39,6 +39,7 @@ import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -53,6 +54,7 @@ import org.apache.cassandra.schema.Views.ViewsDiff;
 import static com.google.common.collect.Iterables.any;
 import static java.lang.String.format;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.schema.SchemaConstants.TABLE_NAME_LENGTH;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
@@ -61,6 +63,23 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 public final class KeyspaceMetadata implements SchemaElement
 {
     public static final Serializer serializer = new Serializer();
+
+    /**
+     * Validates the keyspace name for valid characters and correct length.
+     * Throws an exception if it's invalid.
+     *
+     * @param keyspaceName     The name of the keyspace to validate
+     * @param exceptionBuilder The exception constructor to throw if validation fails
+     */
+    public static <T extends RequestValidationException> void validateKeyspaceName(String keyspaceName, java.util.function.Function<String, T> exceptionBuilder)
+    {
+        if (!SchemaConstants.isValidCharsName(keyspaceName))
+            throw exceptionBuilder.apply(format("Keyspace name must not be empty and must contain alphanumeric or underscore characters only (got \"%s\")",
+                                                keyspaceName));
+        if (keyspaceName.length() > SchemaConstants.NAME_LENGTH)
+            throw exceptionBuilder.apply(format("Keyspace name must not be more than %d characters long (got %d characters for \"%s\")",
+                                                TABLE_NAME_LENGTH, keyspaceName.length(), keyspaceName));
+    }
 
     public enum Kind
     {
@@ -381,14 +400,7 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public void validate(ClusterMetadata metadata)
     {
-        if (!SchemaConstants.isValidName(name))
-        {
-            throw new ConfigurationException(format("Keyspace name must not be empty, more than %s characters long, "
-                                                    + "or contain non-alphanumeric-underscore characters (got \"%s\")",
-                                                    SchemaConstants.NAME_LENGTH,
-                                                    name));
-        }
-
+        validateKeyspaceName(name, ConfigurationException::new);
         params.validate(name, null, metadata);
         tablesAndViews().forEach(TableMetadata::validate);
 

@@ -46,6 +46,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static org.apache.cassandra.schema.KeyspaceMetadata.validateKeyspaceName;
+
 abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspaceCqlStatement, SchemaTransformation
 {
     private static final Logger logger = LoggerFactory.getLogger(AlterSchemaStatement.class);
@@ -168,7 +170,8 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         if (null != keyspace && keyspace.isVirtual())
             throw ire("Virtual keyspace '%s' is not user-modifiable", keyspaceName);
 
-        validateKeyspaceName();
+        validateKeyspaceName(keyspaceName, AlterSchemaStatement::ire);
+
         setExecutionTimestamp(state.getTimestamp());
         // Perform a 'dry-run' attempt to apply the transformation locally before submitting to the CMS. This can save a
         // round trip to the CMS for things syntax errors, but also fail fast for things like configuration errors.
@@ -209,16 +212,6 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     protected ClusterMetadata commit(ClusterMetadata metadata)
     {
         return Schema.instance.submit(this);
-    }
-
-    private void validateKeyspaceName()
-    {
-        if (!SchemaConstants.isValidName(keyspaceName))
-        {
-            throw ire("Keyspace name must not be empty, more than %d characters long, " +
-                      "or contain non-alphanumeric-underscore characters (got '%s')",
-                      SchemaConstants.NAME_LENGTH, keyspaceName);
-        }
     }
 
     protected void validateDefaultTimeToLive(TableParams params)
