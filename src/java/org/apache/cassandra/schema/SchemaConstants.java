@@ -32,12 +32,15 @@ import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.tracing.TraceKeyspace;
 
+import static org.apache.cassandra.db.Directories.TABLE_DIRECTORY_NAME_SEPARATOR;
+
 /**
  * When adding new String keyspace names here, double check if it needs to be added to PartitionDenylist.canDenylistKeyspace
  */
 public final class SchemaConstants
 {
     public static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
+    public static final Pattern PATTERN_NON_WORD_CHAR = Pattern.compile("\\W");
 
     public static final String SYSTEM_KEYSPACE_NAME = "system";
     public static final String SCHEMA_KEYSPACE_NAME = "system_schema";
@@ -71,14 +74,37 @@ public final class SchemaConstants
      */
     public static final int NAME_LENGTH = 48;
 
+    /**
+     * Longest acceptable file name. Longer names lead to too long file name error.
+     */
+    public static final int FILENAME_LENGTH = 255;
+
+    /**
+     * Length of a table uuid as a hex string.
+     */
+    public static final int TABLE_UUID_AS_HEX_LENGTH = 32;
+
+    /**
+     * Longest acceptable table name, so it can be used in a directory
+     * name constructed with a suffix of a table id and a separator.
+     */
+    public static final int TABLE_NAME_LENGTH = FILENAME_LENGTH - TABLE_UUID_AS_HEX_LENGTH - TABLE_DIRECTORY_NAME_SEPARATOR.length();
+
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
 
     public static final List<String> LEGACY_AUTH_TABLES = Arrays.asList("credentials", "users", "permissions");
 
-    public static boolean isValidName(String name)
+    /**
+     * Validates that a name is not empty and contains only alphanumeric characters or
+     * underscore, so it can be used in file or directory names.
+     *
+     * @param name the name to check
+     * @return whether the non-empty name contains only valid characters
+     */
+    public static boolean isValidCharsName(String name)
     {
-        return name != null && !name.isEmpty() && name.length() <= NAME_LENGTH && PATTERN_WORD_CHARS.matcher(name).matches();
+        return name != null && !name.isEmpty() && PATTERN_WORD_CHARS.matcher(name).matches();
     }
 
     static
