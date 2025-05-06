@@ -49,7 +49,12 @@ import static com.google.common.collect.Iterables.transform;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.cassandra.schema.IndexMetadata.isNameValid;
+import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
+import static org.apache.cassandra.db.Directories.TABLE_DIRECTORY_NAME_SEPARATOR;
+import static org.apache.cassandra.schema.KeyspaceMetadata.validateKeyspaceName;
+import static org.apache.cassandra.schema.SchemaConstants.FILENAME_LENGTH;
+import static org.apache.cassandra.schema.SchemaConstants.TABLE_NAME_LENGTH;
+import static org.apache.cassandra.schema.SchemaConstants.isValidCharsName;
 
 @Unmetered
 public class TableMetadata implements SchemaElement
@@ -416,11 +421,9 @@ public class TableMetadata implements SchemaElement
 
     public void validate()
     {
-        if (!isNameValid(keyspace))
-            except("Keyspace name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", SchemaConstants.NAME_LENGTH, keyspace);
+        validateKeyspaceName(keyspace, this::prepareConfigurationException);
 
-        if (!isNameValid(name))
-            except("Table name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", SchemaConstants.NAME_LENGTH, name);
+        validateTableName();
 
         params.validate();
 
@@ -446,6 +449,17 @@ public class TableMetadata implements SchemaElement
             except("Missing partition keys for table %s", toString());
 
         indexes.validate(this);
+    }
+
+    private void validateTableName()
+    {
+        if (!isValidCharsName(name))
+            except("Table name must not be empty or not contain non-alphanumeric-underscore characters (got \"%s\")", name);
+
+        if (name.length() > TABLE_NAME_LENGTH)
+            except("Table name must not be more than %d characters long (got %d characters for \"%s\")", TABLE_NAME_LENGTH, name.length(), name);
+
+        assert getTableDirectoryName().length() <= FILENAME_LENGTH : String.format("Generated directory name for a table of %d characters doesn't fit the max filename legnth of %s. This unexpectedly wasn't prevented by check of the table name length, %d, to fit %d characters (got table name \"%s\" and generated directory name \"%s\"", getTableDirectoryName().length(), FILENAME_LENGTH, name.length(), TABLE_NAME_LENGTH, name, getTableDirectoryName());
     }
 
     /**
@@ -544,7 +558,41 @@ public class TableMetadata implements SchemaElement
     public String indexTableName(IndexMetadata info)
     {
         // TODO simplify this when info.index_name is guaranteed to be set
-        return name + Directories.SECONDARY_INDEX_NAME_SEPARATOR + info.name;
+        return name + SECONDARY_INDEX_NAME_SEPARATOR + info.name;
+    }
+
+    /**
+     * Returns the table part of the index table name or the entire table name
+     * if not an index table.
+     * @return table name part
+     */
+    public String getTableName()
+    {
+        int idx = name.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
+        return idx >= 0 ? name.substring(0, idx) : name;
+    }
+
+    /**
+     * Generates a directory name for the table by using table part of
+     * the (index) table name and table id.
+     * @return directory name
+     */
+    public String getTableDirectoryName()
+    {
+        return getTableName() + TABLE_DIRECTORY_NAME_SEPARATOR + id.toHexString();
+    }
+
+    /**
+     * Returns the index name from the name of an index table
+     * including the dot prefixing the index name, see {@link #indexTableName}.
+     * If not an index table, returns null.
+     * @return index name prefixed with dot prefix or null
+     */
+    @Nullable
+    public String getIndexNameWithDot()
+    {
+        int idx = name.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
+        return idx >= 0 ? name.substring(idx) : null;
     }
 
     /**
@@ -602,9 +650,14 @@ public class TableMetadata implements SchemaElement
         return builder.build();
     }
 
+    private ConfigurationException prepareConfigurationException(String format, Object... args)
+    {
+        return new ConfigurationException(keyspace + '.' + name + ": " + format(format, args));
+    }
+
     protected void except(String format, Object... args)
     {
-        throw new ConfigurationException(keyspace + "." + name + ": " + format(format, args));
+        throw prepareConfigurationException(format, args);
     }
 
     @Override

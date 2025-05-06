@@ -47,6 +47,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.*;
 
 import org.slf4j.Logger;
@@ -661,6 +662,21 @@ public abstract class CQLTester
         ColumnFamilyStore store = getCurrentColumnFamilyStore(keyspace);
         if (store != null)
             Util.flush(store);
+    }
+
+    public void flush(String keyspace, String table1, String... tables)
+    {
+        tables = ArrayUtils.add(tables, table1);
+        for (ColumnFamilyStore store : getTables(keyspace, tables))
+            Util.flush(store);
+    }
+
+    private List<ColumnFamilyStore> getTables(String keyspace, String[] tables)
+    {
+        List<ColumnFamilyStore> stores = new ArrayList<>(tables.length);
+        for (String name : tables)
+            stores.add(getColumnFamilyStore(keyspace, name));
+        return stores;
     }
 
     public void disableCompaction(String keyspace)
