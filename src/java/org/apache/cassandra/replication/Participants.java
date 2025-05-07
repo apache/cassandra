@@ -57,4 +57,10 @@ public class Participants
             throw new IllegalArgumentException("Out of bounds host idx " + idx);
         return hosts[idx];
     }
+
+    @Override
+    public String toString()
+    {
+        return Arrays.toString(hosts);
+    }
 }

@@ -84,7 +84,7 @@ public abstract class CoordinatorLog
             if (!getLocal().contains(mutationId.offset()))
                 return; // local host hasn't witnessed yet -> no cleanup needed
 
-            if (hasWrittenToRemoteReplicas(mutationId.offset()))
+            if (remoteReplicasWitnessed(mutationId.offset()))
             {
                 logger.trace("marking mutation {} as fully reconciled", mutationId);
                 // if all replicas have now witnessed the id, remove it from the index
@@ -107,9 +107,8 @@ public abstract class CoordinatorLog
             {
                 for (int offset = start; offset <= end; ++offset)
                 {
-                    // TODO (desired): skip checking the host's offsets - all just added
                     // TODO (desired): use the fact that Offsets are ordered to optimise this look up
-                    if (hasWrittenLocally(offset) && hasWrittenToRemoteReplicas(offset))
+                    if (othersWitnessed(offset, onHostId))
                     {
                         reconciledOffsets.add(offset);
                         unreconciledMutations().remove(offset);
@@ -167,7 +166,7 @@ public abstract class CoordinatorLog
 
             unreconciledMutations().finishWriting(mutation);
 
-            if (hasWrittenToRemoteReplicas(offset))
+            if (remoteReplicasWitnessed(offset))
             {
                 reconciledOffsets.add(offset);
                 unreconciledMutations().remove(offset);
@@ -179,20 +178,20 @@ public abstract class CoordinatorLog
         }
     }
 
-    private boolean hasWrittenLocally(int offset)
-    {
-        return getLocal().contains(offset);
-    }
-
-    private boolean hasWrittenToRemoteReplicas(int offset)
+    private boolean othersWitnessed(int offset, int exceptHostId)
     {
         for (int i = 0; i < participants.size(); ++i)
         {
             int hostId = participants.get(i);
-            if (hostId != localHostId && !get(hostId).contains(offset))
+            if (hostId != exceptHostId && !get(hostId).contains(offset))
                 return false;
         }
         return true;
+    }
+
+    private boolean remoteReplicasWitnessed(int offset)
+    {
+        return othersWitnessed(offset, localHostId);
     }
 
     /**
