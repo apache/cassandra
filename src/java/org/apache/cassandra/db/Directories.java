@@ -564,6 +564,40 @@ public class Directories
         }
     }
 
+    public File findManifestFile(String tag)
+    {
+        for (File file : getSnapshotDirsWithoutCreation(tag))
+        {
+            File maybeManifest = new File(file, "manifest.json");
+            if (maybeManifest.exists())
+                return maybeManifest;
+        }
+
+        return null;
+    }
+
+    public List<File> getSnapshotDirsWithoutCreation(String tag)
+    {
+        List<File> snapshotDirs = new ArrayList<>();
+
+        for (File cfDir : getCFDirectories())
+            snapshotDirs.add(Directories.getSnapshotDirectoryWithoutCreation(cfDir, tag));
+
+        return snapshotDirs;
+    }
+
+    public static File getSnapshotDirectoryWithoutCreation(File location, String snapshotName)
+    {
+        if (isSecondaryIndexFolder(location))
+        {
+            return getWithoutCreation(location.getParentFile(), SNAPSHOT_SUBDIR, snapshotName, location.getName());
+        }
+        else
+        {
+            return getWithoutCreation(location, SNAPSHOT_SUBDIR, snapshotName);
+        }
+    }
+
     public File getSnapshotManifestFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
@@ -1217,6 +1251,11 @@ public class Directories
             throw new FSWriteError(new IOException("Unable to create directory " + dir), dir);
         }
         return dir;
+    }
+
+    public static File getWithoutCreation(File base, String... subdirs)
+    {
+        return subdirs == null || subdirs.length == 0 ? base : new File(base, join(subdirs));
     }
 
     private static String join(String... s)

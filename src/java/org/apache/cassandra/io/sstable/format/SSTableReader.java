@@ -60,6 +60,7 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.FileUtils.DuplicateHardlinkException;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.Schema;
@@ -1603,15 +1604,29 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public void createLinks(String snapshotDirectoryPath, RateLimiter rateLimiter)
     {
-        createLinks(descriptor, components, snapshotDirectoryPath, rateLimiter);
+        createLinks(snapshotDirectoryPath, rateLimiter, false);
+    }
+
+    public void createLinks(String snapshotDirectoryPath, RateLimiter rateLimiter, boolean force)
+    {
+        createLinks(descriptor, components, snapshotDirectoryPath, rateLimiter, force);
     }
 
     public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath)
     {
-        createLinks(descriptor, components, snapshotDirectoryPath, null);
+        createLinks(descriptor, components, snapshotDirectoryPath, null, false);
     }
 
-    public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath, RateLimiter limiter)
+    /**
+     * Create hardlinks for given set of components
+     *
+     * @param descriptor descriptor to use
+     * @param components components to create links for
+     * @param snapshotDirectoryPath directory path for snapshot
+     * @param limiter rate limiter to use
+     * @param force if true, if target link file exists, do not fail, otherwise throw RTE
+     */
+    public static void createLinks(Descriptor descriptor, Set<Component> components, String snapshotDirectoryPath, RateLimiter limiter, boolean force)
     {
         for (Component component : components)
         {
@@ -1621,7 +1636,15 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             if (null != limiter)
                 limiter.acquire();
             File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+            try
+            {
+                FileUtils.createHardLink(sourceFile, targetLink);
+            }
+            catch (DuplicateHardlinkException ex)
+            {
+                if (!force)
+                    throw new RuntimeException(ex.getMessage());
+            }
         }
     }
 

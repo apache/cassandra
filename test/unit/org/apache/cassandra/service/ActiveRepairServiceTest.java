@@ -50,6 +50,7 @@ import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -303,6 +304,32 @@ public class ActiveRepairServiceTest
         }
     }
 
+    @Test
+    public void testForcedSnapshot() throws Throwable
+    {
+        ColumnFamilyStore store = prepareColumnFamilyStore();
+        UUID prsId = UUID.randomUUID();
+        Set<SSTableReader> original = Sets.newHashSet(store.select(View.select(SSTableSet.CANONICAL, (s) -> !s.isRepaired())).sstables);
+        Collection<Range<Token>> ranges = Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(), store.getPartitioner().getMinimumToken()));
+        ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddressAndPort(), Collections.singletonList(store),
+                                                                 ranges, true, System.currentTimeMillis(), false, PreviewKind.NONE);
+
+        // snapshot twice, would not be possible before CASSANDRA-20490
+        store.getRepairManager().snapshot(prsId.toString(), ranges, true);
+        store.getRepairManager().snapshot(prsId.toString(), ranges, true);
+
+        Map<String, Directories.SnapshotSizeDetails> snapshotDetails = store.getSnapshotDetails();
+        Assert.assertEquals(1, snapshotDetails.size());
+        Assert.assertNotNull(snapshotDetails.get(prsId.toString()));
+
+        createSSTables(store, 2);
+        store.getRepairManager().snapshot(prsId.toString(), ranges, false);
+        try (Refs<SSTableReader> refs = store.getSnapshotSSTableReaders(prsId.toString()))
+        {
+            assertEquals(original, Sets.newHashSet(refs.iterator()));
+        }
+    }
+
     private ColumnFamilyStore prepareColumnFamilyStore()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE5);
@@ -310,6 +337,7 @@ public class ActiveRepairServiceTest
         store.truncateBlocking();
         store.disableAutoCompaction();
         createSSTables(store, 10);
+        store.clearSnapshot("");
         return store;
     }
 

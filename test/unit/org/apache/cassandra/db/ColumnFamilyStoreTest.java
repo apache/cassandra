@@ -32,6 +32,7 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.utils.Pair;
 import org.json.simple.JSONArray;
@@ -261,6 +262,48 @@ public class ColumnFamilyStoreTest
         snapshotDetails = cfs.getSnapshotDetails();
         assertEquals(1, snapshotDetails.size());
         assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
+
+        //test cleanup
+        cfs.clearSnapshot("");
+    }
+
+    @Test
+    public void testForciblyTakenEphemeralSnapshot()
+    {
+        // cleanup any previous test gargbage
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        cfs.clearSnapshot("");
+
+        // Add row
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1")
+        .clustering("Column1")
+        .add("val", "asdf")
+        .build()
+        .applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        cfs.snapshot("ephemeralSnapshot", null, true, false);
+        Map<String, Directories.SnapshotSizeDetails> firstSnapshotDetails = cfs.getSnapshotDetails();
+        assertEquals(1, firstSnapshotDetails.size());
+
+        // Add row
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1")
+        .clustering("Column1")
+        .add("val", "asdf")
+        .build()
+        .applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        // for the second time, it will add more to the first one
+        cfs.snapshot("ephemeralSnapshot", null, true, false);
+        Map<String, Directories.SnapshotSizeDetails> secondSnapshotDetails = cfs.getSnapshotDetails();
+
+        // still same snapshot
+        assertEquals(1, secondSnapshotDetails.size());
+
+        assertTrue(secondSnapshotDetails.containsKey("ephemeralSnapshot"));
+        ColumnFamilyStore.clearEphemeralSnapshots(cfs.getDirectories());
+        assertEquals(0, cfs.getSnapshotDetails().size());
 
         //test cleanup
         cfs.clearSnapshot("");

@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Constructor;
@@ -90,6 +91,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
@@ -1841,7 +1843,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
         Set<SSTableReader> snapshottedSSTables = new HashSet<>();
-        final JSONArray filesJSONArr = new JSONArray();
+        final List<String> files = new ArrayList<>();
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             try (RefViewFragment currentView = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (x) -> predicate == null || predicate.apply(x))))
@@ -1849,8 +1851,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
-                    ssTable.createLinks(snapshotDirectory.getPath(), rateLimiter); // hard links
-                    filesJSONArr.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
+                    ssTable.createLinks(snapshotDirectory.getPath(), rateLimiter, ephemeral); // hard links
+                    files.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
 
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
@@ -1859,7 +1861,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        writeSnapshotManifest(filesJSONArr, snapshotName);
+        Pair<File, List<String>> maybeExistingManifestWithFiles = maybeGetExistingSnapshotManifestWithFiles(snapshotName);
+        writeSnapshotManifest(maybeExistingManifestWithFiles.left, getManifestFiles(files, maybeExistingManifestWithFiles.right), snapshotName);
         if (!SchemaConstants.isLocalSystemKeyspace(metadata.keyspace) && !SchemaConstants.isReplicatedSystemKeyspace(metadata.keyspace))
             writeSnapshotSchema(snapshotName);
 
@@ -1868,9 +1871,62 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return snapshottedSSTables;
     }
 
-    private void writeSnapshotManifest(final JSONArray filesJSONArr, final String snapshotName)
+    private JSONArray getManifestFiles(List<String> files, List<String> existingFiles)
     {
-        final File manifestFile = getDirectories().getSnapshotManifestFile(snapshotName);
+        Set<String> union = existingFiles == null ? new LinkedHashSet<>() : new TreeSet<>(existingFiles);
+        union.addAll(files);
+
+        JSONArray result = new JSONArray();
+        result.addAll(union);
+
+        return result;
+    }
+
+    /**
+     * In case of ephemeral snapshot which is forced, (see {@link CassandraTableRepairManager#snapshot(String, Collection, boolean)},
+     * we will add more SSTables to manifest, on top of already existing ones.
+     * If there is no manifest yet, we return empty list.
+     *
+     * @param snapshotName name of snapshot to get files from
+     * @return list of files in existing manifest, empty list if not manifest present
+     */
+    private Pair<File, List<String>> maybeGetExistingSnapshotManifestWithFiles(String snapshotName)
+    {
+        File existingManifestFile = getDirectories().findManifestFile(snapshotName);
+        if (existingManifestFile == null)
+            return Pair.create(null, null);
+
+        JSONObject jsonObject;
+
+        try
+        {
+            jsonObject = (JSONObject) new JSONParser().parse(new FileReader(existingManifestFile));
+        }
+        catch (Throwable t)
+        {
+            return Pair.create(existingManifestFile, null);
+        }
+
+        List<String> files = new ArrayList<>();
+
+        Object filesObject = jsonObject.get("files");
+        if (filesObject instanceof JSONArray)
+        {
+            JSONArray oldFiles = (JSONArray) filesObject;
+            ListIterator listIterator = oldFiles.listIterator();
+            while (listIterator.hasNext())
+            {
+                String next = (String) listIterator.next();
+                files.add(next);
+            }
+        }
+
+        return Pair.create(existingManifestFile, files);
+    }
+
+    private void writeSnapshotManifest(File existingManifest, JSONArray filesJSONArr, final String snapshotName)
+    {
+        final File manifestFile = existingManifest == null ? getDirectories().getSnapshotManifestFile(snapshotName) : existingManifest;
 
         try
         {
@@ -1921,9 +1977,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (!ephemeralSnapshotMarker.getParentFile().exists())
                 ephemeralSnapshotMarker.getParentFile().mkdirs();
 
-            Files.createFile(ephemeralSnapshotMarker.toPath());
-            if (logger.isTraceEnabled())
-                logger.trace("Created ephemeral snapshot marker file on {}.", ephemeralSnapshotMarker.getAbsolutePath());
+            if (!ephemeralSnapshotMarker.exists())
+            {
+                Files.createFile(ephemeralSnapshotMarker.toPath());
+                if (logger.isTraceEnabled())
+                    logger.trace("Created ephemeral snapshot marker file on {}.", ephemeralSnapshotMarker.getAbsolutePath());
+            }
         }
         catch (IOException e)
         {
