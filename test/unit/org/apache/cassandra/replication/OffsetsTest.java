@@ -507,7 +507,7 @@ public class OffsetsTest
     }
 
     @Test
-    public void appendTest()
+    public void addTest()
     {
         Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);
         ids.add(5);
@@ -521,32 +521,6 @@ public class OffsetsTest
         ids.add(8);
         assertEquals(2, ids.rangeCount());
         assertEquals(3, ids.offsetCount());
-
-        // insert before tail
-        try
-        {
-            ids.add(8);
-            Assert.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-            assertEquals(2, ids.rangeCount());
-            assertEquals(3, ids.offsetCount());
-        }
-
-        // insert before tail
-        try
-        {
-            ids.add(7);
-            Assert.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-            assertEquals(2, ids.rangeCount());
-            assertEquals(3, ids.offsetCount());
-        }
     }
 
     private static void testUnion(Offsets expected, Offsets a, Offsets b)

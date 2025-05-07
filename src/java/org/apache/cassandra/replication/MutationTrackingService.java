@@ -96,6 +96,8 @@ public class MutationTrackingService
     public void shutdownBlocking() throws InterruptedException
     {
         localReads.shutdownBlocking();
+        broadcaster.shutdown();
+        broadcaster.awaitTermination(1, TimeUnit.MINUTES);
     }
 
     public TrackedLocalReads localReads()
