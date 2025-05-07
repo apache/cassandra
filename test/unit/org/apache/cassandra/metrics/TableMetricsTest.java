@@ -153,7 +153,7 @@ public class TableMetricsTest
     }
 
     @Test
-    public void testAllPrimaryKeyColumnRestrictionProvidedForMVBaseTable()
+    public void testStrictMVConsistencyQualificationMetrics()
     {
         Boolean originalConfig = DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled();
         DatabaseDescriptor.setMaterializedViewsBasetableMetricCollectionEnabled(true);
@@ -198,6 +198,24 @@ public class TableMetricsTest
         assertEquals(2, base.metric.viewBaseTableModificationWithTimestamp.getCount());
         session.execute(String.format(update, KEYSPACE, TABLE));
         assertEquals(0, withoutMV.metric.viewBaseTableModificationWithTimestamp.getCount());
+        // update with IN partition key
+        update = "UPDATE %s.%s SET val2 = '2' WHERE id IN (1, 2) AND val1='1';";
+        session.execute(String.format(update, KEYSPACE, BASE_TABLE));
+        assertEquals(1, base.metric.viewBaseTableInRestirctionsUsed.getCount());
+        session.execute(String.format(update, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableInRestirctionsUsed.getCount());
+        // update with IN clustering key
+        update = "UPDATE %s.%s SET val2 = '2' WHERE id=1 AND val1 IN ('1', '2');";
+        session.execute(String.format(update, KEYSPACE, BASE_TABLE));
+        assertEquals(2, base.metric.viewBaseTableInRestirctionsUsed.getCount());
+        session.execute(String.format(update, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableInRestirctionsUsed.getCount());
+        // update with IN both partition key and clustering key
+        update = "UPDATE %s.%s SET val2 = '2' WHERE id IN (1, 2) AND val1 IN ('1', '2');";
+        session.execute(String.format(update, KEYSPACE, BASE_TABLE));
+        assertEquals(3, base.metric.viewBaseTableInRestirctionsUsed.getCount());
+        session.execute(String.format(update, KEYSPACE, TABLE));
+        assertEquals(0, withoutMV.metric.viewBaseTableInRestirctionsUsed.getCount());
 
         DatabaseDescriptor.setMaterializedViewsBasetableMetricCollectionEnabled(originalConfig);
     }

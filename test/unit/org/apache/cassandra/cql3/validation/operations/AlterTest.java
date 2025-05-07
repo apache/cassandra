@@ -997,7 +997,7 @@ public class AlterTest extends CQLTester
         // send non-LWT compatible queries
         execute("DELETE from %s WHERE a = 3");
         assertAlterTableThrowsException(InvalidRequestException.class,
-                                        "Not qualified for strict mv consistency because base table has non-LWT compatible queries, modification with ts: 0, batch statement: 0, delete without full primary key: 1",
+                                        "Not qualified for strict mv consistency because base table has non-LWT compatible queries, modification with ts: 0, batch statement: 0, delete without full primary key: 1, IN restrictions used: 0",
                                         "ALTER TABLE %s WITH strict_mv_consistency = true");
 
 

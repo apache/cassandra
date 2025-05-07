@@ -281,9 +281,13 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (DatabaseDescriptor.getMaterializedViewsBasetableMetricCollectionEnabled())
         {
             ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
-            if (cfs != null && cfs.viewManager.hasViews() && attrs.isTimestampSet())
+            if (cfs != null && cfs.viewManager.hasViews())
             {
-                cfs.metric.viewBaseTableModificationWithTimestamp.inc();
+                if (attrs.isTimestampSet())
+                    cfs.metric.viewBaseTableModificationWithTimestamp.inc();
+
+                if (restrictions.clusteringKeyRestrictionsHasIN() || restrictions.keyIsInRelation())
+                    cfs.metric.viewBaseTableInRestirctionsUsed.inc();
             }
         }
         checkFalse(hasConditions() && attrs.isTimestampSet(), "Cannot provide custom timestamp for conditional updates");

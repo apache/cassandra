@@ -187,8 +187,10 @@ public class TableMetrics
     public final Counter viewBaseTableDeleteStatementWithoutFullPrimaryKey;
     /** Number of batch statements used for MV base table */
     public final Counter viewBaseTableUsedInBatchStatement;
-    /** Number of modification statements with settimestamp used for MV base table */
+    /** Number of modification statements with timestamp used for MV base table */
     public final Counter viewBaseTableModificationWithTimestamp;
+    /** Number of modification statements has IN restrictions in primary key used for MV base table */
+    public final Counter viewBaseTableInRestirctionsUsed;
     /** Disk space used by snapshot files which */
     public final Gauge<Long> trueSnapshotsSize;
     /** Row cache hits, but result out of range */
@@ -1048,6 +1050,7 @@ public class TableMetrics
         viewBaseTableDeleteStatementWithoutFullPrimaryKey = createTableCounter("ViewBaseTableDeleteStatementWithoutFullPrimaryKey");
         viewBaseTableUsedInBatchStatement = createTableCounter("ViewBaseTableUsedInBatchStatement");
         viewBaseTableModificationWithTimestamp = createTableCounter("ViewBaseTableModificationWithTimestamp");
+        viewBaseTableInRestirctionsUsed = createTableCounter("ViewBaseTableInRestirctionsUsed");
 
         trueSnapshotsSize = createTableGauge("SnapshotsSize", cfs::trueSnapshotsSize);
         rowCacheHitOutOfRange = createTableCounter("RowCacheHitOutOfRange");

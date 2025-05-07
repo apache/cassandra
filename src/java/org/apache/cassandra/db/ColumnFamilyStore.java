@@ -2748,13 +2748,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
         if (metric.viewBaseTableModificationWithTimestamp.getCount() > 0 ||
             metric.viewBaseTableUsedInBatchStatement.getCount() > 0 ||
-            metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount() > 0)
+            metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount() > 0 ||
+            metric.viewBaseTableInRestirctionsUsed.getCount() > 0)
         {
             throw new InvalidRequestException(
-            String.format("Not qualified for strict mv consistency because base table has non-LWT compatible queries, modification with ts: %s, batch statement: %s, delete without full primary key: %s",
+            String.format("Not qualified for strict mv consistency because base table has non-LWT compatible queries, " +
+                          "modification with ts: %s, batch statement: %s, delete without full primary key: %s, IN restrictions " +
+                          "used: %s",
                           metric.viewBaseTableModificationWithTimestamp.getCount(),
                           metric.viewBaseTableUsedInBatchStatement.getCount(),
-                          metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount()));
+                          metric.viewBaseTableDeleteStatementWithoutFullPrimaryKey.getCount(),
+                          metric.viewBaseTableInRestirctionsUsed.getCount()
+                          ));
         }
     }
 
