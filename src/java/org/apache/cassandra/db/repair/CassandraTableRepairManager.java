@@ -89,7 +89,6 @@ public class CassandraTableRepairManager implements TableRepairManager
 
                     SnapshotOptions options = SnapshotOptions.systemSnapshot(name, SnapshotType.REPAIR, predicate, cfs.getKeyspaceTableName())
                                                              .ephemeral()
-                                                             .force(force)
                                                              .build();
                     SnapshotManager.instance.takeSnapshot(options);
                 }

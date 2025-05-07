@@ -48,7 +48,6 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
-import org.apache.cassandra.io.util.FileUtils.DuplicateHardlinkException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
@@ -164,15 +163,7 @@ public class TakeSnapshotTask extends AbstractSnapshotTask<List<TableSnapshot>>
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
-                    try
-                    {
-                        ssTable.createLinks(snapshotDirectory.path(), options.rateLimiter); // hard links
-                    }
-                    catch (DuplicateHardlinkException ex)
-                    {
-                        if (!options.force)
-                            throw ex;
-                    }
+                    ssTable.createLinks(snapshotDirectory.path(), options.rateLimiter, options.ephemeral); // hard links
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", cfs.keyspace, ssTable.getFilename(), snapshotDirectory);
                     sstables.add(ssTable);

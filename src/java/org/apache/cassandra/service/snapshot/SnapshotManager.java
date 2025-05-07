@@ -580,7 +580,7 @@ public class SnapshotManager implements SnapshotManagerMBean, INotificationConsu
                 TableSnapshot snapshotToCreate = toCreateEntry.getValue();
                 if (existingSnapshot.equals(toCreateEntry.getValue()))
                 {
-                    if (!task.options.force)
+                    if (!task.options.ephemeral)
                     {
                         throw new RuntimeException(format("Snapshot %s for %s.%s already exists.",
                                                           snapshotToCreate.getTag(),

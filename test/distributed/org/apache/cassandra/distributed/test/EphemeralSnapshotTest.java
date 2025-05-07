@@ -231,7 +231,6 @@ public class EphemeralSnapshotTest extends TestBaseImpl
             {
                 SnapshotManager.instance.takeSnapshot(SnapshotOptions.systemSnapshot(name, SnapshotType.REPAIR, (sstable) -> true, cfs.getKeyspaceTableName())
                                                                      .ephemeral()
-                                                                     .force(true)
                                                                      .build());
             }
             catch (Throwable t)
