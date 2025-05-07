@@ -474,7 +474,7 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(Integer.valueOf(1), options.number_of_repair_threads);
         assertEquals(Integer.valueOf(3), options.parallel_repair_count);
         assertEquals(Integer.valueOf(3), options.parallel_repair_percentage);
-        assertEquals(Integer.valueOf(10000), options.sstable_upper_threshold);
+        assertEquals(Integer.valueOf(50000), options.sstable_upper_threshold);
         assertEquals(new HashSet<>(), options.ignore_dcs);
         assertTrue(options.repair_primary_token_range_only);
         assertFalse(options.force_repair_new_node);
@@ -495,7 +495,7 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(Integer.valueOf(1), config.global_settings.number_of_repair_threads);
         assertEquals(Integer.valueOf(3), config.global_settings.parallel_repair_count);
         assertEquals(Integer.valueOf(3), config.global_settings.parallel_repair_percentage);
-        assertEquals(Integer.valueOf(10000), config.global_settings.sstable_upper_threshold);
+        assertEquals(Integer.valueOf(50000), config.global_settings.sstable_upper_threshold);
         assertEquals(new HashSet<>(), config.global_settings.ignore_dcs);
         assertTrue(config.global_settings.repair_primary_token_range_only);
         assertFalse(config.global_settings.force_repair_new_node);
