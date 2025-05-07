@@ -19,7 +19,9 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -45,8 +47,13 @@ import static org.apache.cassandra.distributed.shared.NetworkTopology.networkTop
 
 public class MutationTrackingWriteForwardingTest extends TestBaseImpl
 {
-    private static final int NODES = 3;
-    private static final int RF = 1;
+    // Need a mix of local and remote replicas, multiple remote replicas to ensure inter-DC forwarding hits both
+    // paths for chosen replica in a remote DC, and all other replicas in a remote DC.
+    // Include an extra node to ensure non-replicas behave correctly.
+    private static final int NODES = 5;
+    private static final int RF_PER_DC = 2;
+    private static final int NUM_DCS = 2;
+    private static final int TOTAL_RF = RF_PER_DC * NUM_DCS;
 
     private static int inst(int i)
     {
@@ -57,7 +64,7 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
     public void testBasicWriteForwarding() throws Throwable
     {
         // 2 DCs, 1 replica in each, to test forwarding to instances in remote DCs and local DCs
-        Map<Integer, NetworkTopology.DcAndRack> topology = networkTopology(3, (nodeid) -> nodeid % 2 == 1 ? dcAndRack("dc1", "rack1") : dcAndRack("dc2", "rack2"));
+        Map<Integer, NetworkTopology.DcAndRack> topology = networkTopology(5, (nodeid) -> nodeid % 2 == 1 ? dcAndRack("dc1", "rack1") : dcAndRack("dc2", "rack2"));
 
         // TODO: disable background reconciliation so we can test that writes are reconciling immediately
         try (Cluster cluster = Cluster.build(NODES)
@@ -71,7 +78,7 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
             String keyspaceName = "basic_write_forwarding_test";
             String tableName = "tbl";
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
-                                        "{'class': 'NetworkTopologyStrategy', 'replication_factor': " + RF + "} " +
+                                        "{'class': 'NetworkTopologyStrategy', 'replication_factor': " + RF_PER_DC + "} " +
                                         "AND replication_type='tracked';", keyspaceName));
             cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
 
@@ -83,9 +90,10 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
                 cluster.coordinator(inst(inserted)).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (?, ?, ?)", keyspaceName, tableName), ConsistencyLevel.ALL, inserted, inserted, inserted);
 
                 // Writes should be ack'd in the journal too, but these could lag behind client acks, so could be
-                // permissive here. Each write should be reconciled on the leader, unreconciled on the replica (until
-                // background reconciliation broadcast is implemented), and ignored on others.
-                IInstance replica = null;
+                // permissive here. Each write should be reconciled on 1 leader, unreconciled on TOTAL_RF-1
+                // replicas (until background reconciliation broadcast is implemented), and ignored on others.
+                Set<IInvokableInstance> leaderOrNonReplica = new HashSet<>(2);
+                Set<IInvokableInstance> replicas = new HashSet<>();
                 for (IInvokableInstance instance : cluster)
                 {
                     int unreconciled = instance.callOnInstance(() -> {
@@ -97,20 +105,32 @@ public class MutationTrackingWriteForwardingTest extends TestBaseImpl
                     });
                     int lastUnreconciled = instanceUnreconciled.getOrDefault(instance, 0);
                     int newUnreconciled = unreconciled - lastUnreconciled;
-                    if (newUnreconciled == 1)
+
+                    if (newUnreconciled == 0)
                     {
-                        Assertions.assertThat(replica).isNull();
-                        replica = instance;
+                        // instance already reconciled (as leader) or did not receive new mutation ID (non-replica)
+                        leaderOrNonReplica.add(instance);
+                    }
+                    else if (newUnreconciled == 1)
+                    {
+                        // instance has not reconciled, so it's a replica (until reconciliation broadcast is implemented)
+                        replicas.add(instance);
+                    }
+                    else
+                    {
+                        Assertions.fail("Should not have more than one new unreconciled mutation");
                     }
                     instanceUnreconciled.put(instance, unreconciled);
                 }
-                Assertions.assertThat(replica).isNotNull();
+                Assertions.assertThat(leaderOrNonReplica).hasSize(2);
+                Assertions.assertThat(replicas).hasSize(TOTAL_RF - 1);
             }
             Assertions.assertThat(instanceUnreconciled).matches(map -> {
                 int sum = 0;
                 for (Integer value : map.values())
                     sum += value;
-                return sum == ROWS;
+                // Each write is reconciled on the leader, unreconciled on all other replicas
+                return sum == (ROWS * (TOTAL_RF - 1));
             });
         }
     }

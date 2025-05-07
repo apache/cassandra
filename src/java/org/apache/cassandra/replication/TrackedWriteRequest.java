@@ -281,7 +281,12 @@ public class TrackedWriteRequest
 
             for (Replica replica : forwardToReplicas)
             {
-                MessagingService.instance().callbacks.addWithExpiration(handler, message, replica.endpoint());
+                if (handler instanceof TrackedWriteResponseHandler)
+                    MessagingService.instance().callbacks.addWithExpiration((TrackedWriteResponseHandler) handler, message, replica);
+                else if (handler instanceof ForwardedWrite.LeaderCallback)
+                    MessagingService.instance().callbacks.addWithExpiration(handler, message, replica.endpoint());
+                else
+                    throw new IllegalStateException();
                 logger.trace("Adding FWD message to {}@{}", message.id(), replica);
             }
 

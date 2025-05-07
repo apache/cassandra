@@ -25,7 +25,6 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.slf4j.Logger;
@@ -36,7 +35,6 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.InternodeOutboundMetrics;
-import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 
 import static java.lang.String.format;
@@ -97,17 +95,13 @@ public class RequestCallbacks implements OutboundMessageCallbacks
      */
     public void addWithExpiration(RequestCallback<?> cb, Message<?> message, InetAddressAndPort to)
     {
-        // mutations need to call the overload
-        Preconditions.checkArgument((message.verb() != Verb.MUTATION_REQ && message.verb() != Verb.COUNTER_MUTATION_REQ) || (cb instanceof ForwardedWrite.LeaderCallback));
         CallbackInfo previous = callbacks.put(key(message.id(), to), new CallbackInfo(message, to, cb));
         assert previous == null : format("Callback already exists for id %d/%s! (%s)", message.id(), to, previous);
     }
 
     public void addWithExpiration(AbstractWriteResponseHandler<?> cb, Message<?> message, Replica to)
     {
-        Preconditions.checkArgument(message.verb() == Verb.MUTATION_REQ || message.verb() == Verb.COUNTER_MUTATION_REQ || message.verb() == Verb.PAXOS_COMMIT_REQ || message.verb() == Verb.FORWARDING_WRITE);
-        CallbackInfo previous = callbacks.put(key(message.id(), to.endpoint()), new CallbackInfo(message, to.endpoint(), cb));
-        assert previous == null : format("Callback already exists for id %d/%s! (%s)", message.id(), to.endpoint(), previous);
+        addWithExpiration(cb, message, to.endpoint());
     }
 
     @VisibleForTesting
