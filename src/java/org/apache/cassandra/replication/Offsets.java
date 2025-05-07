@@ -51,6 +51,17 @@ public abstract class Offsets
         this.size = size;
     }
 
+    public static boolean contentsEqual(Offsets a, Offsets b)
+    {
+        if (a == null || b == null)
+            return a == null && b == null;
+        if (a.size != b.size)
+            return false;
+        if (!a.logId.equals(b.logId))
+            return false;
+        return Arrays.equals(a.bounds, 0, a.size, b.bounds, 0, b.size);
+    }
+
     @Override
     public boolean equals(Object o)
     {

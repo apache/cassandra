@@ -156,6 +156,12 @@ public class OffsetsTest
         return ids;
     }
 
+    private static void assertOffsetsEqual(Offsets expected, Offsets actual)
+    {
+        if (!Offsets.contentsEqual(expected, actual))
+            throw new AssertionError("expected: " + expected.toString() + " but was: " + actual.toString());
+    }
+
 
     @Test
     public void testEmptyAndAddExisting()
@@ -545,10 +551,10 @@ public class OffsetsTest
 
     private static void testUnion(Offsets expected, Offsets a, Offsets b)
     {
-        Assert.assertEquals(expected, Offsets.union(a, b));
-        Assert.assertEquals(expected, new Offsets.Mutable(Offsets.union(a.rangeIterator(), b.rangeIterator())));
-        Assert.assertEquals(expected, Offsets.union(b, a));
-        Assert.assertEquals(expected, new Offsets.Mutable(Offsets.union(b.rangeIterator(), a.rangeIterator())));
+        assertOffsetsEqual(expected, Offsets.union(a, b));
+        assertOffsetsEqual(expected, new Offsets.Mutable(Offsets.union(a.rangeIterator(), b.rangeIterator())));
+        assertOffsetsEqual(expected, Offsets.union(b, a));
+        assertOffsetsEqual(expected, new Offsets.Mutable(Offsets.union(b.rangeIterator(), a.rangeIterator())));
     }
 
     @Test
@@ -602,12 +608,12 @@ public class OffsetsTest
         bPlus.add(50, 55);
 
         // check copy-remaining
-        Assert.assertEquals(expected, Offsets.difference(a, b));
-        Assert.assertEquals(expected, new Offsets.Mutable(Offsets.difference(a.rangeIterator(), b.rangeIterator())));
+        assertOffsetsEqual(expected, Offsets.difference(a, b));
+        assertOffsetsEqual(expected, new Offsets.Mutable(Offsets.difference(a.rangeIterator(), b.rangeIterator())));
 
         // check discarded tail
-        Assert.assertEquals(expected, Offsets.difference(a, bPlus));
-        Assert.assertEquals(expected, new Offsets.Mutable(Offsets.difference(a.rangeIterator(), bPlus.rangeIterator())));
+        assertOffsetsEqual(expected, Offsets.difference(a, bPlus));
+        assertOffsetsEqual(expected, new Offsets.Mutable(Offsets.difference(a.rangeIterator(), bPlus.rangeIterator())));
     }
 
     @Test
@@ -678,12 +684,12 @@ public class OffsetsTest
         Offsets.Mutable bPlus = Offsets.Mutable.copy(b);
         bPlus.add(50, 55);
 
-        Assert.assertEquals(expected, Offsets.intersection(a, b));
-        Assert.assertEquals(expected, Offsets.intersection(aPlus, b));
-        Assert.assertEquals(expected, Offsets.intersection(a, bPlus));
-        Assert.assertEquals(expected, Offsets.intersection(b, a));
-        Assert.assertEquals(expected, Offsets.intersection(bPlus, a));
-        Assert.assertEquals(expected, Offsets.intersection(b, aPlus));
+        assertOffsetsEqual(expected, Offsets.intersection(a, b));
+        assertOffsetsEqual(expected, Offsets.intersection(aPlus, b));
+        assertOffsetsEqual(expected, Offsets.intersection(a, bPlus));
+        assertOffsetsEqual(expected, Offsets.intersection(b, a));
+        assertOffsetsEqual(expected, Offsets.intersection(bPlus, a));
+        assertOffsetsEqual(expected, Offsets.intersection(b, aPlus));
     }
 
     @Test
