@@ -1,0 +1,7 @@
+= Accord
+
+Accord is one of the transaction protocols supported by Apache Cassandra. Accord is a separate sub-project that
+is implemented as a library that is Cassandra agnostic.
+
+* xref:architecture/accord-architecture.adoc[]
+* xref:architecture/cql-on-accord.adoc[]

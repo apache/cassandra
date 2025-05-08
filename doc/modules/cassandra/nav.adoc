@@ -23,6 +23,9 @@
 *** xref:cassandra:architecture/guarantees.adoc[]
 *** xref:cassandra:architecture/messaging.adoc[]
 *** xref:cassandra:architecture/streaming.adoc[]
+*** xref:cassandra:architecture/accord.adoc[]
+**** xref:cassandra:architecture/accord-architecture.adoc[]
+**** xref:cassandra:architecture/cql-on-accord.adoc[]
 
 ** xref:cassandra:developing/data-modeling/index.adoc[]
 *** xref:cassandra:developing/data-modeling/intro.adoc[]
@@ -107,11 +110,13 @@
 **** xref:cassandra:managing/operating/transientreplication.adoc[Transient replication]
 **** xref:cassandra:managing/operating/virtualtables.adoc[Virtual tables]
 **** xref:cassandra:managing/operating/password_validation.adoc[Password validation]
+**** xref:cassandra:managing/operating/onboarding-to-accord.adoc[]
 *** xref:cassandra:managing/tools/index.adoc[Tools]
 **** xref:cassandra:managing/tools/cqlsh.adoc[cqlsh: the CQL shell]
 **** xref:cassandra:managing/tools/nodetool/nodetool.adoc[nodetool]
 **** xref:cassandra:managing/tools/sstable/index.adoc[SSTable tools]
 **** xref:cassandra:managing/tools/cassandra_stress.adoc[cassandra-stress]
+
 
 ** xref:cassandra:troubleshooting/index.adoc[Troubleshooting]
 *** xref:cassandra:troubleshooting/finding_nodes.adoc[Finding misbehaving nodes]

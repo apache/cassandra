@@ -1,4 +1,4 @@
-== Accord Intro
+= Accord Architecture
 
 This document is intended to facilitate quick dive into Accord and
 Cassandra Integration code for anyone interested in the project. Readers
