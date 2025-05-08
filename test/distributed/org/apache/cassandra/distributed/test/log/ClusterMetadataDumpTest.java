@@ -20,11 +20,13 @@ package org.apache.cassandra.distributed.test.log;
 
 import java.io.IOException;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 
@@ -111,6 +113,24 @@ public class ClusterMetadataDumpTest extends TestBaseImpl
             }
             assertEquals(3, nodesFound);
             assertEquals(3, tokensFound);
+        }
+    }
+
+    @Test
+    public void dumpClusterMetadataTest() throws IOException
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .start()))
+        {
+            NodeToolResult res = cluster.get(1).nodetoolResult("cms", "dumpclustermetadata");
+            res.asserts().success();
+
+            String stdout = res.getStdout();
+            String expectedMsgPrefix = "Cluster Metadata dump available at ";
+            Assert.assertTrue(stdout.contains(expectedMsgPrefix));
+            int index = stdout.indexOf(expectedMsgPrefix);
+            String dumpFile = stdout.substring(index + expectedMsgPrefix.length()).trim();
+            Assert.assertTrue(new File(dumpFile).exists());
         }
     }
 }
