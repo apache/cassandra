@@ -108,7 +108,9 @@ public abstract class OfflineToolUtils
         Collections.addAll(allowedThreadNames, EXTRA_JDK_THREADS);
         Collections.addAll(allowedThreadNames, optionalThreadNames);
 
-        if (allowNonDefaultMemtableThreads && DatabaseDescriptor.getMemtableConfigurations().containsKey("default"))
+        if (allowNonDefaultMemtableThreads
+            && (DatabaseDescriptor.getMemtableConfigurations() != null
+                && DatabaseDescriptor.getMemtableConfigurations().containsKey("default")))
             Collections.addAll(allowedThreadNames, NON_DEFAULT_MEMTABLE_THREADS);
 
         var allowedRegexes = allowedThreadNames.stream()
@@ -119,6 +121,7 @@ public abstract class OfflineToolUtils
         var badThreads = Arrays.stream(threads.getThreadInfo(threads.getAllThreadIds()))
                                .filter(Objects::nonNull)
                                .filter(threadInfo -> allowedRegexes.stream().noneMatch(pattern -> pattern.matcher(threadInfo.getThreadName()).matches()))
+                               .filter(threadInfo -> !allowedThreadNames.contains(threadInfo.getThreadName()))
                                .collect(Collectors.toSet());
 
         if (!badThreads.isEmpty())

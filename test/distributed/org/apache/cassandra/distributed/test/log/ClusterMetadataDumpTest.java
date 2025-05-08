@@ -25,7 +25,10 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 
 import static org.junit.Assert.assertEquals;
@@ -111,6 +114,61 @@ public class ClusterMetadataDumpTest extends TestBaseImpl
             }
             assertEquals(3, nodesFound);
             assertEquals(3, tokensFound);
+        }
+    }
+
+    @Test
+    public void dumpClusterMetadataTest() throws IOException
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .start()))
+        {
+            NodeToolResult res = cluster.get(1).nodetoolResult("cms", "dump");
+            res.asserts().success();
+
+            String stdout = res.getStdout();
+            String expectedMsgPrefix = "Cluster Metadata dump available at ";
+            assertTrue(stdout.contains(expectedMsgPrefix));
+            int index = stdout.indexOf(expectedMsgPrefix);
+            String dumpFile = stdout.substring(index + expectedMsgPrefix.length()).trim();
+            assertTrue(new File(dumpFile).exists());
+        }
+    }
+
+    @Test
+    public void dumpClusterMetadataWithParamsTest() throws IOException
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .start()))
+        {
+            long currentEpoch = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch());
+            String serVersion = NodeVersion.CURRENT.serializationVersion().toString();
+
+            NodeToolResult res = cluster.get(1).nodetoolResult("cms", "dump",
+                                                               "--epoch", "1",
+                                                               "--transform-epoch", String.valueOf(currentEpoch),
+                                                               "--serialization-version", serVersion);
+            res.asserts().success();
+
+            String stdout = res.getStdout();
+            String expectedMsgPrefix = "Cluster Metadata dump available at ";
+            assertTrue(stdout.contains(expectedMsgPrefix));
+            int index = stdout.indexOf(expectedMsgPrefix);
+            String dumpFile = stdout.substring(index + expectedMsgPrefix.length()).trim();
+            assertTrue(new File(dumpFile).exists());
+        }
+    }
+
+    @Test
+    public void dumpClusterMetadataWithPartialParamsFailsTest() throws IOException
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .start()))
+        {
+            // Providing only --epoch without --transform-epoch and --serialization-version
+            // should be rejected by picocli since all three are required together via @ArgGroup
+            NodeToolResult res = cluster.get(1).nodetoolResult("cms", "dump", "--epoch", "1");
+            res.asserts().failure();
         }
     }
 }

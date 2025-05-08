@@ -1,0 +1,38 @@
+NAME
+        nodetool cms dump - Dumps cluster metadata into a file
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms dump
+                [(-e <epoch> | --epoch <epoch>)]
+                [(-sv <serialization_version> | --serialization-version
+                <serialization_version>)]
+                [(-te <transform_epoch> | --transform-epoch <transform_epoch>)]
+
+OPTIONS
+        -e <epoch>, --epoch <epoch>
+            Epoch at which cluster metadata should be dumped
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -sv <serialization_version>, --serialization-version
+            <serialization_version>
+            Serialization Version
+
+        -te <transform_epoch>, --transform-epoch <transform_epoch>
+            Force metadata to given X epoch while dumping
+
+        -u <username>, --username <username>
+            Remote jmx agent username
