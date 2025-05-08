@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.plan;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -32,6 +33,8 @@ import javax.annotation.Nullable;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -39,6 +42,10 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -138,6 +145,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final PrimaryKey firstPrimaryKey;
         private final PrimaryKey lastPrimaryKey;
         private final Iterator<DataRange> keyRanges;
+        private final DataRange firstDataRange;
         private AbstractBounds<PartitionPosition> currentKeyRange;
 
         private final KeyRangeIterator resultKeyIterator;
@@ -152,7 +160,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private ResultRetriever(ReadExecutionController executionController, boolean topK)
         {
             this.keyRanges = queryController.dataRanges().iterator();
-            this.currentKeyRange = keyRanges.next().keyRange();
+            this.firstDataRange = keyRanges.next();
+            this.currentKeyRange = firstDataRange.keyRange();
             this.resultKeyIterator = Operation.buildIterator(queryController);
             this.filterTree = Operation.buildFilter(queryController, queryController.usesStrictFiltering());
             this.executionController = executionController;
@@ -175,7 +184,52 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             // We can't put this code in the constructor because it may throw and the caller
             // may not be prepared for that.
             if (lastKey == null)
-                resultKeyIterator.skipTo(firstPrimaryKey);
+            {
+                PrimaryKey skipTarget = firstPrimaryKey;
+                ClusteringComparator comparator = command.metadata().comparator;
+
+                // If there are no clusterings, the first data range selects an entire partitions, or we have static
+                // expressions, don't bother trying to skip forward within the partition.
+                if (comparator.size() > 0 && !firstDataRange.selectsAllPartition() && !command.rowFilter().hasStaticExpression())
+                {
+                    // Only attempt to skip if the first data range covers a single partition.
+                    if (currentKeyRange.left.equals(currentKeyRange.right) && currentKeyRange.left instanceof DecoratedKey)
+                    {
+                        DecoratedKey decoratedKey = (DecoratedKey) currentKeyRange.left;
+                        ClusteringIndexFilter filter = firstDataRange.clusteringIndexFilter(decoratedKey);
+
+                        if (filter instanceof ClusteringIndexSliceFilter)
+                        {
+                            Slices slices = ((ClusteringIndexSliceFilter) filter).requestedSlices();
+
+                            if (!slices.isEmpty())
+                            {
+                                ClusteringBound<?> startBound = slices.get(0).start();
+
+                                if (!startBound.isEmpty())
+                                {
+                                    ByteBuffer[] rawValues = startBound.getBufferArray();
+
+                                    if (rawValues.length == comparator.size())
+                                        skipTarget = keyFactory.create(decoratedKey, Clustering.make(rawValues));
+                                }
+                            }
+                        }
+                        else if (filter instanceof ClusteringIndexNamesFilter)
+                        {
+                            ClusteringIndexNamesFilter namesFilter = (ClusteringIndexNamesFilter) filter;
+
+                            if (!namesFilter.requestedRows().isEmpty())
+                            {
+                                Clustering<?> skipClustering = namesFilter.requestedRows().iterator().next();
+                                skipTarget = keyFactory.create(decoratedKey, skipClustering);
+                            }
+                        }
+                    }
+                }
+
+                resultKeyIterator.skipTo(skipTarget);
+            }
 
             // Theoretically we wouldn't need this if the caller of computeNext always ran the
             // returned iterators to the completion. Unfortunately, we have no control over the caller behavior here.
