@@ -1201,7 +1201,8 @@ public class CQLConnectionTest
             DatabaseDescriptor.setAllowedClientLibDrivers(originalAllowedDrivers);
         }
     }
- @Test
+
+    @Test
     public void testNoneModeWithAllowedDriver() throws Throwable
     {
         // In none mode with a matching driver, connection should succeed

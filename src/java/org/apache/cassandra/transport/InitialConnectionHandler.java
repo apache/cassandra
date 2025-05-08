@@ -128,7 +128,6 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 
                     StartupMessage startup = (StartupMessage) Message.Decoder.decodeMessage(ctx.channel(), inbound);
                     InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
-                    final ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(remoteAddress);
 
                     StringBuilder errorMsg = new StringBuilder();
                     if (!validateAndLogClientDetails(startup.options, (ServerConnection) connection, errorMsg)) {
@@ -140,6 +139,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         return;
                     }
 
+                    final ClientResourceLimits.Allocator allocator = ClientResourceLimits.getAllocatorForEndpoint(remoteAddress);
                     ChannelPromise promise;
                     if (inbound.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     {
@@ -239,9 +239,16 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 
         if (!isDriverSupported)
         {
+            String nodeAddress = "unknown";
+            try {
+                nodeAddress = FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(true);
+            } catch (Exception e) {
+                logger.error("Error getting local host address", e);
+            }
+
             errorMsg.append(String.format("Client driver '%s' is not in the allowed list. cassandra node = %s",
                             driverName,
-                            FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(true)));
+                            nodeAddress));
 
             if (enforcementLevel == ClientLibsEnforcementLevel.hard) {
                 logger.error("Hard enforcement: Rejecting connection: {}. Allowed drivers: {}, {}", errorMsg, allowedDrivers, optionsWithClientPrefix);
