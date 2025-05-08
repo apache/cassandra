@@ -65,6 +65,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
         return config;
     }
 
+    @VisibleForTesting
+    public void unsafeSetAutoRepairConfig(AutoRepairConfig config)
+    {
+        this.config = config;
+    }
+
     @Override
     public Set<InetAddressAndPort> filterHostsInLocalGroup(RepairType repairType, Set<InetAddressAndPort> hostsToFilter)
     {

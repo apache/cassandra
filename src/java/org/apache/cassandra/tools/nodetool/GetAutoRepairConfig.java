@@ -68,6 +68,7 @@ public class GetAutoRepairConfig extends NodeToolCmd
         StringBuilder sb = new StringBuilder();
         sb.append("\nconfiguration for repair type: " + repairType);
         sb.append("\n\tenabled: " + config.isAutoRepairEnabled(repairType));
+        sb.append("\n\trepair by keyspace: " + config.getRepairByKeyspace(repairType));
         sb.append("\n\tminimum repair interval in hours: " + config.getRepairMinIntervalInHours(repairType));
         sb.append("\n\trepair threads: " + config.getRepairThreads(repairType));
         sb.append("\n\tnumber of repair subranges: " + config.getRepairSubRangeNum(repairType));

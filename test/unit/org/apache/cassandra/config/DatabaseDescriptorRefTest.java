@@ -57,6 +57,7 @@ public class DatabaseDescriptorRefTest
 {
     static final String[] validClasses = {
     "org.apache.cassandra.repair.AutoRepairConfig",
+    "org.apache.cassandra.repair.AutoRepairConfig$1",
     "org.apache.cassandra.repair.AutoRepairConfig$Options",
     "org.apache.cassandra.repair.AutoRepairConfig$RepairType",
     "org.apache.cassandra.audit.AuditLogOptions",

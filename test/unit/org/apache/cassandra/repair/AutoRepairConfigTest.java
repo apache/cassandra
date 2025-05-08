@@ -458,11 +458,11 @@ public class AutoRepairConfigTest extends CQLTester
         config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
         config.repair_type_overrides.put(repairType, null);
         config.global_settings = null;
-        Options.defaultOptions.ignore_keyspaces = "testtest";
+        Options.defaultOptions.get(repairType).ignore_keyspaces = "testtest";
 
         assertEquals("testtest", config.applyOverrides(repairType, opt -> opt.ignore_keyspaces));
 
-        Options.defaultOptions.ignore_keyspaces = Options.getDefaultOptions().ignore_keyspaces;
+        Options.defaultOptions.get(repairType).ignore_keyspaces = Options.getDefaultOptions(repairType).ignore_keyspaces;
     }
 
     @Test
@@ -471,11 +471,11 @@ public class AutoRepairConfigTest extends CQLTester
         config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
         config.repair_type_overrides.put(repairType, null);
         config.global_settings.ignore_keyspaces = "testtest";
-        Options.defaultOptions.ignore_keyspaces = null;
+        Options.defaultOptions.get(repairType).ignore_keyspaces = null;
 
         assertEquals("testtest", config.applyOverrides(repairType, opt -> opt.ignore_keyspaces));
 
-        Options.defaultOptions.ignore_keyspaces = Options.getDefaultOptions().ignore_keyspaces;
+        Options.defaultOptions.get(repairType).ignore_keyspaces = Options.getDefaultOptions(repairType).ignore_keyspaces;
     }
 
     @Test
@@ -486,17 +486,17 @@ public class AutoRepairConfigTest extends CQLTester
         config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
         config.repair_type_overrides.put(repairType, repairTypeOverride);
         config.global_settings = null;
-        Options.defaultOptions.ignore_keyspaces = null;
+        Options.defaultOptions.get(repairType).ignore_keyspaces = null;
 
         assertEquals("testtest", config.applyOverrides(repairType, opt -> opt.ignore_keyspaces));
 
-        Options.defaultOptions.ignore_keyspaces = Options.getDefaultOptions().ignore_keyspaces;
+        Options.defaultOptions.get(repairType).ignore_keyspaces = Options.getDefaultOptions(repairType).ignore_keyspaces;
     }
 
     @Test
     public void testGetDefaultOptionsMVRepairIsEnabledByDefault()
     {
-        Options defaultOptions = Options.getDefaultOptions();
+        Options defaultOptions = Options.getDefaultOptions(repairType);
 
         assertTrue(defaultOptions.mv_repair_enabled);
     }
@@ -505,7 +505,7 @@ public class AutoRepairConfigTest extends CQLTester
     public void testGetDefaultOptionsCorrectKeyspacesIgnored()
     {
         Set<String> allowedKeyspaces = ImmutableSet.of("system", "system_traces", "system_schema", "system_virtual_schema", "system_views");
-        Options defaultOptions = Options.getDefaultOptions();
+        Options defaultOptions = Options.getDefaultOptions(repairType);
 
         for (String keyspace : allowedKeyspaces)
             assertTrue("Keyspace " + keyspace + " should not be allowed", Pattern.matches(defaultOptions.ignore_keyspaces, keyspace));
@@ -515,7 +515,7 @@ public class AutoRepairConfigTest extends CQLTester
     public void testGetDefaultOptionsCorrectKeyspacesAllowed()
     {
         Set<String> allowedKeyspaces = ImmutableSet.of("system_auth", "system_distributed", "systematic", "system_auto_repair");
-        Options defaultOptions = Options.getDefaultOptions();
+        Options defaultOptions = Options.getDefaultOptions(repairType);
 
         for (String keyspace : allowedKeyspaces)
             assertFalse("Keyspace " + keyspace + " should be allowed", Pattern.matches(defaultOptions.ignore_keyspaces, keyspace));

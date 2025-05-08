@@ -20,6 +20,7 @@ package org.apache.cassandra.repair;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -27,6 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -66,7 +68,7 @@ public class AutoRepairConfig implements Serializable
     public AutoRepairConfig(boolean enabled)
     {
         this.enabled = enabled;
-        global_settings = Options.getDefaultOptions();
+        global_settings = new Options();
         for (RepairType type : RepairType.values())
         {
             repair_type_overrides.put(type, new Options());
@@ -331,14 +333,14 @@ public class AutoRepairConfig implements Serializable
 
         // defaultOptions defines the default auto-repair behavior when no overrides are defined
         @VisibleForTesting
-        protected static final Options defaultOptions = getDefaultOptions();
+        protected static final Map<RepairType, Options> defaultOptions = Arrays.stream(RepairType.values()).collect(Collectors.toMap(t -> t, Options::getDefaultOptions));
 
         public Options()
         {
         }
 
         @VisibleForTesting
-        protected static Options getDefaultOptions()
+        protected static Options getDefaultOptions(RepairType type)
         {
             Options opts = new Options();
 
@@ -359,6 +361,23 @@ public class AutoRepairConfig implements Serializable
             opts.table_max_repair_time_in_sec = 6 * 60 * 60L; // six hours
             opts.mv_repair_enabled = true;
             opts.initial_scheduler_delay_in_sec = 900; // 15 minutes
+
+            switch (type)
+            {
+                case bootstrap:
+                case incremental:
+                case full:
+                case preview_repaired:
+                    break;
+                case paxos_cleanup:
+                    // don't skip staging/test keyspaces for paxos cleanup
+                    opts.ignore_keyspaces = "\\b(?!system_(auth|distributed|auto_repair)\\b)system($|_.*)|health|pingless";
+                    // avoid scheduling overhead
+                    opts.repair_by_keyspace = true;
+                    break;
+                default:
+                    throw new IllegalStateException("unknown repair type: " + type.name());
+            }
 
             return opts;
         }
@@ -427,7 +446,7 @@ public class AutoRepairConfig implements Serializable
             optsProviders.add(repair_type_overrides.get(repairType));
         }
         optsProviders.add(global_settings);
-        optsProviders.add(Options.defaultOptions);
+        optsProviders.add(Options.defaultOptions.get(repairType));
 
         return optsProviders.stream()
                             .map(opt -> Optional.ofNullable(opt).map(optionSupplier).orElse(null))

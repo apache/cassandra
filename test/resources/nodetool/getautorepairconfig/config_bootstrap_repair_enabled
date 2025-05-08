@@ -6,6 +6,7 @@ repair scheduler configuration:
 	min repair job duration: 5 seconds
 configuration for repair type: full
 	enabled: false
+	repair by keyspace: false
 	minimum repair interval in hours: 24
 	repair threads: 1
 	number of repair subranges: 16
@@ -23,6 +24,7 @@ configuration for repair type: full
 	initial scheduler delay in seconds: 900
 configuration for repair type: incremental
 	enabled: false
+	repair by keyspace: false
 	minimum repair interval in hours: 24
 	repair threads: 1
 	number of repair subranges: 16
@@ -40,6 +42,7 @@ configuration for repair type: incremental
 	initial scheduler delay in seconds: 900
 configuration for repair type: preview_repaired
 	enabled: false
+	repair by keyspace: false
 	minimum repair interval in hours: 24
 	repair threads: 1
 	number of repair subranges: 16
@@ -57,10 +60,11 @@ configuration for repair type: preview_repaired
 	initial scheduler delay in seconds: 900
 configuration for repair type: paxos_cleanup
 	enabled: false
+	repair by keyspace: true
 	minimum repair interval in hours: 24
 	repair threads: 1
 	number of repair subranges: 16
-	ignore keyspaces: \b(?!system_(auth|distributed|auto_repair)\b)system($|_.*)|.*staging.*|.*test.*|health|pingless
+	ignore keyspaces: \b(?!system_(auth|distributed|auto_repair)\b)system($|_.*)|health|pingless
 	repair only keyspaces: test
 	priority hosts: /127.0.0.1:7000
 	sstable count higher threshold: 10000
@@ -74,6 +78,7 @@ configuration for repair type: paxos_cleanup
 	initial scheduler delay in seconds: 900
 configuration for repair type: bootstrap
 	enabled: true
+	repair by keyspace: false
 	minimum repair interval in hours: 24
 	repair threads: 1
 	number of repair subranges: 16

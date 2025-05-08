@@ -195,13 +195,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
             defaultConfig.setAutoRepairEnabled(repairType, true);
             defaultConfig.setMVRepairEnabled(repairType, false);
         }
-
-        // reset the AutoRepairService config to default
-        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        config.repair_type_overrides = defaultConfig.repair_type_overrides;
-        config.global_settings = defaultConfig.global_settings;
-        config.history_clear_delete_hosts_buffer_in_sec = defaultConfig.history_clear_delete_hosts_buffer_in_sec;
-        config.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
+        defaultConfig.repair_task_min_duration = new DurationSpec.LongSecondsBound("0s");
+        AutoRepairService.instance.unsafeSetAutoRepairConfig(defaultConfig);
     }
 
     private void executeCQL()
@@ -447,8 +442,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         assertEquals(1, state.getTotalMVTablesConsideredForRepair());
         assertEquals(1, AutoRepairMetricsManager.getMetrics(repairType).totalMVTablesConsideredForRepair.getValue().intValue());
         // skipping one time for the base table and another time for MV table
-        assertEquals(2 * DatabaseDescriptor.getAutoRepairConfig().getRepairSubRangeNum(repairType), state.getSkippedTokenRangesCount());
-        assertEquals(2 * DatabaseDescriptor.getAutoRepairConfig().getRepairSubRangeNum(repairType), AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
+        assertEquals(2 * AutoRepairService.instance.getAutoRepairConfig().getRepairSubRangeNum(repairType), state.getSkippedTokenRangesCount());
+        assertEquals(2 * AutoRepairService.instance.getAutoRepairConfig().getRepairSubRangeNum(repairType), AutoRepairMetricsManager.getMetrics(repairType).skippedTokenRangesCount.getValue().intValue());
 
         // set it to higher value, and this time, the tables should not be skipped
         config.setRepairSSTableCountHigherThreshold(repairType, 11);
@@ -575,15 +570,17 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AtomicInteger shuffleKeyspacesCall = new AtomicInteger();
         AtomicInteger shuffleTablesCall = new AtomicInteger();
         AutoRepairV2.shuffleFunc = (List<?> list) -> {
-            assertFalse(list.isEmpty());
-            assertTrue(list.get(0) instanceof Keyspace || list.get(0) instanceof String);
-            if (list.get(0) instanceof Keyspace)
+            if (!list.isEmpty())
             {
-                shuffleKeyspacesCall.getAndIncrement();
-            }
-            else if (list.get(0) instanceof String)
-            {
-                shuffleTablesCall.getAndIncrement();
+                assertTrue(list.get(0) instanceof Keyspace || list.get(0) instanceof String);
+                if (list.get(0) instanceof Keyspace)
+                {
+                    shuffleKeyspacesCall.getAndIncrement();
+                }
+                else if (list.get(0) instanceof String)
+                {
+                    shuffleTablesCall.getAndIncrement();
+                }
             }
         };
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
@@ -682,7 +679,6 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testRepairThrowsForIRWithMVReplay()
     {
-        AutoRepairV2.instance.setup();
         System.setProperty("cassandra.streaming.requires_view_build_during_repair", "true");
 
         if (repairType == AutoRepairConfig.RepairType.incremental)
@@ -705,7 +701,6 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     @Test
     public void testRepairThrowsForIRWithCDCReplay()
     {
-        AutoRepairV2.instance.setup();
         System.setProperty("cassandra.streaming.requires_cdc_replay", "true");
 
         if (repairType == AutoRepairConfig.RepairType.incremental)

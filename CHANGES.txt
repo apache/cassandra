@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44116] Supply default options for different auto repair type
  * [SO-44157] Add IN restrictions used in MV base table as part of the qualifcation metrics for strict mv consistency
  * Fix premature autofail for long-running repairs (CASSANDRA-20312)
  * [SO-44066] Support changing auto-repair config to schedule keyspace-by-keyspace tasks on the fly
