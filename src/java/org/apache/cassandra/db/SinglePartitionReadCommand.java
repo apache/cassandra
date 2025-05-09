@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
@@ -32,7 +31,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
@@ -70,10 +68,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
@@ -852,50 +848,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             }
             throw e;
         }
-    }
-
-    @Override
-    public UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations)
-    {
-        if (mutations.isEmpty())
-            return result;
-
-        List<UnfilteredRowIterator> rows = new ArrayList<>(mutations.size());
-        Slices slices = clusteringIndexFilter().getSlices(metadata());
-
-        for (Mutation mutation : mutations)
-        {
-            UnfilteredRowIterator rowIter = queryMutation(mutation, slices);
-            if (rowIter != null) rows.add(rowIter);
-        }
-        UnfilteredRowIterator merged = UnfilteredRowIterators.merge(rows);
-
-        List<UnfilteredPartitionIterator> partitions = new ArrayList<>(2);
-        partitions.add(result);
-        partitions.add(new SingletonUnfilteredPartitionIterator(merged));
-        return UnfilteredPartitionIterators.merge(partitions, UnfilteredPartitionIterators.MergeListener.NOOP);
-    }
-
-    @Override
-    public UnfilteredPartitionIterator queryJournal(Collection<ShortMutationId> mutationIds)
-    {
-        if (mutationIds.isEmpty())
-            return EmptyIterators.unfilteredPartition(metadata());
-
-        List<UnfilteredRowIterator> rows = new ArrayList<>(mutationIds.size());
-        Slices slices = clusteringIndexFilter().getSlices(metadata());
-
-        for (ShortMutationId mutationId : mutationIds)
-        {
-            Mutation mutation = MutationJournal.instance.read(mutationId);
-            Preconditions.checkNotNull(mutation);
-            UnfilteredRowIterator rowIter = queryMutation(mutation, slices);
-            if (rowIter != null) rows.add(rowIter);
-        }
-
-        return rows.isEmpty()
-             ? EmptyIterators.unfilteredPartition(metadata())
-             : new SingletonUnfilteredPartitionIterator(UnfilteredRowIterators.merge(rows));
     }
 
     @Nullable

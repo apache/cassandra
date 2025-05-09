@@ -465,13 +465,6 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
-    /**
-     * Used by TrackedReadReconciliation, applies missing mutations to a read result
-     */
-    public abstract UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations);
-
-    public abstract UnfilteredPartitionIterator queryJournal(Collection<ShortMutationId> mutationIds);
-
     protected abstract MutationSummary createMutationSummaryInternal(boolean includePending);
 
     public MutationSummary createMutationSummary(boolean includePending)

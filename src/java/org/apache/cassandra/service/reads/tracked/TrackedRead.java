@@ -197,8 +197,6 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                                            ReplicaPlan.ForRangeRead replicaPlan)
     {
         Preconditions.checkArgument(command.metadata().replicationType().isTracked());
-        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-
         return new Range(command, replicaPlan, replicaPlan.consistencyLevel());
     }
 

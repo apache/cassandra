@@ -50,7 +50,7 @@ public class TrackedDataResponse
         try (DataOutputBuffer buffer = new DataOutputBuffer())
         {
             PartitionIterators.Serializer.serialize(iter, selection, buffer, MessagingService.current_version);
-            return new TrackedDataResponse(MessagingService.current_version, buffer.buffer());
+            return new TrackedDataResponse(MessagingService.current_version, buffer.buffer(false));
         }
         catch (IOException e)
         {

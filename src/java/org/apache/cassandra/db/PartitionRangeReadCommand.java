@@ -18,15 +18,12 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
@@ -57,10 +54,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
@@ -418,45 +413,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                       long startTimeNanos)
     {
         return PartialTrackedRangeRead.create(executionController, searcher, cfs, startTimeNanos, this, iterator);
-    }
-
-    @Override
-    public UnfilteredPartitionIterator augmentResultWithMutations(UnfilteredPartitionIterator result, Collection<Mutation> mutations)
-    {
-        if (mutations.isEmpty())
-            return result;
-
-        List<UnfilteredPartitionIterator> partitions = new ArrayList<>(mutations.size() + 1);
-        partitions.add(result);
-
-        for (Mutation mutation : mutations)
-        {
-            UnfilteredPartitionIterator iterator = queryMutation(mutation);
-            if (iterator != null) partitions.add(iterator);
-        }
-
-        return UnfilteredPartitionIterators.merge(partitions, UnfilteredPartitionIterators.MergeListener.NOOP);
-    }
-
-    @Override
-    public UnfilteredPartitionIterator queryJournal(Collection<ShortMutationId> mutationIds)
-    {
-        if (mutationIds.isEmpty())
-            return EmptyIterators.unfilteredPartition(metadata());
-
-        ArrayList<UnfilteredPartitionIterator> iterators = new ArrayList<>(mutationIds.size());
-
-        for (ShortMutationId mutationId : mutationIds)
-        {
-            Mutation mutation = MutationJournal.instance.read(mutationId);
-            Preconditions.checkNotNull(mutation);
-            UnfilteredPartitionIterator iterator = queryMutation(mutation);
-            if (iterator != null) iterators.add(iterator);
-        }
-
-        return iterators.isEmpty()
-             ? EmptyIterators.unfilteredPartition(metadata())
-             : UnfilteredPartitionIterators.merge(iterators, UnfilteredPartitionIterators.MergeListener.NOOP);
     }
 
     @Nullable
