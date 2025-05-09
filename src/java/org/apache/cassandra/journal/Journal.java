@@ -861,7 +861,7 @@ public class Journal<K, V> implements Shutdownable
     /**
      * @return true if the invoking thread should continue, or false if it should terminate itself
      */
-    boolean handleError(String message, Throwable t)
+    public boolean handleError(String message, Throwable t)
     {
         Params.FailurePolicy policy = params.failurePolicy();
         JVMStabilityInspector.inspectJournalThrowable(t, name, policy);
@@ -878,6 +878,7 @@ public class Journal<K, V> implements Shutdownable
                 message = format("%s. Journal %s failure policy is %s; terminating thread.", message, name, policy);
                 logger.error(maybeAddDiskSpaceContext(message), t);
                 return false;
+            case ALLOW_UNSAFE_STARTUP:
             case IGNORE:
                 message = format("%s. Journal %s failure policy is %s; ignoring excepton.", message, name, policy);
                 logger.error(maybeAddDiskSpaceContext(message), t);

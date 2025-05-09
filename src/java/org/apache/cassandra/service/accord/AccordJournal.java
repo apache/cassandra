@@ -448,24 +448,27 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
                 CommandStore commandStore = commandStores.forId(ref.key().commandStoreId);
                 Loader loader = commandStore.loader();
-                AsyncChains.getUnchecked(loader.load(ref.key().id)
-                                               .map(command -> {
-                                                   if (journalTable.shouldIndex(ref.key())
-                                                       && command.participants() != null
-                                                       && command.participants().route() != null)
-                                                   {
-                                                       ref.segments(segment -> {
-                                                           journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, ref.key().id, command.participants().route()));
-                                                       });
-                                                   }
-                                                   return command;
-                                               })
-                                               .beginAsResult());
+                try
+                {
+                    AsyncChains.getUnchecked(loader.load(ref.key().id)
+                                                   .map(command -> {
+                                                       if (journalTable.shouldIndex(ref.key())
+                                                           && command.participants() != null
+                                                           && command.participants().route() != null)
+                                                       {
+                                                           ref.segments(segment -> {
+                                                               journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, ref.key().id, command.participants().route()));
+                                                           });
+                                                       }
+                                                       return command;
+                                                   })
+                                                   .beginAsResult());
+                }
+                catch (Throwable t)
+                {
+                    journal.handleError("Could not replay command " + ref.key().id, t);
+                }
             }
-        }
-        catch (Throwable t)
-        {
-            throw new RuntimeException("Can not replay journal.", t);
         }
     }
 

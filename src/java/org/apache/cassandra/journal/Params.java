@@ -23,7 +23,7 @@ public interface Params
 {
     enum FlushMode { BATCH, GROUP, PERIODIC }
 
-    enum FailurePolicy { STOP, STOP_JOURNAL, IGNORE, DIE }
+    enum FailurePolicy { STOP, STOP_JOURNAL, IGNORE, ALLOW_UNSAFE_STARTUP, DIE }
 
     /**
      * @return maximum segment size
