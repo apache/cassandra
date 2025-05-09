@@ -32,7 +32,7 @@ public class MetadataTest
     @Test
     public void testUpdate()
     {
-        Metadata metadata = Metadata.create();
+        Metadata metadata = Metadata.empty();
 
         metadata.update();
         metadata.update();
@@ -45,7 +45,7 @@ public class MetadataTest
     @Test
     public void testWriteRead() throws IOException
     {
-        Metadata metadata = Metadata.create();
+        Metadata metadata = Metadata.empty();
 
         metadata.update();
         metadata.update();

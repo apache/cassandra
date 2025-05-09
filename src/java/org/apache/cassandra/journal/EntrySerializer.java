@@ -102,14 +102,24 @@ public final class EntrySerializer
         CRC32 crc = Crc.crc32();
         into.clear();
 
-        int start = from.position();
         if (from.remaining() < TypeSizes.INT_SIZE)
             return -1;
+        int start = from.position();
 
-        int totalSize = from.getInt(start) - start;
+        int endOffset = from.getInt(start);
+        // If the node was shut down abruptly, it may happen that we end up with a log that does not have an index or metadata, in
+        // which case we infer the last contiuous fsynced offset from
+        if (endOffset == 0)
+        {
+            Invariants.require(syncedOffset == Integer.MAX_VALUE, "Synced offset %d, but end offset is not set", syncedOffset, endOffset);
+            return -1;
+        }
+
+        int totalSize = endOffset - start;
+        // TODO (required): figure out when this condition can be hit.
         if (totalSize == 0)
             return -1;
-
+        Invariants.require(totalSize > 0);
         if (from.remaining() < totalSize)
             return handleReadException(new EOFException(), from.limit(), syncedOffset);
 

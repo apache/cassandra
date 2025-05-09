@@ -41,14 +41,15 @@ final class Metadata
     private static final AtomicIntegerFieldUpdater<Metadata> recordsCountUpdater =
         AtomicIntegerFieldUpdater.newUpdater(Metadata.class, "recordsCount");
 
-    static Metadata create()
+    static Metadata empty()
     {
-        return new Metadata(0);
+        return new Metadata(0, 0);
     }
 
-    private Metadata(int recordsCount)
+    private Metadata(int recordsCount, int fsyncLimit)
     {
         this.recordsCount = recordsCount;
+        this.fsyncLimit = fsyncLimit;
     }
 
     void update()
@@ -75,7 +76,9 @@ final class Metadata
     {
         CRC32 crc = Crc.crc32();
         out.writeInt(recordsCount);
+        out.writeInt(fsyncLimit);
         updateChecksumInt(crc, recordsCount);
+        updateChecksumInt(crc, fsyncLimit);
         out.writeInt((int) crc.getValue());
     }
 
@@ -83,9 +86,11 @@ final class Metadata
     {
         CRC32 crc = Crc.crc32();
         int recordsCount = in.readInt();
+        int fsyncLimit = in.readInt();
         updateChecksumInt(crc, recordsCount);
+        updateChecksumInt(crc, fsyncLimit);
         validateCRC(crc, in.readInt());
-        return new Metadata(recordsCount);
+        return new Metadata(recordsCount, fsyncLimit);
     }
 
     void persist(Descriptor descriptor)
@@ -121,11 +126,12 @@ final class Metadata
     static <K> Metadata rebuild(Descriptor descriptor, KeySupport<K> keySupport)
     {
         int recordsCount = 0;
-
+        int fsyncLimit = 0;
         try (StaticSegment.SequentialReader<K> reader = StaticSegment.sequentialReader(descriptor, keySupport, Integer.MAX_VALUE))
         {
             while (reader.advance())
                 ++recordsCount;
+            fsyncLimit = reader.offset;
         }
         catch (JournalReadError e)
         {
@@ -134,7 +140,7 @@ final class Metadata
                 throw e;
         }
 
-        return new Metadata(recordsCount);
+        return new Metadata(recordsCount, fsyncLimit);
     }
 
     static <K> Metadata rebuildAndPersist(Descriptor descriptor, KeySupport<K> keySupport)
