@@ -1,4 +1,5 @@
 5.0.5
+ * Ensure replica filtering protection does not trigger unnecessary short read protection reads (CASSANDRA-20639)
  * Unified Compaction does not properly validate min and target sizes (CASSANDRA-20398)
  * Avoid lambda usage in TrieMemoryIndex range queries and ensure queue size tracking is per column (CASSANDRA-20668)
  * Avoid CQLSH throwing an exception loading .cqlshrc on non-supported platforms (CASSANDRA-20478)
