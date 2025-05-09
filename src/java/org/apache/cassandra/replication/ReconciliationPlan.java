@@ -187,15 +187,18 @@ public class ReconciliationPlan
             int size = in.readInt();
             ImmutableMap.Builder<InetAddressAndPort, MultiOffsets.Immutable> builder = ImmutableMap.builderWithExpectedSize(size);
             for (int i = 0; i < size; i++)
-                builder.put(InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version),
-                            MultiOffsets.Immutable.serializer.deserialize(in, version));
+            {
+                InetAddressAndPort endpoint = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version);
+                MultiOffsets.Immutable offsets = MultiOffsets.Immutable.serializer.deserialize(in, version);
+                builder.put(endpoint, offsets);
+            }
             return new ReconciliationPlan(builder.build());
         }
 
         @Override
         public long serializedSize(ReconciliationPlan plan, int version)
         {
-            long size = TypeSizes.INT_SIZE;
+            long size = TypeSizes.sizeof(plan.txPlan.size());
             for (Map.Entry<InetAddressAndPort, MultiOffsets.Immutable> entry : plan.txPlan.entrySet())
             {
                 size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(entry.getKey(), version);

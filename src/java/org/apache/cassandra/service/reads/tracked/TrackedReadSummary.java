@@ -70,8 +70,9 @@ public class TrackedReadSummary
         @Override
         public TrackedReadSummary deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new TrackedReadSummary(TrackedRead.Id.serializer.deserialize(in, version),
-                                          MutationSummary.serializer.deserialize(in, version));
+            TrackedRead.Id id = TrackedRead.Id.serializer.deserialize(in, version);
+            MutationSummary summary = MutationSummary.serializer.deserialize(in, version);
+            return new TrackedReadSummary(id, summary);
         }
 
         @Override

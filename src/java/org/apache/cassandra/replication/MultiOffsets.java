@@ -51,7 +51,10 @@ public abstract class MultiOffsets<T extends Offsets>
 
     public boolean isEmpty()
     {
-        return idCount() == 0;
+        for (T offsets : offsetMap().values())
+            if (!offsets.isEmpty())
+                return false;
+        return true;
     }
 
     private static abstract class AbstractMutable<T extends Offsets.AbstractMutable<T>> extends MultiOffsets<T>
@@ -190,41 +193,14 @@ public abstract class MultiOffsets<T extends Offsets>
             }
         }
 
-        private static class KeySink implements Consumer<Long>
-        {
-            int idx = 0;
-            final long[] keys;
-
-            public KeySink(int size)
-            {
-                this.keys = new long[size];
-            }
-
-            @Override
-            public void accept(Long v)
-            {
-                keys[idx++] = v;
-            }
-
-            public void sort()
-            {
-                Arrays.sort(keys);
-            }
-        }
-
         public static final IVersionedSerializer<MultiOffsets.Immutable> serializer = new IVersionedSerializer<MultiOffsets.Immutable>()
         {
             @Override
             public void serialize(MultiOffsets.Immutable mo, DataOutputPlus out, int version) throws IOException
             {
-                int size = mo.offsetMap.size();
-                KeySink keys = new KeySink(size);
-                mo.offsetMap.keySet().forEach(keys);
-                keys.sort();
-
-                out.writeInt(size);
-                for (int i=0; i<size; i++)
-                    Offsets.serializer.serialize(mo.offsetMap.get(keys.keys[i]), out, version);
+                out.writeInt(mo.offsetMap.size());
+                for (Offsets.Immutable offsets : mo.offsetMap().values())
+                    Offsets.serializer.serialize(offsets, out, version);
             }
 
             @Override

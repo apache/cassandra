@@ -152,8 +152,9 @@ public class ReadReconcileSend
         @Override
         public ReadReconcileSend deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new ReadReconcileSend(TrackedRead.Id.serializer.deserialize(in, version),
-                                         CollectionSerializer.deserializeCollection(PeerSync.serializer, ArrayList::new, in, version));
+            TrackedRead.Id readId = TrackedRead.Id.serializer.deserialize(in, version);
+            List<PeerSync> syncTasks = CollectionSerializer.deserializeCollection(PeerSync.serializer, ArrayList::new, in, version);
+            return new ReadReconcileSend(readId, syncTasks);
         }
 
         @Override

@@ -1384,7 +1384,7 @@ public abstract class Offsets
         public long serializedSize(Offsets.Immutable offsets, int version)
         {
             long size = CoordinatorLogId.serializer.serializedSize(offsets.logId, version);
-            size += TypeSizes.INT_SIZE;
+            size += TypeSizes.sizeof(offsets.size);
             size += (long) TypeSizes.INT_SIZE * offsets.size;
             return size;
         }

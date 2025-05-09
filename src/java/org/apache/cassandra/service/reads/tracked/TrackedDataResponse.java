@@ -84,13 +84,16 @@ public class TrackedDataResponse
         @Override
         public TrackedDataResponse deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new TrackedDataResponse(in.readInt(), ByteBufferUtil.readWithVIntLength(in));
+            int serializationVersion = in.readInt();
+            ByteBuffer data = ByteBufferUtil.readWithVIntLength(in);
+            return new TrackedDataResponse(serializationVersion, data);
         }
 
         @Override
         public long serializedSize(TrackedDataResponse response, int version)
         {
-            return TypeSizes.INT_SIZE + ByteBufferUtil.serializedSizeWithVIntLength(response.data);
+            return TypeSizes.sizeof(response.serializationVersion)
+                   + ByteBufferUtil.serializedSizeWithVIntLength(response.data);
         }
     };
 }

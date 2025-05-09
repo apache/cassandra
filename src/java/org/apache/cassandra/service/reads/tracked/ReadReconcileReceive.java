@@ -119,10 +119,11 @@ public class ReadReconcileReceive
         @Override
         public ReadReconcileReceive deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new ReadReconcileReceive(TrackedRead.Id.serializer.deserialize(in, version),
-                                            in.readInt(),
-                                            inetAddressAndPortSerializer.deserialize(in, version),
-                                            CollectionSerializer.deserializeCollection(Mutation.serializer, ArrayList::new, in, version));
+            TrackedRead.Id readId = TrackedRead.Id.serializer.deserialize(in, version);
+            int syncId = in.readInt();
+            InetAddressAndPort coordinator = inetAddressAndPortSerializer.deserialize(in, version);
+            List<Mutation> mutations = CollectionSerializer.deserializeCollection(Mutation.serializer, ArrayList::new, in, version);
+            return new ReadReconcileReceive(readId, syncId, coordinator, mutations);
         }
 
         @Override

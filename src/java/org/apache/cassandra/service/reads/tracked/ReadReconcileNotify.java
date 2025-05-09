@@ -80,7 +80,9 @@ public class ReadReconcileNotify
         @Override
         public ReadReconcileNotify deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new ReadReconcileNotify(TrackedRead.Id.serializer.deserialize(in, version), in.readInt());
+            TrackedRead.Id readId = TrackedRead.Id.serializer.deserialize(in, version);
+            int syncId = in.readInt();
+            return new ReadReconcileNotify(readId, syncId);
         }
 
         @Override

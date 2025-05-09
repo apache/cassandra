@@ -112,13 +112,15 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             @Override
             public Id deserialize(DataInputPlus in, int version) throws IOException
             {
-                return new Id(in.readInt(), in.readLong());
+                int node = in.readInt();
+                long hlc = in.readLong();
+                return new Id(node, hlc);
             }
 
             @Override
             public long serializedSize(Id id, int version)
             {
-                return TypeSizes.INT_SIZE + TypeSizes.LONG_SIZE;
+                return TypeSizes.sizeof(id.node) + TypeSizes.sizeof(id.hlc);
             }
         };
 

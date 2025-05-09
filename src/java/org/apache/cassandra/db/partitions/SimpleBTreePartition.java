@@ -124,14 +124,6 @@ public class SimpleBTreePartition extends AbstractBTreePartition implements Upda
         return reconciled;
     }
 
-    public Cell<?> merge(Cell<?> previous, Cell<?> insert)
-    {
-        if (insert == previous)
-            return insert;
-
-        return insert;
-    }
-
     public void update(PartitionUpdate update)
     {
         data = makeMergedPartition(data, update);
