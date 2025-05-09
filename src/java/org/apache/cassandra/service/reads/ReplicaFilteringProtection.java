@@ -27,13 +27,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.Queue;
 import java.util.function.Function;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -46,12 +47,12 @@ import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -71,6 +72,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
+import org.apache.cassandra.service.reads.repair.PartitionIteratorMergeListener;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -90,6 +92,7 @@ import org.apache.cassandra.utils.btree.BTreeSet;
  * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-15907">CASSANDRA-15907</a>
  * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-19018">CASSANDRA-19018</a>
  */
+@NotThreadSafe
 public class ReplicaFilteringProtection<E extends Endpoints<E>>
 {
     private static final Logger logger = LoggerFactory.getLogger(ReplicaFilteringProtection.class);
@@ -105,6 +108,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     private final E sources;
     private final TableMetrics tableMetrics;
 
+    private final QueryMergeListener mergeListener;
+
     private final int cachedRowsWarnThreshold;
     private final int cachedRowsFailThreshold;
 
@@ -119,6 +124,12 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
      */
     private final List<Queue<PartitionBuilder>> originalPartitions;
 
+    /** Whether to consume entire partitions or not in {@link #queryProtectedPartitions}. */
+    private final boolean consumeEntirePartitions;
+
+    /** Tracks the current partitions when not consuming entire partitions in {@link #queryProtectedPartitions}. */
+    private RowIterator currentRowIterator = null;
+
     ReplicaFilteringProtection(Keyspace keyspace,
                                ReadCommand command,
                                ConsistencyLevel consistency,
@@ -129,6 +140,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     {
         this.keyspace = keyspace;
         this.command = command;
+        this.consumeEntirePartitions = command.limits().isUnlimited() || !command.isLimitedToOnePartition() || command.rowFilter().hasStaticExpression();
         this.consistency = consistency;
         this.requestTime = requestTime;
         this.sources = sources;
@@ -143,6 +155,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
         this.cachedRowsWarnThreshold = cachedRowsWarnThreshold;
         this.cachedRowsFailThreshold = cachedRowsFailThreshold;
+
+        mergeListener = new QueryMergeListener();
     }
 
     private UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, Replica source, ReplicaPlan.Shared<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan)
@@ -170,6 +184,127 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         return resolver.getMessages().get(0).payload.makeIterator(command);
     }
 
+    private class PartitionMergeListerner implements UnfilteredRowIterators.MergeListener
+    {
+        final DecoratedKey key;
+        final List<PartitionBuilder> builders = new ArrayList<>(sources.size());
+        final RegularAndStaticColumns columns;
+        final EncodingStats stats;
+        final boolean[] silentRowAt;
+        final boolean[] silentColumnAt;
+        
+        PartitionMergeListerner(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+        {
+            key = partitionKey;
+            columns = PartitionIteratorMergeListener.columns(versions);
+            stats = EncodingStats.merge(versions, NULL_TO_NO_STATS);
+
+            for (int i = 0; i < sources.size(); i++)
+                builders.add(i, new PartitionBuilder(partitionKey, sources.get(i), columns, stats));
+
+            silentRowAt = new boolean[builders.size()];
+            silentColumnAt = new boolean[builders.size()];
+        }
+
+        @Override
+        public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
+        {
+            // cache the deletion time versions to be able to regenerate the original row iterator
+            for (int i = 0; i < versions.length; i++)
+                builders.get(i).setDeletionTime(versions[i]);
+        }
+
+        @Override
+        public void onMergedRows(Row merged, Row[] versions)
+        {
+            // Cache the row versions to be able to regenerate the original row iterator:
+            for (int i = 0; i < versions.length; i++)
+                builders.get(i).addRow(versions[i]);
+
+            // If all versions are empty, there's no divergence to resolve:
+            if (merged.isEmpty())
+                return;
+
+            Arrays.fill(silentRowAt, false);
+
+            // Mark replicas silent if they provide no data for the row:
+            for (int i = 0; i < versions.length; i++)
+                if (versions[i] == null || (merged.isStatic() && versions[i].isEmpty()))
+                    silentRowAt[i] = true;
+
+            // Even if there are no completely missing rows, replicas may still be silent about individual
+            // columns, so we need to check for divergence at the column level:
+            for (ColumnMetadata column : merged.isStatic() ? columns.statics : columns.regulars)
+            {
+                Arrays.fill(silentColumnAt, false);
+                boolean allSilent = true;
+
+                for (int i = 0; i < versions.length; i++)
+                {
+                    // If the version at this replica is null, we've already marked it as silent:
+                    if (versions[i] != null && versions[i].getColumnData(column) == null)
+                        silentColumnAt[i] = true;
+                    else
+                        allSilent = false;
+                }
+
+                for (int i = 0; i < versions.length; i++)
+                    // Mark the replica silent if it is silent about this column and there is actually 
+                    // divergence between the replicas. (i.e. If all replicas are silent for this 
+                    // column, there is nothing to fetch to complete the row anyway.)
+                    silentRowAt[i] |= silentColumnAt[i] && !allSilent;
+            }
+
+            for (int i = 0; i < silentRowAt.length; i++)
+                if (silentRowAt[i])
+                    builders.get(i).addToFetch(merged);
+        }
+
+        @Override
+        public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions)
+        {
+            // cache the marker versions to be able to regenerate the original row iterator
+            for (int i = 0; i < versions.length; i++)
+                builders.get(i).addRangeTombstoneMarker(versions[i]);
+        }
+
+        @Override
+        public void close() {}
+
+        public void populate()
+        {
+            for (int i = 0; i < sources.size(); i++)
+                originalPartitions.get(i).add(builders.get(i));
+        }
+    }
+
+    private class QueryMergeListener implements UnfilteredPartitionIterators.MergeListener
+    {
+        private PartitionMergeListerner currentListener;
+
+        @Override
+        public void close()
+        {
+            // If we hit the failure threshold before consuming a single partition, record the current rows cached.
+            tableMetrics.rfpRowsCachedPerQuery.update(Math.max(currentRowsCached, maxRowsCached));
+        }
+
+        @Override
+        public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+        {
+            if (currentListener == null || !currentListener.key.equals(partitionKey))
+                currentListener = new PartitionMergeListerner(partitionKey, versions);
+
+            return currentListener;
+        }
+
+        public void populate()
+        {
+            if (currentListener != null)
+                currentListener.populate();
+        }
+    }
+
     /**
      * This listener tracks both the accepted data and the primary keys of the rows that may be incomplete.
      * That way, once the query results are merged using this listener, subsequent calls to
@@ -178,101 +313,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
      */
     UnfilteredPartitionIterators.MergeListener mergeController()
     {
-        return new UnfilteredPartitionIterators.MergeListener()
-        {
-            @Override
-            public void close()
-            {
-                // If we hit the failure threshold before consuming a single partition, record the current rows cached.
-                tableMetrics.rfpRowsCachedPerQuery.update(Math.max(currentRowsCached, maxRowsCached));
-            }
-
-            @Override
-            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
-            {
-                List<PartitionBuilder> builders = new ArrayList<>(sources.size());
-                RegularAndStaticColumns columns = columns(versions);
-                EncodingStats stats = EncodingStats.merge(versions, NULL_TO_NO_STATS);
-
-                for (int i = 0; i < sources.size(); i++)
-                    builders.add(i, new PartitionBuilder(partitionKey, sources.get(i), columns, stats));
-
-                boolean[] silentRowAt = new boolean[builders.size()];
-                boolean[] silentColumnAt = new boolean[builders.size()];
-
-                return new UnfilteredRowIterators.MergeListener()
-                {
-                    @Override
-                    public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
-                    {
-                        // cache the deletion time versions to be able to regenerate the original row iterator
-                        for (int i = 0; i < versions.length; i++)
-                            builders.get(i).setDeletionTime(versions[i]);
-                    }
-
-                    @Override
-                    public void onMergedRows(Row merged, Row[] versions)
-                    {
-                        // Cache the row versions to be able to regenerate the original row iterator:
-                        for (int i = 0; i < versions.length; i++)
-                            builders.get(i).addRow(versions[i]);
-
-                        // If all versions are empty, there's no divergence to resolve:
-                        if (merged.isEmpty())
-                            return;
-
-                        Arrays.fill(silentRowAt, false);
-
-                        // Mark replicas silent if they provide no data for the row:
-                        for (int i = 0; i < versions.length; i++)
-                            if (versions[i] == null || (merged.isStatic() && versions[i].isEmpty()))
-                                silentRowAt[i] = true;
-
-                        // Even if there are no completely missing rows, replicas may still be silent about individual
-                        // columns, so we need to check for divergence at the column level:
-                        for (ColumnMetadata column : merged.isStatic() ? columns.statics : columns.regulars)
-                        {
-                            Arrays.fill(silentColumnAt, false);
-                            boolean allSilent = true;
-
-                            for (int i = 0; i < versions.length; i++)
-                            {
-                                // If the version at this replica is null, we've already marked it as silent:
-                                if (versions[i] != null && versions[i].getColumnData(column) == null)
-                                    silentColumnAt[i] = true;
-                                else
-                                    allSilent = false;
-                            }
-
-                            for (int i = 0; i < versions.length; i++)
-                                // Mark the replica silent if it is silent about this column and there is actually 
-                                // divergence between the replicas. (i.e. If all replicas are silent for this 
-                                // column, there is nothing to fetch to complete the row anyway.)
-                                silentRowAt[i] |= silentColumnAt[i] && !allSilent;
-                        }
-
-                        for (int i = 0; i < silentRowAt.length; i++)
-                            if (silentRowAt[i])
-                                builders.get(i).addToFetch(merged);
-                    }
-
-                    @Override
-                    public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions)
-                    {
-                        // cache the marker versions to be able to regenerate the original row iterator
-                        for (int i = 0; i < versions.length; i++)
-                            builders.get(i).addRangeTombstoneMarker(versions[i]);
-                    }
-
-                    @Override
-                    public void close()
-                    {
-                        for (int i = 0; i < sources.size(); i++)
-                            originalPartitions.get(i).add(builders.get(i));
-                    }
-                };
-            }
-        };
+        return mergeListener;
     }
 
     private void incrementCachedRows()
@@ -309,22 +350,6 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         currentRowsCached -= count;
     }
 
-    private static RegularAndStaticColumns columns(List<UnfilteredRowIterator> versions)
-    {
-        Columns statics = Columns.NONE;
-        Columns regulars = Columns.NONE;
-        for (UnfilteredRowIterator iter : versions)
-        {
-            if (iter == null)
-                continue;
-
-            RegularAndStaticColumns cols = iter.columns();
-            statics = statics.mergeTo(cols.statics);
-            regulars = regulars.mergeTo(cols.regulars);
-        }
-        return new RegularAndStaticColumns(statics, regulars);
-    }
-
     /**
      * Returns the protected results for the specified replica. These are generated fetching the extra rows and merging
      * them with the cached original filtered results for that replica.
@@ -346,16 +371,66 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             }
 
             @Override
-            public void close() { }
+            public void close()
+            {
+                if (currentRowIterator != null)
+                    currentRowIterator.close();
+            }
 
             @Override
             public boolean hasNext()
             {
                 // If there are no cached partition builders for this source, advance the first phase iterator, which
-                // will force the RFP merge listener to load at least the next protected partition.
+                // will force the RFP merge listener to load rows from the next protected partition.
                 if (partitions.isEmpty())
                 {
-                    PartitionIterators.consumeNext(merged);
+                    if (consumeEntirePartitions)
+                    {
+                        if (merged.hasNext())
+                        {
+                            try (RowIterator partition = merged.next())
+                            {
+                                while (partition.hasNext())
+                                    partition.next();
+
+                                mergeListener.populate();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (currentRowIterator == null || !currentRowIterator.hasNext())
+                        {
+                            // If there is an iterator, it's done, so just close it.
+                            if (currentRowIterator != null)
+                            {
+                                currentRowIterator.close();
+                                currentRowIterator = null;
+                            }
+
+                            // Take the next filtered partition from the merged partition iterator.
+                            if (merged.hasNext())
+                                currentRowIterator = merged.next();
+                        }
+
+                        if (currentRowIterator != null)
+                        {
+                            int i = 0;
+
+                            // Consume LIMIT filtered rows from the current partition, unless there are fewer results.
+                            // The underlying iterator is short-read protected, and limiting the number of rows we
+                            // consume avoids needless SRP reads when there are many more than LIMIT results.
+                            while (i < command.limits().count() && currentRowIterator.hasNext())
+                            {
+                                currentRowIterator.next();
+                                i++;
+                            }
+
+                            // If we actually consumed a row, checkpoint to populate the builders.
+                            if (i > 0)
+                                mergeListener.populate();
+                        }
+                    }
                 }
 
                 return !partitions.isEmpty();
@@ -487,6 +562,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
                 public void close()
                 {
                     releaseCachedRows(partitionRowsCached);
+                    toFetch = null;
+                    // TODO: the counters might not be accurate for the static row at this point?
                 }
 
                 @Override
