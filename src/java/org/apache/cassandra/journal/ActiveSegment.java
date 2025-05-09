@@ -93,7 +93,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
     static <K, V> ActiveSegment<K, V> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
     {
         InMemoryIndex<K> index = InMemoryIndex.create(keySupport);
-        Metadata metadata = Metadata.create();
+        Metadata metadata = Metadata.empty();
         return new ActiveSegment<>(descriptor, params, index, metadata, keySupport);
     }
 
