@@ -517,7 +517,11 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         }
 
         boolean isSuccess() { return outcome == Outcome.SUCCESS; }
-        public SuccessType success() { return (SuccessType) this; }
+        public SuccessType success() 
+        { 
+            if (this instanceof SuccessType t)
+                return t; 
+        }
         static MessagingSuccess messagingSuccess(Channel channel, int messagingVersion, FrameEncoder.PayloadAllocator allocator) { return new MessagingSuccess(channel, messagingVersion, allocator); }
         static StreamingSuccess streamingSuccess(Channel channel, int messagingVersion) { return new StreamingSuccess(channel, messagingVersion); }
 
