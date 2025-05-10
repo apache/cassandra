@@ -399,6 +399,7 @@
         <!-- Set up jdk specific properties -->
         <javac includes="**/JdkProperties.java,**/SetSystemProperty.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
           <compilerarg value="-Xlint:-options"/>
+           <compilerarg value="-Xlint:unchecked"/>
         </javac>
         <taskdef name="JdkProperties" classname="org.apache.cassandra.anttasks.JdkProperties" classpath="${test.classes}"/>
         <taskdef name="SetSystemProperty" classname="org.apache.cassandra.anttasks.SetSystemProperty" classpath="${test.classes}"/>
@@ -533,6 +534,7 @@
             <classpath>
                 <path refid="cassandra.classpath"/>
             </classpath>
+             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -571,6 +573,7 @@
                 <pathelement location="${stress.build.classes}" />
             </classpath>
             <src path="${stress.test.src}"/>
+             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -587,6 +590,7 @@
             <classpath>
                 <path refid="cassandra.classpath" />
             </classpath>
+             <compilerarg value="-Xlint:unchecked"/>
         </javac>
         <copy todir="${stress.build.classes}">
             <fileset dir="${stress.build.resources}" />
@@ -628,6 +632,7 @@
                 <pathelement location="${fqltool.build.classes}" />
             </classpath>
             <src path="${fqltool.test.src}"/>
+             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -644,6 +649,7 @@
             <classpath>
                 <path refid="cassandra.classpath" />
             </classpath>
+             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -686,6 +692,7 @@
                      <include name="**/asm-*${asm.version}.jar" />
                 </fileset>
             </classpath>
+             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -704,6 +711,7 @@
                 </fileset>
             </classpath>
             <compilerarg value="-XDignore.symbol.file"/>
+             <compilerarg value="-Xlint:unchecked"/>
         </javac>
     </target>
 
@@ -1047,6 +1055,7 @@
      <src path="${test.simulator-bootstrap.src}"/>
      <src path="${test.simulator-test.src}"/>
      <compilerarg line="${jdk11plus-javac-exports}"/>
+     
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
