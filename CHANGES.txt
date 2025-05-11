@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * [SO-43638] [Part 4] Avoid ClientResourceLimits allocation before driver validation
  * [SO-44116] Supply default options for different auto repair type
  * [SO-44157] Add IN restrictions used in MV base table as part of the qualifcation metrics for strict mv consistency

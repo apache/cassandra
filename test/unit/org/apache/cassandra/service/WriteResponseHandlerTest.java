@@ -28,6 +28,7 @@ import com.google.common.base.Predicates;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.junit.Before;
 import org.junit.BeforeClass;
