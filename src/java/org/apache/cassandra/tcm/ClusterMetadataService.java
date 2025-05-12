@@ -172,16 +172,16 @@ public class ClusterMetadataService
         {
             log = logSpec.sync().withStorage(new AtomicLongBackedProcessor.InMemoryStorage()).createLog();
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
+            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(e));
         }
         else
         {
             log = logSpec.async().createLog();
             localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
+            fetchLogHandler = new FetchCMSLog.Handler();
         }
 
-        fetchLogHandler = new FetchCMSLog.Handler();
-
-        Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_NO_OP_REPLICATOR.getBoolean()
+        Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_TEST_NO_OP_REPLICATOR.getBoolean()
                                        ? Commit.Replicator.NO_OP
                                        : new Commit.DefaultReplicator(() -> log.metadata().directory);
 
@@ -936,18 +936,6 @@ public class ClusterMetadataService
         public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
         {
             return delegate().fetchLogAndWait(waitFor, retryPolicy);
-        }
-
-        @Override
-        public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
-        {
-            return delegate().getLocalState(start, end, includeSnapshot);
-        }
-
-        @Override
-        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
-        {
-            return delegate().getLogState(start, end, includeSnapshot, retryPolicy);
         }
 
         public String toString()

@@ -90,9 +90,9 @@ public class LocalStorageLogStateTest extends LogStateTestBase
             }
 
             @Override
-            public LogReader reader()
+            public LogState getLogState(Epoch since)
             {
-                return storage;
+                return storage.getLogState(since);
             }
 
             @Override

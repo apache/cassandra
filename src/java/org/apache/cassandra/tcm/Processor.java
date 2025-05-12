@@ -18,18 +18,13 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.Meter;
 
-import accord.utils.Invariants;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.service.WaitStrategy;
 import org.apache.cassandra.tcm.log.Entry;
-import org.apache.cassandra.tcm.log.LogState;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCmsAwaitTimeout;
@@ -103,37 +98,4 @@ public interface Processor
     }
 
     ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy);
-
-    /**
-     * Queries node's _local_ state. It is not guaranteed to be contiguous, but can be used for restoring CMS state/
-     */
-    LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot);
-
-    /**
-     * Queries global log state.
-     */
-    LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy);
-
-    /**
-     * Reconstructs
-     */
-    default List<ClusterMetadata> reconstruct(Epoch lowEpoch, Epoch highEpoch, Retry retryPolicy)
-    {
-        LogState logState = getLogState(lowEpoch, highEpoch, true, retryPolicy);
-        if (logState.isEmpty()) return Collections.emptyList();
-        List<ClusterMetadata> cms = new ArrayList<>(logState.entries.size());
-
-        ClusterMetadata acc = logState.baseState;
-        cms.add(acc);
-        for (Entry entry : logState.entries)
-        {
-            Invariants.require(entry.epoch.isDirectlyAfter(acc.epoch), "%s should have been directly after %s", entry.epoch, acc.epoch);
-            Transformation.Result res = entry.transform.execute(acc);
-            assert res.isSuccess() : res.toString();
-            acc = res.success().metadata;
-            cms.add(acc);
-        }
-        return cms;
-    }
-
 }

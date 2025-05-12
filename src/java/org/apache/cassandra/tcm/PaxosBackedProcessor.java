@@ -168,31 +168,6 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - collected.size(), blockFor, false);
     }
 
-    @Override
-    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
-    {
-        return log.storage().getLogState(start, end, includeSnapshot);
-    }
-
-    @Override
-    public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
-    {
-        while (true)
-        {
-            if (Thread.currentThread().isInterrupted())
-                throw new RuntimeException("Can not reconstruct during shutdown", new InterruptedException());
-            try
-            {
-                return DistributedMetadataLogKeyspace.getLogState(start, end, includeSnapshot);
-            }
-            catch (RuntimeException e) // honestly best to only retry timeouts, but everything gets wrapped in a RuntimeException...
-            {
-                if (!retryPolicy.maybeSleep())
-                   throw new RuntimeException(String.format("Could not reconstruct range %d, %d", start.getEpoch(), end.getEpoch()), new TimeoutException());
-            }
-        }
-    }
-
     private static <T> T unwrap(Promise<T> promise)
     {
         if (!promise.isDone() || !promise.isSuccess())

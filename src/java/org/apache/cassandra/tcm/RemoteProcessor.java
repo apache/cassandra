@@ -151,36 +151,6 @@ public final class RemoteProcessor implements Processor
         }
     }
 
-    @Override
-    public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
-    {
-        return log.getLocalEntries(start, end, includeSnapshot);
-    }
-
-    @Override
-    public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry retryPolicy)
-    {
-        try
-        {
-            Promise<LogState> request = new AsyncPromise<>();
-            List<InetAddressAndPort> candidates = new ArrayList<>(log.metadata().fullCMSMembers());
-            sendWithCallbackAsync(request,
-                                  Verb.TCM_RECONSTRUCT_EPOCH_REQ,
-                                  new ReconstructLogState(lowEpoch, highEpoch, includeSnapshot),
-                                  new CandidateIterator(candidates),
-                                  retryPolicy);
-            return request.get(retryPolicy.remainingNanos(), TimeUnit.NANOSECONDS);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException("Can not reconstruct during shutdown", e);
-        }
-        catch (ExecutionException | TimeoutException e)
-        {
-            throw new RuntimeException(String.format("Could not reconstruct range %d, %d", lowEpoch.getEpoch(), highEpoch.getEpoch()), e);
-        }
-    }
-
     public static ClusterMetadata fetchLogAndWait(CandidateIterator candidateIterator, LocalLog log)
     {
         try
