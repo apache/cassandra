@@ -163,20 +163,6 @@ public final class DistributedMetadataLogKeyspace
         return (consistentFetch ? serialLogReader : localLogReader).getLogState(since);
     }
 
-    /**
-     * Reconstructs the log state by returning a _consistent_ base snapshot of a start epoch, and
-     * a list of transformations between start and end.
-     *
-     * TODO: this is a rather expensive operation, and should be use sparingly. If we decide we need to
-     *  rely on reconstructing arbitrary epochs during normal operation, we need to add a caching mechanism
-     *  here. One more alternative is to keep a lazily-initialized AccordTopology table on CMS nodes for a
-     *  number of recent epochs, and keep a node-local cache of this table on other nodes.
-     */
-    public static LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot)
-    {
-        return serialLogReader.getLogState(start, end, includeSnapshot);
-    }
-
     public static class DistributedTableLogReader implements LogReader
     {
         private final ConsistencyLevel consistencyLevel;

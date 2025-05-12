@@ -98,6 +98,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                     cluster.get(1).runOnInstance(() -> deleteSnapshot(toRemoveSnapshot.getEpoch()));
                 }
             }
+            Epoch latestSnapshot = remainingSnapshots.get(remainingSnapshots.size() - 1);
             Epoch lastEpoch =  allEpochs.stream().max(Comparator.naturalOrder()).get();
             repeat(10, () -> {
                 repeat(100, () -> {
@@ -118,14 +119,12 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                         }
                         else
                         {
-                            assertEquals(since, logState.baseState.epoch);
+                            assertEquals(latestSnapshot, logState.baseState.epoch);
                             start = logState.baseState.epoch;
                             if (logState.entries.isEmpty()) // no entries, snapshot should have the same epoch as since
                                 assertEquals(since, start);
                             else // first epoch in entries should be snapshot epoch + 1
                             {
-                                if (!start.nextEpoch().equals(logState.entries.get(0).epoch))
-                                    System.out.println(1);
                                 assertEquals(start.nextEpoch(), logState.entries.get(0).epoch);
                             }
                         }

@@ -22,14 +22,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.TreeMap;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.tcm.log.Entry;
-import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializers;
@@ -129,25 +127,6 @@ public class ValidatingClusterMetadataService extends StubClusterMetadataService
             public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy)
             {
                 return delegate.fetchLogAndWait(waitFor, retryPolicy);
-            }
-
-            @Override
-            public LogState getLocalState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot)
-            {
-                if (!epochs.containsKey(lowEpoch))
-                    throw new AssertionError("Unknown epoch: " + lowEpoch);
-                ClusterMetadata base = epochs.get(lowEpoch);
-                ImmutableList.Builder<Entry> entries = ImmutableList.builder();
-                int id = 0;
-                for (ClusterMetadata cm : epochs.subMap(lowEpoch, false, highEpoch, true).values())
-                    entries.add(new Entry(new Entry.Id(id++), cm.epoch, new MockTransformer(cm)));
-                return new LogState(includeSnapshot ? base : null, entries.build());
-            }
-
-            @Override
-            public LogState getLogState(Epoch lowEpoch, Epoch highEpoch, boolean includeSnapshot, Retry retryPolicy)
-            {
-                return getLocalState(lowEpoch, highEpoch, includeSnapshot);
             }
         };
     }
