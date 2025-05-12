@@ -65,7 +65,6 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.replication.MutationSummary;
-import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;

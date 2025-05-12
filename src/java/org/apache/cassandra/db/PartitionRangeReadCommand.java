@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -34,8 +33,6 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.BaseRowIterator;
@@ -413,23 +410,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                       long startTimeNanos)
     {
         return PartialTrackedRangeRead.create(executionController, searcher, cfs, startTimeNanos, this, iterator);
-    }
-
-    @Nullable
-    private UnfilteredPartitionIterator queryMutation(Mutation mutation)
-    {
-        if (!dataRange().contains(mutation.key()))
-            return null;
-        PartitionUpdate update = mutation.getPartitionUpdate(metadata());
-        if (update == null)
-            return null;
-        ClusteringIndexFilter filter = clusteringIndexFilter(mutation.key());
-        Slices slices = filter.getSlices(metadata());
-        // FIXME: support index queries
-        UnfilteredRowIterator rowIter = update.unfilteredIterator(columnFilter(), slices, filter.isReversed());
-        return rowIter != null
-             ? new SingletonUnfilteredPartitionIterator(rowIter)
-             : null;
     }
 
     @Override

@@ -28,8 +28,6 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nullable;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
@@ -848,18 +846,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             }
             throw e;
         }
-    }
-
-    @Nullable
-    private UnfilteredRowIterator queryMutation(Mutation mutation, Slices slices)
-    {
-        if (!partitionKey().equals(mutation.key()))
-            return null;
-        PartitionUpdate update = mutation.getPartitionUpdate(metadata());
-        if (update == null)
-            return null;
-        // FIXME: support index queries
-        return update.unfilteredIterator(columnFilter(), slices, clusteringIndexFilter().isReversed());
     }
 
     protected MutationSummary createMutationSummaryInternal(boolean includePending)
