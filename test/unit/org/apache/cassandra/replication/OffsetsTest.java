@@ -551,9 +551,11 @@ public class OffsetsTest
 
     private static void testUnion(Offsets expected, Offsets a, Offsets b)
     {
-        assertOffsetsEqual(expected, Offsets.union(a, b));
+        assertOffsetsEqual(expected, Offsets.Mutable.union(a, b));
+        assertOffsetsEqual(expected, Offsets.Immutable.union(a, b));
         assertOffsetsEqual(expected, new Offsets.Mutable(Offsets.union(a.rangeIterator(), b.rangeIterator())));
-        assertOffsetsEqual(expected, Offsets.union(b, a));
+        assertOffsetsEqual(expected, Offsets.Mutable.union(b, a));
+        assertOffsetsEqual(expected, Offsets.Immutable.union(b, a));
         assertOffsetsEqual(expected, new Offsets.Mutable(Offsets.union(b.rangeIterator(), a.rangeIterator())));
     }
 
@@ -608,11 +610,13 @@ public class OffsetsTest
         bPlus.add(50, 55);
 
         // check copy-remaining
-        assertOffsetsEqual(expected, Offsets.difference(a, b));
+        assertOffsetsEqual(expected, Offsets.Mutable.difference(a, b));
+        assertOffsetsEqual(expected, Offsets.Immutable.difference(a, b));
         assertOffsetsEqual(expected, new Offsets.Mutable(Offsets.difference(a.rangeIterator(), b.rangeIterator())));
 
         // check discarded tail
-        assertOffsetsEqual(expected, Offsets.difference(a, bPlus));
+        assertOffsetsEqual(expected, Offsets.Mutable.difference(a, bPlus));
+        assertOffsetsEqual(expected, Offsets.Immutable.difference(a, bPlus));
         assertOffsetsEqual(expected, new Offsets.Mutable(Offsets.difference(a.rangeIterator(), bPlus.rangeIterator())));
     }
 
@@ -684,12 +688,18 @@ public class OffsetsTest
         Offsets.Mutable bPlus = Offsets.Mutable.copy(b);
         bPlus.add(50, 55);
 
-        assertOffsetsEqual(expected, Offsets.intersection(a, b));
-        assertOffsetsEqual(expected, Offsets.intersection(aPlus, b));
-        assertOffsetsEqual(expected, Offsets.intersection(a, bPlus));
-        assertOffsetsEqual(expected, Offsets.intersection(b, a));
-        assertOffsetsEqual(expected, Offsets.intersection(bPlus, a));
-        assertOffsetsEqual(expected, Offsets.intersection(b, aPlus));
+        assertOffsetsEqual(expected, Offsets.Mutable.intersection(a, b));
+        assertOffsetsEqual(expected, Offsets.Immutable.intersection(a, b));
+        assertOffsetsEqual(expected, Offsets.Mutable.intersection(aPlus, b));
+        assertOffsetsEqual(expected, Offsets.Immutable.intersection(aPlus, b));
+        assertOffsetsEqual(expected, Offsets.Mutable.intersection(a, bPlus));
+        assertOffsetsEqual(expected, Offsets.Immutable.intersection(a, bPlus));
+        assertOffsetsEqual(expected, Offsets.Mutable.intersection(b, a));
+        assertOffsetsEqual(expected, Offsets.Immutable.intersection(b, a));
+        assertOffsetsEqual(expected, Offsets.Mutable.intersection(bPlus, a));
+        assertOffsetsEqual(expected, Offsets.Immutable.intersection(bPlus, a));
+        assertOffsetsEqual(expected, Offsets.Mutable.intersection(b, aPlus));
+        assertOffsetsEqual(expected, Offsets.Immutable.intersection(b, aPlus));
     }
 
     @Test

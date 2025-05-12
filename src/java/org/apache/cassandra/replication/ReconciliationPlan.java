@@ -91,8 +91,8 @@ public class ReconciliationPlan
     private static class CoordinatorLogReconciliation
     {
         final CoordinatorLogId logId;
-        Offsets reconciled;
-        Offsets unreconciled;
+        Offsets.Immutable reconciled;
+        Offsets.Immutable unreconciled;
 
         Map<InetAddressAndPort, Offsets> unreconciledNodes = new HashMap<>();
 
@@ -104,18 +104,18 @@ public class ReconciliationPlan
         void addPeerSummary(InetAddressAndPort peer, CoordinatorSummary summary)
         {
             Preconditions.checkArgument(summary.logId().equals(logId));
-            reconciled = Offsets.union(reconciled, summary.reconciled);
-            unreconciled = Offsets.union(unreconciled, summary.unreconciled);
+            reconciled = Offsets.Immutable.union(reconciled, summary.reconciled);
+            unreconciled = Offsets.Immutable.union(unreconciled, summary.unreconciled);
             unreconciledNodes.put(peer, summary.unreconciled);
         }
 
         void createPlan(Map<InetAddressAndPort, PlanBuilder> plan)
         {
             // remove reconciled ids
-            Offsets allIds = Offsets.difference(unreconciled, reconciled);
+            Offsets.Immutable allIds = Offsets.Immutable.difference(unreconciled, reconciled);
             for (InetAddressAndPort receiver : plan.keySet())
             {
-                Offsets missing = Offsets.difference(allIds, unreconciledNodes.get(receiver));
+                Offsets.Immutable missing = Offsets.Immutable.difference(allIds, unreconciledNodes.get(receiver));
                 if (missing.isEmpty())
                     continue;
 
@@ -128,10 +128,10 @@ public class ReconciliationPlan
                     Offsets senderIds = sender.getValue();
                     PlanBuilder senderPlan = plan.get(sender.getKey());
 
-                    Offsets requestedIds = Offsets.intersection(missing, senderIds);
+                    Offsets.Immutable requestedIds = Offsets.Immutable.intersection(missing, senderIds);
                     senderPlan.send(receiver, requestedIds);
 
-                    missing = Offsets.difference(missing, requestedIds);
+                    missing = Offsets.Immutable.difference(missing, requestedIds);
                     if (missing.rangeCount() == 0)
                         break;
                 }

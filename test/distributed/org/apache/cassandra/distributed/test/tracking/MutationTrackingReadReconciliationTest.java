@@ -95,9 +95,9 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             Assert.assertEquals(2, finalIds.offsetCount());
             assertOffsetsIsSuperSet(finalIds, firstIds);;
 
-            Offsets secondIds = Offsets.difference(finalIds, firstIds);
+            Offsets secondIds = Offsets.Immutable.difference(finalIds, firstIds);
             Assert.assertEquals(1, secondIds.offsetCount());
-            Assert.assertEquals(0, Offsets.intersection(firstIds, secondIds).offsetCount());
+            Assert.assertEquals(0, Offsets.Immutable.intersection(firstIds, secondIds).offsetCount());
 
 
             // second node should have the new id, third should not
@@ -172,9 +172,9 @@ public class MutationTrackingReadReconciliationTest extends TestBaseImpl
             Assert.assertEquals(2, finalIds.offsetCount());
             assertOffsetsIsSuperSet(finalIds, firstIds);;
 
-            Offsets secondIds = Offsets.difference(finalIds, firstIds);
+            Offsets secondIds = Offsets.Immutable.difference(finalIds, firstIds);
             Assert.assertEquals(1, secondIds.offsetCount());
-            Assert.assertEquals(0, Offsets.intersection(firstIds, secondIds).offsetCount());
+            Assert.assertEquals(0, Offsets.Immutable.intersection(firstIds, secondIds).offsetCount());
 
 
             // second node should have the new id, third should not

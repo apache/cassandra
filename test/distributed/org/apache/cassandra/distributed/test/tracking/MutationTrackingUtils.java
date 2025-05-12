@@ -154,7 +154,7 @@ public class MutationTrackingUtils
 
     public static Offsets summaryIdSpace(CoordinatorSummary summary)
     {
-        return Offsets.union(summary.reconciled, summary.unreconciled);
+        return Offsets.Immutable.union(summary.reconciled, summary.unreconciled);
     }
 
     public static Map<CoordinatorLogId, Offsets> summaryIdSpace(MutationSummary summary)
@@ -230,7 +230,7 @@ public class MutationTrackingUtils
 
     public static void assertOffsetsIsSuperSet(Offsets expectedSuperset, Offsets expectedSubset)
     {
-        Offsets diff = Offsets.difference(expectedSubset, expectedSuperset);
+        Offsets.Immutable diff = Offsets.Immutable.difference(expectedSubset, expectedSuperset);
         if (!diff.isEmpty())
         {
             String msg = String.format("%s not a super set of %s\n", expectedSuperset, expectedSubset);

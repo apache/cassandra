@@ -551,6 +551,29 @@ public abstract class Offsets implements Iterable<ShortMutationId>
 
     public static class Mutable extends AbstractMutable<Mutable>
     {
+        private static final SetSupport.Adaptor<Mutable> adaptor = new SetSupport.Adaptor<Mutable>()
+        {
+            @Override
+            public Mutable empty(CoordinatorLogId logId)
+            {
+                return new Mutable(logId);
+            }
+
+            @Override
+            public Mutable passThrough(Offsets offsets)
+            {
+                if (offsets instanceof Mutable)
+                    return (Mutable) offsets;
+                return copy(offsets);
+            }
+
+            @Override
+            public Mutable create(CoordinatorLogId logId, int[] bounds, int size)
+            {
+                return new Mutable(logId, bounds, size);
+            }
+        };
+
         public Mutable(RangeIterator rangeIterator)
         {
             super(rangeIterator);
@@ -561,14 +584,14 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             super(logId);
         }
 
-        public Mutable(CoordinatorLogId logId, int capacity)
-        {
-            super(logId, capacity);
-        }
-
         public Mutable(CoordinatorLogId logId, int[] bounds)
         {
             super(logId, bounds);
+        }
+
+        public Mutable(CoordinatorLogId logId, int[] bounds, int size)
+        {
+            super(logId, bounds, size);
         }
 
         public static Mutable createOrNull(RangeIterator rangeIterator)
@@ -580,10 +603,47 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         {
             return new Mutable(offsets.logId, Arrays.copyOf(offsets.bounds, offsets.size));
         }
+
+        public static Mutable union(Offsets a, Offsets b)
+        {
+            return Offsets.union(a, b, adaptor);
+        }
+
+        public static Mutable difference(Offsets a, Offsets b)
+        {
+            return Offsets.difference(a, b, adaptor);
+        }
+
+        public static Mutable intersection(Offsets a, Offsets b)
+        {
+            return Offsets.intersection(a, b, adaptor);
+        }
     }
 
     public static class Immutable extends Offsets
     {
+        private static final SetSupport.Adaptor<Immutable> adaptor = new SetSupport.Adaptor<Immutable>()
+        {
+            @Override
+            public Immutable empty(CoordinatorLogId logId)
+            {
+                return new Immutable(logId);
+            }
+
+            @Override
+            public Immutable passThrough(Offsets offsets)
+            {
+                if (offsets instanceof Immutable)
+                    return (Immutable) offsets;
+                return copy(offsets);
+            }
+
+            @Override
+            public Immutable create(CoordinatorLogId logId, int[] bounds, int size)
+            {
+                return new Immutable(logId, bounds, size);
+            }
+        };
         private static int[] EMPTY = new int[0];
 
         public Immutable(CoordinatorLogId logId, int[] bounds)
@@ -634,6 +694,21 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             {
                 return new Builder(offsets.logId, Arrays.copyOf(offsets.bounds, offsets.size));
             }
+        }
+
+        public static Immutable union(Offsets a, Offsets b)
+        {
+            return Offsets.union(a, b, adaptor);
+        }
+
+        public static Immutable difference(Offsets a, Offsets b)
+        {
+            return Offsets.difference(a, b, adaptor);
+        }
+
+        public static Immutable intersection(Offsets a, Offsets b)
+        {
+            return Offsets.intersection(a, b, adaptor);
         }
     }
 
@@ -696,6 +771,13 @@ public abstract class Offsets implements Iterable<ShortMutationId>
     {
         private static final int NO_SPLIT_SENTINEL = Integer.MIN_VALUE;
 
+        interface Adaptor<O extends Offsets>
+        {
+            O empty(CoordinatorLogId logId);
+            O passThrough(Offsets offsets);
+            O create(CoordinatorLogId logId, int[] bounds, int size);
+        }
+
         private enum RangeOverlap
         {
             BEFORE, BEFORE_ADJACENT, AFTER, AFTER_ADJACENT, INTERSECTING
@@ -753,7 +835,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             return newOffsets;
         }
 
-        private static Offsets.Immutable addRemainder(CoordinatorLogId logId, int dstSplit, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
+        private static <O extends Offsets> O addRemainder(CoordinatorLogId logId, int dstSplit, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges, Adaptor<O> adaptor)
         {
             int capacity = (dstRange + srcNumRanges - srcRange) * 2;
             dst = ensureCapacity(dst, capacity, capacity);
@@ -775,12 +857,12 @@ public abstract class Offsets implements Iterable<ShortMutationId>
                 dstSplit = NO_SPLIT_SENTINEL;
                 srcRange++;
             }
-            return new Offsets.Immutable(logId, dst, dstRange * 2);
+            return adaptor.create(logId, dst, dstRange * 2);
         }
 
-        private static Offsets.Immutable addRemainder(CoordinatorLogId logId, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges)
+        private static <O extends Offsets> O addRemainder(CoordinatorLogId logId, int[] dst, int dstRange, int[] src, int srcRange, int srcNumRanges, Adaptor<O> adaptor)
         {
-            return addRemainder(logId, NO_SPLIT_SENTINEL, dst, dstRange, src, srcRange, srcNumRanges);
+            return addRemainder(logId, NO_SPLIT_SENTINEL, dst, dstRange, src, srcRange, srcNumRanges, adaptor);
         }
 
         private static int[] ensureCapacity(int[] offsets, int capacity)
@@ -789,13 +871,13 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         }
     }
 
-    public static Offsets.Immutable union(Offsets a, Offsets b)
+    private static <O extends Offsets> O union(Offsets a, Offsets b, SetSupport.Adaptor<O> adaptor)
     {
         if (a == null)
-            return Immutable.copy(b);
+            return adaptor.passThrough(b);
 
         if (b == null)
-            return Immutable.copy(a);
+            return adaptor.passThrough(a);
 
         Preconditions.checkArgument(a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
@@ -804,10 +886,10 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return Immutable.copy(b);
+            return adaptor.passThrough(b);
 
         if (bNumRanges == 0)
-            return Immutable.copy(a);
+            return adaptor.passThrough(a);
 
         int aRange = 0;
         int bRange = 0;
@@ -861,16 +943,16 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         if (aRange < aNumRanges)
         {
             Preconditions.checkState(bRange == bNumRanges);
-            return SetSupport.addRemainder(logId, c, cRange, a.bounds, aRange, aNumRanges);
+            return SetSupport.addRemainder(logId, c, cRange, a.bounds, aRange, aNumRanges, adaptor);
         }
 
         if (bRange < bNumRanges)
         {
             Preconditions.checkState(aRange == aNumRanges);
-            return SetSupport.addRemainder(logId, c, cRange, b.bounds, bRange, bNumRanges);
+            return SetSupport.addRemainder(logId, c, cRange, b.bounds, bRange, bNumRanges, adaptor);
         }
 
-        return new Offsets.Immutable(logId, c, cRange * 2);
+        return adaptor.create(logId, c, cRange * 2);
     }
 
     private static abstract class AbstractSetIterator implements RangeIterator
@@ -1043,11 +1125,11 @@ public abstract class Offsets implements Iterable<ShortMutationId>
     /**
      * Subtract b from a
      */
-    public static Offsets.Immutable difference(Offsets a, Offsets b)
+    private static <O extends Offsets> O difference(Offsets a, Offsets b, SetSupport.Adaptor<O> adaptor)
     {
         Preconditions.checkArgument(a != null);
         if (b == null)
-            return Immutable.copy(a);
+            return adaptor.passThrough(a);
 
         Preconditions.checkArgument(b == null || a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
@@ -1055,10 +1137,10 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0)
-            return new Offsets.Immutable(logId);
+            return adaptor.empty(logId);
 
         if (bNumRanges == 0)
-            return Immutable.copy(a);
+            return adaptor.passThrough(a);
 
         int aRange = 0;
         int bRange = 0;
@@ -1149,10 +1231,10 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         if (aRange < aNumRanges)
         {
             Preconditions.checkState(bRange == bNumRanges);
-            return SetSupport.addRemainder(logId, aSplit, c, cRange, a.bounds, aRange, aNumRanges);
+            return SetSupport.addRemainder(logId, aSplit, c, cRange, a.bounds, aRange, aNumRanges, adaptor);
         }
 
-        return new Offsets.Immutable(logId, c, cRange * 2);
+        return adaptor.create(logId, c, cRange * 2);
     }
 
     private static class DifferenceIterator extends AbstractSetIterator
@@ -1253,7 +1335,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         return new DifferenceIterator(a, b);
     }
 
-    public static Offsets intersection(Offsets a, Offsets b)
+    private static <O extends Offsets> O intersection(Offsets a, Offsets b, SetSupport.Adaptor<O> adaptor)
     {
         Preconditions.checkArgument(a.logId.equals(b.logId));
         CoordinatorLogId logId = a.logId;
@@ -1262,7 +1344,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         int bNumRanges = b.rangeCount();
 
         if (aNumRanges == 0 || bNumRanges == 0)
-            return new Offsets.Immutable(logId);
+            return adaptor.empty(logId);
 
         int aRange = 0;
         int bRange = 0;
@@ -1340,7 +1422,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             }
         }
 
-        return new Offsets.Immutable(logId, c, cRange * 2);
+        return adaptor.create(logId, c, cRange * 2);
     }
 
     public interface OffsetReciever
