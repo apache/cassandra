@@ -739,4 +739,28 @@ public class OffsetsTest
         DataOutputBuffer buffer = new DataOutputBuffer();
         IVersionedSerializers.testSerde(buffer, Offsets.serializer, Offsets.Immutable.copy(offsets(0, 3, 7, 10, 15, 17)), MessagingService.current_version);
     }
+
+    private static List<ShortMutationId> ids(int... offsets)
+    {
+        List<ShortMutationId> ids = new ArrayList<>(offsets.length);
+        for (int offset : offsets)
+            ids.add(new ShortMutationId(LOG_ID, offset));
+        return ids;
+    }
+
+    private static List<ShortMutationId> ids(Offsets offsets)
+    {
+        final List<ShortMutationId> ids = new ArrayList<>();
+        for (ShortMutationId id : offsets)
+            ids.add(id);
+        return ids;
+    }
+
+    @Test
+    public void iteratorTest()
+    {
+        Assert.assertEquals(ids(), ids(offsets()));
+        Assert.assertEquals(ids(1, 2, 3), ids(offsets(1, 3)));
+        Assert.assertEquals(ids(1, 2, 3, 5, 6, 7), ids(offsets(1, 3, 5, 7)));
+    }
 }

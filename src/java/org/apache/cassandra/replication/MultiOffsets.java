@@ -19,10 +19,10 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.function.Consumer;
+import java.util.Iterator;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.db.TypeSizes;
@@ -30,9 +30,15 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public abstract class MultiOffsets<T extends Offsets>
+public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortMutationId>
 {
     abstract Long2ObjectHashMap<T> offsetMap();
+
+    @Override
+    public Iterator<ShortMutationId> iterator()
+    {
+        return Iterables.concat(offsetMap().values()).iterator();
+    }
 
     public int idCount()
     {
@@ -40,13 +46,6 @@ public abstract class MultiOffsets<T extends Offsets>
         for (T offsets : offsetMap().values())
             count += offsets.offsetCount();
         return count;
-    }
-
-    public void forEachId(Consumer<ShortMutationId> consumer)
-    {
-        offsetMap().values().forEach(offsets -> offsets.forEachOffset(((logId, offset) -> {
-            consumer.accept(new ShortMutationId(logId, offset));
-        })));
     }
 
     public boolean isEmpty()

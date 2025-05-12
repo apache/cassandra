@@ -20,17 +20,20 @@ package org.apache.cassandra.replication;
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.AbstractIterator;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 
-public abstract class Offsets
+public abstract class Offsets implements Iterable<ShortMutationId>
 {
     private static final int INITIAL_CAPACITY = 16;
 
@@ -80,6 +83,35 @@ public abstract class Offsets
         return result;
     }
 
+    @Override
+    public Iterator<ShortMutationId> iterator()
+    {
+        return new AbstractIterator<>()
+        {
+            int range = -1;
+            int lastOffset = Integer.MAX_VALUE;
+
+            @Override
+            protected ShortMutationId computeNext()
+            {
+                if (range < 0 || lastOffset >= bounds[rangeEnd(range)])
+                {
+                    range++;
+                    if (range >= rangeCount())
+                        return endOfData();
+
+                    lastOffset = bounds[rangeStart(range)];
+                }
+                else
+                {
+                    lastOffset++;
+                }
+
+                return new ShortMutationId(logId, lastOffset);
+            }
+        };
+    }
+
     public CoordinatorLogId logId()
     {
         return logId;
@@ -111,16 +143,6 @@ public abstract class Offsets
     {
         for (int offset = start; offset <= end; offset++)
             consumer.accept(logId, offset);
-    }
-
-    public void forEachOffset(OffsetConsumer consumer)
-    {
-        for (int i = 0; i < size; i += 2)
-        {
-            int start = bounds[i];
-            int   end = bounds[i + 1];
-            forEachOffsetInRange(logId, start, end, consumer);
-        }
     }
 
     public static void forEachOffset(RangeIterator iter, OffsetConsumer consumer)
