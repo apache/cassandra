@@ -134,17 +134,17 @@ public class View
             case LIVE:
                 return sstables;
             case NONCOMPACTING:
-                return filter(sstables, (s) -> !compacting.contains(s));
+                return filter(sstables, (s) -> !compacting.contains(s) && !s.isMarkedCompacted());
             case CANONICAL:
                 Set<SSTableReader> canonicalSSTables = new HashSet<>(sstables.size() + compacting.size());
                 for (SSTableReader sstable : compacting)
-                    if (sstable.openReason != SSTableReader.OpenReason.EARLY)
+                    if (sstable.openReason != SSTableReader.OpenReason.EARLY && !sstable.isMarkedCompacted())
                         canonicalSSTables.add(sstable);
                 // reason for checking if compacting contains the sstable is that if compacting has an EARLY version
                 // of a NORMAL sstable, we still have the canonical version of that sstable in sstables.
                 // note that the EARLY version is equal, but not == since it is a different instance of the same sstable.
                 for (SSTableReader sstable : sstables)
-                    if (!compacting.contains(sstable) && sstable.openReason != SSTableReader.OpenReason.EARLY)
+                    if (!compacting.contains(sstable) && sstable.openReason != SSTableReader.OpenReason.EARLY && !sstable.isMarkedCompacted())
                         canonicalSSTables.add(sstable);
 
                 return canonicalSSTables;
