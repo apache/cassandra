@@ -6,6 +6,7 @@
  * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
  * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
 Merged from 4.0:
+ * Handle sstable metadata stats file getting a new mtime after compaction has finished (CASSANDRA-18119)
  * Honor MAX_PARALLEL_TRANSFERS correctly (CASSANDRA-20532)
  * Updating a column with a new TTL but same expiration time is non-deterministic and causes repair mismatches. (CASSANDRA-20561)
  * Avoid computing prepared statement size for unprepared batches (CASSANDRA-20556)
