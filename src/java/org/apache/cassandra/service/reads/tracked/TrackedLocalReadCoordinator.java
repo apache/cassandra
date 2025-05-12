@@ -36,7 +36,7 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MultiOffsets;
+import org.apache.cassandra.replication.Log2OffsetsMap;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.ReconciliationPlan;
@@ -335,9 +335,9 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         final int syncId;
         final InetAddressAndPort from;
         final InetAddressAndPort to;
-        final MultiOffsets.Immutable plan;
+        final Log2OffsetsMap.Immutable plan;
 
-        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, MultiOffsets.Immutable plan)
+        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, Log2OffsetsMap.Immutable plan)
         {
             this.syncId = syncId;
             this.from = from;
@@ -361,7 +361,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         private final long expiresAtNanos;
 
         final Map<InetAddressAndPort, ReconciliationPlan> plans;
-        final MultiOffsets.Mutable outstandingMutations = new MultiOffsets.Mutable();
+        final Log2OffsetsMap.Mutable outstandingMutations = new Log2OffsetsMap.Mutable();
         final Map<Integer, PendingSync> pendingSync = new ConcurrentHashMap<>();
         final int blockFor;
 
@@ -467,7 +467,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         State receiveMutations(List<Mutation> mutations)
         {
-            MultiOffsets.Mutable received = new MultiOffsets.Mutable();
+            Log2OffsetsMap.Mutable received = new Log2OffsetsMap.Mutable();
             mutations.forEach(mutation -> {
                 if (logger.isTraceEnabled())
                     logger.trace("Received mutation {} for read {}", mutation.id(), readId);

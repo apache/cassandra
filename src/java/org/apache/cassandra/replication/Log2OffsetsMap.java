@@ -30,7 +30,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortMutationId>
+public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<ShortMutationId>
 {
     abstract Long2ObjectHashMap<T> offsetMap();
 
@@ -56,7 +56,7 @@ public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortM
         return true;
     }
 
-    private static abstract class AbstractMutable<T extends Offsets.AbstractMutable<T>> extends MultiOffsets<T>
+    private static abstract class AbstractMutable<T extends Offsets.AbstractMutable<T>> extends Log2OffsetsMap<T>
     {
         protected final Long2ObjectHashMap<T> offsetMap = new Long2ObjectHashMap<>();
 
@@ -96,7 +96,7 @@ public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortM
             existing.addAll(offsets);
         }
 
-        public void addAll(MultiOffsets<?> that)
+        public void addAll(Log2OffsetsMap<?> that)
         {
             for (Offsets offsets : that.offsetMap().values())
                 add(offsets);
@@ -121,7 +121,7 @@ public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortM
                 offsetMap.put(offsets.logId().asLong(), next);
         }
 
-        public void removeAll(MultiOffsets<?> that)
+        public void removeAll(Log2OffsetsMap<?> that)
         {
             for (Offsets offsets : that.offsetMap().values())
                 remove(offsets);
@@ -149,7 +149,7 @@ public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortM
         }
     }
 
-    public static class Immutable extends MultiOffsets<Offsets.Immutable>
+    public static class Immutable extends Log2OffsetsMap<Offsets.Immutable>
     {
         private final Long2ObjectHashMap<Offsets.Immutable> offsetMap;
 
@@ -184,7 +184,7 @@ public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortM
                 return Offsets.Immutable.Builder.copy(offsets);
             }
 
-            public MultiOffsets.Immutable build()
+            public Log2OffsetsMap.Immutable build()
             {
                 Long2ObjectHashMap<Offsets.Immutable> result = new Long2ObjectHashMap<>();
                 offsetMap.forEachLong((key, builder) -> result.put(key, builder.build()));
@@ -192,10 +192,10 @@ public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortM
             }
         }
 
-        public static final IVersionedSerializer<MultiOffsets.Immutable> serializer = new IVersionedSerializer<MultiOffsets.Immutable>()
+        public static final IVersionedSerializer<Log2OffsetsMap.Immutable> serializer = new IVersionedSerializer<Log2OffsetsMap.Immutable>()
         {
             @Override
-            public void serialize(MultiOffsets.Immutable mo, DataOutputPlus out, int version) throws IOException
+            public void serialize(Log2OffsetsMap.Immutable mo, DataOutputPlus out, int version) throws IOException
             {
                 out.writeInt(mo.offsetMap.size());
                 for (Offsets.Immutable offsets : mo.offsetMap().values())
@@ -203,7 +203,7 @@ public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortM
             }
 
             @Override
-            public MultiOffsets.Immutable deserialize(DataInputPlus in, int version) throws IOException
+            public Log2OffsetsMap.Immutable deserialize(DataInputPlus in, int version) throws IOException
             {
                 Long2ObjectHashMap<Offsets.Immutable> offsetMap = new Long2ObjectHashMap<>();
                 int size = in.readInt();
@@ -218,7 +218,7 @@ public abstract class MultiOffsets<T extends Offsets> implements Iterable<ShortM
             }
 
             @Override
-            public long serializedSize(MultiOffsets.Immutable mo, int version)
+            public long serializedSize(Log2OffsetsMap.Immutable mo, int version)
             {
                 long size = TypeSizes.INT_SIZE;
                 for (Offsets.Immutable offsets : mo.offsetMap.values())

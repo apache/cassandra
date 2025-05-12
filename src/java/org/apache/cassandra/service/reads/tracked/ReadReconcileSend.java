@@ -36,7 +36,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MultiOffsets;
+import org.apache.cassandra.replication.Log2OffsetsMap;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.utils.CollectionSerializer;
 
@@ -51,9 +51,9 @@ public class ReadReconcileSend
     {
         final int syncId;
         final InetAddressAndPort to;
-        final MultiOffsets.Immutable plan;
+        final Log2OffsetsMap.Immutable plan;
 
-        public PeerSync(int syncId, InetAddressAndPort to, MultiOffsets.Immutable plan)
+        public PeerSync(int syncId, InetAddressAndPort to, Log2OffsetsMap.Immutable plan)
         {
             this.syncId = syncId;
             this.to = to;
@@ -77,7 +77,7 @@ public class ReadReconcileSend
             {
                 out.writeInt(sync.syncId);
                 InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(sync.to, out, version);
-                MultiOffsets.Immutable.serializer.serialize(sync.plan, out, version);
+                Log2OffsetsMap.Immutable.serializer.serialize(sync.plan, out, version);
             }
 
             @Override
@@ -85,7 +85,7 @@ public class ReadReconcileSend
             {
                 return new PeerSync(in.readInt(),
                                     InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version),
-                                    MultiOffsets.Immutable.serializer.deserialize(in, version));
+                                    Log2OffsetsMap.Immutable.serializer.deserialize(in, version));
             }
 
             @Override
@@ -93,7 +93,7 @@ public class ReadReconcileSend
             {
                 return TypeSizes.sizeof(sync.syncId)
                        + InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(sync.to, version)
-                       + MultiOffsets.Immutable.serializer.serializedSize(sync.plan, version);
+                       + Log2OffsetsMap.Immutable.serializer.serializedSize(sync.plan, version);
             }
         };
     }
