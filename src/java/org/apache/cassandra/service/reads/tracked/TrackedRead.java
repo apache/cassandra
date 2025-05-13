@@ -273,8 +273,17 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         SummaryRequest summaryRequest = new SummaryRequest(readId, command);
         Message<SummaryRequest> summaryMessage = Message.out(verb(), summaryRequest)
                                                         .withParam(ParamType.RESPOND_TO, dataNode.endpoint());
-        for (InetAddressAndPort endpoint : summaryNodes.endpoints())
-            MessagingService.instance().send(summaryMessage, endpoint);
+        for (Replica replica : summaryNodes)
+        {
+            if (localReplica == replica)
+            {
+                Stage.READ.submit(() -> summaryRequest.executeLocally(summaryMessage, ClusterMetadata.current()));
+            }
+            else
+            {
+                MessagingService.instance().send(summaryMessage, replica.endpoint());
+            }
+        }
     }
 
     public void start(Dispatcher.RequestTime requestTime)
@@ -368,7 +377,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             this.command = command;
         }
 
-        public abstract void executeLocally(Message<Request> message, ClusterMetadata metadata);
+        public abstract void executeLocally(Message<? extends Request> message, ClusterMetadata metadata);
     }
 
     public static class DataRequest extends Request
@@ -384,7 +393,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
 
         @Override
-        public void executeLocally(Message<Request> message, ClusterMetadata metadata)
+        public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
             TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, metadata, command, consistencyLevel, summaryNodes, message.expiresAtNanos());
             coordinator.addCallback((response, error) -> {
@@ -441,7 +450,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
 
         @Override
-        public void executeLocally(Message<Request> message, ClusterMetadata metadata)
+        public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
             // create summary
             MutationSummary summary = command.createMutationSummary(false);
