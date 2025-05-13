@@ -43,7 +43,7 @@ public class JobState extends AbstractState<JobState.State, UUID>
 
     public JobState(Clock clock, RepairJobDesc desc, ImmutableSet<InetAddressAndPort> endpoints)
     {
-        super(clock, desc.determanisticId(), State.class);
+        super(clock, desc.deterministicId(), State.class);
         this.desc = desc;
         this.endpoints = endpoints;
     }

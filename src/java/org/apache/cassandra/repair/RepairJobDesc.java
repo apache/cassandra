@@ -69,7 +69,7 @@ public class RepairJobDesc
         this.ranges = ranges;
     }
 
-    public UUID determanisticId()
+    public UUID deterministicId()
     {
         byte[] bytes = getArray(bytes(parentSessionId));
         bytes = ArrayUtils.addAll(bytes, getArray(bytes(sessionId)));

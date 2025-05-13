@@ -1092,7 +1092,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 return new CassandraTableRepairManager(store, this)
                 {
                     @Override
-                    public void snapshot(String name, Collection<Range<Token>> ranges, boolean force)
+                    public void snapshot(String name, Collection<Range<Token>> ranges)
                     {
                         // no-op
                     }

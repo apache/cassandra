@@ -39,7 +39,7 @@ public class ValidationState extends AbstractState<ValidationState.State, UUID>
     public ValidationState(Clock clock, RepairJobDesc desc, InetAddressAndPort initiator)
     {
         // UUID is used to make the validations table easier for users to lookup by a single key rather than a composite key
-        super(clock, desc.determanisticId(), State.class);
+        super(clock, desc.deterministicId(), State.class);
         this.desc = desc;
         this.initiator = initiator;
     }

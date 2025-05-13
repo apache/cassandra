@@ -184,11 +184,11 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         TableRepairManager repairManager = cfs.getRepairManager();
                         if (prs.isGlobal)
                         {
-                            repairManager.snapshot(desc.parentSessionId.toString(), prs.getRanges(), false);
+                            repairManager.snapshot(desc.deterministicId().toString(), prs.getRanges());
                         }
                         else
                         {
-                            repairManager.snapshot(desc.parentSessionId.toString(), desc.ranges, true);
+                            repairManager.snapshot(desc.deterministicId().toString(), desc.ranges);
                         }
                         logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from());
                     }

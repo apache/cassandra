@@ -76,12 +76,12 @@ public class CassandraTableRepairManager implements TableRepairManager
     }
 
     @Override
-    public synchronized void snapshot(String name, Collection<Range<Token>> ranges, boolean force)
+    public synchronized void snapshot(String name, Collection<Range<Token>> ranges)
     {
         try
         {
             ActiveRepairService.instance().snapshotExecutor.submit(() -> {
-                if (force || !SnapshotManager.instance.exists(cfs.getKeyspaceName(), cfs.getTableName(), name))
+                if (!SnapshotManager.instance.exists(cfs.getKeyspaceName(), cfs.getTableName(), name))
                 {
                     Predicate<SSTableReader> predicate = sstable -> sstable != null &&
                                                                     !sstable.metadata().isIndex() && // exclude SSTables from 2i
