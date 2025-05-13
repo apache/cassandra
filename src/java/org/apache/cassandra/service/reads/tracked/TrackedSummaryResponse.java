@@ -15,25 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.reads.tracked;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 
 import java.io.IOException;
 
-public class TrackedReadSummary
+public class TrackedSummaryResponse
 {
     private final TrackedRead.Id readId;
     private final MutationSummary summary;
 
-    public TrackedReadSummary(TrackedRead.Id readId, MutationSummary summary)
+    public TrackedSummaryResponse(TrackedRead.Id readId, MutationSummary summary)
     {
         this.readId = readId;
         this.summary = summary;
@@ -49,34 +47,28 @@ public class TrackedReadSummary
         return summary;
     }
 
-    public static final IVerbHandler<TrackedReadSummary> verbHandler = new IVerbHandler<TrackedReadSummary>()
-    {
-        @Override
-        public void doVerb(Message<TrackedReadSummary> message) throws IOException
-        {
-            MutationTrackingService.instance.localReads().receiveSummary(message.from(), message.payload);
-        }
-    };
+    public static final IVerbHandler<TrackedSummaryResponse> verbHandler =
+        message -> MutationTrackingService.instance.localReads().receiveSummary(message.from(), message.payload);
 
-    public static final IVersionedSerializer<TrackedReadSummary> serializer = new IVersionedSerializer<TrackedReadSummary>()
+    public static final IVersionedSerializer<TrackedSummaryResponse> serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(TrackedReadSummary summary, DataOutputPlus out, int version) throws IOException
+        public void serialize(TrackedSummaryResponse summary, DataOutputPlus out, int version) throws IOException
         {
             TrackedRead.Id.serializer.serialize(summary.readId, out, version);
             MutationSummary.serializer.serialize(summary.summary, out, version);
         }
 
         @Override
-        public TrackedReadSummary deserialize(DataInputPlus in, int version) throws IOException
+        public TrackedSummaryResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             TrackedRead.Id id = TrackedRead.Id.serializer.deserialize(in, version);
             MutationSummary summary = MutationSummary.serializer.deserialize(in, version);
-            return new TrackedReadSummary(id, summary);
+            return new TrackedSummaryResponse(id, summary);
         }
 
         @Override
-        public long serializedSize(TrackedReadSummary summary, int version)
+        public long serializedSize(TrackedSummaryResponse summary, int version)
         {
             return TrackedRead.Id.serializer.serializedSize(summary.readId, version) +
                    MutationSummary.serializer.serializedSize(summary.summary, version);

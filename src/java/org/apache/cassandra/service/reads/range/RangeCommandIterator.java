@@ -234,7 +234,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                 ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
                 PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), i == 0);
 
-                TrackedRead.Range read = TrackedRead.create(rangeCommand, replicaPlan);
+                TrackedRead.Range read = TrackedRead.Range.create(rangeCommand, replicaPlan);
                 read.start(requestTime);
                 concurrentQueries.add(read.iterator());
 

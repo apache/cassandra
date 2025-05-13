@@ -245,18 +245,17 @@ public enum Verb
     TCM_FETCH_PEER_LOG_REQ (819, P0, rpcTimeout,      FETCH_LOG,            () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
 
     // tracked replication
-    READ_RECONCILE_SEND    (901, P0, rpcTimeout,      READ,                 () -> ReadReconcileSend.serializer,                 () -> ReadReconcileSend.verbHandler),
-    READ_RECONCILE_RCV     (902, P0, rpcTimeout,      MUTATION,             () -> ReadReconcileReceive.serializer,              () -> ReadReconcileReceive.verbHandler),
-    READ_RECONCILE_NOTIFY  (903, P0, rpcTimeout,      REQUEST_RESPONSE,     () -> ReadReconcileNotify.serializer,               () -> ReadReconcileNotify.verbHandler),
-    FORWARDING_WRITE       (904, P3, writeTimeout,    MUTATION,             () -> ForwardedWrite.Request.serializer,            () -> ForwardedWrite.verbHandler),
+    READ_RECONCILE_SEND        (901, P0, rpcTimeout,   READ,             () -> ReadReconcileSend.serializer,          () -> ReadReconcileSend.verbHandler                                ),
+    READ_RECONCILE_RCV         (902, P0, rpcTimeout,   MUTATION,         () -> ReadReconcileReceive.serializer,       () -> ReadReconcileReceive.verbHandler                             ),
+    READ_RECONCILE_NOTIFY      (903, P0, rpcTimeout,   REQUEST_RESPONSE, () -> ReadReconcileNotify.serializer,        () -> ReadReconcileNotify.verbHandler                              ),
+    FORWARDING_WRITE           (904, P3, writeTimeout, MUTATION,         () -> ForwardedWrite.Request.serializer,     () -> ForwardedWrite.verbHandler                                   ),
 
-    TRACKED_READ_RSP       (905, P2, readTimeout,     REQUEST_RESPONSE,     () -> TrackedDataResponse.serializer,               () -> ResponseVerbHandler.instance),
-    TRACKED_READ_REQ       (906, P3, readTimeout,     READ,                 () -> TrackedRead.Request.serializer,               () -> TrackedRead.verbHandler,              TRACKED_READ_RSP),
-
-    TRACKED_RANGE_READ_RSP (907, P2, rangeTimeout,    REQUEST_RESPONSE,     () -> TrackedDataResponse.serializer,               () -> ResponseVerbHandler.instance),
-    TRACKED_RANGE_READ_REQ (908, P3, rangeTimeout,    READ,                 () -> TrackedRead.Request.serializer,               () -> TrackedRead.verbHandler,              TRACKED_READ_RSP),
-
-    TRACKED_READ_SUMMARY   (909, P3, readTimeout,     REQUEST_RESPONSE,     () -> TrackedReadSummary.serializer,                () -> TrackedReadSummary.verbHandler),
+    TRACKED_PARTITION_READ_RSP (905, P2, readTimeout,  REQUEST_RESPONSE, () -> TrackedDataResponse.serializer,        () -> ResponseVerbHandler.instance                                 ),
+    TRACKED_PARTITION_READ_REQ (906, P3, readTimeout,  READ,             () -> TrackedRead.DataRequest.serializer,    () -> TrackedRead.verbHandler,           TRACKED_PARTITION_READ_RSP),
+    TRACKED_RANGE_READ_RSP     (907, P2, rangeTimeout, REQUEST_RESPONSE, () -> TrackedDataResponse.serializer,        () -> ResponseVerbHandler.instance                                 ),
+    TRACKED_RANGE_READ_REQ     (908, P3, rangeTimeout, READ,             () -> TrackedRead.DataRequest.serializer,    () -> TrackedRead.verbHandler,           TRACKED_RANGE_READ_RSP    ),
+    TRACKED_SUMMARY_RSP        (909, P2, readTimeout,  REQUEST_RESPONSE, () -> TrackedSummaryResponse.serializer,     () -> TrackedSummaryResponse.verbHandler                           ),
+    TRACKED_SUMMARY_REQ        (910, P3, readTimeout,  READ,             () -> TrackedRead.SummaryRequest.serializer, () -> TrackedRead.verbHandler,           TRACKED_SUMMARY_RSP       ),
 
     INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
     INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),

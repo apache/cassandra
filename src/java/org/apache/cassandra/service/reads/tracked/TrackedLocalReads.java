@@ -85,7 +85,7 @@ public class TrackedLocalReads implements Shutdownable
         return reads.computeIfAbsent(id, TrackedLocalReadCoordinator::new);
     }
 
-    public void receiveSummary(InetAddressAndPort from, TrackedReadSummary summary)
+    public void receiveSummary(InetAddressAndPort from, TrackedSummaryResponse summary)
     {
         getOrCreate(summary.readId()).receiveSummary(from, summary.summary());
     }

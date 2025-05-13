@@ -2156,7 +2156,7 @@ public class StorageProxy implements StorageProxyMBean
         ClusterMetadata metadata = ClusterMetadata.current();
 
         for (int i=0; i<cmdCount; i++)
-            reads[i] = TrackedRead.create(metadata, commands.get(i), consistencyLevel);
+            reads[i] = TrackedRead.Partition.create(metadata, commands.get(i), consistencyLevel);
 
         for (TrackedRead.Partition read : reads)
             read.start(requestTime);

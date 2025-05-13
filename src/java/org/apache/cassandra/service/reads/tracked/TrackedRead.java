@@ -100,7 +100,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             return "Id{" + node + ':' + hlc + '}';
         }
 
-        public static final IVersionedSerializer<Id> serializer = new IVersionedSerializer<Id>()
+        public static final IVersionedSerializer<Id> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Id id, DataOutputPlus out, int version) throws IOException
@@ -139,6 +139,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     private final AsyncPromise<PartitionIterator> future = new AsyncPromise<>();
 
     private final Id readId = Id.nextId();
+    private final ReadCommand command;
     private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
     private final ConsistencyLevel consistencyLevel;
 
@@ -159,8 +160,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
-    public TrackedRead(ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel)
+    public TrackedRead(ReadCommand command, ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel)
     {
+        this.command = command;
         this.replicaPlan = replicaPlan;
         this.consistencyLevel = consistencyLevel;
     }
@@ -171,71 +173,48 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         return "TrackedRead." + getClass().getSimpleName() + '{' + readId + '}';
     }
 
-    protected abstract ReadCommand command();
     protected abstract Verb verb();
-
-    public static Partition create(ClusterMetadata metadata,
-                                   SinglePartitionReadCommand command,
-                                   ConsistencyLevel consistencyLevel)
-    {
-        Preconditions.checkArgument(command.metadata().replicationType().isTracked());
-        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
-        SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
-
-        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(metadata,
-                                                                    keyspace,
-                                                                    command.partitionKey().getToken(),
-                                                                    command.indexQueryPlan(),
-                                                                    consistencyLevel,
-                                                                    retry);
-
-        return new Partition(command, replicaPlan, consistencyLevel);
-    }
-
-    public static TrackedRead.Range create(PartitionRangeReadCommand command,
-                                           ReplicaPlan.ForRangeRead replicaPlan)
-    {
-        Preconditions.checkArgument(command.metadata().replicationType().isTracked());
-        return new Range(command, replicaPlan, replicaPlan.consistencyLevel());
-    }
 
     public static class Partition extends TrackedRead<EndpointsForToken, ReplicaPlan.ForTokenRead>
     {
-        private final SinglePartitionReadCommand command;
-        public Partition(SinglePartitionReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan, ConsistencyLevel consistencyLevel)
+        private Partition(SinglePartitionReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan, ConsistencyLevel consistencyLevel)
         {
-            super(replicaPlan, consistencyLevel);
-            this.command = command;
+            super(command, replicaPlan, consistencyLevel);
         }
 
-        @Override
-        protected ReadCommand command()
+        public static Partition create(ClusterMetadata metadata, SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel)
         {
-            return command;
+            Preconditions.checkArgument(command.metadata().replicationType().isTracked());
+            Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
+            SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
+            ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(metadata,
+                                                                        keyspace,
+                                                                        command.partitionKey().getToken(),
+                                                                        command.indexQueryPlan(),
+                                                                        consistencyLevel,
+                                                                        retry);
+            return new Partition(command, replicaPlan, consistencyLevel);
         }
 
         @Override
         protected Verb verb()
         {
-            return Verb.TRACKED_READ_REQ;
+            return Verb.TRACKED_PARTITION_READ_REQ;
         }
     }
 
     public static class Range extends TrackedRead<EndpointsForRange, ReplicaPlan.ForRangeRead>
     {
-        private final PartitionRangeReadCommand command;
-
-        public Range(PartitionRangeReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForRange, ReplicaPlan.ForRangeRead> replicaPlan, ConsistencyLevel consistencyLevel)
+        private Range(PartitionRangeReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForRange, ReplicaPlan.ForRangeRead> replicaPlan, ConsistencyLevel consistencyLevel)
         {
-            super(replicaPlan, consistencyLevel);
-            this.command = command;
+            super(command, replicaPlan, consistencyLevel);
         }
 
-        @Override
-        protected ReadCommand command()
+        public static TrackedRead.Range create(PartitionRangeReadCommand command, ReplicaPlan.ForRangeRead replicaPlan)
         {
-            return command;
+            Preconditions.checkArgument(command.metadata().replicationType().isTracked());
+            return new Range(command, replicaPlan, replicaPlan.consistencyLevel());
         }
 
         @Override
@@ -263,14 +242,14 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         Replica dataNode = localReplica != null && localReplica.isFull()
                            ? localReplica
                            : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
-        E summaryNodes = selected.filter(r -> !r.equals(dataNode));
+        E summaryNodes = selected.filter(r -> r != dataNode);
 
 
         if (dataNode == localReplica)
         {
             Stage.READ.submit(() -> {
-                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command(), consistencyLevel, summaryNodes.endpoints(), expiresAt);
-                coordinator.addCallback(((response, error) -> {
+                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes.endpoints(), expiresAt);
+                coordinator.addCallback((response, error) -> {
                     if (error != null)
                     {
                         // TODO: notify coordinator that read has failed
@@ -279,20 +258,21 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                     }
                     logger.trace("Finished locally coordinating {}", this);
                     onResponse(response);
-                }));
+                });
             });
         }
         else
         {
-            DataRequest dataRequest = new DataRequest(readId, command(), consistencyLevel, summaryNodes.endpoints());
+            DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryNodes.endpoints());
             MessagingService.instance().sendWithCallback(Message.out(verb(), dataRequest), dataNode.endpoint(), this);
         }
 
         if (summaryNodes.isEmpty())
             return;
 
-        SummaryRequest summaryRequest = new SummaryRequest(readId, command(), dataNode.endpoint());
-        Message<SummaryRequest> summaryMessage = Message.out(verb(), summaryRequest);
+        SummaryRequest summaryRequest = new SummaryRequest(readId, command);
+        Message<SummaryRequest> summaryMessage = Message.out(verb(), summaryRequest)
+                                                        .withParam(ParamType.RESPOND_TO, dataNode.endpoint());
         for (InetAddressAndPort endpoint : summaryNodes.endpoints())
             MessagingService.instance().send(summaryMessage, endpoint);
     }
@@ -304,7 +284,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     private void onResponse(TrackedDataResponse response)
     {
-        future.trySuccess(response.makeIterator(command()));
+        future.trySuccess(response.makeIterator(command));
     }
 
     @Override
@@ -328,7 +308,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     {
         try
         {
-            return future.get(command().getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            return future.get(command.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
         }
         catch (InterruptedException e)
         {
@@ -379,122 +359,16 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public abstract static class Request
     {
-        public enum Kind
-        {
-            DATA, SUMMARY;
+        protected final Id readId;
+        protected final ReadCommand command;
 
-            static final IVersionedSerializer<Kind> serializer = new IVersionedSerializer<Kind>()
-            {
-                @Override
-                public void serialize(Kind kind, DataOutputPlus out, int version) throws IOException
-                {
-                    switch (kind)
-                    {
-                        case DATA:
-                            out.writeByte(0);
-                            break;
-                        case SUMMARY:
-                            out.writeByte(1);
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported kind: " + kind);
-                    }
-                }
-
-                @Override
-                public Kind deserialize(DataInputPlus in, int version) throws IOException
-                {
-                    byte b = in.readByte();
-                    switch (b)
-                    {
-                        case 0:
-                            return Kind.DATA;
-                        case 1:
-                            return Kind.SUMMARY;
-                        default:
-                            throw new IllegalArgumentException("Unknown kind byte: " + b);
-                    }
-                }
-
-                @Override
-                public long serializedSize(Kind kind, int version)
-                {
-                    return TypeSizes.BYTE_SIZE;
-                }
-            };
-        }
-
-        private final TrackedRead.Id readId;
-        private final ReadCommand command;
-
-        public Request(TrackedRead.Id readId, ReadCommand command)
+        protected Request(Id readId, ReadCommand command)
         {
             this.readId = readId;
             this.command = command;
         }
 
-        public TrackedRead.Id readId()
-        {
-            return readId;
-        }
-
-        public ReadCommand command()
-        {
-            return command;
-        }
-
-        public abstract Kind kind();
         public abstract void executeLocally(Message<Request> message, ClusterMetadata metadata);
-
-        public static final IVersionedSerializer<Request> serializer = new IVersionedSerializer<Request>()
-        {
-            @Override
-            public void serialize(Request request, DataOutputPlus out, int version) throws IOException
-            {
-                Kind.serializer.serialize(request.kind(),out, version);
-                switch (request.kind())
-                {
-                    case DATA:
-                        DataRequest.serializer.serialize((DataRequest) request, out, version);
-                        break;
-                    case SUMMARY:
-                        SummaryRequest.serializer.serialize((SummaryRequest) request, out, version);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unsupported kind: " + request.kind());
-                }
-            }
-
-            @Override
-            public Request deserialize(DataInputPlus in, int version) throws IOException
-            {
-                Kind kind = Kind.serializer.deserialize(in, version);
-                switch (kind)
-                {
-                    case DATA:
-                        return DataRequest.serializer.deserialize(in, version);
-                    case SUMMARY:
-                        return SummaryRequest.serializer.deserialize(in, version);
-                    default:
-                        throw new IllegalArgumentException("Unsupported kind: " + kind);
-                }
-            }
-
-            @Override
-            public long serializedSize(Request request, int version)
-            {
-                long size = TypeSizes.BYTE_SIZE;
-                switch (request.kind())
-                {
-                    case DATA:
-                        return size + DataRequest.serializer.serializedSize((DataRequest) request, version);
-                    case SUMMARY:
-                        return size + SummaryRequest.serializer.serializedSize((SummaryRequest) request, version);
-                    default:
-                        throw new IllegalArgumentException("Unsupported kind: " + request.kind());
-                }
-            }
-        };
     }
 
     public static class DataRequest extends Request
@@ -502,7 +376,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         private final ConsistencyLevel consistencyLevel;
         private final Set<InetAddressAndPort> summaryNodes;
 
-        public DataRequest(TrackedRead.Id readId, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes)
+        public DataRequest(Id readId, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes)
         {
             super(readId, command);
             this.consistencyLevel = consistencyLevel;
@@ -510,15 +384,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
 
         @Override
-        public Kind kind()
-        {
-            return Kind.DATA;
-        }
-
-        @Override
         public void executeLocally(Message<Request> message, ClusterMetadata metadata)
         {
-            TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId(), metadata, command(), consistencyLevel, summaryNodes, message.expiresAtNanos());
+            TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, metadata, command, consistencyLevel, summaryNodes, message.expiresAtNanos());
             coordinator.addCallback((response, error) -> {
                 if (error != null)
                 {
@@ -531,13 +399,13 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             });
         }
 
-        static final IVersionedSerializer<DataRequest> serializer = new IVersionedSerializer<DataRequest>()
+        public static final IVersionedSerializer<DataRequest> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(DataRequest request, DataOutputPlus out, int version) throws IOException
             {
-                Id.serializer.serialize(request.readId(), out, version);
-                ReadCommand.serializer.serialize(request.command(), out, version);
+                Id.serializer.serialize(request.readId, out, version);
+                ReadCommand.serializer.serialize(request.command, out, version);
                 out.writeInt(request.consistencyLevel.code);
                 CollectionSerializer.serializeCollection(inetAddressAndPortSerializer, request.summaryNodes, out, version);
             }
@@ -545,78 +413,70 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             @Override
             public DataRequest deserialize(DataInputPlus in, int version) throws IOException
             {
-                return new DataRequest(Id.serializer.deserialize(in, version),
-                                       ReadCommand.serializer.deserialize(in, version),
-                                       ConsistencyLevel.fromCode(in.readInt()),
-                                       CollectionSerializer.deserializeCollection(inetAddressAndPortSerializer, Sets::newHashSetWithExpectedSize, in, version));
+                Id readId = Id.serializer.deserialize(in, version);
+                ReadCommand command = ReadCommand.serializer.deserialize(in, version);
+                ConsistencyLevel consistencyLevel = ConsistencyLevel.fromCode(in.readInt());
+                Set<InetAddressAndPort> summaryNodes =
+                    CollectionSerializer.deserializeCollection(inetAddressAndPortSerializer, Sets::newHashSetWithExpectedSize, in, version);
+                return new DataRequest(readId, command, consistencyLevel, summaryNodes);
             }
 
             @Override
             public long serializedSize(DataRequest request, int version)
             {
-                return Id.serializer.serializedSize(request.readId(), version) +
-                        ReadCommand.serializer.serializedSize(request.command(), version) +
-                        TypeSizes.INT_SIZE +
-                        CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, request.summaryNodes, version);
+                return Id.serializer.serializedSize(request.readId, version) +
+                       ReadCommand.serializer.serializedSize(request.command, version) +
+                       TypeSizes.sizeof(request.consistencyLevel.code) +
+                       TypeSizes.INT_SIZE +
+                       CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, request.summaryNodes, version);
             }
         };
     }
 
     public static class SummaryRequest extends Request
     {
-        private final InetAddressAndPort respondTo;
-
-        public SummaryRequest(Id readId, ReadCommand command, InetAddressAndPort respondTo)
+        public SummaryRequest(Id readId, ReadCommand command)
         {
             super(readId, command);
-            this.respondTo = respondTo;
-        }
-
-        @Override
-        public Kind kind()
-        {
-            return Kind.SUMMARY;
         }
 
         @Override
         public void executeLocally(Message<Request> message, ClusterMetadata metadata)
         {
             // create summary
-            MutationSummary summary = command().createMutationSummary(false);
-            // send to data node
-            TrackedReadSummary response = new TrackedReadSummary(readId(), summary);
-            MessagingService.instance().send(Message.out(Verb.TRACKED_READ_SUMMARY, response), respondTo);
+            MutationSummary summary = command.createMutationSummary(false);
+            // send to the data node
+            TrackedSummaryResponse response = new TrackedSummaryResponse(readId, summary);
+            MessagingService.instance().send(Message.out(Verb.TRACKED_SUMMARY_RSP, response), message.respondTo());
         }
 
-        static final IVersionedSerializer<SummaryRequest> serializer = new IVersionedSerializer<SummaryRequest>()
+        public static final IVersionedSerializer<SummaryRequest> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(SummaryRequest request, DataOutputPlus out, int version) throws IOException
             {
-                Id.serializer.serialize(request.readId(), out, version);
-                ReadCommand.serializer.serialize(request.command(), out, version);
-                inetAddressAndPortSerializer.serialize(request.respondTo, out, version);
+                Id.serializer.serialize(request.readId, out, version);
+                ReadCommand.serializer.serialize(request.command, out, version);
             }
 
             @Override
             public SummaryRequest deserialize(DataInputPlus in, int version) throws IOException
             {
-                return new SummaryRequest(Id.serializer.deserialize(in, version),
-                                          ReadCommand.serializer.deserialize(in, version),
-                                          inetAddressAndPortSerializer.deserialize(in, version));
+                Id readId = Id.serializer.deserialize(in, version);
+                ReadCommand command = ReadCommand.serializer.deserialize(in, version);
+                return new SummaryRequest(readId, command);
             }
 
             @Override
             public long serializedSize(SummaryRequest request, int version)
             {
-                return Id.serializer.serializedSize(request.readId(), version) +
-                        ReadCommand.serializer.serializedSize(request.command(), version) +
-                        inetAddressAndPortSerializer.serializedSize(request.respondTo, version);
+                return Id.serializer.serializedSize(request.readId, version) +
+                       ReadCommand.serializer.serializedSize(request.command, version);
             }
         };
     }
 
-    public static final IVerbHandler<Request> verbHandler = new AbstractReadCommandVerbHandler<Request>()
+    public static final IVerbHandler<Request> verbHandler = new AbstractReadCommandVerbHandler<>()
     {
         @Override
         protected void performRead(Message<Request> message, ClusterMetadata metadata)
@@ -627,7 +487,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         @Override
         protected ReadCommand getCommand(Request payload)
         {
-            return payload.command();
+            return payload.command;
         }
     };
 }
