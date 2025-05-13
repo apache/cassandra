@@ -120,6 +120,9 @@ cp -p %{_get_dist_dir}/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
 # copy fqltool jar
 cp -p %{_get_dist_dir}/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
 
+# copy sstableloader jar
+cp -p %{_get_dist_dir}/tools/lib/sstableloader.jar %{buildroot}/usr/share/%{username}/
+
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
 cp -p bin/* %{buildroot}/usr/bin/

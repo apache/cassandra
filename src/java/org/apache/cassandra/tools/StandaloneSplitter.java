@@ -50,7 +50,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
-import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
+
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class StandaloneSplitter

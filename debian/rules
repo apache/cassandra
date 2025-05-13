@@ -67,6 +67,10 @@ install: build
 	dh_install $(BUILD_DIR)/tools/lib/fqltool.jar \
 		usr/share/cassandra
 
+	# Copy sstableloader jars
+	dh_install $(BUILD_DIR)/tools/lib/sstableloader.jar \
+		usr/share/cassandra
+
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra/apache-cassandra.jar
 

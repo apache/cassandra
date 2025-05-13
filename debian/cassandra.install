@@ -16,7 +16,6 @@ bin/cassandra.in.sh usr/share/cassandra
 bin/cassandra usr/sbin
 bin/nodetool usr/bin
 bin/sstableutil usr/bin
-bin/sstableloader usr/bin
 bin/cqlsh usr/bin
 bin/cqlsh.py usr/bin
 bin/sstablescrub usr/bin
@@ -28,6 +27,7 @@ tools/bin/auditlogviewer usr/bin
 tools/bin/jmxtool usr/bin
 tools/bin/hash_password usr/bin
 tools/bin/sstablepartitions usr/bin
+tools/bin/sstableloader usr/bin
 lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
 lib/x86_64/* usr/share/cassandra/lib/x86_64

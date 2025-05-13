@@ -40,7 +40,7 @@ error() {
 
 # legacy argument handling
 case ${1} in
-  "build_dtest_jars" | "stress-test" | "fqltool-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" | "simulator-dtest" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large" | "test" | "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
+  "build_dtest_jars" | "stress-test" | "fqltool-test" | "sstableloader-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" | "simulator-dtest" | "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large" | "test" | "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
     test_type="-a ${1}"
     if [[ -z ${2} ]]; then
       test_list=""
@@ -182,7 +182,7 @@ docker_flags="-m 5g --memory-swap 5g"
 case ${test_target/-repeat/} in
     "build_dtest_jars")
     ;;
-    "stress-test" | "fqltool-test" )
+    "stress-test" | "fqltool-test" | "sstableloader-test" )
         [[ ${mem} -gt $((1 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 1g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
     # test-burn doesn't have enough tests in it to split beyond 8, and burn and long we want a bit more resources anyway

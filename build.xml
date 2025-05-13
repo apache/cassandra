@@ -385,26 +385,38 @@
         </fileset>
     </path>
 
-  <macrodef name="create-javadoc">
-    <attribute name="destdir"/>
-    <element name="filesets"/>
-    <sequential>
-      <javadoc destdir="@{destdir}" author="true" version="true" use="true"
-        windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
-        useexternalfile="yes" encoding="UTF-8" failonerror="false"
-        maxmemory="256m" additionalparam="${jdk11plus-javac-exports}">
-        <filesets/>
-      </javadoc>
-      <fail message="javadoc failed">
-        <condition>
-            <not>
-                <available file="@{destdir}/index-all.html" />
-            </not>
-        </condition>
-      </fail>
-    </sequential>
-  </macrodef>
+    <macrodef name="create-javadoc">
+      <attribute name="destdir"/>
+      <element name="filesets"/>
+      <sequential>
+        <javadoc destdir="@{destdir}" author="true" version="true" use="true"
+          windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
+          bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
+          useexternalfile="yes" encoding="UTF-8" failonerror="false"
+          maxmemory="256m" additionalparam="${jdk11plus-javac-exports}">
+          <filesets/>
+        </javadoc>
+        <fail message="javadoc failed">
+          <condition>
+              <not>
+                  <available file="@{destdir}/index-all.html" />
+              </not>
+          </condition>
+        </fail>
+      </sequential>
+    </macrodef>
+
+    <!-- filterset to apply to pom templates -->
+    <filterset id="pom-template">
+        <filter token="version" value="${version}"/>
+        <filter token="final.name" value="${final.name}"/>
+        <filter token="jamm.version" value="${jamm.version}"/>
+        <filter token="allocation-instrumenter.version" value="${allocation-instrumenter.version}"/>
+        <filter token="ecj.version" value="${ecj.version}"/>
+        <filter token="asm.version" value="${asm.version}"/>
+        <filter token="jacoco.version" value="${jacoco.version}"/>
+        <filter token="jflex.version" value="${jflex.version}"/>
+    </filterset>
 
     <!--
         Setup the output directories.
@@ -746,24 +758,13 @@
     </target>
 
     <target name="write-poms" unless="without.maven">
-        <filterset id="pom-template">
-            <filter token="version" value="${version}"/>
-            <filter token="final.name" value="${final.name}"/>
-            <filter token="jamm.version" value="${jamm.version}"/>
-            <filter token="allocation-instrumenter.version" value="${allocation-instrumenter.version}"/>
-            <filter token="ecj.version" value="${ecj.version}"/>
-            <filter token="asm.version" value="${asm.version}"/>
-            <filter token="jacoco.version" value="${jacoco.version}"/>
-            <filter token="jflex.version" value="${jflex.version}"/>
-        </filterset>
-
-        <copy file=".build/cassandra-deps-template.xml" tofile="${build.dir}/${final.name}.pom">
+        <copy file=".build/cassandra-deps-maven-pom.xml" tofile="${build.dir}/${final.name}.pom">
             <filterset refid="pom-template"/>
         </copy>
-        <copy file=".build/parent-pom-template.xml" tofile="${build.dir}/${final.name}-parent.pom">
+        <copy file=".build/parent-maven-pom.xml" tofile="${build.dir}/${final.name}-parent.pom">
             <filterset refid="pom-template"/>
         </copy>
-        <copy file=".build/cassandra-build-deps-template.xml" tofile="${build.dir}/tmp-${final.name}-deps.pom">
+        <copy file=".build/cassandra-build-maven-pom.xml" tofile="${build.dir}/tmp-${final.name}-deps.pom">
             <filterset refid="pom-template"/>
         </copy>
     </target>
@@ -864,7 +865,7 @@
     </target>
 
     <target name="jar"
-            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,write-poms"
+            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,sstableloader-jar,write-poms"
             description="Assemble Cassandra JAR files">
     </target>
 
@@ -949,7 +950,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="_artifacts-init,check,sources-jar"
+    <target name="artifacts" depends="_artifacts-init,check,sources-jar,sstableloader-sources-jar"
             description="Create Cassandra tarball and maven artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
@@ -1082,7 +1083,7 @@
     <antcall target="build-test" inheritRefs="true"/>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars"
+  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build-test,sstableloader-build-test,resolver-dist-lib,simulator-jars"
           description="Compile test classes">
     <antcall target="_build-test"/>
     <antcall target="_check-test-names"/>
@@ -1101,6 +1102,7 @@
      <classpath>
         <path refid="cassandra.classpath.test"/>
         <pathelement location="${fqltool.build.classes}"/>
+        <pathelement location="${sstableloader.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
      <!-- needed to compile org.apache.cassandra.utils.memory.BufferPoolTest -->
@@ -1129,7 +1131,7 @@
     <macrodef name="check-test-names">
         <attribute name="annotationName"/>
         <attribute name="regex"/>
-        <attribute name="scanClassPath" default="${test.classes}:${fqltool.test.classes}:${stress.test.classes}"/>
+        <attribute name="scanClassPath" default="${test.classes}:${fqltool.test.classes}:${stress.test.classes}:${sstableloader.test.classes}"/>
         <attribute name="packageName" default="org.apache.cassandra"/>
         <attribute name="expand" default="true"/>
         <attribute name="normalize" default="true"/>
@@ -1141,9 +1143,11 @@
                     <path refid="cassandra.classpath.test"/>
                     <pathelement location="${fqltool.build.classes}"/>
                     <pathelement location="${stress.build.classes}"/>
+                    <pathelement location="${sstableloader.build.classes}"/>
                     <pathelement location="${test.classes}"/>
                     <pathelement location="${fqltool.test.classes}"/>
                     <pathelement location="${stress.test.classes}"/>
+                    <pathelement location="${sstableloader.test.classes}"/>
                 </classpath>
                 <jvmarg line="${java-jvmargs}"/>
                 <jvmarg value="-DscanClassPath=@{scanClassPath}"/>
@@ -1270,10 +1274,12 @@
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
           <pathelement location="${fqltool.build.classes}"/>
+          <pathelement location="${sstableloader.build.classes}"/>
           <pathelement location="${test.classes}"/>
           <path refid="cassandra.classpath.test" />
           <pathelement location="${stress.test.classes}"/>
           <pathelement location="${fqltool.test.classes}"/>
+          <pathelement location="${sstableloader.test.classes}"/>
           <pathelement location="${test.conf}"/>
           <pathelement path="${java.class.path}"/>
           <path refid="cassandra.classpath" />
@@ -2079,8 +2085,10 @@
   <classpathentry kind="src" output="${test.classes}" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="src" path="tools/fqltool/src"/>
+  <classpathentry kind="src" path="tools/sstableloader/src"/>
   <classpathentry kind="src" output="build/test/stress-classes" path="tools/stress/test/unit" />
   <classpathentry kind="src" output="build/test/fqltool-classes" path="tools/fqltool/test/unit" />
+  <classpathentry kind="src" output="build/test/sstableloader-classes" path="tools/sstableloader/test/unit" />
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
   <classpathentry kind="lib" path="test/conf"/>
@@ -2140,7 +2148,7 @@
 
   <!-- Publish artifacts to remote Maven repository -->
   <target name="publish"
-          depends="mvn-install,artifacts"
+          depends="mvn-install,sstableloader-mvn-install,artifacts"
           description="Publishes the artifacts to the Maven repository">
     <!-- Accord -->
     <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
@@ -2170,6 +2178,16 @@
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
 
+    <!-- the cassandra-sstableloader jar -->
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/tools/lib/sstableloader.jar"/>
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/${final.name}-sstableloader-sources.jar"
+            classifier="sources"/>
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/${final.name}-sstableloader-javadoc.jar"
+            classifier="javadoc"/>
+
     <!-- the distribution -->
     <sign-dist file="${build.dir}/${final.name}-bin.tar.gz" />
     <sign-dist file="${build.dir}/${final.name}-src.tar.gz" />
@@ -2185,4 +2203,5 @@
   <import file="${build.helpers.dir}/build-bench.xml"/>
   <import file="${build.helpers.dir}/build-sonar.xml"/>
   <import file="${build.helpers.dir}/build-accord.xml" />
+  <import file="${basedir}/tools/sstableloader/build.xml"/>
 </project>

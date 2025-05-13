@@ -36,6 +36,12 @@
                     <encoding>UTF-8</encoding>
                 </source-folder>
                 <source-folder>
+                    <label>src/sstableloader</label>
+                    <type>java</type>
+                    <location>${project.dir}/tools/sstableloader/src</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
                     <label>src/stress</label>
                     <type>java</type>
                     <location>${project.dir}/tools/stress/src</location>
@@ -51,6 +57,12 @@
                     <label>test/fqltool/</label>
                     <type>java</type>
                     <location>${project.dir}/tools/fqltool/test/unit</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/sstableloader/</label>
+                    <type>java</type>
+                    <location>${project.dir}/tools/sstableloader/test/unit</location>
                     <encoding>UTF-8</encoding>
                 </source-folder>
                 <source-folder>
@@ -166,6 +178,12 @@
             </export>
             <export>
                 <type>folder</type>
+                <location>${project.dir}/build/classes/sstableloader</location>
+                <script>../build.xml</script>
+                <build-target>sstableloader-build</build-target>
+            </export>
+            <export>
+                <type>folder</type>
                 <location>${project.dir}/build/classes/stress</location>
                 <script>../build.xml</script>
                 <build-target>stress-build</build-target>
@@ -196,6 +214,12 @@
             </export>
             <export>
                 <type>folder</type>
+                <location>${project.dir}/build/test/sstableloader-classes</location>
+                <script>../build.xml</script>
+                <build-target>sstableloader-build-test</build-target>
+            </export>
+            <export>
+                <type>folder</type>
                 <location>${project.dir}/build/test/stress-classes</location>
                 <script>../build.xml</script>
                 <build-target>stress-build-test</build-target>
@@ -215,6 +239,10 @@
                         <location>${project.dir}/tools/fqltool/src</location>
                     </source-folder>
                     <source-folder style="packages">
+                        <label>src/sstableloader</label>
+                        <location>${project.dir}/tools/sstableloader/src</location>
+                    </source-folder>
+                    <source-folder style="packages">
                         <label>src/stress</label>
                         <location>${project.dir}/tools/stress/src</location>
                     </source-folder>
@@ -225,6 +253,10 @@
                     <source-folder style="packages">
                         <label>test/fqltool/</label>
                         <location>${project.dir}/tools/fqltool/test/unit</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/sstableloader/</label>
+                        <location>${project.dir}/tools/sstableloader/test/unit</location>
                     </source-folder>
                     <source-folder style="packages">
                         <label>test/stress</label>
@@ -296,6 +328,11 @@
                 <built-to>${project.dir}/build/classes/fqltool</built-to>
             </compilation-unit>
             <compilation-unit>
+                <package-root>${project.dir}/tools/sstableloader/src</package-root>
+                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main</classpath>
+                <built-to>${project.dir}/build/classes/sstableloader</built-to>
+            </compilation-unit>
+            <compilation-unit>
                 <package-root>${project.dir}/tools/stress/src</package-root>
                 <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main</classpath>
                 <built-to>${project.dir}/build/classes/stress</built-to>
@@ -313,7 +350,7 @@
                 <package-root>${project.dir}/test/simulator/test</package-root>
                 <package-root>${project.dir}/test/harry/main</package-root>
                 <unit-tests/>
-                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/fqltool/:${project.dir}/build/classes/stress/</classpath>
+                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/fqltool/:${project.dir}/build/classes/sstableloader:${project.dir}/build/classes/stress/</classpath>
                 <built-to>${project.dir}/build/test/classes</built-to>
             </compilation-unit>
             <compilation-unit>
@@ -321,6 +358,12 @@
                 <unit-tests/>
                 <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/fqltool/</classpath>
                 <built-to>${project.dir}/build/test/fqltool-classes</built-to>
+            </compilation-unit>
+            <compilation-unit>
+                <package-root>${project.dir}/tools/sstableloader/test/unit</package-root>
+                <unit-tests/>
+                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/sstableloader/</classpath>
+                <built-to>${project.dir}/build/test/sstableloader-classes</built-to>
             </compilation-unit>
             <compilation-unit>
                 <package-root>${project.dir}/tools/stress/test/unit</package-root>

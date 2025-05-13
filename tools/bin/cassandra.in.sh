@@ -39,7 +39,7 @@ if [ -d $CASSANDRA_HOME/build ] ; then
 
     if [ "$jars_cnt" = "1" ]; then
         cassandra_bin="`ls -1 $CASSANDRA_HOME/build/apache-cassandra*.jar | grep -v javadoc | grep -v sources`"
-        cassandra_bin="$cassandra_bin:$CASSANDRA_HOME/build/classes/stress:$CASSANDRA_HOME/build/classes/fqltool"
+        cassandra_bin="$cassandra_bin:$CASSANDRA_HOME/build/classes/stress:$CASSANDRA_HOME/build/classes/fqltool:$CASSANDRA_HOME/build/classes/sstableloader"
         CLASSPATH="$CLASSPATH:$cassandra_bin"
     fi
 fi

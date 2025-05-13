@@ -32,16 +32,18 @@ elif [ -r "$CASSANDRA_INCLUDE" ]; then
     . "$CASSANDRA_INCLUDE"
 fi
 
-# SSTableLoader has been moved to tools/bin, this script simply
-# invokes the script in the new path.
-SSTABLELOADER_PATH="$CASSANDRA_HOME/tools/bin/sstableloader"
-
-if [ ! -f "$SSTABLELOADER_PATH" ]; then
-    echo "Error: sstableloader has moved to the tools directory. \
-Detected that $SSTABLELOADER_PATH does not exist." >&2
-    exit 2
+if [ -z "$CLASSPATH" ]; then
+    echo "You must set the CLASSPATH var" >&2
+    exit 1
 fi
 
-"$SSTABLELOADER_PATH" "$@"
+if [ "x$MAX_HEAP_SIZE" = "x" ]; then
+    MAX_HEAP_SIZE="256M"
+fi
+
+"$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
+        -Dcassandra.storagedir="$cassandra_storagedir" \
+        -Dlogback.configurationFile=logback-tools.xml \
+        org.apache.cassandra.tools.BulkLoader "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et
