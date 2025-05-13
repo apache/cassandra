@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
@@ -99,23 +100,22 @@ public class QueryProcessor implements QueryHandler
     // counters. Callers of processStatement are responsible for correctly notifying metrics
     public static final CQLMetrics metrics = new CQLMetrics();
 
+    // Paging size to use when preloading prepared statements.
+    public static final int PRELOAD_PREPARED_STATEMENTS_FETCH_SIZE = 5000;
+
+    // Size of the prepared statement cache in bytes.
+    public static long PREPARED_STATEMENT_CACHE_SIZE_BYTES = capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMiB());
+
     private static final AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
 
     static
     {
         preparedStatements = Caffeine.newBuilder()
                              .executor(ImmediateExecutor.INSTANCE)
-                             .maximumWeight(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMiB()))
+                             .maximumWeight(PREPARED_STATEMENT_CACHE_SIZE_BYTES)
                              .weigher(QueryProcessor::getSizeOfPreparedStatementForCache)
-                             .removalListener((key, prepared, cause) -> {
-                                 MD5Digest md5Digest = (MD5Digest) key;
-                                 if (cause.wasEvicted())
-                                 {
-                                     metrics.preparedStatementsEvicted.inc();
-                                     lastMinuteEvictionsCount.incrementAndGet();
-                                     SystemKeyspace.removePreparedStatement(md5Digest);
-                                 }
-                             }).build();
+                             .removalListener((key, prepared, cause) -> evictPreparedStatement(key, cause))
+                             .build();
 
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
             long count = lastMinuteEvictionsCount.getAndSet(0);
@@ -127,6 +127,16 @@ public class QueryProcessor implements QueryHandler
 
         logger.info("Initialized prepared statement caches with {} MiB",
                     DatabaseDescriptor.getPreparedStatementsCacheSizeMiB());
+    }
+
+    private static void evictPreparedStatement(MD5Digest key, RemovalCause cause)
+    {
+        if (cause.wasEvicted())
+        {
+            metrics.preparedStatementsEvicted.inc();
+            lastMinuteEvictionsCount.incrementAndGet();
+            SystemKeyspace.removePreparedStatement(key);
+        }
     }
 
     private static long capacityToBytes(long cacheSizeMB)
@@ -154,6 +164,12 @@ public class QueryProcessor implements QueryHandler
 
     public void preloadPreparedStatements()
     {
+        preloadPreparedStatements(PRELOAD_PREPARED_STATEMENTS_FETCH_SIZE);
+    }
+
+    @VisibleForTesting
+    public int preloadPreparedStatements(int pageSize)
+    {
         long startTime = nanoTime();
         int count = SystemKeyspace.loadPreparedStatements((id, query, keyspace) -> {
             try
@@ -168,18 +184,19 @@ public class QueryProcessor implements QueryHandler
                 // Preload `null` statement for non-fully qualified statements, since it can't be parsed if loaded from cache and will be dropped
                 if (!prepared.fullyQualified)
                     preparedStatements.get(computeId(query, null), (ignored_) -> prepared);
-                return true;
+                return prepared;
             }
             catch (RequestValidationException e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
                 logger.warn("Prepared statement recreation error, removing statement: {} {} {}, error details: {}", id, query, keyspace, e.getMessage());
                 SystemKeyspace.removePreparedStatement(id);
-                return false;
+                return null;
             }
-        });
+        }, pageSize);
         long endTime = nanoTime();
         logger.info("Preloaded {} prepared statements in {} ms", count, TimeUnit.NANOSECONDS.toMillis(endTime - startTime));
+        return count;
     }
 
 
@@ -556,12 +573,33 @@ public class QueryProcessor implements QueryHandler
     public static UntypedResultSet executeInternalWithPaging(String query, int pageSize, Object... values)
     {
         Prepared prepared = prepareInternal(query);
-        if (!(prepared.statement instanceof SelectStatement))
+
+        return executeInternalWithPaging(prepared.statement, pageSize, values);
+    }
+
+    /**
+     * Executes with a non-prepared statement using paging.  Generally {@link #executeInternalWithPaging(String, int, Object...)}
+     * should be used instead of this, but this may be used in niche cases like
+     * {@link SystemKeyspace#loadPreparedStatement(MD5Digest, SystemKeyspace.TriFunction)} where prepared statements are
+     * being loaded into {@link #preparedStatements} so it doesn't make sense to prepare a statement in this context.
+     */
+    public static UntypedResultSet executeOnceInternalWithPaging(String query, int pageSize, Object... values)
+    {
+        QueryState queryState = internalQueryState();
+        CQLStatement statement = parseStatement(query, queryState.getClientState());
+        statement.validate(queryState.getClientState());
+
+        return executeInternalWithPaging(statement, pageSize, values);
+    }
+
+    private static UntypedResultSet executeInternalWithPaging(CQLStatement statement, int pageSize, Object... values)
+    {
+        if (!(statement instanceof SelectStatement))
             throw new IllegalArgumentException("Only SELECTs can be paged");
 
-        SelectStatement select = (SelectStatement)prepared.statement;
+        SelectStatement select = (SelectStatement) statement;
         long nowInSec = FBUtilities.nowInSeconds();
-        QueryPager pager = select.getQuery(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), nowInSec).getPager(null, ProtocolVersion.CURRENT);
+        QueryPager pager = select.getQuery(makeInternalOptionsWithNowInSec(select, nowInSec, values), nowInSec).getPager(null, ProtocolVersion.CURRENT);
         return UntypedResultSet.create(select, pager, pageSize);
     }
 
@@ -799,7 +837,7 @@ public class QueryProcessor implements QueryHandler
 
         Prepared previous = preparedStatements.get(statementId, (ignored_) -> prepared);
         if (previous == prepared)
-            SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
+            SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString, prepared.timestamp);
 
         ResultSet.PreparedMetadata preparedMetadata = ResultSet.PreparedMetadata.fromPrepared(prepared.statement);
         ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.fromPrepared(prepared.statement);

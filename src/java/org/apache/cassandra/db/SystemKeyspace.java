@@ -56,6 +56,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryHandler.Prepared;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -82,6 +83,7 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -125,9 +127,11 @@ import static java.util.Collections.singletonMap;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
+import static org.apache.cassandra.cql3.QueryProcessor.PREPARED_STATEMENT_CACHE_SIZE_BYTES;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternalWithNowInSec;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
+import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternalWithPaging;
 import static org.apache.cassandra.service.paxos.Commit.latest;
 import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
 import static org.apache.cassandra.utils.CassandraVersion.UNREADABLE_VERSION;
@@ -1867,11 +1871,11 @@ public final class SystemKeyspace
         }
     }
 
-    public static void writePreparedStatement(String loggedKeyspace, MD5Digest key, String cql)
+    public static void writePreparedStatement(String loggedKeyspace, MD5Digest key, String cql, long timestamp)
     {
-        executeInternal(format("INSERT INTO %s (logged_keyspace, prepared_id, query_string) VALUES (?, ?, ?)",
+        executeInternal(format("INSERT INTO %s (logged_keyspace, prepared_id, query_string) VALUES (?, ?, ?) USING TIMESTAMP ?",
                                PreparedStatements.toString()),
-                        loggedKeyspace, key.byteBuffer(), cql);
+                        loggedKeyspace, key.byteBuffer(), cql, timestamp);
         logger.debug("stored prepared statement for logged keyspace '{}': '{}'", loggedKeyspace, cql);
     }
 
@@ -1887,17 +1891,50 @@ public final class SystemKeyspace
         preparedStatements.truncateBlockingWithoutSnapshot();
     }
 
-    public static int loadPreparedStatements(TriFunction<MD5Digest, String, String, Boolean> onLoaded)
+    public static int loadPreparedStatements(TriFunction<MD5Digest, String, String, Prepared> onLoaded)
+    {
+        return loadPreparedStatements(onLoaded, QueryProcessor.PRELOAD_PREPARED_STATEMENTS_FETCH_SIZE);
+    }
+
+    public static int loadPreparedStatements(TriFunction<MD5Digest, String, String, Prepared> onLoaded, int pageSize)
     {
         String query = String.format("SELECT prepared_id, logged_keyspace, query_string FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, PREPARED_STATEMENTS);
-        UntypedResultSet resultSet = executeOnceInternal(query);
+        UntypedResultSet resultSet = executeOnceInternalWithPaging(query, pageSize);
         int counter = 0;
+
+        // As the cache size may be briefly exceeded before statements are evicted, we allow loading 110% the cache size
+        // to avoid logging early.
+        long preparedBytesLoadThreshold = (long) (PREPARED_STATEMENT_CACHE_SIZE_BYTES * 1.1);
+        long preparedBytesLoaded = 0L;
         for (UntypedResultSet.Row row : resultSet)
         {
-            if (onLoaded.accept(MD5Digest.wrap(row.getByteArray("prepared_id")),
-                                row.getString("query_string"),
-                                row.has("logged_keyspace") ? row.getString("logged_keyspace") : null))
+            Prepared prepared = onLoaded.accept(MD5Digest.wrap(row.getByteArray("prepared_id")),
+                                                row.getString("query_string"),
+                                                row.has("logged_keyspace") ? row.getString("logged_keyspace") : null);
+            if (prepared != null)
+            {
                 counter++;
+                preparedBytesLoaded += Math.max(0, prepared.pstmntSize);
+
+                if (preparedBytesLoaded > preparedBytesLoadThreshold)
+                {
+                    // In the event that we detect that we have loaded more bytes than the cache size return early to
+                    // prevent an indefinite startup time. This is almost certainly caused by the prepared statement cache
+                    // leaking (CASSANDRA-19703) which should not recur after being on a version running this code.
+                    // In such a case it's better to warn and continue startup than to continually page over millions of
+                    // prepared statements that would be immediately evicted.
+                    logger.warn("Detected prepared statement cache filling up during preload after preparing {} " +
+                                "statements (loaded {} with prepared_statements_cache_size being {}). " +
+                                "This could be an indication that prepared statements leaked prior to CASSANDRA-19703 " +
+                                "being fixed. Returning early to prevent indefinite startup. " +
+                                "Consider truncating {}.{} to clear out leaked prepared statements.",
+                                counter,
+                                FileUtils.stringifyFileSize(preparedBytesLoaded),
+                                FileUtils.stringifyFileSize(PREPARED_STATEMENT_CACHE_SIZE_BYTES),
+                                SchemaConstants.SYSTEM_KEYSPACE_NAME, PREPARED_STATEMENTS);
+                    break;
+                }
+            }
         }
         return counter;
     }
