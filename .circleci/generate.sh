@@ -51,6 +51,8 @@ print_help()
   echo "                   -e REPEATED_UTESTS_COUNT=500"
   echo "                   -e REPEATED_UTESTS_FQLTOOL=org.apache.cassandra.fqltool.FQLCompareTest"
   echo "                   -e REPEATED_UTESTS_FQLTOOL_COUNT=500"
+  echo "                   -e REPEATED_UTESTS_SSTABLELOADER=org.apache.cassandra.tools.LoaderOptionsTest"
+  echo "                   -e REPEATED_UTESTS_SSTABLELOADER_COUNT=500"
   echo "                   -e REPEATED_UTESTS_LONG=org.apache.cassandra.db.commitlog.CommitLogStressTest"
   echo "                   -e REPEATED_UTESTS_LONG_COUNT=100"
   echo "                   -e REPEATED_UTESTS_STRESS=org.apache.cassandra.stress.generate.DistributionGaussianTest"
@@ -131,6 +133,8 @@ if $has_env_vars && $check_env_vars; then
        [ "$key" != "REPEATED_UTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_UTESTS_FQLTOOL" ] &&
        [ "$key" != "REPEATED_UTESTS_FQLTOOL_COUNT" ] &&
+       [ "$key" != "REPEATED_UTESTS_SSTABLELOADER" ] &&
+       [ "$key" != "REPEATED_UTESTS_SSTABLELOADER_COUNT" ] &&
        [ "$key" != "REPEATED_UTESTS_LONG" ] &&
        [ "$key" != "REPEATED_UTESTS_LONG_COUNT" ] &&
        [ "$key" != "REPEATED_UTESTS_STRESS" ] &&
@@ -171,7 +175,7 @@ if $free; then
 elif $paid; then
   ($all || $free) && die "Cannot use option -p with options -a or -f"
   echo "Generating new config.yml file for paid tier from config_template.yml"
-  patch -o $BASEDIR/config_template.yml.PAID $BASEDIR/config_template.yml $BASEDIR/config_template.yml.PAID.patch
+  patch --silent -o $BASEDIR/config_template.yml.PAID $BASEDIR/config_template.yml $BASEDIR/config_template.yml.PAID.patch
   circleci config process $BASEDIR/config_template.yml.PAID > $BASEDIR/config.yml.PAID.tmp
   cat $BASEDIR/license.yml $BASEDIR/config.yml.PAID.tmp > $BASEDIR/config.yml
   rm $BASEDIR/config_template.yml.PAID $BASEDIR/config.yml.PAID.tmp
@@ -188,7 +192,7 @@ elif $all; then
   rm $BASEDIR/config.yml.FREE.tmp
 
   # setup config for paid tier
-  patch -o $BASEDIR/config_template.yml.PAID $BASEDIR/config_template.yml $BASEDIR/config_template.yml.PAID.patch
+  patch --silent -o $BASEDIR/config_template.yml.PAID $BASEDIR/config_template.yml $BASEDIR/config_template.yml.PAID.patch
   circleci config process $BASEDIR/config_template.yml.PAID > $BASEDIR/config.yml.PAID.tmp
   cat $BASEDIR/license.yml $BASEDIR/config.yml.PAID.tmp > $BASEDIR/config.yml.PAID
   rm $BASEDIR/config_template.yml.PAID $BASEDIR/config.yml.PAID.tmp
@@ -241,6 +245,7 @@ if $detect_changed_tests; then
   add_diff_tests "REPEATED_UTESTS_LONG" "test/long/" "org.apache.cassandra"
   add_diff_tests "REPEATED_UTESTS_STRESS" "tools/stress/test/unit/" "org.apache.cassandra.stress"
   add_diff_tests "REPEATED_UTESTS_FQLTOOL" "tools/fqltool/test/unit/" "org.apache.cassandra.fqltool"
+  add_diff_tests "REPEATED_UTESTS_SSTABLELOADER" "tools/sstableloader/test/unit/" "org.apache.cassandra.tools"
   add_diff_tests "REPEATED_SIMULATOR_DTESTS" "test/simulator/test/" "org.apache.cassandra.simulator.test"
   add_diff_tests "REPEATED_JVM_DTESTS" "test/distributed/" "org.apache.cassandra.distributed.test"
   add_diff_tests "REPEATED_JVM_UPGRADE_DTESTS" "test/distributed/" "org.apache.cassandra.distributed.upgrade"
@@ -304,6 +309,10 @@ delete_repeated_jobs()
   if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_FQLTOOL=")); then
     delete_job "$1" "j11_utests_fqltool_repeat"
     delete_job "$1" "j17_utests_fqltool_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_SSTABLELOADER=")); then
+    delete_job "$1" "j11_utests_sstableloader_repeat"
+    delete_job "$1" "j17_utests_sstableloader_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_SIMULATOR_DTESTS=")); then
     delete_job "$1" "j11_simulator_dtests_repeat"
@@ -386,6 +395,7 @@ build_dev_min_jobs()
   delete_job "$1" "j11_utests_cdc"
   delete_job "$1" "j11_utests_compression"
   delete_job "$1" "j11_utests_fqltool"
+  delete_job "$1" "j11_utests_sstableloader"
   delete_job "$1" "j11_utests_long"
   delete_job "$1" "j11_utests_stress"
   delete_job "$1" "j11_utests_system_keyspace_directory"
@@ -394,6 +404,7 @@ build_dev_min_jobs()
   delete_job "$1" "j17_utests_cdc"
   delete_job "$1" "j17_utests_compression"
   delete_job "$1" "j17_utests_fqltool"
+  delete_job "$1" "j17_utests_sstableloader"
   delete_job "$1" "j17_utests_long"
   delete_job "$1" "j17_utests_stress"
   delete_job "$1" "j11_utests_latest"
@@ -403,6 +414,7 @@ build_dev_min_jobs()
   delete_job "$1" "start_utests_stress"
   delete_job "$1" "start_utests_long"
   delete_job "$1" "start_utests_fqltool"
+  delete_job "$1" "start_utests_sstableloader"
   delete_job "$1" "start_utests_compression"
   delete_job "$1" "start_utests_cdc"
   delete_job "$1" "start_j17_cqlsh-dtests-latest"

@@ -53,7 +53,6 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
-import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 public class StandaloneVerifier
 {

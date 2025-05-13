@@ -100,6 +100,7 @@ Running other types of tests with docker:
     .build/docker/run-tests.sh -a test
     .build/docker/run-tests.sh -a stress-test
     .build/docker/run-tests.sh -a fqltool-test
+    .build/docker/run-tests.sh -a sstableloader-test
     .build/docker/run-tests.sh -a microbench
     .build/docker/run-tests.sh -a test-cdc
     .build/docker/run-tests.sh -a test-compression

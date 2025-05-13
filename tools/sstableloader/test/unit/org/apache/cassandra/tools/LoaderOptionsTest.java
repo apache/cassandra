@@ -25,12 +25,11 @@ import java.nio.file.Paths;
 import java.security.Permission;
 
 import com.google.common.net.HostAndPort;
+import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.transport.TlsTestUtils;
 
-import static org.apache.cassandra.tools.OfflineToolUtils.sstableDirName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -102,8 +101,8 @@ public class LoaderOptionsTest
                           sstableDirName("legacy_sstables", "legacy_ma_simple") };
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
         // Below two lines validating server encryption options is to verify that we are loading config from the yaml
-        assertEquals(TlsTestUtils.SERVER_KEYSTORE_PATH, options.serverEncOptions.keystore);
-        assertEquals(TlsTestUtils.SERVER_KEYSTORE_PASSWORD, options.serverEncOptions.keystore_password);
+        assertEquals("test/conf/cassandra_ssl_test.keystore", options.serverEncOptions.keystore);
+        assertEquals("cassandra", options.serverEncOptions.keystore_password);
         // Below asserts validate the overrides for the client encryption options from the command line
         // Since the values are provided by (and local to) this test, they are hardcoded
         assertEquals("JKS", options.clientEncOptions.store_type);
@@ -243,6 +242,41 @@ public class LoaderOptionsTest
         finally
         {
             System.setSecurityManager(null);
+        }
+    }
+
+    // Copied from OfflineToolUtils
+
+    public static String sstableDirName(String ks, String cf) throws IOException
+    {
+        return sstableDir(ks, cf).absolutePath();
+    }
+
+    public static File sstableDir(String ks, String cf) throws IOException
+    {
+        File dataDir = copySSTables();
+        File ksDir = new File(dataDir, ks);
+        File[] cfDirs = ksDir.tryList((dir, name) -> cf.equals(name) || name.startsWith(cf + '-'));
+        return cfDirs[0];
+    }
+
+    public static File copySSTables() throws IOException
+    {
+        File dataDir = new File("build/test/cassandra/data");
+        File srcDir = new File("test/data/legacy-sstables/ma");
+        FileUtils.copyDirectory(new File(srcDir, "legacy_tables").toJavaIOFile(), new File(dataDir, "legacy_sstables").toJavaIOFile());
+        return dataDir;
+    }
+
+    // Copied from SystemExitException in unit tests
+
+    private static class SystemExitException extends Error
+    {
+        public final int status;
+
+        public SystemExitException(int status)
+        {
+            this.status = status;
         }
     }
 }

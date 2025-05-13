@@ -25,8 +25,6 @@ import javax.net.ssl.SSLEngine;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
 
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
@@ -311,54 +309,6 @@ public class BulkLoader
         public StreamingChannel.Factory getConnectionFactory()
         {
             return new BulkLoadConnectionFactory(serverEncOptions, storagePort);
-        }
-    }
-
-    public static class CmdLineOptions extends Options
-    {
-        /**
-         * Add option with argument and argument name
-         * @param opt shortcut for option name
-         * @param longOpt complete option name
-         * @param argName argument name
-         * @param description description of the option
-         * @return updated Options object
-         */
-        public Options addOption(String opt, String longOpt, String argName, String description)
-        {
-            Option option = new Option(opt, longOpt, true, description);
-            option.setArgName(argName);
-
-            return addOption(option);
-        }
-
-        /**
-         * Add option with argument and argument name that accepts being defined multiple times as a list
-         * @param opt shortcut for option name
-         * @param longOpt complete option name
-         * @param argName argument name
-         * @param description description of the option
-         * @return updated Options object
-         */
-        public Options addOptionList(String opt, String longOpt, String argName, String description)
-        {
-            Option option = new Option(opt, longOpt, true, description);
-            option.setArgName(argName);
-            option.setArgs(Option.UNLIMITED_VALUES);
-
-            return addOption(option);
-        }
-
-        /**
-         * Add option without argument
-         * @param opt shortcut for option name
-         * @param longOpt complete option name
-         * @param description description of the option
-         * @return updated Options object
-         */
-        public Options addOption(String opt, String longOpt, String description)
-        {
-            return addOption(new Option(opt, longOpt, false, description));
         }
     }
 }

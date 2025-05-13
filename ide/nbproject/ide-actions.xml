@@ -5,6 +5,7 @@
         <ant antfile="../build.xml" inheritall="false" target="build"/>
         <ant antfile="../build.xml" inheritall="false" target="build-test"/>
         <ant antfile="../build.xml" inheritall="false" target="fqltool-build-test"/>
+        <ant antfile="../build.xml" inheritall="false" target="sstableloader-build-test"/>
         <ant antfile="../build.xml" inheritall="false" target="stress-build-test"/>
     </target>
     <target name="clean">
