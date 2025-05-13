@@ -1,4 +1,5 @@
 5.0.10
+ * Avoid NPE in GossipShutdownVerbHandler when endpoint state is null (CASSANDRA-20603)
  * Fix ShardManager#coveringRange to include the first partition position (CASSANDRA-20927)
  * Respect cassandra.skip_sync in FileOutputStreamPlus.sync and ChecksumWriter (CASSANDRA-21800)
  * Fail sstableloader when no replicas are found for the target keyspace (CASSANDRA-20096)
