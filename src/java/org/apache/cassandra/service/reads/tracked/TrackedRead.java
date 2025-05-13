@@ -226,7 +226,6 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public void start(long expiresAt)
     {
-        // TODO: do the coordination locally if this is a replica
         // TODO: skip local coordination if this node knows its recovering from an outage
         // TODO: read speculation
         Replica localReplica = replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort());
@@ -264,7 +263,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         else
         {
             DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryNodes.endpoints());
-            MessagingService.instance().sendWithCallback(Message.out(verb(), dataRequest), dataNode.endpoint(), this);
+            Message<DataRequest> dataMessage = Message.out(verb(), dataRequest)
+                                                      .withFlag(MessageFlag.CALL_BACK_ON_FAILURE);
+            MessagingService.instance().sendWithCallback(dataMessage, dataNode.endpoint(), this);
         }
 
         if (summaryNodes.isEmpty())
@@ -306,6 +307,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
         future.tryFailure(new RequestFailure(from, failureReason));
+    }
+
+    @Override
+    public boolean invokeOnFailure()
+    {
+        return true;
     }
 
     public Future<PartitionIterator> future()
