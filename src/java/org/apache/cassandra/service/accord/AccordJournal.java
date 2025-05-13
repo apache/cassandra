@@ -439,6 +439,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     {
         try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
         {
+            TxnId prev = null;
             while (iter.hasNext())
             {
                 Journal.KeyRefs<JournalKey> ref = iter.next();
@@ -448,16 +449,20 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
                 CommandStore commandStore = commandStores.forId(ref.key().commandStoreId);
                 Loader loader = commandStore.loader();
+                TxnId txnId = ref.key().id;
+                Invariants.require(prev == null || txnId.compareTo(prev) != 0,
+                                   "duplicate key detected %s == %s", txnId, prev);
+                prev = txnId;
                 try
                 {
-                    AsyncChains.getUnchecked(loader.load(ref.key().id)
+                    AsyncChains.getUnchecked(loader.load(txnId)
                                                    .map(command -> {
                                                        if (journalTable.shouldIndex(ref.key())
                                                            && command.participants() != null
                                                            && command.participants().route() != null)
                                                        {
                                                            ref.segments(segment -> {
-                                                               journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, ref.key().id, command.participants().route()));
+                                                               journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, txnId, command.participants().route()));
                                                            });
                                                        }
                                                        return command;
