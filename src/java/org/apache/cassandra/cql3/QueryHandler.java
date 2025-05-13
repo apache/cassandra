@@ -67,6 +67,12 @@ public interface QueryHandler
         public final MD5Digest resultMetadataId;
 
         /**
+         * Timestamp of when this prepared statement was created.  Used in QueryProcessor.preparedStatements cache
+         * to ensure that the deletion timestamp always succeeds the insert timestamp.
+         */
+        public final long timestamp;
+
+        /**
          * Contains the CQL statement source if the statement has been "regularly" perpared via
          * {@link QueryHandler#prepare(String, ClientState, Map)}.
          * Other usages of this class may or may not contain the CQL statement source.
@@ -82,6 +88,7 @@ public interface QueryHandler
             this.resultMetadataId = ResultSet.ResultMetadata.fromPrepared(statement).getResultMetadataId();
             this.fullyQualified = fullyQualified;
             this.keyspace = keyspace;
+            this.timestamp = ClientState.getTimestamp();
         }
     }
 }
