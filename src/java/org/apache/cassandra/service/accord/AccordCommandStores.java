@@ -219,23 +219,29 @@ public class AccordCommandStores extends CommandStores implements CacheSize
 
     public void waitForQuiescense()
     {
-        boolean hadPending;
+        boolean runAgain = true;
         try
         {
-            do
+            while (true)
             {
-                hadPending = false;
+                boolean hasTasks = false;
                 List<Future<?>> futures = new ArrayList<>();
                 for (AccordExecutor executor : this.executors)
                 {
-                    hadPending |= executor.hasTasks();
+                    hasTasks |= executor.hasTasks();
+                    hasTasks |= Stage.MUTATION.executor().getPendingTaskCount() > 0;
+                    hasTasks |= Stage.MUTATION.executor().getActiveTaskCount() > 0;
                     futures.add(executor.submit(() -> {}));
                 }
                 for (Future<?> future : futures)
                     future.get();
                 futures.clear();
+
+                if (!runAgain)
+                    return;
+                
+                runAgain = hasTasks;
             }
-            while (hadPending);
         }
         catch (ExecutionException e)
         {

@@ -485,13 +485,19 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         @CheckForNull
         protected K computeNext()
         {
+            K ret = null;
             if (mergeIterator.hasNext())
             {
                 try (UnfilteredRowIterator partition = mergeIterator.next())
                 {
-                    return (K) AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
+                    ret = (K) AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
+                    while (partition.hasNext())
+                        partition.next();
                 }
             }
+
+            if (ret != null)
+                return ret;
             else
                 return endOfData();
         }
@@ -515,10 +521,36 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             this.journalIterator = journal.staticSegmentKeyIterator();
         }
 
+        K prevFromTable = null;
+        K prevFromJournal = null;
+
+        @Override
         protected Journal.KeyRefs<K> computeNext()
         {
             K tableKey = tableIterator.hasNext() ? tableIterator.peek() : null;
-            Journal.KeyRefs<K> journalKey = journalIterator.hasNext() ? journalIterator.peek() : null;
+            K journalKey = journalIterator.hasNext() ? journalIterator.peek().key() : null;
+
+            if (journalKey != null)
+            {
+                Invariants.require(prevFromJournal == null || keySupport.compare(journalKey, prevFromJournal) >= 0, // == for case where we have not consumed previous on prev iteration
+                                   "Incorrect sort order in journal segments: %s should strictrly follow %s " + this, journalKey, prevFromJournal);
+                prevFromJournal = journalKey;
+            }
+            else
+            {
+                prevFromJournal = null;
+            }
+
+            if (tableKey != null)
+            {
+                Invariants.require(prevFromTable == null || keySupport.compare(tableKey, prevFromTable) >= 0, // == for case where we have not consumed previous on prev iteration
+                                   "Incorrect sort order in journal table: %s should strictrly follow %s " + this, tableKey, prevFromTable);
+                prevFromTable = tableKey;
+            }
+            else
+            {
+                prevFromTable = null;
+            }
 
             if (tableKey == null)
                 return journalKey == null ? endOfData() : journalIterator.next();
@@ -526,7 +558,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             if (journalKey == null)
                 return new Journal.KeyRefs<>(tableIterator.next());
 
-            int cmp = keySupport.compare(tableKey, journalKey.key());
+            int cmp = keySupport.compare(tableKey, journalKey);
             if (cmp == 0)
             {
                 tableIterator.next();

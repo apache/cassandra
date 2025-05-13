@@ -52,10 +52,10 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -966,15 +966,16 @@ public class Journal<K, V> implements Shutdownable
             return key;
         }
 
+        public void ensureSorted()
+        {
+            Arrays.sort(segments);
+        }
+
         private void add(K key, long segment)
         {
+            Invariants.require(this.key == null || key.equals(this.key));
             this.key = key;
-            if (size == 0 || segments[size - 1] < segment)
-                segments[size++] = segment;
-            else
-                Invariants.require(segments[size - 1] == segment,
-                                   "Tried to add an out-of-order segment: %d, %s", segment,
-                                   LazyToString.lazy(() -> Arrays.toString(Arrays.copyOf(segments, size))));
+            segments[size++] = segment;
         }
 
         private void reset()
@@ -982,6 +983,16 @@ public class Journal<K, V> implements Shutdownable
             key = null;
             size = 0;
             Arrays.fill(segments, 0);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "KeyRefs{" +
+                   "segments=" + Arrays.toString(segments) +
+                   ", key=" + key +
+                   ", size=" + size +
+                   '}';
         }
     }
 
@@ -998,31 +1009,37 @@ public class Journal<K, V> implements Shutdownable
             for (Segment<K, V> segment : segments.allSorted(true))
             {
                 StaticSegment<K, V> staticSegment = (StaticSegment<K, V>) segment;
-                Iterator<K> iter = staticSegment.index().reader();
-                Head head = new Head(staticSegment.descriptor.timestamp);
-                iterators.add(new Iterator<>()
+                iterators.add(new AbstractIterator<>()
                 {
-                    public boolean hasNext()
-                    {
-                        return iter.hasNext();
-                    }
+                    final Iterator<K> iter = staticSegment.index().reader();
+                    final Head head = new Head(staticSegment.descriptor.timestamp);
 
-                    public Head next()
+                    @Override
+                    protected Head computeNext()
                     {
-                        head.key = iter.next();
+                        if (!iter.hasNext())
+                            return endOfData();
+
+                        K next = iter.next();
+                        while (next.equals(head.key))
+                        {
+                            if (!iter.hasNext())
+                                return endOfData();
+
+                            next = iter.next();
+                        }
+
+                        Invariants.require(!next.equals(head.key),
+                                           "%s == %s", next, head.key);
+                        head.key = next;
                         return head;
                     }
                 });
             }
 
             this.iterator = MergeIterator.get(iterators,
-                                              (r1, r2) -> {
-                                                  int keyCmp = keySupport.compare(r1.key, r2.key);
-                                                  if (keyCmp != 0)
-                                                      return keyCmp;
-                                                  return Long.compare(r1.segment, r2.segment);
-                                              },
-                                              new MergeIterator.Reducer<Head, KeyRefs<K>>()
+                                              (r1, r2) -> keySupport.compare(r1.key, r2.key),
+                                              new MergeIterator.Reducer<>()
                                               {
                                                   final KeyRefs<K> ret = new KeyRefs<>(segments.count());
 
@@ -1035,6 +1052,7 @@ public class Journal<K, V> implements Shutdownable
                                                   @Override
                                                   protected KeyRefs<K> getReduced()
                                                   {
+                                                      ret.ensureSorted();
                                                       return ret;
                                                   }
 
