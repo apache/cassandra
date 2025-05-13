@@ -1,5 +1,9 @@
-4.0.18
+4.0.19
+ * Ensure prepared_statement INSERT timestamp precedes eviction DELETE (CASSANDRA-19703)
  * Gossip doesn't converge due to race condition when updating EndpointStates multiple fields (CASSANDRA-20659)
+
+
+4.0.18
  * Handle sstable metadata stats file getting a new mtime after compaction has finished (CASSANDRA-18119)
  * Honor MAX_PARALLEL_TRANSFERS correctly (CASSANDRA-20532)
  * Updating a column with a new TTL but same expiration time is non-deterministic and causes repair mismatches. (CASSANDRA-20561)

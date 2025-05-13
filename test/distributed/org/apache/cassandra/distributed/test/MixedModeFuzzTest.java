@@ -49,7 +49,7 @@ import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.cql3.QueryHandler.Prepared;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -268,9 +268,10 @@ public class MixedModeFuzzTest extends TestBaseImpl
 
                                     c.get(nodeWithFix.get() ? 1 : 2).runOnInstance(() -> {
                                         SystemKeyspace.loadPreparedStatements((id, query, keyspace) -> {
+                                            Prepared prepared = QueryProcessor.instance.getPrepared(id);
                                             if (rng.nextBoolean())
                                                 QueryProcessor.instance.evictPrepared(id);
-                                            return true;
+                                            return prepared;
                                         });
                                     });
                                     break;
@@ -450,7 +451,7 @@ public class MixedModeFuzzTest extends TestBaseImpl
             if (existing != null)
                 return existing;
 
-            QueryHandler.Prepared prepared = QueryProcessor.parseAndPrepare(queryString, clientState, false);
+            Prepared prepared = QueryProcessor.parseAndPrepare(queryString, clientState, false);
             CQLStatement statement = prepared.statement;
 
             int boundTerms = statement.getBindVariables().size();
