@@ -217,21 +217,16 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
+    // TODO (expected): this can be removed entirely when we "flush" segments directly to sstables (but we perhaps need to be careful about the active segment)
     private class TableRecordConsumer implements RecordConsumer<K>
     {
-        protected LongHashSet visited = null;
-        protected RecordConsumer<K> delegate;
+        final LongHashSet visited;
+        final RecordConsumer<K> delegate;
 
-        TableRecordConsumer(RecordConsumer<K> delegate)
+        TableRecordConsumer(LongHashSet visited, RecordConsumer<K> delegate)
         {
+            this.visited = visited;
             this.delegate = delegate;
-        }
-
-        void visit(long segment)
-        {
-            if (visited == null)
-                visited = new LongHashSet();
-            visited.add(segment);
         }
 
         boolean visited(long segment)
@@ -242,34 +237,40 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
-            visit(segment);
-            delegate.accept(segment, position, key, buffer, userVersion);
+            if (!visited(segment))
+                delegate.accept(segment, position, key, buffer, userVersion);
         }
     }
 
     private class JournalAndTableRecordConsumer implements RecordConsumer<K>
     {
         private final K key;
-        private final TableRecordConsumer tableRecordConsumer;
         private final RecordConsumer<K> delegate;
+        private LongHashSet visited;
+
+        void visit(long segment)
+        {
+            if (visited == null)
+                visited = new LongHashSet();
+            visited.add(segment);
+        }
 
         JournalAndTableRecordConsumer(K key, RecordConsumer<K> reader)
         {
             this.key = key;
-            this.tableRecordConsumer = new TableRecordConsumer(reader);
             this.delegate = reader;
         }
 
         void readTable()
         {
-            readAllFromTable(key, tableRecordConsumer);
+            readAllFromTable(key, new TableRecordConsumer(visited, delegate));
         }
 
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
-            if (!tableRecordConsumer.visited(segment)) //TODO (required): don't need this anymore
-                delegate.accept(segment, position, key, buffer, userVersion);
+            visit(segment);
+            delegate.accept(segment, position, key, buffer, userVersion);
         }
     }
 
