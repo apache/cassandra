@@ -157,7 +157,7 @@ public class LongBTreeTest
     @Test
     public void testToArray() throws InterruptedException
     {
-        testRandomSelection(randomSeed(), perThreadTrees, 4,
+        testRandomSelectionWithConsumer(randomSeed(), perThreadTrees, 4,
                             (selection) ->
                             {
                                 Integer[] array = new Integer[selection.canonicalList.size() + 1];
@@ -325,14 +325,14 @@ public class LongBTreeTest
 
     private void testRandomSelection(long seed, int perThreadTrees, int perTreeSelections, BTreeTestFactory testRun) throws InterruptedException
     {
-        testRandomSelection(seed, perThreadTrees, perTreeSelections, (selection) -> {
+        testRandomSelectionWithConsumer(seed, perThreadTrees, perTreeSelections, (selection) -> {
             TestEachKey testEachKey = testRun.get(selection);
             for (Integer key : selection.testKeys)
                 testEachKey.testOne(key);
         });
     }
 
-    private void testRandomSelection(long seed, int perThreadTrees, int perTreeSelections, Consumer<RandomSelection> testRun) throws InterruptedException
+    private void testRandomSelectionWithConsumer(long seed, int perThreadTrees, int perTreeSelections, Consumer<RandomSelection> testRun) throws InterruptedException
     {
         testRandomSelection(seed, perThreadTrees, perTreeSelections, true, true, true, testRun);
     }

@@ -2057,7 +2057,7 @@
     </path>
     <pathconvert property="eclipse-libs-list" refid="eclipse-project-libs-path" pathsep="${line.separator}">
         <mapper>
-            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1\" \/&gt;'/>
+            <regexpmapper from="^(.*)$$" to='  &lt;classpathentry kind="lib" path="\1" /&gt;'/>
         </mapper>
     </pathconvert>
     <property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
@@ -2073,6 +2073,7 @@
   <classpathentry kind="src" output="${test.classes}" path="test/memory"/>
   <classpathentry kind="src" output="${test.classes}" path="test/burn"/>
   <classpathentry kind="src" output="${test.classes}" path="test/anttasks"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/harry/main" />
   <classpathentry kind="src" output="${test.classes}" path="test/distributed"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/asm"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/main"/>
@@ -2081,10 +2082,15 @@
   <classpathentry kind="src" path="tools/fqltool/src"/>
   <classpathentry kind="src" output="build/test/stress-classes" path="tools/stress/test/unit" />
   <classpathentry kind="src" output="build/test/fqltool-classes" path="tools/fqltool/test/unit" />
-  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-11">
+      <attributes>
+        <attribute name="module" value="true"/>
+          <attribute name="add-exports" value="java.base/jdk.internal.misc=ALL-UNNAMED:java.base/jdk.internal.ref=ALL-UNNAMED:java.base/jdk.internal.util=ALL-UNNAMED:java.base/sun.nio.ch=ALL-UNNAMED:java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED:java.rmi/sun.rmi.registry=ALL-UNNAMED:java.rmi/sun.rmi.server=ALL-UNNAMED:java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED:java.sql/java.sql=ALL-UNNAMED"/>
+	  <attribute name="add-opens" value="java.base/java.lang.module=ALL-UNNAMED:java.base/java.net=ALL-UNNAMED:java.base/jdk.internal.loader=ALL-UNNAMED:java.base/jdk.internal.ref=ALL-UNNAMED:java.base/jdk.internal.reflect=ALL-UNNAMED:java.base/jdk.internal.math=ALL-UNNAMED:java.base/jdk.internal.module=ALL-UNNAMED:java.base/jdk.internal.util.jar=ALL-UNNAMED:jdk.management/com.sun.management.internal=ALL-UNNAMED"/>
+      </attributes>
+  </classpathentry>
   <classpathentry kind="output" path="build/classes/eclipse"/>
   <classpathentry kind="lib" path="test/conf"/>
-  <classpathentry kind="lib" path="${java.home}/../lib/tools.jar"/>
   ${eclipse-libs-list}
 </classpath>
 ]]>
@@ -2096,6 +2102,12 @@
         </classpath>
     </taskdef>
     <mkdir dir=".settings" />
+    <echo file=".settings/org.eclipse.jdt.core.prefs"><![CDATA[eclipse.preferences.version=1
+org.eclipse.jdt.core.compiler.ignoreUnnamedModuleForSplitPackage=enabled
+org.eclipse.jdt.core.compiler.codegen.targetPlatform=11
+org.eclipse.jdt.core.compiler.compliance=11
+org.eclipse.jdt.core.compiler.source=11]]>
+    </echo>
   </target>
 
   <pathconvert property="eclipse.project.name">

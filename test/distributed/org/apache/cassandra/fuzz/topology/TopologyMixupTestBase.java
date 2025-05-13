@@ -99,7 +99,7 @@ import static org.apache.cassandra.harry.model.TokenPlacementModel.*;
  * <p>
  * {@code for id in $(seq 0 15); do sudo ifconfig lo0 alias "127.0.0.$id"; done;}
  */
-public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Schema> extends TestBaseImpl
+public abstract class TopologyMixupTestBase<S extends Schema> extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(TopologyMixupTestBase.class);
 
@@ -477,13 +477,6 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         for (int i : array)
             set.add(i);
         return set;
-    }
-
-    public interface Schema
-    {
-        String table();
-        String keyspace();
-        String createSchema();
     }
 
     protected interface CommandGen<S extends Schema>
