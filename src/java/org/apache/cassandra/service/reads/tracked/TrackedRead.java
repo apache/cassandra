@@ -20,7 +20,6 @@ package org.apache.cassandra.service.reads.tracked;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.*;
@@ -41,7 +40,6 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.CollectionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -50,7 +48,6 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -59,7 +56,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 
 public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<TrackedDataResponse>
@@ -224,6 +220,16 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
+    private static <E extends Endpoints<E>> int[] endpointsToHostIds(E endpoints)
+    {
+        int[] hostids = new int[endpoints.size()];
+        int idx = 0;
+        ClusterMetadata metadata = ClusterMetadata.current();
+        for (Replica replica : endpoints)
+            hostids[idx++] = metadata.directory.peerId(replica.endpoint()).id();
+        return hostids;
+    }
+
     public void start(long expiresAt)
     {
         // TODO: skip local coordination if this node knows its recovering from an outage
@@ -242,12 +248,13 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                            ? localReplica
                            : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
         E summaryNodes = selected.filter(r -> r != dataNode);
+        int[] summaryHostIds = endpointsToHostIds(summaryNodes);
 
 
         if (dataNode == localReplica)
         {
             Stage.READ.submit(() -> {
-                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes.endpoints(), expiresAt);
+                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryHostIds, expiresAt);
                 coordinator.addCallback((response, error) -> {
                     if (error != null)
                     {
@@ -262,7 +269,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
         else
         {
-            DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryNodes.endpoints());
+            DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryHostIds);
             Message<DataRequest> dataMessage = Message.out(verb(), dataRequest)
                                                       .withFlag(MessageFlag.CALL_BACK_ON_FAILURE);
             MessagingService.instance().sendWithCallback(dataMessage, dataNode.endpoint(), this);
@@ -390,9 +397,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     public static class DataRequest extends Request
     {
         private final ConsistencyLevel consistencyLevel;
-        private final Set<InetAddressAndPort> summaryNodes;
+        private final int[] summaryNodes;
 
-        public DataRequest(Id readId, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes)
+        public DataRequest(Id readId, ReadCommand command, ConsistencyLevel consistencyLevel, int[] summaryNodes)
         {
             super(readId, command);
             this.consistencyLevel = consistencyLevel;
@@ -423,7 +430,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                 Id.serializer.serialize(request.readId, out, version);
                 ReadCommand.serializer.serialize(request.command, out, version);
                 out.writeInt(request.consistencyLevel.code);
-                CollectionSerializer.serializeCollection(inetAddressAndPortSerializer, request.summaryNodes, out, version);
+                out.writeInt(request.summaryNodes.length);
+                for (int hostid : request.summaryNodes)
+                    out.writeInt(hostid);
             }
 
             @Override
@@ -432,8 +441,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                 Id readId = Id.serializer.deserialize(in, version);
                 ReadCommand command = ReadCommand.serializer.deserialize(in, version);
                 ConsistencyLevel consistencyLevel = ConsistencyLevel.fromCode(in.readInt());
-                Set<InetAddressAndPort> summaryNodes =
-                    CollectionSerializer.deserializeCollection(inetAddressAndPortSerializer, Sets::newHashSetWithExpectedSize, in, version);
+                int[] summaryNodes = new int[in.readInt()];
+                for (int i = 0; i < summaryNodes.length; i++)
+                    summaryNodes[i] = in.readInt();
                 return new DataRequest(readId, command, consistencyLevel, summaryNodes);
             }
 
@@ -443,8 +453,8 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                 return Id.serializer.serializedSize(request.readId, version) +
                        ReadCommand.serializer.serializedSize(request.command, version) +
                        TypeSizes.sizeof(request.consistencyLevel.code) +
-                       TypeSizes.INT_SIZE +
-                       CollectionSerializer.serializedSizeCollection(inetAddressAndPortSerializer, request.summaryNodes, version);
+                       TypeSizes.sizeof(request.summaryNodes.length) +
+                       ((long) TypeSizes.INT_SIZE * request.summaryNodes.length);
             }
         };
     }

@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -90,7 +89,7 @@ public class TrackedLocalReads implements Shutdownable
         getOrCreate(summary.readId()).receiveSummary(from, summary.summary());
     }
 
-    public TrackedLocalReadCoordinator beginRead(TrackedRead.Id readId, ClusterMetadata metadata, ReadCommand command, ConsistencyLevel consistencyLevel, Set<InetAddressAndPort> summaryNodes, long expiresAtNanos)
+    public TrackedLocalReadCoordinator beginRead(TrackedRead.Id readId, ClusterMetadata metadata, ReadCommand command, ConsistencyLevel consistencyLevel, int[] summaryNodes, long expiresAtNanos)
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
