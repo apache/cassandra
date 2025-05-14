@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.tracing.Tracing;
 
 public class CassandraTableWriteHandler implements TableWriteHandler
@@ -31,10 +32,10 @@ public class CassandraTableWriteHandler implements TableWriteHandler
     }
 
     @Override
-    public void write(PartitionUpdate update, WriteContext context, boolean updateIndexes)
+    public void write(MutationId mutationId, PartitionUpdate update, WriteContext context, boolean updateIndexes)
     {
         CassandraWriteContext ctx = CassandraWriteContext.fromContext(context);
         Tracing.trace("Adding to {} memtable", update.metadata().name);
-        cfs.apply(update, ctx, updateIndexes);
+        cfs.apply(mutationId, update, ctx, updateIndexes);
     }
 }

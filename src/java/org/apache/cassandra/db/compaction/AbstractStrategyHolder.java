@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
@@ -196,6 +197,7 @@ public abstract class AbstractStrategyHolder
                                                                 long repairedAt,
                                                                 TimeUUID pendingRepair,
                                                                 boolean isTransient,
+                                                                CoordinatorLogBoundaries coordinatorLogBoundaries,
                                                                 IntervalSet<CommitLogPosition> commitLogPositions,
                                                                 int sstableLevel,
                                                                 SerializationHeader header,

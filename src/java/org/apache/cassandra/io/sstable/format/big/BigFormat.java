@@ -434,7 +434,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     static class BigVersion extends Version
     {
         public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nb" :
-                                                     DatabaseDescriptor.getStorageCompatibilityMode().isBefore(6) ? "oa" : "pa";
+                                                     DatabaseDescriptor.getStorageCompatibilityMode().isBefore(6) ? "oa" : "pb";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -450,6 +450,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         //           Long deletionTime to prevent TTL overflow
         //           token space coverage
         // pa (6.0): compression dictionary metadata in CompressionInfo component
+        // pb (6.x): mutation tracking metadata
         //
         // NOTE: When adding a new version:
         //  - Please add it to LegacySSTableTest
@@ -471,6 +472,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasKeyRange;
         private final boolean hasUintDeletionTime;
         private final boolean hasTokenSpaceCoverage;
+        private final boolean hasMutationTrackingMetadata;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -485,7 +487,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             isLatestVersion = version.compareTo(current_version) == 0;
 
             // Note that, we probably forgot to change that to 40 for N version, and therefore we cannot do it now.
-            correspondingMessagingVersion = version.compareTo("oa") >= 0 ? MessagingService.VERSION_50 : MessagingService.VERSION_30;
+            correspondingMessagingVersion = version.compareTo("ob") >= 0 ? (version.compareTo("oa") > 0 ? MessagingService.VERSION_61 : MessagingService.VERSION_60) : MessagingService.VERSION_30;
 
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
@@ -503,6 +505,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasKeyRange = version.compareTo("oa") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
             hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
+            hasMutationTrackingMetadata = version.compareTo("ob") >= 0;
         }
 
         @Override
@@ -587,6 +590,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public boolean hasTokenSpaceCoverage()
         {
             return hasTokenSpaceCoverage;
+        }
+
+        @Override
+        public boolean hasMutationTrackingMetadata()
+        {
+            return hasMutationTrackingMetadata;
         }
 
         @Override

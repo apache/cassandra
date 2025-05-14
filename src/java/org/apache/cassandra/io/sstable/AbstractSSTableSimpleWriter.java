@@ -30,7 +30,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
@@ -68,6 +70,9 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         this.columns = columns;
         indexGroups = new ArrayList<>();
     }
+
+    @VisibleForTesting
+    public abstract long bytesWritten();
 
     protected void setSSTableFormatType(SSTableFormat<?, ?> type)
     {
@@ -117,10 +122,15 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
 
     protected SSTableTxnWriter createWriter(SSTable.Owner owner) throws IOException
     {
+        // This will prevent cassandra-analytics from producing SSTables for tables with mutation tracking enabled.
+        // We'll eventually support this with coordinated nodetool import
+        if (metadata.get().keyspaceReplicationType.isTracked())
+            throw new IllegalStateException("Can't create writer for table with mutation tracking enabled");
+
         SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
 
         if (makeRangeAware)
-            return SSTableTxnWriter.createRangeAware(metadata, 0, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, format, header);
+            return SSTableTxnWriter.createRangeAware(metadata, 0, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, CoordinatorLogBoundaries.NONE, format, header);
 
 
         SSTable.Owner effectiveOwner;
@@ -142,6 +152,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        ActiveRepairService.NO_PENDING_REPAIR,
                                        false,
+                                       CoordinatorLogBoundaries.NONE,
                                        header,
                                        indexGroups,
                                        effectiveOwner);

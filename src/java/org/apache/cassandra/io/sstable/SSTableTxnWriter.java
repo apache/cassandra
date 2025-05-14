@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -76,6 +77,11 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return writer.getOnDiskBytesWritten();
     }
 
+    public long getBytesWritten()
+    {
+        return writer.getBytesWritten();
+    }
+
     protected Throwable doCommit(Throwable accumulate)
     {
         return writer.commit(txn.commit(accumulate));
@@ -108,10 +114,10 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"}) // log and writer closed during doPostCleanup
-    public static SSTableTxnWriter create(ColumnFamilyStore cfs, Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SerializationHeader header)
+    public static SSTableTxnWriter create(ColumnFamilyStore cfs, Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, CoordinatorLogBoundaries coordinatorLogBoundaries, SerializationHeader header)
     {
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
-        SSTableMultiWriter writer = cfs.createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, header, txn);
+        SSTableMultiWriter writer = cfs.createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogBoundaries, header, txn);
         return new SSTableTxnWriter(txn, writer);
     }
 
@@ -120,6 +126,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
                                                     long repairedAt,
                                                     TimeUUID pendingRepair,
                                                     boolean isTransient,
+                                                    CoordinatorLogBoundaries coordinatorLogBoundaries,
                                                     SSTableFormat<?, ?> type,
                                                     SerializationHeader header)
     {
@@ -129,7 +136,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         SSTableMultiWriter writer;
         try
         {
-            writer = new RangeAwareSSTableWriter(cfs, keyCount, repairedAt, pendingRepair, isTransient, type, 0, 0, txn, header);
+            writer = new RangeAwareSSTableWriter(cfs, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogBoundaries, type, 0, 0, txn, header);
         }
         catch (IOException e)
         {
@@ -148,13 +155,14 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
                                           long repairedAt,
                                           TimeUUID pendingRepair,
                                           boolean isTransient,
+                                          CoordinatorLogBoundaries coordinatorLogBoundaries,
                                           SerializationHeader header,
                                           Collection<Index.Group> indexGroups,
                                           SSTable.Owner owner)
     {
         // if the column family store does not exist, we create a new default SSTableMultiWriter to use:
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
-        SSTableMultiWriter writer = SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, null, 0, header, indexGroups, txn, owner);
+        SSTableMultiWriter writer = SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogBoundaries, metadata, null, 0, header, indexGroups, txn, owner);
         return new SSTableTxnWriter(txn, writer);
     }
 }

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -167,6 +168,7 @@ public class RealTransactionsTest extends SchemaLoader
                                           .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                                           .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
                                           .addDefaultComponents(cfs.indexManager.listIndexGroups())
+                                          .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
                                           .build(txn, cfs));
                 while (ci.hasNext())
                 {

@@ -44,6 +44,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -234,7 +235,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         concurrentMutations.get(3, TimeUnit.MINUTES);
 
         session.prepareReceiving(new StreamSummary(sstable.metadata().id, emptyList(), 1, 5104));
-        StreamMessageHeader messageHeader = new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null);
+        StreamMessageHeader messageHeader = new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null, CoordinatorLogBoundaries.NONE);
 
         try (DataInputBuffer in = new DataInputBuffer(serializedFile.nioBuffer(), false))
         {

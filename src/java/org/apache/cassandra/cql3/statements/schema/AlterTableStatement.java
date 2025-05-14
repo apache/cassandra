@@ -711,6 +711,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             params = validateAndUpdateTransactionalMigration(table.isCounter(), table.params, params);
 
+            if (table.replicationType().isTracked() && params.memtable.factory().streamFromMemtable())
+                throw ire("Cannot use mutation tracking with persistent memtables");
+
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
         }
     }

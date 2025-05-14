@@ -654,6 +654,9 @@ public class TableMetadata implements SchemaElement
 
         indexes.validate(this);
 
+        if (replicationType() != null && replicationType().isTracked() && params.memtable.factory().streamFromMemtable())
+            except("Cannot use mutation tracking with persistent memtables");
+
         for (ColumnMetadata columnMetadata : columns())
         {
             ColumnConstraints constraints = columnMetadata.getColumnConstraints();

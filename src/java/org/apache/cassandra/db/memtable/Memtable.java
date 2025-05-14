@@ -26,6 +26,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.db.CellSourceIdentifier;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -37,6 +38,7 @@ import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
@@ -183,9 +185,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
 
     // Main write and read operations
 
-    default long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    default long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
     {
-        return put(update, indexer, opGroup, false);
+        return put(mutationId, update, indexer, opGroup, false);
     }
 
     /**
@@ -202,7 +204,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      * timestamp delta being computed as the difference between the cells and DeletionTimes from any existing partition
      * and those in {@code update}. See CASSANDRA-7979.
      */
-    long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
+    long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
     // Read operations are provided by the UnfilteredSource interface.
 
@@ -333,6 +335,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
         RegularAndStaticColumns columns();
         /** Statistics required for writing an sstable efficiently */
         EncodingStats encodingStats();
+
+        /** The boundaries in coordinator logs for all included tracked mutations */
+        CoordinatorLogBoundaries coordinatorLogBoundaries();
 
         default TableMetadata metadata()
         {

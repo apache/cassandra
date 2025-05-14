@@ -19,8 +19,9 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.replication.MutationId;
 
 public interface TableWriteHandler
 {
-    void write(PartitionUpdate update, WriteContext context, boolean updateIndexes);
+    void write(MutationId mutationId, PartitionUpdate update, WriteContext context, boolean updateIndexes);
 }

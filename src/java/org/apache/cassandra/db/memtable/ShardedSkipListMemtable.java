@@ -32,8 +32,11 @@ import org.github.jamm.Unmetered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
+import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.MutableCoordinatorLogBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slices;
@@ -55,6 +58,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -139,11 +143,11 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
      *
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
-    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
         DecoratedKey key = update.partitionKey();
         MemtableShard shard = shards[boundaries.getShardForKey(key)];
-        return shard.put(key, update, indexer, opGroup, assumeMissing);
+        return shard.put(mutationId, key, update, indexer, opGroup, assumeMissing);
     }
 
     /**
@@ -287,7 +291,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         int keyCount = 0;
         TableMetadata currentTableMetadata = metadata();
 
-        for (Iterator<AtomicBTreePartition> it = getPartitionIterator(from, true, to,false); it.hasNext();)
+        for (Iterator<AtomicBTreePartition> it = getPartitionIterator(from, true, to, false); it.hasNext(); )
         {
             AtomicBTreePartition en = it.next();
             keySize += en.partitionKey().getKey().remaining();
@@ -295,7 +299,15 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         }
         long partitionKeySize = keySize;
         int partitionCount = keyCount;
-        Iterator<AtomicBTreePartition> toFlush = getPartitionIterator(from, true, to,false);
+        Iterator<AtomicBTreePartition> toFlush = getPartitionIterator(from, true, to, false);
+
+        CoordinatorLogBoundaries flushableBoundaries;
+        {
+            CoordinatorLogBoundariesBuilder builder = new CoordinatorLogBoundariesBuilder();
+            for (MemtableShard shard : shards)
+                builder.addAll(shard.coordinatorLogBoundaries);
+            flushableBoundaries = builder.build();
+        }
 
         return new AbstractFlushablePartitionSet<AtomicBTreePartition>()
         {
@@ -336,6 +348,12 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             {
                 return tableMetadata;
             }
+
+            @Override
+            public CoordinatorLogBoundaries coordinatorLogBoundaries()
+            {
+                return flushableBoundaries;
+            }
         };
     }
 
@@ -361,6 +379,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         private final ColumnsCollector columnsCollector;
 
         private final StatsCollector statsCollector;
+        private final MutableCoordinatorLogBoundaries coordinatorLogBoundaries = MutableCoordinatorLogBoundaries.create();
 
         @Unmetered  // total pool size should not be included in memtable's deep size
         private final MemtableAllocator allocator;
@@ -376,7 +395,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             this.metadata = metadata;
         }
 
-        public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+        public long put(MutationId mutationId, DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
         {
             Cloner cloner = allocator.cloner(opGroup);
             AtomicBTreePartition previous = assumeMissing ? null : partitions.get(key);
@@ -405,6 +424,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             liveDataSize.addAndGet(initialSize + updater.dataSize);
             columnsCollector.update(update.columns());
             statsCollector.update(update.stats());
+            coordinatorLogBoundaries.add(mutationId);
             currentOperations.addAndGet(update.operationCount());
             return updater.colUpdateTimeDelta;
         }
@@ -514,13 +534,13 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
          *
          * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
          */
-        public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+        public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
         {
             DecoratedKey key = update.partitionKey();
             MemtableShard shard = shards[boundaries.getShardForKey(key)];
             synchronized (shard)
             {
-                return shard.put(key, update, indexer, opGroup, assumeMissing);
+                return shard.put(mutationId, key, update, indexer, opGroup, assumeMissing);
             }
         }
 

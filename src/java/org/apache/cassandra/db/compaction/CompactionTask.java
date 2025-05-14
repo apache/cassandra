@@ -37,6 +37,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
+import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteContext;
@@ -458,6 +460,13 @@ public class CompactionTask extends AbstractCompactionTask
         return isTransient;
     }
 
+    public static CoordinatorLogBoundaries getCoordinatorLogBoundaries(Set<SSTableReader> sstables)
+    {
+        CoordinatorLogBoundariesBuilder builder = new CoordinatorLogBoundariesBuilder();
+        for (SSTableReader sstable : sstables)
+            builder.addAll(sstable.getCoordinatorLogBoundaries());
+        return builder.build();
+    }
 
     /*
      * Checks if we have enough disk space to execute the compaction.  Drops the largest sstable out of the Task until

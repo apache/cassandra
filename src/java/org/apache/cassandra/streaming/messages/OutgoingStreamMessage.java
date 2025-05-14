@@ -74,7 +74,8 @@ public class OutgoingStreamMessage extends StreamMessage
                                               session.sessionIndex(),
                                               sequenceNumber,
                                               stream.getRepairedAt(),
-                                              stream.getPendingRepair());
+                                              stream.getPendingRepair(),
+                                              stream.getCoordinatorLogBoundaries());
     }
 
     public synchronized void serialize(StreamingDataOutputPlus out, int version, StreamSession session) throws IOException

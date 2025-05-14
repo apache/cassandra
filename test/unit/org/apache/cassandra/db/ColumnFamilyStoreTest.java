@@ -846,7 +846,7 @@ public class ColumnFamilyStoreTest
         {
 
             @Override
-            public long put(PartitionUpdate update, UpdateTransaction indexer, Group opGroup, boolean assumeMissing)
+            public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, Group opGroup, boolean assumeMissing)
             {
                 return 0;
             }

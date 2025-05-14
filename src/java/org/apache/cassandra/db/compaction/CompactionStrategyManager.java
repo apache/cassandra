@@ -50,6 +50,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.SerializationHeader;
@@ -1411,6 +1412,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
+                                                       CoordinatorLogBoundaries coordinatorLogBoundaries,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
@@ -1427,6 +1429,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               repairedAt,
                                                                                               pendingRepair,
                                                                                               isTransient,
+                                                                                              coordinatorLogBoundaries,
                                                                                               commitLogPositions,
                                                                                               sstableLevel,
                                                                                               header,

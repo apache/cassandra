@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Queue;
 
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -163,7 +164,7 @@ public class CassandraEntireSSTableStreamWriterTest
                                  .withTableId(sstable.metadata().id)
                                  .build();
 
-            CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null), header, session);
+            CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null, CoordinatorLogBoundaries.NONE), header, session);
 
             SSTableTxnSingleStreamWriter sstableWriter = (SSTableTxnSingleStreamWriter) reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
             StreamingLifecycleTransaction stt = new StreamingLifecycleTransaction();

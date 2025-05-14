@@ -38,9 +38,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
+import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.MutableCoordinatorLogBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slices;
@@ -69,6 +72,7 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.metrics.TrieMemtableMetricsView;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Clock;
@@ -183,13 +187,13 @@ public class TrieMemtable extends AbstractShardedMemtable
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
     @Override
-    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
         try
         {
             DecoratedKey key = update.partitionKey();
             MemtableShard shard = shards[boundaries.getShardForKey(key)];
-            long colUpdateTimeDelta = shard.put(key, update, indexer, opGroup);
+            long colUpdateTimeDelta = shard.put(mutationId, key, update, indexer, opGroup);
 
             if (shard.data.reachedAllocatedSizeThreshold() && !switchRequested.getAndSet(true))
             {
@@ -447,6 +451,14 @@ public class TrieMemtable extends AbstractShardedMemtable
         partitionKeySize = keySize;
         partitionCount = keyCount;
 
+        CoordinatorLogBoundaries flushableBoundaries;
+        {
+            CoordinatorLogBoundariesBuilder builder = new CoordinatorLogBoundariesBuilder();
+            for (MemtableShard shard : shards)
+                builder.addAll(shard.coordinatorLogBoundaries);
+            flushableBoundaries = builder.build();
+        }
+
         return new AbstractFlushablePartitionSet<MemtablePartition>()
         {
             private final TableMetadata tableMetadata = TrieMemtable.this.metadata();
@@ -489,6 +501,12 @@ public class TrieMemtable extends AbstractShardedMemtable
             {
                 return tableMetadata;
             }
+
+            @Override
+            public CoordinatorLogBoundaries coordinatorLogBoundaries()
+            {
+                return flushableBoundaries;
+            }
         };
     }
 
@@ -530,6 +548,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         private final ColumnsCollector columnsCollector;
 
         private final StatsCollector statsCollector;
+        private final MutableCoordinatorLogBoundaries coordinatorLogBoundaries = MutableCoordinatorLogBoundaries.create();
 
         @Unmetered  // total pool size should not be included in memtable's deep size
         private final MemtableAllocator allocator;
@@ -547,7 +566,7 @@ public class TrieMemtable extends AbstractShardedMemtable
             this.metrics = metrics;
         }
 
-        public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup) throws InMemoryTrie.SpaceExhaustedException
+        public long put(MutationId mutationId, DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup) throws InMemoryTrie.SpaceExhaustedException
         {
             BTreePartitionUpdater updater = new BTreePartitionUpdater(allocator, allocator.cloner(opGroup), opGroup, indexer);
             boolean locked = writeLock.tryLock();
@@ -586,6 +605,7 @@ public class TrieMemtable extends AbstractShardedMemtable
 
                     columnsCollector.update(update.columns());
                     statsCollector.update(update.stats());
+                    coordinatorLogBoundaries.add(mutationId);
                 }
             }
             finally
