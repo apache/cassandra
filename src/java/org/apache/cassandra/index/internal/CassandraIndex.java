@@ -53,6 +53,7 @@ import org.apache.cassandra.index.internal.keys.KeysSearcher;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -526,7 +527,7 @@ public abstract class CassandraIndex implements Index
                                                                cell));
         Row row = BTreeRow.noCellLiveRow(buildIndexClustering(rowKey, clustering, cell), info);
         PartitionUpdate upd = partitionUpdate(valueKey, row);
-        indexCfs.getWriteHandler().write(upd, ctx, false);
+        indexCfs.getWriteHandler().write(MutationId.fixme(), upd, ctx, false);
         logger.trace("Inserted entry into index for value {}", valueKey);
     }
 
@@ -572,7 +573,7 @@ public abstract class CassandraIndex implements Index
     {
         Row row = BTreeRow.emptyDeletedRow(indexClustering, Row.Deletion.regular(deletion));
         PartitionUpdate upd = partitionUpdate(indexKey, row);
-        indexCfs.getWriteHandler().write(upd, ctx, false);
+        indexCfs.getWriteHandler().write(MutationId.fixme(), upd, ctx, false);
         logger.trace("Removed index entry for value {}", indexKey);
     }
 

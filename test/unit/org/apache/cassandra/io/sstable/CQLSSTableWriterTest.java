@@ -1412,10 +1412,10 @@ public abstract class CQLSSTableWriterTest
         }
         CQLSSTableWriter writer = builder.build();
 
-        int rowCount = 30_000;
+        final long MiB_1_17 = 1_226_833;
         // Max SSTable size is 1 MiB
-        // 30_000 rows should take 30_000 * (4 + 37) = 1.17 MiB > 1 MiB, i.e. producing 2 sstables
-        for (int i = 0; i < rowCount; i++)
+        // write 1.17 MiB of data, producing 2 sstables
+        for (int i = 0; writer.bytesWritten() < MiB_1_17; i++)
         {
             writer.addRow(i, UUID.randomUUID().toString());
             if (closeWriterOnFirstProduced && !produced.isEmpty())

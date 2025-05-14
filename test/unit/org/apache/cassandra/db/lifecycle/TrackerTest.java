@@ -62,6 +62,7 @@ import static java.util.Collections.singleton;
 
 public class TrackerTest
 {
+    private static final int COMPONENT_STATS_SIZE_BYTES = 4805;
 
     private static final class MockListener implements INotificationConsumer
     {
@@ -155,7 +156,7 @@ public class TrackerTest
             if (reader instanceof KeyCacheSupport<?>)
                 Assert.assertTrue(((KeyCacheSupport<?>)reader).getKeyCache().isEnabled());
 
-        Assert.assertEquals(17 + 121 + 9, cfs.metric.liveDiskSpaceUsed.getCount());
+        Assert.assertEquals(17 + 121 + 9 + (COMPONENT_STATS_SIZE_BYTES * 3), cfs.metric.liveDiskSpaceUsed.getCount());
     }
 
     @Test
@@ -180,7 +181,7 @@ public class TrackerTest
                 Assert.assertTrue(((KeyCacheSupport<?>)reader).getKeyCache().isEnabled());
         }
 
-        Assert.assertEquals(17 + 121 + 9, cfs.metric.liveDiskSpaceUsed.getCount());
+        Assert.assertEquals(17 + 121 + 9 + (COMPONENT_STATS_SIZE_BYTES * 3), cfs.metric.liveDiskSpaceUsed.getCount());
         Assert.assertEquals(1, listener.senders.size());
         Assert.assertEquals(1, listener.received.size());
         Assert.assertEquals(tracker, listener.senders.get(0));
@@ -219,8 +220,8 @@ public class TrackerTest
                 tracker.dropSSTables();
                 LogTransaction.waitForDeletions();
             }
-            Assert.assertEquals(9, cfs.metric.totalDiskSpaceUsed.getCount());
-            Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
+            Assert.assertEquals(COMPONENT_STATS_SIZE_BYTES + 9, cfs.metric.totalDiskSpaceUsed.getCount());
+            Assert.assertEquals(COMPONENT_STATS_SIZE_BYTES + 9, cfs.metric.liveDiskSpaceUsed.getCount());
             Assert.assertEquals(1, tracker.getView().sstables.size());
         }
         if (!invalidate)
@@ -248,7 +249,7 @@ public class TrackerTest
             Assert.assertEquals(readers.get(2), ((SSTableDeletingNotification)listener.received.get(2)).deleting);
             Assert.assertEquals(2, ((SSTableListChangedNotification) listener.received.get(3)).removed.size());
             Assert.assertEquals(0, ((SSTableListChangedNotification) listener.received.get(3)).added.size());
-            Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
+            Assert.assertEquals(COMPONENT_STATS_SIZE_BYTES + 9, cfs.metric.liveDiskSpaceUsed.getCount());
             readers.get(0).selfRef().release();
         }
         else
@@ -312,7 +313,7 @@ public class TrackerTest
         listener.received.clear();
         if (reader instanceof KeyCacheSupport<?>)
             Assert.assertTrue(((KeyCacheSupport<?>) reader).getKeyCache().isEnabled());
-        Assert.assertEquals(10, cfs.metric.liveDiskSpaceUsed.getCount());
+        Assert.assertEquals(COMPONENT_STATS_SIZE_BYTES + 10, cfs.metric.liveDiskSpaceUsed.getCount());
 
         // test invalidated CFS
         cfs = MockSchema.newCFS();

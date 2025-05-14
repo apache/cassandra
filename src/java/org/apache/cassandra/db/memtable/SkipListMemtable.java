@@ -31,8 +31,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
+import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.MutableCoordinatorLogBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -52,6 +55,7 @@ import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -84,6 +88,8 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     // actually only store DecoratedKey.
     private final ConcurrentNavigableMap<PartitionPosition, AtomicBTreePartition> partitions = new ConcurrentSkipListMap<>();
 
+    private final MutableCoordinatorLogBoundaries coordinatorLogBoundaries = MutableCoordinatorLogBoundaries.create();
+
     private final AtomicLong liveDataSize = new AtomicLong(0);
 
     protected SkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)
@@ -104,7 +110,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
     @Override
-    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
     {
         Cloner cloner = allocator.cloner(opGroup);
         AtomicBTreePartition previous = partitions.get(update.partitionKey());
@@ -133,6 +139,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         liveDataSize.addAndGet(initialSize + updater.dataSize);
         columnsCollector.update(update.columns());
         statsCollector.update(update.stats());
+        coordinatorLogBoundaries.add(mutationId);
         currentOperations.addAndGet(update.operationCount());
         return updater.colUpdateTimeDelta;
     }
@@ -277,6 +284,9 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         }
         final long partitionKeysSize = keysSize;
         final long partitionCount = keyCount;
+        CoordinatorLogBoundaries flushableBoundaries = new CoordinatorLogBoundariesBuilder()
+                                                       .addAll(coordinatorLogBoundaries)
+                                                       .build();
 
         return new AbstractFlushablePartitionSet<AtomicBTreePartition>()
         {
@@ -314,6 +324,12 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             public long partitionKeysSize()
             {
                 return partitionKeysSize;
+            }
+
+            @Override
+            public CoordinatorLogBoundaries coordinatorLogBoundaries()
+            {
+                return flushableBoundaries;
             }
         };
     }

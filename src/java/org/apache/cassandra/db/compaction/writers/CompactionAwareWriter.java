@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
@@ -62,6 +63,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     protected final long minRepairedAt;
     protected final TimeUUID pendingRepair;
     protected final boolean isTransient;
+    protected final CoordinatorLogBoundaries coordinatorLogBoundaries;
 
     protected final SSTableRewriter sstableWriter;
     protected final ILifecycleTransaction txn;
@@ -97,6 +99,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
         pendingRepair = CompactionTask.getPendingRepair(nonExpiredSSTables);
         isTransient = CompactionTask.getIsTransient(nonExpiredSSTables);
+        coordinatorLogBoundaries = CompactionTask.getCoordinatorLogBoundaries(nonExpiredSSTables);
         DiskBoundaries db = cfs.getDiskBoundaries();
         diskBoundaries = db.positions;
         locations = db.directories;
@@ -328,6 +331,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                          .setTransientSSTable(isTransient)
                          .setRepairedAt(minRepairedAt)
                          .setPendingRepair(pendingRepair)
+                         .setCoordinatorLogBoundaries(coordinatorLogBoundaries)
                          .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                          .addDefaultComponents(cfs.indexManager.listIndexGroups());
     }

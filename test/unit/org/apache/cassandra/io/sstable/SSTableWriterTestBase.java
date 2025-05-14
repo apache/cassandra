@@ -35,6 +35,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -168,6 +169,7 @@ public class SSTableWriterTestBase extends SchemaLoader
                    .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                    .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
                    .addDefaultComponents(cfs.indexManager.listIndexGroups())
+                   .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
                    .build(txn, cfs);
     }
 

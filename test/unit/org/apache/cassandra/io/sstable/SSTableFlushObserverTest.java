@@ -38,6 +38,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
@@ -131,7 +132,8 @@ public class SSTableFlushObserverTest
                                                                   .setMetadataCollector(new MetadataCollector(cfm.comparator).sstableLevel(0))
                                                                   .setSerializationHeader(new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS))
                                                                   .setSecondaryIndexGroups(Collections.singleton(indexGroup))
-                                                                  .addDefaultComponents(Collections.emptySet());
+                                                                  .addDefaultComponents(Collections.emptySet())
+                                                                  .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE);
             assertThat(observer.beginCalled).isFalse();
             assertThat(observer.isComplete).isFalse();
 
@@ -215,6 +217,7 @@ public class SSTableFlushObserverTest
                                                                     .setSerializationHeader(new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS))
                                                                     .setSecondaryIndexGroups(List.of(indexGroup1, indexGroup2))
                                                                     .addDefaultComponents(Collections.emptySet())
+                                                                    .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
                                                                     .build(transaction, null)
             ).withMessage("Failed to initialize");
 

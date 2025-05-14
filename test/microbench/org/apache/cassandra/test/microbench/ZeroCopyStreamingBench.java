@@ -35,6 +35,7 @@ import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -148,7 +149,7 @@ public class ZeroCopyStreamingBench
             blockStreamReader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                                peer, session.planId(), false,
                                                                                                0, 0, 0,
-                                                                                               null), entireSSTableStreamHeader, session);
+                                                                                               null, CoordinatorLogBoundaries.NONE), entireSSTableStreamHeader, session);
 
             List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.getFirst().minValue().getToken(), sstable.getLast().getToken()));
             CassandraStreamHeader partialSSTableStreamHeader =
@@ -170,7 +171,7 @@ public class ZeroCopyStreamingBench
             partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                     peer, session.planId(), false,
                                                                                     0, 0, 0,
-                                                                                    null),
+                                                                                    null, CoordinatorLogBoundaries.NONE),
                                                             partialSSTableStreamHeader, session);
         }
 
