@@ -27,6 +27,7 @@ import com.google.common.collect.Ordering;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -673,6 +674,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                             return null;
                         return Keyspace.openAndGetStore(metadata).getPaxosRepairHistory().searcher();
                     });
+
+                    if (history != null &&
+                        (row.primaryKeyLivenessInfo().timestamp() < history.ballotForToken(currentToken).unixMicros() - paxosPurgeGraceMicros || row.deletion().time().markedForDeleteAt() < history.ballotForToken(currentToken).unixMicros() - paxosPurgeGraceMicros))
+                        PaxosMetrics.paxosRowsPurged.inc();
 
                     return history == null ? row :
                            row.purgeDataOlderThan(history.ballotForToken(currentToken).unixMicros() - paxosPurgeGraceMicros, false);

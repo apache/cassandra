@@ -26,5 +26,6 @@ public class PaxosMetrics
 {
     private static final MetricNameFactory factory = new DefaultNameFactory("Paxos");
     public static final Counter linearizabilityViolations = Metrics.counter(factory.createMetricName("LinearizabilityViolations"));
+    public static final Counter paxosRowsPurged = Metrics.counter(factory.createMetricName("PaxosRowsPurged"));
     public static void initialize() {}
 }

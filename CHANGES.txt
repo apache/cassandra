@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44320] Monitor if PaxosPurger is able to read PaxosRepairHistory and purge Paxos records
  * [SO-43685] Skip advertising self inside RepairJob/RepairSession in case of bootstrap repair & Calculate the keyspace local ranges
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * [SO-43638] [Part 4] Avoid ClientResourceLimits allocation before driver validation
