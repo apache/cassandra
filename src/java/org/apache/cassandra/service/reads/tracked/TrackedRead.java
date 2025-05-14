@@ -270,8 +270,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         else
         {
             DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryHostIds);
-            Message<DataRequest> dataMessage = Message.out(verb(), dataRequest)
-                                                      .withFlag(MessageFlag.CALL_BACK_ON_FAILURE);
+            Message<DataRequest> dataMessage = Message.outWithFlag(verb(), dataRequest, MessageFlag.CALL_BACK_ON_FAILURE);
             MessagingService.instance().sendWithCallback(dataMessage, dataNode.endpoint(), this);
         }
 
@@ -279,8 +278,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             return;
 
         SummaryRequest summaryRequest = new SummaryRequest(readId, command);
-        Message<SummaryRequest> summaryMessage = Message.out(verb(), summaryRequest)
-                                                        .withParam(ParamType.RESPOND_TO, dataNode.endpoint());
+        Message<SummaryRequest> summaryMessage = Message.outWithParam(verb(), summaryRequest, ParamType.RESPOND_TO, dataNode.endpoint());
         for (Replica replica : summaryNodes)
         {
             if (localReplica == replica)
@@ -417,8 +415,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                     logger.error("Error while processing read", error);
                     return;
                 }
-                Message<TrackedDataResponse> reply = message.responseWith(response);
-                MessagingService.instance().send(reply, message.from());
+                MessagingService.instance().send(message.responseWith(response), message.from());
             });
         }
 
@@ -469,11 +466,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         @Override
         public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
-            // create summary
             MutationSummary summary = command.createMutationSummary(false);
-            // send to the data node
             TrackedSummaryResponse response = new TrackedSummaryResponse(readId, summary);
-            MessagingService.instance().send(Message.out(Verb.TRACKED_SUMMARY_RSP, response), message.respondTo());
+            MessagingService.instance().send(message.responseWith(response), message.respondTo());
         }
 
         public static final IVersionedSerializer<SummaryRequest> serializer = new IVersionedSerializer<>()

@@ -240,6 +240,12 @@ public class Message<T>
         return outWithParam(nextId(), verb, 0, payload, flag.addTo(0), null, null);
     }
 
+    public static <T> Message<T> outWithParam(Verb verb, T payload, ParamType paramType, Object paramValue)
+    {
+        assert !verb.isResponse() : verb;
+        return outWithParam(nextId(), verb, payload, paramType, paramValue);
+    }
+
     public static <T> Message<T> outWithFlags(Verb verb, T payload, MessageFlag flag1, MessageFlag flag2)
     {
         assert !verb.isResponse();
