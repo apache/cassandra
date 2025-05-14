@@ -278,7 +278,10 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             return;
 
         SummaryRequest summaryRequest = new SummaryRequest(readId, command);
-        Message<SummaryRequest> summaryMessage = Message.outWithParam(verb(), summaryRequest, ParamType.RESPOND_TO, dataNode.endpoint());
+        Message<SummaryRequest> summaryMessage = Message.outWithParam(Verb.TRACKED_SUMMARY_REQ,
+                                                                      summaryRequest,
+                                                                      ParamType.RESPOND_TO,
+                                                                      dataNode.endpoint());
         for (Replica replica : summaryNodes)
         {
             if (localReplica == replica)
