@@ -92,7 +92,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
         for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM))
             for (boolean flush : BOOLEANS)
                 for (boolean paging : BOOLEANS)
-                    for (ReplicationType replication : ReplicationType.fixmeValues())
+                    for (ReplicationType replication : ReplicationType.values())
                         result.add(new Object[]{ readConsistencyLevel, flush, paging, replication});
 
         return result;
@@ -155,7 +155,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     {
         tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)")
               .allNodes(0, 10, i -> format("INSERT INTO %%s (id) VALUES (%d) USING TIMESTAMP 0", i)) // order is 5,1,8,0,2,4,7,6,9,3
-              .toNode1("DELETE FROM %s WHERE id IN (1, 0, 4, 6, 3)") // delete every other row
+              .toNode1(i -> "DELETE FROM %s WHERE id=" + i, 1, 0, 4, 6, 3) // delete every other row
               .assertRows("SELECT DISTINCT token(id), id FROM %s",
                           row(token(5), 5), row(token(8), 8), row(token(2), 2), row(token(7), 7), row(token(9), 9));
     }
@@ -172,8 +172,8 @@ public class ShortReadProtectionTest extends TestBaseImpl
     {
         tester.createTable("CREATE TABLE %s (id int PRIMARY KEY)")
               .allNodes(0, 10, i -> format("INSERT INTO %%s (id) VALUES (%d) USING TIMESTAMP 0", i)) // order is 5,1,8,0,2,4,7,6,9,3
-              .toNode1("DELETE FROM %s WHERE id IN (5, 8, 2, 7, 9)") // delete every other row
-              .toNode2("DELETE FROM %s WHERE id IN (1, 0, 4, 6)") // delete every other row but the last one
+              .toNode1(i -> "DELETE FROM %s WHERE id=" +  i, 5, 8, 2, 7, 9) // delete every other row
+              .toNode2(i -> "DELETE FROM %s WHERE id=" + i, 1, 0, 4, 6) // delete every other row but the last one
               .assertRows("SELECT id FROM %s LIMIT 1", row(3))
               .assertRows("SELECT DISTINCT id FROM %s LIMIT 1", row(3));
     }
@@ -477,6 +477,12 @@ public class ShortReadProtectionTest extends TestBaseImpl
             return toNode(1, queries);
         }
 
+        private Tester toNode1(Function<Integer, String> querySupplier, int... values)
+        {
+            IntStream.of(values).mapToObj(querySupplier::apply).forEach(this::toNode1);
+            return this;
+        }
+
         /**
          * Internally runs the specified write queries in the second node. If the {@link #readConsistencyLevel} is
          * QUORUM, then the write will also be internally done in the third replica, to simulate a QUORUM write.
@@ -486,6 +492,12 @@ public class ShortReadProtectionTest extends TestBaseImpl
             return toNode(2, queries);
         }
 
+        private Tester toNode2(Function<Integer, String> querySupplier, int... values)
+        {
+            IntStream.of(values).mapToObj(querySupplier::apply).forEach(this::toNode2);
+            return this;
+        }
+
         /**
          * Internally runs the specified write queries in the third node. If the {@link #readConsistencyLevel} is
          * QUORUM, then the write will also be internally done in the first replica, to simulate a QUORUM write.
@@ -493,6 +505,12 @@ public class ShortReadProtectionTest extends TestBaseImpl
         private Tester toNode3(String... queries)
         {
             return toNode(3, queries);
+        }
+
+        private Tester toNode3(Function<Integer, String> querySupplier, int... values)
+        {
+            IntStream.of(values).mapToObj(querySupplier::apply).forEach(this::toNode3);
+            return this;
         }
 
         /**

@@ -24,6 +24,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.transport.Dispatcher;
 
@@ -39,26 +40,24 @@ import org.apache.cassandra.transport.Dispatcher;
  */
 public class ShortReadProtection
 {
-    public static UnfilteredPartitionIterator extend(Replica source,
-                                                     Runnable preFetchCallback,
-                                                     UnfilteredPartitionIterator partitions,
-                                                     ReadCommand command,
-                                                     DataLimits.Counter mergedResultCounter,
-                                                     Dispatcher.RequestTime requestTime,
-                                                     boolean enforceStrictLiveness)
+    public static <E extends Endpoints<E>> boolean needShortReadProtection(ReadCommand command, E replicas)
     {
-        DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
-                                                                             false,
-                                                                             command.selectsFullPartition(),
-                                                                             enforceStrictLiveness).onlyCount();
+        // SRP doesn't make sense for top-k which needs to re-query replica with larger limit instead of fetching more partitions
+        if (command.isTopK())
+            return false;
 
-        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(command,
-                                                                                     source,
-                                                                                     preFetchCallback,
-                                                                                     singleResultCounter,
-                                                                                     mergedResultCounter,
-                                                                                     requestTime);
+        // If we have only one result, there is no read repair to do, and we can't get short reads
+        // Also, so-called "short reads" stems from nodes returning only a subset of the results they have for a
+        // partition due to the limit, but that subset not being enough post-reconciliation. So if we don't have limit,
+        // don't bother protecting against short reads.
+        return replicas.size() > 1 && !command.limits().isUnlimited();
+    }
 
+    private static UnfilteredPartitionIterator applyShortReadTransformations(ReadCommand command,
+                                                                             UnfilteredPartitionIterator partitions,
+                                                                             ShortReadPartitionsProtection protection,
+                                                                             DataLimits.Counter singleResultCounter)
+    {
         /*
          * The order of extention and transformations is important here. Extending with more partitions has to happen
          * first due to the way BaseIterator.hasMoreContents() works: only transformations applied after extension will
@@ -79,5 +78,44 @@ public class ShortReadProtection
         partitions = Transformation.apply(partitions, singleResultCounter); // register the per-source counter
 
         return partitions;
+    }
+
+    public static UnfilteredPartitionIterator extend(Replica source,
+                                                     Runnable preFetchCallback,
+                                                     UnfilteredPartitionIterator partitions,
+                                                     ReadCommand command,
+                                                     DataLimits.Counter mergedResultCounter,
+                                                     Dispatcher.RequestTime requestTime,
+                                                     boolean enforceStrictLiveness)
+    {
+        DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
+                                                                             false,
+                                                                             command.selectsFullPartition(),
+                                                                             enforceStrictLiveness).onlyCount();
+
+        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection.Untracked(command,
+                                                                                               source,
+                                                                                               preFetchCallback,
+                                                                                               singleResultCounter,
+                                                                                               mergedResultCounter,
+                                                                                               requestTime);
+
+        return applyShortReadTransformations(command, partitions, protection, singleResultCounter);
+
+    }
+
+    public static UnfilteredPartitionIterator detectAndThrow(UnfilteredPartitionIterator partitions, ReadCommand command, DataLimits.Counter mergedResultCounter)
+    {
+        boolean enforceStrictLiveness = command.metadata().enforceStrictLiveness();
+        DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
+                                                                             false,
+                                                                             command.selectsFullPartition(),
+                                                                             enforceStrictLiveness).onlyCount();
+
+        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection.Tracked(command,
+                                                                                             singleResultCounter,
+                                                                                             mergedResultCounter);
+
+        return applyShortReadTransformations(command, partitions, protection, singleResultCounter);
     }
 }

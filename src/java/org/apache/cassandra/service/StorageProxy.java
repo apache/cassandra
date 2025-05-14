@@ -44,6 +44,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.service.reads.ShortReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -353,9 +354,17 @@ public class StorageProxy implements StorageProxyMBean
                 ConsistencyLevel readConsistency = consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
 
                 FilteredPartition current;
-                try (RowIterator rowIter = readOne(readCommand, readConsistency, requestTime))
+                while (true)
                 {
-                    current = FilteredPartition.create(rowIter);
+                    try (RowIterator rowIter = readOne(readCommand, readConsistency, requestTime))
+                    {
+                        current = FilteredPartition.create(rowIter);
+                        break;
+                    }
+                    catch (ShortReadException e)
+                    {
+                        continue;
+                    }
                 }
 
                 if (!request.appliesTo(current))

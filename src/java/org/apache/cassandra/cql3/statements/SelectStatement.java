@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.service.reads.ShortReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -344,24 +345,35 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             query.trackWarnings();
         ResultMessage.Rows rows;
 
-        if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize) || query.isTopK()))
+        while (true)
         {
-            rows = execute(query, options, state.getClientState(), selectors, nowInSec, userLimit, null, requestTime, unmask);
-        }
-        else
-        {
-            QueryPager pager = getPager(query, options);
+            try
+            {
+                if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize) || query.isTopK()))
+                {
+                    rows = execute(query, options, state.getClientState(), selectors, nowInSec, userLimit, null, requestTime, unmask);
+                }
+                else
+                {
+                    QueryPager pager = getPager(query, options);
 
-            rows = execute(state,
-                           Pager.forDistributedQuery(pager, cl, state.getClientState()),
-                           options,
-                           selectors,
-                           pageSize,
-                           nowInSec,
-                           userLimit,
-                           aggregationSpec,
-                           requestTime,
-                           unmask);
+                    rows = execute(state,
+                                   Pager.forDistributedQuery(pager, cl, state.getClientState()),
+                                   options,
+                                   selectors,
+                                   pageSize,
+                                   nowInSec,
+                                   userLimit,
+                                   aggregationSpec,
+                                   requestTime,
+                                   unmask);
+                }
+                break;
+            } catch (ShortReadException e)
+            {
+                // try again
+            }
+
         }
         if (!SchemaConstants.isSystemKeyspace(table.keyspace))
             ClientRequestSizeMetrics.recordReadResponseMetrics(rows, restrictions, selection);
@@ -595,39 +607,46 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         int pageSize = options.getPageSize();
         boolean unmask = state.getClientState().hasTablePermission(table, Permission.UNMASK);
 
-        Selectors selectors = selection.newSelectors(options);
-        AggregationSpecification aggregationSpec = getAggregationSpec(options);
-        ReadQuery query = getQuery(options,
-                                   state.getClientState(),
-                                   selectors.getColumnFilter(),
-                                   nowInSec,
-                                   userLimit,
-                                   userPerPartitionLimit,
-                                   pageSize,
-                                   aggregationSpec);
-
-        try (ReadExecutionController executionController = query.executionController())
+        while (true)
         {
-            if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize) || query.isTopK()))
+            Selectors selectors = selection.newSelectors(options);
+            AggregationSpecification aggregationSpec = getAggregationSpec(options);
+            ReadQuery query = getQuery(options,
+                                       state.getClientState(),
+                                       selectors.getColumnFilter(),
+                                       nowInSec,
+                                       userLimit,
+                                       userPerPartitionLimit,
+                                       pageSize,
+                                       aggregationSpec);
+
+            try (ReadExecutionController executionController = query.executionController())
             {
-                try (PartitionIterator data = query.executeInternal(executionController))
+                if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize) || query.isTopK()))
                 {
-                    return processResults(data, options, selectors, nowInSec, userLimit, null, unmask, state.getClientState());
+                    try (PartitionIterator data = query.executeInternal(executionController))
+                    {
+                        return processResults(data, options, selectors, nowInSec, userLimit, null, unmask, state.getClientState());
+                    }
                 }
+
+                QueryPager pager = getPager(query, options);
+
+                return execute(state,
+                               Pager.forInternalQuery(pager, executionController),
+                               options,
+                               selectors,
+                               pageSize,
+                               nowInSec,
+                               userLimit,
+                               aggregationSpec,
+                               requestTime,
+                               unmask);
             }
-
-            QueryPager pager = getPager(query, options);
-
-            return execute(state,
-                           Pager.forInternalQuery(pager, executionController),
-                           options,
-                           selectors,
-                           pageSize,
-                           nowInSec,
-                           userLimit,
-                           aggregationSpec,
-                           requestTime,
-                           unmask);
+            catch (ShortReadException e)
+            {
+                // try again
+            }
         }
     }
 

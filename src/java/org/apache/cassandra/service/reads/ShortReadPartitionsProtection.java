@@ -49,13 +49,10 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
-public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
+public abstract class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
 {
     private static final Logger logger = LoggerFactory.getLogger(ShortReadPartitionsProtection.class);
-    private final ReadCommand command;
-    private final Replica source;
-
-    private final Runnable preFetchCallback; // called immediately before fetching more contents
+    final ReadCommand command;
 
     private final DataLimits.Counter singleResultCounter; // unmerged per-source counter
     private final DataLimits.Counter mergedResultCounter; // merged end-result counter
@@ -64,22 +61,23 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private boolean partitionsFetched; // whether we've seen any new partitions since iteration start or last moreContents() call
 
-    private final Dispatcher.RequestTime requestTime;
 
     public ShortReadPartitionsProtection(ReadCommand command,
-                                         Replica source,
-                                         Runnable preFetchCallback,
                                          DataLimits.Counter singleResultCounter,
-                                         DataLimits.Counter mergedResultCounter,
-                                         Dispatcher.RequestTime requestTime)
+                                         DataLimits.Counter mergedResultCounter)
     {
         this.command = command;
-        this.source = source;
-        this.preFetchCallback = preFetchCallback;
         this.singleResultCounter = singleResultCounter;
         this.mergedResultCounter = mergedResultCounter;
-        this.requestTime = requestTime;
     }
+
+    DecoratedKey lastPartitionKey()
+    {
+        return lastPartitionKey;
+    }
+
+    abstract ShortReadRowsProtection protectPartition(UnfilteredRowIterator partition, DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter);
+    abstract UnfilteredPartitionIterator fetchAdditionalPartitions(DataLimits.Counter mergedResultCounter);
 
     @Override
     public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
@@ -94,13 +92,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
          * If we don't apply the transformation *after* extending the partition with MoreRows,
          * applyToRow() method of protection will not be called on the first row of the new extension iterator.
          */
-        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), partition.partitionKey().getToken(), source);
-        ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-        ShortReadRowsProtection protection = new ShortReadRowsProtection(partition.partitionKey(),
-                                                                         command, source,
-                                                                         (cmd) -> executeReadCommand(cmd, sharedReplicaPlan),
-                                                                         singleResultCounter,
-                                                                         mergedResultCounter);
+        ShortReadRowsProtection protection = protectPartition(partition, singleResultCounter, mergedResultCounter);
         return Transformation.apply(MoreRows.extend(partition, protection), protection);
     }
 
@@ -140,62 +132,117 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
             return null;
         partitionsFetched = false;
 
-        /*
-         * We are going to fetch one partition at a time for thrift and potentially more for CQL.
-         * The row limit will either be set to the per partition limit - if the command has no total row limit set, or
-         * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
-         * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
-         */
-        int toQuery = command.limits().count() != DataLimits.NO_LIMIT
-                      ? command.limits().count() - mergedResultCounter.rowsCounted()
-                      : command.limits().perPartitionCount();
-
         ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
-        Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, source);
-        logger.info("Requesting {} extra rows from {} for short read protection", toQuery, source);
 
-        // If we've arrived here, all responses have been consumed, and we're about to request more.
-        preFetchCallback.run();
-
-        return makeAndExecuteFetchAdditionalPartitionReadCommand(toQuery);
+        return fetchAdditionalPartitions(mergedResultCounter);
     }
 
-    private UnfilteredPartitionIterator makeAndExecuteFetchAdditionalPartitionReadCommand(int toQuery)
+    public static class Untracked extends ShortReadPartitionsProtection
     {
-        PartitionRangeReadCommand cmd = (PartitionRangeReadCommand) command;
+        final Replica source;
+        private final Runnable preFetchCallback; // called immediately before fetching more contents
+        private final Dispatcher.RequestTime requestTime;
 
-        DataLimits newLimits = cmd.limits().forShortReadRetry(toQuery);
+        public Untracked(ReadCommand command, Replica source, Runnable preFetchCallback, DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter, Dispatcher.RequestTime requestTime)
+        {
+            super(command, singleResultCounter, mergedResultCounter);
+            this.source = source;
+            this.preFetchCallback = preFetchCallback;
+            this.requestTime = requestTime;
+        }
 
-        AbstractBounds<PartitionPosition> bounds = cmd.dataRange().keyRange();
-        AbstractBounds<PartitionPosition> newBounds = bounds.inclusiveRight()
-                                                      ? new Range<>(lastPartitionKey, bounds.right)
-                                                      : new ExcludingBounds<>(lastPartitionKey, bounds.right);
-        DataRange newDataRange = cmd.dataRange().forSubRange(newBounds);
+        @Override
+        ShortReadRowsProtection protectPartition(UnfilteredRowIterator partition, DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter)
+        {
+            ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), partition.partitionKey().getToken(), source);
+            ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
+            return new ShortReadRowsProtection.Untracked(partition.partitionKey(),
+                                                         command, source,
+                                                         (cmd) -> executeReadCommand(cmd, sharedReplicaPlan),
+                                                         singleResultCounter,
+                                                         mergedResultCounter);
+        }
 
-        ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), cmd.dataRange().keyRange(), source, 1);
-        return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan));
+        @Override
+        UnfilteredPartitionIterator fetchAdditionalPartitions(DataLimits.Counter mergedResultCounter)
+        {
+
+            /*
+             * We are going to fetch one partition at a time for thrift and potentially more for CQL.
+             * The row limit will either be set to the per partition limit - if the command has no total row limit set, or
+             * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
+             * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
+             */
+            int toQuery = command.limits().count() != DataLimits.NO_LIMIT
+                    ? command.limits().count() - mergedResultCounter.rowsCounted()
+                    : command.limits().perPartitionCount();
+
+            Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, source);
+            logger.info("Requesting {} extra rows from {} for short read protection", toQuery, source);
+
+            // If we've arrived here, all responses have been consumed, and we're about to request more.
+            preFetchCallback.run();
+
+            return makeAndExecuteFetchAdditionalPartitionReadCommand(toQuery);
+        }
+
+        private UnfilteredPartitionIterator makeAndExecuteFetchAdditionalPartitionReadCommand(int toQuery)
+        {
+            PartitionRangeReadCommand cmd = (PartitionRangeReadCommand) command;
+
+            DataLimits newLimits = cmd.limits().forShortReadRetry(toQuery);
+
+            AbstractBounds<PartitionPosition> bounds = cmd.dataRange().keyRange();
+            AbstractBounds<PartitionPosition> newBounds = bounds.inclusiveRight()
+                    ? new Range<>(lastPartitionKey(), bounds.right)
+                    : new ExcludingBounds<>(lastPartitionKey(), bounds.right);
+            DataRange newDataRange = cmd.dataRange().forSubRange(newBounds);
+
+            ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), cmd.dataRange().keyRange(), source, 1);
+            return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan));
+        }
+
+        private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+        UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
+        {
+            DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, requestTime);
+            ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
+
+            if (source.isSelf())
+            {
+                Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
+            }
+            else
+            {
+                if (source.isTransient())
+                    cmd = cmd.copyAsTransientQuery(source);
+                MessagingService.instance().sendWithCallback(cmd.createMessage(false, requestTime), source.endpoint(), handler);
+            }
+
+            // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
+            handler.awaitResults();
+            assert resolver.getMessages().size() == 1;
+            return resolver.getMessages().get(0).payload.makeIterator(command);
+        }
     }
 
-    private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-    UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
+    public static class Tracked extends ShortReadPartitionsProtection
     {
-        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, requestTime);
-        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
-
-        if (source.isSelf())
+        public Tracked(ReadCommand command, DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter)
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
-        }
-        else
-        {
-            if (source.isTransient())
-                cmd = cmd.copyAsTransientQuery(source);
-            MessagingService.instance().sendWithCallback(cmd.createMessage(false, requestTime), source.endpoint(), handler);
+            super(command, singleResultCounter, mergedResultCounter);
         }
 
-        // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
-        handler.awaitResults();
-        assert resolver.getMessages().size() == 1;
-        return resolver.getMessages().get(0).payload.makeIterator(command);
+        @Override
+        ShortReadRowsProtection protectPartition(UnfilteredRowIterator partition, DataLimits.Counter singleResultCounter, DataLimits.Counter mergedResultCounter)
+        {
+            return new ShortReadRowsProtection.Tracked(command, singleResultCounter, mergedResultCounter);
+        }
+
+        @Override
+        UnfilteredPartitionIterator fetchAdditionalPartitions(DataLimits.Counter mergedResultCounter)
+        {
+            throw new ShortReadException();
+        }
     }
 }

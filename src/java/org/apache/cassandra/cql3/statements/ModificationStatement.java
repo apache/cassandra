@@ -739,13 +739,15 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (mutations.size() > 1)
                 throw new InvalidRequestException("Mutation tracking is currently unsupported with unlogged batches");
 
-            Mutation mutation = (Mutation) mutations.get(0);
-
-            String keyspaceName = mutation.getKeyspaceName();
-            Token token = mutation.key().getToken();
-            MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
-            mutation = mutation.withMutationId(id);
-            mutation.apply();
+            for (IMutation m : mutations)
+            {
+                Mutation mutation = (Mutation) m;
+                String keyspaceName = mutation.getKeyspaceName();
+                Token token = mutation.key().getToken();
+                MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
+                mutation = mutation.withMutationId(id);
+                mutation.apply();
+            }
         }
         else
         {

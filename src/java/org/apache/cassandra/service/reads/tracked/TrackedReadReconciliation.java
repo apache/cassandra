@@ -25,7 +25,13 @@ import java.util.function.Consumer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.transform.EmptyPartitionsDiscarder;
+import org.apache.cassandra.db.transform.Filter;
+import org.apache.cassandra.db.transform.FilteredPartitions;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.replication.ReconciliationPlan.PeerReconciliation;
+import org.apache.cassandra.service.reads.ShortReadProtection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,10 +66,11 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
 {
     private static final Logger logger = LoggerFactory.getLogger(TrackedReadReconciliation.class);
 
-    private static class Data extends AsyncFuture<Void>
+    private static class Data<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends AsyncFuture<Void>
     {
         final long reconciliationId;
         final ReadCommand command;
+        final P replicaPlan;
         final private InetAddressAndPort dataNode;
         final private TrackedReadResponse.Data dataResponse;
         final int blockFor;
@@ -71,7 +78,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         final Consumer<PartitionIterator> resultConsumer;
         final Map<ShortMutationId, Mutation> mutations = new HashMap<>();
 
-        public Data(long reconciliationId, ReadCommand command,
+        public Data(long reconciliationId, ReadCommand command, P replicaPlan,
                     InetAddressAndPort dataNode,
                     TrackedReadResponse.Data dataResponse,
                     Set<ShortMutationId> outstandingMutations,
@@ -79,6 +86,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         {
             this.reconciliationId = reconciliationId;
             this.command = command;
+            this.replicaPlan = replicaPlan;
             this.dataNode = dataNode;
             this.dataResponse = dataResponse;
             this.blockFor = outstandingMutations.size();
@@ -101,10 +109,29 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         public PartitionIterator partitionIterator()
         {
             UnfilteredPartitionIterator result = dataResponse.makeIterator(command);
-            if (!mutations.isEmpty())
-                result = command.augmentResultWithMutations(result, mutations.values());
+            if (mutations.isEmpty())
+                return UnfilteredPartitionIterators.filter(result, command.nowInSec());
 
-            return UnfilteredPartitionIterators.filter(result, command.nowInSec());
+            DataLimits.Counter mergedResultCounter = command.limits().newCounter(command.nowInSec(),
+                                                                                 true,
+                                                                                 command.selectsFullPartition(),
+                                                                                 command.metadata().enforceStrictLiveness());
+
+            // In case of top-k query, do not trim reconciled rows here because QueryPlan#postProcessor()
+            // needs to compare all rows.
+            if (command.isTopK())
+                mergedResultCounter.onlyCount();
+
+            if (ShortReadProtection.needShortReadProtection(command, replicaPlan.readCandidates()))
+                result = ShortReadProtection.detectAndThrow(result, command, mergedResultCounter);
+
+            UnfilteredPartitionIterator merged = command.augmentResultWithMutations(result, mutations.values());
+
+            Filter filter = new Filter(command.nowInSec(), command.metadata().enforceStrictLiveness());
+            FilteredPartitions filtered = FilteredPartitions.filter(merged, filter);
+
+            PartitionIterator counted = Transformation.apply(filtered, mergedResultCounter);
+            return Transformation.apply(counted, new EmptyPartitionsDiscarder());
         }
 
         private void maybeComplete()
@@ -171,7 +198,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
 
         abstract String name();
 
-        private static class Pending extends State
+        private static class Pending<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends State
         {
             final long reconciliationId;
             final Map<InetAddressAndPort, ReconciliationPlan> plans;
@@ -182,7 +209,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
             final int blockFor;
             final Data data;
 
-            private Pending(long reconciliationId, Map<InetAddressAndPort, ReconciliationPlan> plans, ReadCommand command, InetAddressAndPort dataNode, TrackedReadResponse.Data dataResponse, Consumer<PartitionIterator> resultConsumer)
+            private Pending(long reconciliationId, Map<InetAddressAndPort, ReconciliationPlan> plans, ReadCommand command, P replicaPlan, InetAddressAndPort dataNode, TrackedReadResponse.Data dataResponse, Consumer<PartitionIterator> resultConsumer)
             {
                 this.reconciliationId = reconciliationId;
                 this.plans = plans;
@@ -209,7 +236,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
                 }
 
                 this.blockFor = syncs;
-                this.data = new Data(reconciliationId, command, dataNode, dataResponse, outstandingMutations, resultConsumer);
+                this.data = new Data(reconciliationId, command, replicaPlan, dataNode, dataResponse, outstandingMutations, resultConsumer);
             }
 
             @Override
@@ -375,7 +402,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         // the summaries were different, but after looking at the union of reconciled ids, there is nothing to do
         if (plans.isEmpty())
         {
-            Data data = new Data(0, command, dataNode, dataResponse, Collections.emptySet(), resultConsumer);
+            Data<E, P> data = new Data<>(0, command, replicaPlan.get(), dataNode, dataResponse, Collections.emptySet(), resultConsumer);
             Preconditions.checkState(data.isComplete());
             state = new State.Complete(data);
             logger.trace("Mutation summaries matched: {}", replicaPlan);
@@ -389,7 +416,7 @@ public class TrackedReadReconciliation<E extends Endpoints<E>, P extends Replica
         long reconciliationId = MutationTrackingService.instance.reconciliations().newReconciliation(this, expiresAt);
         logger.trace("Starting new reconciliation {}", reconciliationId);
 
-        state = new State.Pending(reconciliationId, plans, command, dataNode, dataResponse, resultConsumer);
+        state = new State.Pending<>(reconciliationId, plans, command, replicaPlan.get(), dataNode, dataResponse, resultConsumer);
         state.asPending().sendSyncMessages();
     }
 
