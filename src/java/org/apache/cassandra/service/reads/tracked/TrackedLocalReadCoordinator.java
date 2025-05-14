@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.reads.tracked;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -43,6 +42,7 @@ import org.apache.cassandra.replication.ReconciliationPlan;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.AbstractFuture;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.slf4j.Logger;
@@ -51,12 +51,137 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
-public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataResponse>
+public class TrackedLocalReadCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(TrackedLocalReadCoordinator.class);
 
     private final TrackedRead.Id readId;
+    private final AsyncPromise<TrackedDataResponse> promise;
+
+    private volatile State state;
+
+    public TrackedLocalReadCoordinator(TrackedRead.Id readId)
+    {
+        this.readId = readId;
+        this.promise = new AsyncPromise<>();
+        this.state = INITIALIZED;
+    }
+
+    public AbstractFuture<TrackedDataResponse> addCallback(BiConsumer<TrackedDataResponse, Throwable> callback)
+    {
+        return promise.addCallback(callback);
+    }
+
+    enum Status { INITIALIZED, AWAITING_READ, READING, RECONCILING, ABORTED, COMPLETED }
+
+    private static abstract class State
+    {
+        abstract Status status();
+
+        State startLocalRead(TrackedRead.Id readId, AsyncPromise<TrackedDataResponse> promise, ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, int[] summaryNodes, long expiresAtNanos)
+        {
+            // TODO: validate permitted state instead of just ignoring events?
+            return this;
+        }
+
+        State receiveInProgressRead(PartialTrackedRead read, MutationSummary summary)
+        {
+            throw new IllegalStateException("Received in-progress read with status " + status());
+        }
+
+        State receiveSummary(InetAddressAndPort from, MutationSummary summary)
+        {
+            logger.trace("Ignoring summary from {} with status {}", from, status());
+            return this;
+        }
+
+        State acknowledgeSync(int syncId)
+        {
+            logger.trace("Ignoring sync ack {} with status {}", syncId, status());
+            return this;
+        }
+
+        State receiveMutations(List<Mutation> mutations)
+        {
+            logger.trace("Ignoring {} mutations with status {}", mutations.size(), status());
+            return this;
+        }
+
+        State abort()
+        {
+            return ABORTED;
+        }
+
+        boolean isPurgeable(long nanoTime)
+        {
+            return false;
+        }
+
+        boolean isReading()
+        {
+            return is(Status.READING);
+        }
+
+        boolean isCompleted()
+        {
+            return is(Status.COMPLETED);
+        }
+
+        boolean is(Status status)
+        {
+            return status() == status;
+        }
+
+        @Override
+        public String toString()
+        {
+            return status().toString();
+        }
+    }
+
+    static final State INITIALIZED = new State()
+    {
+        @Override
+        Status status() { return Status.INITIALIZED; }
+
+        @Override
+        State startLocalRead(TrackedRead.Id readId, AsyncPromise<TrackedDataResponse> promise, ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, int[] summaryNodes, long expiresAtNanos)
+        {
+            return new Reading(readId, promise, command, replicaPlan, summaryNodes, expiresAtNanos);
+        }
+
+        @Override
+        State receiveSummary(InetAddressAndPort from, MutationSummary summary)
+        {
+            return new AwaitingRead(from, summary);
+        }
+    };
+
+    static final State ABORTED = new State()
+    {
+        @Override
+        Status status() { return Status.ABORTED; }
+
+        @Override
+        State receiveInProgressRead(PartialTrackedRead read, MutationSummary summary)
+        {
+            return this; // the read can't complete without data, but it could have been aborted in the meantime
+        }
+
+        @Override
+        boolean isPurgeable(long nanoTime) { return true; }
+    };
+
+    static final State COMPLETED = new State()
+    {
+        @Override
+        Status status() { return Status.COMPLETED; }
+
+        @Override
+        boolean isPurgeable(long nanoTime) { return true; }
+    };
 
     private static class ReceivedSummary
     {
@@ -68,170 +193,52 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             this.from = from;
             this.summary = summary;
         }
-
-        static ReceivedSummary create(InetAddressAndPort from, MutationSummary summary)
-        {
-            return new ReceivedSummary(from, summary);
-        }
-    }
-
-    private static abstract class State
-    {
-        static final State INITIALIZED = new State()
-        {
-            @Override
-            String name() { return "INITIALIZED"; }
-
-            @Override
-            boolean isInitialized() { return true; }
-
-            @Override
-            boolean isTimedOutOrComplete(long nanoTime) { return false; }
-
-            @Override
-            void abort() {}
-        };
-
-        static final State ABORTED = new State()
-        {
-            @Override
-            String name() { return "ABORTED"; }
-
-            @Override
-            boolean isAborted() { return true; }
-
-            @Override
-            boolean isTimedOutOrComplete(long nanoTime) { return true; }
-
-            @Override
-            void abort() {}
-        };
-
-        static final State COMPLETED = new State()
-        {
-            @Override
-            String name() { return "COMPLETED"; }
-
-            @Override
-            boolean isTimedOutOrComplete(long nanoTime) { return true; }
-
-            @Override
-            boolean isComplete() { return true; }
-
-            @Override
-            void abort() {}
-        };
-
-        abstract String name();
-        abstract boolean isTimedOutOrComplete(long nanoTime);
-        abstract void abort();
-
-        boolean isInitialized()
-        {
-            return false;
-        }
-
-        boolean isAwaitingRead()
-        {
-            return false;
-        }
-
-        AwaitingRead asAwaitingRead()
-        {
-            throw new IllegalStateException("State is " + name() + ", not " + AwaitingRead.NAME);
-        }
-
-        boolean isReading()
-        {
-            return false;
-        }
-
-        Reading asReading()
-        {
-            throw new IllegalStateException("State is " + name() + ", not " + Reading.NAME);
-        }
-
-        boolean isReconciling()
-        {
-            return false;
-        }
-
-        Reconciling asReconciling()
-        {
-            throw new IllegalStateException("State is " + name() + ", not " + Reconciling.NAME);
-        }
-
-        boolean isComplete()
-        {
-            return false;
-        }
-
-        boolean isAborted()
-        {
-            return false;
-        }
-
-        @Override
-        public String toString()
-        {
-            return name();
-        }
     }
 
     // if we start receiving summaries before we receive the read command, they're
     // collected here
-    private class AwaitingRead extends State
+    private static class AwaitingRead extends State
     {
-        private static final String NAME = "AWAITING_READ";
         private long lastUpdateNanos;
-        private final List<ReceivedSummary> summaries = new ArrayList<>();
+        private final List<ReceivedSummary> summaries;
 
-        public AwaitingRead()
+        AwaitingRead(InetAddressAndPort summaryFrom, MutationSummary summary)
         {
+             summaries = new ArrayList<>();
+             summaries.add(new ReceivedSummary(summaryFrom, summary));
         }
 
         @Override
-        String name()
+        Status status()
         {
-            return NAME;
+            return Status.AWAITING_READ;
         }
 
         @Override
-        boolean isAwaitingRead()
+        State startLocalRead(TrackedRead.Id readId, AsyncPromise<TrackedDataResponse> promise, ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, int[] summaryNodes, long expiresAtNanos)
         {
-            return true;
+            return new Reading(readId, promise, command, replicaPlan, summaryNodes, summaries, expiresAtNanos);
         }
 
         @Override
-        AwaitingRead asAwaitingRead()
+        State receiveSummary(InetAddressAndPort from, MutationSummary summary)
         {
-            return this;
-        }
-
-        @Override
-        boolean isTimedOutOrComplete(long nanoTime)
-        {
-            return nanoTime - lastUpdateNanos > DatabaseDescriptor.getReadRpcTimeout(TimeUnit.NANOSECONDS);
-        }
-
-        public State receiveSummary(InetAddressAndPort from, MutationSummary summary)
-        {
-            summaries.add(ReceivedSummary.create(from, summary));
+            summaries.add(new ReceivedSummary(from, summary));
             lastUpdateNanos = Clock.Global.nanoTime();
             return this;
         }
 
         @Override
-        void abort()
+        boolean isPurgeable(long nanoTime)
         {
-
+            return nanoTime - lastUpdateNanos > DatabaseDescriptor.getReadRpcTimeout(TimeUnit.NANOSECONDS);
         }
     }
 
-    private class Reading extends State
+    private static class Reading extends State
     {
-        private static final String NAME = "READING";
-
+        private final TrackedRead.Id readId;
+        private final AsyncPromise<TrackedDataResponse> promise;
         private final ReadCommand command;
         private volatile PartialTrackedRead read;
         private final long expiresAtNanos;
@@ -239,8 +246,16 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         private final Accumulator<ReceivedSummary> summaries;
         private final int[] summaryNodes; // for speculating when we haven't received enough summaries
 
-        public Reading(ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, int[] summaryNodes, long expiresAtNanos)
+        Reading(
+            TrackedRead.Id readId,
+            AsyncPromise<TrackedDataResponse> promise,
+            ReadCommand command,
+            ReplicaPlan.AbstractForRead<?, ?> replicaPlan,
+            int[] summaryNodes,
+            long expiresAtNanos)
         {
+            this.readId = readId;
+            this.promise = promise;
             this.expiresAtNanos = expiresAtNanos;
             this.command = command;
             this.replicaPlan = replicaPlan;
@@ -248,26 +263,27 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             this.summaryNodes = summaryNodes;
         }
 
-        @Override
-        boolean isReading()
+        Reading(
+            TrackedRead.Id readId,
+            AsyncPromise<TrackedDataResponse> promise,
+            ReadCommand command,
+            ReplicaPlan.AbstractForRead<?, ?> replicaPlan,
+            int[] summaryNodes,
+            List<ReceivedSummary> summaries,
+            long expiresAtNanos)
         {
-            return true;
+            this(readId, promise, command, replicaPlan, summaryNodes, expiresAtNanos);
+            for (ReceivedSummary summary : summaries) this.summaries.add(summary);
         }
 
         @Override
-        Reading asReading()
+        Status status()
         {
-            return this;
+            return Status.READING;
         }
 
         @Override
-        String name()
-        {
-            return NAME;
-        }
-
-        @Override
-        boolean isTimedOutOrComplete(long nanoTime)
+        boolean isPurgeable(long nanoTime)
         {
             return nanoTime - expiresAtNanos > 0;
         }
@@ -285,48 +301,46 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             if (reconciliations.isEmpty())
             {
                 logger.trace("Read complete for {}", readId);
-                complete(read, command.columnFilter(), replicaPlan.consistencyLevel(), expiresAtNanos);
+                complete(promise, read, command.columnFilter(), replicaPlan.consistencyLevel(), expiresAtNanos);
                 return COMPLETED;
             }
             else
             {
                 logger.trace("Beginning reconciliation for {}", readId);
-                Reconciling reconciling = new Reconciling(command, read, replicaPlan.consistencyLevel(), expiresAtNanos, reconciliations);
+                Reconciling reconciling = new Reconciling(readId, promise, command, read, replicaPlan.consistencyLevel(), expiresAtNanos, reconciliations);
                 reconciling.start();  // TODO: don't do this until after the coordinator state is set to reconciling if converting to lock free
                 return reconciling;
             }
         }
 
-        public State receiveInProgressRead(PartialTrackedRead read, MutationSummary summary)
+        @Override
+        State receiveInProgressRead(PartialTrackedRead read, MutationSummary summary)
         {
             if (this.read != null)
                 return this;
 
             logger.trace("In progress read received for {}", readId);
             this.read = read;
-            summaries.add(ReceivedSummary.create(FBUtilities.getBroadcastAddressAndPort(), summary));
+            summaries.add(new ReceivedSummary(FBUtilities.getBroadcastAddressAndPort(), summary));
 
             return maybeComplete();
-        }
-
-        public State receiveSummary(ReceivedSummary summary)
-        {
-            logger.trace("Summary received from {} for {}", summary.from, readId);
-            summaries.add(summary);
-            return maybeComplete();
-        }
-
-        public State receiveSummary(InetAddressAndPort from, MutationSummary summary)
-        {
-            return receiveSummary(ReceivedSummary.create(from, summary));
         }
 
         @Override
-        void abort()
+        State receiveSummary(InetAddressAndPort from, MutationSummary summary)
+        {
+            logger.trace("Summary received from {} for {}", from, readId);
+            summaries.add(new ReceivedSummary(from, summary));
+            return maybeComplete();
+        }
+
+        @Override
+        State abort()
         {
             logger.trace("Aborting read {}", readId);
             if (read != null)
                 read.close();
+            return ABORTED;
         }
     }
 
@@ -337,7 +351,7 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         final InetAddressAndPort to;
         final Log2OffsetsMap.Immutable plan;
 
-        public PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, Log2OffsetsMap.Immutable plan)
+        PendingSync(int syncId, InetAddressAndPort from, InetAddressAndPort to, Log2OffsetsMap.Immutable plan)
         {
             this.syncId = syncId;
             this.from = from;
@@ -345,16 +359,16 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             this.plan = plan;
         }
 
-        public ReadReconcileSend.PeerSync toPeerSync()
+        ReadReconcileSend.PeerSync toPeerSync()
         {
             return new ReadReconcileSend.PeerSync(syncId, to, plan);
         }
     }
 
-    private class Reconciling extends State
+    private static class Reconciling extends State
     {
-        private static final String NAME = "RECONCILING";
-
+        private final TrackedRead.Id readId;
+        private final AsyncPromise<TrackedDataResponse> promise;
         private final ReadCommand command;
         private final PartialTrackedRead read;
         private final ConsistencyLevel consistencyLevel;
@@ -365,14 +379,21 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         final Map<Integer, PendingSync> pendingSync = new ConcurrentHashMap<>();
         final int blockFor;
 
-        public Reconciling(ReadCommand command, PartialTrackedRead read, ConsistencyLevel consistencyLevel, long expiresAtNanos, Map<InetAddressAndPort, ReconciliationPlan> plans)
+        Reconciling(
+            TrackedRead.Id readId,
+            AsyncPromise<TrackedDataResponse> promise,
+            ReadCommand command,
+            PartialTrackedRead read,
+            ConsistencyLevel consistencyLevel,
+            long expiresAtNanos,
+            Map<InetAddressAndPort, ReconciliationPlan> plans)
         {
+            this.readId = readId;
+            this.promise = promise;
             this.command = command;
+            this.read = Preconditions.checkNotNull(read);
             this.consistencyLevel = consistencyLevel;
-            Preconditions.checkNotNull(read);
-            this.read = read;
             this.expiresAtNanos = expiresAtNanos;
-
             this.plans = plans;
 
             int syncs = 0;
@@ -394,30 +415,20 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
                 }
             }
 
-            logger.trace("Reconciling {} syncs, {} mutations for {}", syncs, outstandingMutations.idCount(), readId);
+            if (logger.isTraceEnabled())
+                logger.trace("Reconciling {} syncs, {} mutations for {}", syncs, outstandingMutations.idCount(), readId);
+
             this.blockFor = syncs;
         }
 
         @Override
-        String name()
+        Status status()
         {
-            return NAME;
+            return Status.RECONCILING;
         }
 
         @Override
-        boolean isReconciling()
-        {
-            return true;
-        }
-
-        @Override
-        Reconciling asReconciling()
-        {
-            return this;
-        }
-
-        @Override
-        boolean isTimedOutOrComplete(long nanoTime)
+        boolean isPurgeable(long nanoTime)
         {
             return nanoTime - expiresAtNanos > 0;
         }
@@ -428,9 +439,8 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             ColumnFamilyStore.metricsFor(command.metadata().id).readRepairRequests.mark();
 
             Map<InetAddressAndPort, List<ReadReconcileSend.PeerSync>> peerSync = new HashMap<>();
-            pendingSync.values().forEach(pending -> {
-                peerSync.computeIfAbsent(pending.from, node -> new ArrayList<>()).add(pending.toPeerSync());
-            });
+            pendingSync.values().forEach(pending ->
+                peerSync.computeIfAbsent(pending.from, node -> new ArrayList<>()).add(pending.toPeerSync()));
 
             for (Map.Entry<InetAddressAndPort, List<ReadReconcileSend.PeerSync>> entry : peerSync.entrySet())
             {
@@ -445,32 +455,25 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
             if (!pendingSync.isEmpty() || !outstandingMutations.isEmpty())
                 return this;
 
-            if (logger.isTraceEnabled())
-                logger.trace("Reconciliation completed for read {}", readId);
-
-            complete(read, command.columnFilter(), consistencyLevel, expiresAtNanos);
+            logger.trace("Reconciliation completed for read {}", readId);
+            complete(promise, read, command.columnFilter(), consistencyLevel, expiresAtNanos);
             return COMPLETED;
         }
 
-        public State acknowledgeSync(int syncId)
+        @Override
+        State acknowledgeSync(int syncId)
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Reconciliation sync {} received for {}", syncId, readId);
+            logger.trace("Reconciliation sync {} received for {}", syncId, readId);
             pendingSync.remove(syncId);
             return maybeComplete();
         }
 
-        int received()
-        {
-            return blockFor - pendingSync.size();
-        }
-
+        @Override
         State receiveMutations(List<Mutation> mutations)
         {
             Log2OffsetsMap.Mutable received = new Log2OffsetsMap.Mutable();
             mutations.forEach(mutation -> {
-                if (logger.isTraceEnabled())
-                    logger.trace("Received mutation {} for read {}", mutation.id(), readId);
+                logger.trace("Received mutation {} for read {}", mutation.id(), readId);
                 received.add(mutation.id());
             });
             outstandingMutations.removeAll(received);
@@ -482,28 +485,17 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         }
 
         @Override
-        void abort()
+        State abort()
         {
             read.close();
+            return ABORTED;
         }
-    }
-
-    private State state = State.INITIALIZED;
-
-    public TrackedLocalReadCoordinator(TrackedRead.Id readId)
-    {
-        this.readId = readId;
     }
 
     @Override
     public String toString()
     {
-        return "TrackedLocalReadCoordinator{" + readId + ':' + state.name() + '}';
-    }
-
-    public TrackedRead.Id readId()
-    {
-        return readId;
+        return "TrackedLocalReadCoordinator{" + readId + ':' + state.status() + '}';
     }
 
     @VisibleForTesting
@@ -520,25 +512,12 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
         });
     }
 
-    public void startLocalRead(ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, int[] summaryNodes, long expiresAtNanos)
+    public void startLocalRead(TrackedRead.Id readId, ReadCommand command, ReplicaPlan.AbstractForRead<?, ?> replicaPlan, int[] summaryNodes, long expiresAtNanos)
     {
-        Reading reading;
         synchronized (this)
         {
-            if (!state.isInitialized() && !state.isAwaitingRead())
+            if (!(state = state.startLocalRead(readId, promise, command, replicaPlan, summaryNodes, expiresAtNanos)).isReading())
                 return;
-
-            AwaitingRead awaitingRead = state.isAwaitingRead() ? state.asAwaitingRead() : null;
-            reading = new Reading(command, replicaPlan, summaryNodes, expiresAtNanos);
-            state = reading;
-            if (awaitingRead != null)
-            {
-                for (ReceivedSummary summary : awaitingRead.summaries)
-                {
-                    if (state.isReading())
-                        state = state.asReading().receiveSummary(summary);
-                }
-            }
         }
 
         PartialTrackedRead read;
@@ -563,101 +542,76 @@ public class TrackedLocalReadCoordinator extends AsyncPromise<TrackedDataRespons
 
         synchronized (this)
         {
-            // the read can't complete without data, but it could have been aborted in the mean time
-            if (!state.isAborted())
-                state = state.asReading().receiveInProgressRead(read, secondarySummary);
+            state = state.receiveInProgressRead(read, secondarySummary);
         }
     }
 
-    public synchronized void receiveSummary(InetAddressAndPort from, MutationSummary summary)
+    private static void complete(AsyncPromise<TrackedDataResponse> promise, PartialTrackedRead read, ColumnFilter selection, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    {
+        Stage.READ.submit(() -> completeInternal(promise, read, selection, consistencyLevel, expiresAtNanos));
+    }
+
+    private static void completeInternal(AsyncPromise<TrackedDataResponse> promise, PartialTrackedRead read, ColumnFilter selection, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    {
+        try (PartialTrackedRead.CompletedRead completedRead = read.complete())
+        {
+            TrackedDataResponse response = TrackedDataResponse.create(completedRead.iterator(), selection);
+            TrackedRead<?, ?> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
+
+            if (followUp != null)
+            {
+                ReadCommand command = read.command();
+                followUp.future().addCallback((iterator, error) -> {
+                    if (error != null)
+                    {
+                        promise.tryFailure(error);
+                        return;
+                    }
+                    PartitionIterator previous = response.makeIterator(command);
+                    TrackedDataResponse newResponse = TrackedDataResponse.create(PartitionIterators.concat(List.of(previous, iterator)), selection);
+                    promise.trySuccess(newResponse);
+                });
+            }
+            else
+            {
+                promise.trySuccess(response);
+            }
+        }
+        catch (Exception e)
+        {
+            promise.tryFailure(e);
+            throw e;
+        }
+        finally
+        {
+            read.close();
+        }
+    }
+
+    synchronized void receiveSummary(InetAddressAndPort from, MutationSummary summary)
     {
         if (logger.isTraceEnabled())
             logger.trace("Received summary {} from {}, for {}", summary, from, state);
-
-        if (state.isReading())
-        {
-            state = state.asReading().receiveSummary(from, summary);
-        }
-        else if (state.isAwaitingRead())
-        {
-            state = state.asAwaitingRead().receiveSummary(from, summary);
-        }
-        else if (state.isInitialized())
-        {
-            state = new AwaitingRead().receiveSummary(from, summary);
-        }
-        else
-        {
-            if (logger.isTraceEnabled())
-                logger.trace("Ignoring summary from {} with state {} for {}", from, state.name(), readId);
-        }
+        state = state.receiveSummary(from, summary);
     }
 
-    private void complete(PartialTrackedRead read, ColumnFilter selection, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    synchronized boolean acknowledgeSync(int syncId)
     {
-        Stage.READ.submit(() -> {
-            synchronized (this)
-            {
-                try (PartialTrackedRead.CompletedRead completedRead = read.complete())
-                {
-                    TrackedDataResponse response = TrackedDataResponse.create(completedRead.iterator(), selection);
-                    TrackedRead<?, ?> followUp = completedRead.followupRead(consistencyLevel, expiresAtNanos);
-
-                    if (followUp != null)
-                    {
-                        ReadCommand command = read.command();
-                        followUp.future().addCallback((iterator, error) -> {
-                            if (error != null)
-                            {
-                                tryFailure(error);
-                                return;
-                            }
-                            PartitionIterator previous = response.makeIterator(command);
-                            TrackedDataResponse newResponse = TrackedDataResponse.create(PartitionIterators.concat(List.of(previous, iterator)), selection);
-                            trySuccess(newResponse);
-                        });
-                    }
-                    else
-                    {
-                        trySuccess(response);
-                    }
-                }
-                catch (Exception e)
-                {
-                    tryFailure(e);
-                    throw e;
-                }
-                finally
-                {
-                    read.close();
-                }
-            }
-        });
+        return (state = state.acknowledgeSync(syncId)).isCompleted();
     }
 
-    public synchronized boolean acknowledgeSync(int syncId)
+    synchronized boolean receiveMutations(List<Mutation> mutations)
     {
-        if (state.isReconciling())
-            state = state.asReconciling().acknowledgeSync(syncId);
-
-        return state.isComplete();
+        return (state = state.receiveMutations(mutations)).isCompleted();
     }
 
-    public synchronized boolean receiveMutations(List<Mutation> mutations)
+    synchronized void abort()
     {
-        if (state.isReconciling())
-            state = state.asReconciling().receiveMutations(mutations);
-        return state.isComplete();
+        state = state.abort();
     }
 
     boolean isTimedOutOrComplete(long nanoTime)
     {
-        return state.isTimedOutOrComplete(nanoTime);
-    }
-
-    public synchronized void abort()
-    {
-        state.abort();
-        state = State.ABORTED;
+        return state.isPurgeable(nanoTime);
     }
 }

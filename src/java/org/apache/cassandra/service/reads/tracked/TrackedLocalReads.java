@@ -116,7 +116,7 @@ public class TrackedLocalReads implements Shutdownable
         // TODO: confirm all summaryNodes are present in the replica plan
 
         TrackedLocalReadCoordinator coordinator = getOrCreate(readId);
-        coordinator.startLocalRead(command, replicaPlan, summaryNodes, expiresAtNanos);
+        coordinator.startLocalRead(readId, command, replicaPlan, summaryNodes, expiresAtNanos);
         return coordinator;
     }
 
