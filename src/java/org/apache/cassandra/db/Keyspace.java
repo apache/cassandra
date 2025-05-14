@@ -581,7 +581,7 @@ public class Keyspace
                     }
                 }
 
-                cfs.getWriteHandler().write(upd, ctx, updateIndexes);
+                cfs.getWriteHandler().write(mutation.id(), upd, ctx, updateIndexes);
 
                 if (requiresViewUpdate)
                     baseComplete.set(currentTimeMillis());
@@ -626,7 +626,7 @@ public class Keyspace
                     continue;
                 }
 
-                cfs.getWriteHandler().write(upd, ctx, true);
+                cfs.getWriteHandler().write(mutation.id(), upd, ctx, true);
             }
         }
 

@@ -60,6 +60,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private Buffer buffer = new Buffer();
     private final long maxSStableSizeInBytes;
     private long currentSize;
+    private long syncedSize;
 
     // Used to compute the row serialized size
     private final SerializationHeader header;
@@ -91,6 +92,12 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             buffer.put(key, previous);
         }
         return previous;
+    }
+
+    @Override
+    public long bytesWritten()
+    {
+        return currentSize + syncedSize;
     }
 
     private void countRow(Row row)
@@ -157,6 +164,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
         put(buffer);
         buffer = new Buffer();
+        syncedSize += currentSize;
         currentSize = 0;
     }
 

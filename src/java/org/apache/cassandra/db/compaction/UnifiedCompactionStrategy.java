@@ -35,6 +35,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -299,6 +301,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
+                                                       CoordinatorLogBoundaries coordinatorLogBoundaries,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
@@ -314,6 +317,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                       repairedAt,
                                       pendingRepair,
                                       isTransient,
+                                      coordinatorLogBoundaries,
                                       commitLogPositions,
                                       header,
                                       indexGroups,

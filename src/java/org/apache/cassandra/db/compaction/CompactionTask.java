@@ -31,20 +31,22 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
+import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.compaction.writers.DefaultCompactionWriter;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
@@ -408,6 +410,13 @@ public class CompactionTask extends AbstractCompactionTask
         return isTransient;
     }
 
+    public static CoordinatorLogBoundaries getCoordinatorLogBoundaries(Set<SSTableReader> sstables)
+    {
+        CoordinatorLogBoundariesBuilder builder = new CoordinatorLogBoundariesBuilder();
+        for (SSTableReader sstable : sstables)
+            builder.addAll(sstable.getCoordinatorLogBoundaries());
+        return builder.build();
+    }
 
     /*
      * Checks if we have enough disk space to execute the compaction.  Drops the largest sstable out of the Task until

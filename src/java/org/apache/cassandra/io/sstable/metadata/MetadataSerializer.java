@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -123,17 +124,10 @@ public class MetadataSerializer implements IMetadataSerializer
         logger.trace("Load metadata for {}", descriptor);
         File statsFile = descriptor.fileFor(Components.STATS);
         if (!statsFile.exists())
+            throw new NoSuchFileException("Stats component of sstable " + descriptor + " is missing");
+        try (RandomAccessReader r = RandomAccessReader.open(statsFile))
         {
-            logger.trace("No sstable stats for {}", descriptor);
-            components = new EnumMap<>(MetadataType.class);
-            components.put(MetadataType.STATS, MetadataCollector.defaultStatsMetadata());
-        }
-        else
-        {
-            try (RandomAccessReader r = RandomAccessReader.open(statsFile))
-            {
-                components = deserialize(descriptor, r, types);
-            }
+            components = deserialize(descriptor, r, types);
         }
         return components;
     }

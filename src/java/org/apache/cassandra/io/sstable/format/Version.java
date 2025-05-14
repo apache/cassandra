@@ -96,6 +96,8 @@ public abstract class Version
      */
     public abstract boolean hasTokenSpaceCoverage();
 
+    public abstract boolean hasMutationTrackingMetadata();
+
     /**
      * Records in th stats if the sstable has any partition deletions.
      */

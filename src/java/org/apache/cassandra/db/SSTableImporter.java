@@ -44,6 +44,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.OutputHandler;
@@ -79,6 +80,11 @@ public class SSTableImporter
         UUID importID = UUID.randomUUID();
         logger.info("[{}] Loading new SSTables for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), options);
 
+        // This will be supported in the future
+        TableMetadata metadata = cfs.metadata();
+        if (metadata.replicationType() != null && metadata.replicationType().isTracked())
+            throw new IllegalStateException("Can't import into tables with mutation tracking enabled");
+
         List<Pair<Directories.SSTableLister, String>> listers = getSSTableListers(options.srcPaths);
 
         Set<Descriptor> currentDescriptors = new HashSet<>();
@@ -109,7 +115,7 @@ public class SSTableImporter
                                 {
                                     IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor,
                                                                                              cfs.getPartitioner(),
-                                                                                             cfs.metadata().comparator);
+                                                                                             metadata.comparator);
 
                                     String keyspace = cfs.getKeyspaceName();
                                     String table = cfs.getTableName();

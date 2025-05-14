@@ -67,6 +67,8 @@ import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.WrappedExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
+import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
@@ -1615,7 +1617,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
              CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, nextTimeUUID(), active, null))
         {
             StatsMetadata metadata = sstable.getSSTableMetadata();
-            writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, txn));
+            // TODO(aratnofsky): filter coordinatorLogBoundaries to exclude any CoordinatorLogIds we're no longer responsible for, after ownership change
+            writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, metadata.coordinatorLogBoundaries, sstable, txn));
             long lastBytesScanned = 0;
 
             while (ci.hasNext())
@@ -1780,6 +1783,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                                              long repairedAt,
                                              TimeUUID pendingRepair,
                                              boolean isTransient,
+                                             CoordinatorLogBoundaries coordinatorLogBoundaries,
                                              SSTableReader sstable,
                                              LifecycleTransaction txn)
     {
@@ -1791,6 +1795,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                          .setRepairedAt(repairedAt)
                          .setPendingRepair(pendingRepair)
                          .setTransientSSTable(isTransient)
+                         .setCoordinatorLogBoundaries(coordinatorLogBoundaries)
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator).sstableLevel(sstable.getSSTableLevel()))
                          .setSerializationHeader(sstable.header)
@@ -1810,14 +1815,16 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     {
         FileUtils.createDirectory(compactionFileLocation);
         int minLevel = Integer.MAX_VALUE;
-        // if all sstables have the same level, we can compact them together without creating overlap during anticompaction
-        // note that we only anticompact from unrepaired sstables, which is not leveled, but we still keep original level
-        // after first migration to be able to drop the sstables back in their original place in the repaired sstable manifest
+        CoordinatorLogBoundariesBuilder boundaries = new CoordinatorLogBoundariesBuilder();
         for (SSTableReader sstable : sstables)
         {
+            boundaries.addAll(sstable.getCoordinatorLogBoundaries());
+
+            // if all sstables have the same level, we can compact them together without creating overlap during anticompaction
+            // note that we only anticompact from unrepaired sstables, which is not leveled, but we still keep original level
+            // after first migration to be able to drop the sstables back in their original place in the repaired sstable manifest
             if (minLevel == Integer.MAX_VALUE)
                 minLevel = sstable.getSSTableLevel();
-
             if (minLevel != sstable.getSSTableLevel())
             {
                 minLevel = 0;
@@ -1830,6 +1837,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                          .setKeyCount(expectedBloomFilterSize)
                          .setRepairedAt(repairedAt)
                          .setPendingRepair(pendingRepair)
+                         .setCoordinatorLogBoundaries(boundaries.build())
                          .setTransientSSTable(isTransient)
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator).sstableLevel(minLevel))

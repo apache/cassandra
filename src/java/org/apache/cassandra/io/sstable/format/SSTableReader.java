@@ -55,6 +55,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
@@ -1203,6 +1204,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public TimeUUID getPendingRepair()
     {
         return sstableMetadata.pendingRepair;
+    }
+
+    public CoordinatorLogBoundaries getCoordinatorLogBoundaries()
+    {
+        return sstableMetadata.coordinatorLogBoundaries;
     }
 
     public long getRepairedAt()

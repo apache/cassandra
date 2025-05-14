@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Comparator;
 
+import com.google.common.annotations.VisibleForTesting;
+
 public class CoordinatorLogId implements Serializable
 {
     private static final CoordinatorLogId NONE = new CoordinatorLogId(Integer.MIN_VALUE, Integer.MIN_VALUE);
@@ -66,7 +68,8 @@ public class CoordinatorLogId implements Serializable
         return asLong(hostId, hostLogId);
     }
 
-    static long asLong(int hostId, int hostLogId)
+    @VisibleForTesting
+    public static long asLong(int hostId, int hostLogId)
     {
         return ((long) hostId << 32) | hostLogId;
     }
