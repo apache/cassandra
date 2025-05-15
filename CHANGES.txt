@@ -1,4 +1,5 @@
 5.0.5
+ * Relax validation of snapshot name as a part of SSTable files path validation (CASSANDRA-20649)
  * Optimize initial skipping logic for SAI queries on large partitions (CASSANDRA-20191)
  * Fix reading mmapped trie-index exceeding 2GiB (CASSANDRA-20351)
  * zero copy streaming allocates direct memory that isn't used, but does help to fragment the memory space (CASSANDRA-20577)
