@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import junit.framework.Assert;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Keyspace;
@@ -36,15 +37,19 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class AutoRepairV2Test extends CQLTester
 {
     @BeforeClass
     public static void setupClass() throws Exception
     {
+        assertFalse(AutoRepairV2.instance.isSetupDone);
         setAutoRepairEnabled(true);
         requireNetwork();
     }
@@ -124,5 +129,18 @@ public class AutoRepairV2Test extends CQLTester
                 Assert.assertFalse(AutoRepairUtilsV2.checkNodeContainsKeyspaceReplica(ks));
             }
         }
+    }
+
+    @Test
+    public void testDoAutoRepairSetup()
+    {
+        assertTrue(AutoRepairV2.instance.isSetupDone);
+        assertTrue(StorageService.doAutoRepairSetup());
+        Config config = DatabaseDescriptor.getRawConfig();
+        AutoRepairConfig original = config.auto_repair;
+        config.auto_repair = new AutoRepairConfig(false);
+        assertFalse(StorageService.doAutoRepairSetup());
+        config.auto_repair = original;
+        assertTrue(StorageService.doAutoRepairSetup());
     }
 }

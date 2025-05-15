@@ -1490,14 +1490,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Schema.instance.registerListener(new MonitoringSchemaChangeListener());
     }
 
-    private void doAutoRepairSetup()
+    /**
+     *
+     * @return 'true' if the AutoRepair has been set up, 'false' if the set up did not happen because the repair
+     * was disabled.
+     */
+    public static boolean doAutoRepairSetup()
     {
-        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        if (!DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
         {
-            logger.info("Enable auto-repair scheduling");
-            AutoRepairV2.instance.setup();
+            logger.info("Auto-repair scheduling is disabled");
+            return false;
         }
+        logger.info("Enable auto-repair scheduling");
+        AutoRepairV2.instance.setup();
         logger.info("AutoRepair setup complete!");
+        return true;
     }
 
     private void doQueryAnalyticsSetup()

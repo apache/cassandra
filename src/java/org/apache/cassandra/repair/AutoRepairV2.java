@@ -91,6 +91,8 @@ public class AutoRepairV2
     protected static BiConsumer<Long, TimeUnit> sleepFunc = Uninterruptibles::sleepUninterruptibly;
     public static AutoRepairV2 instance = new AutoRepairV2();
 
+    public boolean isSetupDone = false;
+
     @VisibleForTesting
     protected AutoRepairV2()
     {
@@ -105,20 +107,29 @@ public class AutoRepairV2
 
     public void setup()
     {
-        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
-        AutoRepairService.setup();
-        AutoRepairUtilsV2.setup();
-
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        // Ensure setup is done only once
+        synchronized (this)
         {
-            if (config.isAutoRepairEnabled(repairType))
-                AutoRepairService.instance.checkCanRun(repairType);
+            if (isSetupDone)
+            {
+                return;
+            }
+            AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+            AutoRepairService.setup();
+            AutoRepairUtilsV2.setup();
 
-            repairExecutors.get(repairType).scheduleWithFixedDelay(
-            () -> repair(repairType, 60000),
-            config.getInitialSchedulerDelayInSec(repairType),
-            config.getRepairCheckIntervalInSec(),
-            TimeUnit.SECONDS);
+            for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+            {
+                if (config.isAutoRepairEnabled(repairType))
+                    AutoRepairService.instance.checkCanRun(repairType);
+
+                repairExecutors.get(repairType).scheduleWithFixedDelay(
+                () -> repair(repairType, 60000),
+                config.getInitialSchedulerDelayInSec(repairType),
+                config.getRepairCheckIntervalInSec(),
+                TimeUnit.SECONDS);
+            }
+            isSetupDone = true;
         }
     }
 

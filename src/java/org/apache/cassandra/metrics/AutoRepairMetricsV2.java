@@ -49,6 +49,7 @@ public class AutoRepairMetricsV2
     public Counter ineligibleForRepairDueToRepairCooldown;
     public Counter ineligibleForRepairDueToNodeOrder;
     public Counter ineligibleForRepairDueToDCLimits;
+    public Counter bootstrapRepairAborted;
 
     public AutoRepairMetricsV2(RepairType repairType)
     {
@@ -129,6 +130,8 @@ public class AutoRepairMetricsV2
                 return AutoRepairV2.instance.getRepairState(repairType).getTotalMVTablesConsideredForRepair();
             }
         });
+
+        bootstrapRepairAborted = Metrics.counter(factory.createMetricName("BootstrapRepairAborted"));
     }
 
     public void recordTurn(AutoRepairUtilsV2.RepairTurn turn)

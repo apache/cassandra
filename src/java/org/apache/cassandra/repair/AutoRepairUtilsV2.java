@@ -26,13 +26,22 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
+
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
+import org.apache.cassandra.metrics.AutoRepairMetricsV2;
+import org.apache.cassandra.transport.Dispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -159,6 +168,9 @@ public class AutoRepairUtilsV2
     static ModificationStatement clearDeleteHostsStatement;
     static ModificationStatement setForceRepairStatement;
     static ConsistencyLevel internalQueryCL;
+
+    // TODO: make this configurable
+    public static DurationSpec.LongSecondsBound bootstrapRepairDurationUpperCap = new DurationSpec.LongSecondsBound("15m");
 
     public enum RepairTurn
     {
@@ -924,5 +936,79 @@ public class AutoRepairUtilsV2
         return StorageService.instance.isBootstrapMode() &&
                AutoRepairService.instance.getAutoRepairConfig().isAutoRepairEnabled(RepairType.bootstrap) &&
                DatabaseDescriptor.getReplaceAddress() != null;
+    }
+
+
+    // TODO: invoke this API from the bootstrap module
+    public static boolean runBootstrapRepair() throws InterruptedException
+    {
+        // This is currently set up in "StorageService::finishJoiningRing" but since the node is
+        // in UJ, we need to manually initialize the AutoRepair
+        if (!StorageService.doAutoRepairSetup())
+        {
+            return false;
+        }
+
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        boolean []previousRepairTypeEnablementState = new boolean[RepairType.values().length];
+        for (RepairType repairType : RepairType.values())
+        {
+            previousRepairTypeEnablementState[repairType.ordinal()] = config.isAutoRepairEnabled(repairType);
+            // disable all repair types except the bootstrap
+            if (repairType != RepairType.bootstrap)
+            {
+                config.setAutoRepairEnabled(repairType, false);
+            }
+        }
+
+        AtomicBoolean completedSuccessfully = new AtomicBoolean(false);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<?> future = executor.submit(() -> {
+            if (config.isAutoRepairEnabled(RepairType.bootstrap))
+            {
+                AutoRepairMetricsV2 bootstrapRepairMetrics = AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.bootstrap);
+                while (bootstrapRepairMetrics.nodeRepairTimeInSec.getValue().longValue() == 0)
+                {
+                    try
+                    {
+                        Thread.sleep(5000);
+                        logger.info("Waiting for bootstrap repair to complete one round");
+                    } catch (InterruptedException e)
+                    {
+                        Thread.currentThread().interrupt();
+                        logger.error("Thread interrupted during bootstrap repair", e);
+                        return;
+                    }
+                }
+                completedSuccessfully.set(true);
+                logger.info("Bootstrap Repair has completed!");
+            }
+        });
+
+        try
+        {
+            future.get(bootstrapRepairDurationUpperCap.toSeconds(), TimeUnit.SECONDS);
+        }
+        catch (Exception e)
+        {
+            logger.error("Exception occurred during bootstrap repair", e);
+            AutoRepairMetricsManager.getMetrics(RepairType.bootstrap).bootstrapRepairAborted.inc();
+            future.cancel(true); // Cancel the task if it exceeds the timeout
+        }
+        finally
+        {
+            for (RepairType repairType : RepairType.values())
+            {
+                // restate all the original repair enablement state
+                config.setAutoRepairEnabled(repairType, previousRepairTypeEnablementState[repairType.ordinal()]);
+                if (repairType == RepairType.bootstrap)
+                {
+                    // disable the bootstrap repair because one round has already completed
+                    config.setAutoRepairEnabled(repairType, false);
+                }
+            }
+            executor.shutdownNow(); // Ensure the executor is properly shut down
+        }
+        return completedSuccessfully.get();
     }
 }
