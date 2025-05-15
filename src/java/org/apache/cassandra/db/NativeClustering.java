@@ -198,6 +198,12 @@ public class NativeClustering implements Clustering<NativeData>
     }
 
     @Override
+    public Clustering<?> ensureAccessorFactorySupport()
+    {
+        return retainable();
+    }
+
+    @Override
     public final int hashCode()
     {
         return ClusteringPrefix.hashCode(this);
@@ -211,7 +217,7 @@ public class NativeClustering implements Clustering<NativeData>
 
     // data are copied to heap byte buffers to detach from a NativeAllocator lifecycle
     @Override
-    public ClusteringPrefix<?> retainable()
+    public Clustering<?> retainable()
     {
         assert kind() == Kind.CLUSTERING; // tombstones are never stored natively
 
