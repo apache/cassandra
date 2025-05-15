@@ -53,11 +53,14 @@ public final class KeyspaceParams
     @VisibleForTesting
     public static boolean DEFAULT_LOCAL_DURABLE_WRITES = true;
 
+    public static final ReplicationType DEFAULT_REPLICATION_TYPE = ReplicationType.untracked;
+
     public enum Option
     {
         DURABLE_WRITES,
         REPLICATION,
-        FAST_PATH;
+        FAST_PATH,
+        REPLICATION_TYPE;
 
         @Override
         public String toString()
@@ -69,52 +72,75 @@ public final class KeyspaceParams
     public final boolean durableWrites;
     public final ReplicationParams replication;
     public final FastPathStrategy fastPath;
+    public final ReplicationType replicationType;
 
-    public KeyspaceParams(boolean durableWrites, ReplicationParams replication, FastPathStrategy fastPath)
+    public KeyspaceParams(boolean durableWrites, ReplicationParams replication, FastPathStrategy fastPath, ReplicationType replicationType)
     {
         this.durableWrites = durableWrites;
         this.replication = replication;
         this.fastPath = fastPath;
+        this.replicationType = replicationType;
     }
 
-    public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, FastPathStrategy fastPath)
+    public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, FastPathStrategy fastPath, ReplicationType replicationType)
     {
-        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), fastPath);
+        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), fastPath, replicationType);
+    }
+
+    public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, ReplicationType replicationType)
+    {
+        return new KeyspaceParams(durableWrites, ReplicationParams.fromMap(replication), FastPathStrategy.simple(), replicationType);
     }
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, Map<String, String> fastPath)
     {
-        return create(durableWrites, replication, FastPathStrategy.fromMap(fastPath));
+        return create(durableWrites, replication, FastPathStrategy.fromMap(fastPath), ReplicationType.untracked);
+    }
+
+    public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication, Map<String, String> fastPath, ReplicationType replicationType)
+    {
+        return create(durableWrites, replication, FastPathStrategy.fromMap(fastPath), replicationType);
     }
 
     public static KeyspaceParams create(boolean durableWrites, Map<String, String> replication)
     {
-        return create(durableWrites, replication, FastPathStrategy.simple());
+        return create(durableWrites, replication, FastPathStrategy.simple(), ReplicationType.untracked);
     }
 
     public static KeyspaceParams local()
     {
-        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), FastPathStrategy.simple());
+        return new KeyspaceParams(DEFAULT_LOCAL_DURABLE_WRITES, ReplicationParams.local(), FastPathStrategy.simple(), ReplicationType.untracked);
+    }
+
+    public static KeyspaceParams simple(int replicationFactor, ReplicationType replicationType)
+    {
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), replicationType);
     }
 
     public static KeyspaceParams simple(int replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple());
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), ReplicationType.untracked);
     }
 
     public static KeyspaceParams simple(String replicationFactor)
     {
-        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple());
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), ReplicationType.untracked);
     }
 
     public static KeyspaceParams simpleTransient(int replicationFactor)
     {
-        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple());
+        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), ReplicationType.untracked);
     }
+
+    public static KeyspaceParams nts(ReplicationType replicationType, Object... args)
+    {
+        return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple(), replicationType);
+    }
+
 
     public static KeyspaceParams nts(Object... args)
     {
-        return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple());
+        return nts(ReplicationType.untracked, args);
     }
 
     public void validate(String name, ClientState state, ClusterMetadata metadata)
@@ -133,13 +159,16 @@ public final class KeyspaceParams
 
         KeyspaceParams p = (KeyspaceParams) o;
 
-        return durableWrites == p.durableWrites && replication.equals(p.replication) && fastPath.equals(p.fastPath);
+        return durableWrites == p.durableWrites
+               && replication.equals(p.replication)
+               && fastPath.equals(p.fastPath)
+               && replicationType == p.replicationType;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(durableWrites, replication, fastPath);
+        return Objects.hashCode(durableWrites, replication, fastPath, replicationType);
     }
 
     @Override
@@ -149,6 +178,7 @@ public final class KeyspaceParams
                           .add(Option.DURABLE_WRITES.toString(), durableWrites)
                           .add(Option.REPLICATION.toString(), replication)
                           .add(Option.FAST_PATH.toString(), fastPath.toString())
+                          .add(Option.REPLICATION_TYPE.toString(), replicationType)
                           .toString();
     }
 
@@ -156,6 +186,7 @@ public final class KeyspaceParams
     {
         public void serialize(KeyspaceParams t, DataOutputPlus out, Version version) throws IOException
         {
+            ReplicationType.serializer.serialize(t.replicationType, out, version);
             ReplicationParams.serializer.serialize(t.replication, out, version);
             out.writeBoolean(t.durableWrites);
             if (version.isAtLeast(MIN_ACCORD_VERSION))
@@ -164,17 +195,19 @@ public final class KeyspaceParams
 
         public KeyspaceParams deserialize(DataInputPlus in, Version version) throws IOException
         {
+            ReplicationType rtype = ReplicationType.serializer.deserialize(in, version);
             ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
             boolean durableWrites = in.readBoolean();
             FastPathStrategy fastPath = version.isAtLeast(MIN_ACCORD_VERSION)
                     ? FastPathStrategy.serializer.deserialize(in, version)
                     : FastPathStrategy.simple();
-            return new KeyspaceParams(durableWrites, params, fastPath);
+            return new KeyspaceParams(durableWrites, params, fastPath, rtype);
         }
 
         public long serializedSize(KeyspaceParams t, Version version)
         {
-            return ReplicationParams.serializer.serializedSize(t.replication, version) +
+            return ReplicationType.serializer.serializedSize(t.replicationType, version) +
+                   ReplicationParams.serializer.serializedSize(t.replication, version) +
                    TypeSizes.sizeof(t.durableWrites) +
                    (version.isAtLeast(MIN_ACCORD_VERSION) ? FastPathStrategy.serializer.serializedSize(t.fastPath, version) : 0);
         }

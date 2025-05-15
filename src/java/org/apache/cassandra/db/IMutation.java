@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
 
@@ -33,6 +34,8 @@ public interface IMutation
 {
     long MAX_MUTATION_SIZE = DatabaseDescriptor.getMaxMutationSize();
 
+    MutationId id();
+    IMutation withMutationId(MutationId mutationId);
     void apply();
     String getKeyspaceName();
     Collection<TableId> getTableIds();

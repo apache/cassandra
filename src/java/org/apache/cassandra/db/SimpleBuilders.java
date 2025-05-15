@@ -39,6 +39,7 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -116,6 +117,7 @@ public abstract class SimpleBuilders
 
     public static class MutationBuilder extends AbstractBuilder<Mutation.SimpleBuilder> implements Mutation.SimpleBuilder
     {
+        private final MutationId mutationId;
         private final String keyspaceName;
         private final DecoratedKey key;
 
@@ -123,8 +125,9 @@ public abstract class SimpleBuilders
 
         private PotentialTxnConflicts potentialTxnConflicts = PotentialTxnConflicts.DISALLOW;
 
-        public MutationBuilder(String keyspaceName, DecoratedKey key)
+        public MutationBuilder(MutationId mutationId, String keyspaceName, DecoratedKey key)
         {
+            this.mutationId = mutationId;
             this.keyspaceName = keyspaceName;
             this.key = key;
         }
@@ -163,9 +166,9 @@ public abstract class SimpleBuilders
             assert !updateBuilders.isEmpty() : "Cannot create empty mutation";
 
             if (updateBuilders.size() == 1)
-                return new Mutation(updateBuilders.values().iterator().next().build(), potentialTxnConflicts);
+                return new Mutation(mutationId, updateBuilders.values().iterator().next().build(), potentialTxnConflicts);
 
-            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(keyspaceName, key, potentialTxnConflicts);
+            Mutation.PartitionUpdateCollector mutationBuilder = new Mutation.PartitionUpdateCollector(mutationId, keyspaceName, key, potentialTxnConflicts);
             for (PartitionUpdateBuilder builder : updateBuilders.values())
                 mutationBuilder.add(builder.build());
             return mutationBuilder.build();

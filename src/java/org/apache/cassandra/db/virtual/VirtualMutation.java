@@ -32,6 +32,7 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
 
@@ -56,6 +57,18 @@ public final class VirtualMutation implements IMutation
         this.keyspaceName = keyspaceName;
         this.partitionKey = partitionKey;
         this.modifications = modifications;
+    }
+
+    @Override
+    public MutationId id()
+    {
+        return MutationId.none();
+    }
+
+    @Override
+    public IMutation withMutationId(MutationId mutationId)
+    {
+        throw new IllegalArgumentException("MutationId cannot be used for virtual mutations");
     }
 
     @Override

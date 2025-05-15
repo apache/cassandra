@@ -67,6 +67,10 @@ public enum Version
      *  - TableParam now has pendingDrop (accord table drop is multistep)
      */
     V7(7),
+    /**
+     * - MutationTracking
+     */
+    V8(8),
 
     UNKNOWN(Integer.MAX_VALUE);
 

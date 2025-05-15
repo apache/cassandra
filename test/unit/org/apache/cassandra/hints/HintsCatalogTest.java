@@ -24,6 +24,7 @@ import java.util.*;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -209,7 +210,7 @@ public class HintsCatalogTest
 
     private static Mutation createMutation(String key, long now)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(KEYSPACE, dk(key));
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(MutationId.none(), KEYSPACE, dk(key));
 
         builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE0))
                .timestamp(now)

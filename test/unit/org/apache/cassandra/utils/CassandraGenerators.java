@@ -51,16 +51,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.db.compaction.LeveledManifest;
-import org.apache.cassandra.schema.*;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
-import org.apache.cassandra.tcm.extensions.ExtensionKey;
-import org.apache.cassandra.tcm.extensions.ExtensionValue;
-import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.ownership.DataPlacements;
-import org.apache.cassandra.tcm.ownership.TokenMap;
-import org.apache.cassandra.tcm.sequences.InProgressSequences;
-import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
@@ -78,6 +68,7 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategyOptions;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
@@ -117,6 +108,23 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.PingRequest;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.CachingParams;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.ReplicationType;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.service.accord.AccordStaleReplicas;
@@ -124,8 +132,16 @@ import org.apache.cassandra.service.accord.fastpath.InheritKeyspaceFastPathStrat
 import org.apache.cassandra.service.accord.fastpath.ParameterizedFastPathStrategy;
 import org.apache.cassandra.service.accord.fastpath.SimpleFastPathStrategy;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.extensions.ExtensionKey;
+import org.apache.cassandra.tcm.extensions.ExtensionValue;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.AbstractTypeGenerators.ValueDomain;
 import org.quicktheories.core.Gen;
@@ -498,7 +514,8 @@ public final class CassandraGenerators
                 AbstractReplicationStrategy replication = replicationGen.generate(rs).withKeyspace(nameGen).build().generate(rs);
                 ReplicationParams replicationParams = ReplicationParams.fromStrategy(replication);
                 boolean durableWrites = durableWritesGen.generate(rs);
-                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, FastPathStrategy.simple());
+                // TODO: Support tracked
+                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, FastPathStrategy.simple(), ReplicationType.untracked);
                 Tables tables = Tables.none();
                 Views views = Views.none();
                 Types types = Types.none();
@@ -939,6 +956,7 @@ public final class CassandraGenerators
         private Gen<Integer> numClusteringColumnsGen = SourceDSL.integers().between(1, 2);
         private Gen<Integer> numRegularColumnsGen = SourceDSL.integers().between(1, 5);
         private Gen<Integer> numStaticColumnsGen = SourceDSL.integers().between(0, 2);
+        private Gen<ReplicationType> replicationTypeGen = SourceDSL.arbitrary().enumValues(ReplicationType.class);
         @Nullable
         private ColumnNameGen columnNameGen = null;
         private TableParamsBuilder paramsBuilder = new TableParamsBuilder();
@@ -978,6 +996,19 @@ public final class CassandraGenerators
         {
             return withPartitioner(i -> partitioner);
         }
+
+        public TableMetadataBuilder withReplicationType(Gen<ReplicationType> replicationTypeGen)
+        {
+            this.replicationTypeGen = Objects.requireNonNull(replicationTypeGen);
+            return this;
+        }
+
+        public TableMetadataBuilder withReplicationType(ReplicationType replicationType)
+        {
+            return withReplicationType(r -> replicationType);
+        }
+
+
 
         public TableMetadataBuilder withUseCounter(boolean useCounter)
         {
@@ -1166,10 +1197,12 @@ public final class CassandraGenerators
                 String tableName = tableNameGen.generate(rnd);
                 TableParams params = paramsBuilder.build().generate(rnd);
                 boolean isCounter = useCounter.generate(rnd);
+                ReplicationType replicationType = replicationTypeGen.generate(rnd);
                 TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, tableIdGen.generate(rnd))
                                                              .partitioner(partitionerGen.generate(rnd))
                                                              .kind(tableKindGen.generate(rnd))
                                                              .isCounter(isCounter)
+                                                             .keyspaceReplicationType(replicationType)
                                                              .params(params);
 
                 int numPartitionColumns = numPartitionColumnsGen.generate(rnd);

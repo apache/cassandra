@@ -30,6 +30,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
@@ -43,8 +44,9 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
 {
     private static final AtomicInteger seqNumber = new AtomicInteger();
 
-    private final String tableName = "t_" + seqNumber.getAndIncrement();
-    final String qualifiedTableName = KEYSPACE + '.' + tableName;
+    private final String keyspaceName = "ks_" + seqNumber.getAndIncrement();
+    private static final String tableName = "tbl";
+    final String qualifiedTableName = keyspaceName + '.' + tableName;
 
     protected final Cluster cluster;
     protected final ReadRepairStrategy strategy;
@@ -52,8 +54,12 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
     protected final boolean paging;
     protected final boolean reverse;
     protected final int coordinator;
+    protected final ReplicationType replicationType;
 
-    ReadRepairTester(Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging, boolean reverse)
+    // logged replication test support
+    protected int lastMutatedNode = -1;
+
+    ReadRepairTester(Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging, boolean reverse, ReplicationType replicationType)
     {
         this.cluster = cluster;
         this.strategy = strategy;
@@ -61,6 +67,7 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
         this.paging = paging;
         this.reverse = reverse;
         this.coordinator = coordinator;
+        this.replicationType = replicationType;
     }
 
     abstract T self();
@@ -75,6 +82,9 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
 
     T createTable(String createTable)
     {
+        cluster.schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION={'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "} AND replication_type='%s'",
+                                           keyspaceName, replicationType.name()));
+        cluster.schemaChange(String.format("CREATE TYPE IF NOT EXISTS %s.udt (x int, y int)", keyspaceName));
         String query;
         switch (StringUtils.countMatches(createTable, "%s"))
         {
@@ -99,6 +109,7 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
      */
     T mutate(int node, String... queries)
     {
+        lastMutatedNode = node;
         // run the write queries only on one node
         for (String query : queries)
             cluster.get(node).executeInternal(String.format(query, qualifiedTableName));
@@ -149,13 +160,13 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
 
     long readRepairRequestsCount(int node)
     {
-        return readRepairRequestsCount(cluster.get(node), tableName);
+        return readRepairRequestsCount(cluster.get(node), keyspaceName, tableName);
     }
 
-    static long readRepairRequestsCount(IInvokableInstance node, String table)
+    static long readRepairRequestsCount(IInvokableInstance node, String keyspace, String table)
     {
         return node.callOnInstance(() -> {
-            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
+            ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             return cfs.metric.readRepairRequests.getCount();
         });
     }

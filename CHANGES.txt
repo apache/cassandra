@@ -1,3 +1,6 @@
+cep-45-mutation-tracking
+ * Mutation tracking journal integration, read, and write path (CASSANDRA-20304, CASSANDRA-20305, CASSANDRA-20308)
+
 5.1
  * Optimize MessagingService.getVersionOrdinal (CASSANDRA-20816)
  * Optimize TrieMemtable#getFlushSet (CASSANDRA-20760)

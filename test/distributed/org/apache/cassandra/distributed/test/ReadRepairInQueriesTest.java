@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.distributed.test;
 
+import org.junit.Before;
 import org.junit.Test;
+
+import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
@@ -27,6 +30,13 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  */
 public class ReadRepairInQueriesTest extends ReadRepairQueryTester
 {
+
+    @Before
+    public void setup()
+    {
+        MutationTrackingUtils.fixmeSkipIfTracked(replicationType, "Fix read repair for logged IN queries");
+    }
+
     /**
      * Test queries with an IN restriction on a table without clustering columns.
      */

@@ -31,6 +31,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 
@@ -53,7 +54,7 @@ public class BlockingReadRepairs
             return null;
 
         DecoratedKey key = update.partitionKey();
-        Mutation mutation = new Mutation(update, potentialTxnConflicts);
+        Mutation mutation = new Mutation(MutationId.fixme(), update, potentialTxnConflicts);
         int messagingVersion = MessagingService.instance().versions.get(destination);
 
         try

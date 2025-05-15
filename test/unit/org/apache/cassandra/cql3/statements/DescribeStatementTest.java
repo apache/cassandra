@@ -105,10 +105,10 @@ public class DescribeStatementTest extends CQLTester
         createFunctionOverload(fOverloaded,
                                "text, ascii",
                                "CREATE FUNCTION %s (input text, other_in ascii) " +
-                               "RETURNS NULL ON NULL INPUT " +
-                               "RETURNS text " +
-                               "LANGUAGE java " +
-                               "AS 'return \"Hello World\";'");
+                                       "RETURNS NULL ON NULL INPUT " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return \"Hello World\";'");
 
         for (String describeKeyword : new String[]{ "DESCRIBE", "DESC" })
         {
@@ -304,11 +304,15 @@ public class DescribeStatementTest extends CQLTester
             row(KEYSPACE, "keyspace", KEYSPACE,
                 "CREATE KEYSPACE " + KEYSPACE +
                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                "  AND durable_writes = true  AND fast_path = 'simple';"),
+                "  AND durable_writes = true" +
+                "  AND replication_type = 'untracked'" +
+                "  AND fast_path = 'simple';"),
             row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST,
                 "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                "  AND durable_writes = true  AND fast_path = 'simple';"),
+                "  AND durable_writes = true" +
+                "  AND replication_type = 'untracked'" +
+                "  AND fast_path = 'simple';"),
             row("test", "keyspace", "test", keyspaceOutput()),
             row("test", "table", "has_all_types", allTypesTable()),
             row("test", "table", "\"Test\"", testTableOutput()),
@@ -710,8 +714,7 @@ public class DescribeStatementTest extends CQLTester
             assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE KEYSPACE " + KEYSPACE_PER_TEST),
                           row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST, "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                                                                                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                                                                                "  AND durable_writes = true" +
-                                                                                "  AND fast_path = 'simple';"),
+                                                                                "  AND durable_writes = true  AND replication_type = 'untracked' AND fast_path = 'simple';"),
                           row(KEYSPACE_PER_TEST, "type", type2, "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type2 + " (\n" +
                                                                 "    x text,\n" +
                                                                 "    y text\n" +
@@ -817,6 +820,7 @@ public class DescribeStatementTest extends CQLTester
         String expectedKeyspaceStmt = "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                                       " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
                                       "  AND durable_writes = true" +
+                                      "  AND replication_type = 'untracked'" +
                                       "  AND fast_path = 'simple';";
 
         String expectedTableStmt = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + table + " (\n" +
@@ -1242,7 +1246,7 @@ public class DescribeStatementTest extends CQLTester
 
     private static String keyspaceOutput()
     {
-        return "CREATE KEYSPACE test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true  AND fast_path = 'simple';";
+        return "CREATE KEYSPACE test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true  AND replication_type = 'untracked' AND fast_path = 'simple';";
     }
 
     private void describeError(String cql, String msg) throws Throwable

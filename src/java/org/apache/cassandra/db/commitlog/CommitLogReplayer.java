@@ -314,7 +314,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                         if (commitLogReplayer.shouldReplay(update.metadata().id, new CommitLogPosition(segmentId, entryLocation)))
                         {
                             if (newPUCollector == null)
-                                newPUCollector = new Mutation.PartitionUpdateCollector(mutation.getKeyspaceName(), mutation.key());
+                                newPUCollector = new Mutation.PartitionUpdateCollector(mutation.id(), mutation.getKeyspaceName(), mutation.key());
                             newPUCollector.add(update);
                             commitLogReplayer.replayedCount.incrementAndGet();
                         }

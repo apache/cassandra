@@ -72,8 +72,6 @@ import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,6 +132,7 @@ import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -159,7 +158,10 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
@@ -3921,6 +3923,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             SnapshotManager.instance.shutdownAndWait(1L, MINUTES);
             HintsService.instance.shutdownBlocking();
+            MutationTrackingService.instance.shutdownBlocking();
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();
@@ -3930,6 +3933,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             CommitLog.instance.forceRecycleAllSegments();
 
             CommitLog.instance.shutdownBlocking();
+            MutationJournal.instance.shutdownBlocking();
 
             AutoRepair.instance.shutdownBlocking();
 
