@@ -40,6 +40,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -72,6 +73,7 @@ public class ReadCommandVerbHandlerTest
     public static void init() throws Throwable
     {
         ServerTestUtils.prepareServerNoRegister();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         metadata_with_transient = Schema.instance.getTableMetadata(KEYSPACE_WITH_TRANSIENT, TABLE);

@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.ReplicaFilteringProtection;
 
 import static org.apache.cassandra.config.ReplicaFilteringProtectionOptions.DEFAULT_FAIL_THRESHOLD;
 import static org.apache.cassandra.config.ReplicaFilteringProtectionOptions.DEFAULT_WARN_THRESHOLD;
@@ -40,7 +41,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Exercises the functionality of {@link org.apache.cassandra.service.reads.ReplicaFilteringProtection}, the
+ * Exercises the functionality of {@link ReplicaFilteringProtection}, the
  * mechanism that ensures distributed index and filtering queries at read consistency levels > ONE/LOCAL_ONE
  * avoid stale replica results.
  */

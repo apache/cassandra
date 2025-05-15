@@ -27,6 +27,7 @@ import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -80,7 +81,7 @@ public class DeletePartitionTest
             Util.flush(store);
 
         // delete the partition
-        new Mutation.PartitionUpdateCollector(KEYSPACE1, key)
+        new Mutation.PartitionUpdateCollector(MutationId.none(), KEYSPACE1, key)
                 .add(PartitionUpdate.fullPartitionDelete(store.metadata(), key, 0, FBUtilities.nowInSeconds()))
                 .build()
                 .applyUnsafe();

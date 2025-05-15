@@ -39,6 +39,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -75,6 +76,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
     public static void init() throws Exception
     {
         ServerTestUtils.prepareServerNoRegister();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ServerTestUtils.markCMS();
         StorageService.instance.unsafeSetInitialized();

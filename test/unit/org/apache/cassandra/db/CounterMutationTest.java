@@ -26,6 +26,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -118,7 +119,7 @@ public class CounterMutationTest
         cfsTwo.truncateBlocking();
 
         // Do the update (+1, -1), (+2, -2)
-        Mutation.PartitionUpdateCollector batch = new Mutation.PartitionUpdateCollector(KEYSPACE1, Util.dk("key1"));
+        Mutation.PartitionUpdateCollector batch = new Mutation.PartitionUpdateCollector(MutationId.none(), KEYSPACE1, Util.dk("key1"));
         batch.add(new RowUpdateBuilder(cfsOne.metadata(), 5, "key1")
             .clustering("cc")
             .add("val", 1L)

@@ -89,6 +89,7 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -99,6 +100,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
@@ -122,10 +124,15 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  * General interface for storage-engine read commands (common to both range and
  * single partition commands).
  * <p>
- * This contains all the informations needed to do a local read.
+ * This contains all the information needed to do a local read.
  */
 public abstract class ReadCommand extends AbstractReadQuery
 {
+    private interface ReadCompleter<T>
+    {
+        T complete(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos);
+    }
+
     private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
 
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
@@ -428,6 +435,13 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
+    protected abstract MutationSummary createMutationSummaryInternal(boolean includePending);
+
+    public MutationSummary createMutationSummary(boolean includePending)
+    {
+        return createMutationSummaryInternal(includePending);
+    }
+
     /**
      * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.
      *
@@ -489,24 +503,10 @@ public abstract class ReadCommand extends AbstractReadQuery
         selectOptions.validate(metadata(), IndexRegistry.obtain(metadata()), indexQueryPlan());
     }
 
-    /**
-     * Executes this command on the local host.
-     *
-     * @param executionController the execution controller spanning this command
-     *
-     * @return an iterator over the result of executing this command locally.
-     */
-                                  // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
-    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
-    {
-        return executeLocally(executionController, null);
-    }
-
     // ClusterMetadata is null on startup when there are local reads from system tables before it's initialized
-    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController, @Nullable ClusterMetadata cm)
+    private <T> T beginRead(ReadExecutionController executionController, @Nullable ClusterMetadata cm, ReadCompleter<T> completer)
     {
         long startTimeNanos = nanoTime();
-
         COMMAND.set(this);
         try
         {
@@ -531,62 +531,114 @@ public abstract class ReadCommand extends AbstractReadQuery
                                             .collect(Collectors.joining(",")));
             }
 
+            if (searcher != null && metadata().replicationType().isTracked())
+                throw new UnsupportedOperationException("TODO: support tracked index reads");
+
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
-            iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
-            try
-            {
-                iterator = withQuerySizeTracking(iterator);
-                iterator = maybeSlowDownForTesting(iterator);
-                iterator = withQueryCancellation(iterator);
-                iterator = maybeRecordPurgeableTombstones(iterator, cfs);
-                iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
-                iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
-
-                // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
-                // no point in checking it again.
-                RowFilter filter = (null == searcher) ? rowFilter() : indexQueryPlan.postIndexQueryFilter();
-
-                /*
-                 * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
-                 * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
-                 * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
-                 * processing we do on it).
-                 */
-                iterator = filter.filter(iterator, nowInSec());
-
-                // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
-                // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
-                // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
-                // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
-                if (executionController.isTrackingRepairedStatus())
-                {
-                    DataLimits.Counter limit =
-                    limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
-                    iterator = limit.applyTo(iterator);
-                    // ensure that a consistent amount of repaired data is read on each replica. This causes silent
-                    // overreading from the repaired data set, up to limits(). The extra data is not visible to
-                    // the caller, only iterated to produce the repaired data digest.
-                    iterator = executionController.getRepairedDataInfo().extend(iterator, limit);
-                }
-                else
-                {
-                    iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
-                }
-
-                // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
-                return RTBoundCloser.close(iterator);
-            }
-            catch (RuntimeException | Error e)
-            {
-                iterator.close();
-                throw e;
-            }
+            return completer.complete(iterator, executionController, searcher, cfs, startTimeNanos);
         }
         finally
         {
             COMMAND.set(null);
         }
+    }
+
+    private UnfilteredPartitionIterator completeRead(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos)
+    {
+        COMMAND.set(this);
+        try
+        {
+            iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
+            iterator = withQuerySizeTracking(iterator);
+            iterator = maybeSlowDownForTesting(iterator);
+            iterator = withQueryCancellation(iterator);
+            iterator = maybeRecordPurgeableTombstones(iterator, cfs);
+            iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
+            iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
+
+            // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
+            // no point in checking it again.
+            RowFilter filter = (null == searcher) ? rowFilter() : indexQueryPlan.postIndexQueryFilter();
+
+            /*
+             * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
+             * we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
+             * would be more efficient (the sooner we discard stuff we know we don't care, the less useless
+             * processing we do on it).
+             */
+            iterator = filter.filter(iterator, nowInSec());
+
+            // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
+            // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
+            // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
+            // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
+            if (executionController.isTrackingRepairedStatus())
+            {
+                DataLimits.Counter limit =
+                        limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
+                iterator = limit.applyTo(iterator);
+                // ensure that a consistent amount of repaired data is read on each replica. This causes silent
+                // overreading from the repaired data set, up to limits(). The extra data is not visible to
+                // the caller, only iterated to produce the repaired data digest.
+                iterator = executionController.getRepairedDataInfo().extend(iterator, limit);
+            }
+            else
+            {
+                iterator = limits().filter(iterator, nowInSec(), selectsFullPartition());
+            }
+
+            // because of the above, we need to append an aritifical end bound if the source iterator was stopped short by a counter.
+            return RTBoundCloser.close(iterator);
+        }
+        catch (RuntimeException | Error e)
+        {
+            iterator.close();
+            throw e;
+        }
+        finally
+        {
+            COMMAND.set(null);
+        }
+    }
+
+    /**
+     * Convert the initial iterator into a snapshot of data, either by capturing immutable references or materializing
+     * the contents of the iterator into memory. Once this method returns, subsequent writes against this table should
+     * not be reflected in the result of the InProgressRead
+     */
+    protected abstract PartialTrackedRead createInProgressRead(UnfilteredPartitionIterator iterator,
+                                                               ReadExecutionController executionController,
+                                                               Index.Searcher searcher,
+                                                               ColumnFamilyStore cfs,
+                                                               long startTimeNanos);
+
+    public PartialTrackedRead beginTrackedRead(ReadExecutionController executionController)
+    {
+        return beginRead(executionController, null, this::createInProgressRead);
+    }
+
+    public UnfilteredPartitionIterator completeTrackedRead(UnfilteredPartitionIterator iterator, PartialTrackedRead read)
+    {
+        return completeRead(iterator, read.executionController(), read.searcher(), read.cfs(), read.startTimeNanos());
+    }
+
+    /**
+     * Executes this command on the local host.
+     *
+     * @param executionController the execution controller spanning this command
+     *
+     * @return an iterator over the result of executing this command locally.
+     */
+    // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
+    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+    {
+        return beginRead(executionController, null, this::completeRead);
+    }
+
+    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController, @Nullable ClusterMetadata cm)
+    {
+        return beginRead(executionController, cm, this::completeRead);
     }
 
     protected abstract void recordLatency(TableMetrics metric, long latencyNanos);

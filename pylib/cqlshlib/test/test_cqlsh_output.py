@@ -794,7 +794,7 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertNoHasColors(output)
                 # Since CASSANDRA-7622 'DESC FULL SCHEMA' also shows all VIRTUAL keyspaces
                 self.assertIn('VIRTUAL KEYSPACE system_virtual_schema', output)
-                self.assertIn("\nCREATE KEYSPACE system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true  AND fast_path = 'simple';\n",
+                self.assertIn("\nCREATE KEYSPACE system_auth WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true  AND fast_path = 'simple' AND replication_type = 'untracked';\n",
                               output)
                 self.assertRegex(output, r'.*\s*$')
 

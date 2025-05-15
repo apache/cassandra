@@ -64,13 +64,14 @@ public class CommitLogDescriptor
     public static final int VERSION_40 = 7;
     public static final int VERSION_50 = 8;
     public static final int VERSION_60 = 9;
+    public static final int VERSION_61 = 10;
 
     /**
      * Increment this number if there is a changes in the commit log disc layout or MessagingVersion changes.
      * Note: make sure to handle {@link #getMessagingVersion()}
      */
     @VisibleForTesting
-    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_60;
+    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_61;
 
     final int version;
     public final long id;
@@ -228,6 +229,8 @@ public class CommitLogDescriptor
                 return MessagingService.VERSION_50;
             case VERSION_60:
                 return MessagingService.VERSION_60;
+            case VERSION_61:
+                return MessagingService.VERSION_61;
             default:
                 throw new IllegalStateException("Unknown commitlog version " + version);
         }

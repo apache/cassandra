@@ -6025,6 +6025,20 @@ public class DatabaseDescriptor
         }
     }
 
+    public static boolean getMutationTrackingEnabled()
+    {
+        return conf.mutation_tracking_enabled;
+    }
+
+    public static void setMutationTrackingEnabled(boolean enabled)
+    {
+        if (enabled != conf.mutation_tracking_enabled)
+        {
+            logger.info("Setting mutation_tracking_enabled to {}", enabled);
+            conf.mutation_tracking_enabled = enabled;
+        }
+    }
+
     public static OptionalDouble getSeverityDuringDecommission()
     {
         return conf.severity_during_decommission > 0 ?

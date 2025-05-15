@@ -48,6 +48,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -200,7 +201,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                     //
                     // If the CFS has CDC, however, these updates need to be written to the CommitLog
                     // so they get archived into the cdc_raw folder
-                    ks.apply(new Mutation(PartitionUpdate.fromIterator(throttledPartitions.next(), filter)),
+                    ks.apply(new Mutation(MutationId.fixme(), PartitionUpdate.fromIterator(throttledPartitions.next(), filter)),
                              writeCDCCommitLog,
                              true,
                              false);

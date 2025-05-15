@@ -82,6 +82,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.RowIterators;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
@@ -145,6 +146,7 @@ public final class SchemaKeyspace
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "durable_writes boolean,"
+              + "replication_type text,"
               + "replication frozen<map<text, text>>,"
               + "fast_path frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name)))");
@@ -488,7 +490,7 @@ public final class SchemaKeyspace
                         continue;
 
                     DecoratedKey key = partition.partitionKey();
-                    Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
+                    Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(MutationId.none(), SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
                     puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()).withOnlyPresentColumns());
                 }
             }
@@ -537,12 +539,13 @@ public final class SchemaKeyspace
 
     private static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(Keyspaces.keyspace, decorate(Keyspaces, name))
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(MutationId.none(), Keyspaces.keyspace, decorate(Keyspaces, name))
                                                  .timestamp(timestamp);
 
         builder.update(Keyspaces)
                .row()
                .add(KeyspaceParams.Option.DURABLE_WRITES.toString(), params.durableWrites)
+               .add(KeyspaceParams.Option.REPLICATION_TYPE.toString(), params.replicationType.toString())
                .add(KeyspaceParams.Option.REPLICATION.toString(),
                     (params.replication.isMeta() ? params.replication.asNonMeta() : params.replication).asMap())
                .add(KeyspaceParams.Option.FAST_PATH.toString(), params.fastPath.asMap());
@@ -566,7 +569,7 @@ public final class SchemaKeyspace
 
     private static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(MutationId.none(), SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
                                                  .timestamp(timestamp);
 
         for (TableMetadata schemaTable : ALL_TABLE_METADATA)
@@ -1030,12 +1033,24 @@ public final class SchemaKeyspace
 
         UntypedResultSet.Row row = query(query, keyspaceName).one();
         boolean durableWrites = row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString());
+
+        ReplicationType replicationType;
+        if (row.has(KeyspaceParams.Option.REPLICATION_TYPE.toString()))
+        {
+            String replicationTypeName = row.getString(KeyspaceParams.Option.REPLICATION_TYPE.toString());
+            replicationType = replicationTypeName != null ? ReplicationType.valueOf(replicationTypeName) : ReplicationType.untracked;
+        }
+        else
+        {
+            replicationType = ReplicationType.untracked;
+        }
+
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
         Map<String, String> fastPath = row.getFrozenTextMap(KeyspaceParams.Option.FAST_PATH.toString());
-        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication, fastPath);
+        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication, fastPath, replicationType);
 
         if (keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta(), FastPathStrategy.simple());
+            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta(), FastPathStrategy.simple(), ReplicationType.untracked);
 
         return params;
     }

@@ -120,27 +120,27 @@ public final class KeyspaceMetadata implements SchemaElement
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables)
     {
-        return new KeyspaceMetadata(name, Kind.REGULAR, params, tables, Views.none(), Types.none(), UserFunctions.none());
+        return new KeyspaceMetadata(name, Kind.REGULAR, params, tables.withKeyspaceReplicationType(params.replicationType), Views.none(), Types.none(), UserFunctions.none());
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables, Views views, Types types, UserFunctions functions)
     {
-        return new KeyspaceMetadata(name, Kind.REGULAR, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, Kind.REGULAR, params, tables.withKeyspaceReplicationType(params.replicationType), views, types, functions);
     }
 
     public static KeyspaceMetadata virtual(String name, Tables tables)
     {
-        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables, Views.none(), Types.none(), UserFunctions.none());
+        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables.withKeyspaceReplicationType(ReplicationType.untracked), Views.none(), Types.none(), UserFunctions.none());
     }
 
     public KeyspaceMetadata withSwapped(KeyspaceParams params)
     {
-        return new KeyspaceMetadata(name, kind, params, tables, views, types, userFunctions);
+        return new KeyspaceMetadata(name, kind, params, tables.withKeyspaceReplicationType(params.replicationType), views, types, userFunctions);
     }
 
     public KeyspaceMetadata withSwapped(Tables regular)
     {
-        return new KeyspaceMetadata(name, kind, params, regular, views, types, userFunctions);
+        return new KeyspaceMetadata(name, kind, params, regular.withKeyspaceReplicationType(params.replicationType), views, types, userFunctions);
     }
 
     public KeyspaceMetadata withSwapped(Views views)
@@ -290,6 +290,11 @@ public final class KeyspaceMetadata implements SchemaElement
         return Optional.empty();
     }
 
+    public boolean useMutationTracking()
+    {
+        return params.replicationType.isTracked();
+    }
+
     @Override
     public int hashCode()
     {
@@ -384,7 +389,9 @@ public final class KeyspaceMetadata implements SchemaElement
             params.replication.appendCqlTo(builder);
 
             builder.append("  AND durable_writes = ")
-                   .append(params.durableWrites);
+                   .append(params.durableWrites)
+                   .append("  AND replication_type = ")
+                   .appendWithSingleQuotes(params.replicationType.name());
 
             if (params.fastPath != null)
             {

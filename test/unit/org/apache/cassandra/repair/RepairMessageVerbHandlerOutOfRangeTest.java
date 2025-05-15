@@ -50,6 +50,7 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.ParticipateState;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -91,6 +92,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         SchemaLoader.loadSchema();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ServerTestUtils.recreateCMS();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ClusterMetadataTestHelper.register(broadcastAddress);
         ServerTestUtils.markCMS();

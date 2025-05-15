@@ -61,6 +61,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.net.MessagingService.VERSION_60;
+import static org.apache.cassandra.net.MessagingService.VERSION_61;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
@@ -244,6 +245,12 @@ public class Message<T> implements ResponseContext
     {
         assert !verb.isResponse();
         return outWithParam(nextId(), verb, 0, payload, flag.addTo(0), null, null);
+    }
+
+    public static <T> Message<T> outWithParam(Verb verb, T payload, ParamType paramType, Object paramValue)
+    {
+        assert !verb.isResponse() : verb;
+        return outWithParam(nextId(), verb, payload, paramType, paramValue);
     }
 
     public static <T> Message<T> outWithFlags(Verb verb, T payload, MessageFlag flag1, MessageFlag flag2)
@@ -1263,6 +1270,7 @@ public class Message<T> implements ResponseContext
     private int serializedSize40;
     private int serializedSize50;
     private int serializedSize51;
+    private int serializedSize52;
 
     /**
      * Serialized size of the entire message, for the provided messaging version. Caches the calculated value.
@@ -1283,6 +1291,10 @@ public class Message<T> implements ResponseContext
                 if (serializedSize51 == 0)
                     serializedSize51 = serializer.serializedSize(this, VERSION_60);
                 return serializedSize51;
+            case VERSION_61:
+                if (serializedSize52 == 0)
+                    serializedSize52 = serializer.serializedSize(this, VERSION_61);
+                return serializedSize52;
             default:
                 throw new IllegalStateException("Unknown serialization version " + version);
         }
@@ -1290,7 +1302,8 @@ public class Message<T> implements ResponseContext
 
     private int payloadSize40 = -1;
     private int payloadSize50 = -1;
-    private int payloadSize51 = -1;
+    private int payloadSize60 = -1;
+    private int payloadSize61 = -1;
 
     private int payloadSize(int version)
     {
@@ -1305,9 +1318,13 @@ public class Message<T> implements ResponseContext
                     payloadSize50 = serializer.payloadSize(this, VERSION_50);
                 return payloadSize50;
             case VERSION_60:
-                if (payloadSize51 < 0)
-                    payloadSize51 = serializer.payloadSize(this, VERSION_60);
-                return payloadSize51;
+                if (payloadSize60 < 0)
+                    payloadSize60 = serializer.payloadSize(this, VERSION_60);
+                return payloadSize60;
+            case VERSION_61:
+                if (payloadSize61 < 0)
+                    payloadSize61 = serializer.payloadSize(this, VERSION_61);
+                return payloadSize61;
 
             default:
                 throw new IllegalStateException("Unkown serialization version " + version);

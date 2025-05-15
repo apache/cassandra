@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -330,7 +331,7 @@ public class HintTest
 
     private static Mutation createMutation(String key, long now)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(KEYSPACE, dk(key));
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(MutationId.none(), KEYSPACE, dk(key));
 
         builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE0))
                .timestamp(now)

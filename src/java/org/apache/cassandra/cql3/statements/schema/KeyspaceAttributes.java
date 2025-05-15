@@ -29,6 +29,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 
@@ -103,18 +104,26 @@ public final class KeyspaceAttributes extends PropertyDefinitions
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), KeyspaceParams.DEFAULT_DURABLE_WRITES);
         FastPathStrategy fastPath = getFastPathStrategy();
-        return KeyspaceParams.create(durableWrites, getAllReplicationOptions(), fastPath != null ? fastPath : FastPathStrategy.simple());
+
+        String rtypeName = getString(Option.REPLICATION_TYPE.toString());
+        ReplicationType replicationType = rtypeName != null ? ReplicationType.valueOf(rtypeName) : KeyspaceParams.DEFAULT_REPLICATION_TYPE;
+
+        return KeyspaceParams.create(durableWrites, getAllReplicationOptions(), fastPath != null ? fastPath : FastPathStrategy.simple(), replicationType);
     }
 
     KeyspaceParams asAlteredKeyspaceParams(KeyspaceParams previous)
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), previous.durableWrites);
+        String rtypeName = getString(Option.REPLICATION_TYPE.toString());
+        ReplicationType replicationType = rtypeName != null ? ReplicationType.valueOf(rtypeName) : previous.replicationType;
+
+
         Map<String, String> previousOptions = previous.replication.options;
         ReplicationParams replication = getReplicationStrategyClass() == null
                                       ? previous.replication
                                       : ReplicationParams.fromMapWithDefaults(getAllReplicationOptions(), previousOptions);
         FastPathStrategy fastPath = getFastPathStrategy();
-        return new KeyspaceParams(durableWrites, replication, fastPath != null ? fastPath : previous.fastPath);
+        return new KeyspaceParams(durableWrites, replication, fastPath != null ? fastPath : previous.fastPath, replicationType);
     }
 
     public boolean hasOption(Option option)

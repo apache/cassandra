@@ -34,6 +34,7 @@ import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -45,6 +46,7 @@ public class JoinTokenRingTest
         DatabaseDescriptor.daemonInitialization();
         ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.startGossiper();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition("JoinTokenRingTest");
     }
 

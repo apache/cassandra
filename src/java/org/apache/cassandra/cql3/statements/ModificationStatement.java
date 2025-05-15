@@ -72,9 +72,11 @@ import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -107,6 +109,8 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -676,11 +680,11 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                          false,
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
-                         requestTime
-            );
+                         requestTime);
+
         if (!mutations.isEmpty())
         {
-            StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime, attrs.isTimestampSet() ? PreserveTimestamp.yes : PreserveTimestamp.no);
+            StorageProxy.mutateWithoutConditions(mutations, cl, false, requestTime, attrs.isTimestampSet() ? PreserveTimestamp.yes : PreserveTimestamp.no);
 
             if (!SchemaConstants.isSystemKeyspace(metadata.keyspace))
                 ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
@@ -842,8 +846,28 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
-        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime))
+        List<? extends IMutation> mutations = getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime);
+        boolean isTracked = !mutations.isEmpty() && Schema.instance.getKeyspaceMetadata(mutations.get(0).getKeyspaceName()).params.replicationType.isTracked();
+        if (isTracked)
+        {
+            if (mutations.stream().anyMatch(m -> m instanceof CounterMutation))
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with counters");
+            if (mutations.size() > 1)
+                throw new InvalidRequestException("Mutation tracking is currently unsupported with unlogged batches");
+
+            Mutation mutation = (Mutation) mutations.get(0);
+
+            String keyspaceName = mutation.getKeyspaceName();
+            Token token = mutation.key().getToken();
+            MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
+            mutation = mutation.withMutationId(id);
             mutation.apply();
+        }
+        else
+        {
+            for (IMutation mutation : mutations)
+                mutation.apply();
+        }
         return null;
     }
 

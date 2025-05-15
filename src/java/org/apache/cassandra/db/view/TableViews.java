@@ -41,6 +41,7 @@ import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadQuery;
@@ -555,7 +556,7 @@ public class TableViews extends AbstractCollection<View>
             Collection<PartitionUpdate> updates = generator.generateViewUpdates();
             List<Mutation> mutations = new ArrayList<>(updates.size());
             for (PartitionUpdate update : updates)
-                mutations.add(new Mutation(update));
+                mutations.add(new Mutation(MutationId.fixme(), update));
 
             generator.clear();
             return mutations;
@@ -570,7 +571,7 @@ public class TableViews extends AbstractCollection<View>
                 Mutation.PartitionUpdateCollector collector = mutations.get(key);
                 if (collector == null)
                 {
-                    collector = new Mutation.PartitionUpdateCollector(baseTableMetadata.keyspace, key);
+                    collector = new Mutation.PartitionUpdateCollector(MutationId.none(), baseTableMetadata.keyspace, key);
                     mutations.put(key, collector);
                 }
                 collector.add(update);

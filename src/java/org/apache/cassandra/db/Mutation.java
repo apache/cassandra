@@ -52,6 +52,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.TeeDataInputPlus;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -63,6 +64,7 @@ import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.net.MessagingService.VERSION_60;
+import static org.apache.cassandra.net.MessagingService.VERSION_61;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class Mutation implements IMutation, Supplier<Mutation>
@@ -71,6 +73,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
     public static final int ALLOW_POTENTIAL_TRANSACTION_CONFLICTS = 0x01;
 
 
+    private final MutationId id;
     // todo this is redundant
     // when we remove it, also restore SerializationsTest.testMutationRead to not regenerate new Mutations each test
     private final String keyspaceName;
@@ -103,29 +106,47 @@ public class Mutation implements IMutation, Supplier<Mutation>
     // because it is being applied by one or in a context where transaction conflicts don't occur
     private PotentialTxnConflicts potentialTxnConflicts;
 
+    public Mutation(MutationId id, PartitionUpdate update)
+    {
+        this(id, update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc, PotentialTxnConflicts.DISALLOW);
+    }
+
     public Mutation(PartitionUpdate update)
     {
-        this(update, PotentialTxnConflicts.DISALLOW);
+        this(MutationId.none(), update, PotentialTxnConflicts.DISALLOW);
     }
 
-    public Mutation(PartitionUpdate update, PotentialTxnConflicts potentialTxnConflicts)
+    public Mutation(MutationId id, PartitionUpdate update, PotentialTxnConflicts potentialTxnConflicts)
     {
-        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc, potentialTxnConflicts);
+        this(id, update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc, potentialTxnConflicts);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, PotentialTxnConflicts potentialTxnConflicts)
+    public Mutation(MutationId id, String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, PotentialTxnConflicts potentialTxnConflicts)
     {
-        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()), potentialTxnConflicts);
+        this(id, keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()), potentialTxnConflicts);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled, PotentialTxnConflicts potentialTxnConflicts)
+    public Mutation(MutationId id, String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled, PotentialTxnConflicts potentialTxnConflicts)
     {
+        this.id = id;
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
         this.cdcEnabled = cdcEnabled;
         this.approxCreatedAtNanos = approxCreatedAtNanos;
         this.potentialTxnConflicts = potentialTxnConflicts;
+    }
+
+    @Override
+    public MutationId id()
+    {
+        return id;
+    }
+
+    @Override
+    public Mutation withMutationId(MutationId mutationId)
+    {
+        return new Mutation(mutationId, keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled, potentialTxnConflicts);
     }
 
     private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
@@ -159,7 +180,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         Map<TableId, PartitionUpdate> updates = builder.build();
         checkState(!updates.isEmpty(), "Updates should not be empty");
-        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos, potentialTxnConflicts);
+        return new Mutation(id, keyspaceName, key, builder.build(), approxCreatedAtNanos, potentialTxnConflicts);
     }
 
     public @Nullable Mutation without(TableId tableId)
@@ -258,6 +279,8 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 throw new IllegalArgumentException("Can't merge mutations with differing policies on allowing potential transaction conflicts");
             potentialTxnConflicts = mutation.potentialTxnConflicts;
             updatedTables.addAll(mutation.modifications.keySet());
+            if (!mutation.id().isNone())
+                throw new IllegalArgumentException();
             if (ks != null && !ks.equals(mutation.keyspaceName))
                 throw new IllegalArgumentException();
             if (key != null && !key.equals(mutation.key))
@@ -283,7 +306,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             modifications.put(table, updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates));
             updates.clear();
         }
-        return new Mutation(ks, key, modifications.build(), approxTime.now(), potentialTxnConflicts);
+        return new Mutation(MutationId.none(), ks, key, modifications.build(), approxTime.now(), potentialTxnConflicts);
     }
 
     public Future<?> applyFuture()
@@ -399,6 +422,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
     private int serializedSize40;
     private int serializedSize50;
     private int serializedSize51;
+    private int serializedSize52;
 
     public int serializedSize(int version)
     {
@@ -416,6 +440,10 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 if (serializedSize51 == 0)
                     serializedSize51 = (int) serializer.serializedSize(this, VERSION_60);
                 return serializedSize51;
+            case VERSION_61:
+                if (serializedSize52 == 0)
+                    serializedSize52 = (int) serializer.serializedSize(this, VERSION_61);
+                return serializedSize52;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }
@@ -428,9 +456,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
      * @param partitionKey the key of partition this if a mutation for.
      * @return a newly created builder.
      */
-    public static SimpleBuilder simpleBuilder(String keyspaceName, DecoratedKey partitionKey)
+    public static SimpleBuilder simpleBuilder(MutationId mutationId, String keyspaceName, DecoratedKey partitionKey)
     {
-        return new SimpleBuilders.MutationBuilder(keyspaceName, partitionKey);
+        return new SimpleBuilders.MutationBuilder(mutationId, keyspaceName, partitionKey);
     }
 
     /**
@@ -554,9 +582,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
         }
 
         static void serializeInternal(PartitionUpdate.PartitionUpdateSerializer serializer,
-                                         Mutation mutation,
-                                         DataOutputPlus out,
-                                         int version) throws IOException
+                                      Mutation mutation,
+                                      DataOutputPlus out,
+                                      int version) throws IOException
         {
             Map<TableId, PartitionUpdate> modifications = mutation.modifications;
 
@@ -566,6 +594,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 flags |= potentialTxnConflictsFlag(mutation.potentialTxnConflicts);
                 out.write(flags);
             }
+
+            if (version >= MessagingService.VERSION_61)
+                MutationId.serializer.serialize(mutation.id, out, version);
 
             /* serialize the modifications in the mutation */
             int size = modifications.size();
@@ -592,13 +623,18 @@ public class Mutation implements IMutation, Supplier<Mutation>
                     int flags = teeIn.readByte();
                     potentialTxnConflicts = potentialTxnConflicts(flags);
                 }
+
+                MutationId id = version >= MessagingService.VERSION_61
+                              ? MutationId.serializer.deserialize(teeIn, version)
+                              : MutationId.none();
+
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
 
                 PartitionUpdate update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                 if (size == 1)
                 {
-                    m = new Mutation(update, potentialTxnConflicts);
+                    m = new Mutation(id, update, potentialTxnConflicts);
                 }
                 else
                 {
@@ -611,7 +647,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                         update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                         modifications.put(update.metadata().id, update);
                     }
-                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now(), potentialTxnConflicts);
+                    m = new Mutation(id, update.metadata().keyspace, dk, modifications.build(), approxTime.now(), potentialTxnConflicts);
                 }
 
                 //Only cache serializations that don't hit the limit
@@ -691,6 +727,8 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 if (version >= VERSION_60)
                     size += TypeSizes.sizeof((byte)ALLOW_POTENTIAL_TRANSACTION_CONFLICTS); // flags
+                if (version >= MessagingService.VERSION_61)
+                    size += MutationId.serializer.serializedSize(mutation.id, version);
                 size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())
                     size += serializer.serializedSize(partitionUpdate, version);
@@ -706,20 +744,22 @@ public class Mutation implements IMutation, Supplier<Mutation>
     public static class PartitionUpdateCollector
     {
         private final ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
+        private final MutationId mutationId;
         private final String keyspaceName;
         private final DecoratedKey key;
         private final long approxCreatedAtNanos = approxTime.now();
         private boolean empty = true;
 
-        private PotentialTxnConflicts potentialTxnConflicts;
+        private final PotentialTxnConflicts potentialTxnConflicts;
 
-        public PartitionUpdateCollector(String keyspaceName, DecoratedKey key)
+        public PartitionUpdateCollector(MutationId mutationId, String keyspaceName, DecoratedKey key)
         {
-            this(keyspaceName, key, PotentialTxnConflicts.DISALLOW);
+            this(mutationId, keyspaceName, key, PotentialTxnConflicts.DISALLOW);
         }
 
-        public PartitionUpdateCollector(String keyspaceName, DecoratedKey key, PotentialTxnConflicts potentialTxnConflicts)
+        public PartitionUpdateCollector(MutationId mutationId, String keyspaceName, DecoratedKey key, PotentialTxnConflicts potentialTxnConflicts)
         {
+            this.mutationId = mutationId;
             this.keyspaceName = keyspaceName;
             this.key = key;
             this.potentialTxnConflicts = potentialTxnConflicts;
@@ -756,7 +796,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public Mutation build()
         {
-            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos, potentialTxnConflicts);
+            return new Mutation(mutationId, keyspaceName, key, modifications.build(), approxCreatedAtNanos, potentialTxnConflicts);
         }
     }
 }

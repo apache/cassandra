@@ -61,6 +61,7 @@ import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -208,7 +209,8 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
-                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1;
+                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1
+                                      && !command.metadata().replicationType().isTracked();
 
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair =
@@ -329,7 +331,39 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                                        command.metadata().enforceStrictLiveness());
     }
 
-    PartitionIterator sendNextRequests()
+    private PartitionIterator sendNextRequestsTracked()
+    {
+        List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
+
+        try
+        {
+            for (int i = 0; i < concurrencyFactor && replicaPlans.hasNext(); )
+            {
+                ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
+                PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), i == 0);
+
+                TrackedRead.Range read = TrackedRead.Range.create(rangeCommand, replicaPlan);
+                read.start(requestTime);
+                concurrentQueries.add(read.iterator());
+
+                // due to RangeMerger, coordinator may fetch more ranges than required by concurrency factor.
+                rangesQueried += replicaPlan.vnodeCount();
+                i += replicaPlan.vnodeCount();
+            }
+            batchesRequested++;
+        }
+        catch (Throwable t)
+        {
+            for (PartitionIterator response : concurrentQueries)
+                response.close();
+            throw t;
+        }
+        Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
+
+        return PartitionIterators.concat(concurrentQueries);
+    }
+
+    PartitionIterator sendNextRequestsUntracked()
     {
         List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
         List<ReadRepair<?, ?>> readRepairs = new ArrayList<>(concurrencyFactor);
@@ -366,13 +400,29 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                 response.close();
             throw t;
         }
-
         Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
+
+        return StorageProxy.concatAndBlockOnRepair(concurrentQueries, readRepairs);
+    }
+
+    PartitionIterator sendNextRequests()
+    {
+        PartitionIterator result;
+        if (command.metadata().replicationType().isTracked())
+        {
+            result = sendNextRequestsTracked();
+
+        }
+        else
+        {
+            result = sendNextRequestsUntracked();
+        }
+
         // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor)
         // but we don't want to enforce any particular limit at this point (this could break code than rely on
         // postReconciliationProcessing), hence the DataLimits.NONE.
         counter = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
-        return counter.applyTo(StorageProxy.concatAndBlockOnRepair(concurrentQueries, readRepairs));
+        return counter.applyTo(result);
     }
 
     // Wrap the iterator to retry if request routing is incorrect

@@ -57,6 +57,7 @@ import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
@@ -78,12 +79,16 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedSinglePartitionRead;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -561,6 +566,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return new SingletonUnfilteredPartitionIterator(partition);
     }
 
+    @Override
+    protected PartialTrackedRead createInProgressRead(UnfilteredPartitionIterator iterator,
+                                                      ReadExecutionController executionController,
+                                                      Index.Searcher searcher,
+                                                      ColumnFamilyStore cfs,
+                                                      long startTimeNanos)
+    {
+        return PartialTrackedSinglePartitionRead.create(executionController, searcher, cfs, startTimeNanos, this, iterator);
+    }
+
     /**
      * Fetch the rows requested if in cache; if not, read it from disk and cache it.
      * <p>
@@ -924,6 +939,11 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             }
             throw e;
         }
+    }
+
+    protected MutationSummary createMutationSummaryInternal(boolean includePending)
+    {
+        return MutationTrackingService.instance.createSummaryForKey(partitionKey, metadata().id, includePending);
     }
 
     @Override

@@ -44,6 +44,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -76,6 +77,7 @@ public class MutationVerbHandlerOutOfRangeTest
     public static void init() throws Exception
     {
         ServerTestUtils.prepareServerNoRegister();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ServerTestUtils.markCMS();
         StorageService.instance.unsafeSetInitialized();

@@ -46,6 +46,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
@@ -68,6 +69,7 @@ public class PaxosStateTest
     public static void setUpClass() throws Throwable
     {
         SchemaLoader.loadSchema();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition("PaxosStateTest");
     }
 

@@ -37,6 +37,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -61,6 +62,7 @@ public class RepairedDataVerifierTest
     public static void init()
     {
         SchemaLoader.loadSchema();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition(TEST_NAME);
         DatabaseDescriptor.reportUnconfirmedRepairedDataMismatches(true);
     }

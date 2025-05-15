@@ -31,6 +31,7 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
@@ -70,15 +71,19 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
     @Parameterized.Parameter(3)
     public boolean reverse;
 
-    @Parameterized.Parameters(name = "{index}: strategy={0} coordinator={1} paging={2} reverse={3}")
+    @Parameterized.Parameter(4)
+    public ReplicationType replicationType;
+
+    @Parameterized.Parameters(name = "{index}: strategy={0} coordinator={1} paging={2} reverse={3} replication={4}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
         for (int coordinator = 1; coordinator <= NUM_NODES; coordinator++)
             for (boolean paging : BOOLEANS)
                 for (boolean reverse : BOOLEANS)
-                    result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, paging, reverse });
-        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false });
+                    for (ReplicationType replication : ReplicationType.fixmeValues())
+                        result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, paging, reverse, replication });
+        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false, ReplicationType.untracked });
         return result;
     }
 
@@ -250,14 +255,14 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
 
     private Tester tester()
     {
-        return new Tester(cluster, strategy, coordinator, flush(), paging, reverse);
+        return new Tester(cluster, strategy, coordinator, flush(), paging, reverse, replicationType);
     }
 
     private static class Tester extends ReadRepairTester<Tester>
     {
-        private Tester(Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging, boolean reverse)
+        private Tester(Cluster cluster, ReadRepairStrategy strategy, int coordinator, boolean flush, boolean paging, boolean reverse, ReplicationType replicationType)
         {
-            super(cluster, strategy, coordinator, flush, paging, reverse);
+            super(cluster, strategy, coordinator, flush, paging, reverse, replicationType);
         }
 
         @Override

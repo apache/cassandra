@@ -79,6 +79,11 @@ public enum Version
      */
     V8(8),
 
+    /**
+     * - MutationTracking
+     */
+    V9(9),
+
     UNKNOWN(Integer.MAX_VALUE);
 
     /**

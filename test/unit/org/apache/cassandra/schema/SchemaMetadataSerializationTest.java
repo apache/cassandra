@@ -258,19 +258,19 @@ public class SchemaMetadataSerializationTest
     private KeyspaceMetadata serializeAndDeserializeKeyspace(KeyspaceMetadata original) throws IOException
     {
         DataOutputBuffer out = new DataOutputBuffer();
-        KeyspaceMetadata.serializer.serialize(original, out, Version.V8);
+        KeyspaceMetadata.serializer.serialize(original, out, Version.V9);
 
         DataInputBuffer in = new DataInputBuffer(out.toByteArray());
-        return KeyspaceMetadata.serializer.deserialize(in, Version.V8);
+        return KeyspaceMetadata.serializer.deserialize(in, Version.V9);
     }
 
     private TableMetadata serializeAndDeserializeTable(TableMetadata original) throws IOException
     {
         DataOutputBuffer out = new DataOutputBuffer();
-        TableMetadata.serializer.serialize(original, out, Version.V8);
+        TableMetadata.serializer.serialize(original, out, Version.V9);
 
         DataInputBuffer in = new DataInputBuffer(out.toByteArray());
-        return TableMetadata.serializer.deserialize(in, Types.none(), UserFunctions.none(), Version.V8);
+        return TableMetadata.serializer.deserialize(in, Types.none(), UserFunctions.none(), Version.V9);
     }
 
     private UserType serializeAndDeserializeType(UserType original) throws IOException
@@ -282,9 +282,9 @@ public class SchemaMetadataSerializationTest
     private Types serializeAndDeserializeTypes(Types original) throws IOException
     {
         DataOutputBuffer out = new DataOutputBuffer();
-        Types.serializer.serialize(original, out, Version.V8);
+        Types.serializer.serialize(original, out, Version.V9);
 
         DataInputBuffer in = new DataInputBuffer(out.toByteArray());
-        return Types.serializer.deserialize(KEYSPACE, in, Version.V8);
+        return Types.serializer.deserialize(KEYSPACE, in, Version.V9);
     }
 }

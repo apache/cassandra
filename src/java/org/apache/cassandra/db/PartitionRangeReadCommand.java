@@ -51,10 +51,14 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationSummary;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRangeRead;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -87,6 +91,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         super(serializedAtEpoch, Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings, dataRange);
         this.requestedSlices = dataRange.clusteringIndexFilter.getSlices(metadata());
+    }
+
+    public Slices requestedSlices()
+    {
+        return requestedSlices;
     }
 
     private static PartitionRangeReadCommand create(Epoch serializedAtEpoch,
@@ -467,6 +476,22 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             }
             throw e;
         }
+    }
+
+    @Override
+    protected PartialTrackedRead createInProgressRead(UnfilteredPartitionIterator iterator,
+                                                      ReadExecutionController executionController,
+                                                      Index.Searcher searcher,
+                                                      ColumnFamilyStore cfs,
+                                                      long startTimeNanos)
+    {
+        return PartialTrackedRangeRead.create(executionController, searcher, cfs, startTimeNanos, this, iterator);
+    }
+
+    @Override
+    protected MutationSummary createMutationSummaryInternal(boolean includePending)
+    {
+        return MutationTrackingService.instance.createSummaryForRange(dataRange.keyRange, metadata().id, includePending);
     }
 
     @Override

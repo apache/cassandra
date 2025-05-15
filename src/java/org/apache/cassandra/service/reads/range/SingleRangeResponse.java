@@ -33,7 +33,7 @@ class SingleRangeResponse extends AbstractIterator<RowIterator> implements Parti
 {
     private final DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver;
     private final ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler;
-    private final ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair;
+    protected final ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair;
 
     private PartitionIterator result;
 

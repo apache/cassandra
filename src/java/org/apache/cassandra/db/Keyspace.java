@@ -33,6 +33,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import org.slf4j.Logger;
@@ -44,6 +45,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
+import org.apache.cassandra.db.tracked.TrackedKeyspaceWriteHandler;
 import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -54,6 +56,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -106,6 +109,7 @@ public class Keyspace
 
     public final ViewManager viewManager;
     private final KeyspaceWriteHandler writeHandler;
+    private final TrackedKeyspaceWriteHandler trackedWriteHandler;
     private final KeyspaceRepairManager repairManager;
     private final SchemaProvider schema;
     private final String name;
@@ -285,6 +289,7 @@ public class Keyspace
 
         this.repairManager = new CassandraKeyspaceRepairManager(this);
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
+        this.trackedWriteHandler = new TrackedKeyspaceWriteHandler();
     }
 
     public Keyspace(KeyspaceMetadata metadata)
@@ -296,6 +301,7 @@ public class Keyspace
         this.viewManager = new ViewManager(this);
         this.repairManager = new CassandraKeyspaceRepairManager(this);
         this.writeHandler = new CassandraKeyspaceWriteHandler(this);
+        this.trackedWriteHandler = new TrackedKeyspaceWriteHandler();
         this.metadataRef = new KeyspaceMetadataRef(metadata, schema);
     }
 
@@ -395,13 +401,9 @@ public class Keyspace
 
     public Future<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
-    }
-
-    public Future<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes, boolean isDroppable,
-                                            boolean isDeferrable)
-    {
-        return applyInternal(mutation, writeCommitLog, updateIndexes, isDroppable, isDeferrable, new AsyncPromise<>());
+        return getMetadata().useMutationTracking()
+             ? applyInternalTracked(mutation, new AsyncPromise<>())
+             : applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
     }
 
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
@@ -431,7 +433,10 @@ public class Keyspace
                       boolean updateIndexes,
                       boolean isDroppable)
     {
-        applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
+        if (getMetadata().useMutationTracking())
+            applyInternalTracked(mutation, null);
+        else
+            applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
     }
 
     /**
@@ -451,6 +456,8 @@ public class Keyspace
                                                boolean isDeferrable,
                                                Promise<?> future)
     {
+        Preconditions.checkState(!getMetadata().useMutationTracking() && mutation.id().isNone());
+
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
@@ -596,6 +603,41 @@ public class Keyspace
                         lock.unlock();
             }
         }
+    }
+
+    /**
+     * Append the mutation to the mutation journal, then update memtables and indexes.
+     */
+    private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
+    {
+        Preconditions.checkState(getMetadata().useMutationTracking() && !mutation.id().isNone());
+
+        if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
+            throw new RuntimeException("Testing write failures");
+
+        try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
+        {
+            MutationTrackingService.instance.startWriting(mutation);
+
+            for (PartitionUpdate upd : mutation.getPartitionUpdates())
+            {
+                ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(upd.metadata().id);
+                if (cfs == null)
+                {
+                    logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().id, upd.metadata().keyspace, upd.metadata().name);
+                    continue;
+                }
+
+                cfs.getWriteHandler().write(upd, ctx, true);
+            }
+        }
+
+        MutationTrackingService.instance.finishWriting(mutation);
+
+        if (future != null)
+            future.trySuccess(null);
+
+        return future;
     }
 
     public AbstractReplicationStrategy getReplicationStrategy()

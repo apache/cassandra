@@ -80,7 +80,8 @@ public abstract class OfflineToolUtils
         "JNA Cleaner",                  // spawned by JNA
         "ThreadLocalMetrics-Cleaner",   // spawned by org.apache.cassandra.metrics.ThreadLocalMetrics
         "Native reference cleanup thread",
-        "^ForkJoinPool\\.commonPool-worker-\\d+$"
+        "^ForkJoinPool\\.commonPool-worker-\\d+$",
+        "Reconciliation-Map-Reaper:[1-9]",
     };
 
     static final String[] NON_DEFAULT_MEMTABLE_THREADS =

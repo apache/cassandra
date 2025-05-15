@@ -38,6 +38,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosState.Snapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -63,6 +64,7 @@ public class PaxosStateTest
     public static void setUpClass() throws Throwable
     {
         SchemaLoader.loadSchema();
+        MutationJournal.instance.start();
         SchemaLoader.schemaDefinition("PaxosStateTest");
         metadata = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1").metadata.get();
         metadata.withSwapped(metadata.params.unbuild().gcGraceSeconds(3600).build());

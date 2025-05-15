@@ -165,6 +165,8 @@ import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
@@ -3963,6 +3965,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             SnapshotManager.instance.shutdownAndWait(1L, MINUTES);
             HintsService.instance.shutdownBlocking();
+            MutationTrackingService.instance.shutdownBlocking();
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();
@@ -3972,6 +3975,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             CommitLog.instance.forceRecycleAllSegments();
 
             CommitLog.instance.shutdownBlocking();
+            MutationJournal.instance.shutdownBlocking();
 
             AutoRepair.instance.shutdownBlocking();
 

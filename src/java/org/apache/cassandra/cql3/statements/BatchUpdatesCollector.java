@@ -38,6 +38,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.virtual.VirtualMutation;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -224,7 +225,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
                 PartitionUpdate update = updateEntry.getValue().build();
                 updates.put(updateEntry.getKey(), update);
             }
-            return new Mutation(keyspaceName, key, updates.build(), createdAt, potentialTxnConflicts);
+            return new Mutation(MutationId.none(), keyspaceName, key, updates.build(), createdAt, potentialTxnConflicts);
         }
 
         public PartitionUpdate.Builder get(TableId tableId)

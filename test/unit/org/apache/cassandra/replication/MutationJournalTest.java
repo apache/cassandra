@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.tracking;
+package org.apache.cassandra.replication;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -85,7 +85,7 @@ public class MutationJournalTest
                .add("value", "value")
                .build();
 
-        MutationId id = new MutationId(100L, 0);
+        ShortMutationId id = new ShortMutationId(100L, 0);
         journal.write(id, expected);
 
         // regular read
@@ -115,9 +115,9 @@ public class MutationJournalTest
                .build();
         List<Mutation> expected = List.of(expected1, expected2);
 
-        MutationId id1 = new MutationId(100L, 1);
-        MutationId id2 = new MutationId(100L, 2);
-        List<MutationId> ids = List.of(id1, id2);
+        ShortMutationId id1 = new ShortMutationId(100L, 1);
+        ShortMutationId id2 = new ShortMutationId(100L, 2);
+        List<ShortMutationId> ids = List.of(id1, id2);
 
         journal.write(id1, expected1);
         journal.write(id2, expected2);

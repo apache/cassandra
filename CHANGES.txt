@@ -1,3 +1,9 @@
+cep-45-mutation-tracking
+ * Fix mutation tracking startup (CASSANDRA-20540)
+ * Mutation tracking journal integration, read, and write path (CASSANDRA-20304, CASSANDRA-20305, CASSANDRA-20308)
+ * Introduce MutationJournal for coordinator logs (CASSANDRA-20353)
+ * Copy over Journal and dependencies from cep-15-accord (CASSANDRA-20321)
+
 6.0-alpha2
  * Fix a removed TTLed row re-appearance in a materialized view after a cursor compaction (CASSANDRA-21152)
  * Rework ZSTD dictionary compression logic to create a trainer per training (CASSANDRA-21209)
@@ -6,7 +12,6 @@ Merged from 5.0:
 Merged from 4.1:
 Merged from 4.0:
  * Rate limit password changes (CASSANDRA-21202)
-
 
 6.0-alpha1
  * Improve performance when calculating settled placements during range movements (CASSANDRA-21144)
@@ -107,6 +112,8 @@ Merged from 4.0:
  * Optimize DataPlacement lookup by ReplicationParams (CASSANDRA-20804)
  * Fix ShortPaxosSimulationTest and AccordSimulationRunner do not execute from the cli (CASSANDRA-20805)
  * Allow overriding arbitrary settings via environment variables (CASSANDRA-20749)
+
+5.1
  * Optimize MessagingService.getVersionOrdinal (CASSANDRA-20816)
  * Optimize TrieMemtable#getFlushSet (CASSANDRA-20760)
  * Support manual secondary index selection at the CQL level (CASSANDRA-18112)
