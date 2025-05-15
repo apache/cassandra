@@ -181,6 +181,7 @@ Unreleased
  * [SO-43638] [Part 4] Avoid ClientResourceLimits allocation before driver validation
  * [SO-44116] Supply default options for different auto repair type
  * [SO-44157] Add IN restrictions used in MV base table as part of the qualifcation metrics for strict mv consistency
+ * [SO-43770] Add metrics for secondary index counts and build times
  * Fix premature autofail for long-running repairs (CASSANDRA-20312)
  * [SO-44066] Support changing auto-repair config to schedule keyspace-by-keyspace tasks on the fly
  * [SO-43638] [Part 3] Implement hard/soft enforcement for client lib based on driver name

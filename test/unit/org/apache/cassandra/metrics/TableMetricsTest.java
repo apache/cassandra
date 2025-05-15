@@ -37,6 +37,7 @@ import com.datastax.driver.core.Session;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -52,7 +53,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-public class TableMetricsTest
+public class TableMetricsTest extends CQLTester
 {
     private static Session session;
 
@@ -102,7 +103,7 @@ public class TableMetricsTest
     {
         if (tables == null || tables.length == 0)
         {
-            tables = new String[] { TABLE };
+            tables = new String[]{ TABLE };
         }
         BatchStatement.Type batchType;
 
@@ -127,9 +128,9 @@ public class TableMetricsTest
     {
         PreparedStatement ps = session.prepare(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (?, ?, ?);", KEYSPACE, table));
 
-        for (int i=0; i<distinctPartitions; i++)
+        for (int i = 0; i < distinctPartitions; i++)
         {
-            for (int j=0; j<statementsPerPartition; j++)
+            for (int j = 0; j < statementsPerPartition; j++)
             {
                 batch.add(ps.bind(i, j + "a", "b"));
             }
@@ -375,7 +376,8 @@ public class TableMetricsTest
         assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
     }
 
-    private static void assertGreaterThan(double actual, double expectedLessThan) {
+    private static void assertGreaterThan(double actual, double expectedLessThan)
+    {
         assertTrue("Expected " + actual + " > " + expectedLessThan, actual > expectedLessThan);
     }
 
@@ -419,6 +421,27 @@ public class TableMetricsTest
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
     }
 
+    @Test
+    public void testSecondaryIndexCountMetrics() throws Throwable
+    {
+        ColumnFamilyStore baseCfs = recreateTable();
+        for (int i = 0; i < 100; i++)
+        {
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TABLE, i, "val" + i, "val" + i));
+        }
+        String indexName = "test_2i";
+        session.execute(String.format("CREATE INDEX IF NOT EXISTS %s ON %s.%s (val1);", indexName, KEYSPACE, TABLE));
+        // wait for index build to finish
+        assertTrue(waitForIndex(KEYSPACE, TABLE, indexName));
+
+        baseCfs.indexManager.getIndexByName(indexName).getBackingTable().ifPresent(indexCfs -> {
+            assertTrue(indexCfs.metric.secondaryIndexTally.getValue() == 1);
+            assertTrue(baseCfs.metric.secondaryIndexTally.getValue() == 0);
+            assertTrue(indexCfs.metric.secondaryIndexBuildTime.getMeanRate() > 0);
+        });
+
+        session.execute(String.format("DROP INDEX IF EXISTS %s.%s;", KEYSPACE, indexName));
+    }
 
     @AfterClass
     public static void tearDown()

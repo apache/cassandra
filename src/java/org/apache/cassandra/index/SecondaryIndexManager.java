@@ -1581,4 +1581,9 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         shutdown(asyncExecutor, blockingExecutor);
         awaitTermination(timeout, units, asyncExecutor, blockingExecutor);
     }
+
+    public int getIndexCount()
+    {
+        return indexes.size();
+    }
 }

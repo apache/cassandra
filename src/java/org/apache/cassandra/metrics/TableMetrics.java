@@ -347,6 +347,9 @@ public class TableMetrics
     public final TableMeter rowIndexSizeAborts;
     public final TableHistogram rowIndexSize;
 
+    public final SnapshottingTimer secondaryIndexBuildTime;
+    public final Gauge<Integer> secondaryIndexTally;
+
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
         long total = 0;
@@ -1137,6 +1140,15 @@ public class TableMetrics
         rowIndexSize = createTableHistogram("RowIndexSize", cfs.keyspace.metric.rowIndexSize, false);
 
         readRepair = createTableCounter("ReadRepair");
+
+        secondaryIndexBuildTime = createTableTimer("SecondaryIndexBuildTime");
+        secondaryIndexTally = createTableGauge("SecondaryIndexTally", new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return cfs.isIndex() ? 1 : 0;
+            }
+        });
     }
 
     private Memtable.MemoryUsage getMemoryUsageWithIndexes(ColumnFamilyStore cfs)

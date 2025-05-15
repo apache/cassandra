@@ -19,6 +19,7 @@ package org.apache.cassandra.index.internal;
 
 import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -34,6 +35,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
@@ -68,6 +70,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder implements C
 
     public void build()
     {
+        long startTime = nanoTime();
         int pageSize = cfs.indexManager.calculateIndexingPageSize();
         RegularAndStaticColumns targetPartitionColumns = extractIndexedColumns();
 
@@ -77,6 +80,14 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder implements C
                 throw new CompactionInterruptedException(getCompactionInfo());
             DecoratedKey key = iter.next();
             cfs.indexManager.indexPartition(key, indexers, pageSize, targetPartitionColumns);
+        }
+
+        long endTime = nanoTime();
+        for (Index indexBuilt: indexers)
+        {
+            indexBuilt.getBackingTable().ifPresent(indexCfs -> {
+                indexCfs.metric.secondaryIndexBuildTime.update(endTime - startTime, TimeUnit.NANOSECONDS);
+            });
         }
     }
 
