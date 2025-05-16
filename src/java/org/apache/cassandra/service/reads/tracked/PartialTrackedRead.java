@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
-import java.util.Collection;
+import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -31,6 +31,9 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.replication.Log2OffsetsMap;
+import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.ShortMutationId;
 
 public interface PartialTrackedRead
 {
@@ -82,9 +85,16 @@ public interface PartialTrackedRead
 
     void augment(Mutation mutation);
 
-    default void augment(Collection<Mutation> mutations)
+    default void augment(Log2OffsetsMap<?> augmentingOffsets)
     {
-        mutations.forEach(this::augment);
+        augmentingOffsets.forEach(this::augment);
+    }
+
+    default void augment(ShortMutationId mutationId)
+    {
+        Mutation mutation = MutationJournal.instance.read(mutationId);
+        Preconditions.checkNotNull(mutation);
+        augment(mutation);
     }
 
     ReadExecutionController executionController();

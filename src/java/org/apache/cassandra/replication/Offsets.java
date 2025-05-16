@@ -319,6 +319,44 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             return true;
         }
 
+        /**
+         * Remove an offset in-place
+         */
+        public void remove(int offset)
+        {
+            if (size == 0)
+                return;
+
+            int pos = Arrays.binarySearch(bounds, 0, size, offset);
+            if (pos >= 0) // offset matches one of the bounds exactly
+            {
+                if (pos - 1 >= 0 && bounds[pos - 1] == offset)
+                    pos--; // normalize pos to always point to floor if this is a single-offset range
+
+                if (bounds[pos] == bounds[pos + 1]) // remove entire single-offset range
+                {
+                    System.arraycopy(bounds, pos + 2, bounds, pos, size - pos - 2);
+                    bounds[--size] = 0;
+                    bounds[--size] = 0;
+                }
+                else if (pos % 2 == 0)
+                {
+                    bounds[pos] = offset + 1; // offset is at a range start, shrink it
+                }
+                else
+                {
+                    bounds[pos] = offset - 1; // offset is at a range end, shrink it
+                }
+            }
+            else if ((-pos - 1) % 2 != 0) // offset falls within an existing range, need to split it into two
+            {
+                pos = -pos - 1;
+                insert(pos + 1, offset + 1, bounds[pos]);
+                bounds[pos] = offset - 1;
+            }
+            // the offset is before all existing ranges, in-between two, or after all exsiting ranges
+        }
+
         private enum AddAction
         {
             INSERT, MOVE, INCLUDE;

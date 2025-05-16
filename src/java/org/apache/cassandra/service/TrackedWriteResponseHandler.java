@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -31,24 +30,18 @@ public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<No
 {
     private final AbstractWriteResponseHandler<NoPayload> wrapped;
 
-    private final String keyspace;
-    private final Token token;
     private final MutationId mutationId;
 
-    private TrackedWriteResponseHandler(
-        AbstractWriteResponseHandler<NoPayload> wrapped, String keyspace, Token token, MutationId mutationId)
+    private TrackedWriteResponseHandler(AbstractWriteResponseHandler<NoPayload> wrapped, MutationId mutationId)
     {
         super(wrapped.replicaPlan, wrapped.callback, wrapped.writeType, null, wrapped.getRequestTime());
         this.wrapped = wrapped;
-        this.keyspace = keyspace;
-        this.token = token;
         this.mutationId = mutationId;
     }
 
-    public static TrackedWriteResponseHandler wrap(
-        AbstractWriteResponseHandler<NoPayload> handler, String keyspace, Token token, MutationId mutationId)
+    public static TrackedWriteResponseHandler wrap(AbstractWriteResponseHandler<NoPayload> handler, MutationId mutationId)
     {
-        return new TrackedWriteResponseHandler(handler, keyspace, token, mutationId);
+        return new TrackedWriteResponseHandler(handler, mutationId);
     }
 
     @Override
@@ -56,13 +49,14 @@ public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<No
     {
         // Local mutations are witnessed from Keyspace.applyInternalTracked
         if (msg != null)
-            MutationTrackingService.instance.receivedWriteResponse(keyspace, token, mutationId, msg.from());
+            MutationTrackingService.instance.receivedWriteResponse(mutationId, msg.from());
         wrapped.onResponse(msg);
     }
 
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
+        MutationTrackingService.instance.retryFailedWrite(mutationId, from, failure);
         wrapped.onFailure(from, failure);
     }
 

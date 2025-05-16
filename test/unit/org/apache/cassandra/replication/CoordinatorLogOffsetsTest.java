@@ -274,8 +274,8 @@ public class CoordinatorLogOffsetsTest
             MutationTrackingService.instance.startWriting(mutation);
 
             MutationTrackingService.instance.finishWriting(mutation);
-            MutationTrackingService.instance.receivedWriteResponse(ks, mutation.key().getToken(), mutation.id(), addr2);
-            MutationTrackingService.instance.receivedWriteResponse(ks, mutation.key().getToken(), mutation.id(), addr3);
+            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr2);
+            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr3);
 
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
@@ -300,8 +300,8 @@ public class CoordinatorLogOffsetsTest
             Mutation mutation = MutationTrackingUtils.createMutation(tableMetadata, 3, 3);
             MutationTrackingService.instance.startWriting(mutation);
 
-            MutationTrackingService.instance.receivedWriteResponse(ks, mutation.key().getToken(), mutation.id(), addr2);
-            MutationTrackingService.instance.receivedWriteResponse(ks, mutation.key().getToken(), mutation.id(), addr3);
+            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr2);
+            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr3);
 
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
@@ -315,8 +315,8 @@ public class CoordinatorLogOffsetsTest
             MutationTrackingService.instance.startWriting(mutation);
 
             MutationTrackingService.instance.finishWriting(mutation);
-            MutationTrackingService.instance.receivedWriteResponse(ks, mutation.key().getToken(), mutation.id(), addr2);
-            MutationTrackingService.instance.receivedWriteResponse(ks, mutation.key().getToken(), mutation.id(), addr3);
+            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr2);
+            MutationTrackingService.instance.receivedWriteResponse(mutation.id(), addr3);
 
             MutationId fakeMutationId = new MutationId(CoordinatorLogId.asLong(111, 222), MutationId.sequenceId(333, 444));
             Assertions.assertThat(metadata.directory.version(new NodeId(fakeMutationId.hostId()))).isNull();

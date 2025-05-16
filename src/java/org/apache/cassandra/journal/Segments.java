@@ -21,6 +21,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 import accord.utils.Invariants;
 import accord.utils.SortedArrays.SortedArrayList;
 import org.agrona.collections.Long2ObjectHashMap;
@@ -100,6 +102,13 @@ class Segments<K, V>
     Iterable<Segment<K, V>> all()
     {
         return this.segments.values();
+    }
+
+    @Nullable
+    Descriptor descriptor(long timestamp)
+    {
+        Segment<K, V> segment = segments.get(timestamp);
+        return segment == null ? null : segment.descriptor;
     }
 
     /**

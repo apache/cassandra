@@ -33,6 +33,8 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.*;
 import java.util.zip.CRC32;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -444,6 +446,46 @@ public class Journal<K, V> implements Shutdownable
             }
         }
         return false;
+    }
+
+    /**
+     * @param id user-provided record id
+     * @return record pointer of the last entry with the provided id, or null if not found
+     */
+    @Nullable
+    public RecordPointer lookUpLast(K id)
+    {
+        try (OpOrder.Group group = readOrder.start())
+        {
+            for (Segment<K, V> segment : segments.get().allSorted(false))
+            {
+                long[] offsets = segment.index().lookUp(id);
+                if (offsets.length != 0)
+                {
+                    long offsetAndSize = offsets[offsets.length - 1];
+                    int offset = Index.readOffset(offsetAndSize);
+                    int size = Index.readSize(offsetAndSize);
+                    return new RecordPointer(segment.descriptor.timestamp, offset, size);
+                }
+            }
+        }
+        return null;
+    }
+
+    public int sizeOfRecord(RecordPointer pointer)
+    {
+        Descriptor descriptor = segments.get().descriptor(pointer.segment);
+        Invariants.nonNull(descriptor);
+        return pointer.size - EntrySerializer.overheadSize(keySupport, descriptor.userVersion);
+    }
+
+    public boolean read(RecordPointer pointer, RecordConsumer<K> consumer)
+    {
+        try (OpOrder.Group group = readOrder.start())
+        {
+            Segment<K, V> segment = segments.get().get(pointer.segment);
+            return segment != null && segment.read(pointer, consumer);
+        }
     }
 
     /**

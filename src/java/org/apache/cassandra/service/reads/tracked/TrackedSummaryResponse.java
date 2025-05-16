@@ -17,38 +17,42 @@
  */
 package org.apache.cassandra.service.reads.tracked;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.replication.MutationSummary;
-import org.apache.cassandra.replication.MutationTrackingService;
 
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class TrackedSummaryResponse
 {
-    private final TrackedRead.Id readId;
-    private final MutationSummary summary;
+    private static final Logger logger = LoggerFactory.getLogger(TrackedSummaryResponse.class);
 
-    public TrackedSummaryResponse(TrackedRead.Id readId, MutationSummary summary)
+    public final TrackedRead.Id readId;
+    public final MutationSummary summary;
+    public final int dataNode;
+    public final int[] summaryNodes;
+
+    public TrackedSummaryResponse(TrackedRead.Id readId, MutationSummary summary, int dataNode, int[] summaryNodes)
     {
         this.readId = readId;
         this.summary = summary;
+        this.dataNode = dataNode;
+        this.summaryNodes = summaryNodes;
     }
 
-    public TrackedRead.Id readId()
+    public static final IVerbHandler<TrackedSummaryResponse> verbHandler = message ->
     {
-        return readId;
-    }
-
-    public MutationSummary summary()
-    {
-        return summary;
-    }
-
-    public static final IVerbHandler<TrackedSummaryResponse> verbHandler =
-        message -> MutationTrackingService.instance.localReads().receiveSummary(message.from(), message.payload);
+        TrackedSummaryResponse response = message.payload;
+        if (logger.isTraceEnabled())
+            logger.trace("Received summary {} from {}, for {}", response.summary, message.from(), response.readId);
+        ReadReconciliations.instance.acceptRemoteSummary(message.from(), message.payload);
+    };
 
     public static final IVersionedSerializer<TrackedSummaryResponse> serializer = new IVersionedSerializer<>()
     {
@@ -57,6 +61,10 @@ public class TrackedSummaryResponse
         {
             TrackedRead.Id.serializer.serialize(summary.readId, out, version);
             MutationSummary.serializer.serialize(summary.summary, out, version);
+            out.writeInt(summary.dataNode);
+            out.writeInt(summary.summaryNodes.length);
+            for (int hostid : summary.summaryNodes)
+                out.writeInt(hostid);
         }
 
         @Override
@@ -64,14 +72,21 @@ public class TrackedSummaryResponse
         {
             TrackedRead.Id id = TrackedRead.Id.serializer.deserialize(in, version);
             MutationSummary summary = MutationSummary.serializer.deserialize(in, version);
-            return new TrackedSummaryResponse(id, summary);
+            int dataNode = in.readInt();
+            int[] summaryNodes = new int[in.readInt()];
+            for (int i = 0; i < summaryNodes.length; i++)
+                summaryNodes[i] = in.readInt();
+            return new TrackedSummaryResponse(id, summary, dataNode, summaryNodes);
         }
 
         @Override
         public long serializedSize(TrackedSummaryResponse summary, int version)
         {
             return TrackedRead.Id.serializer.serializedSize(summary.readId, version) +
-                   MutationSummary.serializer.serializedSize(summary.summary, version);
+                   MutationSummary.serializer.serializedSize(summary.summary, version) +
+                   TypeSizes.sizeof(summary.dataNode) +
+                   TypeSizes.sizeof(summary.summaryNodes.length) +
+                   TypeSizes.INT_SIZE * (long) summary.summaryNodes.length;
         }
     };
 }
