@@ -105,7 +105,7 @@ public class OffsetsTest
 
         public TestConsumer assertOffsetsConsumed(int... expected)
         {
-            Assert.assertTrue(expected.length % 2 == 0);
+            assertEquals(0, expected.length % 2);
             TestConsumer expectedConsumer = new TestConsumer();
             for (int i = 0; i < expected.length; i+=2)
                 expectedConsumer.consumerOffsets(expected[i], expected[i+1]);
@@ -134,7 +134,7 @@ public class OffsetsTest
 
     private static Offsets.Mutable offsets(int... bounds)
     {
-        Assert.assertTrue(bounds.length % 2 == 0);
+        assertEquals(0, bounds.length % 2);
         Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);
         int keys = 0;
         int last = 0;
@@ -507,6 +507,41 @@ public class OffsetsTest
     }
 
     @Test
+    public void testMultiMerge()
+    {
+        Supplier<Offsets.Mutable> sequenceIds = () -> {
+            Offsets.Mutable ids0 = new Offsets.Mutable(LOG_ID);
+            ids0.add(0, 3);
+            ids0.add(7, 10);
+            ids0.add(15, 17);
+
+            assertEquals(3, ids0.rangeCount());
+            assertEquals(11, ids0.offsetCount());
+            return ids0;
+        };
+
+        {
+            // extends on the end
+            Offsets.Mutable offsets = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(offsets.add(0, 12, consumer));
+            consumer.assertOffsetsConsumed(4, 6, 11, 12).clear();
+            assertEquals(offsets(0, 12, 15, 17), offsets);
+        }
+
+        {
+            // extends on the start
+            Offsets.Mutable offsets = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(offsets.add(5, 17, consumer));
+            consumer.assertOffsetsConsumed(5, 6, 11, 14).clear();
+            assertEquals(offsets(0, 3, 5, 17), offsets);
+        }
+    }
+
+    @Test
     public void addTest()
     {
         Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);
@@ -746,5 +781,61 @@ public class OffsetsTest
         Assert.assertEquals(ids(), ids(offsets()));
         Assert.assertEquals(ids(1, 2, 3), ids(offsets(1, 3)));
         Assert.assertEquals(ids(1, 2, 3, 5, 6, 7), ids(offsets(1, 3, 5, 7)));
+    }
+
+    @Test
+    public void testRemoveFromEmpty()
+    {
+        testRemove(offsets(), 5, offsets());
+    }
+
+    @Test
+    public void testRemoveFromSingleRange()
+    {
+        // before all ranges
+        testRemove(offsets(5, 7), 4, offsets(5, 7));
+        // after all ranges
+        testRemove(offsets(5, 7), 8, offsets(5, 7));
+        // start of range
+        testRemove(offsets(5, 7), 5, offsets(6, 7));
+        // end of range
+        testRemove(offsets(5, 7), 7, offsets(5, 6));
+        // middle of range
+        testRemove(offsets(5, 7), 6, offsets(5, 5, 7, 7));
+        // single element range
+        testRemove(offsets(5, 5), 5, offsets());
+    }
+
+    @Test
+    public void testRemoveGeneric()
+    {
+        // before all ranges
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 4, offsets(5, 7, 9, 9, 11, 13));
+        // after all ranges
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 14, offsets(5, 7, 9, 9, 11, 13));
+        // between two ranges
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 8, offsets(5, 7, 9, 9, 11, 13));
+        // start of a range
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 11, offsets(5, 7, 9, 9, 12, 13));
+        // end of a range
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 7, offsets(5, 6, 9, 9, 11, 13));
+        // middle of a range
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 12, offsets(5, 7, 9, 9, 11, 11, 13, 13));
+        // single element range
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 9, offsets(5, 7, 11, 13));
+
+        // single element ranges at different positions
+        testRemove(offsets(5, 5, 10, 12), 5, offsets(10, 12));
+        testRemove(offsets(1, 3, 5, 5, 7, 9), 5, offsets(1, 3, 7, 9));
+
+        // range splitting at boundaries
+        testRemove(offsets(5, 10), 7, offsets(5, 6, 8, 10));
+        testRemove(offsets(5, 10, 15, 17), 7, offsets(5, 6, 8, 10, 15, 17));
+    }
+
+    private void testRemove(Offsets.Mutable from, int toRemove, Offsets.Mutable expectedAfter)
+    {
+        from.remove(toRemove);
+        assertOffsetsEqual(expectedAfter, from);
     }
 }

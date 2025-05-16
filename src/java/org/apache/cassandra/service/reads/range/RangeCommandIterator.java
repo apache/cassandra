@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -71,6 +70,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetricsForLevel;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 @VisibleForTesting
@@ -342,7 +342,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                 ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
                 PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), i == 0);
 
-                TrackedRead.Range read = TrackedRead.Range.create(rangeCommand, replicaPlan);
+                TrackedRead.Range read = TrackedRead.Range.create(rangeCommand, replicaPlan, requestTime);
                 read.start(requestTime);
                 concurrentQueries.add(read.iterator());
 
@@ -493,7 +493,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             long latency = nanoTime() - requestTime.startedAtNanos();
             rangeMetrics.addNano(latency);
             rangeMetrics.roundTrips.update(batchesRequested);
-            Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
+            Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, NANOSECONDS);
         }
     }
 

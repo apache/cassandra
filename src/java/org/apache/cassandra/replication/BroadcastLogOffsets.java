@@ -34,15 +34,15 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 
-public class ShardReplicatedOffsets
+public class BroadcastLogOffsets
 {
-    private static final Logger logger = LoggerFactory.getLogger(ShardReplicatedOffsets.class);
+    private static final Logger logger = LoggerFactory.getLogger(BroadcastLogOffsets.class);
 
     private final String keyspace;
     private final Range<Token> range;
     private final List<Offsets.Immutable> replicatedOffsets;
 
-    public ShardReplicatedOffsets(String keyspace, Range<Token> range, List<Offsets.Immutable> offsets)
+    public BroadcastLogOffsets(String keyspace, Range<Token> range, List<Offsets.Immutable> offsets)
     {
         this.keyspace = keyspace;
         this.range = range;
@@ -60,8 +60,8 @@ public class ShardReplicatedOffsets
         return "ShardReplicatedOffsets{" + keyspace + ", " + range + ", " + replicatedOffsets + '}';
     }
 
-    public static final IVerbHandler<ShardReplicatedOffsets> verbHandler = message -> {
-        ShardReplicatedOffsets replicatedOffsets = message.payload;
+    public static final IVerbHandler<BroadcastLogOffsets> verbHandler = message -> {
+        BroadcastLogOffsets replicatedOffsets = message.payload;
         logger.trace("Received replicated offsets {} from {}", replicatedOffsets, message.from());
         MutationTrackingService.instance.updateReplicatedOffsets(replicatedOffsets.keyspace,
                                                                  replicatedOffsets.range,
@@ -69,10 +69,10 @@ public class ShardReplicatedOffsets
                                                                  message.from());
     };
 
-    public static final IVersionedSerializer<ShardReplicatedOffsets> serializer = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<BroadcastLogOffsets> serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void serialize(ShardReplicatedOffsets status, DataOutputPlus out, int version) throws IOException
+        public void serialize(BroadcastLogOffsets status, DataOutputPlus out, int version) throws IOException
         {
             out.writeUTF(status.keyspace);
             AbstractBounds.tokenSerializer.serialize(status.range, out, version);
@@ -82,7 +82,7 @@ public class ShardReplicatedOffsets
         }
 
         @Override
-        public ShardReplicatedOffsets deserialize(DataInputPlus in, int version) throws IOException
+        public BroadcastLogOffsets deserialize(DataInputPlus in, int version) throws IOException
         {
             String keyspace = in.readUTF();
             Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version);
@@ -90,11 +90,11 @@ public class ShardReplicatedOffsets
             List<Offsets.Immutable> replicatedOffsets = new ArrayList<>(count);
             for (int i = 0; i < count; ++i)
                 replicatedOffsets.add(Offsets.serializer.deserialize(in, version));
-            return new ShardReplicatedOffsets(keyspace, range, replicatedOffsets);
+            return new BroadcastLogOffsets(keyspace, range, replicatedOffsets);
         }
 
         @Override
-        public long serializedSize(ShardReplicatedOffsets replicatedOffsets, int version)
+        public long serializedSize(BroadcastLogOffsets replicatedOffsets, int version)
         {
             long size = 0;
             size += TypeSizes.sizeof(replicatedOffsets.keyspace);

@@ -146,8 +146,13 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
         // verify the number of repaired rows
         if (strategy == ReadRepairStrategy.NONE)
             expectedRepaired = 0;
-        assertEquals(String.format("Expected %d repaired rows, but found %d", expectedRepaired, actualRepaired),
-                     expectedRepaired, actualRepaired);
+
+        // read repair metric isn't a meaningful one for mutation-tracked replication
+        if (!replicationType.isTracked())
+        {
+            assertEquals(String.format("Expected %d repaired rows, but found %d", expectedRepaired, actualRepaired),
+                         expectedRepaired, actualRepaired);
+        }
 
         return self();
     }

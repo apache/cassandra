@@ -231,6 +231,16 @@ public final class EntrySerializer
              + TypeSizes.INT_SIZE;                    // CRC
     }
 
+    static <K> int overheadSize(KeySupport<K> keySupport, int userVersion)
+    {
+        return headerSize(keySupport, userVersion) + TypeSizes.INT_SIZE; // CRC
+    }
+
+    static <K> int totalEntrySize(KeySupport<K> keySupport, int recordSize, int userVersion)
+    {
+        return recordSize + overheadSize(keySupport, userVersion);
+    }
+
     public static final class EntryHolder<K>
     {
         public K key;

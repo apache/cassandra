@@ -126,7 +126,7 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
         @Override
         protected CompletedRead createResult(UnfilteredPartitionIterator iterator)
         {
-            return CompletedRead.simple(iterator, command);
+            return CompletedRead.simple(iterator, command, command.nowInSec());
         }
     }
 

@@ -55,6 +55,7 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         if (ackTo != null)
         {
             logger.trace("Enqueuing response for direct acknowledgement of forwarded tracked mutation to coordinator {}", ackTo.coordinator);
+            response = Message.builder(response).withId(ackTo.id).build();
             MessagingService.instance().send(response, ackTo.coordinator);
         }
     }

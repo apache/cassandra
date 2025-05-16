@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
+import org.apache.cassandra.transport.Dispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -132,7 +133,7 @@ class ExtendingCompletedRead implements PartialTrackedRead.CompletedRead
     }
 
     @Override
-    public Future<TrackedDataResponse> followupRead(TrackedDataResponse initialResponse, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    public Future<TrackedDataResponse> followupRead(TrackedDataResponse initialResponse, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (!followUpRequired())
             return null;
@@ -150,13 +151,14 @@ class ExtendingCompletedRead implements PartialTrackedRead.CompletedRead
         Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, FBUtilities.getBroadcastAddressAndPort());
         logger.info("Requesting {} extra rows from {} for short read protection", toQuery, FBUtilities.getBroadcastAddressAndPort());
 
-        return makeFollowupRead(initialResponse, toQuery, consistencyLevel, expiresAtNanos);
+        return makeFollowupRead(initialResponse, toQuery, consistencyLevel, requestTime);
     }
 
-    protected Future<TrackedDataResponse> makeFollowupRead(TrackedDataResponse initialResponse, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    protected Future<TrackedDataResponse> makeFollowupRead(TrackedDataResponse initialResponse, int toQuery, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
-        TrackedRead.Range followUpRead = PartialTrackedRangeRead.makeFollowUpRead(command, followUpBounds, toQuery, consistencyLevel, expiresAtNanos);
-        followUpRead.start(expiresAtNanos);
+        TrackedRead.Range followUpRead = PartialTrackedRangeRead.makeFollowUpRead(command, followUpBounds, toQuery, consistencyLevel, requestTime);
+        logger.trace("Short read detected, starting followup read {}", followUpRead);
+        followUpRead.start(requestTime);
         AsyncPromise<TrackedDataResponse> combinedRead = new AsyncPromise<>();
         followUpRead.future().addCallback((result, failure) -> {
             if (failure != null)

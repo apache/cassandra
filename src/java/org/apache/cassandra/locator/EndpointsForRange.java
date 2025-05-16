@@ -61,6 +61,11 @@ public class EndpointsForRange extends Endpoints<EndpointsForRange>
         return new EndpointsForToken(token, list, byEndpoint);
     }
 
+    public EndpointsForRange withRange(Range<Token> range)
+    {
+        return new EndpointsForRange(range, list, byEndpoint);
+    }
+
     @Override
     public EndpointsForRange snapshot()
     {

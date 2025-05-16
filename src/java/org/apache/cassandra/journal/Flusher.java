@@ -73,7 +73,7 @@ final class Flusher<K, V>
     volatile long flushStartedAt;
     // the time of the earliest flush that has completed an fsync; all Allocations written before this time are durable
     volatile long fsyncFinishedFor = flushStartedAt;
-    volatile RecordPointer fsyncFinishedForPosition = new RecordPointer(0, 0);
+    volatile RecordPointer fsyncFinishedForPosition = new RecordPointer(0, 0, 0);
 
     // a signal that writers can wait on to be notified of a completed flush in PERIODIC FlushMode
     private final WaitQueue fsyncComplete = newWaitQueue(); // TODO (expected): this is only used for testing, can we remove this?
@@ -214,7 +214,7 @@ final class Flusher<K, V>
                     fsyncedTo = fsyncTo.writtenToAtLeast();
                     fsyncTo.fsync();
                 }
-                fsyncFinishedForPosition = new RecordPointer(fsyncTo.descriptor.timestamp, fsyncedTo, startedAt);
+                fsyncFinishedForPosition = new RecordPointer(fsyncTo.descriptor.timestamp, fsyncedTo, 0, startedAt);
                 fsyncFinishedFor = startedAt;
                 fsyncComplete.signalAll();
                 long finishedAt = clock.now();
@@ -383,7 +383,7 @@ final class Flusher<K, V>
 
         private void afterFSync(long startedAt, long segment, int position)
         {
-            fsyncFinishedForPosition = new RecordPointer(segment, position, startedAt);
+            fsyncFinishedForPosition = new RecordPointer(segment, position, 0, startedAt);
             fsyncFinishedFor = startedAt;
             callbacks.onFsync();
             fsyncComplete.signalAll();
@@ -481,7 +481,7 @@ final class Flusher<K, V>
         public RecordPointer flushAsync(ActiveSegment<K, V>.Allocation alloc)
         {
             written.incrementAndGet();
-            return new RecordPointer(alloc.descriptor().timestamp, alloc.start(), clock.now());
+            return new RecordPointer(alloc.descriptor().timestamp, alloc.start(), 0, clock.now());
         }
 
         @Override

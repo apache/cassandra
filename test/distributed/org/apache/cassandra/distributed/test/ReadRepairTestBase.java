@@ -77,9 +77,9 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.apache.cassandra.net.Verb.READ_RECONCILE_NOTIFY;
-import static org.apache.cassandra.net.Verb.READ_RECONCILE_RCV;
-import static org.apache.cassandra.net.Verb.READ_RECONCILE_SEND;
+import static org.apache.cassandra.net.Verb.PULL_MUTATIONS_REQ;
+import static org.apache.cassandra.net.Verb.PUSH_MUTATION_REQ;
+import static org.apache.cassandra.net.Verb.READ_RECONCILE_ACK;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
 import static org.apache.cassandra.net.Verb.READ_REQ;
@@ -128,6 +128,7 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
     @Test
     public void testBlockingReadRepairAccord() throws Throwable
     {
+        MutationTrackingUtils.fixmeSkipIfTracked(replicationType(), "Accord not supported");
         testReadRepair(ReadRepairStrategy.BLOCKING, true);
     }
 
@@ -182,7 +183,7 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
             cluster.get(1).executeInternal(withTable("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 1)"));
             cluster.get(2).executeInternal(withTable("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 1)"));
             assertRows(cluster.get(3).executeInternal(withTable("SELECT * FROM %s WHERE pk = 1")));
-            cluster.verbs(replicationType().isTracked() ? READ_RECONCILE_NOTIFY : READ_REPAIR_RSP).to(1).drop();
+            cluster.verbs(replicationType().isTracked() ? READ_RECONCILE_ACK : READ_REPAIR_RSP).to(1).drop();
             final long start = currentTimeMillis();
             try
             {
@@ -219,9 +220,10 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
             assertRows(cluster.get(3).executeInternal(withTable("SELECT * FROM %s WHERE pk = 1")));
 
             cluster.filters().verbs(READ_REPAIR_REQ.id).to(3).drop();
-            cluster.filters().verbs(READ_RECONCILE_SEND.id).to(3).drop();
-            cluster.filters().verbs(READ_RECONCILE_RCV.id).to(3).drop();
-            assertRows(cluster.coordinator(1).execute(withTable("SELECT * FROM %s WHERE pk = 1"), ConsistencyLevel.QUORUM),
+            cluster.filters().verbs(PULL_MUTATIONS_REQ.id).to(3).drop();
+            cluster.filters().verbs(PUSH_MUTATION_REQ.id).to(3).drop();
+            assertRows(cluster.coordinator(1).execute(withTable("SELECT * FROM %s WHERE pk = 1"),
+                                                      ConsistencyLevel.QUORUM),
                        row(1, 1, 1));
 
             // Data was not repaired
@@ -268,8 +270,8 @@ public abstract class ReadRepairTestBase extends TestBaseImpl
             cluster.filters().verbs(READ_REQ.id).from(4).to(3).drop();
             if (replicationType().isTracked())
             {
-                cluster.filters().verbs(READ_RECONCILE_SEND.id).from(4).to(3).drop();
-                cluster.filters().verbs(READ_RECONCILE_RCV.id).from(4).to(3).drop();
+                cluster.filters().verbs(PULL_MUTATIONS_REQ.id).from(4).to(3).drop();
+                cluster.filters().verbs(PUSH_MUTATION_REQ.id).from(4).to(3).drop();
             }
             else
             {

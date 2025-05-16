@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -375,9 +374,9 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
      */
 
     @SuppressWarnings({ "resource", "RedundantSuppression" }) // op group will be closed by Allocation#write()
-    Allocation allocate(int entrySize)
+    Allocation allocate(int recordSize)
     {
-        int totalSize = totalEntrySize(entrySize);
+        int totalSize = EntrySerializer.totalEntrySize(keySupport, recordSize, descriptor.userVersion);
         OpOrder.Group opGroup = appendOrder.start();
         try
         {
@@ -394,14 +393,6 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
             opGroup.close();
             throw t;
         }
-    }
-
-    private int totalEntrySize(int recordSize)
-    {
-        return EntrySerializer.headerSize(keySupport, descriptor.userVersion)
-             + recordSize
-             + TypeSizes.INT_SIZE // CRC
-        ;
     }
 
     // allocate bytes in the segment, or return -1 if not enough space
@@ -528,7 +519,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
 
         RecordPointer recordPointer()
         {
-            return new RecordPointer(descriptor.timestamp, start);
+            return new RecordPointer(descriptor.timestamp, start, length);
         }
     }
 

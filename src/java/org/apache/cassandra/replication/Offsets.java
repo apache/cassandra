@@ -27,6 +27,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,6 +37,7 @@ import java.util.Iterator;
 
 public abstract class Offsets implements Iterable<ShortMutationId>
 {
+    private static final Logger logger = LoggerFactory.getLogger(Offsets.class);
     private static final int INITIAL_CAPACITY = 16;
 
     protected final CoordinatorLogId logId;
@@ -241,8 +244,26 @@ public abstract class Offsets implements Iterable<ShortMutationId>
 
         public void addAll(Offsets other, RangeConsumer onAdded)
         {
-            for (int i = 0; i < other.size; i += 2)
-                add(other.bounds[i], other.bounds[i + 1], onAdded);
+            if (size == 0)
+            {
+                int minLength = Math.max(other.size, INITIAL_CAPACITY);
+                if (bounds.length < minLength)
+                    bounds = new int[minLength];
+
+                System.arraycopy(other.bounds, 0, bounds, 0, other.size);
+                this.size = other.size;
+
+                if (onAdded != RangeConsumer.NONE)
+                {
+                    for (int i = 0; i < size; i += 2)
+                        onAdded.consume(logId, bounds[i], bounds[i + 1]);
+                }
+            }
+            else
+            {
+                for (int i = 0; i < other.size; i += 2)
+                    add(other.bounds[i], other.bounds[i + 1], onAdded);
+            }
         }
 
         public void addAll(Offsets other)
@@ -317,6 +338,44 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             }
 
             return true;
+        }
+
+        /**
+         * Remove an offset in-place
+         */
+        public void remove(int offset)
+        {
+            if (size == 0)
+                return;
+
+            int pos = Arrays.binarySearch(bounds, 0, size, offset);
+            if (pos >= 0) // offset matches one of the bounds exactly
+            {
+                if (pos - 1 >= 0 && bounds[pos - 1] == offset)
+                    pos--; // normalize pos to always point to floor if this is a single-offset range
+
+                if (bounds[pos] == bounds[pos + 1]) // remove entire single-offset range
+                {
+                    System.arraycopy(bounds, pos + 2, bounds, pos, size - pos - 2);
+                    bounds[--size] = 0;
+                    bounds[--size] = 0;
+                }
+                else if (pos % 2 == 0)
+                {
+                    bounds[pos] = offset + 1; // offset is at a range start, shrink it
+                }
+                else
+                {
+                    bounds[pos] = offset - 1; // offset is at a range end, shrink it
+                }
+            }
+            else if ((-pos - 1) % 2 != 0) // offset falls within an existing range, need to split it into two
+            {
+                pos = -pos - 1;
+                insert(pos + 1, offset + 1, bounds[pos]);
+                bounds[pos] = offset - 1;
+            }
+            // the offset is before all existing ranges, in-between two, or after all exsiting ranges
         }
 
         private enum AddAction
@@ -395,6 +454,17 @@ public abstract class Offsets implements Iterable<ShortMutationId>
 
             AddAction eMerge;
             {
+                // if the insert spans multiple ranges and the inserted end value
+                // is less than the start of eRange - 1 (ie: cant' be merged), decrement
+                // the range by one so we can extend the previous range
+                if (eRange > sRange) {
+                    int rStart = bounds[rangeStart(eRange)];
+
+                    if (end < rStart -1)
+                    {
+                        eRange--;
+                    }
+                }
                 int rStart = bounds[rangeStart(eRange)];
                 int rEnd = bounds[rangeEnd(eRange)];
 

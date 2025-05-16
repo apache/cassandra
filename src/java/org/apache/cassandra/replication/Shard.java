@@ -19,17 +19,20 @@ package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.IntSupplier;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -42,11 +45,26 @@ public class Shard
     private final int localHostId;
     private final Participants participants;
     private final Epoch sinceEpoch;
+    private final BiConsumer<Shard, CoordinatorLog> onNewLog;
     private final NonBlockingHashMapLong<CoordinatorLog> logs;
     // TODO (expected): add support for log rotation
-    private final CoordinatorLogPrimary currentLocalLog;
+    private final CoordinatorLog.CoordinatorLogPrimary currentLocalLog;
 
-    Shard(String keyspace, Range<Token> tokenRange, int localHostId, Participants participants, Epoch sinceEpoch, IntSupplier logIdProvider)
+    private final List<Subscriber> subscribers = new ArrayList<>();
+
+    public interface Subscriber
+    {
+        default void onLogCreation(CoordinatorLog log) {}
+        default void onSubscribe(CoordinatorLog currentLog) {}
+    }
+
+    Shard(String keyspace,
+          Range<Token> tokenRange,
+          int localHostId,
+          Participants participants,
+          Epoch sinceEpoch,
+          IntSupplier logIdProvider,
+          BiConsumer<Shard, CoordinatorLog> onNewLog)
     {
         Preconditions.checkArgument(participants.contains(localHostId));
 
@@ -56,6 +74,7 @@ public class Shard
         this.participants = participants;
         this.sinceEpoch = sinceEpoch;
         this.logs = new NonBlockingHashMapLong<>();
+        this.onNewLog = onNewLog;
         this.currentLocalLog = startNewLog(localHostId, logIdProvider.getAsInt(), participants);
         CoordinatorLogId logId = currentLocalLog.logId;
         Preconditions.checkArgument(!logId.isNone());
@@ -67,10 +86,10 @@ public class Shard
         return currentLocalLog.nextId();
     }
 
-    void receivedWriteResponse(MutationId mutationId, InetAddressAndPort onHost)
+    void receivedWriteResponse(ShortMutationId mutationId, InetAddressAndPort fromHost)
     {
-        int onHostId = ClusterMetadata.current().directory.peerId(onHost).id();
-        getOrCreate(mutationId).receivedWriteResponse(mutationId, onHostId);
+        int fromHostId = ClusterMetadata.current().directory.peerId(fromHost).id();
+        getOrCreate(mutationId).receivedWriteResponse(mutationId, fromHostId);
     }
 
     void updateReplicatedOffsets(List<? extends Offsets> offsets, InetAddressAndPort onHost)
@@ -80,14 +99,14 @@ public class Shard
             getOrCreate(logOffsets.logId()).updateReplicatedOffsets(logOffsets, onHostId);
     }
 
-    void startWriting(Mutation mutation)
+    boolean startWriting(Mutation mutation)
     {
-        getOrCreate(mutation.id()).startWriting(mutation);
+        return getOrCreate(mutation).startWriting(mutation);
     }
 
     void finishWriting(Mutation mutation)
     {
-        getOrCreate(mutation.id()).finishWriting(mutation);
+        getOrCreate(mutation).finishWriting(mutation);
     }
 
     void addSummaryForKey(Token token, boolean includePending, MutationSummary.Builder builder)
@@ -106,6 +125,18 @@ public class Shard
         });
     }
 
+    void collectLocallyMissingMutations(Offsets remoteOffsets, Log2OffsetsMap.Mutable into)
+    {
+        CoordinatorLog log = get(remoteOffsets.logId());
+        log.collectLocallyMissingMutations(remoteOffsets, into);
+    }
+
+    void collectRemotelyMissingMutations(Offsets localOffsets, IntArrayList remoteNodeIds, Node2OffsetsMap into)
+    {
+        CoordinatorLog log = get(localOffsets.logId());
+        log.collectRemotelyMissingMutations(localOffsets, remoteNodeIds, into);
+    }
+
     List<InetAddressAndPort> remoteReplicas()
     {
         List<InetAddressAndPort> replicas = new ArrayList<>(participants.size() - 1);
@@ -121,7 +152,7 @@ public class Shard
     /**
      * Collects replicated offsets for the logs owned by this coordinator on this shard.
      */
-    ShardReplicatedOffsets collectReplicatedOffsets()
+    BroadcastLogOffsets collectReplicatedOffsets()
     {
         List<Offsets.Immutable> offsets = new ArrayList<>();
         for (CoordinatorLog log : logs.values())
@@ -131,17 +162,25 @@ public class Shard
                 offsets.add(logOffsets);
         }
 
-        return new ShardReplicatedOffsets(keyspace, tokenRange, offsets);
+        return new BroadcastLogOffsets(keyspace, tokenRange, offsets);
     }
 
     /**
      * Creates a new coordinator log for this host. Primarily on Shard init (node startup or topology change).
      * Also on keyspace creation.
      */
-    private static CoordinatorLog.CoordinatorLogPrimary startNewLog(int localHostId, int hostLogId, Participants participants)
+    private CoordinatorLog.CoordinatorLogPrimary startNewLog(int localHostId, int hostLogId, Participants participants)
     {
         CoordinatorLogId logId = new CoordinatorLogId(localHostId, hostLogId);
-        return new CoordinatorLog.CoordinatorLogPrimary(localHostId, logId, participants);
+        CoordinatorLog.CoordinatorLogPrimary log =
+            new CoordinatorLog.CoordinatorLogPrimary(localHostId, logId, participants);
+        onNewLog.accept(this, log);
+        return log;
+    }
+
+    private CoordinatorLog getOrCreate(Mutation mutation)
+    {
+        return getOrCreate(mutation.id());
     }
 
     private CoordinatorLog getOrCreate(MutationId mutationId)
@@ -155,28 +194,36 @@ public class Shard
         return getOrCreate(logId.asLong());
     }
 
+    @Nonnull
+    private CoordinatorLog get(CoordinatorLogId logId)
+    {
+        return Preconditions.checkNotNull(logs.get(logId.asLong()));
+    }
+
     private CoordinatorLog getOrCreate(long logId)
     {
         CoordinatorLog log = logs.get(logId);
         if (log != null)
             return log;
         CoordinatorLog newLog = logs.computeIfAbsent(logId, ignore -> CoordinatorLog.create(localHostId, new CoordinatorLogId(logId), participants));
+        onNewLog.accept(this, newLog);
         for (Subscriber subscriber : subscribers)
             subscriber.onLogCreation(newLog);
         return newLog;
-    }
-
-    private final List<Subscriber> subscribers = new ArrayList<>();
-
-    public interface Subscriber
-    {
-        default void onLogCreation(CoordinatorLog log) {}
-        default void onSubscribe(CoordinatorLog currentLog) {}
     }
 
     public void addSubscriber(Subscriber subscriber)
     {
         subscriber.onSubscribe(currentLocalLog);
         subscribers.add(subscriber);
+    }
+
+    private CoordinatorLog create(long logId)
+    {
+        CoordinatorLog log = CoordinatorLog.create(localHostId, new CoordinatorLogId(logId), participants);
+        onNewLog.accept(this, log);
+        for (Subscriber subscriber : subscribers)
+            subscriber.onLogCreation(log);
+        return log;
     }
 }

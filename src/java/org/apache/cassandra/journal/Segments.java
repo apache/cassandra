@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import org.agrona.collections.Long2ObjectHashMap;
+import javax.annotation.Nullable;
 
 import accord.utils.Invariants;
 import accord.utils.SortedArrays.SortedArrayList;
@@ -104,15 +105,11 @@ public class Segments<K, V>
         return this.segments.values();
     }
 
-    public int count(Predicate<? super Segment<K, V>> predicate)
+    @Nullable
+    Descriptor descriptor(long timestamp)
     {
-        int count = 0;
-        for (Segment<K, V> segment : segments.values())
-        {
-            if (predicate.test(segment))
-                ++count;
-        }
-        return count;
+        Segment<K, V> segment = segments.get(timestamp);
+        return segment == null ? null : segment.descriptor;
     }
 
     /**

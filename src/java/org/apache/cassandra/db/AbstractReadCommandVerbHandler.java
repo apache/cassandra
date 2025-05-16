@@ -34,9 +34,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public abstract class AbstractReadCommandVerbHandler<T> implements IVerbHandler<T>
 {
@@ -46,6 +48,13 @@ public abstract class AbstractReadCommandVerbHandler<T> implements IVerbHandler<
 
     public final void doVerb(Message<T> message)
     {
+        if (approxTime.now() > message.expiresAtNanos())
+        {
+            Tracing.trace("Discarding read from {} (timed out)", message.from());
+            MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+            return;
+        }
+
         ClusterMetadata metadata = ClusterMetadata.current();
         if (message.epoch().isAfter(Epoch.EMPTY))
         {

@@ -45,7 +45,7 @@ import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
-import org.apache.cassandra.service.reads.tracked.TrackedLocalReadCoordinator;
+import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
@@ -150,7 +150,7 @@ public class MutationTrackingPendingReadTest
                     // Create another summary once initial data has been read fully. We do this to catch
                     // any mutations that may have arrived during initial read execution.
                     secondarySummary = command.createMutationSummary(true);
-                    TrackedLocalReadCoordinator.processDelta(read, initialSummary, secondarySummary);
+                    TrackedLocalReads.processDelta(read, initialSummary, secondarySummary);
                 }
 
                 ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);

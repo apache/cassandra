@@ -75,9 +75,28 @@ public class MutationJournal
         return journal.readLast(id);
     }
 
-    public boolean read(ShortMutationId id, RecordConsumer<ShortMutationId> consumer)
+    boolean read(ShortMutationId id, RecordConsumer<ShortMutationId> consumer)
     {
         return journal.readLast(id, consumer);
+    }
+
+    /**
+     * @return record pointer of the last mutation with the provided id, or null if not found
+     */
+    @Nullable
+    RecordPointer lookUp(ShortMutationId id)
+    {
+        return journal.lookUpLast(id);
+    }
+
+    int sizeOfRecord(RecordPointer pointer)
+    {
+        return journal.sizeOfRecord(pointer);
+    }
+
+    boolean read(RecordPointer pointer, RecordConsumer<ShortMutationId> consumer)
+    {
+        return journal.read(pointer, consumer);
     }
 
     public void readAll(Iterable<ShortMutationId> ids, Collection<Mutation> into)

@@ -28,6 +28,7 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -55,6 +56,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.TrackedWriteResponseHandler;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
@@ -101,10 +103,8 @@ public class TrackedWriteRequest
         writeMetrics.localRequests.mark();
         MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
         mutation = mutation.withMutationId(id);
-        TrackedWriteResponseHandler handler = TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime),
-                                         keyspaceName,
-                                         mutation.key().getToken(),
-                                         id);
+        TrackedWriteResponseHandler handler =
+            TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime), id);
         applyLocallyAndSendToReplicas(mutation, plan, handler);
         return handler;
     }
@@ -149,10 +149,10 @@ public class TrackedWriteRequest
 
             if (message == null)
             {
-                Message.Builder<Mutation> builder = Message.builder(MUTATION_REQ, mutation)
+                message = Message.builder(MUTATION_REQ, mutation)
                                  .withRequestTime(handler.getRequestTime())
-                                 .withFlag(MessageFlag.CALL_BACK_ON_FAILURE);
-                message = builder.build();
+                                 .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
+                                 .build();
             }
 
             String dc = DatabaseDescriptor.getLocator().location(destination.endpoint()).datacenter;
@@ -178,16 +178,32 @@ public class TrackedWriteRequest
         Preconditions.checkState(applyLocally); // the coordinator is always a replica
         applyMutationLocally(mutation, handler);
 
+        IntHashSet remoteReplicas = null;
+        if (localDCReplicas != null || remoteDCReplicas != null)
+            remoteReplicas = new IntHashSet();
+
         if (localDCReplicas != null)
+        {
             for (Replica replica : localDCReplicas)
+            {
                 MessagingService.instance().sendWriteWithCallback(message, replica, handler);
+                remoteReplicas.add(ClusterMetadata.current().directory.peerId(replica.endpoint()).id());
+            }
+        }
 
         if (remoteDCReplicas != null)
         {
             // for each datacenter, send the message to one node to relay the write to other replicas
             for (List<Replica> dcReplicas : remoteDCReplicas.values())
+            {
                 sendMessagesToRemoteDC(message, EndpointsForToken.copyOf(mutation.key().getToken(), dcReplicas), handler, null);
+                for (Replica replica : dcReplicas)
+                    remoteReplicas.add(ClusterMetadata.current().directory.peerId(replica.endpoint()).id());
+            }
         }
+
+        if (remoteReplicas != null)
+            MutationTrackingService.instance.sentWriteRequest(mutation, remoteReplicas);
     }
 
     static void applyMutationLocally(Mutation mutation, RequestCallback<NoPayload> handler)
@@ -268,9 +284,9 @@ public class TrackedWriteRequest
      * Send the message to the first replica of targets, and have it forward the message to others in its DC
      */
     static void sendMessagesToRemoteDC(Message<? extends IMutation> message,
-                                        EndpointsForToken targets,
-                                        RequestCallback<NoPayload> handler,
-                                        ForwardedWrite.CoordinatorAckInfo ackTo)
+                                       EndpointsForToken targets,
+                                       RequestCallback<NoPayload> handler,
+                                       ForwardedWrite.CoordinatorAckInfo ackTo)
     {
         final Replica target;
 

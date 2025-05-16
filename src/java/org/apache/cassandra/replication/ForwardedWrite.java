@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
@@ -31,6 +30,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.*;
+import org.apache.cassandra.tracing.Tracing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +55,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
  * For a forwarded write there are 2 nodes involved in coordination, a coordinator and a leader. The coordinator is the
@@ -65,91 +67,7 @@ public class ForwardedWrite
 {
     private static final Logger logger = LoggerFactory.getLogger(ForwardedWrite.class);
 
-    public interface Request
-    {
-        enum Kind
-        {
-            MUTATION(0);
-
-            private final byte id;
-
-            Kind(int id)
-            {
-                this.id = (byte) id;
-            }
-
-            IVersionedSerializer<Request> serializer()
-            {
-                switch (this)
-                {
-                    case MUTATION:
-                        return MutationRequest.serializer;
-                    default:
-                        throw new IllegalStateException("Unhandled kind " + this);
-                }
-            }
-
-            static final IVersionedSerializer<Kind> serializer = new IVersionedSerializer<Request.Kind>()
-            {
-                @Override
-                public void serialize(Kind kind, DataOutputPlus out, int version) throws IOException
-                {
-                    out.writeByte(kind.id);
-
-                }
-
-                @Override
-                public Kind deserialize(DataInputPlus in, int version) throws IOException
-                {
-                    byte id = in.readByte();
-                    switch (id)
-                    {
-                        case 0:
-                            return MUTATION;
-                        default:
-                            throw new IllegalStateException("Unknown kind: " + id);
-                    }
-                }
-
-                @Override
-                public long serializedSize(Kind kind, int version)
-                {
-                    return TypeSizes.BYTE_SIZE;
-                }
-            };
-        }
-
-        Kind kind();
-        DecoratedKey key();
-        void applyLocallyAndForwardToReplicas(CoordinatorAckInfo ackTo);
-
-        IVersionedSerializer<Request> serializer = new IVersionedSerializer<>()
-        {
-            @Override
-            public void serialize(Request request, DataOutputPlus out, int version) throws IOException
-            {
-                Kind.serializer.serialize(request.kind(), out, version);
-                request.kind().serializer().serialize(request, out, version);
-            }
-
-            @Override
-            public Request deserialize(DataInputPlus in, int version) throws IOException
-            {
-                Kind kind = Kind.serializer.deserialize(in, version);
-                return kind.serializer().deserialize(in, version);
-            }
-
-            @Override
-            public long serializedSize(Request request, int version)
-            {
-                long size = Kind.serializer.serializedSize(request.kind(), version);
-                size += request.kind().serializer().serializedSize(request, version);
-                return size;
-            }
-        };
-    }
-
-    public static class MutationRequest implements Request
+    public static class MutationRequest
     {
         private final Mutation mutation;
         private final Set<NodeId> recipients;
@@ -175,19 +93,11 @@ public class ForwardedWrite
             this.recipients = recipients;
         }
 
-        @Override
-        public Kind kind()
-        {
-            return Kind.MUTATION;
-        }
-
-        @Override
         public DecoratedKey key()
         {
             return mutation.key();
         }
 
-        @Override
         public void applyLocallyAndForwardToReplicas(CoordinatorAckInfo ackTo)
         {
             Preconditions.checkState(ackTo != null);
@@ -197,7 +107,7 @@ public class ForwardedWrite
 
             MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
             // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
-            LeaderCallback handler = new LeaderCallback(keyspaceName, mutation.key().getToken(), id, ackTo);
+            LeaderCallback handler = new LeaderCallback(id, ackTo);
             applyLocallyAndForwardToReplicas(mutation.withMutationId(id), recipients, handler, ackTo);
         }
 
@@ -248,7 +158,6 @@ public class ForwardedWrite
                                      .withRequestTime(handler.getRequestTime())
                                      .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
                                      .withParam(ParamType.COORDINATOR_ACK_INFO, ackTo)
-                                     .withId(ackTo.id)
                                      .build();
 
                 Replica replica = replicas.get(recipient);
@@ -286,41 +195,6 @@ public class ForwardedWrite
                     TrackedWriteRequest.sendMessagesToRemoteDC(message, EndpointsForToken.copyOf(mutation.key().getToken(), dcReplicas), handler, ackTo);
             }
         }
-
-        public static final IVersionedSerializer<Request> serializer = new IVersionedSerializer<>()
-        {
-            @Override
-            public void serialize(Request r, DataOutputPlus out, int version) throws IOException
-            {
-                MutationRequest request = (MutationRequest) r;
-                Mutation.serializer.serialize(request.mutation, out, version);
-                out.writeInt(request.recipients.size());
-                for (NodeId recipient : request.recipients)
-                    NodeId.messagingSerializer.serialize(recipient, out, version);
-            }
-
-            @Override
-            public Request deserialize(DataInputPlus in, int version) throws IOException
-            {
-                Mutation mutation = Mutation.serializer.deserialize(in, version);
-                int numRecipients = in.readInt();
-                Set<NodeId> recipients = Sets.newHashSetWithExpectedSize(numRecipients);
-                for (int i = 0; i < numRecipients; i++)
-                    recipients.add(NodeId.messagingSerializer.deserialize(in, version));
-                return new MutationRequest(mutation, recipients);
-            }
-
-            @Override
-            public long serializedSize(Request r, int version)
-            {
-                MutationRequest request = (MutationRequest) r;
-                long size = Mutation.serializer.serializedSize(request.mutation, version);
-                size += TypeSizes.INT_SIZE;
-                for (NodeId recipient : request.recipients)
-                    size += NodeId.messagingSerializer.serializedSize(recipient, version);
-                return size;
-            }
-        };
     }
 
     public static AbstractWriteResponseHandler<Object> forwardMutation(Mutation mutation, ReplicaPlan.ForWrite plan, AbstractReplicationStrategy strategy, Dispatcher.RequestTime requestTime)
@@ -331,25 +205,35 @@ public class ForwardedWrite
         Token token = mutation.key().getToken();
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
         EndpointsForRange endpoints = cm.placements.get(keyspace.getMetadata().params.replication).writes.forRange(token).get();
-        if (logger.isTraceEnabled())
-            logger.trace("Finding best leader from replicas {}", endpoints);
+        logger.trace("Finding best leader from replicas {}", endpoints);
 
         // TODO: Should match ReplicaPlans.findCounterLeaderReplica, including DC-local priority, current health, severity, etc.
-        Replica leader = proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints).get(0);
+        Replica leader = null;
+        for (Replica replica : proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints))
+        {
+            if (plan.isAlive(replica))
+                leader = replica;
+        }
+        Preconditions.checkState(leader != null, "Could not find leader for %s", mutation);
 
         // create callback and forward to leader
-        if (logger.isTraceEnabled())
-            logger.trace("Selected {} as leader for mutation with key {}", leader.endpoint(), mutation.key());
+        logger.trace("Selected {} as leader for mutation with key {}", leader.endpoint(), mutation.key());
 
         AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
 
         // Add callbacks for replicas to respond directly to coordinator
-        Message<Request> toLeader = Message.out(Verb.FORWARDING_WRITE, new MutationRequest(mutation, plan));
+        Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan), requestTime);
         for (Replica endpoint : endpoints)
         {
-            if (logger.isTraceEnabled())
+            if (plan.isAlive(endpoint))
+            {
                 logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
-            MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
+                MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
+            }
+            else
+            {
+                handler.expired();
+            }
         }
 
         MessagingService.instance().send(toLeader, leader.endpoint());
@@ -357,26 +241,60 @@ public class ForwardedWrite
         return handler;
     }
 
-    public static final IVerbHandler<Request> verbHandler = new IVerbHandler<>()
+    public static final IVersionedSerializer<MutationRequest> serializer = new IVersionedSerializer<>()
     {
         @Override
-        public void doVerb(Message<Request> incoming)
+        public void serialize(MutationRequest request, DataOutputPlus out, int version) throws IOException
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
-            CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());
-            Request request = incoming.payload;
+            Mutation.serializer.serialize(request.mutation, out, version);
+            out.writeInt(request.recipients.size());
+            for (NodeId recipient : request.recipients)
+                NodeId.messagingSerializer.serialize(recipient, out, version);
+        }
 
-            // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
-            try
-            {
-                request.applyLocallyAndForwardToReplicas(ackTo);
-            }
-            catch (Exception e)
-            {
-                logger.error("Exception while executing forwarded write with key {} on leader", request.key(), e);
-                MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
-            }
+        @Override
+        public MutationRequest deserialize(DataInputPlus in, int version) throws IOException
+        {
+            Mutation mutation = Mutation.serializer.deserialize(in, version);
+            int numRecipients = in.readInt();
+            Set<NodeId> recipients = Sets.newHashSetWithExpectedSize(numRecipients);
+            for (int i = 0; i < numRecipients; i++)
+                recipients.add(NodeId.messagingSerializer.deserialize(in, version));
+            return new MutationRequest(mutation, recipients);
+        }
+
+        @Override
+        public long serializedSize(MutationRequest request, int version)
+        {
+            long size = Mutation.serializer.serializedSize(request.mutation, version);
+            size += TypeSizes.INT_SIZE;
+            for (NodeId recipient : request.recipients)
+                size += NodeId.messagingSerializer.serializedSize(recipient, version);
+            return size;
+        }
+    };
+
+    public static final IVerbHandler<MutationRequest> verbHandler = incoming ->
+    {
+        if (approxTime.now() > incoming.expiresAtNanos())
+        {
+            Tracing.trace("Discarding mutation from {} (timed out)", incoming.from());
+            MessagingService.instance().metrics.recordDroppedMessage(incoming, incoming.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+            return;
+        }
+        logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
+        CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());
+        MutationRequest request = incoming.payload;
+
+        // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
+        try
+        {
+            request.applyLocallyAndForwardToReplicas(ackTo);
+        }
+        catch (Exception e)
+        {
+            logger.error("Exception while executing forwarded write with key {} on leader", request.key(), e);
+            MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
         }
     };
 
@@ -384,16 +302,12 @@ public class ForwardedWrite
     // See org.apache.cassandra.service.TrackedWriteResponseHandler.onResponse, this class should probably merge with that one
     public static class LeaderCallback implements RequestCallback<NoPayload>
     {
-        private final String keyspace;
-        private final Token token;
         private final MutationId id;
         private final CoordinatorAckInfo ackTo;
         private final Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
 
-        public LeaderCallback(String keyspace, Token token, MutationId id, CoordinatorAckInfo ackTo)
+        public LeaderCallback(MutationId id, CoordinatorAckInfo ackTo)
         {
-            this.keyspace = keyspace;
-            this.token = token;
             this.id = id;
             this.ackTo = ackTo;
         }
@@ -403,7 +317,7 @@ public class ForwardedWrite
         {
             // Local mutations are witnessed from Keyspace.applyInternalTracked
             if (msg != null)
-                MutationTrackingService.instance.receivedWriteResponse(keyspace, token, id, msg.from());
+                MutationTrackingService.instance.receivedWriteResponse(id, msg.from());
 
             // Local write needs to be ack'd to coordinator
             if (msg == null && ackTo != null)

@@ -19,6 +19,7 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 
 import com.google.common.base.Preconditions;
@@ -29,31 +30,34 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.replication.MutationSummary.CoordinatorSummary;
 
 public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<ShortMutationId>
 {
-    abstract Long2ObjectHashMap<T> offsetMap();
+    abstract Long2ObjectHashMap<T> asMap();
 
     @Override
     public Iterator<ShortMutationId> iterator()
     {
-        return Iterables.concat(offsetMap().values()).iterator();
+        return Iterables.concat(asMap().values()).iterator();
+    }
+
+    public Collection<T> offsets()
+    {
+        return asMap().values();
     }
 
     public int idCount()
     {
         int count = 0;
-        for (T offsets : offsetMap().values())
+        for (T offsets : offsets())
             count += offsets.offsetCount();
         return count;
     }
 
     public boolean isEmpty()
     {
-        for (T offsets : offsetMap().values())
-            if (!offsets.isEmpty())
-                return false;
-        return true;
+        return Iterables.all(offsets(), Offsets::isEmpty);
     }
 
     private static abstract class AbstractMutable<T extends Offsets.AbstractMutable<T>> extends Log2OffsetsMap<T>
@@ -61,13 +65,15 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
         protected final Long2ObjectHashMap<T> offsetMap = new Long2ObjectHashMap<>();
 
         @Override
-        Long2ObjectHashMap<T> offsetMap()
+        Long2ObjectHashMap<T> asMap()
         {
             return offsetMap;
         }
 
         protected abstract T createOrNull(Offsets.RangeIterator iterator);
+
         protected abstract T create(CoordinatorLogId logId);
+
         protected abstract T copy(Offsets offsets);
 
         protected T create(long logId)
@@ -98,8 +104,20 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
 
         public void addAll(Log2OffsetsMap<?> that)
         {
-            for (Offsets offsets : that.offsetMap().values())
+            for (Offsets offsets : that.asMap().values())
                 add(offsets);
+        }
+
+        public void addAll(MutationSummary summary)
+        {
+            for (int i = 0, size = summary.size(); i < size; i++)
+                addAll(summary.get(i));
+        }
+
+        public void addAll(CoordinatorSummary summary)
+        {
+            add(summary.reconciled);
+            add(summary.unreconciled);
         }
 
         public void remove(Offsets offsets)
@@ -114,6 +132,7 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
                 return;
             }
 
+            // TODO (expected): ? shouldn't we updating Offsets in-place here? where did Offsets.remove() go?
             T next = createOrNull(Offsets.difference(existing.rangeIterator(), offsets.rangeIterator()));
             if (next == null)
                 offsetMap.remove(offsets.logId().asLong());
@@ -121,10 +140,40 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
                 offsetMap.put(offsets.logId().asLong(), next);
         }
 
+        public void remove(ShortMutationId id)
+        {
+            T existing = offsetMap.get(id.logId());
+            if (existing == null)
+                return;
+
+            existing.remove(id.offset());
+
+            if (existing.isEmpty())
+                offsetMap.remove(id.logId());
+        }
+
         public void removeAll(Log2OffsetsMap<?> that)
         {
-            for (Offsets offsets : that.offsetMap().values())
+            for (Offsets offsets : that.asMap().values())
                 remove(offsets);
+        }
+
+        public void removeAll(Iterable<ShortMutationId> ids)
+        {
+            for (ShortMutationId id : ids)
+                remove(id);
+        }
+
+        public void removeAll(MutationSummary summary)
+        {
+            for (int i = 0, size = summary.size(); i < size; i++)
+                removeAll(summary.get(i));
+        }
+
+        public void removeAll(CoordinatorSummary summary)
+        {
+            remove(summary.reconciled);
+            remove(summary.unreconciled);
         }
     }
 
@@ -159,7 +208,7 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
         }
 
         @Override
-        Long2ObjectHashMap<Offsets.Immutable> offsetMap()
+        Long2ObjectHashMap<Offsets.Immutable> asMap()
         {
             return offsetMap;
         }
@@ -192,13 +241,13 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
             }
         }
 
-        public static final IVersionedSerializer<Log2OffsetsMap.Immutable> serializer = new IVersionedSerializer<Log2OffsetsMap.Immutable>()
+        public static final IVersionedSerializer<Log2OffsetsMap.Immutable> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(Log2OffsetsMap.Immutable mo, DataOutputPlus out, int version) throws IOException
             {
                 out.writeInt(mo.offsetMap.size());
-                for (Offsets.Immutable offsets : mo.offsetMap().values())
+                for (Offsets.Immutable offsets : mo.asMap().values())
                     Offsets.serializer.serialize(offsets, out, version);
             }
 

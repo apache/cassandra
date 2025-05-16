@@ -19,11 +19,7 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -257,6 +253,11 @@ public class Message<T> implements ResponseContext
     {
         assert !verb.isResponse();
         return outWithParam(nextId(), verb, 0, payload, flag2.addTo(flag1.addTo(0)), null, null);
+    }
+
+    public static <T> Message<T> outWithRequestTime(Verb verb, T payload, Dispatcher.RequestTime requestTime)
+    {
+        return outWithFlags(verb, payload, requestTime, Collections.emptyList());
     }
 
     public static <T> Message<T> outWithFlags(Verb verb, T payload, Dispatcher.RequestTime requestTime, List<MessageFlag> flags)

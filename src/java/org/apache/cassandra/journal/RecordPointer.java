@@ -24,25 +24,27 @@ import com.google.common.primitives.Longs;
 // TODO: make this available in the accord table as an ID
 public class RecordPointer implements Comparable<RecordPointer>
 {
-    public final long segment; // unique segment id
-    public final int position; // record start position within the segment
+    public final long segment;   // unique segment id
+    public final int position;   // record start position within the segment
+    public final int size;       // full size of the record
     public final long writtenAt; // only set for periodic mode
 
-    public RecordPointer(long segment, int position)
+    public RecordPointer(long segment, int position, int size)
     {
-        this(segment, position, 0);
+        this(segment, position, size, 0);
     }
 
-    public RecordPointer(long segment, int position, long writtenAt)
+    public RecordPointer(long segment, int position, int size, long writtenAt)
     {
         this.segment = segment;
         this.position = position;
+        this.size = size;
         this.writtenAt = writtenAt;
     }
 
     public RecordPointer(RecordPointer pointer)
     {
-        this(pointer.segment, pointer.position, pointer.writtenAt);
+        this(pointer.segment, pointer.position, pointer.size, pointer.writtenAt);
     }
 
     @Override

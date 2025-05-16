@@ -109,6 +109,17 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
         return true;
     }
 
+    boolean read(RecordPointer pointer, RecordConsumer<K> consumer)
+    {
+        EntrySerializer.EntryHolder<K> into = new EntrySerializer.EntryHolder<>();
+        if (read(pointer.position, pointer.size, into))
+        {
+            consumer.accept(descriptor.timestamp, pointer.position, into.key, into.value, descriptor.userVersion);
+            return true;
+        }
+        return false;
+    }
+
     void readAll(K id, EntrySerializer.EntryHolder<K> into, RecordConsumer<K> onEntry)
     {
         long[] all = index().lookUpAll(id);

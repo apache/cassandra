@@ -615,24 +615,30 @@ public class Keyspace
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
+        boolean started;
         try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
         {
-            MutationTrackingService.instance.startWriting(mutation);
+            started = MutationTrackingService.instance.startWriting(mutation);
 
-            for (PartitionUpdate upd : mutation.getPartitionUpdates())
+            if (started)
             {
-                ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(upd.metadata().id);
-                if (cfs == null)
+                for (PartitionUpdate upd : mutation.getPartitionUpdates())
                 {
-                    logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().id, upd.metadata().keyspace, upd.metadata().name);
-                    continue;
-                }
+                    ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(upd.metadata().id);
+                    if (cfs == null)
+                    {
+                        logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().id, upd.metadata().keyspace, upd.metadata().name);
+                        continue;
+                    }
 
-                cfs.getWriteHandler().write(mutation.id(), upd, ctx, true);
+                    cfs.getWriteHandler().write(mutation.id(), upd, ctx, true);
+                }
             }
         }
 
-        MutationTrackingService.instance.finishWriting(mutation);
+        if (started)
+            MutationTrackingService.instance.finishWriting(mutation);
+
 
         if (future != null)
             future.trySuccess(null);
