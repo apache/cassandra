@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -101,6 +102,8 @@ public class AutoRepair
     @VisibleForTesting
     public boolean isSetupDone = false;
     public static AutoRepair instance = new AutoRepair();
+
+    public volatile boolean isShutDown = false;
 
     private AutoRepair()
     {
@@ -565,5 +568,36 @@ public class AutoRepair
                 condition.signalAll();
             }
         }
+    }
+
+    public synchronized void shutdownBlocking() throws ExecutionException, InterruptedException
+    {
+        if (!isSetupDone)
+        {
+            // By default, executors within AutoRepair are not initialized as the feature is opt-in.
+            // If the AutoRepair has not been set up, then there is no need to worry about shutting it down
+            return;
+        }
+        if (isShutDown)
+        {
+            throw new IllegalStateException("AutoRepair has already been shut down");
+        }
+        isShutDown = true;
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        {
+            repairRunnableExecutors.get(repairType).shutdown();
+            repairExecutors.get(repairType).shutdown();
+        }
+        logger.info("Paused AutoRepair");
+    }
+
+    public Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> getRepairExecutors()
+    {
+        return repairExecutors;
+    }
+
+    public Map<AutoRepairConfig.RepairType, ScheduledExecutorPlus> getRepairRunnableExecutors()
+    {
+        return repairRunnableExecutors;
     }
 }
