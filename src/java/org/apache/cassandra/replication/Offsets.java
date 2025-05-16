@@ -319,6 +319,11 @@ public abstract class Offsets implements Iterable<ShortMutationId>
             return true;
         }
 
+        public void remove(int offset)
+        {
+            // TODO (expected): implement
+        }
+
         private enum AddAction
         {
             INSERT, MOVE, INCLUDE;

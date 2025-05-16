@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.UUID;
 
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.Offsets;
@@ -97,8 +98,6 @@ public class MutationTrackingTest extends TestBaseImpl
                                                             .set("write_request_timeout", "1000ms"))
                                       .start())
         {
-
-            String keyspaceName = KEYSPACE;
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
                                               "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
                                               "AND replication_type='tracked';"));
@@ -121,6 +120,61 @@ public class MutationTrackingTest extends TestBaseImpl
             // TODO: confirm hints aren't written
             cluster.get(1).runOnInstance(() -> {
                 Assert.assertEquals(hints, StorageMetrics.totalHints.getCount());
+            });
+        }
+    }
+
+    @Test
+    public void testFailedMutationRedelivery() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking_enabled", "true")
+                                                            .set("write_request_timeout", "1000ms"))
+                                      .start())
+        {
+            String keyspaceName = KEYSPACE;
+
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
+                                              "AND replication_type='tracked';"));
+
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
+
+            // block writes to node 3
+            cluster.filters().verbs(Verb.MUTATION_REQ.id).to(3).drop();
+
+            // pause reconciler temporarily
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance.pauseActiveReconciler());
+
+            // issue a write - should fail on node 3
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.QUORUM);
+
+            Thread.sleep(1000); // wait for write timeout
+
+            cluster.get(1).runOnInstance(() ->
+            {
+                TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
+                DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
+                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                CoordinatorLogId logId = getOnlyLogId(summary);
+                Assert.assertEquals(1, summary.get(logId).unreconciled.offsetCount());
+                Assert.assertEquals(0, summary.get(logId).reconciled.offsetCount());
+            });
+
+            // resume the reconciler
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance.resumeActiveReconciler());
+            Thread.sleep(1000); // wait for reconiciler to do its job
+
+            cluster.get(1).runOnInstance(() ->
+            {
+                TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, "tbl");
+                DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
+                MutationSummary summary = MutationTrackingService.instance.createSummaryForKey(dk, table.id, false);
+                CoordinatorLogId logId = getOnlyLogId(summary);
+                Assert.assertEquals(0, summary.get(logId).unreconciled.offsetCount());
+                Assert.assertEquals(1, summary.get(logId).reconciled.offsetCount());
             });
         }
     }

@@ -230,6 +230,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         return hostids;
     }
 
+    private static int endpointToHostId(Replica replica)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        return metadata.directory.peerId(replica.endpoint()).id();
+    }
+
     public void start(long expiresAt)
     {
         // TODO: skip local coordination if this node knows its recovering from an outage
@@ -244,18 +250,20 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         // select data node
         // select summary nodes
         E selected = replicaPlan.contacts();
-        Replica dataNode = localReplica != null && localReplica.isFull()
-                           ? localReplica
-                           : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
-        E summaryNodes = selected.filter(r -> r != dataNode);
-        int[] summaryHostIds = endpointsToHostIds(summaryNodes);
+        Replica dataReplica = localReplica != null && localReplica.isFull()
+                            ? localReplica
+                            : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
+        E summaryReplicas = selected.filter(r -> r != dataReplica);
 
+        int dataNode = endpointToHostId(dataReplica);
+        int[] summaryNodes = endpointsToHostIds(summaryReplicas);
 
-        if (dataNode == localReplica)
+        if (dataReplica == localReplica)
         {
             Stage.READ.submit(() -> {
-                TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryHostIds, expiresAt);
-                coordinator.addCallback((response, error) -> {
+                AsyncPromise<TrackedDataResponse> promise =
+                    MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, expiresAt);
+                promise.addCallback((response, error) -> {
                     if (error != null)
                     {
                         // TODO: notify coordinator that read has failed
@@ -269,20 +277,17 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
         else
         {
-            DataRequest dataRequest = new DataRequest(readId, command, consistencyLevel, summaryHostIds);
+            DataRequest dataRequest = new DataRequest(readId, command, dataNode, summaryNodes, consistencyLevel);
             Message<DataRequest> dataMessage = Message.outWithFlag(verb(), dataRequest, MessageFlag.CALL_BACK_ON_FAILURE);
-            MessagingService.instance().sendWithCallback(dataMessage, dataNode.endpoint(), this);
+            MessagingService.instance().sendWithCallback(dataMessage, dataReplica.endpoint(), this);
         }
 
-        if (summaryNodes.isEmpty())
+        if (summaryReplicas.isEmpty())
             return;
 
-        SummaryRequest summaryRequest = new SummaryRequest(readId, command);
-        Message<SummaryRequest> summaryMessage = Message.outWithParam(Verb.TRACKED_SUMMARY_REQ,
-                                                                      summaryRequest,
-                                                                      ParamType.RESPOND_TO,
-                                                                      dataNode.endpoint());
-        for (Replica replica : summaryNodes)
+        SummaryRequest summaryRequest = new SummaryRequest(readId, command, dataNode, summaryNodes);
+        Message<SummaryRequest> summaryMessage = Message.out(Verb.TRACKED_SUMMARY_REQ, summaryRequest);
+        for (Replica replica : summaryReplicas)
         {
             if (localReplica == replica)
             {
@@ -383,13 +388,17 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public abstract static class Request
     {
-        protected final Id readId;
-        protected final ReadCommand command;
+        public final Id readId;
+        public final ReadCommand command;
+        public final int dataNode;
+        public final int[] summaryNodes;
 
-        protected Request(Id readId, ReadCommand command)
+        protected Request(Id readId, ReadCommand command, int dataNode, int[] summaryNodes)
         {
             this.readId = readId;
             this.command = command;
+            this.dataNode = dataNode;
+            this.summaryNodes = summaryNodes;
         }
 
         public abstract void executeLocally(Message<? extends Request> message, ClusterMetadata metadata);
@@ -398,20 +407,21 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     public static class DataRequest extends Request
     {
         private final ConsistencyLevel consistencyLevel;
-        private final int[] summaryNodes;
 
-        public DataRequest(Id readId, ReadCommand command, ConsistencyLevel consistencyLevel, int[] summaryNodes)
+        public DataRequest(Id readId, ReadCommand command, int dataNode, int[] summaryNodes, ConsistencyLevel consistencyLevel)
         {
-            super(readId, command);
+            super(readId, command, dataNode, summaryNodes);
             this.consistencyLevel = consistencyLevel;
-            this.summaryNodes = summaryNodes;
         }
 
         @Override
         public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
-            TrackedLocalReadCoordinator coordinator = MutationTrackingService.instance.localReads().beginRead(readId, metadata, command, consistencyLevel, summaryNodes, message.expiresAtNanos());
-            coordinator.addCallback((response, error) -> {
+            AsyncPromise<TrackedDataResponse> promise =
+                MutationTrackingService.instance
+                                       .localReads()
+                                       .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, message.expiresAtNanos());
+            promise.addCallback((response, error) -> {
                 if (error != null)
                 {
                     // TODO: notify coordinator that read has failed
@@ -429,10 +439,11 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             {
                 Id.serializer.serialize(request.readId, out, version);
                 ReadCommand.serializer.serialize(request.command, out, version);
-                out.writeInt(request.consistencyLevel.code);
+                out.writeInt(request.dataNode);
                 out.writeInt(request.summaryNodes.length);
                 for (int hostid : request.summaryNodes)
                     out.writeInt(hostid);
+                out.writeInt(request.consistencyLevel.code);
             }
 
             @Override
@@ -440,11 +451,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             {
                 Id readId = Id.serializer.deserialize(in, version);
                 ReadCommand command = ReadCommand.serializer.deserialize(in, version);
-                ConsistencyLevel consistencyLevel = ConsistencyLevel.fromCode(in.readInt());
+                int dataNode = in.readInt();
                 int[] summaryNodes = new int[in.readInt()];
                 for (int i = 0; i < summaryNodes.length; i++)
                     summaryNodes[i] = in.readInt();
-                return new DataRequest(readId, command, consistencyLevel, summaryNodes);
+                ConsistencyLevel consistencyLevel = ConsistencyLevel.fromCode(in.readInt());
+                return new DataRequest(readId, command, dataNode, summaryNodes, consistencyLevel);
             }
 
             @Override
@@ -452,26 +464,30 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             {
                 return Id.serializer.serializedSize(request.readId, version) +
                        ReadCommand.serializer.serializedSize(request.command, version) +
-                       TypeSizes.sizeof(request.consistencyLevel.code) +
+                       TypeSizes.sizeof(request.dataNode) +
                        TypeSizes.sizeof(request.summaryNodes.length) +
-                       ((long) TypeSizes.INT_SIZE * request.summaryNodes.length);
+                       ((long) TypeSizes.INT_SIZE * request.summaryNodes.length) +
+                       TypeSizes.sizeof(request.consistencyLevel.code);
             }
         };
     }
 
     public static class SummaryRequest extends Request
     {
-        public SummaryRequest(Id readId, ReadCommand command)
+        public SummaryRequest(Id readId, ReadCommand command, int dataNode, int[] summaryNodes)
         {
-            super(readId, command);
+            super(readId, command, dataNode, summaryNodes);
         }
 
         @Override
         public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
-            MutationSummary summary = command.createMutationSummary(false);
-            TrackedSummaryResponse response = new TrackedSummaryResponse(readId, summary);
-            MessagingService.instance().send(message.responseWith(response), message.respondTo());
+            ReadReconciliations.instance.handleSummaryRequest((SummaryRequest) message.payload);
+        }
+
+        public TrackedSummaryResponse makeResponse(MutationSummary summary)
+        {
+            return new TrackedSummaryResponse(readId, summary, dataNode, summaryNodes);
         }
 
         public static final IVersionedSerializer<SummaryRequest> serializer = new IVersionedSerializer<>()
@@ -481,6 +497,10 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             {
                 Id.serializer.serialize(request.readId, out, version);
                 ReadCommand.serializer.serialize(request.command, out, version);
+                out.writeInt(request.dataNode);
+                out.writeInt(request.summaryNodes.length);
+                for (int hostid : request.summaryNodes)
+                    out.writeInt(hostid);
             }
 
             @Override
@@ -488,14 +508,21 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             {
                 Id readId = Id.serializer.deserialize(in, version);
                 ReadCommand command = ReadCommand.serializer.deserialize(in, version);
-                return new SummaryRequest(readId, command);
+                int dataNode = in.readInt();
+                int[] summaryNodes = new int[in.readInt()];
+                for (int i = 0; i < summaryNodes.length; i++)
+                    summaryNodes[i] = in.readInt();
+                return new SummaryRequest(readId, command, dataNode, summaryNodes);
             }
 
             @Override
             public long serializedSize(SummaryRequest request, int version)
             {
                 return Id.serializer.serializedSize(request.readId, version) +
-                       ReadCommand.serializer.serializedSize(request.command, version);
+                       ReadCommand.serializer.serializedSize(request.command, version) +
+                       TypeSizes.sizeof(request.dataNode) +
+                       TypeSizes.sizeof(request.summaryNodes.length) +
+                       ((long) TypeSizes.INT_SIZE * request.summaryNodes.length);
             }
         };
     }

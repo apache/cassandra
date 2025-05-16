@@ -88,7 +88,7 @@ public class ForwardedWrite
                 }
             }
 
-            static final IVersionedSerializer<Kind> serializer = new IVersionedSerializer<Request.Kind>()
+            static final IVersionedSerializer<Kind> serializer = new IVersionedSerializer<>()
             {
                 @Override
                 public void serialize(Kind kind, DataOutputPlus out, int version) throws IOException
@@ -196,7 +196,7 @@ public class ForwardedWrite
 
             MutationId id = MutationTrackingService.instance.nextMutationId(keyspaceName, token);
             // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
-            LeaderCallback handler = new LeaderCallback(keyspaceName, mutation.key().getToken(), id, ackTo);
+            LeaderCallback handler = new LeaderCallback(id, ackTo);
             applyLocallyAndForwardToReplicas(mutation.withMutationId(id), recipients, handler, ackTo);
         }
 
@@ -343,7 +343,7 @@ public class ForwardedWrite
         AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
 
         // Add callbacks for replicas to respond directly to coordinator
-        Message<Request> toLeader = Message.out(Verb.FORWARDING_WRITE, new MutationRequest(mutation, plan));
+        Message<Request> toLeader = Message.out(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan));
         for (Replica endpoint : endpoints)
         {
             if (logger.isTraceEnabled())
@@ -383,16 +383,12 @@ public class ForwardedWrite
     // See org.apache.cassandra.service.TrackedWriteResponseHandler.onResponse, this class should probably merge with that one
     public static class LeaderCallback implements RequestCallback<NoPayload>
     {
-        private final String keyspace;
-        private final Token token;
         private final MutationId id;
         private final CoordinatorAckInfo ackTo;
         private final Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
 
-        public LeaderCallback(String keyspace, Token token, MutationId id, CoordinatorAckInfo ackTo)
+        public LeaderCallback(MutationId id, CoordinatorAckInfo ackTo)
         {
-            this.keyspace = keyspace;
-            this.token = token;
             this.id = id;
             this.ackTo = ackTo;
         }
@@ -402,7 +398,7 @@ public class ForwardedWrite
         {
             // Local mutations are witnessed from Keyspace.applyInternalTracked
             if (msg != null)
-                MutationTrackingService.instance.receivedWriteResponse(keyspace, token, id, msg.from());
+                MutationTrackingService.instance.receivedWriteResponse(id, msg.from());
 
             // Local write needs to be ack'd to coordinator
             if (msg == null && ackTo != null)

@@ -29,6 +29,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.AbstractIterator;
 
 public class MutationSummary
 {
@@ -322,6 +323,22 @@ public class MutationSummary
             l.unreconciled.collectIds(into);
             ++i;
         }
+    }
+
+    public Iterator<Offsets> onlyUnreconciled()
+    {
+        return new AbstractIterator<>()
+        {
+            int i = 0;
+
+            @Override
+            protected Offsets computeNext()
+            {
+                if (i >= summaries.size()) return endOfData();
+                Offsets offsets = summaries.get(i++).unreconciled;
+                return offsets.isEmpty() ? computeNext() : offsets;
+            }
+        };
     }
 
     public static final IVersionedSerializer<MutationSummary> serializer = new IVersionedSerializer<>()
