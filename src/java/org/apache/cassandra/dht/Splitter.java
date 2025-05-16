@@ -239,7 +239,7 @@ public abstract class Splitter extends AccordSplitter
      * @param parts the number of subranges
      * @return {@code parts} even subranges of {@code range}
      */
-    private Set<Range<Token>> split(Range<Token> range, int parts)
+    public Set<Range<Token>> split(Range<Token> range, int parts)
     {
         // the range might not have enough tokens to split
         BigInteger numTokens = tokensInRange(range);

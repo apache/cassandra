@@ -25,6 +25,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.base.Preconditions;
+import org.apache.cassandra.transport.Dispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -305,7 +306,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         {
             if (wasAugmented)
                 return extendRead(iterator);
-            return CompletedRead.simple(iterator, command);
+            return CompletedRead.simple(iterator, command, command.nowInSec());
         }
 
         AbstractBounds<PartitionPosition> followUpBounds()
@@ -354,7 +355,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         return completed.followUpBounds();
     }
 
-    protected static TrackedRead.Range makeFollowUpRead(PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    protected static TrackedRead.Range makeFollowUpRead(PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, int toQuery, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         DataLimits newLimits = command.limits().forShortReadRetry(toQuery);
 
@@ -369,7 +370,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
                                                                          followUpCmd.dataRange().keyRange(),
                                                                          1);
 
-        TrackedRead.Range read = TrackedRead.Range.create(followUpCmd, replicaPlan);
+        TrackedRead.Range read = TrackedRead.Range.create(followUpCmd, replicaPlan, requestTime);
         logger.trace("Short read detected, starting followup read {}", read);
         return read;
     }
@@ -556,15 +557,15 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
             }
 
             @Override
-            protected Future<TrackedDataResponse> makeFollowupRead(TrackedDataResponse initialResponse, int toQuery, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+            protected Future<TrackedDataResponse> makeFollowupRead(TrackedDataResponse initialResponse, int toQuery, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
             {
                 if (followUpReadInfo.isEmpty())
-                    return super.makeFollowupRead(initialResponse, toQuery, consistencyLevel, expiresAtNanos);
+                    return super.makeFollowupRead(initialResponse, toQuery, consistencyLevel, requestTime);
 
                 FilteredFollowupRead followupRead = new FilteredFollowupRead(initialResponse,
                                                                              toQuery,
                                                                              consistencyLevel,
-                                                                             expiresAtNanos,
+                                                                             requestTime,
                                                                              followUpReadInfo,
                                                                              command,
                                                                              followUpBounds,

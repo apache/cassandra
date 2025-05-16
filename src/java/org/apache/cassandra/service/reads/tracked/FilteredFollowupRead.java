@@ -37,6 +37,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.service.reads.tracked.PartialTrackedRangeRead.FollowUpReadInfo;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -50,7 +51,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
     private final TrackedDataResponse initialResponse;
     private final int toQuery;
     private final ConsistencyLevel consistencyLevel;
-    private final long expiresAtNanos;
+    private final Dispatcher.RequestTime requestTime;
     private final SortedMap<DecoratedKey, FollowUpReadInfo> followUpReadInfo;
     private final PartitionRangeReadCommand command;
     private final AbstractBounds<PartitionPosition> followUpBounds;
@@ -59,7 +60,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
     public FilteredFollowupRead(TrackedDataResponse initialResponse,
                                 int toQuery,
                                 ConsistencyLevel consistencyLevel,
-                                long expiresAtNanos,
+                                Dispatcher.RequestTime requestTime,
                                 SortedMap<DecoratedKey, FollowUpReadInfo> followUpReadInfo,
                                 PartitionRangeReadCommand command,
                                 AbstractBounds<PartitionPosition> followUpBounds,
@@ -68,7 +69,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         this.initialResponse = initialResponse;
         this.toQuery = toQuery;
         this.consistencyLevel = consistencyLevel;
-        this.expiresAtNanos = expiresAtNanos;
+        this.requestTime = requestTime;
         this.followUpReadInfo = followUpReadInfo;
         this.command = command;
         this.followUpBounds = followUpBounds;
@@ -96,8 +97,8 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
             FollowUpReadInfo info = followUpReadInfo.get(key);
             remaining -= info.potentialMatches;
             SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fromRangeRead(key, command, command.limits().forShortReadRetry(toQuery));
-            TrackedRead.Partition read = TrackedRead.Partition.create(metadata, cmd, consistencyLevel);
-            read.start(expiresAtNanos);
+            TrackedRead.Partition read = TrackedRead.Partition.create(metadata, cmd, consistencyLevel, requestTime);
+            read.start(requestTime);
             futures.add(read.future());
         }
 
@@ -107,8 +108,8 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         if (remaining > 0)
         {
             partialRead = new AtomicReference<>();
-            TrackedRead.Range rangeRead = makeFollowUpRead(command, followUpBounds, remaining, consistencyLevel, expiresAtNanos);
-            rangeRead.startLocal(expiresAtNanos, partialRead::set);
+            TrackedRead.Range rangeRead = makeFollowUpRead(command, followUpBounds, remaining, consistencyLevel, requestTime);
+            rangeRead.startLocal(requestTime, partialRead::set);
             futures.add(rangeRead.future());
         }
         else
@@ -153,7 +154,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
                         PartialTrackedRangeRead followUpRangeRead = (PartialTrackedRangeRead) partialRead.get();
                         nextBounds = followUpRangeRead.followUpBounds();
                     }
-                    FilteredFollowupRead followUp = new FilteredFollowupRead(response, toQuery(command, mergedResultCounter), consistencyLevel, expiresAtNanos, nextKeys, command, nextBounds, null);
+                    FilteredFollowupRead followUp = new FilteredFollowupRead(response, toQuery(command, mergedResultCounter), consistencyLevel, requestTime, nextKeys, command, nextBounds, null);
                     followUp.start();
                     followUp.addCallback((result, failure) -> {
                         if (failure != null)

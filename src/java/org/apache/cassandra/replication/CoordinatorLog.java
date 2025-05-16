@@ -28,6 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
+
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -45,18 +47,21 @@ public abstract class CoordinatorLog
     protected final CoordinatorLogId logId;
     protected final Participants participants;
 
+    protected final UnreconciledMutations unreconciledMutations;
     protected final Offsets.Mutable[] witnessedOffsets;
     protected final Offsets.Mutable reconciledOffsets;
 
     protected final ReadWriteLock lock;
 
-    abstract UnreconciledMutations unreconciledMutations();
+    abstract void receivedWriteResponse(ShortMutationId mutationId, int fromHostId);
 
     CoordinatorLog(int localHostId, CoordinatorLogId logId, Participants participants)
     {
         this.localHostId = localHostId;
         this.logId = logId;
         this.participants = participants;
+
+        this.unreconciledMutations = new UnreconciledMutations();
         this.lock = new ReentrantReadWriteLock();
 
         Offsets.Mutable[] ids = new Offsets.Mutable[participants.size()];
@@ -73,34 +78,6 @@ public abstract class CoordinatorLog
                                         : new CoordinatorLogReplica(localHostId, id, participants);
     }
 
-    void receivedWriteResponse(MutationId mutationId, int onHostId)
-    {
-        Preconditions.checkArgument(!mutationId.isNone());
-        Preconditions.checkArgument(!Objects.equals(onHostId, ClusterMetadata.current().myNodeId().id()));
-        logger.trace("witnessed remote mutation {} from {}", mutationId, onHostId);
-        lock.writeLock().lock();
-        try
-        {
-            if (!get(onHostId).add(mutationId.offset()))
-                return; // already witnessed; very uncommon but possible path
-
-            if (!getLocal().contains(mutationId.offset()))
-                return; // local host hasn't witnessed yet -> no cleanup needed
-
-            if (remoteReplicasWitnessed(mutationId.offset()))
-            {
-                logger.trace("marking mutation {} as fully reconciled", mutationId);
-                // if all replicas have now witnessed the id, remove it from the index
-                unreconciledMutations().remove(mutationId.offset());
-                reconciledOffsets.add(mutationId.offset());
-            }
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
-
     void updateReplicatedOffsets(Offsets offsets, int onHostId)
     {
         lock.writeLock().lock();
@@ -114,7 +91,7 @@ public abstract class CoordinatorLog
                     if (othersWitnessed(offset, onHostId))
                     {
                         reconciledOffsets.add(offset);
-                        unreconciledMutations().remove(offset);
+                        unreconciledMutations.remove(offset);
                     }
                 }
             });
@@ -140,15 +117,16 @@ public abstract class CoordinatorLog
         }
     }
 
-    void startWriting(Mutation mutation)
+    boolean startWriting(Mutation mutation)
     {
         lock.writeLock().lock();
         try
         {
             if (getLocal().contains(mutation.id().offset()))
-                return; // already witnessed; shouldn't get to this path often (duplicate mutation)
+                return false; // already witnessed; shouldn't get to this path often (duplicate mutation)
 
-            unreconciledMutations().startWriting(mutation);
+            unreconciledMutations.startWriting(mutation);
+            return true;
         }
         finally
         {
@@ -164,15 +142,16 @@ public abstract class CoordinatorLog
         try
         {
             int offset = mutation.id().offset();
+            // we've raced with another write, no need to do anything else
             if (!getLocal().add(offset))
-                throw new IllegalStateException("finishWriting() called on a locally witnessed mutation " + mutation.id());
+                return;
 
-            unreconciledMutations().finishWriting(mutation);
+            unreconciledMutations.finishWriting(mutation);
 
             if (remoteReplicasWitnessed(offset))
             {
                 reconciledOffsets.add(offset);
-                unreconciledMutations().remove(offset);
+                unreconciledMutations.remove(offset);
             }
         }
         finally
@@ -192,7 +171,7 @@ public abstract class CoordinatorLog
         return true;
     }
 
-    private boolean remoteReplicasWitnessed(int offset)
+    protected boolean remoteReplicasWitnessed(int offset)
     {
         return othersWitnessed(offset, localHostId);
     }
@@ -207,7 +186,7 @@ public abstract class CoordinatorLog
         try
         {
             reconciledInto.addAll(reconciledOffsets);
-            return unreconciledMutations().collect(token, tableId, includePending, unreconciledInto);
+            return unreconciledMutations.collect(token, tableId, includePending, unreconciledInto);
         }
         finally
         {
@@ -225,7 +204,39 @@ public abstract class CoordinatorLog
         try
         {
             reconciledInto.addAll(reconciledOffsets);
-            return unreconciledMutations().collect(range, tableId, includePending, unreconciledInto);
+            return unreconciledMutations.collect(range, tableId, includePending, unreconciledInto);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Collect the offsets in {@code remoteOffsets} that are missing from the local log.
+     */
+    void collectLocallyMissingMutations(Offsets remoteOffsets, Log2OffsetsMap.Mutable into)
+    {
+        lock.readLock().lock();
+        try
+        {
+            into.add(Offsets.Immutable.difference(remoteOffsets, getLocal()));
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    void collectRemotelyMissingMutations(Offsets localOffsets, IntArrayList remoteNodeIds, Node2OffsetsMap into)
+    {
+        lock.readLock().lock();
+        try
+        {
+            remoteNodeIds.forEachInt(remoteNodeId -> {
+                Offsets missing = Offsets.Immutable.difference(get(remoteNodeId), localOffsets);
+                if (!missing.isEmpty()) into.add(remoteNodeId, missing);
+            });
         }
         finally
         {
@@ -269,21 +280,42 @@ public abstract class CoordinatorLog
                '}';
     }
 
-    public static class CoordinatorLogPrimary extends CoordinatorLog
+    static class CoordinatorLogPrimary extends CoordinatorLog
     {
         private final AtomicLong sequenceId = new AtomicLong(-1);
-        private final UnreconciledMutationsReplica unreconciledMutations;
 
         CoordinatorLogPrimary(int localHostId, CoordinatorLogId logId, Participants participants)
         {
             super(localHostId, logId, participants);
-            unreconciledMutations = new UnreconciledMutationsReplica();
         }
 
         @Override
-        UnreconciledMutationsReplica unreconciledMutations()
+        void receivedWriteResponse(ShortMutationId mutationId, int fromHostId)
         {
-            return unreconciledMutations;
+            Preconditions.checkArgument(!mutationId.isNone());
+            Preconditions.checkArgument(!Objects.equals(fromHostId, ClusterMetadata.current().myNodeId().id()));
+            logger.trace("witnessed remote mutation {} from {}", mutationId, fromHostId);
+            lock.writeLock().lock();
+            try
+            {
+                if (!get(fromHostId).add(mutationId.offset()))
+                    return; // already witnessed; very uncommon but possible path
+
+                if (!getLocal().contains(mutationId.offset()))
+                    return; // local host hasn't witnessed yet -> no cleanup needed
+
+                if (remoteReplicasWitnessed(mutationId.offset()))
+                {
+                    logger.trace("marking mutation {} as fully reconciled", mutationId);
+                    // if all replicas have now witnessed the id, remove it from the index
+                    unreconciledMutations.remove(mutationId.offset());
+                    reconciledOffsets.add(mutationId.offset());
+                }
+            }
+            finally
+            {
+                lock.writeLock().unlock();
+            }
         }
 
         MutationId nextId()
@@ -309,20 +341,18 @@ public abstract class CoordinatorLog
         }
     }
 
-    public static class CoordinatorLogReplica extends CoordinatorLog
+    static class CoordinatorLogReplica extends CoordinatorLog
     {
-        private final UnreconciledMutationsReplica unreconciledMutations;
-
         CoordinatorLogReplica(int localHostId, CoordinatorLogId logId, Participants participants)
         {
             super(localHostId, logId, participants);
-            this.unreconciledMutations = new UnreconciledMutationsReplica();
         }
 
         @Override
-        UnreconciledMutationsReplica unreconciledMutations()
+        void receivedWriteResponse(ShortMutationId mutationId, int fromHostId)
         {
-            return unreconciledMutations;
+            // no-op
         }
     }
+
 }
