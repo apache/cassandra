@@ -59,7 +59,8 @@ public class EndpointState
         final HeartBeatState hbState;
         final Map<ApplicationState, VersionedValue> applicationState;
 
-        private View(HeartBeatState hbState, Map<ApplicationState, VersionedValue> applicationState) {
+        private View(HeartBeatState hbState, Map<ApplicationState, VersionedValue> applicationState)
+        {
             this.hbState = hbState;
             this.applicationState = applicationState;
         }
