@@ -647,7 +647,7 @@ public class ReplicaPlans
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
         E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
-            if (!any(liveAndDown.all(), Replica::isTransient))
+            if (!any(liveAndDown.all(), Replica::isWitness))
                 return liveAndDown.all();
 
             ReplicaCollection.Builder<E> contacts = liveAndDown.all().newBuilder(liveAndDown.all().size());
@@ -666,7 +666,7 @@ public class ReplicaPlans
             addToCountPerDc(locator, requiredPerDc, live.natural().filter(Replica::isFull), -1);
             addToCountPerDc(locator, requiredPerDc, live.pending(), -1);
 
-            for (Replica replica : filter(live.natural(), Replica::isTransient))
+            for (Replica replica : filter(live.natural(), Replica::isWitness))
             {
 
                 String dc = locator.location(replica.endpoint()).datacenter;
@@ -678,7 +678,7 @@ public class ReplicaPlans
     };
 
     /**
-     * TODO: Transient Replication C-14404/C-14665
+     * TODO: Witness Replication C-14404/C-14665
      * TODO: We employ this even when there is no monotonicity to guarantee,
      *          e.g. in case of CL.TWO, CL.ONE with speculation, etc.
      *
@@ -697,7 +697,7 @@ public class ReplicaPlans
             public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
             E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
             {
-                assert !any(liveAndDown.all(), Replica::isTransient);
+                assert !any(liveAndDown.all(), Replica::isWitness);
 
                 ReplicaCollection.Builder<E> contacts = live.all().newBuilder(live.all().size());
                 // add all live nodes we might write to that we have already contacted on read

@@ -192,8 +192,8 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         }
         else
         {
-            if (source.isTransient())
-                cmd = cmd.copyAsTransientQuery(source);
+            if (source.isWitness())
+                cmd = cmd.copyAsWitnessQuery(source);
             coordinator.sendReadCommand(cmd.createMessage(false, requestTime), source.endpoint(), handler);
         }
 

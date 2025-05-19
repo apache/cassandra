@@ -446,7 +446,7 @@ public class NetworkTopologyStrategyTest extends CassandraTestBase
 
     @Test
     @UseMurmur3Partitioner
-    public void testTransientReplica() throws Exception
+    public void testWitnessReplica() throws Exception
     {
         List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
                                                                 InetAddressAndPort.getByName("127.0.0.2"),

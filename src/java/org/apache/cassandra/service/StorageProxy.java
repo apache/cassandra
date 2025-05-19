@@ -1396,7 +1396,7 @@ public class StorageProxy implements StorageProxyMBean
         boolean attributeNonAccordLatency = true;
         long nonAccordEndTime = -1;
 
-        if (mutations.stream().anyMatch(mutation -> Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasTransientReplicas()))
+        if (mutations.stream().anyMatch(mutation -> Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasWitnessReplicas()))
             throw new AssertionError("Logged batches are unsupported with transient replication");
 
         try
@@ -2926,7 +2926,7 @@ public class StorageProxy implements StorageProxyMBean
     public static boolean shouldHint(Replica replica, boolean tryEnablePersistentWindow)
     {
         if (!DatabaseDescriptor.hintedHandoffEnabled()
-            || replica.isTransient()
+            || replica.isWitness()
             || replica.isSelf())
             return false;
 
@@ -3127,7 +3127,7 @@ public class StorageProxy implements StorageProxyMBean
                 MessagingService.instance().metrics.recordSelfDroppedMessage(Verb.MUTATION_REQ, timeTakenNanos, NANOSECONDS);
 
                 // Don't submit a hint if this replica is transient
-                if (localReplica.isTransient())
+                if (localReplica.isWitness())
                     return;
 
                 HintRunnable runnable = new HintRunnable(ImmutableSet.of(localReplica.endpoint()))

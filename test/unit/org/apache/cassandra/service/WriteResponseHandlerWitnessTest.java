@@ -88,7 +88,7 @@ public class WriteResponseHandlerWitnessTest
     public static void setupClass() throws Throwable
     {
         SchemaLoader.loadSchema();
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         // Register peers with expected DC for NetworkTopologyStrategy.
@@ -180,7 +180,7 @@ public class WriteResponseHandlerWitnessTest
     }
 
     @Test (expected = UnavailableException.class)
-    public void notEnoughTransientReplicas()
+    public void notEnoughWitnessReplicas()
     {
         getSpeculationContext(replicas(full(EP1), trans(EP2), trans(EP3)), dead(EP2, EP3));
     }

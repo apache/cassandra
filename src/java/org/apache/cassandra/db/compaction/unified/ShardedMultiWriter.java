@@ -60,7 +60,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
     private final long keyCount;
     private final long repairedAt;
     private final TimeUUID pendingRepair;
-    private final boolean isTransient;
+    private final boolean isWitness;
     private final IntervalSet<CommitLogPosition> commitLogPositions;
     private final SerializationHeader header;
     private final Collection<Index.Group> indexGroups;
@@ -74,7 +74,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                               long keyCount,
                               long repairedAt,
                               TimeUUID pendingRepair,
-                              boolean isTransient,
+                              boolean isWitness,
                               IntervalSet<CommitLogPosition> commitLogPositions,
                               SerializationHeader header,
                               Collection<Index.Group> indexGroups,
@@ -86,7 +86,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
         this.keyCount = keyCount;
         this.repairedAt = repairedAt;
         this.pendingRepair = pendingRepair;
-        this.isTransient = isTransient;
+        this.isWitness = isWitness;
         this.commitLogPositions = commitLogPositions;
         this.header = header;
         this.indexGroups = indexGroups;
@@ -112,7 +112,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                          .setKeyCount(forSplittingKeysBy(boundaries.count()))
                          .setRepairedAt(repairedAt)
                          .setPendingRepair(pendingRepair)
-                         .setTransientSSTable(isTransient)
+                         .setWitnessSSTable(isWitness)
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(metadataCollector)
                          .setSerializationHeader(header)

@@ -155,7 +155,7 @@ public class SSTableWriterTestBase extends SchemaLoader
             assertFalse(CompactionManager.instance.submitMaximal(cfs, cfs.gcBefore((int) (System.currentTimeMillis() / 1000)), false, 0).isEmpty());
     }
 
-    public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, LifecycleTransaction txn, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, LifecycleTransaction txn, long repairedAt, TimeUUID pendingRepair, boolean isWitness)
     {
         Descriptor desc = cfs.newSSTableDescriptor(directory);
         return desc.getFormat().getWriterFactory().builder(desc)
@@ -163,7 +163,7 @@ public class SSTableWriterTestBase extends SchemaLoader
                    .setKeyCount(0)
                    .setRepairedAt(repairedAt)
                    .setPendingRepair(pendingRepair)
-                   .setTransientSSTable(isTransient)
+                   .setWitnessSSTable(isWitness)
                    .setSerializationHeader(new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS))
                    .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                    .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))

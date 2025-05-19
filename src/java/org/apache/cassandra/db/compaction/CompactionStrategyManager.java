@@ -426,7 +426,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     @VisibleForTesting
-    PendingRepairHolder getTransientRepairsUnsafe()
+    PendingRepairHolder getWitnessRepairsUnsafe()
     {
         return transientRepairs;
     }
@@ -789,19 +789,19 @@ public class CompactionStrategyManager implements INotificationConsumer
         throw new IllegalStateException("No holder claimed " + sstable);
     }
 
-    private AbstractStrategyHolder getHolder(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    private AbstractStrategyHolder getHolder(long repairedAt, TimeUUID pendingRepair, boolean isWitness)
     {
         return getHolder(repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE,
                          pendingRepair != ActiveRepairService.NO_PENDING_REPAIR,
-                         isTransient);
+                         isWitness);
     }
 
     @VisibleForTesting
-    AbstractStrategyHolder getHolder(boolean isRepaired, boolean isPendingRepair, boolean isTransient)
+    AbstractStrategyHolder getHolder(boolean isRepaired, boolean isPendingRepair, boolean isWitness)
     {
         for (AbstractStrategyHolder holder : holders)
         {
-            if (holder.managesRepairedGroup(isRepaired, isPendingRepair, isTransient))
+            if (holder.managesRepairedGroup(isRepaired, isPendingRepair, isWitness))
                 return holder;
         }
 
@@ -1252,23 +1252,23 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        long keyCount,
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
-                                                       boolean isTransient,
+                                                       boolean isWitness,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
-        SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
+        SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isWitness);
         maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
-            return getHolder(repairedAt, pendingRepair, isTransient).createSSTableMultiWriter(descriptor,
+            return getHolder(repairedAt, pendingRepair, isWitness).createSSTableMultiWriter(descriptor,
                                                                                               keyCount,
                                                                                               repairedAt,
                                                                                               pendingRepair,
-                                                                                              isTransient,
+                                                                                              isWitness,
                                                                                               commitLogPositions,
                                                                                               sstableLevel,
                                                                                               header,
@@ -1338,7 +1338,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * Mutates sstable repairedAt times and notifies listeners of the change with the writeLock held. Prevents races
      * with other processes between when the metadata is changed and when sstables are moved between strategies.
       */
-    public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
+    public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, TimeUUID pendingRepair, boolean isWitness) throws IOException
     {
         if (sstables.isEmpty())
             return;
@@ -1349,8 +1349,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             for (SSTableReader sstable: sstables)
             {
-                sstable.mutateRepairedAndReload(repairedAt, pendingRepair, isTransient);
-                verifyMetadata(sstable, repairedAt, pendingRepair, isTransient);
+                sstable.mutateRepairedAndReload(repairedAt, pendingRepair, isWitness);
+                verifyMetadata(sstable, repairedAt, pendingRepair, isWitness);
                 changed.add(sstable);
             }
         }
@@ -1369,14 +1369,14 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    private static void verifyMetadata(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    private static void verifyMetadata(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isWitness)
     {
         if (!Objects.equals(pendingRepair, sstable.getPendingRepair()))
             throw new IllegalStateException(String.format("Failed setting pending repair to %s on %s (pending repair is %s)", pendingRepair, sstable, sstable.getPendingRepair()));
         if (repairedAt != sstable.getRepairedAt())
             throw new IllegalStateException(String.format("Failed setting repairedAt to %d on %s (repairedAt is %d)", repairedAt, sstable, sstable.getRepairedAt()));
-        if (isTransient != sstable.isTransient())
-            throw new IllegalStateException(String.format("Failed setting isTransient to %b on %s (isTransient is %b)", isTransient, sstable, sstable.isTransient()));
+        if (isWitness != sstable.isWitness())
+            throw new IllegalStateException(String.format("Failed setting isWitness to %b on %s (isWitness is %b)", isWitness, sstable, sstable.isWitness()));
     }
 
     public CleanupSummary releaseRepairData(Collection<TimeUUID> sessions)

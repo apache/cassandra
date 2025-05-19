@@ -167,7 +167,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         TableMetadata table = builder.build();
         table.validate();
 
-        if (keyspace.replicationStrategy.hasTransientReplicas()
+        if (keyspace.replicationStrategy.hasWitnessReplicas()
             && table.params.readRepair != ReadRepairStrategy.NONE)
         {
             throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");

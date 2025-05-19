@@ -2059,7 +2059,7 @@ materialized_views_enabled: false
 sasi_indexes_enabled: false
 
 # Enables creation of transiently replicated keyspaces on this node.
-# Transient replication is experimental and is not recommended for production use.
+# Witness replication is experimental and is not recommended for production use.
 transient_replication_enabled: false
 
 # Enables the used of 'ALTER ... DROP COMPACT STORAGE' statements on this node.

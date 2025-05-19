@@ -458,7 +458,7 @@ public class ReplicaCollectionTest
             Assert.fail();
         } catch (IllegalArgumentException e) { }
         try
-        {   // conflict on isFull/isTransient
+        {   // conflict on isFull/isWitness
             test.add(fullReplica(EP1, R3), Conflict.DUPLICATE);
             Assert.fail();
         } catch (IllegalArgumentException e) { }
@@ -509,7 +509,7 @@ public class ReplicaCollectionTest
             Assert.fail();
         } catch (IllegalArgumentException e) { }
         try
-        {   // conflict on isFull/isTransient
+        {   // conflict on isFull/isWitness
             test.add(transientReplica(EP1, R1), Conflict.DUPLICATE);
             Assert.fail();
         } catch (IllegalArgumentException e) { }
@@ -552,7 +552,7 @@ public class ReplicaCollectionTest
             Assert.fail();
         } catch (IllegalArgumentException e) { }
         try
-        {   // conflict on isFull/isTransient
+        {   // conflict on isFull/isWitness
             test.add(transientReplica(EP1, R1), Conflict.DUPLICATE);
             Assert.fail();
         } catch (IllegalArgumentException e) { }

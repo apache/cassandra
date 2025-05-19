@@ -52,7 +52,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
     // besides (transitively) those that cache objects that themselves have only final members
     private ReplicaMap<Range<Token>> byRange;
     private RangesAtEndpoint onlyFull;
-    private RangesAtEndpoint onlyTransient;
+    private RangesAtEndpoint onlyWitness;
 
     private RangesAtEndpoint(InetAddressAndPort endpoint, ReplicaList list, ReplicaMap<Range<Token>> byRange)
     {
@@ -136,11 +136,11 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         return result;
     }
 
-    public RangesAtEndpoint onlyTransient()
+    public RangesAtEndpoint onlyWitness()
     {
-        RangesAtEndpoint result = onlyTransient;
+        RangesAtEndpoint result = onlyWitness;
         if (result == null)
-            onlyTransient = result = filter(Replica::isTransient);
+            onlyWitness = result = filter(Replica::isWitness);
         return result;
     }
 

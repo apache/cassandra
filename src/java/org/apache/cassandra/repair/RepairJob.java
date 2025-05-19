@@ -338,7 +338,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         return desc.keyspace.equals(METADATA_KEYSPACE_NAME);
     }
 
-    private boolean isTransient(InetAddressAndPort ep)
+    private boolean isWitness(InetAddressAndPort ep)
     {
         return session.state.commonRange.transEndpoints.contains(ep);
     }
@@ -348,7 +348,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         return createStandardSyncTasks(ctx, desc,
                                        trees,
                                        ctx.broadcastAddressAndPort(),
-                                       this::isTransient,
+                                       this::isWitness,
                                        session.isIncremental,
                                        session.pullRepair,
                                        session.previewKind);
@@ -359,7 +359,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                   RepairJobDesc desc,
                                                   List<TreeResponse> trees,
                                                   InetAddressAndPort local,
-                                                  Predicate<InetAddressAndPort> isTransient,
+                                                  Predicate<InetAddressAndPort> isWitness,
                                                   boolean isIncremental,
                                                   boolean pullRepair,
                                                   PreviewKind previewKind)
@@ -375,7 +375,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                 TreeResponse r2 = trees.get(j);
 
                 // Avoid streming between two tansient replicas
-                if (isTransient.test(r1.endpoint) && isTransient.test(r2.endpoint))
+                if (isWitness.test(r1.endpoint) && isWitness.test(r2.endpoint))
                     continue;
 
                 List<Range<Token>> differences = MerkleTrees.difference(r1.trees, r2.trees);
@@ -391,9 +391,9 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     TreeResponse remote = r2.endpoint.equals(local) ? r1 : r2;
 
                     // pull only if local is full
-                    boolean requestRanges = !isTransient.test(self.endpoint);
+                    boolean requestRanges = !isWitness.test(self.endpoint);
                     // push only if remote is full; additionally check for pull repair
-                    boolean transferRanges = !isTransient.test(remote.endpoint) && !pullRepair;
+                    boolean transferRanges = !isWitness.test(remote.endpoint) && !pullRepair;
 
                     // Nothing to do
                     if (!requestRanges && !transferRanges)
@@ -402,11 +402,11 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     task = new LocalSyncTask(ctx, desc, self.endpoint, remote.endpoint, differences, isIncremental ? desc.parentSessionId : null,
                                              requestRanges, transferRanges, previewKind);
                 }
-                else if (isTransient.test(r1.endpoint) || isTransient.test(r2.endpoint))
+                else if (isWitness.test(r1.endpoint) || isWitness.test(r2.endpoint))
                 {
                     // Stream only from transient replica
-                    TreeResponse streamFrom = isTransient.test(r1.endpoint) ? r1 : r2;
-                    TreeResponse streamTo = isTransient.test(r1.endpoint) ? r2 : r1;
+                    TreeResponse streamFrom = isWitness.test(r1.endpoint) ? r1 : r2;
+                    TreeResponse streamTo = isWitness.test(r1.endpoint) ? r2 : r1;
                     task = new AsymmetricRemoteSyncTask(ctx, desc, streamTo.endpoint, streamFrom.endpoint, differences, previewKind);
                 }
                 else
@@ -470,7 +470,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                desc,
                                                trees,
                                                FBUtilities.getLocalAddressAndPort(),
-                                               this::isTransient,
+                                               this::isWitness,
                                                this::getDC,
                                                session.isIncremental,
                                                session.previewKind);
@@ -481,7 +481,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                           RepairJobDesc desc,
                                                           List<TreeResponse> trees,
                                                           InetAddressAndPort local,
-                                                          Predicate<InetAddressAndPort> isTransient,
+                                                          Predicate<InetAddressAndPort> isWitness,
                                                           Function<InetAddressAndPort, String> getDC,
                                                           boolean isIncremental,
                                                           PreviewKind previewKind)
@@ -504,7 +504,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             InetAddressAndPort address = trees.get(i).endpoint;
 
             // we don't stream to transient replicas
-            if (isTransient.test(address))
+            if (isWitness.test(address))
                 continue;
 
             HostDifferences streamsFor = reducedDifferences.get(address);

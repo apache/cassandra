@@ -273,19 +273,19 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(false);
     }
 
-    private static void assertHolderExclusivity(boolean isRepaired, boolean isPendingRepair, boolean isTransient, Class<? extends AbstractStrategyHolder> expectedType)
+    private static void assertHolderExclusivity(boolean isRepaired, boolean isPendingRepair, boolean isWitness, Class<? extends AbstractStrategyHolder> expectedType)
     {
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
 
-        AbstractStrategyHolder holder = csm.getHolder(isRepaired, isPendingRepair, isTransient);
+        AbstractStrategyHolder holder = csm.getHolder(isRepaired, isPendingRepair, isWitness);
         assertNotNull(holder);
         assertSame(expectedType, holder.getClass());
 
         int matches = 0;
         for (AbstractStrategyHolder other : csm.getHolders())
         {
-            if (other.managesRepairedGroup(isRepaired, isPendingRepair, isTransient))
+            if (other.managesRepairedGroup(isRepaired, isPendingRepair, isWitness))
             {
                 assertSame("holder assignment should be mutually exclusive", holder, other);
                 matches++;
@@ -294,13 +294,13 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         assertEquals(1, matches);
     }
 
-    private static void assertInvalieHolderConfig(boolean isRepaired, boolean isPendingRepair, boolean isTransient)
+    private static void assertInvalieHolderConfig(boolean isRepaired, boolean isPendingRepair, boolean isWitness)
     {
         ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
         CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
         try
         {
-            csm.getHolder(isRepaired, isPendingRepair, isTransient);
+            csm.getHolder(isRepaired, isPendingRepair, isWitness);
             fail("Expected IllegalArgumentException");
         }
         catch (IllegalArgumentException e)
@@ -381,7 +381,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
                     expected = repaired.get(y);
                 else if (sstable.isPendingRepair())
                 {
-                    if (sstable.isTransient())
+                    if (sstable.isWitness())
                     {
                         expected = transientRepairs.get(y);
                     }

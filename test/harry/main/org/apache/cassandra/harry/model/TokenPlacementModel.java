@@ -274,7 +274,7 @@ public class TokenPlacementModel
         {
             super(mapFunction(dcs, nodesPerDc, transientPerDc));
             if (transientPerDc >= nodesPerDc)
-                throw new IllegalArgumentException("Transient replicas must be zero, or less than total replication factor per dc");
+                throw new IllegalArgumentException("Witness replicas must be zero, or less than total replication factor per dc");
         }
 
         public NtsReplicationFactor(Map<String, Integer> m)
@@ -585,7 +585,7 @@ public class TokenPlacementModel
         {
             super(mapFunction(total, transientReplicas));
             if (transientReplicas >= total)
-                throw new IllegalArgumentException("Transient replicas must be zero, or less than total replication factor");
+                throw new IllegalArgumentException("Witness replicas must be zero, or less than total replication factor");
         }
 
         public static Function<Lookup, Map<String, DCReplicas>> mapFunction(int totalReplicas, int transientReplicas)
@@ -896,7 +896,7 @@ public class TokenPlacementModel
             return full;
         }
 
-        public boolean isTransient()
+        public boolean isWitness()
         {
             return !full;
         }
@@ -918,7 +918,7 @@ public class TokenPlacementModel
 
         public String toString()
         {
-            return String.format("%s(%s)", (full ? "Full" : "Transient"), node.toString());
+            return String.format("%s(%s)", (full ? "Full" : "Witness"), node.toString());
         }
 
         @Override

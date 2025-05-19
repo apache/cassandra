@@ -193,7 +193,7 @@ public class SchemaLoader
                 standardCFMD(ks_rcs, "CachedNoClustering", 1, IntegerType.instance, IntegerType.instance, null).caching(CachingParams.CACHE_EVERYTHING).build(),
                 standardCFMD(ks_rcs, "CachedIntCF").caching(new CachingParams(true, 100)).build())));
 
-        schema.add(KeyspaceMetadata.create(ks_nocommit, KeyspaceParams.simpleTransient(1), Tables.of(
+        schema.add(KeyspaceMetadata.create(ks_nocommit, KeyspaceParams.simpleWitness(1), Tables.of(
                 standardCFMD(ks_nocommit, "Standard1").build())));
 
         String simpleTable = "CREATE TABLE table1 ("
@@ -224,7 +224,7 @@ public class SchemaLoader
         if (DatabaseDescriptor.getPartitioner() instanceof Murmur3Partitioner)
         {
             schema.add(KeyspaceMetadata.create("sasi",
-                                               KeyspaceParams.simpleTransient(1),
+                                               KeyspaceParams.simpleWitness(1),
                                                Tables.of(sasiCFMD("sasi", "test_cf").build(),
                                                          clusteringSASICFMD("sasi", "clustering_test_cf").build())));
         }

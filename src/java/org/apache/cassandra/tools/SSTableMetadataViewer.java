@@ -423,7 +423,7 @@ public class SSTableMetadataViewer
             field("StaticColumns", FBUtilities.toString(statics));
             field("RegularColumns", FBUtilities.toString(regulars));
             if (stats != null)
-                field("IsTransient", stats.isTransient);
+                field("IsWitness", stats.isWitness);
         }
     }
 

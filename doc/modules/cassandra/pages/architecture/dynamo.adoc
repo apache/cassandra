@@ -225,9 +225,9 @@ node has been added to the set of replicas, and if it has not, it is
 added to the set. This process continues until `replication_factor`
 distinct nodes have been added to the set of replicas.
 
-==== Transient Replication
+==== Witness Replication
 
-Transient replication is an experimental feature in Cassandra {40_version} not
+Witness replication is an experimental feature in Cassandra {40_version} not
 present in the original Dynamo paper. This feature allows configuration of a
 subset of replicas to replicate only data that hasn't been incrementally
 repaired. This configuration decouples data redundancy from availability.
@@ -245,14 +245,14 @@ data. Configure it by specifying replication factor as
 `<total_replicas>/<transient_replicas` Both `SimpleStrategy` and
 `NetworkTopologyStrategy` support configuring transient replication.
 
-Transiently replicated keyspaces only support tables created with
+Tables with witness replicas only support tables created with
 `read_repair` set to `NONE`; monotonic reads are not currently
 supported. You also can't use `LWT`, logged batches, or counters in {40_version}.
 You will possibly never be able to use materialized views with
 transiently replicated keyspaces and probably never be able to use
 secondary indices with them.
 
-Transient replication is an experimental feature that is not ready
+Witness replication is an experimental feature that is not ready
 for production use. The expected audience is experienced users of
 Cassandra capable of fully validating a deployment of their particular
 application. That means you have the experience to check that operations like reads,

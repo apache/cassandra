@@ -189,7 +189,7 @@ public class PlacementTransitionPlan
                         Set<Range<Token>> intersectingRanges = new HashSet<>();
                         for (Replica writeReplica : existingWriteReplicas)
                         {
-                            if (writeReplica.isFull() == newReadReplica.isFull() || (writeReplica.isFull() && newReadReplica.isTransient()))
+                            if (writeReplica.isFull() == newReadReplica.isFull() || (writeReplica.isFull() && newReadReplica.isWitness()))
                             {
                                 if (writeReplica.range().contains(newReadReplica.range()))
                                 {

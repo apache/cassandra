@@ -49,7 +49,7 @@ public class ReplicationFactor
         return allReplicas - fullReplicas;
     }
 
-    public boolean hasTransientReplicas()
+    public boolean hasWitnessReplicas()
     {
         return allReplicas != fullReplicas;
     }
@@ -61,22 +61,22 @@ public class ReplicationFactor
 
     static void validate(int totalRF, int transientRF)
     {
-        Preconditions.checkArgument(transientRF == 0 || DatabaseDescriptor.isTransientReplicationEnabled(),
-                                    "Transient replication is not enabled on this node");
+        Preconditions.checkArgument(transientRF == 0 || DatabaseDescriptor.isWitnessReplicationEnabled(),
+                                    "Witness replication is not enabled on this node");
         Preconditions.checkArgument(totalRF >= 0,
                                     "Replication factor must be non-negative, found %s", totalRF);
         Preconditions.checkArgument(transientRF == 0 || transientRF < totalRF,
-                                    "Transient replicas must be zero, or less than total replication factor. For %s/%s", totalRF, transientRF);
+                                    "Witness replicas must be zero, or less than total replication factor. For %s/%s", totalRF, transientRF);
         if (transientRF > 0)
         {
             Preconditions.checkArgument(DatabaseDescriptor.getNumTokens() == 1,
-                                        "Transient nodes are not allowed with multiple tokens");
+                                        "Witness nodes are not allowed with multiple tokens");
             Stream<InetAddressAndPort> endpoints = Stream.concat(Gossiper.instance.getLiveMembers().stream(), Gossiper.instance.getUnreachableMembers().stream());
             List<InetAddressAndPort> badVersionEndpoints = endpoints.filter(Predicates.not(FBUtilities.getBroadcastAddressAndPort()::equals))
                                                                     .filter(endpoint -> Gossiper.instance.getReleaseVersion(endpoint) != null && Gossiper.instance.getReleaseVersion(endpoint).major < 4)
                                                                     .collect(Collectors.toList());
             if (!badVersionEndpoints.isEmpty())
-                throw new IllegalArgumentException("Transient replication is not supported in mixed version clusters with nodes < 4.0. Bad nodes: " + badVersionEndpoints);
+                throw new IllegalArgumentException("Witness replication is not supported in mixed version clusters with nodes < 4.0. Bad nodes: " + badVersionEndpoints);
         }
         else if (transientRF < 0)
         {
@@ -102,7 +102,7 @@ public class ReplicationFactor
         return new ReplicationFactor(totalReplicas);
     }
 
-    public static ReplicationFactor withTransient(int totalReplicas, int transientReplicas)
+    public static ReplicationFactor withWitness(int totalReplicas, int transientReplicas)
     {
         return new ReplicationFactor(totalReplicas, transientReplicas);
     }
@@ -124,7 +124,7 @@ public class ReplicationFactor
 
     public String toParseableString()
     {
-        return allReplicas + (hasTransientReplicas() ? "/" + transientReplicas() : "");
+        return allReplicas + (hasWitnessReplicas() ? "/" + transientReplicas() : "");
     }
 
     @Override

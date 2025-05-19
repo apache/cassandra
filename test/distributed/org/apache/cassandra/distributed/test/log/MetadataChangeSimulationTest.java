@@ -86,7 +86,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     static
     {
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
     }
 
     @Test
@@ -767,13 +767,13 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         assertRanges(expectedRanges, actualPlacements.writes.ranges());
         assertRanges(expectedRanges, actualPlacements.reads.ranges());
 
-        validateTransientStatus(actualPlacements.reads, actualPlacements.writes);
+        validateWitnessStatus(actualPlacements.reads, actualPlacements.writes);
 
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.reads, false);
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.writes, true);
     }
 
-    public static void validateTransientStatus(ReplicaGroups reads, ReplicaGroups writes)
+    public static void validateWitnessStatus(ReplicaGroups reads, ReplicaGroups writes)
     {
         // No node should ever be a FULL read replica but a TRANSIENT write replica for the same range
         Map<Range<Token>, List<Replica>> invalid = new HashMap<>();
@@ -787,7 +787,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 if (r.isFull())
                 {
                     Replica w = writeGroup.get(r.endpoint());
-                    if (w != null && w.isTransient())
+                    if (w != null && w.isWitness())
                     {
                         List<Replica> replicas = invalid.computeIfAbsent(range, ignore -> new ArrayList<>());
                         replicas.add(w);

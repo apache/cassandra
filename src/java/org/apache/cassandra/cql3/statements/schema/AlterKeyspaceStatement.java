@@ -97,7 +97,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         newKeyspace.replicationStrategy.validate(metadata);
 
         validateNoRangeMovements();
-        validateTransientReplication(keyspace, newKeyspace);
+        validateWitnessReplication(keyspace, newKeyspace);
 
         // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
         try
@@ -166,7 +166,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         }
     }
 
-    private void validateTransientReplication(KeyspaceMetadata current, KeyspaceMetadata proposed)
+    private void validateWitnessReplication(KeyspaceMetadata current, KeyspaceMetadata proposed)
     {
         //If there is no read traffic there are some extra alterations you can safely make, but this is so atypical
         //that a good default is to not allow unsafe changes
@@ -184,7 +184,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (newTrans > 0)
         {
             if (DatabaseDescriptor.getNumTokens() > 1)
-                throw new ConfigurationException(String.format("Transient replication is not supported with vnodes yet"));
+                throw new ConfigurationException(String.format("Witness replication is not supported with vnodes yet"));
 
 
             if (!current.views.isEmpty())

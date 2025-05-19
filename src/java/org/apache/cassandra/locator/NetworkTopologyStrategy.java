@@ -100,7 +100,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         }
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
-        aggregateRf = ReplicationFactor.withTransient(replicas, trans);
+        aggregateRf = ReplicationFactor.withWitness(replicas, trans);
     }
 
     /**
@@ -138,8 +138,8 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             acceptableRackRepeats = rf.allReplicas - rackCount;
 
             // if we have fewer replicas than rf calls for, reduce transients accordingly
-            int reduceTransients = rf.allReplicas - this.rfLeft;
-            transients = Math.max(rf.transientReplicas() - reduceTransients, 0);
+            int reduceWitnesss = rf.allReplicas - this.rfLeft;
+            transients = Math.max(rf.transientReplicas() - reduceWitnesss, 0);
             ReplicationFactor.validate(rfLeft, transients);
         }
 

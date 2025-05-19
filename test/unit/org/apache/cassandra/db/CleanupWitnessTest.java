@@ -73,7 +73,7 @@ public class CleanupWitnessTest extends CassandraTestBase
     @BeforeClass
     public static void setup() throws Exception
     {
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple("2/1"),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),

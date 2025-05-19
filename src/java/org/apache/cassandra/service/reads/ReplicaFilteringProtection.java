@@ -176,8 +176,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         }
         else
         {
-            if (source.isTransient())
-                cmd = cmd.copyAsTransientQuery(source);
+            if (source.isWitness())
+                cmd = cmd.copyAsWitnessQuery(source);
             cmd = coordinator.maybeAllowOutOfRangeReads(cmd, consistency);
             MessagingService.instance().sendWithCallback(cmd.createMessage(false, requestTime), source.endpoint(), handler);
         }

@@ -659,7 +659,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                           "before being replayed.");
             }
 
-            if (keyspace.replicationStrategy.hasTransientReplicas()
+            if (keyspace.replicationStrategy.hasWitnessReplicas()
                 && params.readRepair != ReadRepairStrategy.NONE)
             {
                 throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");

@@ -102,7 +102,7 @@ public final class Replica implements Comparable<Replica>, Endpoint
     @Override
     public String toString()
     {
-        return (full ? "Full" : "Transient") + '(' + endpoint() + ',' + range + ')';
+        return (full ? "Full" : "Witness") + '(' + endpoint() + ',' + range + ')';
     }
 
     @Override
@@ -126,7 +126,7 @@ public final class Replica implements Comparable<Replica>, Endpoint
         return full;
     }
 
-    public final boolean isTransient()
+    public final boolean isWitness()
     {
         return !isFull();
     }
@@ -158,7 +158,7 @@ public final class Replica implements Comparable<Replica>, Endpoint
      * This helper method is used by StorageService.calculateStreamAndFetchRanges to perform subtraction.
      * It ignores transient status because it's already being handled in calculateStreamAndFetchRanges.
      */
-    public RangesAtEndpoint subtractIgnoreTransientStatus(Range<Token> subtract)
+    public RangesAtEndpoint subtractIgnoreWitnessStatus(Range<Token> subtract)
     {
         Set<Range<Token>> ranges = this.range.subtract(subtract);
         RangesAtEndpoint.Builder result = RangesAtEndpoint.builder(endpoint, ranges.size());

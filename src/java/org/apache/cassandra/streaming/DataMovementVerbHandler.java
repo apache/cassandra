@@ -67,7 +67,7 @@ public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
                         streamPlan.requestRanges(remote.endpoint(), ksm.name, RangesAtEndpoint.of(local), RangesAtEndpoint.empty(local.endpoint()));
                         fullAdded = true;
                     }
-                    else if (remote.isTransient() && !transientAdded)
+                    else if (remote.isWitness() && !transientAdded)
                     {
                         streamPlan.requestRanges(remote.endpoint(), ksm.name, RangesAtEndpoint.empty(local.endpoint()), RangesAtEndpoint.of(local));
                         transientAdded = true;

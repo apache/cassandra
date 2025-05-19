@@ -342,7 +342,7 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
         }
 
         @Override
-        public boolean hasIsTransient()
+        public boolean hasIsWitness()
         {
             return true;
         }

@@ -269,7 +269,7 @@ public class RepairJobTest
         // LocalSyncTasks try to reach over the network.
         List<SyncTask> syncTasks = RepairJob.createStandardSyncTasks(SharedContext.Global.instance, sessionJobDesc, mockTreeResponses,
                                                                      addr4, // local
-                                                                     noTransient(),
+                                                                     noWitness(),
                                                                      session.isIncremental,
                                                                      session.pullRepair,
                                                                      session.previewKind);
@@ -370,7 +370,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     addr1, // local
-                                                                                    noTransient(), // transient
+                                                                                    noWitness(), // transient
                                                                                     false,
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
@@ -391,14 +391,14 @@ public class RepairJobTest
     }
 
     @Test
-    public void testStandardSyncTransient()
+    public void testStandardSyncWitness()
     {
         // Do not stream towards transient nodes
-        testStandardSyncTransient(true);
-        testStandardSyncTransient(false);
+        testStandardSyncWitness(true);
+        testStandardSyncWitness(false);
     }
 
-    public void testStandardSyncTransient(boolean pullRepair)
+    public void testStandardSyncWitness(boolean pullRepair)
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"));
@@ -421,14 +421,14 @@ public class RepairJobTest
     }
 
     @Test
-    public void testStandardSyncLocalTransient()
+    public void testStandardSyncLocalWitness()
     {
         // Do not stream towards transient nodes
-        testStandardSyncLocalTransient(true);
-        testStandardSyncLocalTransient(false);
+        testStandardSyncLocalWitness(true);
+        testStandardSyncLocalWitness(false);
     }
 
-    public void testStandardSyncLocalTransient(boolean pullRepair)
+    public void testStandardSyncLocalWitness(boolean pullRepair)
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"));
@@ -460,10 +460,10 @@ public class RepairJobTest
     public void testEmptyDifference()
     {
         // one of the nodes is a local coordinator
-        testEmptyDifference(addr1, noTransient(), true);
-        testEmptyDifference(addr1, noTransient(), false);
-        testEmptyDifference(addr2, noTransient(), true);
-        testEmptyDifference(addr2, noTransient(), false);
+        testEmptyDifference(addr1, noWitness(), true);
+        testEmptyDifference(addr1, noWitness(), false);
+        testEmptyDifference(addr2, noWitness(), true);
+        testEmptyDifference(addr2, noWitness(), false);
         testEmptyDifference(addr1, transientPredicate(addr1), true);
         testEmptyDifference(addr2, transientPredicate(addr1), true);
         testEmptyDifference(addr1, transientPredicate(addr1), false);
@@ -474,10 +474,10 @@ public class RepairJobTest
         testEmptyDifference(addr2, transientPredicate(addr2), false);
 
         // nonlocal coordinator
-        testEmptyDifference(addr3, noTransient(), true);
-        testEmptyDifference(addr3, noTransient(), false);
-        testEmptyDifference(addr3, noTransient(), true);
-        testEmptyDifference(addr3, noTransient(), false);
+        testEmptyDifference(addr3, noWitness(), true);
+        testEmptyDifference(addr3, noWitness(), false);
+        testEmptyDifference(addr3, noWitness(), true);
+        testEmptyDifference(addr3, noWitness(), false);
         testEmptyDifference(addr3, transientPredicate(addr1), true);
         testEmptyDifference(addr3, transientPredicate(addr1), true);
         testEmptyDifference(addr3, transientPredicate(addr1), false);
@@ -488,7 +488,7 @@ public class RepairJobTest
         testEmptyDifference(addr3, transientPredicate(addr2), false);
     }
 
-    public void testEmptyDifference(InetAddressAndPort local, Predicate<InetAddressAndPort> isTransient, boolean pullRepair)
+    public void testEmptyDifference(InetAddressAndPort local, Predicate<InetAddressAndPort> isWitness, boolean pullRepair)
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"));
@@ -496,7 +496,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     local, // local
-                                                                                    isTransient,
+                                                                                    isWitness,
                                                                                     false,
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
@@ -533,7 +533,7 @@ public class RepairJobTest
     }
 
     @Test
-    public void testCreate5NodeStandardSyncTasksWithTransient()
+    public void testCreate5NodeStandardSyncTasksWithWitness()
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one", RANGE_3, "one"),
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
@@ -541,11 +541,11 @@ public class RepairJobTest
                                                          treeResponse(addr4, RANGE_1, "four", RANGE_2, "four", RANGE_3, "four"),
                                                          treeResponse(addr5, RANGE_1, "five", RANGE_2, "five", RANGE_3, "five"));
 
-        Predicate<InetAddressAndPort> isTransient = ep -> ep.equals(addr4) || ep.equals(addr5);
+        Predicate<InetAddressAndPort> isWitness = ep -> ep.equals(addr4) || ep.equals(addr5);
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     addr1, // local
-                                                                                    isTransient, // transient
+                                                                                    isWitness, // transient
                                                                                     false,
                                                                                     true,
                                                                                     PreviewKind.ALL));
@@ -570,37 +570,37 @@ public class RepairJobTest
                 .hasRanges(RANGE_1, RANGE_2, RANGE_3);
 
             boolean isRemote = !pair.coordinator.equals(addr1) && !pair.peer.equals(addr1);
-            boolean involvesTransient = isTransient.test(pair.coordinator) || isTransient.test(pair.peer);
+            boolean involvesWitness = isWitness.test(pair.coordinator) || isWitness.test(pair.peer);
 
-            assertThat(isRemote && involvesTransient)
+            assertThat(isRemote && involvesWitness)
                 .withFailMessage("Coordinator: %s\n, Peer: %s\n", pair.coordinator, pair.peer)
                 .isEqualTo(task instanceof AsymmetricRemoteSyncTask);
         }
     }
 
     @Test
-    public void testLocalSyncWithTransient()
+    public void testLocalSyncWithWitness()
     {
         for (InetAddressAndPort local : new InetAddressAndPort[]{ addr1, addr2, addr3 })
         {
             FBUtilities.reset();
             FBUtilities.setBroadcastInetAddress(local.getAddress());
-            testLocalSyncWithTransient(local, false);
+            testLocalSyncWithWitness(local, false);
         }
     }
 
     @Test
-    public void testLocalSyncWithTransientPullRepair()
+    public void testLocalSyncWithWitnessPullRepair()
     {
         for (InetAddressAndPort local : new InetAddressAndPort[]{ addr1, addr2, addr3 })
         {
             FBUtilities.reset();
             FBUtilities.setBroadcastInetAddress(local.getAddress());
-            testLocalSyncWithTransient(local, true);
+            testLocalSyncWithWitness(local, true);
         }
     }
 
-    public static void testLocalSyncWithTransient(InetAddressAndPort local, boolean pullRepair)
+    public static void testLocalSyncWithWitness(InetAddressAndPort local, boolean pullRepair)
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one", RANGE_3, "one"),
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
@@ -608,11 +608,11 @@ public class RepairJobTest
                                                          treeResponse(addr4, RANGE_1, "four", RANGE_2, "four", RANGE_3, "four"),
                                                          treeResponse(addr5, RANGE_1, "five", RANGE_2, "five", RANGE_3, "five"));
 
-        Predicate<InetAddressAndPort> isTransient = ep -> ep.equals(addr4) || ep.equals(addr5);
+        Predicate<InetAddressAndPort> isWitness = ep -> ep.equals(addr4) || ep.equals(addr5);
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     local, // local
-                                                                                    isTransient, // transient
+                                                                                    isWitness, // transient
                                                                                     false,
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
@@ -638,18 +638,18 @@ public class RepairJobTest
     }
 
     @Test
-    public void testLocalAndRemoteTransient()
+    public void testLocalAndRemoteWitness()
     {
-        testLocalAndRemoteTransient(false);
+        testLocalAndRemoteWitness(false);
     }
 
     @Test
-    public void testLocalAndRemoteTransientPullRepair()
+    public void testLocalAndRemoteWitnessPullRepair()
     {
-        testLocalAndRemoteTransient(true);
+        testLocalAndRemoteWitness(true);
     }
 
-    private static void testLocalAndRemoteTransient(boolean pullRepair)
+    private static void testLocalAndRemoteWitness(boolean pullRepair)
     {
         FBUtilities.setBroadcastInetAddress(addr4.getAddress());
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one", RANGE_3, "one"),
@@ -679,7 +679,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createOptimisedSyncingSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                             treeResponses,
                                                                                             addr1, // local
-                                                                                            noTransient(),
+                                                                                            noWitness(),
                                                                                             addr -> "DC1",
                                                                                             false,
                                                                                             PreviewKind.ALL));
@@ -714,7 +714,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createOptimisedSyncingSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                             treeResponses,
                                                                                             addr4, // local
-                                                                                            noTransient(),
+                                                                                            noWitness(),
                                                                                             addr -> "DC1",
                                                                                             false,
                                                                                             PreviewKind.ALL));
@@ -737,7 +737,7 @@ public class RepairJobTest
     }
 
     @Test
-    public void testOptimisedCreateStandardSyncTasksWithTransient()
+    public void testOptimisedCreateStandardSyncTasksWithWitness()
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"),
@@ -838,7 +838,7 @@ public class RepairJobTest
         return set::contains;
     }
 
-    public static Predicate<InetAddressAndPort> noTransient()
+    public static Predicate<InetAddressAndPort> noWitness()
     {
         return node -> false;
     }

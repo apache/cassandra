@@ -62,23 +62,23 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     }
 
     @VisibleForTesting
-    public boolean hasTransientResponse()
+    public boolean hasWitnessResponse()
     {
-        return hasTransientResponse(responses.snapshot());
+        return hasWitnessResponse(responses.snapshot());
     }
 
-    private boolean hasTransientResponse(Collection<Message<ReadResponse>> responses)
+    private boolean hasWitnessResponse(Collection<Message<ReadResponse>> responses)
     {
         return any(responses,
                 msg -> !msg.payload.isDigestResponse()
-                        && replicaPlan().lookup(msg.from()).isTransient());
+                        && replicaPlan().lookup(msg.from()).isWitness());
     }
 
     public PartitionIterator getData()
     {
         Collection<Message<ReadResponse>> responses = this.responses.snapshot();
 
-        if (!hasTransientResponse(responses))
+        if (!hasWitnessResponse(responses))
         {
             return UnfilteredPartitionIterators.filter(dataResponse.payload.makeIterator(command), command.nowInSec());
         }
@@ -94,7 +94,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
             for (Message<ReadResponse> response : responses)
             {
                 Replica replica = replicaPlan().lookup(response.from());
-                if (replica.isTransient())
+                if (replica.isWitness())
                     dataResolver.preprocess(response);
             }
 
@@ -116,7 +116,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         // TODO: should also not calculate if only one full node
         for (Message<ReadResponse> message : snapshot)
         {
-            if (replicaPlan().lookup(message.from()).isTransient())
+            if (replicaPlan().lookup(message.from()).isWitness())
                 continue;
 
             ByteBuffer newDigest = message.payload.digest(command);

@@ -113,7 +113,7 @@ public class MetaStrategy extends SystemStrategy
     }
 
     @Override
-    public boolean hasTransientReplicas()
+    public boolean hasWitnessReplicas()
     {
         return false;
     }

@@ -224,7 +224,7 @@ KeyType: org.apache.cassandra.db.marshal.BytesType
 ClusteringTypes: [org.apache.cassandra.db.marshal.UTF8Type]
 StaticColumns: {C3:org.apache.cassandra.db.marshal.BytesType, C4:org.apache.cassandra.db.marshal.BytesType, C0:org.apache.cassandra.db.marshal.BytesType, C1:org.apache.cassandra.db.marshal.BytesType, C2:org.apache.cassandra.db.marshal.BytesType}
 RegularColumns: {}
-IsTransient: false
+IsWitness: false
 ....
 
 == Specify gc grace seconds

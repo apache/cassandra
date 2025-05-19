@@ -327,7 +327,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         for (Replica replica : natural)
         {
             // always prefer the full natural replica, if there is a conflict
-            if (replica.isTransient())
+            if (replica.isWitness())
             {
                 Replica conflict = pending.byEndpoint().get(replica.endpoint());
                 if (conflict != null)

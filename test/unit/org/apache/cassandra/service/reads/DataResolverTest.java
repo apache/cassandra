@@ -1207,7 +1207,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     }
 
     @Test
-    public void responsesFromTransientReplicasAreNotTracked()
+    public void responsesFromWitnessReplicasAreNotTracked()
     {
         EndpointsForRange replicas = makeReplicas(2);
         EndpointsForRange.Builder mutable = replicas.newBuilder(2);

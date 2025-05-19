@@ -49,7 +49,7 @@ public class CommonRange
     public CommonRange(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints, Collection<Range<Token>> ranges, boolean hasSkippedReplicas)
     {
         Preconditions.checkArgument(endpoints != null && !endpoints.isEmpty(), "Endpoints can not be empty");
-        Preconditions.checkArgument(transEndpoints != null, "Transient endpoints can not be null");
+        Preconditions.checkArgument(transEndpoints != null, "Witness endpoints can not be null");
         Preconditions.checkArgument(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
         Preconditions.checkArgument(ranges != null && !ranges.isEmpty(), "Ranges can not be empty");
 

@@ -304,8 +304,8 @@ public class PlacementSimulator
         NavigableMap<Range, List<Replica>> splitWritePlacements = baseState.rf.replicate(splitNodes).placementsForRange;
 
         Map<Range, Diff<Replica>> allWriteCommands = diff(splitWritePlacements, maximalStateWithPlacement);
-        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, PlacementSimulator::additionsAndTransientToFull);
-        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, PlacementSimulator::removalsAndFullToTransient);
+        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, PlacementSimulator::additionsAndWitnessToFull);
+        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, PlacementSimulator::removalsAndFullToWitness);
         Map<Range, Diff<Replica>> readCommands = diff(splitReadPlacements, maximalStateWithPlacement);
 
         Transformations steps = new Transformations();
@@ -405,8 +405,8 @@ public class PlacementSimulator
         Map<Range, List<Replica>> end = splitReplicated(baseState.rf.replicate(finalNodes).placementsForRange, movingNode.token());
 
         Map<Range, Diff<Replica>> fromStartToEnd = diff(start, end);
-        Map<Range, Diff<Replica>> startMoveCommands = map(fromStartToEnd, PlacementSimulator::additionsAndTransientToFull);
-        Map<Range, Diff<Replica>> finishMoveCommands = map(fromStartToEnd, PlacementSimulator::removalsAndFullToTransient);
+        Map<Range, Diff<Replica>> startMoveCommands = map(fromStartToEnd, PlacementSimulator::additionsAndWitnessToFull);
+        Map<Range, Diff<Replica>> finishMoveCommands = map(fromStartToEnd, PlacementSimulator::removalsAndFullToWitness);
 
         Transformations steps = new Transformations();
 
@@ -510,8 +510,8 @@ public class PlacementSimulator
 
         // maximal state is union of start & end
         Map<Range, Diff<Replica>> allWriteCommands = diff(start, end);
-        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, PlacementSimulator::additionsAndTransientToFull);
-        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, PlacementSimulator::removalsAndFullToTransient);
+        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, PlacementSimulator::additionsAndWitnessToFull);
+        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, PlacementSimulator::removalsAndFullToWitness);
         Map<Range, Diff<Replica>> readCommands = diff(start, end);
 
         // Assert that the proposed plan would not violate consistency if used with the current streaming
@@ -523,7 +523,7 @@ public class PlacementSimulator
                 if (add.isFull())  // for each new FULL replica
                 {
                     diff.removals.stream()
-                                 .filter(r -> r.node().equals(add.node()) && r.isTransient())  // if the same node is being removed as a TRANSIENT replica
+                                 .filter(r -> r.node().equals(add.node()) && r.isWitness())  // if the same node is being removed as a TRANSIENT replica
                                  .findFirst()
                                  .ifPresent(r -> {
                                      if (!start.get(range).contains(new Replica(toRemove, true)))  // check the leaving node is a FULL replica for the range
@@ -1010,7 +1010,7 @@ public class PlacementSimulator
         }
     }
 
-    public static Diff<Replica> additionsAndTransientToFull(Diff<Replica> unfiltered)
+    public static Diff<Replica> additionsAndWitnessToFull(Diff<Replica> unfiltered)
     {
         if (unfiltered.additions.isEmpty())
             return null;
@@ -1018,14 +1018,14 @@ public class PlacementSimulator
         List<Replica> removals = new ArrayList<>(unfiltered.additions.size());
         for (Replica added : unfiltered.additions)
         {
-            // Include any new FULL replicas here. If there exists the removal of a corresponding Transient
+            // Include any new FULL replicas here. If there exists the removal of a corresponding Witness
             // replica (i.e. a switch from T -> F), add that too. We want T -> F transitions to happen early
             // in a multi-step operation, at the same time as new write replicas are added.
             if (added.isFull())
             {
                 additions.add(added);
                 Optional<Replica> removed = unfiltered.removals.stream()
-                                                               .filter(r -> r.isTransient() && r.node().equals(added.node()))
+                                                               .filter(r -> r.isWitness() && r.node().equals(added.node()))
                                                                .findFirst();
 
                 removed.ifPresent(removals::add);
@@ -1044,7 +1044,7 @@ public class PlacementSimulator
         return new Diff<>(additions, removals);
     }
 
-    public static Diff<Replica> removalsAndFullToTransient(Diff<Replica> unfiltered)
+    public static Diff<Replica> removalsAndFullToWitness(Diff<Replica> unfiltered)
     {
         if (unfiltered.removals.isEmpty())
             return null;
@@ -1052,14 +1052,14 @@ public class PlacementSimulator
         List<Replica> removals = new ArrayList<>(unfiltered.removals.size());
         for (Replica removed : unfiltered.removals)
         {
-            // Include any new FULL replicas here. If there exists the removal of a corresponding Transient
+            // Include any new FULL replicas here. If there exists the removal of a corresponding Witness
             // replica (i.e. a switch from T -> F), add that too. We want T -> F transitions to happen early
             // in a multi-step operation, at the same time as new write replicas are added.
             if (removed.isFull())
             {
                 removals.add(removed);
                 Optional<Replica> added = unfiltered.additions.stream()
-                                                               .filter(r -> r.isTransient() && r.node().equals(removed.node()))
+                                                               .filter(r -> r.isWitness() && r.node().equals(removed.node()))
                                                                .findFirst();
 
                 added.ifPresent(additions::add);

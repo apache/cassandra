@@ -390,21 +390,21 @@ public class CompactionTask extends AbstractCompactionTask
         return ids.iterator().next();
     }
 
-    public static boolean getIsTransient(Set<SSTableReader> sstables)
+    public static boolean getIsWitness(Set<SSTableReader> sstables)
     {
         if (sstables.isEmpty())
         {
             return false;
         }
 
-        boolean isTransient = sstables.iterator().next().isTransient();
+        boolean isWitness = sstables.iterator().next().isWitness();
 
-        if (!Iterables.all(sstables, sstable -> sstable.isTransient() == isTransient))
+        if (!Iterables.all(sstables, sstable -> sstable.isWitness() == isWitness))
         {
             throw new RuntimeException("Attempting to compact transient sstables with non transient sstables");
         }
 
-        return isTransient;
+        return isWitness;
     }
 
 

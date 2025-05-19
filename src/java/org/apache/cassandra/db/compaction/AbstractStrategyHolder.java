@@ -159,11 +159,11 @@ public abstract class AbstractStrategyHolder
      * groups they deal with. IOW, if one holder returns true for a given isRepaired/isPendingRepair combo,
      * none of the others should.
      */
-    public abstract boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair, boolean isTransient);
+    public abstract boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair, boolean isWitness);
 
     public boolean managesSSTable(SSTableReader sstable)
     {
-        return managesRepairedGroup(sstable.isRepaired(), sstable.isPendingRepair(), sstable.isTransient());
+        return managesRepairedGroup(sstable.isRepaired(), sstable.isPendingRepair(), sstable.isWitness());
     }
 
     public abstract AbstractCompactionStrategy getStrategyFor(SSTableReader sstable);
@@ -195,7 +195,7 @@ public abstract class AbstractStrategyHolder
                                                                 long keyCount,
                                                                 long repairedAt,
                                                                 TimeUUID pendingRepair,
-                                                                boolean isTransient,
+                                                                boolean isWitness,
                                                                 IntervalSet<CommitLogPosition> commitLogPositions,
                                                                 int sstableLevel,
                                                                 SerializationHeader header,

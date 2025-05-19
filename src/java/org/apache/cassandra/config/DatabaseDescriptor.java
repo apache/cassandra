@@ -4607,12 +4607,12 @@ public class DatabaseDescriptor
         conf.default_secondary_index_enabled = enabled;
     }
 
-    public static boolean isTransientReplicationEnabled()
+    public static boolean isWitnessReplicationEnabled()
     {
         return conf.transient_replication_enabled;
     }
 
-    public static void setTransientReplicationEnabledUnsafe(boolean enabled)
+    public static void setWitnessReplicationEnabledUnsafe(boolean enabled)
     {
         conf.transient_replication_enabled = enabled;
     }

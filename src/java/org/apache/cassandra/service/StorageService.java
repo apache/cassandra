@@ -3748,7 +3748,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return operationMode() == JOINING_FAILED;
     }
 
-    public void clearTransientMode()
+    public void clearWitnessMode()
     {
         transientMode = Optional.empty();
     }

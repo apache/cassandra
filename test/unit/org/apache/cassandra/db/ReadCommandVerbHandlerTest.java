@@ -137,7 +137,7 @@ public class ReadCommandVerbHandlerTest
     }
 
     @Test (expected = InvalidRequestException.class)
-    public void rejectsRequestWithNonMatchingTransientness()
+    public void rejectsRequestWithNonMatchingWitnessness()
     {
         ReadCommand command = new TrackingSinglePartitionReadCommand(metadata_with_transient);
         handler.doVerb(Message.builder(READ_REQ, command)

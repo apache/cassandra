@@ -1,8 +1,8 @@
-= Transient Replication
+= Witness Replication
 
 [IMPORTANT]
 ====
-Transient Replication
+Witness Replication
 (https://issues.apache.org/jira/browse/CASSANDRA-14404[CASSANDRA-14404])
 is an experimental feature designed for expert Apache Cassandra users
 who are able to validate every aspect of the database for their
@@ -14,7 +14,7 @@ initial implementation of transient replication. Future releases of
 Cassandra will make this feature suitable for a wider audience. It is
 anticipated that a future version will support monotonic reads with
 transient replication as well as LWT, logged batches, and counters.
-Being experimental, Transient replication is *not* recommended for
+Being experimental, Witness replication is *not* recommended for
 production use.
 ====
 
@@ -31,8 +31,8 @@ The optimization that is made possible with transient replication is
 called "Cheap quorums", which implies that data redundancy is increased
 without corresponding increase in storage usage.
 
-Transient replication is useful when sufficient full replicas are
-unavailable to receive and store all the data. Transient replication
+Witness replication is useful when sufficient full replicas are
+unavailable to receive and store all the data. Witness replication
 allows you to configure a subset of replicas to only replicate data that
 hasn't been incrementally repaired. As an optimization, we can avoid
 writing data to a transient replica if we have successfully written data
@@ -41,9 +41,9 @@ to the full replicas.
 After incremental repair, transient data stored on transient replicas
 can be discarded.
 
-== Enabling Transient Replication
+== Enabling Witness Replication
 
-Transient replication is not enabled by default. Transient replication
+Witness replication is not enabled by default. Witness replication
 must be enabled on each node in a cluster separately by setting the
 following configuration property in `cassandra.yaml`.
 
@@ -51,8 +51,8 @@ following configuration property in `cassandra.yaml`.
 transient_replication_enabled: true
 ....
 
-Transient replication may be configured with both `SimpleStrategy` and
-`NetworkTopologyStrategy`. Transient replication is configured by
+Witness replication may be configured with both `SimpleStrategy` and
+`NetworkTopologyStrategy`. Witness replication is configured by
 setting replication factor as `<total_replicas>/<transient_replicas>`.
 
 As an example, create a keyspace with replication factor (RF) 3.
@@ -71,7 +71,7 @@ CREATE KEYSPACE some_keysopace WITH replication = {'class': 'NetworkTopologyStra
 'DC1' : '3/1'', 'DC2' : '5/2'};
 ....
 
-Transiently replicated keyspaces only support tables with `read_repair`
+Witnessly replicated keyspaces only support tables with `read_repair`
 set to `NONE`.
 
 Important Restrictions:
@@ -105,7 +105,7 @@ available full replicas over transient replicas so that transient
 replicas don't have to process writes. Tail latency is reduced by rapid
 write protection (similar to rapid read protection) when full replicas
 are slow or unavailable by sending writes to transient replicas.
-Transient replicas can serve reads faster as they don't have to do
+Witness replicas can serve reads faster as they don't have to do
 anything beyond bloom filter checks if they have no data. With vnodes
 and large cluster sizes they will not have a large quantity of data even
 for failure of one or more full replicas where transient replicas start
@@ -120,7 +120,7 @@ value as `99PERCENTILE`. When replicas are slow or unresponsive
 `speculative_write_threshold` specifies the threshold at which a cheap
 quorum write will be upgraded to include transient replicas.
 
-== Pending Ranges and Transient Replicas
+== Pending Ranges and Witness Replicas
 
 Pending ranges refers to the movement of token ranges between transient
 replicas. When a transient range is moved, there will be a period of
@@ -130,11 +130,11 @@ takes effect a read quorum is able to return a response. Nodes are _not_
 temporarily transient replicas during expansion. They stream data like a
 full replica for the transient range before they can serve reads. A
 pending state is incurred similar to how there is a pending state for
-full replicas. Transient replicas also always receive writes when they
+full replicas. Witness replicas also always receive writes when they
 are pending. Pending transient ranges are sent a bit more data and
 reading from them is avoided.
 
-== Read Repair and Transient Replicas
+== Read Repair and Witness Replicas
 
 Read repair never attempts to repair a transient replica. Reads will
 always include at least one full replica. They should also prefer
@@ -145,7 +145,7 @@ validation repair handling, at transient replicas anti-compaction does
 not output any data for transient ranges as the data will be dropped
 after repair, and transient replicas never have data streamed to them.
 
-== Transitioning between Full Replicas and Transient Replicas
+== Transitioning between Full Replicas and Witness Replicas
 
 The additional state transitions that transient replication introduces
 requires streaming and `nodetool cleanup` to behave differently. When
@@ -174,10 +174,10 @@ cleanup to be run to remove the formerly transiently replicated data.
 When transient replication is in use ring changes are supported
 including add/remove node, change RF, add/remove DC.
 
-== Transient Replication supports EACH_QUORUM
+== Witness Replication supports EACH_QUORUM
 
 (https://issues.apache.org/jira/browse/CASSANDRA-14727[CASSANDRA-14727])
-adds support for Transient Replication support for `EACH_QUORUM`. Per
+adds support for Witness Replication support for `EACH_QUORUM`. Per
 (https://issues.apache.org/jira/browse/CASSANDRA-14768[CASSANDRA-14768]),
 we ensure we write to at least a `QUORUM` of nodes in every DC,
 regardless of how many responses we need to wait for and our requested

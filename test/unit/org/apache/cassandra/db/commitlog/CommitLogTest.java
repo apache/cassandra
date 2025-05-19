@@ -191,7 +191,7 @@ public abstract class CommitLogTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable),
                                     custom);
         SchemaLoader.createKeyspace(KEYSPACE2,
-                                    KeyspaceParams.simpleTransient(1),
+                                    KeyspaceParams.simpleWitness(1),
                                     SchemaLoader.standardCFMD(KEYSPACE2, STANDARD1, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable),
                                     SchemaLoader.standardCFMD(KEYSPACE2, STANDARD2, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable));
         SchemaLoader.createKeyspace(KEYSPACE1_REPLAY,

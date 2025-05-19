@@ -405,9 +405,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public boolean isTransient()
+    public boolean isWitness()
     {
-        return delegate.isTransient();
+        return delegate.isWitness();
     }
 
     @Override
@@ -519,9 +519,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public void mutateRepairedAndReload(long newRepairedAt, TimeUUID newPendingRepair, boolean isTransient) throws IOException
+    public void mutateRepairedAndReload(long newRepairedAt, TimeUUID newPendingRepair, boolean isWitness) throws IOException
     {
-        delegate.mutateRepairedAndReload(newRepairedAt, newPendingRepair, isTransient);
+        delegate.mutateRepairedAndReload(newRepairedAt, newPendingRepair, isWitness);
     }
 
     @Override

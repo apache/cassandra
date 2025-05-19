@@ -526,7 +526,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     private static void addRangeToNeighbors(List<CommonRange> neighborRangeList, Range<Token> range, EndpointsForRange neighbors)
     {
         Set<InetAddressAndPort> endpoints = neighbors.endpoints();
-        Set<InetAddressAndPort> transEndpoints = neighbors.filter(Replica::isTransient).endpoints();
+        Set<InetAddressAndPort> transEndpoints = neighbors.filter(Replica::isWitness).endpoints();
 
         for (CommonRange commonRange : neighborRangeList)
         {

@@ -1795,12 +1795,12 @@ public final class SystemKeyspace
         }
     }
 
-    public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedFullRanges, Collection<Range<Token>> completedTransientRanges)
+    public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedFullRanges, Collection<Range<Token>> completedWitnessRanges)
     {
         String cql = "UPDATE system.%s SET full_ranges = full_ranges + ?, transient_ranges = transient_ranges + ? WHERE keyspace_name = ?";
         executeInternal(format(cql, AVAILABLE_RANGES_V2),
                         completedFullRanges.stream().map(SystemKeyspace::rangeToBytes).collect(Collectors.toSet()),
-                        completedTransientRanges.stream().map(SystemKeyspace::rangeToBytes).collect(Collectors.toSet()),
+                        completedWitnessRanges.stream().map(SystemKeyspace::rangeToBytes).collect(Collectors.toSet()),
                         keyspace);
     }
 

@@ -216,22 +216,22 @@ public class WitnessRangeMovementTest extends TestBaseImpl
         }
     }
 
-    public static void assertAllContained(List<String> current, List<String> expectedTransientKeys, Pair<String, String> ... ranges)
+    public static void assertAllContained(List<String> current, List<String> expectedWitnessKeys, Pair<String, String> ... ranges)
     {
         Set<String> cur = Sets.newHashSet(current);
-        Set<String> expectTransient = Sets.newHashSet(expectedTransientKeys);
+        Set<String> expectWitness = Sets.newHashSet(expectedWitnessKeys);
         for (int i = 0; i < 50; i++)
         {
             String key = toStr(i);
             if (contained(key, ranges))
                 assertTrue("NOT IN CURRENT: " + key + " -- " + Arrays.toString(ranges) + " -- " + current, cur.remove(key));
-            else if (expectTransient.remove(key))
+            else if (expectWitness.remove(key))
                 cur.remove(key);
             else
                 assertFalse("SHOULD NOT BE ON NODE: " + key + " -- " + Arrays.toString(ranges) + ": " + current, cur.contains(key));
         }
         assertTrue(cur.toString(), cur.isEmpty());
-        assertTrue(expectTransient.toString(), expectTransient.isEmpty());
+        assertTrue(expectWitness.toString(), expectWitness.isEmpty());
     }
 
     public static List<String> localStrs(IInvokableInstance inst)

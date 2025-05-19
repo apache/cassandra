@@ -155,7 +155,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     private final Kind kind;
 
     private final boolean isDigestQuery;
-    private final boolean acceptsTransient;
+    private final boolean acceptsWitness;
     private final Epoch serializedAtEpoch;
     private final PotentialTxnConflicts potentialTxnConflicts;
 
@@ -176,7 +176,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 Epoch serializedAtEpoch,
                                                 boolean isDigest,
                                                 int digestVersion,
-                                                boolean acceptsTransient,
+                                                boolean acceptsWitness,
                                                 PotentialTxnConflicts potentialTxnConflicts,
                                                 TableMetadata metadata,
                                                 long nowInSec,
@@ -205,7 +205,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                           Kind kind,
                           boolean isDigestQuery,
                           int digestVersion,
-                          boolean acceptsTransient,
+                          boolean acceptsWitness,
                           PotentialTxnConflicts potentialTxnConflicts,
                           TableMetadata metadata,
                           long nowInSec,
@@ -217,13 +217,13 @@ public abstract class ReadCommand extends AbstractReadQuery
                           DataRange dataRange)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
-        if (acceptsTransient && isDigestQuery)
+        if (acceptsWitness && isDigestQuery)
             throw new IllegalArgumentException("Attempted to issue a digest response to transient replica");
 
         this.kind = kind;
         this.isDigestQuery = isDigestQuery;
         this.digestVersion = digestVersion;
-        this.acceptsTransient = acceptsTransient;
+        this.acceptsWitness = acceptsWitness;
         this.indexQueryPlan = indexQueryPlan;
         this.potentialTxnConflicts = potentialTxnConflicts;
         this.trackWarnings = trackWarnings;
@@ -308,9 +308,9 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      * @return Whether this query expects only a transient data response, or a full response
      */
-    public boolean acceptsTransient()
+    public boolean acceptsWitness()
     {
-        return acceptsTransient;
+        return acceptsWitness;
     }
 
     @Override
@@ -374,26 +374,26 @@ public abstract class ReadCommand extends AbstractReadQuery
     public abstract ReadCommand copy();
 
     /**
-     * Returns a copy of this command with acceptsTransient set to true.
+     * Returns a copy of this command with acceptsWitness set to true.
      */
-    public ReadCommand copyAsTransientQuery(Replica replica)
+    public ReadCommand copyAsWitnessQuery(Replica replica)
     {
-        checkArgument(replica.isTransient(),
+        checkArgument(replica.isWitness(),
                                     "Can't make a transient request on a full replica: " + replica);
-        return copyAsTransientQuery();
+        return copyAsWitnessQuery();
     }
 
     /**
-     * Returns a copy of this command with acceptsTransient set to true.
+     * Returns a copy of this command with acceptsWitness set to true.
      */
-    public ReadCommand copyAsTransientQuery(Iterable<Replica> replicas)
+    public ReadCommand copyAsWitnessQuery(Iterable<Replica> replicas)
     {
         if (any(replicas, Replica::isFull))
             throw new IllegalArgumentException("Can't make a transient request on full replicas: " + Iterables.toString(filter(replicas, Replica::isFull)));
-        return copyAsTransientQuery();
+        return copyAsWitnessQuery();
     }
 
-    protected abstract ReadCommand copyAsTransientQuery();
+    protected abstract ReadCommand copyAsWitnessQuery();
 
     /**
      * Returns a copy of this command with isDigestQuery set to true.
@@ -410,8 +410,8 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public ReadCommand copyAsDigestQuery(Iterable<Replica> replicas)
     {
-        if (any(replicas, Replica::isTransient))
-            throw new IllegalArgumentException("Can't make a digest request on a transient replica " + Iterables.toString(filter(replicas, Replica::isTransient)));
+        if (any(replicas, Replica::isWitness))
+            throw new IllegalArgumentException("Can't make a digest request on a transient replica " + Iterables.toString(filter(replicas, Replica::isWitness)));
 
         return copyAsDigestQuery();
     }
@@ -1277,7 +1277,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         private static final int IS_DIGEST = 0x01;
         private static final int IS_FOR_THRIFT = 0x02;
         private static final int HAS_INDEX = 0x04;
-        private static final int ACCEPTS_TRANSIENT = 0x08;
+        private static final int ACCEPTS_WITNESS = 0x08;
         private static final int NEEDS_RECONCILIATION = 0x10;
         private static final int ALLOWS_POTENTIAL_TXN_CONFLICTS = 0x20;
 
@@ -1304,14 +1304,14 @@ public abstract class ReadCommand extends AbstractReadQuery
             return (flags & IS_DIGEST) != 0;
         }
 
-        private static boolean acceptsTransient(int flags)
+        private static boolean acceptsWitness(int flags)
         {
-            return (flags & ACCEPTS_TRANSIENT) != 0;
+            return (flags & ACCEPTS_WITNESS) != 0;
         }
 
-        private static int acceptsTransientFlag(boolean acceptsTransient)
+        private static int acceptsWitnessFlag(boolean acceptsWitness)
         {
-            return acceptsTransient ? ACCEPTS_TRANSIENT : 0;
+            return acceptsWitness ? ACCEPTS_WITNESS : 0;
         }
 
         // We don't set this flag anymore, but still look if we receive a
@@ -1360,7 +1360,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             out.writeByte(
             digestFlag(command.isDigestQuery())
             | indexFlag(null != command.indexQueryPlan())
-            | acceptsTransientFlag(command.acceptsTransient())
+            | acceptsWitnessFlag(command.acceptsWitness())
             | needsReconciliationFlag(command.rowFilter().needsReconciliation())
             | potentialTxnConflicts(command.potentialTxnConflicts)
             );
@@ -1403,7 +1403,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         private ReadCommand deserialize(SelectionDeserializer deserializer, int flags, Epoch schemaVersion, int digestVersion, long nowInSec, TableMetadata tableMetadata, DataInputPlus in, int version) throws IOException
         {
             boolean isDigest = isDigest(flags);
-            boolean acceptsTransient = acceptsTransient(flags);
+            boolean acceptsWitness = acceptsWitness(flags);
             PotentialTxnConflicts potentialTxnConflicts = potentialTxnConflicts(flags);
             boolean hasIndex = hasIndex(flags);
             boolean needsReconciliation = needsReconciliation(flags);
@@ -1420,7 +1420,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
             }
 
-            return deserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
+            return deserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsWitness, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         public ReadCommand deserialize(DataInputPlus in, int version) throws IOException
@@ -1465,7 +1465,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             Kind kind = Kind.values()[in.readByte()];
             int flags = in.readByte();
-            if (isDigest(flags) || isForThrift(flags) || acceptsTransient(flags))
+            if (isDigest(flags) || isForThrift(flags) || acceptsWitness(flags))
                 throw new IllegalStateException("Received an Accord command with a digest/thrift/transient flag set.");
 
             TableMetadata tableMetadata = tables.deserialize(in);
