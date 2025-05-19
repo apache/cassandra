@@ -775,7 +775,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
     public static void validateWitnessStatus(ReplicaGroups reads, ReplicaGroups writes)
     {
-        // No node should ever be a FULL read replica but a TRANSIENT write replica for the same range
+        // No node should ever be a FULL read replica but a WITNESS write replica for the same range
         Map<Range<Token>, List<Replica>> invalid = new HashMap<>();
         for (int i = 0; i < reads.ranges.size(); i++)
         {
@@ -796,7 +796,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             });
         }
         assertTrue(() -> String.format("Found replicas with invalid witness/full status within a given range. " +
-                         "The following were found with the same instance having TRANSIENT status for writes, but " +
+                         "The following were found with the same instance having WITNESS status for writes, but " +
                          "FULL status for reads, which can cause consistency violations. %n%s", invalid),
                    invalid.isEmpty());
     }

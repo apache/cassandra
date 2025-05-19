@@ -523,7 +523,7 @@ public class PlacementSimulator
                 if (add.isFull())  // for each new FULL replica
                 {
                     diff.removals.stream()
-                                 .filter(r -> r.node().equals(add.node()) && r.isWitness())  // if the same node is being removed as a TRANSIENT replica
+                                 .filter(r -> r.node().equals(add.node()) && r.isWitness())  // if the same node is being removed as a WITNESS replica
                                  .findFirst()
                                  .ifPresent(r -> {
                                      if (!start.get(range).contains(new Replica(toRemove, true)))  // check the leaving node is a FULL replica for the range
@@ -1033,7 +1033,7 @@ public class PlacementSimulator
             else
             {
                 // Conversely, when a replica transitions from F -> T, it's enacted late in a multi-step operation.
-                // So only include TRANSIENT additions if there is no removal of a corresponding FULL replica.
+                // So only include WITNESS additions if there is no removal of a corresponding FULL replica.
                 boolean include = unfiltered.removals.stream()
                                                      .noneMatch(removed -> removed.node().equals(added.node())
                                                                            && removed.isFull());
@@ -1067,7 +1067,7 @@ public class PlacementSimulator
             else
             {
                 // Conversely, when a replica transitions from F -> T, it's enacted late in a multi-step operation.
-                // So only include TRANSIENT additions if there is no removal of a corresponding FULL replica.
+                // So only include WITNESS additions if there is no removal of a corresponding FULL replica.
                 boolean include = unfiltered.additions.stream()
                                                      .noneMatch(added -> added.node().equals(removed.node())
                                                                            && added.isFull());

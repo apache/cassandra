@@ -59,8 +59,8 @@ public class WitnessRangeMovement2Test extends TestBaseImpl
                                            .start()))
         {
             populate(cluster);
-            // At the start, node1 is a TRANSIENT replica for (20,30] and FULL for (30, 40], (40,] & (,10]. When moving
-            // node3 to token 25, node1 becomes a FULL replica for (25, 40], effectively going from TRANSIENT to FULL
+            // At the start, node1 is a WITNESS replica for (20,30] and FULL for (30, 40], (40,] & (,10]. When moving
+            // node3 to token 25, node1 becomes a FULL replica for (25, 40], effectively going from WITNESS to FULL
             // for (25,30]. A T->F transition will always cause data for that range to be streamed to the transitioning
             // node, which happens after StartMove and before MidMove. Running cleanup before node1 considers itself a
             // FULL replica would remove any of the newly streamed data which is marked repaired. To avoid this, we
