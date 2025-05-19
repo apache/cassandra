@@ -69,6 +69,26 @@ public class GetAuditLogTest extends CQLTester
         testDefaultOutput(getAuditLog());
     }
 
+    @Test
+    public void enableAuditLogInvalidParameters()
+    {
+        String err = ToolRunner.invokeNodetool("enableauditlog",
+                                  "--included-keyspaces", "ks1,ks2,ks3",
+                                  "--excluded-categories", "ddl,dcl",
+                                  "--parameters", "invalid,key2=value2,key3=value3").getStdout();
+        assertThat(err).contains("Invalid parameter");
+    }
+
+    @Test
+    public void enableAuditLogDuplicatedParameters()
+    {
+        String err = ToolRunner.invokeNodetool("enableauditlog",
+                                  "--included-keyspaces", "ks1,ks2,ks3",
+                                  "--excluded-categories", "ddl,dcl",
+                                  "--parameters", "key1=value1,key1=value2,key3=value3").getStdout();
+        assertThat(err).contains("Duplicate parameter");
+    }
+
     private String getAuditLog()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getauditlog");
@@ -90,7 +110,9 @@ public class GetAuditLogTest extends CQLTester
     {
         ToolRunner.invokeNodetool("enableauditlog",
                                   "--included-keyspaces", "ks1,ks2,ks3",
-                                  "--excluded-categories", "ddl,dcl").assertOnCleanExit();
+                                  "--excluded-categories", "ddl,dcl",
+                                  "--logger", "BinAuditLogger",
+                                  "--parameters", "key1=value1,key2=value2,key3=value3").assertOnCleanExit();
     }
 
     @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
@@ -118,6 +140,7 @@ public class GetAuditLogTest extends CQLTester
         final String output = getAuditLogOutput.replaceAll("( )+", " ").trim();
         assertThat(output).startsWith("enabled true");
         assertThat(output).contains("logger BinAuditLogger");
+        assertThat(output).contains("parameters {key1=value1, key2=value2, key3=value3}");
         assertThat(output).contains("roll_cycle HOURLY");
         assertThat(output).contains("block true");
         assertThat(output).contains("max_log_size 17179869184");

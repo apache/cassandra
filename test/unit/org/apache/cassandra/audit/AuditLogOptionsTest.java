@@ -19,6 +19,7 @@
 package org.apache.cassandra.audit;
 
 import java.util.Collections;
+import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,6 +36,8 @@ public class AuditLogOptionsTest
         defaultOptions.enabled = false;
         defaultOptions.included_categories = "dcl, ddl";
         defaultOptions.included_keyspaces = "ks1, ks2";
+        Map<String, String> parameterMap = Map.ofEntries(Map.entry("key1", "value1"), Map.entry("key2", "value2"));
+        defaultOptions.logger.parameters = parameterMap;
 
         AuditLogOptions options = new AuditLogOptions.Builder(defaultOptions).withEnabled(true).build();
         Assert.assertEquals("DCL,DDL", options.included_categories);
@@ -42,7 +45,7 @@ public class AuditLogOptionsTest
         Assert.assertTrue(options.enabled);
         Assert.assertNotNull(options.audit_logs_dir);
         Assert.assertEquals(BinAuditLogger.class.getSimpleName(), options.logger.class_name);
-        Assert.assertEquals(Collections.emptyMap(), options.logger.parameters);
+        Assert.assertEquals(parameterMap, options.logger.parameters);
     }
 
     @Test

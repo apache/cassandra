@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
@@ -52,6 +53,9 @@ public class EnableAuditLog extends NodeToolCmd
     @Option(title = "roll_cycle", name = {"--roll-cycle"}, description = "How often to roll the log file (MINUTELY, HOURLY, DAILY).")
     private String rollCycle = null;
 
+    @Option(title = "parameters", name = {"--parameters"}, description = "Configuration parameters to be passed to the logger specified in --logger. Must be in the following format:\n" + "key1=value1,key2=value2,...")
+    public String parameters = null;
+
     @Option(title = "blocking", name = {"--blocking"}, description = "If the queue is full whether to block producers or drop samples [true|false].")
     private String blocking = null;
 
@@ -81,7 +85,37 @@ public class EnableAuditLog extends NodeToolCmd
             else
                 bblocking = Boolean.parseBoolean(blocking);
         }
-        probe.enableAuditLog(logger, Collections.EMPTY_MAP, included_keyspaces, excluded_keyspaces, included_categories, excluded_categories, included_users, excluded_users,
+        Map<String, String> parsedParameters = new HashMap<>();
+        if (parameters != null)
+        {
+            parsedParameters = parseParametersArray();
+        }
+
+        probe.enableAuditLog(logger, parsedParameters, included_keyspaces, excluded_keyspaces, included_categories, excluded_categories, included_users, excluded_users,
                              archiveRetries, bblocking, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
+    }
+
+    private Map<String, String> parseParametersArray()
+    {
+        Map<String, String> parsedParameters = new HashMap<>();
+        for (String entry : parameters.split(","))
+        {
+            String[] kv = entry.split("=", 2);
+            if (kv.length != 2 || kv[0].trim().isEmpty())
+            {
+                throw new IllegalArgumentException("Invalid parameter entry: '" + entry + "'. Expected format: key=value");
+            }
+
+            String key = kv[0].trim();
+            String value = kv[1];
+
+            if (parsedParameters.containsKey(key))
+            {
+                throw new IllegalArgumentException("Duplicate parameter key detected: '" + key + "'");
+            }
+
+            parsedParameters.put(key, value);
+        }
+        return parsedParameters;
     }
 }

@@ -104,7 +104,10 @@ The file includes the following options that can be uncommented for use:
 audit_logging_options:
     enabled: false
     logger:
-      - class_name: BinAuditLogger
+        class_name: BinAuditLogger
+    #   parameters:
+    #     key1: value1
+    #     key2: value2
     # audit_logs_dir:
     # included_keyspaces:
     # excluded_keyspaces: system, system_schema, system_virtual_schema
@@ -136,12 +139,19 @@ Supported values are: `BinAuditLogger` (default), `FileAuditLogger` and `NoOpAud
 `FileAuditLogger` uses the standard logging mechanism, `slf4j` to log events to the `audit/audit.log` file. It is a synchronous, file-based audit logger. The roll_cycle will be set in the `logback.xml` file.
 `NoOpAuditLogger` is a no-op implementation of the audit logger that shoudl be specified when audit logging is disabled.
 
+Additionally, initialization parameters may be provided to the logger at construction via a map of strings. The logger implementation is expected to handle all edge cases assiciated with parsing key-value pairs from this map of string values.
+
 For example:
 
 [source, yaml]
 ----
 logger: 
-  - class_name: FileAuditLogger
+    class_name: FileAuditLogger
+    parameters:
+      key1: value1
+      key2: value2
+----
+
 ----
 
 === audit_logs_dir
@@ -251,6 +261,7 @@ In addition, ``nodetool`` has options to set which host and port to run the comm
                 [--included-categories <included_categories>]
                 [--included-keyspaces <included_keyspaces>]
                 [--included-users <included_users>] [--logger <logger>]
+                [--parameters <parameters>]
 
 OPTIONS
         --excluded-categories <excluded_categories>
@@ -283,6 +294,11 @@ OPTIONS
         --logger <logger>
             Logger name to be used for AuditLogging. Default BinAuditLogger. If
             not set the value from cassandra.yaml will be used
+
+        --parameters <parameters>
+            A stringified map representing a set of parameters to be passed to
+            the logger's constructor. If not set the value from cassandra.yaml
+            will be used
 
         -p <port>, --port <port>
             Remote jmx agent port number
@@ -347,8 +363,13 @@ Options are:
 ----
 audit_logging_options:
    enabled: true
-   logger: BinAuditLogger
+   logger:
+   - class_name: BinAuditLogger
+   # parameters:
+   #   key1: value1
+   #   key2: value2
    audit_logs_dir: "/cassandra/audit/logs/hourly"
+
    # included_keyspaces:
    # excluded_keyspaces: system, system_schema, system_virtual_schema
    # included_categories:

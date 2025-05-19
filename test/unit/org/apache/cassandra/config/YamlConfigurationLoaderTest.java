@@ -44,7 +44,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.apache.cassandra.repair.AutoRepairConfig;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 
 public class YamlConfigurationLoaderTest
@@ -198,6 +200,21 @@ public class YamlConfigurationLoaderTest
     }
 
     @Test
+    public void invalidAuditLoggerOptions()
+    {
+        Map<String, Object> map = ImmutableMap.of("audit_logging_options", ImmutableMap.of("enabled", true, "logger", ImmutableMap.of("parameters", "invalid")));
+        try
+        {
+            YamlConfigurationLoader.fromMap(map, Config.class);
+            fail("shoud not successfully convert invalid audit_logging_options.parameters (string)");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Cannot create property=audit_logging_options for JavaBean=org.apache.cassandra.config.Config"));
+        }
+    }
+
+    @Test
     public void notNullableLegacyProperties()
     {
         // In  the past commitlog_sync_period and commitlog_sync_group_window were int in Config. So that meant they can't
@@ -234,6 +251,8 @@ public class YamlConfigurationLoaderTest
                                                                "repair_type_overrides", ImmutableMap.of(
                                                                 "full", ImmutableMap.of("repair_dc_groups",
                                                                                         ImmutableSet.of("none of the groups"))));
+        Map<String, Object> auditLoggingConfig = ImmutableMap.of("enabled", true,
+                                                                 "logger", ImmutableMap.of("parameters", ImmutableMap.of("key1", "value1", "key2", "value2","key3", true, "key4", 4)));
         Map<String,Object> map = new ImmutableMap.Builder<String, Object>()
                                  .put("storage_port", storagePort)
                                  .put("commitlog_sync", commitLogSync)
@@ -243,6 +262,7 @@ public class YamlConfigurationLoaderTest
                                  .put("internode_socket_receive_buffer_size", "5B")
                                  .put("commitlog_sync_group_window_in_ms", "42")
                                  .put("auto_repair", autoRepairConfig)
+                                 .put("audit_logging_options", auditLoggingConfig)
                                  .build();
 
         Config config = YamlConfigurationLoader.fromMap(map, Config.class);
@@ -257,6 +277,7 @@ public class YamlConfigurationLoaderTest
         assertEquals(ImmutableSet.of("all the groups"), config.auto_repair.global_settings.repair_dc_groups);
         assertEquals(ImmutableSet.of("none of the groups"), config.auto_repair.repair_type_overrides.get(AutoRepairConfig.RepairType.full).repair_dc_groups);
         assertEquals(6 * 60 * 60L, config.auto_repair.getAutoRepairTableMaxRepairTimeInSec(AutoRepairConfig.RepairType.incremental));
+        assertEquals(ImmutableMap.of("key1", "value1", "key2", "value2","key3", "true", "key4", "4"),config.audit_logging_options.logger.parameters); // Check the audit_logger_options.parameters map is parsed into a Map<String, String>
         config.auto_repair.setMVRepairEnabled(AutoRepairConfig.RepairType.incremental, false);
     }
 

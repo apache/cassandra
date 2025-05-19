@@ -227,12 +227,7 @@ public class AuditUsersCacheService
         // Log with probability
         double prob = filter_percent / 100.0;
         double random_value = ThreadLocalRandom.current().nextDouble(0, 1);
-        if (random_value >= prob)
-        {
-            return false;
-        }
-
-        return true;
+        return random_value < prob;
     }
 
     /**

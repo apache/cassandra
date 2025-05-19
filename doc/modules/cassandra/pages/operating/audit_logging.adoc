@@ -114,6 +114,10 @@ nodetool enableauditlog
 `--logger`::
   Logger name to be used for AuditLogging. Default BinAuditLogger. If
   not set the value from cassandra.yaml will be used
+`--parameters`::
+  A stringified map representing a set of parameters to be passed to the
+  logger's constructor. If not set the value from cassandra.yaml will be
+  used
 
 === NodeTool command to disable AuditLog
 
@@ -131,7 +135,7 @@ updated filters:
 
 [source,none]
 ----
-nodetool enableauditlog --loggername <Default/ existing loggerName> --included-keyspaces <New Filter values>
+nodetool enableauditlog --logger <Default/ existing loggerName> --included-keyspaces <New Filter values>
 ----
 
 == View the contents of AuditLog Files

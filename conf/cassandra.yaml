@@ -1660,6 +1660,9 @@ audit_logging_options:
   enabled: false
   logger:
     - class_name: BinAuditLogger
+  #   parameters:
+  #     key1: value1
+  #     key2: value2
   # audit_logs_dir:
   # included_keyspaces:
   # excluded_keyspaces: system, system_schema, system_virtual_schema

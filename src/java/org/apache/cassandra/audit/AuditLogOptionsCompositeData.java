@@ -19,6 +19,7 @@
 package org.apache.cassandra.audit;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -30,6 +31,9 @@ import javax.management.openmbean.CompositeType;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.OpenType;
 import javax.management.openmbean.SimpleType;
+import javax.management.openmbean.TabularData;
+import javax.management.openmbean.TabularDataSupport;
+import javax.management.openmbean.TabularType;
 
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.utils.Pair;
@@ -38,6 +42,11 @@ import static org.apache.cassandra.audit.AuditLogOptionsCompositeData.AuditLogOp
 
 public class AuditLogOptionsCompositeData
 {
+    private static final String MAP_KEY = "key";
+    private static final String MAP_VALUE = "value";
+    private static final CompositeType MAP_ENTRY_TYPE = createMapEntryType();
+    private static final TabularType PARAMETERS_TYPE = createParametersType(MAP_ENTRY_TYPE);
+
     public static class AuditLogOption
     {
         // TODO these constants will be used in upcoming audit log vtable too, see CASSANDRA-16725
@@ -56,6 +65,7 @@ public class AuditLogOptionsCompositeData
         public static final String INCLUDED_USERS = "included_users";
         public static final String EXCLUDED_USERS = "excluded_users";
         public static final String LOGGER = "logger";
+        public static final String PARAMETERS = "parameters";
 
         private final String name;
         private final String description;
@@ -175,8 +185,51 @@ public class AuditLogOptionsCompositeData
            "audit logger implementation class name",
            SimpleType.STRING,
            o -> o.logger.class_name,
-           (opts, obj) -> opts.logger = new ParameterizedClass((String) obj, new HashMap<>()))
+           (opts, obj) -> upsertLogger(opts, (String) obj, null)),
+
+    option(AuditLogOption.PARAMETERS,
+           "parameters to be passed to the audit logger implementation class",
+           PARAMETERS_TYPE,
+           o -> toTabular(o.logger.parameters),
+           (opts, obj) -> upsertLogger(opts, null, fromTabular(obj)))
     };
+
+
+    static CompositeType createMapEntryType() {
+        return createMapEntryType(new String[]{MAP_KEY, MAP_VALUE},
+                                  new String[]{"Map key", "Map value"},
+                                  new OpenType[]{SimpleType.STRING, SimpleType.STRING});
+    }
+
+    static CompositeType createMapEntryType(String[] itemNames,
+                                            String[] itemDescriptions,
+                                            OpenType<?>[] itemTypes) {
+        try
+        {
+            return new CompositeType(
+            "MapEntry",
+            "Entry in a map",
+            itemNames,
+            itemDescriptions,
+            itemTypes);
+        }
+        catch (OpenDataException e)
+        {
+            throw new RuntimeException("Failed to initialize PARAMETERS_TYPE", e);
+        }
+    }
+
+    static TabularType createParametersType(CompositeType entryType) {
+        try {
+            return new TabularType(
+            "Parameters",
+            "Map<String, String> parameters",
+            entryType,
+            new String[]{MAP_KEY});
+        } catch (OpenDataException e) {
+            throw new RuntimeException("Failed to initialize PARAMETERS_TYPE", e);
+        }
+    }
 
     public static final CompositeType COMPOSITE_TYPE;
 
@@ -194,6 +247,63 @@ public class AuditLogOptionsCompositeData
         {
             throw new RuntimeException(e);
         }
+    }
+
+    private static TabularDataSupport toTabular(Map<String, String> map)
+    {
+        TabularDataSupport table = new TabularDataSupport(PARAMETERS_TYPE);
+        if (map == null || map.isEmpty())
+            return table;
+
+        map.forEach((k, v) -> {
+            try
+            {
+                Object[] item = new Object[]{ k, v };
+                table.put(new CompositeDataSupport(
+                MAP_ENTRY_TYPE,
+                new String[]{ MAP_KEY, MAP_VALUE },
+                item));
+            }
+            catch (OpenDataException e)
+            {
+                throw new RuntimeException("Failed to build TabularData", e);
+            }
+        });
+        return table;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String,String> fromTabular(Object td)
+    {
+        Map<String,String> map = new HashMap<>();
+        if (td == null)
+            return map;
+
+        TabularData table = (TabularData) td;
+        table.values().forEach(val -> {
+            CompositeData cd = (CompositeData) val;
+            map.put((String) cd.get(MAP_KEY), (String) cd.get(MAP_VALUE));
+        });
+        return map;
+    }
+
+    private static void upsertLogger(AuditLogOptions     opts,
+                                     String              newName,
+                                     Map<String, String> newParams)
+    {
+        final String className =
+        newName != null ? newName.trim()
+                        : opts.logger != null
+                          ? opts.logger.class_name
+                          : BinAuditLogger.class.getSimpleName();
+
+        final Map<String, String> params =
+        newParams != null ? newParams
+                          : (opts.logger != null && opts.logger.parameters != null)
+                            ? opts.logger.parameters
+                            : Collections.emptyMap();
+
+        opts.logger = new ParameterizedClass(className, params);
     }
 
     public static CompositeData toCompositeData(final AuditLogOptions opts)
