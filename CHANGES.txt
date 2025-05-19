@@ -177,10 +177,14 @@ Merged from 3.0:
 Unreleased
  * [SO-44025] Extend AuditLogger options to accept logger parameters
  * Fix schema.cql created by a snapshot after dropping more than one column (CASSANDRA-19747)
+4.1.3.25
+ * [SO-44320] Monitor if PaxosPurger is able to read PaxosRepairHistory and purge Paxos records
+ * [SO-43685] Skip advertising self inside RepairJob/RepairSession in case of bootstrap repair & Calculate the keyspace local ranges
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
  * [SO-43638] [Part 4] Avoid ClientResourceLimits allocation before driver validation
  * [SO-44116] Supply default options for different auto repair type
  * [SO-44157] Add IN restrictions used in MV base table as part of the qualifcation metrics for strict mv consistency
+ * [SO-43770] Add metrics for secondary index counts and build times
  * Fix premature autofail for long-running repairs (CASSANDRA-20312)
  * [SO-44066] Support changing auto-repair config to schedule keyspace-by-keyspace tasks on the fly
  * [SO-43638] [Part 3] Implement hard/soft enforcement for client lib based on driver name
@@ -8189,5 +8193,3 @@ Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/
  * Combined blocking and non-blocking versions of insert APIs
  * Added FlushPeriodInMinutes configuration parameter to force
    flushing of infrequently-updated ColumnFamilies
-
-
