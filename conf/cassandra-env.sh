@@ -199,6 +199,14 @@ if [ "x$CASSANDRA_HEAPDUMP_DIR" = "x" ]; then
 fi
 JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 
+# Cassandra heap dump files management options:
+#  N >= 0 - keep N newest files
+# -1 - disable clean up
+# defaults to 2 if not set
+if [ "$CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES" = "" ]; then
+    CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES=2
+fi
+
 # stop the jvm on OutOfMemoryError as it can result in some data corruption
 # uncomment the preferred option
 # ExitOnOutOfMemoryError and CrashOnOutOfMemoryError require a JRE greater or equals to 1.7 update 101 or 1.8 update 92
