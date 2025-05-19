@@ -44,7 +44,7 @@ public class StreamRequest
 
     public final String keyspace;
     //Full replicas and witness replicas are split based on the witness status of the remote we are fetching
-    //from. We preserve this distinction so on completion we can log to a system table whether we got the data witnessly
+    //from. We preserve this distinction so on completion we can log to a system table whether we got the data from a witness
     //or fully from some remote. This is an important distinction for resumable bootstrap. The Replicas in these collections
     //are local replicas (or dummy if this is triggered by repair) and don't encode the necessary information about
     //what the remote provided.

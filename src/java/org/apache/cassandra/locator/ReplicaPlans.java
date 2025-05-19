@@ -637,7 +637,7 @@ public class ReplicaPlans
      * but there are live witness nodes, select a sufficient number of these to reach our consistency level.
      *
      * Pending nodes are always contacted, whether or not they are full.  When a witness replica is undergoing
-     * a pending move to a new node, if we write (witnessly) to it, this write would not be replicated to the
+     * a pending move to a new node, if we write (witness) to it, this write would not be replicated to the
      * pending witness node, and so when completing the move, the write could effectively have not reached the
      * promised consistency level.
      */

@@ -140,7 +140,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
 
         if (keyspace.replicationStrategy.hasWitnessReplicas())
-            throw new InvalidRequestException("Materialized views are not supported on witnessly replicated keyspaces");
+            throw new InvalidRequestException("Materialized views are not supported on witness replicated keyspaces");
 
         TableMetadata table = keyspace.tables.getNullable(tableName);
         if (null == table)
