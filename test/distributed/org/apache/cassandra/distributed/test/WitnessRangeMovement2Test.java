@@ -39,13 +39,13 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeEn
 import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactment;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
-import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.OPPTokens;
-import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.assertAllContained;
-import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.localStrs;
-import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.populate;
+import static org.apache.cassandra.distributed.test.WitnessRangeMovementTest.OPPTokens;
+import static org.apache.cassandra.distributed.test.WitnessRangeMovementTest.assertAllContained;
+import static org.apache.cassandra.distributed.test.WitnessRangeMovementTest.localStrs;
+import static org.apache.cassandra.distributed.test.WitnessRangeMovementTest.populate;
 
 @SuppressWarnings("unchecked")
-public class TransientRangeMovement2Test extends TestBaseImpl
+public class WitnessRangeMovement2Test extends TestBaseImpl
 {
     @Test
     public void testMoveBackward() throws Exception

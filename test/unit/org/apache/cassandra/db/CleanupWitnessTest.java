@@ -49,7 +49,7 @@ import static org.junit.Assert.assertEquals;
 
 @PrepareServerNoRegister
 @UseRandomPartitioner
-public class CleanupTransientTest extends CassandraTestBase
+public class CleanupWitnessTest extends CassandraTestBase
 {
     private static final IPartitioner partitioner = RandomPartitioner.instance;
 

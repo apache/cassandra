@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.apache.cassandra.locator.ReplicaUtils.trans;
 
-public class WriteResponseHandlerTransientTest
+public class WriteResponseHandlerWitnessTest
 {
     static Keyspace ks;
     static ColumnFamilyStore cfs;

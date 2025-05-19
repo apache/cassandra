@@ -59,7 +59,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @SuppressWarnings("unchecked")
-public class TransientRangeMovementTest extends TestBaseImpl
+public class WitnessRangeMovementTest extends TestBaseImpl
 {
     @Test
     public void testBootstrap() throws IOException, ExecutionException, InterruptedException

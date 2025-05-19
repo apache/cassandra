@@ -68,7 +68,7 @@ import static org.apache.cassandra.service.StorageServiceTest.assertMultimapEqua
  */
 @DDDaemonInitialization
 @UseOrderPreservingPartitioner
-public class BootstrapTransientTest extends CassandraTestBase
+public class BootstrapWitnessTest extends CassandraTestBase
 {
     static final String KEYSPACE = "TestKeyspace";
     static InetAddressAndPort address02;
