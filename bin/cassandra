@@ -188,6 +188,10 @@ launch_service()
         cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"
     fi
 
+    if [ "x$call_clean_heap_dump_files" != "x" ]; then
+        clean_heap_dump_files || true
+    fi
+
     # The cassandra-foreground option will tell CassandraDaemon not
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
@@ -247,6 +251,8 @@ while true; do
         ;;
         -H)
             properties="$properties -XX:HeapDumpPath=$2"
+            # disable automatic heap dump files management as HeapDumpPath was overridden
+            call_clean_heap_dump_files=
             shift 2
         ;;
         -E)

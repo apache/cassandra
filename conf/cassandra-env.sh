@@ -199,6 +199,45 @@ if [ "x$CASSANDRA_HEAPDUMP_DIR" = "x" ]; then
 fi
 JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 
+# by default, enable cassandra heapdump files clean up, keeping 2 latest files
+# and 1 oldest heap dump file (this may help identify the earliest OOM issue)
+if [ "x$CASSANDRA_HEAPDUMP_CLEAN" = "x" ]; then
+    CASSANDRA_HEAPDUMP_CLEAN=1
+fi
+if [ "x$CASSANDRA_HEAPDUMP_KEEP_LAST_N_FILES" = "x" ]; then
+    CASSANDRA_HEAPDUMP_KEEP_LAST_N_FILES=2
+fi
+if [ "x$CASSANDRA_HEAPDUMP_KEEP_FIRST_N_FILES" = "x" ]; then
+    CASSANDRA_HEAPDUMP_KEEP_FIRST_N_FILES=1
+fi
+
+# this flag identifies that 'cassandra-env.sh' function
+# clean_heap_dump_files has been loaded and should be called.
+# this flag can be reset in bin/cassandra if -H option is passed.
+call_clean_heap_dump_files=1
+
+clean_heap_dump_files()
+{
+    if [ "x$CASSANDRA_HEAPDUMP_CLEAN" = "x1" ] && \
+           [ "$CASSANDRA_HEAPDUMP_KEEP_LAST_N_FILES" -ge 0 ] && \
+           [ "$CASSANDRA_HEAPDUMP_KEEP_FIRST_N_FILES" -ge 0 ] && \
+           [ -d "$CASSANDRA_HEAPDUMP_DIR" ]; then
+        # find heap dump files, take not more than 100 of them (in order not to overload xargs),
+        # sort by last modification date descending
+        # print those, that need to be removed
+        find "$CASSANDRA_HEAPDUMP_DIR" -name "cassandra-*-pid*.hprof" -type f | \
+        head -n 100 | \
+        xargs ls -t1 2>/dev/null | \
+        awk "BEGIN{ f=0; }{ files[f]=\$0; f+=1; }END{
+            for(i = $CASSANDRA_HEAPDUMP_KEEP_LAST_N_FILES; i < f - $CASSANDRA_HEAPDUMP_KEEP_FIRST_N_FILES; i++) {
+              print files[i];
+            }
+          }" | while IFS= read -r file; do
+          rm -f "$file" || true
+        done
+    fi
+}
+
 # stop the jvm on OutOfMemoryError as it can result in some data corruption
 # uncomment the preferred option
 # ExitOnOutOfMemoryError and CrashOnOutOfMemoryError require a JRE greater or equals to 1.7 update 101 or 1.8 update 92
