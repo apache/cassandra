@@ -130,7 +130,7 @@ public abstract class AbstractReadExecutor
     protected void makeDigestRequests(Iterable<Replica> replicas)
     {
         assert all(replicas, Replica::isFull);
-        // only send digest requests to full replicas, send data requests instead to the transient replicas
+        // only send digest requests to full replicas, send data requests instead to the witness replicas
         makeRequests(command.copyAsDigestQuery(replicas), replicas);
     }
 
@@ -182,11 +182,11 @@ public abstract class AbstractReadExecutor
         EndpointsForToken selected = replicaPlan().contacts();
         EndpointsForToken fullDataRequests = selected.filter(Replica::isFull, initialDataRequestCount);
         makeFullDataRequests(fullDataRequests);
-        EndpointsForToken transientRequests = selected.filter(Replica::isWitness);
-        makeWitnessDataRequests(transientRequests);
+        EndpointsForToken witnessRequests = selected.filter(Replica::isWitness);
+        makeWitnessDataRequests(witnessRequests);
         EndpointsForToken digestRequests = selected.filter(r -> r.isFull() && !fullDataRequests.contains(r));
         makeDigestRequests(digestRequests);
-        coordinator.notifyOfInitialContacts(fullDataRequests, transientRequests, digestRequests);
+        coordinator.notifyOfInitialContacts(fullDataRequests, witnessRequests, digestRequests);
     }
 
     /**

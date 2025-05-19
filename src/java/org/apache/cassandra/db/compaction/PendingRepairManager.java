@@ -521,7 +521,7 @@ class PendingRepairManager
             {
                 if (obsoleteSSTables)
                 {
-                    logger.info("Obsoleting transient repaired sstables for {}", sessionID);
+                    logger.info("Obsoleting witness repaired sstables for {}", sessionID);
                     Preconditions.checkState(Iterables.all(transaction.originals(), SSTableReader::isWitness));
                     transaction.obsoleteOriginals();
                 }

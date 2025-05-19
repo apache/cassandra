@@ -157,7 +157,7 @@ public class WriteResponseHandlerWitnessTest
     public void checkSpeculationContext()
     {
         EndpointsForToken all = replicas(full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
-        // in happy path, transient replica should be classified as a backup
+        // in happy path, witness replica should be classified as a backup
         assertSpeculationReplicas(expected(all, replicas(full(EP1), full(EP2), full(EP4), full(EP5))),
                                   all,
                                   dead());
@@ -167,7 +167,7 @@ public class WriteResponseHandlerWitnessTest
                                   all,
                                   dead(EP2, EP5));
 
-        // only one transient used as backup
+        // only one witness used as backup
         assertSpeculationReplicas(expected(replicas(full(EP1), trans(EP3), full(EP4), full(EP5), trans(EP6)), replicas(full(EP1), full(EP2), full(EP4), full(EP5), trans(EP3))),
                 all,
                 dead(EP2));

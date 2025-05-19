@@ -401,7 +401,7 @@ public class CompactionTask extends AbstractCompactionTask
 
         if (!Iterables.all(sstables, sstable -> sstable.isWitness() == isWitness))
         {
-            throw new RuntimeException("Attempting to compact transient sstables with non transient sstables");
+            throw new RuntimeException("Attempting to compact witness sstables with non witness sstables");
         }
 
         return isWitness;

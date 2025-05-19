@@ -62,7 +62,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
     {
         if (replicaPlan().lookup(message.from()).isWitness() &&
             message.payload.isDigestResponse())
-            throw new IllegalArgumentException("Digest response received from transient replica");
+            throw new IllegalArgumentException("Digest response received from witness replica");
 
         try
         {

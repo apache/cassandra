@@ -795,7 +795,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 }
             });
         }
-        assertTrue(() -> String.format("Found replicas with invalid transient/full status within a given range. " +
+        assertTrue(() -> String.format("Found replicas with invalid witness/full status within a given range. " +
                          "The following were found with the same instance having TRANSIENT status for writes, but " +
                          "FULL status for reads, which can cause consistency violations. %n%s", invalid),
                    invalid.isEmpty());

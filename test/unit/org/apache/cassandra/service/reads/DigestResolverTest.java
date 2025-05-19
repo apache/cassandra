@@ -151,7 +151,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     }
 
     /**
-     * A full response and a transient response, with the transient response being a subset of the full one
+     * A full response and a witness response, with the witness response being a subset of the full one
      */
     @Test
     public void agreeingWitness()
@@ -175,7 +175,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
      * Witness responses shouldn't be classified as the single dataResponse
      */
     @Test
-    public void transientResponse()
+    public void witnessResponse()
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), trans(EP2));
@@ -190,7 +190,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
     }
 
     @Test
-    public void transientResponseData()
+    public void witnessResponseData()
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
         EndpointsForToken targetReplicas = EndpointsForToken.of(dk.getToken(), full(EP1), full(EP2), trans(EP3));
@@ -198,13 +198,13 @@ public class DigestResolverTest extends AbstractReadResponseTest
 
         PartitionUpdate fullResponse = update(row(1000, 1, 1)).build();
         PartitionUpdate digestResponse = update(row(1000, 1, 1)).build();
-        PartitionUpdate transientResponse = update(row(1000, 2, 2)).build();
+        PartitionUpdate witnessResponse = update(row(1000, 2, 2)).build();
         Assert.assertFalse(resolver.isDataPresent());
         Assert.assertFalse(resolver.hasWitnessResponse());
         resolver.preprocess(response(command, EP1, iter(fullResponse), false));
         Assert.assertTrue(resolver.isDataPresent());
         resolver.preprocess(response(command, EP2, iter(digestResponse), true));
-        resolver.preprocess(response(command, EP3, iter(transientResponse), false));
+        resolver.preprocess(response(command, EP3, iter(witnessResponse), false));
         Assert.assertTrue(resolver.hasWitnessResponse());
 
         assertPartitionsEqual(filter(iter(dk,

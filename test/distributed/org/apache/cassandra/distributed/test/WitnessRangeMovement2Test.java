@@ -53,7 +53,7 @@ public class WitnessRangeMovement2Test extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(4)
                                            .withTokenSupplier(new OPPTokens())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                           .withConfig(conf -> conf.set("witness_replication_enabled","true")
                                                                    .set("partitioner", "OrderPreservingPartitioner") // just makes it easier to read the tokens in the log
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))
                                            .start()))
@@ -107,7 +107,7 @@ public class WitnessRangeMovement2Test extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(4)
                                            .withTokenSupplier(new OPPTokens())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                           .withConfig(conf -> conf.set("witness_replication_enabled","true")
                                                                    .set("partitioner", "OrderPreservingPartitioner") // just makes it easier to read the tokens in the log
                                                                    .set("hinted_handoff_enabled", "false")
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))
@@ -156,7 +156,7 @@ public class WitnessRangeMovement2Test extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(3)
                                            .withTokenSupplier(new OPPTokens())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                           .withConfig(conf -> conf.set("witness_replication_enabled","true")
                                                                    .set("partitioner", "OrderPreservingPartitioner")
                                                                    .set("hinted_handoff_enabled", "false")
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))

@@ -272,16 +272,16 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
 
 
     /**
-     * Use of this method to synthesize Replicas is almost always wrong. In repair it turns out the concerns of transient
-     * vs non-transient are handled at a higher level, but eventually repair needs to ask streaming to actually move
+     * Use of this method to synthesize Replicas is almost always wrong. In repair it turns out the concerns of witness
+     * vs non-witness are handled at a higher level, but eventually repair needs to ask streaming to actually move
      * the data and at that point it doesn't have a great handle on what the replicas are and it doesn't really matter.
      *
-     * Streaming expects to be given Replicas with each replica indicating what type of data (transient or not transient)
+     * Streaming expects to be given Replicas with each replica indicating what type of data (witness or not witness)
      * should be sent.
      *
      * So in this one instance we can lie to streaming and pretend all the replicas are full and use a dummy address
      * and it doesn't matter because streaming doesn't rely on the address for anything other than debugging and full
-     * is a valid value for transientness because streaming is selecting candidate tables from the repair/unrepaired
+     * is a valid value for witnessness because streaming is selecting candidate tables from the repair/unrepaired
      * set already.
      * @param ranges
      * @return
@@ -299,7 +299,7 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
             throw new RuntimeException(e);
         }
 
-        //For repair we are less concerned with full vs transient since repair is already dealing with those concerns.
+        //For repair we are less concerned with full vs witness since repair is already dealing with those concerns.
         //Always say full and then if the repair is incremental or not will determine what is streamed.
         return ranges.stream()
                 .map(range -> new Replica(dummy, range, true))

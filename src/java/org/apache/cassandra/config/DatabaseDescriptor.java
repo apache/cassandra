@@ -4609,12 +4609,12 @@ public class DatabaseDescriptor
 
     public static boolean isWitnessReplicationEnabled()
     {
-        return conf.transient_replication_enabled;
+        return conf.witness_replication_enabled;
     }
 
     public static void setWitnessReplicationEnabledUnsafe(boolean enabled)
     {
-        conf.transient_replication_enabled = enabled;
+        conf.witness_replication_enabled = enabled;
     }
 
     public static boolean enableDropCompactStorage()

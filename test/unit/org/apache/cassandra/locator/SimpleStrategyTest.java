@@ -268,7 +268,7 @@ public class SimpleStrategyTest extends CassandraTestBase
 
     @Test
     @UseMurmur3Partitioner
-    public void transientReplica() throws Exception
+    public void witnessReplica() throws Exception
     {
         List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
                                                                 InetAddressAndPort.getByName("127.0.0.2"),
@@ -291,7 +291,7 @@ public class SimpleStrategyTest extends CassandraTestBase
         Util.assertRCEquals(EndpointsForToken.of(range1.right,
                                                  Replica.fullReplica(endpoints.get(0), range1),
                                                  Replica.fullReplica(endpoints.get(1), range1),
-                                                 Replica.transientReplica(endpoints.get(2), range1)),
+                                                 Replica.witnessReplica(endpoints.get(2), range1)),
                             ClusterMetadataTestHelper.getNaturalReplicasForToken("ks", tk(99)).get());
 
 
@@ -299,7 +299,7 @@ public class SimpleStrategyTest extends CassandraTestBase
         Util.assertRCEquals(EndpointsForToken.of(range2.right,
                                                  Replica.fullReplica(endpoints.get(1), range2),
                                                  Replica.fullReplica(endpoints.get(2), range2),
-                                                 Replica.transientReplica(endpoints.get(3), range2)),
+                                                 Replica.witnessReplica(endpoints.get(3), range2)),
                             ClusterMetadataTestHelper.getNaturalReplicasForToken("ks", tk(101)).get());
     }
 

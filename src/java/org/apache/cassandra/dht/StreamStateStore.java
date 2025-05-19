@@ -44,7 +44,7 @@ public class StreamStateStore implements StreamEventHandler
     }
 
     /**
-     * Check if given token's data is available in this node. This doesn't handle transientness in a useful way
+     * Check if given token's data is available in this node. This doesn't handle witnessness in a useful way
      * so it's only used by a legacy test
      *
      * @param keyspace keyspace name
@@ -81,7 +81,7 @@ public class StreamStateStore implements StreamEventHandler
                 }
                 for (StreamRequest request : se.requests)
                 {
-                    SystemKeyspace.updateAvailableRanges(request.keyspace, request.full.ranges(), request.transientReplicas.ranges());
+                    SystemKeyspace.updateAvailableRanges(request.keyspace, request.full.ranges(), request.witnessReplicas.ranges());
                 }
             }
         }

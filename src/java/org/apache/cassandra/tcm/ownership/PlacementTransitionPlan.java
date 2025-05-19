@@ -151,7 +151,7 @@ public class PlacementTransitionPlan
      *
      * We should never add both read & write replicas for the same range at the same time (or read replica before write)
      *
-     * Also makes sure that we don't add a full read replica while the same write replica is only transient - we should
+     * Also makes sure that we don't add a full read replica while the same write replica is only witness - we should
      * always make the write replica full before adding the read replica.
      *
      * We split and merge ranges, so in the previous placements we could have full write replicas (a, b], (b, c], but then

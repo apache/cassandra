@@ -90,7 +90,7 @@ public class IndexStatusManager
      */
     public <E extends Endpoints<E>> E filterForQuery(E liveEndpoints, Keyspace keyspace, Index.QueryPlan indexQueryPlan, ConsistencyLevel level)
     {
-        // UNKNOWN states are transient/rare; only a few replicas should have this state at any time. See CASSANDRA-19400
+        // UNKNOWN states are witness/rare; only a few replicas should have this state at any time. See CASSANDRA-19400
         Set<Replica> queryableNonSucceeded = new HashSet<>(4);
         Map<InetAddressAndPort, Index.Status> indexStatusMap = new HashMap<>();
 

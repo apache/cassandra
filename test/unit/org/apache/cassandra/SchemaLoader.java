@@ -100,7 +100,7 @@ public class SchemaLoader
         String ks_nocommit = testName + "NoCommitlogSpace";
         String ks_cql = testName + "cql_keyspace";
         String ks_cql_replicated = testName + "cql_keyspace_replicated";
-        String ks_with_transient = testName + "ks_with_transient";
+        String ks_with_witness = testName + "ks_with_witness";
 
         AbstractType bytes = BytesType.instance;
 
@@ -218,8 +218,8 @@ public class SchemaLoader
         schema.add(KeyspaceMetadata.create(ks_cql_replicated, KeyspaceParams.simple(3),
                                            Tables.of(CreateTableStatement.parse(simpleTable, ks_cql_replicated).build())));
 
-        schema.add(KeyspaceMetadata.create(ks_with_transient, KeyspaceParams.simple("3/1"),
-                                           Tables.of(CreateTableStatement.parse(simpleTable, ks_with_transient).build())));
+        schema.add(KeyspaceMetadata.create(ks_with_witness, KeyspaceParams.simple("3/1"),
+                                           Tables.of(CreateTableStatement.parse(simpleTable, ks_with_witness).build())));
 
         if (DatabaseDescriptor.getPartitioner() instanceof Murmur3Partitioner)
         {

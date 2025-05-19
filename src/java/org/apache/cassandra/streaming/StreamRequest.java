@@ -43,23 +43,23 @@ public class StreamRequest
     public static final IVersionedSerializer<StreamRequest> serializer = new StreamRequestSerializer();
 
     public final String keyspace;
-    //Full replicas and transient replicas are split based on the transient status of the remote we are fetching
-    //from. We preserve this distinction so on completion we can log to a system table whether we got the data transiently
+    //Full replicas and witness replicas are split based on the witness status of the remote we are fetching
+    //from. We preserve this distinction so on completion we can log to a system table whether we got the data witnessly
     //or fully from some remote. This is an important distinction for resumable bootstrap. The Replicas in these collections
     //are local replicas (or dummy if this is triggered by repair) and don't encode the necessary information about
     //what the remote provided.
     public final RangesAtEndpoint full;
-    public final RangesAtEndpoint transientReplicas;
+    public final RangesAtEndpoint witnessReplicas;
     public final Collection<String> columnFamilies = new HashSet<>();
 
-    public StreamRequest(String keyspace, RangesAtEndpoint full, RangesAtEndpoint transientReplicas, Collection<String> columnFamilies)
+    public StreamRequest(String keyspace, RangesAtEndpoint full, RangesAtEndpoint witnessReplicas, Collection<String> columnFamilies)
     {
         this.keyspace = keyspace;
-        if (!full.endpoint().equals(transientReplicas.endpoint()))
-            throw new IllegalStateException("Mismatching endpoints: " + full + ", " + transientReplicas);
+        if (!full.endpoint().equals(witnessReplicas.endpoint()))
+            throw new IllegalStateException("Mismatching endpoints: " + full + ", " + witnessReplicas);
 
         this.full = full;
-        this.transientReplicas = transientReplicas;
+        this.witnessReplicas = witnessReplicas;
         this.columnFamilies.addAll(columnFamilies);
     }
 
@@ -73,7 +73,7 @@ public class StreamRequest
             inetAddressAndPortSerializer.serialize(request.full.endpoint(), out, version);
 
             serializeReplicas(request.full, out, version);
-            serializeReplicas(request.transientReplicas, out, version);
+            serializeReplicas(request.witnessReplicas, out, version);
             for (String cf : request.columnFamilies)
                 out.writeUTF(cf);
         }
@@ -96,17 +96,17 @@ public class StreamRequest
             InetAddressAndPort endpoint = inetAddressAndPortSerializer.deserialize(in, version);
 
             // TODO: It would be nicer to actually serialize the partitioner rather than infer it from the keyspace
-            //  but at the moment that would require us to get it from the tokens of the full/transient replicas or
+            //  but at the moment that would require us to get it from the tokens of the full/witness replicas or
             //  looking up the KeyspaceMetadata. This way is not pleasant but it is cheap and easy.
             IPartitioner partitioner = keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME)
                                        ? MetaStrategy.partitioner
                                        : IPartitioner.global();
             RangesAtEndpoint full = deserializeReplicas(in, version, endpoint, true, partitioner);
-            RangesAtEndpoint transientReplicas = deserializeReplicas(in, version, endpoint, false, partitioner);
+            RangesAtEndpoint witnessReplicas = deserializeReplicas(in, version, endpoint, false, partitioner);
             List<String> columnFamilies = new ArrayList<>(cfCount);
             for (int i = 0; i < cfCount; i++)
                 columnFamilies.add(in.readUTF());
-            return new StreamRequest(keyspace, full, transientReplicas, columnFamilies);
+            return new StreamRequest(keyspace, full, witnessReplicas, columnFamilies);
         }
 
         RangesAtEndpoint deserializeReplicas(DataInputPlus in, int version, InetAddressAndPort endpoint, boolean isFull, IPartitioner partitioner) throws IOException
@@ -131,7 +131,7 @@ public class StreamRequest
             int size = TypeSizes.sizeof(request.keyspace);
             size += TypeSizes.sizeof(request.columnFamilies.size());
             size += inetAddressAndPortSerializer.serializedSize(request.full.endpoint(), version);
-            size += replicasSerializedSize(request.transientReplicas, version);
+            size += replicasSerializedSize(request.witnessReplicas, version);
             size += replicasSerializedSize(request.full, version);
             for (String cf : request.columnFamilies)
                 size += TypeSizes.sizeof(cf);

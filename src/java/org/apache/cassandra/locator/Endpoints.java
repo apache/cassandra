@@ -147,8 +147,8 @@ public abstract class Endpoints<E extends Endpoints<E>> extends AbstractReplicaC
      * Care must be taken to ensure no conflicting ranges occur in pending and natural.
      * Conflicts can occur for two reasons:
      *   1) due to lack of isolation when reading pending/natural
-     *   2) because a movement that changes the type of replication from transient to full must be handled
-     *      differently for reads and writes (with the reader treating it as transient, and writer as full)
+     *   2) because a movement that changes the type of replication from witness to full must be handled
+     *      differently for reads and writes (with the reader treating it as witness, and writer as full)
      *
      * The method {@link ReplicaLayout#haveWriteConflicts} can be used to detect and resolve any issues
      */

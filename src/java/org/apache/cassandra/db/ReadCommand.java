@@ -218,7 +218,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
         if (acceptsWitness && isDigestQuery)
-            throw new IllegalArgumentException("Attempted to issue a digest response to transient replica");
+            throw new IllegalArgumentException("Attempted to issue a digest response to witness replica");
 
         this.kind = kind;
         this.isDigestQuery = isDigestQuery;
@@ -306,7 +306,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     /**
-     * @return Whether this query expects only a transient data response, or a full response
+     * @return Whether this query expects only a witness data response, or a full response
      */
     public boolean acceptsWitness()
     {
@@ -379,7 +379,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     public ReadCommand copyAsWitnessQuery(Replica replica)
     {
         checkArgument(replica.isWitness(),
-                                    "Can't make a transient request on a full replica: " + replica);
+                                    "Can't make a witness request on a full replica: " + replica);
         return copyAsWitnessQuery();
     }
 
@@ -389,7 +389,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     public ReadCommand copyAsWitnessQuery(Iterable<Replica> replicas)
     {
         if (any(replicas, Replica::isFull))
-            throw new IllegalArgumentException("Can't make a transient request on full replicas: " + Iterables.toString(filter(replicas, Replica::isFull)));
+            throw new IllegalArgumentException("Can't make a witness request on full replicas: " + Iterables.toString(filter(replicas, Replica::isFull)));
         return copyAsWitnessQuery();
     }
 
@@ -401,7 +401,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     public ReadCommand copyAsDigestQuery(Replica replica)
     {
         checkArgument(replica.isFull(),
-                                    "Can't make a digest request on a transient replica " + replica);
+                                    "Can't make a digest request on a witness replica " + replica);
         return copyAsDigestQuery();
     }
 
@@ -411,7 +411,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     public ReadCommand copyAsDigestQuery(Iterable<Replica> replicas)
     {
         if (any(replicas, Replica::isWitness))
-            throw new IllegalArgumentException("Can't make a digest request on a transient replica " + Iterables.toString(filter(replicas, Replica::isWitness)));
+            throw new IllegalArgumentException("Can't make a digest request on a witness replica " + Iterables.toString(filter(replicas, Replica::isWitness)));
 
         return copyAsDigestQuery();
     }
@@ -1466,7 +1466,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             Kind kind = Kind.values()[in.readByte()];
             int flags = in.readByte();
             if (isDigest(flags) || isForThrift(flags) || acceptsWitness(flags))
-                throw new IllegalStateException("Received an Accord command with a digest/thrift/transient flag set.");
+                throw new IllegalStateException("Received an Accord command with a digest/thrift/witness flag set.");
 
             TableMetadata tableMetadata = tables.deserialize(in);
 

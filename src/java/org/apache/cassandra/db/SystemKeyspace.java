@@ -435,7 +435,7 @@ public final class SystemKeyspace
           "CREATE TABLE %s ("
           + "keyspace_name text,"
           + "full_ranges set<blob>,"
-          + "transient_ranges set<blob>,"
+          + "witness_ranges set<blob>,"
           + "PRIMARY KEY ((keyspace_name)))")
     .build();
 
@@ -1797,7 +1797,7 @@ public final class SystemKeyspace
 
     public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedFullRanges, Collection<Range<Token>> completedWitnessRanges)
     {
-        String cql = "UPDATE system.%s SET full_ranges = full_ranges + ?, transient_ranges = transient_ranges + ? WHERE keyspace_name = ?";
+        String cql = "UPDATE system.%s SET full_ranges = full_ranges + ?, witness_ranges = witness_ranges + ? WHERE keyspace_name = ?";
         executeInternal(format(cql, AVAILABLE_RANGES_V2),
                         completedFullRanges.stream().map(SystemKeyspace::rangeToBytes).collect(Collectors.toSet()),
                         completedWitnessRanges.stream().map(SystemKeyspace::rangeToBytes).collect(Collectors.toSet()),
@@ -1805,7 +1805,7 @@ public final class SystemKeyspace
     }
 
     /**
-     * List of the streamed ranges, where transientness is encoded based on the source, where range was streamed from.
+     * List of the streamed ranges, where witnessness is encoded based on the source, where range was streamed from.
      */
     public static synchronized AvailableRanges getAvailableRanges(String keyspace, IPartitioner partitioner)
     {
@@ -1820,8 +1820,8 @@ public final class SystemKeyspace
                     .ifPresent(full_ranges -> full_ranges.stream()
                             .map(buf -> byteBufferToRange(buf, partitioner))
                             .forEach(full::add));
-            Optional.ofNullable(row.getSet("transient_ranges", BytesType.instance))
-                    .ifPresent(transient_ranges -> transient_ranges.stream()
+            Optional.ofNullable(row.getSet("witness_ranges", BytesType.instance))
+                    .ifPresent(witness_ranges -> witness_ranges.stream()
                             .map(buf -> byteBufferToRange(buf, partitioner))
                             .forEach(trans::add));
         }

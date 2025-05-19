@@ -85,12 +85,12 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         else
         {
             // This path can be triggered only if we've got responses from full replicas and they match, but
-            // transient replica response still contains data, which needs to be reconciled.
+            // witness replica response still contains data, which needs to be reconciled.
             DataResolver<E, P> dataResolver
                     = new DataResolver<>(coordinator, command, replicaPlan, NoopReadRepair.instance, requestTime);
 
             dataResolver.preprocess(dataResponse);
-            // Reconcile with transient replicas
+            // Reconcile with witness replicas
             for (Message<ReadResponse> response : responses)
             {
                 Replica replica = replicaPlan().lookup(response.from());

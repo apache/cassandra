@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.TimeUUID;
 public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingRepairTest
 {
 
-    private boolean transientContains(SSTableReader sstable)
+    private boolean witnessContains(SSTableReader sstable)
     {
         return csm.getWitnessRepairsUnsafe().containsSSTable(sstable);
     }
@@ -428,7 +428,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
 
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
         Assert.assertTrue(hasWitnessStrategiesFor(repairID));
-        Assert.assertTrue(transientContains(sstable));
+        Assert.assertTrue(witnessContains(sstable));
         Assert.assertFalse(pendingContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertFalse(unrepairedContains(sstable));
@@ -459,7 +459,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
 
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
         Assert.assertTrue(hasWitnessStrategiesFor(repairID));
-        Assert.assertTrue(transientContains(sstable));
+        Assert.assertTrue(witnessContains(sstable));
         Assert.assertFalse(pendingContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertFalse(unrepairedContains(sstable));
@@ -475,7 +475,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
         Assert.assertFalse(hasWitnessStrategiesFor(repairID));
-        Assert.assertFalse(transientContains(sstable));
+        Assert.assertFalse(witnessContains(sstable));
         Assert.assertFalse(pendingContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertTrue(unrepairedContains(sstable));

@@ -95,9 +95,9 @@ public class ReplicaPlansTest
             assertEquals(natural, plan.contacts());
         }
         {
-            // all natural and up, one transient in each DC
+            // all natural and up, one witness in each DC
             // Note: this is confusing because it looks misconfigured as the Keyspace has never been setup with any
-            // transient replicas in its replication params.
+            // witness replicas in its replication params.
             Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "3", "DC2", "3"));
             EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
             EndpointsForToken pending = EndpointsForToken.empty(token);

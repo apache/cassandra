@@ -94,7 +94,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                     throw new ConfigurationException(REPLICATION_FACTOR + " should not appear as an option at construction time for NetworkTopologyStrategy");
                 ReplicationFactor rf = ReplicationFactor.fromString(entry.getValue());
                 replicas += rf.allReplicas;
-                trans += rf.transientReplicas();
+                trans += rf.witnessReplicas();
                 newDatacenters.put(dc, rf);
             }
         }
@@ -121,7 +121,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         /** Number of replicas left to fill from this DC. */
         int rfLeft;
         int acceptableRackRepeats;
-        int transients;
+        int witnesss;
 
         DatacenterEndpoints(ReplicationFactor rf,
                             int rackCount,
@@ -137,10 +137,10 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             // and the difference is to be filled by the first encountered nodes.
             acceptableRackRepeats = rf.allReplicas - rackCount;
 
-            // if we have fewer replicas than rf calls for, reduce transients accordingly
+            // if we have fewer replicas than rf calls for, reduce witnesses accordingly
             int reduceWitnesss = rf.allReplicas - this.rfLeft;
-            transients = Math.max(rf.transientReplicas() - reduceWitnesss, 0);
-            ReplicationFactor.validate(rfLeft, transients);
+            witnesss = Math.max(rf.witnessReplicas() - reduceWitnesss, 0);
+            ReplicationFactor.validate(rfLeft, witnesss);
         }
 
         /**
@@ -156,7 +156,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                 // Cannot repeat a node.
                 return false;
 
-            Replica replica = new Replica(ep, replicatedRange, rfLeft > transients);
+            Replica replica = new Replica(ep, replicatedRange, rfLeft > witnesss);
 
             if (racks.add(location))
             {

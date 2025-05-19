@@ -37,14 +37,14 @@ public class ReplicationFactor
     public final int allReplicas;
     public final int fullReplicas;
 
-    private ReplicationFactor(int allReplicas, int transientReplicas)
+    private ReplicationFactor(int allReplicas, int witnessReplicas)
     {
-        validate(allReplicas, transientReplicas);
+        validate(allReplicas, witnessReplicas);
         this.allReplicas = allReplicas;
-        this.fullReplicas = allReplicas - transientReplicas;
+        this.fullReplicas = allReplicas - witnessReplicas;
     }
 
-    public int transientReplicas()
+    public int witnessReplicas()
     {
         return allReplicas - fullReplicas;
     }
@@ -59,15 +59,15 @@ public class ReplicationFactor
         this(allReplicas, 0);
     }
 
-    static void validate(int totalRF, int transientRF)
+    static void validate(int totalRF, int witnessRF)
     {
-        Preconditions.checkArgument(transientRF == 0 || DatabaseDescriptor.isWitnessReplicationEnabled(),
+        Preconditions.checkArgument(witnessRF == 0 || DatabaseDescriptor.isWitnessReplicationEnabled(),
                                     "Witness replication is not enabled on this node");
         Preconditions.checkArgument(totalRF >= 0,
                                     "Replication factor must be non-negative, found %s", totalRF);
-        Preconditions.checkArgument(transientRF == 0 || transientRF < totalRF,
-                                    "Witness replicas must be zero, or less than total replication factor. For %s/%s", totalRF, transientRF);
-        if (transientRF > 0)
+        Preconditions.checkArgument(witnessRF == 0 || witnessRF < totalRF,
+                                    "Witness replicas must be zero, or less than total replication factor. For %s/%s", totalRF, witnessRF);
+        if (witnessRF > 0)
         {
             Preconditions.checkArgument(DatabaseDescriptor.getNumTokens() == 1,
                                         "Witness nodes are not allowed with multiple tokens");
@@ -78,9 +78,9 @@ public class ReplicationFactor
             if (!badVersionEndpoints.isEmpty())
                 throw new IllegalArgumentException("Witness replication is not supported in mixed version clusters with nodes < 4.0. Bad nodes: " + badVersionEndpoints);
         }
-        else if (transientRF < 0)
+        else if (witnessRF < 0)
         {
-            throw new IllegalArgumentException(String.format("Amount of transient nodes should be strictly positive, but was: '%d'", transientRF));
+            throw new IllegalArgumentException(String.format("Amount of witness nodes should be strictly positive, but was: '%d'", witnessRF));
         }
     }
 
@@ -102,9 +102,9 @@ public class ReplicationFactor
         return new ReplicationFactor(totalReplicas);
     }
 
-    public static ReplicationFactor withWitness(int totalReplicas, int transientReplicas)
+    public static ReplicationFactor withWitness(int totalReplicas, int witnessReplicas)
     {
-        return new ReplicationFactor(totalReplicas, transientReplicas);
+        return new ReplicationFactor(totalReplicas, witnessReplicas);
     }
 
     public static ReplicationFactor fromString(String s)
@@ -113,7 +113,7 @@ public class ReplicationFactor
         {
             String[] parts = s.split("/");
             Preconditions.checkArgument(parts.length == 2,
-                                        "Replication factor format is <replicas> or <replicas>/<transient>");
+                                        "Replication factor format is <replicas> or <replicas>/<witness>");
             return new ReplicationFactor(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
         }
         else
@@ -124,7 +124,7 @@ public class ReplicationFactor
 
     public String toParseableString()
     {
-        return allReplicas + (hasWitnessReplicas() ? "/" + transientReplicas() : "");
+        return allReplicas + (hasWitnessReplicas() ? "/" + witnessReplicas() : "");
     }
 
     @Override

@@ -1550,7 +1550,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 // We have no app states loaded for this endpoint, but we may well have
                 // some state persisted in the system keyspace. This can happen in the case
                 // of a full cluster bounce where one or more nodes fail to come up. As
-                // gossip state is transient, the peers which do successfully start will be
+                // gossip state is witness, the peers which do successfully start will be
                 // aware of the failed nodes thanks to StorageService::initServer calling
                 // Gossiper.instance::addSavedEndpoint with every endpoint in TokenMetadata,
                 // which itself is populated from the system tables at startup.
@@ -2202,7 +2202,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                             // -Dcassandra.join_ring=false and an operator is yet to manually join via JMX.
                             // In this case, the app state will be set to `hibernate` by StorageService, so
                             // don't set it here as nodeStateToStatus only considers persistent states (e.g.
-                            // ones stored in ClusterMetadata), it isn't aware of transient states like hibernate.
+                            // ones stored in ClusterMetadata), it isn't aware of witness states like hibernate.
                             // forceHibernate can be true when upgrading from pre-tcm versions - if a node is hibernating
                             // we have no state for this in cluster metadata, so we need to explicitly keep that from
                             // the pre-upgrade gossip states

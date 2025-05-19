@@ -68,7 +68,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.locator.NetworkTopologyStrategy.REPLICATION_FACTOR;
 import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
+import static org.apache.cassandra.locator.Replica.witnessReplica;
 import static org.apache.cassandra.locator.SimpleLocationProvider.LOCATION;
 import static org.junit.Assert.assertTrue;
 
@@ -463,13 +463,13 @@ public class NetworkTopologyStrategyTest extends CassandraTestBase
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions);
         Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
                                                  fullReplica(endpoints.get(1), range(400, 100)),
-                                                 transientReplica(endpoints.get(2), range(400, 100))),
+                                                 witnessReplica(endpoints.get(2), range(400, 100))),
                             strategy.calculateNaturalReplicas(tk(99), ClusterMetadata.current()));
 
 
         Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(1), range(100, 200)),
                                                  fullReplica(endpoints.get(2), range(100, 200)),
-                                                 transientReplica(endpoints.get(3), range(100, 200))),
+                                                 witnessReplica(endpoints.get(3), range(100, 200))),
                             strategy.calculateNaturalReplicas(tk(101), ClusterMetadata.current()));
     }
 

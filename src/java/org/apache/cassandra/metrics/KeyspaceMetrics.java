@@ -119,7 +119,7 @@ public class KeyspaceMetrics
     public final Counter speculativeFailedRetries;
     /** Needed to speculate, but didn't have enough replicas **/
     public final Counter speculativeInsufficientReplicas;
-    /** Needed to write to a transient replica to satisfy quorum **/
+    /** Needed to write to a witness replica to satisfy quorum **/
     public final Counter additionalWrites;
     /** Number of started repairs as coordinator on this keyspace */
     public final Counter repairsStarted;

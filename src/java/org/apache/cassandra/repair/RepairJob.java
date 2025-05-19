@@ -404,7 +404,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                 }
                 else if (isWitness.test(r1.endpoint) || isWitness.test(r2.endpoint))
                 {
-                    // Stream only from transient replica
+                    // Stream only from witness replica
                     TreeResponse streamFrom = isWitness.test(r1.endpoint) ? r1 : r2;
                     TreeResponse streamTo = isWitness.test(r1.endpoint) ? r2 : r1;
                     task = new AsymmetricRemoteSyncTask(ctx, desc, streamTo.endpoint, streamFrom.endpoint, differences, previewKind);
@@ -503,7 +503,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         {
             InetAddressAndPort address = trees.get(i).endpoint;
 
-            // we don't stream to transient replicas
+            // we don't stream to witness replicas
             if (isWitness.test(address))
                 continue;
 

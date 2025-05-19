@@ -167,7 +167,7 @@ public class BlockingPartitionRepair
         for (Map.Entry<Replica, Mutation> entry: pendingRepairs.entrySet())
         {
             Replica destination = entry.getKey();
-            checkArgument(destination.isFull(), "Can't send repairs to transient replicas: %s", destination);
+            checkArgument(destination.isFull(), "Can't send repairs to witness replicas: %s", destination);
             Mutation mutation = entry.getValue();
             TableId tableId = extractUpdate(mutation).metadata().id;
 

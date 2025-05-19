@@ -58,7 +58,7 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
+import static org.apache.cassandra.locator.Replica.witnessReplica;
 import static org.apache.cassandra.service.StorageServiceTest.assertMultimapEqualsIgnoreOrder;
 
 /**
@@ -176,16 +176,16 @@ public class BootstrapWitnessTest extends CassandraTestBase
     public void testRangeStreamerRangesToFetch()
     {
         EndpointsByReplica expectedResult = new EndpointsByReplica(ImmutableMap.of(
-            transientReplica(address05, range10_20), endpoints(transientReplica(address02, range10_20)),
-            fullReplica(address05, range20_30), endpoints(transientReplica(address03, range20_30), fullReplica(address02, range20_30)),
-            fullReplica(address05, range30_40), endpoints(transientReplica(address04, range30_40), fullReplica(address03, range30_40))));
+            witnessReplica(address05, range10_20), endpoints(witnessReplica(address02, range10_20)),
+            fullReplica(address05, range20_30), endpoints(witnessReplica(address03, range20_30), fullReplica(address02, range20_30)),
+            fullReplica(address05, range30_40), endpoints(witnessReplica(address04, range30_40), fullReplica(address03, range30_40))));
 
         /*
          * Pre-TCM expected result, there are a couple of differences worth explaining...
          *
-         * transientReplica(address05, range10_20), endpoints(transientReplica(address02, range10_20)),
-         * fullReplica(address05, range20_30), endpoints(transientReplica(address03, range20_30), fullReplica(address04, range20_30)),
-         * fullReplica(address05, range30_40), endpoints(transientReplica(address04, range30_10), fullReplica(address02, range30_10))));
+         * witnessReplica(address05, range10_20), endpoints(witnessReplica(address02, range10_20)),
+         * fullReplica(address05, range20_30), endpoints(witnessReplica(address03, range20_30), fullReplica(address04, range20_30)),
+         * fullReplica(address05, range30_40), endpoints(witnessReplica(address04, range30_10), fullReplica(address02, range30_10))));
 
          * First, the ranges of the source replicas now exactly match the dest replicas. This is because we split
          * existing ranges without modifying ownership at the prepare stage.

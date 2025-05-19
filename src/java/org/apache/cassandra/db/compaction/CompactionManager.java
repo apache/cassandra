@@ -777,7 +777,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             localWrites = RangesAtEndpoint.of(Replica.fullReplica(local, new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())));
 
         final Set<Range<Token>> allRanges = new HashSet<>(localWrites.ranges());
-        final Set<Range<Token>> transientRanges = new HashSet<>(localWrites.onlyWitness().ranges());
+        final Set<Range<Token>> witnessRanges = new HashSet<>(localWrites.onlyWitness().ranges());
         final Set<Range<Token>> fullRanges = new HashSet<>(localWrites.onlyFull().ranges());
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
@@ -793,13 +793,13 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 {
                     SSTableReader sstable = sstableIter.next();
                     boolean needsCleanupFull = needsCleanup(sstable, fullRanges);
-                    boolean needsCleanupWitness = !transientRanges.isEmpty() && sstable.isRepaired() && needsCleanup(sstable, transientRanges);
+                    boolean needsCleanupWitness = !witnessRanges.isEmpty() && sstable.isRepaired() && needsCleanup(sstable, witnessRanges);
                     //If there are no ranges for which the table needs cleanup either due to lack of intersection or lack
                     //of the table being repaired.
                     totalSSTables++;
                     if (!needsCleanupFull && !needsCleanupWitness)
                     {
-                        logger.debug("Skipping {} ([{}, {}]) for cleanup; all rows should be kept. Needs cleanup full ranges: {} Needs cleanup transient ranges: {} Repaired: {}",
+                        logger.debug("Skipping {} ([{}, {}]) for cleanup; all rows should be kept. Needs cleanup full ranges: {} Needs cleanup witness ranges: {} Repaired: {}",
                                     sstable,
                                     sstable.getFirst().getToken(),
                                     sstable.getLast().getToken(),
@@ -811,8 +811,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                         skippedSStables++;
                     }
                 }
-                logger.info("Skipping cleanup for {}/{} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, transient ranges: {})",
-                            skippedSStables, totalSSTables, cfStore.getKeyspaceName(), cfStore.getTableName(), fullRanges, transientRanges);
+                logger.info("Skipping cleanup for {}/{} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, witness ranges: {})",
+                            skippedSStables, totalSSTables, cfStore.getKeyspaceName(), cfStore.getTableName(), fullRanges, witnessRanges);
                 sortedSSTables.sort(SSTableReader.sizeComparator);
                 return sortedSSTables;
             }
@@ -820,7 +820,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             @Override
             public void execute(LifecycleTransaction txn) throws IOException
             {
-                CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, transientRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
+                CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, witnessRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
                 doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes);
             }
         }, jobs, OperationType.CLEANUP);
@@ -1372,7 +1372,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             Keyspace keyspace = cfs.keyspace;
             final RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(keyspace.getName());
             final Set<Range<Token>> allRanges = replicas.ranges();
-            final Set<Range<Token>> transientRanges = replicas.onlyWitness().ranges();
+            final Set<Range<Token>> witnessRanges = replicas.onlyWitness().ranges();
             boolean hasIndexes = cfs.indexManager.hasIndexes();
             SSTableReader sstable = lookupSSTable(cfs, entry.getValue());
 
@@ -1382,7 +1382,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             }
             else
             {
-                CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, allRanges, transientRanges, sstable.isRepaired(), FBUtilities.nowInSeconds());
+                CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, allRanges, witnessRanges, sstable.isRepaired(), FBUtilities.nowInSeconds());
                 try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP))
                 {
                     doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes);
@@ -1680,18 +1680,18 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             this.nowInSec = nowInSec;
         }
 
-        public static CleanupStrategy get(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, Collection<Range<Token>> transientRanges, boolean isRepaired, long nowInSec)
+        public static CleanupStrategy get(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, Collection<Range<Token>> witnessRanges, boolean isRepaired, long nowInSec)
         {
             if (cfs.indexManager.hasIndexes())
             {
-                if (!transientRanges.isEmpty())
+                if (!witnessRanges.isEmpty())
                 {
                     //Shouldn't have been possible to create this situation
-                    throw new AssertionError("Can't have indexes and transient ranges");
+                    throw new AssertionError("Can't have indexes and witness ranges");
                 }
                 return new Full(cfs, ranges, nowInSec);
             }
-            return new Bounded(cfs, ranges, transientRanges, isRepaired, nowInSec);
+            return new Bounded(cfs, ranges, witnessRanges, isRepaired, nowInSec);
         }
 
         public abstract ISSTableScanner getScanner(SSTableReader sstable);
@@ -1699,10 +1699,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         private static final class Bounded extends CleanupStrategy
         {
-            private final Collection<Range<Token>> transientRanges;
+            private final Collection<Range<Token>> witnessRanges;
             private final boolean isRepaired;
 
-            public Bounded(final ColumnFamilyStore cfs, Collection<Range<Token>> ranges, Collection<Range<Token>> transientRanges, boolean isRepaired, long nowInSec)
+            public Bounded(final ColumnFamilyStore cfs, Collection<Range<Token>> ranges, Collection<Range<Token>> witnessRanges, boolean isRepaired, long nowInSec)
             {
                 super(ranges, nowInSec);
                 instance.cacheCleanupExecutor.submit(new Runnable()
@@ -1713,21 +1713,21 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                         cfs.cleanupCache();
                     }
                 });
-                this.transientRanges = transientRanges;
+                this.witnessRanges = witnessRanges;
                 this.isRepaired = isRepaired;
             }
 
             @Override
             public ISSTableScanner getScanner(SSTableReader sstable)
             {
-                //If transient replication is enabled and there are transient ranges
-                //then cleanup should remove any partitions that are repaired and in the transient range
+                //If witness replication is enabled and there are witness ranges
+                //then cleanup should remove any partitions that are repaired and in the witness range
                 //as they should already be synchronized at other full replicas.
-                //So just don't scan the portion of the table containing the repaired transient ranges
+                //So just don't scan the portion of the table containing the repaired witness ranges
                 Collection<Range<Token>> rangesToScan = ranges;
                 if (isRepaired)
                 {
-                    rangesToScan = Collections2.filter(ranges, range -> !transientRanges.contains(range));
+                    rangesToScan = Collections2.filter(ranges, range -> !witnessRanges.contains(range));
                 }
                 return sstable.getScanner(rangesToScan);
             }
@@ -1840,7 +1840,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
      * and subsequently deleted.
      * @param cfs
      * @param txn a transaction over the repaired sstables to anticompact
-     * @param ranges full and transient ranges to be placed into one of the new sstables. The repaired table will be tracked via
+     * @param ranges full and witness ranges to be placed into one of the new sstables. The repaired table will be tracked via
      *   the {@link org.apache.cassandra.io.sstable.metadata.StatsMetadata#pendingRepair} field.
      * @param pendingRepair the repair session we're anti-compacting for
      * @param isCancelled function that indicates if active anti-compaction should be canceled
@@ -1865,7 +1865,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         cfs.metric.bytesAnticompacted.mark(SSTableReader.getTotalBytes(unrepairedSSTables));
         Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategyManager().groupSSTablesForAntiCompaction(unrepairedSSTables);
 
-        // iterate over sstables to check if the full / transient / unrepaired ranges intersect them.
+        // iterate over sstables to check if the full / witness / unrepaired ranges intersect them.
         int antiCompactedSSTableCount = 0;
         for (Collection<SSTableReader> sstableGroup : groupedSSTables)
         {
@@ -1886,7 +1886,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                          TimeUUID pendingRepair,
                          BooleanSupplier isCancelled)
     {
-        Preconditions.checkArgument(!ranges.isEmpty(), "need at least one full or transient range");
+        Preconditions.checkArgument(!ranges.isEmpty(), "need at least one full or witness range");
         long groupMaxDataAge = -1;
 
         for (Iterator<SSTableReader> i = txn.originals().iterator(); i.hasNext();)
@@ -1972,7 +1972,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 try (UnfilteredRowIterator partition = ci.next())
                 {
                     Token token = partition.partitionKey().getToken();
-                    // if this row is contained in the full or transient ranges, append it to the appropriate sstable
+                    // if this row is contained in the full or witness ranges, append it to the appropriate sstable
                     if (fullChecker.test(token))
                     {
                         fullWriter.append(partition);
@@ -2010,7 +2010,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             transWriter.commit();
             unrepairedWriter.commit();
             txn.commit();
-            logger.info("Anticompacted {} in {}.{} to full = {}, transient = {}, unrepaired = {} for {}",
+            logger.info("Anticompacted {} in {}.{} to full = {}, witness = {}, unrepaired = {} for {}",
                         sstableAsSet,
                         cfs.getKeyspaceName(),
                         cfs.getTableName(),

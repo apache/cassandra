@@ -120,7 +120,7 @@ public class BootstrapResetProgressTest extends TestBaseImpl
             Set<Range <Token>> partialSet = new HashSet<>();
             partialSet.add(new Range<>(tokens.get(2), tokens.get(1)));
 
-            String cql = String.format("INSERT INTO %s.%s (keyspace_name, full_ranges, transient_ranges) VALUES (?, ?, ?)",
+            String cql = String.format("INSERT INTO %s.%s (keyspace_name, full_ranges, witness_ranges) VALUES (?, ?, ?)",
                                        SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                        SystemKeyspace.AVAILABLE_RANGES_V2);
 

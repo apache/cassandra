@@ -528,7 +528,7 @@ public class PlacementSimulator
                                  .ifPresent(r -> {
                                      if (!start.get(range).contains(new Replica(toRemove, true)))  // check the leaving node is a FULL replica for the range
                                      {
-                                         debug.log(String.format("In prepare-leave of %s, node %s moving from transient to " +
+                                         debug.log(String.format("In prepare-leave of %s, node %s moving from witness to " +
                                                                  "full, but the leaving node is not a full replica for " +
                                                                  "the transitioning range %s.",
                                                                  toRemove, add, range));
@@ -538,7 +538,7 @@ public class PlacementSimulator
                 }
             }
         });
-        assert safeForStreaming.get() : String.format("Removal of node %s causes some nodes to move from transient to " +
+        assert safeForStreaming.get() : String.format("Removal of node %s causes some nodes to move from witness to " +
                                                       "full replicas for some range where the leaving node is not " +
                                                       "initially a full replica. This may violate consistency as the " +
                                                       "streaming implementation assumes that the leaving node is a " +

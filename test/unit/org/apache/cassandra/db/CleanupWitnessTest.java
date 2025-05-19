@@ -135,13 +135,13 @@ public class CleanupWitnessTest extends CassandraTestBase
         sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, null, false);
         sstable.reloadSSTableMetadata();
 
-        // This should remove approximately 50% of the data, specifically whatever was transiently replicated
+        // This should remove approximately 50% of the data, specifically whatever was witnessly replicated
         CompactionManager.instance.performCleanup(cfs, 2);
 
         // ensure max timestamp of the sstables are retained post-cleanup
         assert expectedMaxTimestamps.equals(getMaxTimestampList(cfs));
 
-        // check less data is there, all transient data should be gone since the table was repaired
+        // check less data is there, all witness data should be gone since the table was repaired
         assertEquals(fullCount, Util.getAll(Util.cmd(cfs).build()).size());
     }
 

@@ -53,9 +53,9 @@ public class ReplicationFactorTest
     {
         assertRfParseFailure("-1", "Replication factor must be non-negative");
         assertRfParseFailure("3/3", "Witness replicas must be zero, or less than total replication factor");
-        assertRfParseFailure("3/-1", "Amount of transient nodes should be strictly positive");
+        assertRfParseFailure("3/-1", "Amount of witness nodes should be strictly positive");
         assertRfParseFailure("3/4", "Witness replicas must be zero, or less than total replication factor");
-        assertRfParseFailure("3/", "Replication factor format is <replicas> or <replicas>/<transient>");
+        assertRfParseFailure("3/", "Replication factor format is <replicas> or <replicas>/<witness>");
         assertRfParseFailure("1/a", "For input string");
         assertRfParseFailure("a/1", "For input string");
         assertRfParseFailure("", "For input string");
@@ -92,7 +92,7 @@ public class ReplicationFactorTest
     {
         ReplicationFactor rf = ReplicationFactor.fromString(s);
         assertEquals(expectedReplicas, rf.allReplicas);
-        assertEquals(expectedTrans, rf.transientReplicas());
+        assertEquals(expectedTrans, rf.witnessReplicas());
         assertEquals(expectedReplicas - expectedTrans, rf.fullReplicas);
     }
 }

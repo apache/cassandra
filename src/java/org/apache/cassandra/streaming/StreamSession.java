@@ -425,21 +425,21 @@ public class StreamSession
     /**
      * Request data fetch task to this session.
      *
-     * Here, we have to encode both _local_ range transientness (encoded in Replica itself, in RangesAtEndpoint)
-     * and _remote_ (source) range transientmess, which is encoded by splitting ranges into full and transient.
+     * Here, we have to encode both _local_ range witnessness (encoded in Replica itself, in RangesAtEndpoint)
+     * and _remote_ (source) range witnessness, which is encoded by splitting ranges into full and witness.
      *
      * @param keyspace Requesting keyspace
      * @param fullRanges Ranges to retrieve data that will return full data from the source
-     * @param transientRanges Ranges to retrieve data that will return transient data from the source
+     * @param witnessRanges Ranges to retrieve data that will return witness data from the source
      * @param columnFamilies ColumnFamily names. Can be empty if requesting all CF under the keyspace.
      */
-    public void addStreamRequest(String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint transientRanges, Collection<String> columnFamilies)
+    public void addStreamRequest(String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint witnessRanges, Collection<String> columnFamilies)
     {
         //It should either be a dummy address for repair or if it's a bootstrap/move/rebuild it should be this node
         assert all(fullRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(fullRanges) : fullRanges.toString();
-        assert all(transientRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(transientRanges) : transientRanges.toString();
+        assert all(witnessRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(witnessRanges) : witnessRanges.toString();
 
-        requests.add(new StreamRequest(keyspace, fullRanges, transientRanges, columnFamilies));
+        requests.add(new StreamRequest(keyspace, fullRanges, witnessRanges, columnFamilies));
     }
 
     /**
@@ -459,7 +459,7 @@ public class StreamSession
 
         //Was it safe to remove this normalize, sorting seems not to matter, merging? Maybe we should have?
         //Do we need to unwrap here also or is that just making it worse?
-        //Range and if it's transient
+        //Range and if it's witness
         RangesAtEndpoint unwrappedRanges = replicas.unwrap();
         List<OutgoingStream> streams = getOutgoingStreamsForRanges(unwrappedRanges, stores, pendingRepair, previewKind);
 
@@ -880,7 +880,7 @@ public class StreamSession
 
                                                reqs.forEach(req ->
                                                             {
-                                                                RangesAtEndpoint allRangesAtEndpoint = RangesAtEndpoint.concat(req.full, req.transientReplicas);
+                                                                RangesAtEndpoint allRangesAtEndpoint = RangesAtEndpoint.concat(req.full, req.witnessReplicas);
                                                                 if (ownedRanges.validateRangeRequest(allRangesAtEndpoint.ranges(), "Stream #" + planId(), "stream request", peer))
                                                                     addTransferRanges(req.keyspace, allRangesAtEndpoint, req.columnFamilies, true); // always flush on stream request
                                                                 else

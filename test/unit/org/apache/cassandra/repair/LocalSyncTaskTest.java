@@ -194,10 +194,10 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     }
 
     /**
-     * Don't reciprocate streams if the other endpoint is a transient replica
+     * Don't reciprocate streams if the other endpoint is a witness replica
      */
     @Test
-    public void transientRemoteStreamPlan() throws NoSuchRepairSessionException
+    public void witnessRemoteStreamPlan() throws NoSuchRepairSessionException
     {
         TimeUUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
@@ -213,10 +213,10 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     }
 
     /**
-     * Don't request streams if the other endpoint is a transient replica
+     * Don't request streams if the other endpoint is a witness replica
      */
     @Test
-    public void transientLocalStreamPlan() throws NoSuchRepairSessionException
+    public void witnessLocalStreamPlan() throws NoSuchRepairSessionException
     {
         TimeUUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);

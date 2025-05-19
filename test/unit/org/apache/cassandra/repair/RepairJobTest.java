@@ -370,7 +370,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     addr1, // local
-                                                                                    noWitness(), // transient
+                                                                                    noWitness(), // witness
                                                                                     false,
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
@@ -393,7 +393,7 @@ public class RepairJobTest
     @Test
     public void testStandardSyncWitness()
     {
-        // Do not stream towards transient nodes
+        // Do not stream towards witness nodes
         testStandardSyncWitness(true);
         testStandardSyncWitness(false);
     }
@@ -406,7 +406,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     addr1, // local
-                                                                                    transientPredicate(addr2),
+                                                                                    witnessPredicate(addr2),
                                                                                     false,
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
@@ -423,7 +423,7 @@ public class RepairJobTest
     @Test
     public void testStandardSyncLocalWitness()
     {
-        // Do not stream towards transient nodes
+        // Do not stream towards witness nodes
         testStandardSyncLocalWitness(true);
         testStandardSyncLocalWitness(false);
     }
@@ -436,7 +436,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     addr1, // local
-                                                                                    transientPredicate(addr1),
+                                                                                    witnessPredicate(addr1),
                                                                                     false,
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
@@ -464,28 +464,28 @@ public class RepairJobTest
         testEmptyDifference(addr1, noWitness(), false);
         testEmptyDifference(addr2, noWitness(), true);
         testEmptyDifference(addr2, noWitness(), false);
-        testEmptyDifference(addr1, transientPredicate(addr1), true);
-        testEmptyDifference(addr2, transientPredicate(addr1), true);
-        testEmptyDifference(addr1, transientPredicate(addr1), false);
-        testEmptyDifference(addr2, transientPredicate(addr1), false);
-        testEmptyDifference(addr1, transientPredicate(addr2), true);
-        testEmptyDifference(addr2, transientPredicate(addr2), true);
-        testEmptyDifference(addr1, transientPredicate(addr2), false);
-        testEmptyDifference(addr2, transientPredicate(addr2), false);
+        testEmptyDifference(addr1, witnessPredicate(addr1), true);
+        testEmptyDifference(addr2, witnessPredicate(addr1), true);
+        testEmptyDifference(addr1, witnessPredicate(addr1), false);
+        testEmptyDifference(addr2, witnessPredicate(addr1), false);
+        testEmptyDifference(addr1, witnessPredicate(addr2), true);
+        testEmptyDifference(addr2, witnessPredicate(addr2), true);
+        testEmptyDifference(addr1, witnessPredicate(addr2), false);
+        testEmptyDifference(addr2, witnessPredicate(addr2), false);
 
         // nonlocal coordinator
         testEmptyDifference(addr3, noWitness(), true);
         testEmptyDifference(addr3, noWitness(), false);
         testEmptyDifference(addr3, noWitness(), true);
         testEmptyDifference(addr3, noWitness(), false);
-        testEmptyDifference(addr3, transientPredicate(addr1), true);
-        testEmptyDifference(addr3, transientPredicate(addr1), true);
-        testEmptyDifference(addr3, transientPredicate(addr1), false);
-        testEmptyDifference(addr3, transientPredicate(addr1), false);
-        testEmptyDifference(addr3, transientPredicate(addr2), true);
-        testEmptyDifference(addr3, transientPredicate(addr2), true);
-        testEmptyDifference(addr3, transientPredicate(addr2), false);
-        testEmptyDifference(addr3, transientPredicate(addr2), false);
+        testEmptyDifference(addr3, witnessPredicate(addr1), true);
+        testEmptyDifference(addr3, witnessPredicate(addr1), true);
+        testEmptyDifference(addr3, witnessPredicate(addr1), false);
+        testEmptyDifference(addr3, witnessPredicate(addr1), false);
+        testEmptyDifference(addr3, witnessPredicate(addr2), true);
+        testEmptyDifference(addr3, witnessPredicate(addr2), true);
+        testEmptyDifference(addr3, witnessPredicate(addr2), false);
+        testEmptyDifference(addr3, witnessPredicate(addr2), false);
     }
 
     public void testEmptyDifference(InetAddressAndPort local, Predicate<InetAddressAndPort> isWitness, boolean pullRepair)
@@ -514,7 +514,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     addr1, // local
-                                                                                    ep -> ep.equals(addr3), // transient
+                                                                                    ep -> ep.equals(addr3), // witness
                                                                                     false,
                                                                                     true,
                                                                                     PreviewKind.ALL));
@@ -545,7 +545,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     addr1, // local
-                                                                                    isWitness, // transient
+                                                                                    isWitness, // witness
                                                                                     false,
                                                                                     true,
                                                                                     PreviewKind.ALL));
@@ -612,7 +612,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     local, // local
-                                                                                    isWitness, // transient
+                                                                                    isWitness, // witness
                                                                                     false,
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
@@ -661,7 +661,7 @@ public class RepairJobTest
         Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(SharedContext.Global.instance, JOB_DESC,
                                                                                     treeResponses,
                                                                                     addr4, // local
-                                                                                    ep -> ep.equals(addr4) || ep.equals(addr5), // transient
+                                                                                    ep -> ep.equals(addr4) || ep.equals(addr5), // witness
                                                                                     false,
                                                                                     pullRepair,
                                                                                     PreviewKind.ALL));
@@ -829,10 +829,10 @@ public class RepairJobTest
         return map.build();
     }
 
-    public static Predicate<InetAddressAndPort> transientPredicate(InetAddressAndPort... transientNodes)
+    public static Predicate<InetAddressAndPort> witnessPredicate(InetAddressAndPort... witnessNodes)
     {
         Set<InetAddressAndPort> set = new HashSet<>();
-        for (InetAddressAndPort node : transientNodes)
+        for (InetAddressAndPort node : witnessNodes)
             set.add(node);
 
         return set::contains;

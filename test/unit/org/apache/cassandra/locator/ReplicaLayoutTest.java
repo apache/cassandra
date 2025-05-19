@@ -33,9 +33,9 @@ public class ReplicaLayoutTest
         final Token token = new Murmur3Partitioner.LongToken(1L);
         final Replica f1 = Replica.fullReplica(EP1, R1);
         final Replica f2 = Replica.fullReplica(EP2, R1);
-        final Replica t2 = Replica.transientReplica(EP2, R1);
+        final Replica t2 = Replica.witnessReplica(EP2, R1);
         final Replica f3 = Replica.fullReplica(EP3, R1);
-        final Replica t4 = Replica.transientReplica(EP4, R1);
+        final Replica t4 = Replica.witnessReplica(EP4, R1);
 
         {
             // test no conflict
@@ -44,7 +44,7 @@ public class ReplicaLayoutTest
             Assert.assertFalse(ReplicaLayout.haveWriteConflicts(natural, pending));
         }
         {
-            // test full in natural, transient in pending
+            // test full in natural, witness in pending
             EndpointsForToken natural = EndpointsForToken.of(token, f1, f2, f3);
             EndpointsForToken pending = EndpointsForToken.of(token, t2, t4);
             EndpointsForToken expectNatural = natural;
@@ -54,7 +54,7 @@ public class ReplicaLayoutTest
             assertEquals(expectPending, ReplicaLayout.resolveWriteConflictsInPending(natural, pending));
         }
         {
-            // test transient in natural, full in pending
+            // test witness in natural, full in pending
             EndpointsForToken natural = EndpointsForToken.of(token, f1, t2, f3);
             EndpointsForToken pending = EndpointsForToken.of(token, f2, t4);
             EndpointsForToken expectNatural = EndpointsForToken.of(token, f1, f2, f3);

@@ -145,10 +145,10 @@ public class PlacementTransitionPlanTest
     public void testDisallowAddingFullReadWithWitnessWrite()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint transientWrite = rbeWitness(r(0, 20));
+        RangesByEndpoint witnessWrite = rbeWitness(r(0, 20));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
-                                                       addWriteDelta(transientWrite)).build();
+                                                       addWriteDelta(witnessWrite)).build();
 
         RangesByEndpoint fullRead = rbe(r(0,20));
         PlacementDeltas addRead = PlacementDeltas.builder()
@@ -161,15 +161,15 @@ public class PlacementTransitionPlanTest
     public void testAllowAddingWitnessReadWithWitnessWrite()
     {
         DataPlacements startPlacements = DataPlacements.EMPTY;
-        RangesByEndpoint transientWrite = rbeWitness(r(0, 20));
+        RangesByEndpoint witnessWrite = rbeWitness(r(0, 20));
         PlacementDeltas addWrite = PlacementDeltas.builder()
                                                   .put(params,
-                                                       addWriteDelta(transientWrite)).build();
+                                                       addWriteDelta(witnessWrite)).build();
 
-        RangesByEndpoint transientRead = rbeWitness(r(0,20));
+        RangesByEndpoint witnessRead = rbeWitness(r(0,20));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
-                                                      addReadDelta(transientRead)).build();
+                                                      addReadDelta(witnessRead)).build();
         assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
@@ -182,10 +182,10 @@ public class PlacementTransitionPlanTest
                                                   .put(params,
                                                        addWriteDelta(fullWrite)).build();
 
-        RangesByEndpoint transientRead = rbeWitness(r(0,20));
+        RangesByEndpoint witnessRead = rbeWitness(r(0,20));
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
-                                                      addReadDelta(transientRead)).build();
+                                                      addReadDelta(witnessRead)).build();
         assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
@@ -239,7 +239,7 @@ public class PlacementTransitionPlanTest
     {
         RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(ep);
         for (Range<Token> r : ranges)
-            builder.add(Replica.transientReplica(ep, r));
+            builder.add(Replica.witnessReplica(ep, r));
         return new RangesByEndpoint(ImmutableMap.of(ep, builder.build()));
     }
 

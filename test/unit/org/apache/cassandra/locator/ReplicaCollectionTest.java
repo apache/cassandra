@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 import static com.google.common.collect.Iterables.*;
 import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
+import static org.apache.cassandra.locator.Replica.witnessReplica;
 import static org.apache.cassandra.locator.ReplicaUtils.*;
 
 public class ReplicaCollectionTest
@@ -426,9 +426,9 @@ public class ReplicaCollectionTest
     private static final ImmutableList<Replica> RANGES_AT_ENDPOINT = ImmutableList.of(
             fullReplica(EP1, R1),
             fullReplica(EP1, R2),
-            transientReplica(EP1, R3),
+            witnessReplica(EP1, R3),
             fullReplica(EP1, R4),
-            transientReplica(EP1, R5)
+            witnessReplica(EP1, R5)
     );
 
     @Test
@@ -477,9 +477,9 @@ public class ReplicaCollectionTest
     private static final ImmutableList<Replica> ENDPOINTS_FOR_X = ImmutableList.of(
             fullReplica(EP1, R1),
             fullReplica(EP2, R1),
-            transientReplica(EP3, R1),
+            witnessReplica(EP3, R1),
             fullReplica(EP4, R1),
-            transientReplica(EP5, R1)
+            witnessReplica(EP5, R1)
     );
 
     @Test
@@ -510,10 +510,10 @@ public class ReplicaCollectionTest
         } catch (IllegalArgumentException e) { }
         try
         {   // conflict on isFull/isWitness
-            test.add(transientReplica(EP1, R1), Conflict.DUPLICATE);
+            test.add(witnessReplica(EP1, R1), Conflict.DUPLICATE);
             Assert.fail();
         } catch (IllegalArgumentException e) { }
-        test.add(transientReplica(EP1, R1), Conflict.ALL);
+        test.add(witnessReplica(EP1, R1), Conflict.ALL);
 
         new EndpointsTestCase<>(true, test, canonical1).testAll();
 
@@ -553,10 +553,10 @@ public class ReplicaCollectionTest
         } catch (IllegalArgumentException e) { }
         try
         {   // conflict on isFull/isWitness
-            test.add(transientReplica(EP1, R1), Conflict.DUPLICATE);
+            test.add(witnessReplica(EP1, R1), Conflict.DUPLICATE);
             Assert.fail();
         } catch (IllegalArgumentException e) { }
-        test.add(transientReplica(EP1, R1), Conflict.ALL);
+        test.add(witnessReplica(EP1, R1), Conflict.ALL);
 
         new EndpointsTestCase<>(true, test, canonical1).testAll();
 

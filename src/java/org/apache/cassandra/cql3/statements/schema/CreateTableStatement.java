@@ -170,7 +170,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (keyspace.replicationStrategy.hasWitnessReplicas()
             && table.params.readRepair != ReadRepairStrategy.NONE)
         {
-            throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
+            throw ire("read_repair must be set to 'NONE' for witnessly replicated keyspaces");
         }
 
         if (!table.params.compression.isEnabled())

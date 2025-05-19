@@ -122,7 +122,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     /**
      * Variables guarded by read and write lock above
      */
-    private final PendingRepairHolder transientRepairs;
+    private final PendingRepairHolder witnessRepairs;
     private final PendingRepairHolder pendingRepairs;
     private final CompactionStrategyHolder repaired;
     private final CompactionStrategyHolder unrepaired;
@@ -170,11 +170,11 @@ public class CompactionStrategyManager implements INotificationConsumer
                 return compactionStrategyIndexForDirectory(descriptor);
             }
         };
-        transientRepairs = new PendingRepairHolder(cfs, router, true);
+        witnessRepairs = new PendingRepairHolder(cfs, router, true);
         pendingRepairs = new PendingRepairHolder(cfs, router, false);
         repaired = new CompactionStrategyHolder(cfs, router, true);
         unrepaired = new CompactionStrategyHolder(cfs, router, false);
-        holders = ImmutableList.of(transientRepairs, pendingRepairs, repaired, unrepaired);
+        holders = ImmutableList.of(witnessRepairs, pendingRepairs, repaired, unrepaired);
 
         cfs.getTracker().subscribe(this);
         logger.trace("Compaction manager for {}.{} subscribed to the data tracker.", cfs.keyspace.getName(), cfs.name);
@@ -212,7 +212,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
                 return repairFinishedTasks;
 
-            repairFinishedTasks = transientRepairs.getNextRepairFinishedTasks();
+            repairFinishedTasks = witnessRepairs.getNextRepairFinishedTasks();
             if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
                 return repairFinishedTasks;
 
@@ -428,7 +428,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     @VisibleForTesting
     PendingRepairHolder getWitnessRepairsUnsafe()
     {
-        return transientRepairs;
+        return witnessRepairs;
     }
 
     public boolean hasDataForPendingRepair(TimeUUID sessionID)
@@ -436,7 +436,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            return pendingRepairs.hasDataForSession(sessionID) || transientRepairs.hasDataForSession(sessionID);
+            return pendingRepairs.hasDataForSession(sessionID) || witnessRepairs.hasDataForSession(sessionID);
         }
         finally
         {
@@ -450,7 +450,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            return pendingRepairs.hasPendingRepairSSTable(sessionID, sstable) || transientRepairs.hasPendingRepairSSTable(sessionID, sstable);
+            return pendingRepairs.hasPendingRepairSSTable(sessionID, sstable) || witnessRepairs.hasPendingRepairSSTable(sessionID, sstable);
         }
         finally
         {
@@ -1385,7 +1385,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            for (PendingRepairManager prm : Iterables.concat(pendingRepairs.getManagers(), transientRepairs.getManagers()))
+            for (PendingRepairManager prm : Iterables.concat(pendingRepairs.getManagers(), witnessRepairs.getManagers()))
                 cleanupTasks.add(prm.releaseSessionData(sessions));
         }
         finally

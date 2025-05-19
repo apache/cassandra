@@ -434,7 +434,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         private long keyCount;
         private long repairedAt;
         private TimeUUID pendingRepair;
-        private boolean transientSSTable;
+        private boolean witnessSSTable;
         private SerializationHeader serializationHeader;
         private List<Index.Group> indexGroups;
 
@@ -462,9 +462,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return (B) this;
         }
 
-        public B setWitnessSSTable(boolean transientSSTable)
+        public B setWitnessSSTable(boolean witnessSSTable)
         {
-            this.transientSSTable = transientSSTable;
+            this.witnessSSTable = witnessSSTable;
             return (B) this;
         }
 
@@ -537,7 +537,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
         public boolean isWitnessSSTable()
         {
-            return transientSSTable;
+            return witnessSSTable;
         }
 
         public SerializationHeader getSerializationHeader()

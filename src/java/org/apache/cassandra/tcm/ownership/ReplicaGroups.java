@@ -386,10 +386,10 @@ public class ReplicaGroups
          * Combine two replica groups, assuming one is the current group and the other is the proposed.
          * During range movements this is used when calculating the maximal placement, which combines the current and
          * future replica groups. This special cases the merging of two replica groups to make sure that when a replica
-         * moves from transient to full, it starts to act as a FULL write replica as early as possible.
+         * moves from witness to full, it starts to act as a FULL write replica as early as possible.
          *
          * Where an endpoint is present in both groups, prefer the proposed iff it is a FULL replica. During a
-         * multi-step operation (join/leave/move), we want any change from transient to full to happen as early
+         * multi-step operation (join/leave/move), we want any change from witness to full to happen as early
          * as possible so that a replica whose ownership is modified in this way becomes FULL for writes before it
          * becomes FULL for reads. This works as additions to write replica groups are applied before any other
          * placement changes (i.e. in START_[JOIN|LEAVE|MOVE]).
@@ -407,10 +407,10 @@ public class ReplicaGroups
                 Replica r2 = e2.get(e);
                 if (null == r2)          // not present in next
                     combined.add(r1);
-                else if (r2.isFull())    // prefer replica from next, if it is moving from transient to full
+                else if (r2.isFull())    // prefer replica from next, if it is moving from witness to full
                     combined.add(r2);
                 else
-                    combined.add(r1);    // replica is moving from full to transient, or staying the same
+                    combined.add(r1);    // replica is moving from full to witness, or staying the same
             });
             // any new replicas not in prev
             e2.forEach((e, r2) -> {

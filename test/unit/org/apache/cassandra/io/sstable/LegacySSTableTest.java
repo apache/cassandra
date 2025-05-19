@@ -264,7 +264,7 @@ public class LegacySSTableTest
                             fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
                     }
                 }
-                // set transient
+                // set witness
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
                     try

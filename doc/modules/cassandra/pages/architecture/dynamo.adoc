@@ -232,24 +232,24 @@ present in the original Dynamo paper. This feature allows configuration of a
 subset of replicas to replicate only data that hasn't been incrementally
 repaired. This configuration decouples data redundancy from availability.
 For instance, if you have a keyspace replicated at RF=3, and alter it to
-RF=5 with two transient replicas, you go from tolerating one
+RF=5 with two witness replicas, you go from tolerating one
 failed replica to tolerating two, without corresponding
 increase in storage usage. Now, three nodes will replicate all
 the data for a given token range, and the other two will only replicate
 data that hasn't been incrementally repaired.
 
-To use transient replication, first enable the option in
+To use witness replication, first enable the option in
 `cassandra.yaml`. Once enabled, both `SimpleStrategy` and
-`NetworkTopologyStrategy` can be configured to transiently replicate
-data. Configure it by specifying replication factor as
-`<total_replicas>/<transient_replicas` Both `SimpleStrategy` and
-`NetworkTopologyStrategy` support configuring transient replication.
+`NetworkTopologyStrategy` can be configured to use witness replication.
+ Configure it by specifying replication factor as
+`<total_replicas>/<witness_replicas` Both `SimpleStrategy` and
+`NetworkTopologyStrategy` support configuring witness replication.
 
 Tables with witness replicas only support tables created with
 `read_repair` set to `NONE`; monotonic reads are not currently
 supported. You also can't use `LWT`, logged batches, or counters in {40_version}.
 You will possibly never be able to use materialized views with
-transiently replicated keyspaces and probably never be able to use
+keyspaces using witness replication and probably never be able to use
 secondary indices with them.
 
 Witness replication is an experimental feature that is not ready
@@ -261,7 +261,7 @@ your queries, data, configuration, operational practices, and
 availability requirements.
 
 Anticipated additional features in `4.next` are support for monotonic reads with
-transient replication, as well as LWT, logged batches, and counters.
+witness replication, as well as LWT, logged batches, and counters.
 
 === Data Versioning
 

@@ -342,7 +342,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         ColumnFamilyStore cfs = createJBODMockCFS(numDir);
         Keyspace.open(cfs.getKeyspaceName()).getColumnFamilyStore(cfs.name).disableAutoCompaction();
         assertTrue(cfs.getLiveSSTables().isEmpty());
-        List<SSTableReader> transientRepairs = new ArrayList<>();
+        List<SSTableReader> witnessRepairs = new ArrayList<>();
         List<SSTableReader> pendingRepair = new ArrayList<>();
         List<SSTableReader> unrepaired = new ArrayList<>();
         List<SSTableReader> repaired = new ArrayList<>();
@@ -350,13 +350,13 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         for (int i = 0; i < numDir; i++)
         {
             int key = 100 * i;
-            transientRepairs.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
+            witnessRepairs.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
             pendingRepair.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
             unrepaired.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
             repaired.add(createSSTableWithKey(cfs.getKeyspaceName(), cfs.name, key++));
         }
 
-        cfs.getCompactionStrategyManager().mutateRepaired(transientRepairs, 0, nextTimeUUID(), true);
+        cfs.getCompactionStrategyManager().mutateRepaired(witnessRepairs, 0, nextTimeUUID(), true);
         cfs.getCompactionStrategyManager().mutateRepaired(pendingRepair, 0, nextTimeUUID(), false);
         cfs.getCompactionStrategyManager().mutateRepaired(repaired, 1000, null, false);
 
@@ -366,7 +366,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
 
         CompactionStrategyManager csm = new CompactionStrategyManager(cfs, () -> boundaries, true);
 
-        List<GroupedSSTableContainer> grouped = csm.groupSSTables(Iterables.concat( transientRepairs, pendingRepair, repaired, unrepaired));
+        List<GroupedSSTableContainer> grouped = csm.groupSSTables(Iterables.concat( witnessRepairs, pendingRepair, repaired, unrepaired));
 
         for (int x=0; x<grouped.size(); x++)
         {
@@ -383,7 +383,7 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
                 {
                     if (sstable.isWitness())
                     {
-                        expected = transientRepairs.get(y);
+                        expected = witnessRepairs.get(y);
                     }
                     else
                     {

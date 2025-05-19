@@ -284,7 +284,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
     }
 
     /**
-     * It should only be possible to create sstables marked transient that also have a pending repair
+     * It should only be possible to create sstables marked witness that also have a pending repair
      */
     @Test
     public void testRepairMetadataValidation()

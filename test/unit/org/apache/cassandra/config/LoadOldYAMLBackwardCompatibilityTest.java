@@ -108,7 +108,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertTrue(config.user_defined_functions_enabled);
         assertFalse(config.scripted_user_defined_functions_enabled);
         assertTrue(config.materialized_views_enabled);
-        assertFalse(config.transient_replication_enabled);
+        assertFalse(config.witness_replication_enabled);
         assertTrue(config.sasi_indexes_enabled);
         assertTrue(config.drop_compact_storage_enabled);
         assertTrue(config.user_defined_functions_threads_enabled);

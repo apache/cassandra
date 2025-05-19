@@ -32,7 +32,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
- * Groups ranges with identical endpoints/transient endpoints
+ * Groups ranges with identical endpoints/witness endpoints
  */
 public class CommonRange
 {
