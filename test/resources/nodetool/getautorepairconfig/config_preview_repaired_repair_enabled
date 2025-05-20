@@ -96,3 +96,4 @@ configuration for repair type: bootstrap
 	percentage of parallel repairs within group: 0
 	mv repair enabled: true
 	initial scheduler delay in seconds: 900
+	abort auto repair after: 15m

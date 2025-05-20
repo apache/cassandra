@@ -24,7 +24,6 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -143,7 +142,7 @@ public class AutoRepairInvokeBootstrapRepairOnReplacementTest extends TestBaseIm
                     // enable "bootstrap" repair but allocate an extremely short quota "1s"
                     // in this scenario; the expectation is that the bootstrap repair should abort after "1s" of execution
                     cfg.setAutoRepairEnabled(bootstrap, true);
-                    AutoRepairUtilsV2.bootstrapRepairDurationUpperCap = new DurationSpec.LongSecondsBound("1s");
+                    cfg.setAbortAutoRepairAfter(bootstrap, "1s");
 
                     assertTrue(cfg.isAutoRepairEnabled(bootstrap));
                     assertTrue(cfg.isAutoRepairEnabled(full));

@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class AutoRepairConfig implements Serializable
 {
@@ -312,6 +311,17 @@ public class AutoRepairConfig implements Serializable
         return applyOverrides(repairType, opt -> opt.initial_scheduler_delay_in_sec);
     }
 
+    public void setAbortAutoRepairAfter(RepairType repairType, String interval)
+    {
+        ensureOverrides(repairType);
+        repair_type_overrides.get(repairType).abort_auto_repair_after = new DurationSpec.LongSecondsBound(interval);
+    }
+
+    public DurationSpec.LongSecondsBound getAbortAutoRepairAfter(RepairType repairType)
+    {
+        return applyOverrides(repairType, opt -> opt.abort_auto_repair_after);
+    }
+
     // Options configures auto-repair behavior for a given repair type.
     // The function of each of these fields is described here: https://docs.google.com/document/d/1Z1d27moU9yPT-r_1JhpcO_3ws-aQkUww5JA0abwK9dE/edit#heading=h.izpcb3d6hq4n
     // All fields can be modified dynamically.
@@ -350,6 +360,7 @@ public class AutoRepairConfig implements Serializable
             opts.table_max_repair_time_in_sec = 6 * 60 * 60L; // six hours
             opts.mv_repair_enabled = true;
             opts.initial_scheduler_delay_in_sec = 900; // 15 minutes
+            opts.abort_auto_repair_after = new DurationSpec.LongSecondsBound("15m");
 
             switch (type)
             {
@@ -416,6 +427,12 @@ public class AutoRepairConfig implements Serializable
         public volatile Boolean mv_repair_enabled;
         // the minimum delay in seconds after a node starts before the scheduler starts running repair
         public volatile Integer initial_scheduler_delay_in_sec;
+
+        // Specifies the maximum duration allowed for AutoRepair to run on this node.
+        // If the repair process exceeds this duration, it will be aborted.
+        // Currently, this setting only applies to the "bootstrap" repair type.
+        // It is not used for other repair types at this time, though future support can be added.
+        public volatile DurationSpec.LongSecondsBound abort_auto_repair_after;
     }
 
     @VisibleForTesting

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair;
 
-import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -32,13 +31,11 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AutoRepairConfig.Options;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
@@ -519,5 +516,21 @@ public class AutoRepairConfigTest extends CQLTester
 
         for (String keyspace : allowedKeyspaces)
             assertFalse("Keyspace " + keyspace + " should be allowed", Pattern.matches(defaultOptions.ignore_keyspaces, keyspace));
+    }
+
+    @Test
+    public void testSetAbortAutoRepairAfter()
+    {
+        config.setAbortAutoRepairAfter(repairType, "5m");
+
+        assertEquals(300, config.repair_type_overrides.get(repairType).abort_auto_repair_after.toSeconds());
+    }
+
+    @Test
+    public void testGetAbortAutoRepairAfter()
+    {
+        config.global_settings.abort_auto_repair_after = new DurationSpec.LongSecondsBound("10m");
+
+        assertEquals(600, config.getAbortAutoRepairAfter(repairType).toSeconds());
     }
 }

@@ -38,7 +38,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.metrics.AutoRepairMetricsV2;
 import org.apache.cassandra.transport.Dispatcher;
@@ -168,9 +167,6 @@ public class AutoRepairUtilsV2
     static ModificationStatement clearDeleteHostsStatement;
     static ModificationStatement setForceRepairStatement;
     static ConsistencyLevel internalQueryCL;
-
-    // TODO: make this configurable
-    public static DurationSpec.LongSecondsBound bootstrapRepairDurationUpperCap = new DurationSpec.LongSecondsBound("15m");
 
     public enum RepairTurn
     {
@@ -987,7 +983,7 @@ public class AutoRepairUtilsV2
         });
         try
         {
-            future.get(bootstrapRepairDurationUpperCap.toSeconds(), TimeUnit.SECONDS);
+            future.get(config.getAbortAutoRepairAfter(RepairType.bootstrap).toSeconds(), TimeUnit.SECONDS);
         }
         catch (Exception e)
         {

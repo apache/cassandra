@@ -88,7 +88,10 @@ public class GetAutoRepairConfig extends NodeToolCmd
         sb.append("\n\tpercentage of parallel repairs within group: " + config.getParallelRepairPercentageInGroup(repairType));
         sb.append("\n\tmv repair enabled: " + config.getMVRepairEnabled(repairType));
         sb.append("\n\tinitial scheduler delay in seconds: " + config.getInitialSchedulerDelayInSec(repairType));
-
+        if (repairType == RepairType.bootstrap)
+        {
+            sb.append("\n\tabort auto repair after: " + config.getAbortAutoRepairAfter(repairType));
+        }
         return sb.toString();
     }
 }
