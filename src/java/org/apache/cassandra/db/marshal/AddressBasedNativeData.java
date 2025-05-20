@@ -56,9 +56,15 @@ public class AddressBasedNativeData implements NativeData
     public NativeData slice(int offset, int length)
     {
         if (offset < 0 || offset > this.length)
-            throw new IllegalArgumentException("offset must but be >= 0 and < parent length");
+            throw new IllegalArgumentException("offset must but be >= 0 and < parent length; " +
+                                               "offset: " + offset +
+                                               ", slice length: " + length +
+                                               ", data length: " + this.length);
         if (length < 0 || offset + length > this.length) {
-            throw new IllegalArgumentException("length must but be >= 0 and offset + length > parent length");
+            throw new IllegalArgumentException("length must but be >= 0 and offset + length > parent length; " +
+                                               "offset: " + offset +
+                                               ", slice length: " + length +
+                                               ", data length: " + this.length);
         }
 
         if (length == 0) {
