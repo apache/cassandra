@@ -19,6 +19,9 @@ package org.apache.cassandra.journal;
 
 import java.util.List;
 
+import accord.utils.Invariants;
+import org.apache.cassandra.io.util.File;
+
 import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
 
 enum Component
@@ -43,5 +46,12 @@ enum Component
     boolean existsFor(Descriptor descriptor)
     {
         return descriptor.fileFor(this).exists();
+    }
+
+    void markCorrupted(Descriptor descriptor)
+    {
+        File file = descriptor.fileFor(this);
+        Invariants.require(file.exists());
+        file.move(file.withSuffix(".corrupted"));
     }
 }

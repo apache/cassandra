@@ -27,6 +27,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Closeable;
@@ -41,6 +44,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
  */
 public final class StaticSegment<K, V> extends Segment<K, V>
 {
+    public static final Logger logger = LoggerFactory.getLogger(StaticSegment.class);
     final FileChannel channel;
     final int fsyncLimit;
 
@@ -91,13 +95,40 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         if (!Component.DATA.existsFor(descriptor))
             throw new IllegalArgumentException("Data file for segment " + descriptor + " doesn't exist");
 
-        Metadata metadata = Component.METADATA.existsFor(descriptor)
-                          ? Metadata.load(descriptor)
-                          : Metadata.rebuildAndPersist(descriptor, keySupport);
+        Metadata metadata = null;
+        if (Component.METADATA.existsFor(descriptor))
+        {
+            try
+            {
+                metadata = Metadata.load(descriptor);
+            }
+            catch (Throwable t)
+            {
+                logger.error("Could not load metadata component for {}; rebuilding",  descriptor, t);
+                Component.METADATA.markCorrupted(descriptor);
+            }
+        }
 
-        OnDiskIndex<K> index = Component.INDEX.existsFor(descriptor)
-                             ? OnDiskIndex.open(descriptor, keySupport)
-                             : OnDiskIndex.rebuildAndPersist(descriptor, keySupport, metadata.fsyncLimit());
+        if (metadata == null)
+            metadata = Metadata.rebuildAndPersist(descriptor, keySupport);
+
+        OnDiskIndex<K> index = null;
+
+        if (Component.INDEX.existsFor(descriptor))
+        {
+            try
+            {
+                index = OnDiskIndex.open(descriptor, keySupport);
+            }
+            catch (Throwable t)
+            {
+                logger.error("Could not load index component for {}; rebuilding",  descriptor, t);
+                Component.INDEX.markCorrupted(descriptor);
+            }
+        }
+
+        if (index == null)
+            index = OnDiskIndex.rebuildAndPersist(descriptor, keySupport, metadata.fsyncLimit());
 
         try
         {
