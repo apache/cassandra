@@ -56,6 +56,7 @@ public class AccordSegmentCompactor<V> extends AbstractAccordSegmentCompactor<V>
     {
         cfs.addSSTables(writer.finish(true));
         writer.close();
+        writer = null;
     }
 
     @Override
