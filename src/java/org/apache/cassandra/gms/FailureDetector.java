@@ -326,7 +326,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             // an error in that case.
             ClusterMetadata metadata = ClusterMetadata.current();
             if (!metadata.directory.allJoinedEndpoints().contains(ep) && !metadata.fullCMSMembers().contains(ep))
-                logger.error("Unknown endpoint: " + ep, new IllegalArgumentException("Unknown endpoint: " + ep));
+                logger.error("Unknown endpoint: " + ep, new UnknownEndpointException(ep));
         }
         return epState != null && epState.isAlive();
     }
@@ -436,6 +436,14 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
         sb.append("-----------------------------------------------------------------------");
         return sb.toString();
+    }
+
+    public static class UnknownEndpointException extends IllegalArgumentException
+    {
+        public UnknownEndpointException(InetAddressAndPort ep)
+        {
+            super("Unknown endpoint: " + ep);
+        }
     }
 }
 

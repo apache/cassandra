@@ -448,35 +448,30 @@ public class AccordService implements IAccordService, Shutdownable
         if (peers.isEmpty())
             return null;
 
-        Iterator<InetAddressAndPort> iter = peers.iterator();
-        while (iter.hasNext())
+        try
         {
-            InetAddressAndPort peer = iter.next();
-            try
-            {
-                logger.info("Fetching topologies for epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer);
-                Invariants.require(from <= metadata.epoch.getEpoch(),
-                                   "Accord epochs should never be ahead of TCM ones, but %d was ahead of %d", from, metadata.epoch.getEpoch());
+            logger.info("Fetching topologies for epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peers);
+            Invariants.require(from <= metadata.epoch.getEpoch(),
+                               "Accord epochs should never be ahead of TCM ones, but %d was ahead of %d", from, metadata.epoch.getEpoch());
 
-                Future<TopologyRange> futures = FetchTopologies.fetch(SharedContext.Global.instance,
-                                                                      Collections.singleton(peer),
-                                                                      from,
-                                                                      Long.MAX_VALUE);
-                TopologyRange response = futures.get();
-                logger.info("Fetched topologies {}", response);
+            Future<TopologyRange> futures = FetchTopologies.fetch(SharedContext.Global.instance,
+                                                                  peers,
+                                                                  from,
+                                                                  Long.MAX_VALUE);
+            TopologyRange response = futures.get();
+            logger.info("Fetched topologies {}", response);
 
-                // We're behind and need to catch up CMS first.
-                if (response.current > ClusterMetadata.current().epoch.getEpoch())
-                    ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(response.current));
+            // We're behind and need to catch up CMS first.
+            if (response.current > ClusterMetadata.current().epoch.getEpoch())
+                ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(response.current));
 
-                if (response.current >= from)
-                    return response;
-                metadata = ClusterMetadata.current();
-            }
-            catch (Throwable e)
-            {
-                logger.info("Failed to fetch epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer);
-            }
+            if (response.current >= from)
+                return response;
+            metadata = ClusterMetadata.current();
+        }
+        catch (Throwable e)
+        {
+            logger.info("Failed to fetch epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peers);
         }
 
         // After trying to contact all peers, and retrying according to retry spec on them, we give up.
