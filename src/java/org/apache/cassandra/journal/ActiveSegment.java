@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
+import accord.utils.Invariants;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.*;
@@ -93,7 +94,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
     static <K, V> ActiveSegment<K, V> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
     {
         InMemoryIndex<K> index = InMemoryIndex.create(keySupport);
-        Metadata metadata = Metadata.create();
+        Metadata metadata = Metadata.empty();
         return new ActiveSegment<>(descriptor, params, index, metadata, keySupport);
     }
 
@@ -341,7 +342,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
                 if ((int)prev >= next)
                 {
                     // already stopped allocating, might also be closed
-                    assert buffer == null || prev == buffer.capacity() + 1;
+                    Invariants.require(buffer == null || prev == buffer.capacity() + 1);
                     return false;
                 }
 
@@ -350,6 +351,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
                     // stopped allocating now; can only succeed once, no further allocation or discardUnusedTail can succeed
                     endOfBuffer = (int)prev;
                     assert buffer != null && next == buffer.capacity() + 1;
+                    metadata.fsyncLimit((int) prev);
                     return prev == 0;
                 }
                 LockSupport.parkNanos(1);

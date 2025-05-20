@@ -165,7 +165,7 @@ public class SegmentTest
         tidier.await.issue();
         activeSegment.close(null);
 
-        StaticSegment.SequentialReader<TimeUUID> reader = StaticSegment.sequentialReader(descriptor, TimeUUIDKeySupport.INSTANCE, 0);
+        StaticSegment.SequentialReader<TimeUUID> reader = StaticSegment.sequentialReader(descriptor, TimeUUIDKeySupport.INSTANCE, activeSegment.metadata.fsyncLimit());
 
         // read all 4 entries sequentially and compare with originals
         assertTrue(reader.advance());
