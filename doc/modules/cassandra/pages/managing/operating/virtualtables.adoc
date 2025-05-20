@@ -411,7 +411,7 @@ name                                 | value
   auto_snapshot                      | true
   automatic_sstable_upgrade          | false
   cluster_name                       | Test Cluster
-  enable_witness_replication       | false
+  enable_witness_replication         | false
   hinted_handoff_enabled             | true
   hints_directory                    | /home/ec2-user/cassandra/data/hints
   incremental_backups                | false

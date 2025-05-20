@@ -526,11 +526,11 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     private static void addRangeToNeighbors(List<CommonRange> neighborRangeList, Range<Token> range, EndpointsForRange neighbors)
     {
         Set<InetAddressAndPort> endpoints = neighbors.endpoints();
-        Set<InetAddressAndPort> transEndpoints = neighbors.filter(Replica::isWitness).endpoints();
+        Set<InetAddressAndPort> witnessEndpoints = neighbors.filter(Replica::isWitness).endpoints();
 
         for (CommonRange commonRange : neighborRangeList)
         {
-            if (commonRange.matchesEndpoints(endpoints, transEndpoints))
+            if (commonRange.matchesEndpoints(endpoints, witnessEndpoints))
             {
                 commonRange.ranges.add(range);
                 return;
@@ -539,7 +539,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
 
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(range);
-        neighborRangeList.add(new CommonRange(endpoints, transEndpoints, ranges));
+        neighborRangeList.add(new CommonRange(endpoints, witnessEndpoints, ranges));
     }
 
     private Thread createQueryThread(final TimeUUID sessionId)
@@ -665,7 +665,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                 for (CommonRange commonRange : commonRanges)
                 {
                     Set<InetAddressAndPort> endpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.endpoints, participants::contains));
-                    Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.transEndpoints, participants::contains));
+                    Set<InetAddressAndPort> transEndpoints = ImmutableSet.copyOf(Iterables.filter(commonRange.witnessEndpoints, participants::contains));
                     Preconditions.checkState(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
 
                     // this node is implicitly a participant in this repair, so a single endpoint is ok here

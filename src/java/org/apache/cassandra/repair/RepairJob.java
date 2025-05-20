@@ -340,7 +340,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
     private boolean isWitness(InetAddressAndPort ep)
     {
-        return session.state.commonRange.transEndpoints.contains(ep);
+        return session.state.commonRange.witnessEndpoints.contains(ep);
     }
 
     private List<SyncTask> createStandardSyncTasks(List<TreeResponse> trees)
