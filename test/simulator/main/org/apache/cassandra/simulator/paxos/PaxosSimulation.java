@@ -35,6 +35,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Throwables;
+import org.apache.cassandra.gms.FailureDetector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +86,8 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
     protected Class<? extends Throwable>[] expectedExceptionsPaxos()
     {
         return (Class<? extends Throwable>[]) new Class<?>[] { RequestExecutionException.class,
-                                                               CancellationException.class };
+                                                               CancellationException.class,
+                                                               FailureDetector.UnknownEndpointException.class};
     }
 
     @SuppressWarnings("unchecked")
@@ -97,6 +99,7 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
                                                                CancellationException.class,
                                                                CoordinationFailed.class,
                                                                ClosedChannelException.class,
+                                                               FailureDetector.UnknownEndpointException.class,
                                                                StreamReceivedOutOfTokenRangeException.class // should always come in combination with closed channel exception
         };
     }
