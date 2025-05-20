@@ -120,7 +120,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     protected void persistFieldUpdates()
     {
-        super.persistFieldUpdates();
+        // Field persistence is handled by AccordTask
     }
 
     protected void persistFieldUpdatesInternal(Runnable onDone)
