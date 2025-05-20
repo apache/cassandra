@@ -135,7 +135,7 @@ public class SystemKeyspaceMigrator41
         migrateTable(false,
                      SystemKeyspace.LEGACY_AVAILABLE_RANGES,
                      SystemKeyspace.AVAILABLE_RANGES_V2,
-                     new String[]{ "keyspace_name", "full_ranges", "witness_ranges" },
+                     new String[]{ "keyspace_name", "full_ranges", "transient_ranges" },
                      row -> Collections.singletonList(new Object[]{ row.getString("keyspace_name"),
                                                                     Optional.ofNullable(row.getSet("ranges", BytesType.instance)).orElse(Collections.emptySet()),
                                                                     Collections.emptySet() }));
