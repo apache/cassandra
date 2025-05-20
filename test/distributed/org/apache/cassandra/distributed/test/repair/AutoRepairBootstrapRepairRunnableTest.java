@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test.repair;
 
-import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -86,9 +85,9 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
                                         .withInstanceInitializer(BBStreamFailure::install)
                                         .start())
         {
-            InetSocketAddress node2Address = cluster.get(2).broadcastAddress();
-            InetSocketAddress node3Address = cluster.get(3).broadcastAddress();
-            InetSocketAddress node4Address = cluster.get(4).broadcastAddress();
+            String node2Address = cluster.get(2).broadcastAddress().getHostName();
+            String node3Address = cluster.get(3).broadcastAddress().getHostName();
+            String node4Address = cluster.get(4).broadcastAddress().getHostName();
 
             Set<Range<Token>> tokenRangesNode2 = getTokens(cluster, 2);
             populate(cluster, 0, 100, 1, 3, ConsistencyLevel.QUORUM);
@@ -111,17 +110,20 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
                  ImmutableMap.of(AutoRepairConfig.RepairType.bootstrap.toString(),
                                  ImmutableMap.of(
                                  "initial_scheduler_delay_in_sec", "5",
-                                 "enabled", "true",
+                                 "enabled", "false",
                                  "parallel_repair_count_in_group", "1",
                                  "parallel_repair_percentage_in_group", "0",
                                  "min_repair_interval_in_hours", "-1"))))
             .set("auto_repair.enabled", "true")
             .set("auto_repair.repair_check_interval_in_sec", "10")
-            .set("auto_repair.repair_task_min_duration", "0s");
+            .set("auto_repair.repair_task_min_duration", "0s")
+            .set("auto_repair.repair_max_retries", "0")
+            .set("auto_repair.repair_retry_backoff_in_sec", "0");
 
 
             cluster.get(2).shutdown();
-            System.setProperty("cassandra.replace_address", node2Address.getHostName());
+
+            System.setProperty("cassandra.replace_address", node2Address);
             IInvokableInstance newInstance = cluster.bootstrap(config);
             newInstance.startup(cluster);
             newInstance.logs().watchFor("Stream failed");
@@ -163,9 +165,8 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
             // (127.0.0.2, 127.0.0.4, 127.0.0.4)
             newInstance.runOnInstance(
             () -> {
-                AutoRepairV2.instance.setup();
-
                 AutoRepairConfig autoRepairConfig = AutoRepairService.instance.getAutoRepairConfig();
+                autoRepairConfig.setAutoRepairEnabled(AutoRepairConfig.RepairType.bootstrap, true);
                 assertEquals(AutoRepairUtilsV2.RepairTurn.MY_TURN, AutoRepairStateFactory.getAutoRepairState(AutoRepairConfig.RepairType.bootstrap).calcRepairTurn(null));
                 assertTrue(AutoRepairUtilsV2.isBootstrapRepair());
                 RepairOption option = new RepairOption(RepairParallelism.PARALLEL, true, true, false,
@@ -181,10 +182,9 @@ public class AutoRepairBootstrapRepairRunnableTest extends TestBaseImpl
                 {
                     throw new RuntimeException(e);
                 }
-                assertEquals(new TreeSet<>(Arrays.asList(node2Address.getHostName(), node3Address.getHostName(), node4Address.getHostName())),
+                assertEquals(new TreeSet<>(Arrays.asList(node2Address, node3Address, node4Address)),
                              neighborsAndRanges.participants.stream().map(p -> p.getHostAddress(false))
                                                             .collect(Collectors.toCollection(TreeSet::new)));
-
                 // disable bootstrap repair type and it should throw an exception
                 // because the local token range is empty
                 autoRepairConfig.setAutoRepairEnabled(AutoRepairConfig.RepairType.bootstrap, false);

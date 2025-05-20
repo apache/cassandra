@@ -486,7 +486,10 @@ public class AutoRepairV2
                 }
                 repairState.setNodeRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - startTime));
                 repairState.setRepairInProgress(false);
-                AutoRepairUtilsV2.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
+                if (!AutoRepairUtilsV2.isBootstrapRepair())
+                {
+                    AutoRepairUtilsV2.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());
+                }
             }
             else
             {

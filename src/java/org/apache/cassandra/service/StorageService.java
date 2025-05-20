@@ -2293,6 +2293,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         invalidateLocalRanges();
         repairPaxosForTopologyChange("bootstrap");
 
+        // check if we need to run a bootstrap repair to sync the data among the existing
+        // replicas before starting the streaming
+        shouldRunBootstrapRepair();
+
         Future<StreamState> bootstrapStream = startBootstrap(tokens);
         try
         {
@@ -7804,5 +7808,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setAllowedClientLibDrivers(Set<String> drivers)
     {
         DatabaseDescriptor.setAllowedClientLibDrivers(drivers);
+    }
+
+    public void shouldRunBootstrapRepair()
+    {
+        if (replacing && !isReplacingSameAddress())
+        {
+            try
+            {
+                if (AutoRepairUtilsV2.runBootstrapRepair())
+                {
+                    logger.info("Bootstrap repair during node replacement succeeded");
+                }
+                else
+                {
+                    logger.info("Bootstrap repair either not enabled or failed");
+                }
+            }
+            catch (Exception e)
+            {
+                logger.error("Error runBootstrapRepair", e);
+            }
+        }
     }
 }

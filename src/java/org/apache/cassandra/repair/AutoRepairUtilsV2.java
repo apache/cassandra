@@ -938,14 +938,14 @@ public class AutoRepairUtilsV2
                DatabaseDescriptor.getReplaceAddress() != null;
     }
 
-
-    // TODO: invoke this API from the bootstrap module
     public static boolean runBootstrapRepair() throws InterruptedException
     {
         // This is currently set up in "StorageService::finishJoiningRing" but since the node is
         // in UJ, we need to manually initialize the AutoRepair
-        if (!StorageService.doAutoRepairSetup())
+        if (!StorageService.doAutoRepairSetup() || !AutoRepairService.instance.getAutoRepairConfig().
+                                                                              isAutoRepairEnabled(RepairType.bootstrap))
         {
+            logger.info("Do not start bootstrap repair");
             return false;
         }
 
@@ -973,7 +973,8 @@ public class AutoRepairUtilsV2
                     {
                         Thread.sleep(5000);
                         logger.info("Waiting for bootstrap repair to complete one round");
-                    } catch (InterruptedException e)
+                    }
+                    catch (InterruptedException e)
                     {
                         Thread.currentThread().interrupt();
                         logger.error("Thread interrupted during bootstrap repair", e);
@@ -984,7 +985,6 @@ public class AutoRepairUtilsV2
                 logger.info("Bootstrap Repair has completed!");
             }
         });
-
         try
         {
             future.get(bootstrapRepairDurationUpperCap.toSeconds(), TimeUnit.SECONDS);
