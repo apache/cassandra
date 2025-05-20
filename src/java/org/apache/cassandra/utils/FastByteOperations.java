@@ -321,7 +321,7 @@ public class FastByteOperations
             if (trg.hasArray())
                 System.arraycopy(src, srcPosition, trg.array(), trg.arrayOffset() + trgPosition, length);
             else
-                copy(src, (long) srcPosition + Unsafe.ARRAY_BYTE_BASE_OFFSET, trg, trgPosition, length);
+                copy((Object) src, (long) srcPosition + Unsafe.ARRAY_BYTE_BASE_OFFSET, trg, trgPosition, length);
         }
 
         public void copy(ByteBuffer srcBuf, int srcPosition, ByteBuffer trgBuf, int trgPosition, int length)
