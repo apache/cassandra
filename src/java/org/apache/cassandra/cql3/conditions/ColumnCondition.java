@@ -236,6 +236,8 @@ public final class ColumnCondition
          */
         public abstract boolean appliesTo(Row row);
 
+        public abstract boolean isNull(Row row);
+
         public abstract BoundKind kind();
 
         public static final ParameterisedUnversionedSerializer<Bound, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>() {
@@ -292,6 +294,12 @@ public final class ColumnCondition
         public boolean appliesTo(Row row)
         {
             return operator.isSatisfiedBy(column.type, rowValue(row), value);
+        }
+
+        @Override
+        public boolean isNull(Row row)
+        {
+            return column.type.isNull(rowValue(row));
         }
 
         protected ByteBuffer rowValue(Row row)
@@ -399,8 +407,19 @@ public final class ColumnCondition
         @Override
         public boolean appliesTo(Row row)
         {
-            ByteBuffer element = ((MultiElementType<?>) column.type).getElement(columnData(row), keyOrIndex);
+            ByteBuffer element = elementValue(row);
             return operator.isSatisfiedBy(elementType, element, value);
+        }
+
+        private ByteBuffer elementValue(Row row)
+        {
+            return ((MultiElementType<?>) column.type).getElement(columnData(row), keyOrIndex);
+        }
+
+        @Override
+        public boolean isNull(Row row)
+        {
+            return column.type.isNull(elementValue(row));
         }
 
         /**
@@ -452,6 +471,12 @@ public final class ColumnCondition
         {
             ComplexColumnData columnData = row == null ? null : row.getComplexColumnData(column);
             return operator.isSatisfiedBy((MultiElementType<?>) column.type, columnData, value);
+        }
+
+        @Override
+        public boolean isNull(Row row)
+        {
+            return row == null || row.getComplexColumnData(column) == null;
         }
 
         @Override

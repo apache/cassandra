@@ -20,16 +20,25 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import accord.utils.VIntCoding;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.rows.AbstractCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ColumnData;
@@ -43,6 +52,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.SET;
 import static org.apache.cassandra.service.accord.AccordSerializers.columnMetadataSerializer;
@@ -50,11 +60,14 @@ import static org.apache.cassandra.service.accord.AccordSerializers.columnMetada
 public class TxnReference
 {
     private final int tuple;
+    @Nullable
     private final TableMetadata table;
+    @Nullable
     private final ColumnMetadata column;
+    @Nullable
     private final CellPath path;
 
-    public TxnReference(int tuple, TableMetadata table, ColumnMetadata column, CellPath path)
+    public TxnReference(int tuple, @Nullable TableMetadata table, @Nullable ColumnMetadata column, @Nullable CellPath path)
     {
         this.tuple = tuple;
         this.table = table;
@@ -65,6 +78,36 @@ public class TxnReference
     public TxnReference(int tuple, ColumnMetadata column, TableMetadata table)
     {
         this(tuple, table, column, null);
+    }
+
+    /**
+     * Creates a reference to a "row".  This method isn't directly used by the main logic and instead
+     * exists to aid in testing.
+     */
+    @VisibleForTesting
+    public static TxnReference row(int tuple)
+    {
+        return new TxnReference(tuple, null, null, null);
+    }
+
+    /**
+     * Creates a reference to a "column".  This method isn't directly used by the main logic and instead
+     * exists to aid in testing.
+     */
+    @VisibleForTesting
+    public static TxnReference column(int tuple, TableMetadata table, ColumnMetadata column)
+    {
+        return new TxnReference(tuple, table, column, null);
+    }
+
+    /**
+     * Creates a reference to a "column".  This method isn't directly used by the main logic and instead
+     * exists to aid in testing.
+     */
+    @VisibleForTesting
+    public static TxnReference column(int tuple, TableMetadata table, ColumnMetadata column, CellPath path)
+    {
+        return new TxnReference(tuple, table, column, path);
     }
 
     @Override
@@ -89,15 +132,17 @@ public class TxnReference
         if (column != null)
             sb.append(':').append(column.ksName).append('.').append(column.cfName).append('.').append(column.name.toString());
         if (path != null)
-            sb.append(path);
+            sb.append('#').append(path);
         return sb.toString();
     }
 
+    @Nullable
     public ColumnMetadata column()
     {
         return column;
     }
 
+    @Nullable
     public TableMetadata table()
     {
         return table;
@@ -108,6 +153,7 @@ public class TxnReference
         collector.add(table);
     }
 
+    @Nullable
     public CellPath path()
     {
         return path;
@@ -173,6 +219,8 @@ public class TxnReference
 
     public ColumnData getColumnData(Row row)
     {
+        if (column.isClusteringColumn())
+            return new ClusteringColumnData(column, row.clustering().bufferAt(column.position()));
         if (column.isComplex() && path == null)
             return row.getComplexColumnData(column);
 
@@ -200,15 +248,23 @@ public class TxnReference
 
     public ByteBuffer getFrozenCollectionElement(Cell<?> collection)
     {
-        CollectionType<?> collectionType = (CollectionType<?>) column.type;
+        CollectionType<?> collectionType = (CollectionType<?>) column.type.unwrap();
         return collectionType.getSerializer().getSerializedValue(collection.buffer(), path.get(0), collectionType.nameComparator());
+    }
+
+    public AbstractType<?> getFrozenCollectionElementType()
+    {
+        CollectionType<?> type = (CollectionType<?>) column.type.unwrap();
+        if (type instanceof ListType) return Int32Type.instance; // by index is the only thing supported right now; see getFrozenCollectionElement
+        return type.nameComparator();
     }
 
     public ByteBuffer getFrozenFieldValue(Cell<?> udt)
     {
-        UserType userType = (UserType) column.type;
+        UserType userType = (UserType) column.type.unwrap();
         int field = ByteBufferUtil.getUnsignedShort(path.get(0), 0);
-        return userType.unpack(udt.buffer()).get(field);
+        List<ByteBuffer> tuple = userType.unpack(udt.buffer());
+        return tuple.size() > field ? tuple.get(field) : null;
     }
 
     public AbstractType<?> getFieldSelectionType()
@@ -351,4 +407,100 @@ public class TxnReference
             return size;
         }
     };
+
+    private static class ClusteringColumnData extends AbstractCell<ByteBuffer>
+    {
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new ClusteringColumnData(null, null));
+        private final ByteBuffer value;
+
+        private ClusteringColumnData(ColumnMetadata column, ByteBuffer value)
+        {
+            super(column);
+            this.value = value;
+        }
+
+        @Override
+        public ByteBuffer value()
+        {
+            return value;
+        }
+
+        @Override
+        public ValueAccessor<ByteBuffer> accessor()
+        {
+            return ByteBufferAccessor.instance;
+        }
+
+        @Override
+        public boolean isTombstone()
+        {
+            return false;
+        }
+
+        @Override
+        public long unsharedHeapSizeExcludingData()
+        {
+            return EMPTY_SIZE;
+        }
+
+        @Override
+        public long unsharedHeapSize()
+        {
+            return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(value);
+        }
+
+        @Override
+        public long timestamp()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int ttl()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CellPath path()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Cell<?> withUpdatedColumn(ColumnMetadata newColumn)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Cell<?> withUpdatedValue(ByteBuffer newValue)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Cell<?> withUpdatedTimestamp(long newTimestamp)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Cell<?> withSkippedValue()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected int localDeletionTimeAsUnsignedInt()
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
 }

@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.txn;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -38,6 +39,7 @@ import org.apache.cassandra.cql3.conditions.ColumnCondition.Bound;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Cell;
@@ -289,53 +291,98 @@ public abstract class TxnCondition
             FilteredPartition partition = reference.getPartition(data);
             boolean exists = partition != null && !partition.isEmpty();
 
-            Row row = null;
-            if (exists)
+            if (reference.column() != null
+                && !reference.column().isPartitionKey())
             {
-                row = reference.getRow(partition);
-                exists = row != null && !row.isEmpty();
-            }
-
-            if (exists && reference.selectsColumn())
-            {
-                ColumnData columnData = reference.getColumnData(row);
-
-                if (columnData == null)
+                Row row = null;
+                if (exists)
                 {
-                    exists = false;
+                    row = reference.getRow(partition);
+                    exists = row != null && !row.isEmpty();
                 }
-                else if (columnData.column().isComplex())
+
+                if (exists && reference.selectsColumn())
                 {
-                    if (reference.isElementSelection() || reference.isFieldSelection())
+                    ColumnData columnData = reference.getColumnData(row);
+
+                    if (columnData == null)
                     {
+                        exists = false;
+                    }
+                    else if (columnData.column().isComplex())
+                    {
+                        if (reference.isElementSelection())
+                        {
+                            Cell<?> cell = (Cell<?>) columnData;
+                            exists = !cell.isTombstone();
+                            // Collections don't support NULL but meangingless null types are supported, so byte[0] is allowed!
+                            // This is NULL when touched, so need to still check each value
+                            if (exists)
+                            {
+                                CollectionType<?> type = (CollectionType<?>) reference.column().type.unwrap();
+                                switch (type.kind)
+                                {
+                                    case MAP:
+                                    {
+                                        exists = !type.nameComparator().isNull(cell.path().get(0));
+                                        if (exists)
+                                            exists = !type.valueComparator().isNull(cell.buffer());
+                                    }
+                                    break;
+                                    case SET:
+                                    {
+                                        exists = !type.nameComparator().isNull(cell.path().get(0));
+                                    }
+                                    break;
+                                    case LIST:
+                                    {
+                                        exists = !type.valueComparator().isNull(cell.buffer());
+                                    }
+                                    break;
+                                    default:
+                                        throw new UnsupportedOperationException(type.kind.name());
+                                }
+                            }
+                        }
+                        else if (reference.isFieldSelection())
+                        {
+                            Cell<?> cell = (Cell<?>) columnData;
+                            exists = exists(cell, reference.getFieldSelectionType());
+                        }
+                        else
+                        {
+                            // TODO: Is this even necessary, given the partition is already filtered?
+                            if (!((ComplexColumnData) columnData).complexDeletion().isLive())
+                                exists = false;
+                        }
+                    }
+                    else if (reference.isElementSelection())
+                    {
+                        // This is frozen, so check if the Cell is a tombstone and that the element is present.
                         Cell<?> cell = (Cell<?>) columnData;
-                        exists = !cell.isTombstone();
+                        exists = exists(cell, reference.column().type);
+                        if (exists)
+                        {
+                            ByteBuffer element = reference.getFrozenCollectionElement(cell);
+                            exists = !reference.getFrozenCollectionElementType().isNull(element);
+                        }
+                    }
+                    else if (reference.isFieldSelection())
+                    {
+                        // This is frozen, so check if the Cell is a tombstone and that the field is present.
+                        Cell<?> cell = (Cell<?>) columnData;
+                        exists = exists(cell, reference.column().type);
+                        if (exists)
+                        {
+                            ByteBuffer fieldValue = reference.getFrozenFieldValue(cell);
+                            exists = !reference.getFieldSelectionType().isNull(fieldValue);
+                        }
                     }
                     else
                     {
-                        // TODO: Is this even necessary, given the partition is already filtered?
-                        if (!((ComplexColumnData) columnData).complexDeletion().isLive())
-                            exists = false;
+                        Cell<?> cell = (Cell<?>) columnData;
+                        exists = exists(cell, reference.column().type);
                     }
-                }
-                else if (reference.isElementSelection())
-                {
-                    // This is frozen, so check if the Cell is a tombstone and that the element is present.
-                    Cell<?> cell = (Cell<?>) columnData;
-                    ByteBuffer element = reference.getFrozenCollectionElement(cell);
-                    exists = element != null && !cell.isTombstone();
-                }
-                else if (reference.isFieldSelection())
-                {
-                    // This is frozen, so check if the Cell is a tombstone and that the field is present.
-                    Cell<?> cell = (Cell<?>) columnData;
-                    ByteBuffer fieldValue = reference.getFrozenFieldValue(cell);
-                    exists = fieldValue != null && !cell.isTombstone();
-                }
-                else
-                {
-                    Cell<?> cell = (Cell<?>) columnData;
-                    exists = !cell.isTombstone();
                 }
             }
 
@@ -348,6 +395,11 @@ public abstract class TxnCondition
                 default:
                     throw new IllegalStateException();
             }
+        }
+
+        private static boolean exists(Cell<?> cell, AbstractType<?> type)
+        {
+            return !cell.isTombstone() && !type.unwrap().isNull(cell.buffer());
         }
 
         private static final ConditionSerializer<Exists> serializer = new ConditionSerializer<Exists>()
@@ -442,9 +494,9 @@ public abstract class TxnCondition
 
     public static class Value extends TxnCondition
     {
-        private static final Set<Kind> KINDS = ImmutableSet.of(Kind.EQUAL, Kind.NOT_EQUAL,
-                                                               Kind.GREATER_THAN, Kind.GREATER_THAN_OR_EQUAL,
-                                                               Kind.LESS_THAN, Kind.LESS_THAN_OR_EQUAL);
+        private static final EnumSet<Kind> KINDS = EnumSet.of(Kind.EQUAL, Kind.NOT_EQUAL,
+                                                              Kind.GREATER_THAN, Kind.GREATER_THAN_OR_EQUAL,
+                                                              Kind.LESS_THAN, Kind.LESS_THAN_OR_EQUAL);
 
         private final TxnReference reference;
         private final ByteBuffer value;
@@ -458,6 +510,11 @@ public abstract class TxnCondition
             this.reference = reference;
             this.value = value;
             this.version = version;
+        }
+
+        public static EnumSet<Kind> supported()
+        {
+            return EnumSet.copyOf(KINDS);
         }
 
         @Override
@@ -532,7 +589,13 @@ public abstract class TxnCondition
         @Override
         public boolean applies(TxnData data)
         {
-            return getBounds(data).appliesTo(reference.getRow(data));
+            Bound bounds = getBounds(data);
+            if (reference.column().type.unwrap().isNull(bounds.value))
+                return false;
+            Row row = reference.getRow(data);
+            if (bounds.isNull(row))
+                return false;
+            return bounds.appliesTo(row);
         }
 
         private static final ConditionSerializer<Value> serializer = new ConditionSerializer<>()
