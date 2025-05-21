@@ -223,7 +223,6 @@ public class ReadDataSerializers
 
     public static final class ReplySerializer<D extends Data> implements IVersionedSerializer<ReadReply>
     {
-        // TODO (expected): use something other than ordinal
         final CommitOrReadNack[] nacks = CommitOrReadNack.values();
         private final VersionedSerializer<D, Version> dataSerializer;
 

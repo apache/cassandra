@@ -89,6 +89,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestFailureException;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
@@ -475,7 +476,8 @@ public class AccordService implements IAccordService, Shutdownable
             }
             catch (Throwable e)
             {
-                logger.info("Failed to fetch epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer);
+                if (e instanceof RequestFailureException) logger.info("Failed to fetch epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer);
+                else logger.info("Failed to fetch epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peer, e);
             }
         }
 

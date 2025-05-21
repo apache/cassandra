@@ -194,11 +194,11 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
     private final String loggingId;
     private static final AtomicLong nextLoggingId = new AtomicLong(Clock.Global.currentTimeMillis());
 
-    // TODO (expected): merge all of these maps into one
+    // TODO (desired): merge all of these maps into one
     @Nullable Object2ObjectHashMap<TxnId, AccordSafeCommand> commands;
     @Nullable Object2ObjectHashMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey;
     @Nullable Object2ObjectHashMap<Object, AccordSafeState<?, ?>> loading;
-    // TODO (expected): collection supporting faster deletes but still fast poll (e.g. some ordered collection)
+    // TODO (desired): collection supporting faster deletes but still fast poll (e.g. some ordered collection)
     @Nullable ArrayDeque<AccordCacheEntry<?, ?>> waitingToLoad;
     @Nullable RangeTxnScanner rangeScanner;
     boolean hasRanges;
@@ -662,7 +662,6 @@ public abstract class AccordTask<R> extends Task implements Runnable, Function<S
             safeStore = commandStore.begin(this, commandsForRanges);
             R result = apply(safeStore);
 
-            // TODO (required): currently, we are not very efficient about ensuring that we persist the absolute minimum amount of state. Improve that.
             List<Journal.CommandUpdate> changes = null;
             if (commands != null)
             {

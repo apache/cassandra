@@ -240,8 +240,6 @@ public class AccordJournalValueSerializers
         @Override
         public void deserialize(JournalKey journalKey, DurableBeforeAccumulator into, DataInputPlus in, Version userVersion) throws IOException
         {
-            // TODO: maybe using local serializer is not the best call here, but how do we distinguish
-            // between messaging and disk versioning?
             into.update(CommandStoreSerializers.durableBefore.deserialize(in));
         }
     }

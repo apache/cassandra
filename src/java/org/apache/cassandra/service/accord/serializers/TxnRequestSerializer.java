@@ -52,7 +52,7 @@ public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements I
     {
         TxnId txnId = CommandSerializers.txnId.deserialize(in);
         Route<?> scope = KeySerializers.route.deserialize(in);
-        // TODO: there should be a base epoch
+        // TODO (desired): there should be a base epoch
         long waitForEpoch = in.readUnsignedVInt();
         return deserializeBody(in, version, txnId, scope, waitForEpoch);
     }

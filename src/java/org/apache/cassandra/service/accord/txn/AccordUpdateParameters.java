@@ -78,7 +78,6 @@ public class AccordUpdateParameters
         // For the time being, guardrails are disabled for Accord queries.
         ClientState disabledGuardrails = null;
 
-        // TODO : How should Accord work with TTL?
         int ttl = metadata.params.defaultTimeToLive;
         return new RowUpdateParameters(metadata,
                                        disabledGuardrails,
@@ -103,7 +102,6 @@ public class AccordUpdateParameters
                         checkState(data.entrySet().size() == 1, "CAS read should only have one entry");
                         return ImmutableMap.of(dk, value);
                     case AUTO_READ:
-                        // TODO (review): Is this the right DK being passed into that matches what we used to store in TxnDataName
                         if (TxnData.txnDataNameIndex(name) == index)
                             return ImmutableMap.of(dk, value);
                     default:

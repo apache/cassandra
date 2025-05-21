@@ -226,6 +226,15 @@ public class File implements Comparable<File>
     }
 
     /**
+     * Deletes all files and subdirectories under "dir".
+     * @return false if the root cannot be deleted
+     */
+    public boolean tryDeleteRecursive()
+    {
+        return PathUtils.tryDeleteRecursive(toPathForWrite());
+    }
+
+    /**
      * Try to delete the file on process exit.
      */
     public void deleteOnExit()
