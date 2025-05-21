@@ -73,8 +73,13 @@ fi
 set -e # enable immediate exit if venv setup fails
 virtualenv --python=$PYTHON_VERSION venv
 source venv/bin/activate
-# 3.11 needs the newest pip
-curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_VERSION
+# 3.11 needs the newest pip, 3.8 and older have specific legacy get-pip urls
+PYTHON_MAJOR_MINOR=$($PYTHON_VERSION -V 2>&1 | awk '{print $2}' | cut -d. -f1,2)
+if [[ "$(printf '%s\n' "$PYTHON_MAJOR_MINOR" "3.8" | sort -V | head -n1)" == "$PYTHON_MAJOR_MINOR" ]]; then
+    curl -sS https://bootstrap.pypa.io/pip/${PYTHON_MAJOR_MINOR}/get-pip.py | $PYTHON_VERSION
+else
+    curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_VERSION
+fi
 
 pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
