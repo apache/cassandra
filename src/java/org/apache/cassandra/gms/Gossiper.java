@@ -1453,9 +1453,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 logger.trace("Updating {} state version to {} for {}", entry.getKey().toString(), entry.getValue().version, addr);
             }
         }
+        localState.addApplicationStates(updatedStates, remoteState.getHeartBeatState());
         if (logger.isTraceEnabled())
             logger.trace("Updating heartbeat state version to {} from {} for {} ...", localState.getHeartBeatState().getHeartBeatVersion(), oldVersion, addr);
-        localState.addApplicationStates(updatedStates, remoteState.getHeartBeatState());
         localState.removeMajorVersion3LegacyApplicationStates();
 
         // need to run STATUS or STATUS_WITH_PORT first to handle BOOT_REPLACE correctly (else won't be a member, so TOKENS won't be processed)

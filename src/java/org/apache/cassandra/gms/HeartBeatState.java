@@ -27,7 +27,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 /**
  * HeartBeat State associated with any given endpoint.
  */
-
 public class HeartBeatState
 {
     public static final int EMPTY_VERSION = -1;
