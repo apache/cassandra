@@ -303,6 +303,8 @@ public class AbstractTypeTest
                 Assertions.assertThat(AbstractTypeGenerators.MEANINGLESS_EMPTYNESS)
                           .describedAs("New type detected that says its emptyness is meaningless, but it isn't allowed to be!  This is a legacy concept only!")
                           .contains(type);
+
+                Assertions.assertThat(type.isNull(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isTrue();
             }
         }
 //
