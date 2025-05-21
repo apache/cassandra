@@ -185,12 +185,6 @@ public class TxnConditionTest
         });
     }
 
-//    @Test
-//    public void doesNotApplyToNull()
-//    {
-//
-//    }
-//
     @Test
     public void isNullWithEmptyRows()
     {
