@@ -44,6 +44,7 @@ import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.RetryWithNewProtocolResult;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -142,6 +143,8 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
             }
             else
             {
+                logger.error("Unexpected exception", fail);
+                JVMStabilityInspector.inspectThrowable(fail);
                 report = bookkeeping.newFailed(txnId, keysOrRanges);
             }
             report.addSuppressed(fail);
