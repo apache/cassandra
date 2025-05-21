@@ -196,6 +196,7 @@ public final class AbstractTypeGenerators
 
     InetAddressType.instance,
 
+    TimeUUIDType.instance,
     LegacyTimeUUIDType.instance,
     LexicalUUIDType.instance,
     UUIDType.instance,
