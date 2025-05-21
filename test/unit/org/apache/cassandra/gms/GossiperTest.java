@@ -304,7 +304,7 @@ public class GossiperTest
             proposedRemoteState = new EndpointState(proposedRemoteHeartBeat);
 
             // Bump the heartbeat version and use the same TOKENS state
-            proposedRemoteHeartBeat.updateHeartBeat();
+            proposedRemoteState.updateHeartBeat();
             proposedRemoteState.addApplicationState(ApplicationState.TOKENS, tokensValue);
 
             // The following state change should only update heartbeat without updating the TOKENS state

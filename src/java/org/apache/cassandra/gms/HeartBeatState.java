@@ -33,8 +33,8 @@ public class HeartBeatState
 
     public static final IVersionedSerializer<HeartBeatState> serializer = new HeartBeatStateSerializer();
 
-    private volatile int generation;
-    private volatile int version;
+    private final int generation;
+    private final int version;
 
     HeartBeatState(int gen)
     {
@@ -67,29 +67,29 @@ public class HeartBeatState
         return version == EMPTY_VERSION;
     }
 
-    int getGeneration()
+    public int getGeneration()
     {
         return generation;
     }
 
-    void updateHeartBeat()
+    HeartBeatState updateHeartBeat()
     {
-        version = VersionGenerator.getNextVersion();
+        return new HeartBeatState(generation, VersionGenerator.getNextVersion());
     }
 
-    int getHeartBeatVersion()
+    public int getHeartBeatVersion()
     {
         return version;
     }
 
-    void forceNewerGenerationUnsafe()
+    HeartBeatState forceNewerGenerationUnsafe()
     {
-        generation += 1;
+        return new HeartBeatState(generation + 1, version);
     }
 
-    void forceHighestPossibleVersionUnsafe()
+    HeartBeatState forceHighestPossibleVersionUnsafe()
     {
-        version = Integer.MAX_VALUE;
+        return new HeartBeatState(generation, Integer.MAX_VALUE);
     }
 
     public String toString()

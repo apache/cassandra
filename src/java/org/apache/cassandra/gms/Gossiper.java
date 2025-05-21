@@ -310,7 +310,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 taskLock.lock();
 
                 /* Update the local heartbeat counter. */
-                endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().updateHeartBeat();
+                endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).updateHeartBeat();
                 if (logger.isTraceEnabled())
                     logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().getHeartBeatVersion());
                 final List<GossipDigest> gDigests = new ArrayList<>();
@@ -598,7 +598,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, shutdown);
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
-        epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
+        epState.forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
         FailureDetector.instance.forceConviction(endpoint);
         GossiperDiagnostics.markedAsShutdown(this, endpoint);
@@ -778,7 +778,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // update the other node's generation to mimic it as if it had changed it itself
         logger.info("Advertising removal for {}", endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
-        epState.getHeartBeatState().forceNewerGenerationUnsafe();
+        epState.forceNewerGenerationUnsafe();
         Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
         states.put(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removingNonlocal(hostId));
         states.put(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
@@ -798,7 +798,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         EndpointState epState = endpointStateMap.get(endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
-        epState.getHeartBeatState().forceNewerGenerationUnsafe();
+        epState.forceNewerGenerationUnsafe();
         long expireTime = computeExpireTime();
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
@@ -849,7 +849,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 else if (newState.getHeartBeatState().getHeartBeatVersion() != heartbeat)
                     throw new RuntimeException("Endpoint still alive: " + endpoint + " heartbeat changed while trying to assassinate it");
                 epState.updateTimestamp(); // make sure we don't evict it too soon
-                epState.getHeartBeatState().forceNewerGenerationUnsafe();
+                epState.forceNewerGenerationUnsafe();
             }
 
             Collection<Token> tokens = null;
@@ -1580,15 +1580,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // don't assert here, since if the node restarts the version will go back to zero
         int oldVersion = localState.getHeartBeatState().getHeartBeatVersion();
 
-        localState.setHeartBeatState(remoteState.getHeartBeatState());
-        if (logger.isTraceEnabled())
-            logger.trace("Updating heartbeat state version to {} from {} for {} ...", localState.getHeartBeatState().getHeartBeatVersion(), oldVersion, addr);
-
-        Set<Entry<ApplicationState, VersionedValue>> remoteStates = remoteState.states();
-        assert remoteState.getHeartBeatState().getGeneration() == localState.getHeartBeatState().getGeneration();
-
-
-        Set<Entry<ApplicationState, VersionedValue>> updatedStates = remoteStates.stream().filter(entry -> {
+        Set<Entry<ApplicationState, VersionedValue>> updatedStates = remoteState.states().stream().filter(entry -> {
             // filter out the states that are already up to date (has the same or higher version)
             VersionedValue local = localState.getApplicationState(entry.getKey());
             return (local == null || local.version < entry.getValue().version);
@@ -1601,7 +1593,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 logger.trace("Updating {} state version to {} for {}", entry.getKey().toString(), entry.getValue().version, addr);
             }
         }
-        localState.addApplicationStates(updatedStates);
+        localState.addApplicationStates(updatedStates, remoteState.getHeartBeatState());
+        if (logger.isTraceEnabled())
+            logger.trace("Updating heartbeat state version to {} from {} for {} ...", localState.getHeartBeatState().getHeartBeatVersion(), oldVersion, addr);
 
         // get rid of legacy fields once the cluster is not in mixed mode
         if (!hasMajorVersion3OrUnknownNodes())
@@ -1983,7 +1977,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void forceNewerGeneration()
     {
         EndpointState epstate = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
-        epstate.getHeartBeatState().forceNewerGenerationUnsafe();
+        epstate.forceNewerGenerationUnsafe();
     }
 
 
@@ -2004,7 +1998,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (epState != null)
         {
             logger.debug("not replacing a previous epState for {}, but reusing it: {}", ep, epState);
-            epState.setHeartBeatState(HeartBeatState.empty());
+            epState.unsafeSetEmptyHeartBeatState();
         }
         else
         {
