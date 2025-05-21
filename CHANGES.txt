@@ -194,6 +194,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Avoid lambda usage in TrieMemoryIndex range queries and ensure queue size tracking is per column (CASSANDRA-20668)
  * Avoid CQLSH throwing an exception loading .cqlshrc on non-supported platforms (CASSANDRA-20478)
  * Relax validation of snapshot name as a part of SSTable files path validation (CASSANDRA-20649)
  * Optimize initial skipping logic for SAI queries on large partitions (CASSANDRA-20191)
