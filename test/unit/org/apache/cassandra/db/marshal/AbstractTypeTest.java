@@ -307,23 +307,6 @@ public class AbstractTypeTest
                 Assertions.assertThat(type.isNull(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isTrue();
             }
         }
-//
-//        StringBuilder sb = new StringBuilder();
-//        for (Class<? extends AbstractType> klass : Sets.difference(subTypes, coverage))
-//        {
-//            if (Modifier.isAbstract(klass.getModifiers()))
-//                continue;
-//            if (isTestType(klass))
-//                continue;
-//            if (isPrefixCompositeType(klass))
-//                continue;
-//            String name = klass.getCanonicalName();
-//            if (name == null)
-//                name = klass.getName();
-//            sb.append(name).append('\n');
-//        }
-//        if (sb.length() > 0)
-//            throw new AssertionError("Uncovered types:\n" + sb);
     }
 
     @SuppressWarnings("rawtypes")
