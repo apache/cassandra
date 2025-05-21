@@ -19,6 +19,14 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,7 +36,12 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class InsertTest extends CQLTester.Fuzzed
 {
@@ -295,5 +308,44 @@ public class InsertTest extends CQLTester.Fuzzed
 
         assertInvalidThrow(InvalidRequestException.class,
                            "INSERT INTO %s (a, b) VALUES ('foo', ?)", new String(TOO_BIG.array()));
+    }
+
+    @Test
+    public void testMapEmptyValueMeaningless()
+    {
+        createTable("CREATE TABLE %s(pk int primary key, v1 map<int, int>, v2 frozen<map<int, int>>)");
+        ByteBuffer value = MapType.getInstance(Int32Type.instance, Int32Type.instance, true).pack(Arrays.asList(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        execute("INSERT INTO %s(pk, v1, v2) VALUES (?, ?, ?)", 0, value, value);
+
+        Map<Integer, Integer> expected = new HashMap<>();
+        expected.put(null, null);
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, expected, expected));
+    }
+
+    @Test
+    public void testListEmptyValueMeaningless()
+    {
+        createTable("CREATE TABLE %s(pk int primary key, v1 list<int>, v2 frozen<list<int>>)");
+        ByteBuffer value = ListType.getInstance(Int32Type.instance, true).pack(Collections.singletonList(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        execute("INSERT INTO %s(pk, v1, v2) VALUES (?, ?, ?)", 0, value, value);
+
+        List<Integer> expected = new ArrayList<>();
+        expected.add(null);
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, expected, expected));
+    }
+
+    @Test
+    public void testSetEmptyValueMeaningless()
+    {
+        createTable("CREATE TABLE %s(pk int primary key, v1 set<int>, v2 frozen<set<int>>)");
+        ByteBuffer value = SetType.getInstance(Int32Type.instance, true).pack(Collections.singletonList(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        execute("INSERT INTO %s(pk, v1, v2) VALUES (?, ?, ?)", 0, value, value);
+
+        Set<Integer> expected = new HashSet<>();
+        expected.add(null);
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, expected, expected));
     }
 }
