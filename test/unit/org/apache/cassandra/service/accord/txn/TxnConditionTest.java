@@ -123,9 +123,6 @@ public class TxnConditionTest
     private static final ColumnIdentifier COL_R3 = name(ColumnMetadata.Kind.REGULAR, 3);
     private static final ColumnIdentifier COL_R4 = name(ColumnMetadata.Kind.REGULAR, 4);
     private static final ColumnIdentifier COL_R5 = name(ColumnMetadata.Kind.REGULAR, 5);
-    //TODO (coverage): test null handling of complex types
-    //TODO (coverage): test null handling of complex udt fields
-    //TODO (coverage): test null handling of complex map/set key access
     private static final TableMetadata tb1 = TableMetadata.builder("ks", "tbl1")
                                                           .addPartitionKeyColumn(COL_PK1, Int32Type.instance)
                                                           .addStaticColumn(COL_S1, Int32Type.instance)
