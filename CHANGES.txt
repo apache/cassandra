@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44759] Stirct MV enabled table should use Paxos V2 to apply mutations for base table
  * [SO-44843] Invoke Bootstrap repair as part of the node replacement
  * [SO-43685] Add a new bootstrap repair wrapper that manages the e2e flow
  * [SO-44025] Extend AuditLogger options to accept logger parameters

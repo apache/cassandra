@@ -84,6 +84,7 @@ import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.QueryAnalyticsService;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
@@ -619,13 +620,14 @@ public class Paxos
                                   CASRequest request,
                                   ConsistencyLevel consistencyForConsensus,
                                   ConsistencyLevel consistencyForCommit,
-                                  ClientState clientState)
+                                  ClientState clientState,
+                                  Dispatcher.RequestTime requestTime)
             throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
         final long start = nanoTime();
         final long proposeDeadline = start + getCasContentionTimeout(NANOSECONDS);
         final long commitDeadline = Math.max(proposeDeadline, start + getWriteRpcTimeout(NANOSECONDS));
-        return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, start, proposeDeadline, commitDeadline);
+        return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, start, proposeDeadline, commitDeadline, requestTime);
     }
     public static RowIterator cas(DecoratedKey key,
                                   CASRequest request,
@@ -633,20 +635,22 @@ public class Paxos
                                   ConsistencyLevel consistencyForCommit,
                                   ClientState clientState,
                                   long proposeDeadline,
-                                  long commitDeadline
+                                  long commitDeadline,
+                                  Dispatcher.RequestTime requestTime
                                   )
             throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
-        return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, nanoTime(), proposeDeadline, commitDeadline);
+        return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, nanoTime(), proposeDeadline, commitDeadline, requestTime);
     }
     private static RowIterator cas(DecoratedKey partitionKey,
-                                  CASRequest request,
-                                  ConsistencyLevel consistencyForConsensus,
-                                  ConsistencyLevel consistencyForCommit,
-                                  ClientState clientState,
-                                  long start,
-                                  long proposeDeadline,
-                                  long commitDeadline
+                                   CASRequest request,
+                                   ConsistencyLevel consistencyForConsensus,
+                                   ConsistencyLevel consistencyForCommit,
+                                   ClientState clientState,
+                                   long start,
+                                   long proposeDeadline,
+                                   long commitDeadline,
+                                   Dispatcher.RequestTime requestTime
                                   )
             throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
@@ -667,7 +671,7 @@ public class Paxos
                 Tracing.trace("Reading existing values for CAS precondition");
 
                 BeginResult begin = begin(proposeDeadline, readCommand, consistencyForConsensus,
-                        true, minimumBallot, failedAttemptsDueToContention);
+                        true, minimumBallot, failedAttemptsDueToContention, requestTime);
                 Ballot ballot = begin.ballot;
                 Participants participants = begin.participants;
                 failedAttemptsDueToContention = begin.failedAttemptsDueToContention;
@@ -750,7 +754,14 @@ public class Paxos
                         //   1) reached a majority, in which case it was agreed, had no effect and we can do nothing; or
                         //   2) did not reach a majority, was not agreed, and was not user visible as a result so we can ignore it
                         if (!proposal.update.isEmpty())
+                        {
+                            if (metadata.strictMVEnabled())
+                            {
+                                StorageProxy.applyMVMutationsBasedOnBaseTableMutation(proposal.update, current, consistencyForCommit, requestTime);
+                            }
                             commit = commit(proposal.agreed(), participants, consistencyForConsensus, consistencyForCommit, true);
+                        }
+
 
                         break done;
                     }
@@ -841,7 +852,7 @@ public class Paxos
             while (true)
             {
                 // does the work of applying in-progress writes; throws UAE or timeout if it can't
-                final BeginResult begin = begin(deadline, read, consistencyForConsensus, false, minimumBallot, failedAttemptsDueToContention);
+                final BeginResult begin = begin(deadline, read, consistencyForConsensus, false, minimumBallot, failedAttemptsDueToContention, requestTime);
                 failedAttemptsDueToContention = begin.failedAttemptsDueToContention;
 
                 switch (PAXOS_VARIANT)
@@ -969,7 +980,8 @@ public class Paxos
                                      ConsistencyLevel consistencyForConsensus,
                                      final boolean isWrite,
                                      Ballot minimumBallot,
-                                     int failedAttemptsDueToContention)
+                                     int failedAttemptsDueToContention,
+                                     Dispatcher.RequestTime requestTime)
             throws WriteTimeoutException, WriteFailureException, ReadTimeoutException, ReadFailureException
     {
         boolean acceptEarlyReadPermission = !isWrite; // if we're reading, begin by assuming a read permission is sufficient
@@ -1018,6 +1030,10 @@ public class Paxos
                             throw proposeResult.maybeFailure().markAndThrowAsTimeoutOrFailure(isWrite, consistencyForConsensus, failedAttemptsDueToContention);
 
                         case SUCCESS:
+                            if (query.metadata().strictMVEnabled() && !repropose.update.isEmpty())
+                            {
+                                getCurrentAndApplyMVMutations(query, repropose.update, inProgress, consistencyForConsensus, requestTime);
+                            }
                             retry = commitAndPrepare(repropose.agreed(), inProgress.participants, query, isWrite, acceptEarlyReadPermission);
                             break retry;
 
@@ -1089,6 +1105,28 @@ public class Paxos
 
             preparing = retry;
         }
+    }
+
+    private static void getCurrentAndApplyMVMutations(SinglePartitionReadCommand query,
+                                                      PartitionUpdate update,
+                                                      PaxosPrepare.FoundIncompleteAccepted inProgress,
+                                                      ConsistencyLevel consistencyForConsensus,
+                                                      Dispatcher.RequestTime requestTime)
+    {
+        // process to get current value of base table
+        DataResolver<?, ?> resolver = new DataResolver(query, inProgress.participants, NoopReadRepair.instance, requestTime);
+        for (int i = 0 ; i < inProgress.responses.size() ; ++i)
+            resolver.preprocess(inProgress.responses.get(i));
+        PartitionIterator result = resolver.resolve();
+        FilteredPartition current;
+        try (RowIterator iter = PartitionIterators.getOnlyElement(result, query))
+        {
+            current = FilteredPartition.create(iter);
+        }
+        final ConsistencyLevel consistencyLevelForMVMutation = consistencyForConsensus == ConsistencyLevel.LOCAL_SERIAL
+                                                               ? ConsistencyLevel.LOCAL_QUORUM
+                                                               : ConsistencyLevel.QUORUM;
+        StorageProxy.applyMVMutationsBasedOnBaseTableMutation(update, current, consistencyLevelForMVMutation, requestTime);
     }
 
     public static boolean isInRangeAndShouldProcess(InetAddressAndPort from, DecoratedKey key, TableMetadata table, boolean includesRead)

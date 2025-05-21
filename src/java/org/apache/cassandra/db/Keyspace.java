@@ -683,7 +683,17 @@ public class Keyspace
 
         Lock[] locks = null;
 
-        boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false);
+        boolean isStrictMVenabled = false;
+        // strict MV with LWT can only touch one table at a time
+        if (mutation.getPartitionUpdates().size() == 1)
+        {
+            for (PartitionUpdate update : mutation.getPartitionUpdates())
+            {
+                isStrictMVenabled = update.metadata().strictMVEnabled();
+            }
+        }
+
+        boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false) && !isStrictMVenabled;
 
         if (requiresViewUpdate)
         {

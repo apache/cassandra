@@ -67,6 +67,7 @@ import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
@@ -519,6 +520,11 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         Guardrails.enforceWriteCL(queryState.getClientState(), keyspace(), options.getConsistency(),
                                   options.getSerialConsistency(), options::setConsistency);
 
+        if (metadata.strictMVEnabled())
+        {
+            return executeWithStrictMVConsistency(queryState, options, requestTime);
+        }
+
         return hasConditions()
              ? executeWithCondition(queryState, options, requestTime)
              : executeWithoutCondition(queryState, options, requestTime);
@@ -566,6 +572,27 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    requestTime))
         {
             return new ResultMessage.Rows(buildCasResultSet(result, queryState, options));
+        }
+    }
+
+    private ResultMessage executeWithStrictMVConsistency(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
+    {
+        assert Paxos.useV2(); // strict MV consistency requires Paxos V2
+        CQL3CasRequest request = makeCasRequest(queryState, options);
+
+        try (RowIterator result = StorageProxy.cas(keyspace(),
+                                                   table(),
+                                                   request.key,
+                                                   request,
+                                                   options.getSerialConsistency(),
+                                                   options.getConsistency(),
+                                                   queryState.getClientState(),
+                                                   options.getNowInSeconds(queryState),
+                                                   requestTime))
+        {
+            if (hasConditions())
+                return new ResultMessage.Rows(buildCasResultSet(result, queryState, options));
+            return null;
         }
     }
 

@@ -43,14 +43,21 @@ import java.util.stream.Collectors;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.view.TableViews;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.ContentionStrategy;
 import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.db.monitoring.BadQuery;
+import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.service.throttler.dynamic.TrafficType;
 import org.slf4j.Logger;
@@ -329,7 +336,7 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         return Paxos.useV2()
-                ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState)
+                ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState, requestTime)
                 : legacyCas(keyspaceName, cfName, key, request, consistencyForPaxos, consistencyForCommit, clientState, nowInSeconds, requestTime);
     }
 
@@ -1075,6 +1082,21 @@ public class StorageProxy implements StorageProxyMBean
         return ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token)
                 .all().endpoints().contains(local);
     }
+
+    public static void applyMVMutationsBasedOnBaseTableMutation(PartitionUpdate upd, FilteredPartition exisitings, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime){
+        List<Mutation> MVmutations = generateMVMutations(upd, exisitings.unfilteredIterator());
+        if (MVmutations.isEmpty())
+            return;
+        StorageProxy.mutateWithTriggers(MVmutations, consistencyLevel, false, requestTime);
+    }
+
+    private static List<Mutation> generateMVMutations(PartitionUpdate upd, UnfilteredRowIterator exisitings){
+        // genenerate mv mutations
+        TableViews tableViews = Keyspace.open(upd.metadata().keyspace).viewManager.forTable(upd.metadata().id);
+        Collection<View> viewsToUpdate = tableViews.updatedViews(upd);
+        return (List<Mutation>) Iterators.getOnlyElement(tableViews.generateViewUpdates(viewsToUpdate, upd.unfilteredIterator(), exisitings, FBUtilities.nowInSeconds(), false));
+    }
+
 
     /**
      * Use this method to have these Mutations applied

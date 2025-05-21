@@ -64,7 +64,6 @@ import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_RSP;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.Commit.*;
-import static org.apache.cassandra.service.paxos.Commit.CompareResult.WAS_REPROPOSED_BY;
 import static org.apache.cassandra.service.paxos.Paxos.*;
 import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.*;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -220,11 +219,13 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     static class FoundIncompleteAccepted extends FoundIncomplete
     {
         final Accepted accepted;
+        final List<Message<ReadResponse>> responses;
 
-        private FoundIncompleteAccepted(Ballot promisedBallot, Participants participants, Accepted accepted)
+        private FoundIncompleteAccepted(Ballot promisedBallot, Participants participants, Accepted accepted, List<Message<ReadResponse>> responses)
         {
             super(FOUND_INCOMPLETE_ACCEPTED, participants, promisedBallot);
             this.accepted = accepted;
+            this.responses = responses;
         }
 
         public String toString()
@@ -828,7 +829,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             case SUPERSEDED:
                 return new Superseded(supersededBy, participants);
             case FOUND_INCOMPLETE_ACCEPTED:
-                return new FoundIncompleteAccepted(request.ballot, participants, latestAccepted);
+                return new FoundIncompleteAccepted(request.ballot, participants, latestAccepted, readResponses);
             case FOUND_INCOMPLETE_COMMITTED:
                 return new FoundIncompleteCommitted(request.ballot, participants, latestCommitted);
             case PROMISED:
@@ -923,7 +924,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
     }
 
-    static class Request extends AbstractRequest<Request>
+    public static class Request extends AbstractRequest<Request>
     {
         Request(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite)
         {
