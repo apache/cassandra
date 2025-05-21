@@ -23,13 +23,13 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.SortedSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -59,12 +59,18 @@ public class TrieMemoryIndex extends MemoryIndex
 {
     private static final Logger logger = LoggerFactory.getLogger(TrieMemoryIndex.class);
     private static final int MAX_RECURSIVE_KEY_LENGTH = 128;
+    private static final int MINIMUM_PRIORITY_QUEUE_SIZE = 128;
 
     private final InMemoryTrie<PrimaryKeys> data;
     private final PrimaryKeysReducer primaryKeysReducer;
 
     private ByteBuffer minTerm;
     private ByteBuffer maxTerm;
+
+    // Maintain the last queue size used on this index to use for the next range match.
+    // This allows for receiving a stream of wide range queries where the queue size
+    // is larger than we would want to default the size to.
+    private final AtomicInteger lastPriorityQueueSize = new AtomicInteger(MINIMUM_PRIORITY_QUEUE_SIZE);
 
     public TrieMemoryIndex(StorageAttachedIndex index)
     {
@@ -143,7 +149,11 @@ public class TrieMemoryIndex extends MemoryIndex
             case CONTAINS_VALUE:
                 return exactMatch(expression, keyRange);
             case RANGE:
-                return rangeMatch(expression, keyRange);
+                KeyRangeIterator keyIterator = rangeMatch(expression, keyRange);
+                int keyCount = (int) keyIterator.getMaxKeys();
+                if (keyCount > MINIMUM_PRIORITY_QUEUE_SIZE)
+                    lastPriorityQueueSize.set(keyCount);
+                return keyIterator;
             default:
                 throw new IllegalArgumentException("Unsupported expression: " + expression);
         }
@@ -252,29 +262,15 @@ public class TrieMemoryIndex extends MemoryIndex
 
     private static class Collector
     {
-        private static final int MINIMUM_QUEUE_SIZE = 128;
-
-        // Maintain the last queue size used on this index to use for the next range match.
-        // This allows for receiving a stream of wide range queries where the queue size
-        // is larger than we would want to default the size to.
-        // TODO Investigate using a decaying histogram here to avoid the effect of outliers.
-        private static final FastThreadLocal<Integer> lastQueueSize = new FastThreadLocal<>()
-        {
-            protected Integer initialValue()
-            {
-                return MINIMUM_QUEUE_SIZE;
-            }
-        };
-
-        PrimaryKey minimumKey = null;
-        PrimaryKey maximumKey = null;
-        final PriorityQueue<PrimaryKey> mergedKeys = new PriorityQueue<>(lastQueueSize.get());
-
+        final PriorityQueue<PrimaryKey> mergedKeys;
         final AbstractBounds<PartitionPosition> keyRange;
 
-        public Collector(AbstractBounds<PartitionPosition> keyRange)
+        PrimaryKey maximumKey = null;
+
+        public Collector(AbstractBounds<PartitionPosition> keyRange, int expectedKeys)
         {
             this.keyRange = keyRange;
+            this.mergedKeys = new PriorityQueue<>(expectedKeys);
         }
 
         public void processContent(PrimaryKeys keys)
@@ -296,12 +292,8 @@ public class TrieMemoryIndex extends MemoryIndex
                 || primaryKeys.last().partitionKey().compareTo(keyRange.left) < 0)
                 return;
 
-            primaryKeys.forEach(this::processKey);
-        }
-
-        public void updateLastQueueSize()
-        {
-            lastQueueSize.set(Math.max(MINIMUM_QUEUE_SIZE, mergedKeys.size()));
+            for (PrimaryKey primaryKey : primaryKeys)
+                processKey(primaryKey);
         }
 
         private void processKey(PrimaryKey key)
@@ -310,7 +302,7 @@ public class TrieMemoryIndex extends MemoryIndex
             {
                 mergedKeys.add(key);
 
-                minimumKey = minimumKey == null ? key : key.compareTo(minimumKey) < 0 ? key : minimumKey;
+                // We only track the maximum key, as the minimum can be peeked in constant time on the PQ itself.
                 maximumKey = maximumKey == null ? key : key.compareTo(maximumKey) > 0 ? key : maximumKey;
             }
         }
@@ -342,20 +334,16 @@ public class TrieMemoryIndex extends MemoryIndex
             upperInclusive = false;
         }
 
-        Collector cd = new Collector(keyRange);
+        Collector cd = new Collector(keyRange, lastPriorityQueueSize.get());
+        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, lowerInclusive, upperBound, upperInclusive).valueIterator();
 
-        data.subtrie(lowerBound, lowerInclusive, upperBound, upperInclusive)
-            .values()
-            .forEach(cd::processContent);
+        while (values.hasNext())
+            cd.processContent(values.next());
 
         if (cd.mergedKeys.isEmpty())
-        {
             return KeyRangeIterator.empty();
-        }
 
-        cd.updateLastQueueSize();
-
-        return new InMemoryKeyRangeIterator(cd.minimumKey, cd.maximumKey, cd.mergedKeys);
+        return new InMemoryKeyRangeIterator(cd.mergedKeys.peek(), cd.maximumKey, cd.mergedKeys);
     }
 
     private static class PrimaryKeysReducer implements InMemoryTrie.UpsertTransformer<PrimaryKeys, PrimaryKey>
