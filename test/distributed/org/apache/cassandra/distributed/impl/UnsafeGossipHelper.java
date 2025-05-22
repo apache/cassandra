@@ -269,7 +269,7 @@ public class UnsafeGossipHelper
                 EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(getByAddress(address));
                 VersionedValue status = new VersionedValue.VersionedValueFactory(partitioner).shutdown(true);
                 state.addApplicationState(ApplicationState.STATUS, status);
-                state.getHeartBeatState().forceHighestPossibleVersionUnsafe();
+                state.forceHighestPossibleVersionUnsafe();
                 StorageService.instance.onChange(getByAddress(address), ApplicationState.STATUS, status);
             });
         };
