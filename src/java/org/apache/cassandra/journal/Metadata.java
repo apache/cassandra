@@ -57,6 +57,11 @@ final class Metadata
         incrementRecordsCount();
     }
 
+    void fsyncLimit(int fsyncLimit)
+    {
+        this.fsyncLimit = fsyncLimit;
+    }
+
     int fsyncLimit()
     {
         return fsyncLimit;
