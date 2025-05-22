@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.google.common.base.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,8 +50,19 @@ public class EndpointState
     public final static IVersionedSerializer<EndpointState> serializer = new EndpointStateSerializer();
     public final static IVersionedSerializer<EndpointState> nullableSerializer = NullableSerializer.wrap(serializer);
 
-    private volatile HeartBeatState hbState;
-    private final AtomicReference<Map<ApplicationState, VersionedValue>> applicationState;
+    private static class View
+    {
+        final HeartBeatState hbState;
+        final Map<ApplicationState, VersionedValue> applicationState;
+
+        private View(HeartBeatState hbState, Map<ApplicationState, VersionedValue> applicationState)
+        {
+            this.hbState = hbState;
+            this.applicationState = applicationState;
+        }
+    }
+
+    private final AtomicReference<View> ref;
 
     /* fields below do not get serialized */
     private volatile long updateTimestamp;
@@ -58,18 +70,20 @@ public class EndpointState
 
     public EndpointState(HeartBeatState initialHbState)
     {
-        this(initialHbState, new EnumMap<ApplicationState, VersionedValue>(ApplicationState.class));
+        this(initialHbState, new EnumMap<>(ApplicationState.class));
     }
 
     public EndpointState(EndpointState other)
     {
-        this(new HeartBeatState(other.hbState), new EnumMap<>(other.applicationState.get()));
+        ref = new AtomicReference<>(other.ref.get());
+        updateTimestamp = nanoTime();
+        isAlive = true;
     }
 
-    EndpointState(HeartBeatState initialHbState, Map<ApplicationState, VersionedValue> states)
+    @VisibleForTesting
+    public EndpointState(HeartBeatState initialHbState, Map<ApplicationState, VersionedValue> states)
     {
-        hbState = initialHbState;
-        applicationState = new AtomicReference<Map<ApplicationState, VersionedValue>>(new EnumMap<>(states));
+        ref = new AtomicReference<>(new View(initialHbState, new EnumMap<>(states)));
         updateTimestamp = nanoTime();
         isAlive = true;
     }
@@ -77,28 +91,58 @@ public class EndpointState
     @VisibleForTesting
     public HeartBeatState getHeartBeatState()
     {
-        return hbState;
+        return ref.get().hbState;
     }
 
-    void setHeartBeatState(HeartBeatState newHbState)
+    public void updateHeartBeat()
     {
-        updateTimestamp();
-        hbState = newHbState;
+        updateHeartBeat(HeartBeatState::updateHeartBeat);
+    }
+
+    public void forceNewerGenerationUnsafe()
+    {
+        updateHeartBeat(HeartBeatState::forceNewerGenerationUnsafe);
+    }
+
+    @VisibleForTesting
+    public void forceHighestPossibleVersionUnsafe()
+    {
+        updateHeartBeat(HeartBeatState::forceHighestPossibleVersionUnsafe);
+    }
+
+    void unsafeSetEmptyHeartBeatState()
+    {
+        updateHeartBeat(ignore -> HeartBeatState.empty());
+    }
+
+    private void updateHeartBeat(Function<HeartBeatState, HeartBeatState> fn)
+    {
+        HeartBeatState previous = null;
+        HeartBeatState update = null;
+        while (true)
+        {
+            View view = ref.get();
+            if (previous == null || view.hbState != previous) // if this races with updating states then can avoid bumping versions
+                update = fn.apply(view.hbState);
+            if (ref.compareAndSet(view, new View(update, view.applicationState)))
+                return;
+            previous = view.hbState;
+        }
     }
 
     public VersionedValue getApplicationState(ApplicationState key)
     {
-        return applicationState.get().get(key);
+        return ref.get().applicationState.get(key);
     }
 
     public boolean containsApplicationState(ApplicationState key)
     {
-        return applicationState.get().containsKey(key);
+        return ref.get().applicationState.containsKey(key);
     }
 
     public Set<Map.Entry<ApplicationState, VersionedValue>> states()
     {
-        return applicationState.get().entrySet();
+        return ref.get().applicationState.entrySet();
     }
 
     public void addApplicationState(ApplicationState key, VersionedValue value)
@@ -113,16 +157,26 @@ public class EndpointState
 
     public void addApplicationStates(Set<Map.Entry<ApplicationState, VersionedValue>> values)
     {
+        addApplicationStates(values, null);
+    }
+
+    public void addApplicationStates(Set<Map.Entry<ApplicationState, VersionedValue>> values, @Nullable HeartBeatState hbState)
+    {
         while (true)
         {
-            Map<ApplicationState, VersionedValue> orig = applicationState.get();
+            View view = this.ref.get();
+            Map<ApplicationState, VersionedValue> orig = view.applicationState;
             Map<ApplicationState, VersionedValue> copy = new EnumMap<>(orig);
 
             for (Map.Entry<ApplicationState, VersionedValue> value : values)
                 copy.put(value.getKey(), value.getValue());
 
-            if (applicationState.compareAndSet(orig, copy))
+            if (this.ref.compareAndSet(view, new View(hbState == null ? view.hbState : hbState, copy)))
+            {
+                if (hbState != null)
+                    updateTimestamp();
                 return;
+            }
         }
     }
 
@@ -130,18 +184,19 @@ public class EndpointState
     {
         while (hasLegacyFields())
         {
-            Map<ApplicationState, VersionedValue> orig = applicationState.get();
+            View view = ref.get();
+            Map<ApplicationState, VersionedValue> orig = view.applicationState;
             Map<ApplicationState, VersionedValue> updatedStates = filterMajorVersion3LegacyApplicationStates(orig);
             // avoid updating if no state is removed
             if (orig.size() == updatedStates.size()
-                || applicationState.compareAndSet(orig, updatedStates))
+                || ref.compareAndSet(view, new View(view.hbState, updatedStates)))
                 return;
         }
     }
 
     private boolean hasLegacyFields()
     {
-        Set<ApplicationState> statesPresent = applicationState.get().keySet();
+        Set<ApplicationState> statesPresent = ref.get().applicationState.keySet();
         if (statesPresent.isEmpty())
             return false;
         return (statesPresent.contains(ApplicationState.STATUS) && statesPresent.contains(ApplicationState.STATUS_WITH_PORT))
@@ -198,7 +253,7 @@ public class EndpointState
 
     public boolean isStateEmpty()
     {
-        return applicationState.get().isEmpty();
+        return ref.get().applicationState.isEmpty();
     }
 
     /**
@@ -206,8 +261,10 @@ public class EndpointState
      */
     public boolean isEmptyWithoutStatus()
     {
-        Map<ApplicationState, VersionedValue> state = applicationState.get();
-        return hbState.isEmpty() && !(state.containsKey(ApplicationState.STATUS_WITH_PORT) || state.containsKey(ApplicationState.STATUS));
+        View view = ref.get();
+        Map<ApplicationState, VersionedValue> state = view.applicationState;
+        boolean hasStatus = state.containsKey(ApplicationState.STATUS_WITH_PORT) || state.containsKey(ApplicationState.STATUS);
+        return view.hbState.isEmpty() && !hasStatus;
     }
 
     public boolean isRpcReady()
@@ -258,7 +315,8 @@ public class EndpointState
 
     public String toString()
     {
-        return "EndpointState: HeartBeatState = " + hbState + ", AppStateMap = " + applicationState.get();
+        View view = ref.get();
+        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + view.applicationState;
     }
 
     public boolean isSupersededBy(EndpointState that)
