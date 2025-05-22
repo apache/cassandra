@@ -421,6 +421,13 @@ public final class StaticSegment<K, V> extends Segment<K, V>
                     return eof();
                 buffer.position(offset + length);
             }
+            catch (EntrySerializer.RecoverableJournalError e)
+            {
+                logger.warn("Caught a recoverable journal error, skipping bytes", e);
+                buffer.position(offset + e.knownLength);
+                // Recur here, as we anticipate an corrupt or incompletely written entry to be a very rare case.
+                return doAdvance();
+            }
             catch (IOException e)
             {
                 throw new JournalReadError(descriptor, file, e);

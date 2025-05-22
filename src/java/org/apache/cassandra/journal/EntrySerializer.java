@@ -17,15 +17,15 @@
  */
 package org.apache.cassandra.journal;
 
-import java.io.EOFException;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.zip.CRC32;
-
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Crc;
+
+import java.io.EOFException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.zip.CRC32;
 
 import static org.apache.cassandra.journal.Journal.validateCRC;
 
@@ -96,8 +96,7 @@ public final class EntrySerializer
                            KeySupport<K> keySupport,
                            ByteBuffer from,
                            int syncedOffset,
-                           int userVersion)
-    throws IOException
+                           int userVersion) throws IOException
     {
         CRC32 crc = Crc.crc32();
         into.clear();
@@ -120,34 +119,52 @@ public final class EntrySerializer
         if (totalSize == 0)
             return -1;
         Invariants.require(totalSize > 0);
-        if (from.remaining() < totalSize)
-            return handleReadException(new EOFException(), from.limit(), syncedOffset);
 
+        try
         {
-            int headerSize = EntrySerializer.headerSize(keySupport, userVersion);
-            int headerCrc = readAndUpdateHeaderCrc(crc, from, headerSize);
-            try
+            if (from.remaining() < totalSize)
+                return handleReadException(new EOFException(), from.limit(), syncedOffset);
             {
-                validateCRC(crc, headerCrc);
-            }
-            catch (IOException e)
-            {
-                return handleReadException(e, from.position() + headerSize, syncedOffset);
+                int headerSize = EntrySerializer.headerSize(keySupport, userVersion);
+                int headerCrc = readAndUpdateHeaderCrc(crc, from, headerSize);
+                try
+                {
+                    validateCRC(crc, headerCrc);
+                }
+                catch (IOException e)
+                {
+                    return handleReadException(e, from.position() + headerSize, syncedOffset);
+                }
+
+                int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
+                try
+                {
+                    validateCRC(crc, recordCrc);
+                }
+                catch (IOException e)
+                {
+                    return handleReadException(e, from.position(), syncedOffset);
+                }
             }
 
-            int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
-            try
-            {
-                validateCRC(crc, recordCrc);
-            }
-            catch (IOException e)
-            {
-                return handleReadException(e, from.position(), syncedOffset);
-            }
+            readValidated(into, from, start, keySupport, userVersion);
+            return totalSize;
         }
+        catch (IOException e)
+        {
+            throw new RecoverableJournalError(totalSize, e);
+        }
+    }
 
-        readValidated(into, from, start, keySupport, userVersion);
-        return totalSize;
+    public static class RecoverableJournalError extends IOException
+    {
+        public final int knownLength;
+
+        public RecoverableJournalError(int knownLength, Throwable cause)
+        {
+            super(cause);
+            this.knownLength = knownLength;
+        }
     }
 
     private static <K> void readValidated(EntryHolder<K> into, ByteBuffer from, int start, KeySupport<K> keySupport, int userVersion)

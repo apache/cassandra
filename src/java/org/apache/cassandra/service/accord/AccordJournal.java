@@ -439,22 +439,23 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     {
         try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
         {
-            TxnId prev = null;
+            JournalKey prev = null;
             while (iter.hasNext())
             {
                 Journal.KeyRefs<JournalKey> ref = iter.next();
 
                 if (ref.key().type != JournalKey.Type.COMMAND_DIFF)
                     continue;
-
                 CommandStore commandStore = commandStores.forId(ref.key().commandStoreId);
                 Loader loader = commandStore.loader();
                 TxnId txnId = ref.key().id;
-                Invariants.require(prev == null || txnId.compareTo(prev) != 0,
-                                   "duplicate key detected %s == %s", txnId, prev);
-                prev = txnId;
                 try
                 {
+                    Invariants.require(prev == null ||
+                                       ref.key().commandStoreId != prev.commandStoreId ||
+                                       ref.key().id.compareTo(prev.id) != 0,
+                                       "duplicate key detected %s == %s", ref.key(), prev);
+                    prev = ref.key();
                     AsyncChains.getUnchecked(loader.load(txnId)
                                                    .map(command -> {
                                                        if (journalTable.shouldIndex(ref.key())
