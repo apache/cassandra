@@ -19,9 +19,22 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.AbstractReadCommandBuilder;
+import org.apache.cassandra.db.BufferClusteringBound;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -36,6 +49,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.reads.range.RangeCommandIterator;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.transport.Dispatcher;
@@ -48,6 +62,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.Assert;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
@@ -66,14 +82,17 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
+@RunWith(Parameterized.class)
 public class RateLimiterTest extends CQLTester
 {
     private static final String KEYSPACE = "ks_for_rate_limiter";
@@ -87,9 +106,16 @@ public class RateLimiterTest extends CQLTester
     private CassandraResourceUtilization mockCassResrcUtil;
     boolean shouldCheckThrottleCalled;
 
-    public RateLimiterTest()
+    public RateLimiterTest(PaxosVariant paxosVariant)
     {
         requireNetwork();
+        Paxos.setPaxosVariant(paxosVariant);
+    }
+
+    @Parameterized.Parameters()
+    public static List<Object> buildParameterizedVariants()
+    {
+        return Arrays.asList(new Object[]{PaxosVariant.v1, PaxosVariant.v2 });
     }
 
     @BeforeClass
@@ -132,7 +158,7 @@ public class RateLimiterTest extends CQLTester
     public void testRateLimiterOverloadThrowInCAS()
     {
         long count1Before = casWriteMetrics.rateLimiterThrottles.getCount();
-        long count2Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).casWriteMetrics.rateLimiterThrottles.getCount();
+        long count2Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.SERIAL).casWriteMetrics.rateLimiterThrottles.getCount();
         try
         {
             StorageProxy.cas(KEYSPACE, TABLE, null, null, ConsistencyLevel.SERIAL,
@@ -194,18 +220,18 @@ public class RateLimiterTest extends CQLTester
     {
         long count1Before = readMetrics.rateLimiterThrottles.getCount();
         long count2Before = casReadMetrics.rateLimiterThrottles.getCount();
-        long count3Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).readMetrics.rateLimiterThrottles.getCount();
-        long count4Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).casReadMetrics.rateLimiterThrottles.getCount();
+        long count3Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.SERIAL).readMetrics.rateLimiterThrottles.getCount();
+        long count4Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.SERIAL).casReadMetrics.rateLimiterThrottles.getCount();
         try
         {
-            StorageProxy.readWithPaxos(createReadQuery(), ConsistencyLevel.ALL, Dispatcher.RequestTime.forImmediateExecution());
+            createReadQuery().execute(ConsistencyLevel.SERIAL, ClientState.forInternalCalls(KEYSPACE), new Dispatcher.RequestTime(0));
         }
         catch (OverloadedException e)
         {
             long count1After = readMetrics.rateLimiterThrottles.getCount();
             long count2After = casReadMetrics.rateLimiterThrottles.getCount();
-            long count3After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).readMetrics.rateLimiterThrottles.getCount();
-            long count4After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).casReadMetrics.rateLimiterThrottles.getCount();
+            long count3After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.SERIAL).readMetrics.rateLimiterThrottles.getCount();
+            long count4After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.SERIAL).casReadMetrics.rateLimiterThrottles.getCount();
             Assert.assertEquals(1L, count1After - count1Before);
             Assert.assertEquals(1L, count2After - count2Before);
             Assert.assertEquals(1L, count3After - count3Before);
@@ -222,7 +248,7 @@ public class RateLimiterTest extends CQLTester
         long count2Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).readMetrics.rateLimiterThrottles.getCount();
         try
         {
-            StorageProxy.readRegular(createReadQuery(), ConsistencyLevel.ALL, Dispatcher.RequestTime.forImmediateExecution());
+            createReadQuery().execute(ConsistencyLevel.ALL, ClientState.forInternalCalls(KEYSPACE), new Dispatcher.RequestTime(0));
         }
         catch (OverloadedException e)
         {

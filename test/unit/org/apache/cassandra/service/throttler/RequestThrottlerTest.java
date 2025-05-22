@@ -18,12 +18,17 @@
 
 package org.apache.cassandra.service.throttler;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,26 +36,35 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.exceptions.ReadTimeoutException;
 import com.datastax.driver.core.exceptions.WriteTimeoutException;
+import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.RequestThrottledException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformations;
+import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.transport.ProtocolVersion;
 
+@RunWith(Parameterized.class)
 public class RequestThrottlerTest extends CQLTester
 {
     protected static final Logger logger = LoggerFactory.getLogger(RequestThrottlerTest.class);
     private final ProtocolVersion protocolVersion = ProtocolVersion.CURRENT;
     private KeyspaceBasedRequestThrottler keyspaceThrottler;
 
-    public RequestThrottlerTest()
+    public RequestThrottlerTest(PaxosVariant paxosVariant)
     {
         requireNetwork();
+        Paxos.setPaxosVariant(paxosVariant);
+    }
+
+    @Parameterized.Parameters()
+    public static List<Object> buildParameterizedVariants()
+    {
+        return Arrays.asList(new Object[]{ PaxosVariant.v1, PaxosVariant.v2 });
     }
 
     private ResultSet exec(String query, Object... values) throws Throwable

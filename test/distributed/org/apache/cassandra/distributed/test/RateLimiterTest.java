@@ -19,36 +19,56 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.service.throttler.dynamic.TrafficType;
-import org.apache.cassandra.tools.NodeTool;
-import org.hamcrest.Matchers;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
+@RunWith(Parameterized.class)
 public class RateLimiterTest extends TestBaseImpl
 {
-
+    @Parameterized.Parameter
+    public PaxosVariant paxosVariant;
     private static Cluster cluster1;
     private static Cluster cluster2;
+
+    private static final int coordinatorNode = 1;
+    private static final int totalNodes = 3;
+
+    @Parameterized.Parameters(name = "paxosVariant={0}")
+    public static List<Object[]> data()
+    {
+        List<Object[]> result = new ArrayList<>();
+        result.add(new Object[]{ PaxosVariant.v1 });
+        result.add(new Object[]{ PaxosVariant.v2 });
+        return result;
+    }
 
     @BeforeClass
     public static void init() throws IOException
@@ -61,6 +81,18 @@ public class RateLimiterTest extends TestBaseImpl
 
         cluster1.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));
         cluster2.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));
+    }
+
+    @Before
+    public void set()
+    {
+        String variant = paxosVariant.toString();
+        cluster1.forEach(i -> i.runOnInstance(() -> {
+            StorageProxy.instance.setPaxosVariant(variant);
+        }));
+        cluster2.forEach(i -> i.runOnInstance(() -> {
+            StorageProxy.instance.setPaxosVariant(variant);
+        }));
     }
 
     @Test
@@ -126,13 +158,34 @@ public class RateLimiterTest extends TestBaseImpl
     @Test
     public void testCoordinatorThrottlingLWTTraffic()
     {
+        long[] casWriteThrottleCount = new long[totalNodes];
+        for (int i = 1; i <= totalNodes; i++)
+        {
+            casWriteThrottleCount[i - 1] = cluster1.get(i).callOnInstance(() -> {
+                return ClientRequestsMetricsHolder.casWriteMetrics.rateLimiterThrottles.getCount();
+            });
+        }
         helperThrottleCoordinatorTraffic("LWT", String.format("UPDATE %s.tbl SET v2 = 11 WHERE pk = 0 AND ck = 'abc' IF v1 = 10", KEYSPACE), true);
+        for (int i = 1; i <= totalNodes; i++)
+        {
+            long currentCount = cluster1.get(i).callOnInstance(() -> {
+                return ClientRequestsMetricsHolder.casWriteMetrics.rateLimiterThrottles.getCount();
+            });
+            Assert.assertEquals(1, currentCount - casWriteThrottleCount[i - 1]);
+        }
     }
 
     @Test
     public void testPeerThrottlingLWTTraffic() throws TimeoutException
     {
+        long casWriteThrottleCount = cluster2.get(coordinatorNode).callOnInstance(() -> {
+            return ClientRequestsMetricsHolder.casWriteMetrics.rateLimiterThrottles.getCount();
+        });
         helperThrottlePeerTraffic("LWT", String.format("UPDATE %s.tbl SET v2 = 11 WHERE pk = 0 AND ck = 'abc' IF v1 = 10", KEYSPACE), true);
+        long curCasWriteThrottleCount = cluster2.get(coordinatorNode).callOnInstance(() -> {
+            return ClientRequestsMetricsHolder.casWriteMetrics.rateLimiterThrottles.getCount();
+        });
+        Assert.assertEquals(1, curCasWriteThrottleCount - casWriteThrottleCount);
     }
 
     @Test
@@ -213,14 +266,51 @@ public class RateLimiterTest extends TestBaseImpl
         helperThrottlePeerTraffic("SELECT_SYSTEM_TRACES", "SELECT * FROM system_traces.events LIMIT 1", false);
     }
 
+    @Test
+    public void testCoordinatorThrottlePaxosReadTraffic()
+    {
+        long[] casReadThrottleCount = new long[totalNodes];
+        for (int i = 1; i <= totalNodes; i++)
+        {
+            casReadThrottleCount[i - 1] = cluster1.get(i).callOnInstance(() -> {
+                return ClientRequestsMetricsHolder.casReadMetrics.rateLimiterThrottles.getCount();
+            });
+        }
+        helperThrottleCoordinatorTraffic("PAXOS_READ", String.format("SELECT * FROM %s.tbl WHERE pk=1 AND ck='1'", KEYSPACE), true, ConsistencyLevel.LOCAL_SERIAL);
+        for (int i = 1; i <= totalNodes; i++)
+        {
+            long currentCount = cluster1.get(i).callOnInstance(() -> {
+                return ClientRequestsMetricsHolder.casReadMetrics.rateLimiterThrottles.getCount();
+            });
+            Assert.assertEquals(1, currentCount - casReadThrottleCount[i - 1]);
+        }
+    }
+
+    @Test
+    public void testPeerThrottlePaxosReadTraffic() throws TimeoutException
+    {
+        long casReadThrottleCount = cluster2.get(coordinatorNode).callOnInstance(() -> {
+            return ClientRequestsMetricsHolder.casReadMetrics.rateLimiterThrottles.getCount();
+        });
+        helperThrottlePeerTraffic("PAXOS_READ", String.format("SELECT * FROM %s.tbl WHERE pk=1 AND ck='1'", KEYSPACE), true, ConsistencyLevel.LOCAL_SERIAL);
+        long curCasReadThrottleCount = cluster2.get(coordinatorNode).callOnInstance(() -> {
+            return ClientRequestsMetricsHolder.casReadMetrics.rateLimiterThrottles.getCount();
+        });
+        Assert.assertEquals(1, curCasReadThrottleCount - casReadThrottleCount);
+    }
+
     private void helperThrottleCoordinatorTraffic(String operation, String query, boolean shouldFail)
     {
-        int totalNodes = 3;
+        helperThrottleCoordinatorTraffic(operation, query, shouldFail, ConsistencyLevel.ONE);
+    }
+
+    private void helperThrottleCoordinatorTraffic(String operation, String query, boolean shouldFail, ConsistencyLevel cl)
+    {
         for (int i = 1; i <= totalNodes; i++)
         {
             try
             {
-                cluster1.coordinator(i).execute(query, ConsistencyLevel.ONE);
+                cluster1.coordinator(i).execute(query, cl);
                 if (shouldFail)
                 {
                     fail(String.format("%s statement should fail for node: %d", operation, i));
@@ -239,15 +329,18 @@ public class RateLimiterTest extends TestBaseImpl
             }
         }
     }
-
     private void helperThrottlePeerTraffic(String operation, String query, boolean shouldFail) throws TimeoutException
     {
-        int coordinatorNode = 1;
+        helperThrottlePeerTraffic(operation, query, shouldFail, ConsistencyLevel.LOCAL_QUORUM);
+    }
+
+    private void helperThrottlePeerTraffic(String operation, String query, boolean shouldFail, ConsistencyLevel cl) throws TimeoutException
+    {
         long mark = cluster2.get(coordinatorNode).logs().mark();
         cluster2.get(coordinatorNode).nodetool("setlogginglevel", "org.apache.cassandra.service.StorageProxy", "ALL");
         try
         {
-            cluster2.coordinator(coordinatorNode).execute(query, ConsistencyLevel.LOCAL_QUORUM);
+            cluster2.coordinator(coordinatorNode).execute(query, cl);
             if (shouldFail)
             {
                 fail(String.format("%s statement should fail for node: %d", operation, coordinatorNode));
@@ -281,7 +374,7 @@ public class RateLimiterTest extends TestBaseImpl
 
         public static void install2(ClassLoader classLoader, Integer num)
         {
-            if (num == 1)
+            if (num == coordinatorNode)
             {
                 return;
             }

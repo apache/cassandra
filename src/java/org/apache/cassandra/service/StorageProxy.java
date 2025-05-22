@@ -335,6 +335,31 @@ public class StorageProxy implements StorageProxyMBean
                                                             key.toString(), keyspaceName, cfName));
         }
 
+        // Keyspace-based throttling and cpu-based throttling
+        try
+        {
+            CassandraResourceUtilization.instance.throttle(keyspaceName, Collections.singleton(cfName), TrafficType.SinglePartitionCoordRead);
+            SinglePartitionReadCommand readCommandForThrottle = request.readCommand(nowInSeconds);
+            DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(readCommandForThrottle, consistencyForPaxos);
+        }
+        catch (OverloadedException e)
+        {
+            casWriteMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.rateLimiterThrottles.mark();
+            Tracing.trace("CAS request throttled due to overload");
+            logger.debug("CAS request throttled due to overload");
+            throw e;
+        }
+        catch (RequestThrottledException e)
+        {
+            casWriteMetrics.throttles.mark();
+            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.throttles.mark();
+            Tracing.trace("CAS request throttled");
+            logger.debug("CAS request throttled");
+            // TODO: should we throw CasWriteTimeoutException instead?
+            throw new ReadTimeoutException(consistencyForPaxos, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
+        }
+
         return Paxos.useV2()
                 ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState, requestTime)
                 : legacyCas(keyspaceName, cfName, key, request, consistencyForPaxos, consistencyForCommit, clientState, nowInSeconds, requestTime);
@@ -353,9 +378,6 @@ public class StorageProxy implements StorageProxyMBean
     {
         try
         {
-            CassandraResourceUtilization.instance.throttle(keyspaceName, Collections.singleton(cfName), TrafficType.SinglePartitionCoordRead);
-            SinglePartitionReadCommand readCommandForThrottle = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
-            DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(readCommandForThrottle, consistencyForPaxos);
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
 
             Function<Ballot, Pair<PartitionUpdate, RowIterator>> updateProposer = ballot ->
@@ -409,22 +431,6 @@ public class StorageProxy implements StorageProxyMBean
                            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyForPaxos).casWriteMetrics,
                            updateProposer);
 
-        }
-        catch (RequestThrottledException e)
-        {
-            casWriteMetrics.throttles.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.throttles.mark();
-            Tracing.trace("CAS request throttled");
-            logger.debug("CAS request throttled");
-            throw new ReadTimeoutException(consistencyForPaxos, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
-        }
-        catch (OverloadedException e)
-        {
-            casWriteMetrics.rateLimiterThrottles.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.rateLimiterThrottles.mark();
-            Tracing.trace("CAS request throttled due to overload");
-            logger.debug("CAS request throttled due to overload");
-            throw e;
         }
         catch (CasWriteUnknownResultException e)
         {
@@ -1987,7 +1993,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
-    throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
+    throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException, OverloadedException
     {
         if (StorageService.instance.isBootstrapMode() && !systemKeyspaceQuery(group.queries))
         {
@@ -2012,7 +2018,45 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
-        return consistencyLevel.isSerialConsistency()
+        // Keyspace-based throttling and cpu-based throttling
+        TableMetadata metadata = group.queries.get(0).metadata();
+        boolean isPaxosRead = consistencyLevel.isSerialConsistency();
+        try
+        {
+            for (SinglePartitionReadCommand cmd : group.queries)
+            {
+                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.SinglePartitionCoordRead);
+                DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
+            }
+        }
+        catch (RequestThrottledException e)
+        {
+            logger.debug("Throttling read request");
+            Tracing.trace("Throttling read request");
+            readMetrics.throttles.mark();
+            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.throttles.mark();
+            if (isPaxosRead)
+            {
+                casReadMetrics.throttles.mark();
+                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.throttles.mark();
+            }
+            throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
+        }
+        catch (OverloadedException e)
+        {
+            logger.debug("Throttling read request due to overload");
+            Tracing.trace("Throttling read request due to overload");
+            readMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
+            if (isPaxosRead)
+            {
+                casReadMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.rateLimiterThrottles.mark();
+            }
+            throw e;
+        }
+
+        return isPaxosRead
              ? readWithPaxos(group, consistencyLevel, requestTime)
              : readRegular(group, consistencyLevel, requestTime);
     }
@@ -2026,7 +2070,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static PartitionIterator legacyReadWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
-    throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException, OverloadedException
+    throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         long start = nanoTime();
         if (group.queries.size() > 1)
@@ -2041,12 +2085,6 @@ public class StorageProxy implements StorageProxyMBean
         PartitionIterator result = null;
         try
         {
-
-            for (SinglePartitionReadCommand cmd : group.queries)
-            {
-                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.SinglePartitionCoordRead);
-                DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
-            }
             final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
                                                                         ? ConsistencyLevel.LOCAL_QUORUM
                                                                         : ConsistencyLevel.QUORUM;
@@ -2083,26 +2121,6 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, requestTime);
-        }
-        catch (RequestThrottledException e)
-        {
-            logger.debug("Throttling read request");
-            Tracing.trace("Throttling read request");
-            readMetrics.throttles.mark();
-            casReadMetrics.throttles.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.throttles.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.throttles.mark();
-            throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
-        }
-        catch (OverloadedException e)
-        {
-            readMetrics.rateLimiterThrottles.mark();
-            casReadMetrics.rateLimiterThrottles.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.rateLimiterThrottles.mark();
-            logger.debug("Throttling read request due to overload");
-            Tracing.trace("Throttling read request due to overload");
-            throw e;
         }
         catch (UnavailableException e)
         {
@@ -2182,11 +2200,6 @@ public class StorageProxy implements StorageProxyMBean
         long start = nanoTime();
         try
         {
-            for (SinglePartitionReadCommand cmd : group.queries) {
-                TableMetadata metadata = group.queries.get(0).metadata();
-                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.SinglePartitionCoordRead);
-                DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
-            }
             PartitionIterator result = fetchRows(group.queries, consistencyLevel, requestTime);
             // Note that the only difference between the command in a group must be the partition key on which
             // they applied.
@@ -2196,22 +2209,6 @@ public class StorageProxy implements StorageProxyMBean
             if (group.queries.size() > 1)
                 result = group.limits().filter(result, group.nowInSec(), group.selectsFullPartition(), enforceStrictLiveness);
             return result;
-        }
-        catch (RequestThrottledException e)
-        {
-            Tracing.trace("Throttling read request");
-            logger.debug("Throttling read request");
-            readMetrics.throttles.mark();
-            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.throttles.mark();
-            throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
-        }
-        catch (OverloadedException e)
-        {
-            readMetrics.rateLimiterThrottles.mark();
-            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
-            Tracing.trace("Throttling read request due to overload");
-            logger.debug("Throttling read request due to overload");
-            throw e;
         }
         catch (UnavailableException e)
         {

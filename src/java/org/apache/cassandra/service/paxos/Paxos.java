@@ -115,6 +115,7 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteM
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetricsMap;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetricsMap;
+import static org.apache.cassandra.service.StorageProxy.isFailureCausedByTrafficThrottled;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
@@ -545,6 +546,11 @@ public class Paxos
         {
             if (isFailure)
             {
+                if (isFailureCausedByTrafficThrottled(failures))
+                    if (isWrite)
+                        casWriteMetrics.rateLimiterThrottles.mark();
+                    else
+                        casReadMetrics.rateLimiterThrottles.mark();
                 mark(isWrite, m -> m.failures, consistency);
                 throw serverError != null ? new RequestFailureException(ExceptionCode.SERVER_ERROR, serverError, consistency, successes, required, failures)
                                           : isWrite
