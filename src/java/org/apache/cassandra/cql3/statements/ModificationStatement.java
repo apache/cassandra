@@ -291,6 +291,14 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                     cfs.metric.viewBaseTableInRestirctionsUsed.inc();
             }
         }
+
+        if (metadata().strictMVEnabled())
+        {
+            checkFalse(attrs.isTimestampSet(), "Cannot provide custom timestamp for strict MV consistency enabled table");
+            checkFalse(restrictions.clusteringKeyRestrictionsHasIN() || restrictions.keyIsInRelation(),
+                       "Cannot use IN restritions in statement for strict MV consistency enabled table");
+        }
+
         checkFalse(hasConditions() && attrs.isTimestampSet(), "Cannot provide custom timestamp for conditional updates");
         checkFalse(isCounter() && attrs.isTimestampSet(), "Cannot provide custom timestamp for counter updates");
         checkFalse(isCounter() && attrs.isTimeToLiveSet(), "Cannot provide custom TTL for counter updates");

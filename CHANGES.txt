@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44932] Block unqualified queries for strict MV consistency enabled tables
  * [SO-28795] Implement dynamic rate-limiter in Paxos v2 path
  * [SO-44892] IntrusiveStack accumulate not adding to the returned value (CASSANDRA-20670)
  * [SO-44759] Stirct MV enabled table should use Paxos V2 to apply mutations for base table

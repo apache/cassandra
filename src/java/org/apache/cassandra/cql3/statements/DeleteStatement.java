@@ -185,6 +185,12 @@ public class DeleteStatement extends ModificationStatement
                 }
             }
 
+            if (stmt.metadata().strictMVEnabled())
+            {
+                checkTrue(restrictions.hasAllPKColumnsRestrictedByEqualities(),
+                           "DELETE statements must restrict all PRIMARY KEY columns with equality relations for Strict MV consistency enabled table.");
+            }
+
             if (stmt.hasConditions() && !restrictions.hasAllPKColumnsRestrictedByEqualities())
             {
                 checkFalse(stmt.isVirtual(), "DELETE statements must restrict all PRIMARY KEY columns with equality relations");

@@ -205,6 +205,11 @@ public class BatchStatement implements CQLStatement
                 }
             }
 
+            if (statement.metadata().strictMVEnabled())
+            {
+                throw new InvalidRequestException("Cannot use batch statement for strict MV enabled table: " + statement.table());
+            }
+
             if (timestampSet && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
 
