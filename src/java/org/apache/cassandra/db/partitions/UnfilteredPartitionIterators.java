@@ -427,4 +427,16 @@ public abstract class UnfilteredPartitionIterators
             };
         }
     }
+
+    public static void consume(UnfilteredPartitionIterator iterator)
+    {
+        while (iterator.hasNext())
+        {
+            try (UnfilteredRowIterator partition = iterator.next())
+            {
+                while (partition.hasNext())
+                    partition.next();
+            }
+        }
+    }
 }

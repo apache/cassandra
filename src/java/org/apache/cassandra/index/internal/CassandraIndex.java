@@ -332,6 +332,162 @@ public abstract class CassandraIndex implements Index
         }
     }
 
+    static abstract class AbstractIndexer implements Indexer
+    {
+        public void begin()
+        {
+        }
+
+        public void partitionDelete(DeletionTime deletionTime)
+        {
+        }
+
+        public void rangeTombstone(RangeTombstone tombstone)
+        {
+        }
+
+        abstract CassandraIndex index();
+
+        ColumnMetadata indexedColumn()
+        {
+            return index().indexedColumn;
+        }
+
+        boolean isPrimaryKeyIndex()
+        {
+            return index().isPrimaryKeyIndex();
+        }
+
+        abstract long nowInSec();
+        abstract DecoratedKey key();
+
+        abstract void insert(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, LivenessInfo info);
+        abstract void delete(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, long nowInSec);
+        abstract void delete(DecoratedKey rowKey, Clustering<?> clustering, DeletionTime deletion);
+
+        public void insertRow(Row row)
+        {
+            if (row.isStatic() && !indexedColumn().isStatic() && !indexedColumn().isPartitionKey())
+                return;
+
+            if (isPrimaryKeyIndex())
+            {
+                indexPrimaryKey(row.clustering(),
+                                getPrimaryKeyIndexLiveness(row),
+                                row.deletion());
+            }
+            else
+            {
+                if (indexedColumn().isComplex())
+                    indexCells(row.clustering(), row.getComplexColumnData(indexedColumn()));
+                else
+                    indexCell(row.clustering(), row.getCell(indexedColumn()));
+            }
+        }
+
+        public void removeRow(Row row)
+        {
+            if (isPrimaryKeyIndex())
+                return;
+
+            if (indexedColumn().isComplex())
+                removeCells(row.clustering(), row.getComplexColumnData(indexedColumn()));
+            else
+                removeCell(row.clustering(), row.getCell(indexedColumn()));
+        }
+
+        public void updateRow(Row oldRow, Row newRow)
+        {
+            assert oldRow.isStatic() == newRow.isStatic();
+            if (newRow.isStatic() != indexedColumn().isStatic())
+                return;
+
+            if (isPrimaryKeyIndex())
+                indexPrimaryKey(newRow.clustering(),
+                                getPrimaryKeyIndexLiveness(newRow),
+                                newRow.deletion());
+
+            if (indexedColumn().isComplex())
+            {
+                indexCells(newRow.clustering(), newRow.getComplexColumnData(indexedColumn()));
+                removeCells(oldRow.clustering(), oldRow.getComplexColumnData(indexedColumn()));
+            }
+            else
+            {
+                indexCell(newRow.clustering(), newRow.getCell(indexedColumn()));
+                removeCell(oldRow.clustering(), oldRow.getCell(indexedColumn()));
+            }
+        }
+
+        public void finish()
+        {
+        }
+
+        private void indexCells(Clustering<?> clustering, Iterable<Cell<?>> cells)
+        {
+            if (cells == null)
+                return;
+
+            for (Cell<?> cell : cells)
+                indexCell(clustering, cell);
+        }
+
+        private void indexCell(Clustering<?> clustering, Cell<?> cell)
+        {
+            if (cell == null || !cell.isLive(nowInSec()))
+                return;
+
+            insert(key(),
+                   clustering,
+                   cell,
+                   LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime()));
+        }
+
+        private void removeCells(Clustering<?> clustering, Iterable<Cell<?>> cells)
+        {
+            if (cells == null)
+                return;
+
+            for (Cell<?> cell : cells)
+                removeCell(clustering, cell);
+        }
+
+        private void removeCell(Clustering<?> clustering, Cell<?> cell)
+        {
+            if (cell == null || !cell.isLive(nowInSec()))
+                return;
+
+            delete(key(), clustering, cell, nowInSec());
+        }
+
+        private void indexPrimaryKey(final Clustering<?> clustering,
+                                     final LivenessInfo liveness,
+                                     final Row.Deletion deletion)
+        {
+            if (liveness.timestamp() != LivenessInfo.NO_TIMESTAMP)
+                insert(key(), clustering, null, liveness);
+
+            if (!deletion.isLive())
+                delete(key(), clustering, deletion.time());
+        }
+
+        private LivenessInfo getPrimaryKeyIndexLiveness(Row row)
+        {
+            long timestamp = row.primaryKeyLivenessInfo().timestamp();
+            int ttl = row.primaryKeyLivenessInfo().ttl();
+            for (Cell<?> cell : row.cells())
+            {
+                long cellTimestamp = cell.timestamp();
+                if (cell.isLive(nowInSec()))
+                {
+                    if (cellTimestamp > timestamp)
+                        timestamp = cellTimestamp;
+                }
+            }
+            return LivenessInfo.create(timestamp, ttl, nowInSec());
+        }
+    }
+
     public Indexer indexerFor(final DecoratedKey key,
                               final RegularAndStaticColumns columns,
                               final long nowInSec,
@@ -351,141 +507,42 @@ public abstract class CassandraIndex implements Index
         if (!isPrimaryKeyIndex() && !columns.contains(indexedColumn))
             return null;
 
-        return new Indexer()
+        return new AbstractIndexer()
         {
-            public void begin()
+            @Override
+            CassandraIndex index()
             {
+                return CassandraIndex.this;
             }
 
-            public void partitionDelete(DeletionTime deletionTime)
+            @Override
+            long nowInSec()
             {
+                return nowInSec;
             }
 
-            public void rangeTombstone(RangeTombstone tombstone)
+            @Override
+            DecoratedKey key()
             {
+                return key;
             }
 
-            public void insertRow(Row row)
+            @Override
+            void insert(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, LivenessInfo info)
             {
-                if (row.isStatic() && !indexedColumn.isStatic() && !indexedColumn.isPartitionKey())
-                    return;
-
-                if (isPrimaryKeyIndex())
-                {
-                    indexPrimaryKey(row.clustering(),
-                                    getPrimaryKeyIndexLiveness(row),
-                                    row.deletion());
-                }
-                else
-                {
-                    if (indexedColumn.isComplex())
-                        indexCells(row.clustering(), row.getComplexColumnData(indexedColumn));
-                    else
-                        indexCell(row.clustering(), row.getCell(indexedColumn));
-                }
+                CassandraIndex.this.insert(rowKey.getKey(), clustering, cell, info, ctx);
             }
 
-            public void removeRow(Row row)
+            @Override
+            void delete(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, long nowInSec)
             {
-                if (isPrimaryKeyIndex())
-                    return;
-
-                if (indexedColumn.isComplex())
-                    removeCells(row.clustering(), row.getComplexColumnData(indexedColumn));
-                else
-                    removeCell(row.clustering(), row.getCell(indexedColumn));
+                CassandraIndex.this.delete(rowKey.getKey(), clustering, cell, ctx, nowInSec);
             }
 
-            public void updateRow(Row oldRow, Row newRow)
+            @Override
+            void delete(DecoratedKey rowKey, Clustering<?> clustering, DeletionTime deletion)
             {
-                assert oldRow.isStatic() == newRow.isStatic();
-                if (newRow.isStatic() != indexedColumn.isStatic())
-                    return;
-
-                if (isPrimaryKeyIndex())
-                    indexPrimaryKey(newRow.clustering(),
-                                    getPrimaryKeyIndexLiveness(newRow),
-                                    newRow.deletion());
-
-                if (indexedColumn.isComplex())
-                {
-                    indexCells(newRow.clustering(), newRow.getComplexColumnData(indexedColumn));
-                    removeCells(oldRow.clustering(), oldRow.getComplexColumnData(indexedColumn));
-                }
-                else
-                {
-                    indexCell(newRow.clustering(), newRow.getCell(indexedColumn));
-                    removeCell(oldRow.clustering(), oldRow.getCell(indexedColumn));
-                }
-            }
-
-            public void finish()
-            {
-            }
-
-            private void indexCells(Clustering<?> clustering, Iterable<Cell<?>> cells)
-            {
-                if (cells == null)
-                    return;
-
-                for (Cell<?> cell : cells)
-                    indexCell(clustering, cell);
-            }
-
-            private void indexCell(Clustering<?> clustering, Cell<?> cell)
-            {
-                if (cell == null || !cell.isLive(nowInSec))
-                    return;
-
-                insert(key.getKey(),
-                       clustering,
-                       cell,
-                       LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime()),
-                       ctx);
-            }
-
-            private void removeCells(Clustering<?> clustering, Iterable<Cell<?>> cells)
-            {
-                if (cells == null)
-                    return;
-
-                for (Cell<?> cell : cells)
-                    removeCell(clustering, cell);
-            }
-
-            private void removeCell(Clustering<?> clustering, Cell<?> cell)
-            {
-                if (cell == null || !cell.isLive(nowInSec))
-                    return;
-
-                delete(key.getKey(), clustering, cell, ctx, nowInSec);
-            }
-
-            private void indexPrimaryKey(final Clustering<?> clustering,
-                                         final LivenessInfo liveness,
-                                         final Row.Deletion deletion)
-            {
-                if (liveness.timestamp() != LivenessInfo.NO_TIMESTAMP)
-                    insert(key.getKey(), clustering, null, liveness, ctx);
-
-                if (!deletion.isLive())
-                    delete(key.getKey(), clustering, deletion.time(), ctx);
-            }
-
-            private LivenessInfo getPrimaryKeyIndexLiveness(Row row)
-            {
-                long timestamp = row.primaryKeyLivenessInfo().timestamp();
-                int ttl = row.primaryKeyLivenessInfo().ttl();
-                for (Cell<?> cell : row.cells())
-                {
-                    long cellTimestamp = cell.timestamp();
-                    if (cell.isLive(nowInSec))
-                    {
-                        if (cellTimestamp > timestamp)
-                            timestamp = cellTimestamp;
-                    }
-                }
-                return LivenessInfo.create(timestamp, ttl, nowInSec);
+                CassandraIndex.this.delete(rowKey.getKey(), clustering, deletion, ctx);
             }
         };
     }
@@ -505,6 +562,15 @@ public abstract class CassandraIndex implements Index
     {
         doDelete(indexKey, indexClustering, deletion, ctx);
         logger.trace("Removed index entry for stale value {}", indexKey);
+    }
+
+    public IndexEntry createIndexEntry(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, LivenessInfo info)
+    {
+        DecoratedKey indexKey = getIndexKeyFor(getIndexedValue(rowKey.getKey(),
+                                                               clustering,
+                                                               cell));
+        Clustering<?> indexClustering = buildIndexClustering(rowKey.getKey(), clustering, cell);
+        return new IndexEntry(indexKey, indexClustering, info.timestamp(), rowKey, clustering);
     }
 
     /**

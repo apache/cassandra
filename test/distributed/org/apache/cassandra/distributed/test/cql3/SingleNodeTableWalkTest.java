@@ -133,16 +133,10 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     public Property.Command<State, Void, ?> selectExisting(RandomSource rs, State state)
     {
-        NavigableSet<BytesPartitionState.Ref> keys = state.model.partitionKeys();
-        BytesPartitionState.Ref ref = rs.pickOrderedSet(keys);
-        Clustering<ByteBuffer> key = ref.key;
-
         Select.Builder builder = Select.builder().table(state.metadata);
-        ImmutableUniqueList<Symbol> pks = state.model.factory.partitionColumns;
-        ImmutableUniqueList<Symbol> cks = state.model.factory.clusteringColumns;
-        for (Symbol pk : pks)
-            builder.value(pk, key.bufferAt(pks.indexOf(pk)));
+        BytesPartitionState.Ref ref = restrictPartition(rs, state, builder);
 
+        ImmutableUniqueList<Symbol> cks = state.model.factory.clusteringColumns;
         boolean wholePartition = cks.isEmpty() || rs.nextBoolean();
         if (!wholePartition)
         {
@@ -226,16 +220,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     public Property.Command<State, Void, ?> partitionRestrictedQuery(RandomSource rs, State state)
     {
-        //TODO (now): remove duplicate logic
-        NavigableSet<BytesPartitionState.Ref> keys = state.model.partitionKeys();
-        BytesPartitionState.Ref ref = rs.pickOrderedSet(keys);
-        Clustering<ByteBuffer> key = ref.key;
-
         Select.Builder builder = Select.builder().table(state.metadata);
-        ImmutableUniqueList<Symbol> pks = state.model.factory.partitionColumns;
-        for (Symbol pk : pks)
-            builder.value(pk, key.bufferAt(pks.indexOf(pk)));
-
+        BytesPartitionState.Ref ref = restrictPartition(rs, state, builder);
 
         List<Symbol> searchableColumns = state.searchableNonPartitionColumns;
         Symbol symbol = rs.pick(searchableColumns);
@@ -265,6 +251,18 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             return simpleRangeSearch(rs, state, symbol, value, builder);
         //TODO (coverage): define search that has a upper and lower bound: a > and a < | a beteeen ? and ?
         return eqSearch(rs, state, symbol, value, builder);
+    }
+
+    private static BytesPartitionState.Ref restrictPartition(RandomSource rs, State state, Select.Builder builder)
+    {
+        NavigableSet<BytesPartitionState.Ref> keys = state.model.partitionKeys();
+        BytesPartitionState.Ref ref = rs.pickOrderedSet(keys);
+        Clustering<ByteBuffer> key = ref.key;
+
+        ImmutableUniqueList<Symbol> pks = state.model.factory.partitionColumns;
+        for (Symbol pk : pks)
+            builder.value(pk, key.bufferAt(pks.indexOf(pk)));
+        return ref;
     }
 
     public Property.Command<State, Void, ?> nonPartitionQuery(RandomSource rs, State state)
@@ -298,22 +296,31 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     public Property.Command<State, Void, ?> multiColumnQuery(RandomSource rs, State state)
     {
+        Select.Builder builder = Select.builder().table(state.metadata).allowFiltering();
         List<Symbol> allowedColumns = state.multiColumnQueryColumns();
+        return multiColumnQuery(rs, state, builder, null, allowedColumns);
+    }
 
+    public Property.Command<State, Void, ?> multiColumnPartitionQuery(RandomSource rs, State state)
+    {
+        Select.Builder builder = Select.builder().table(state.metadata).allowFiltering();
+        BytesPartitionState.Ref ref = restrictPartition(rs, state, builder);
+        List<Symbol> allowedColumns = state.multiColumnPartitionQueryColumns();
+        return multiColumnQuery(rs, state, builder, ref, allowedColumns);
+    }
+
+    private static Property.Command<State, Void, ?> multiColumnQuery(RandomSource rs, State state, Select.Builder builder, BytesPartitionState.Ref ref, List<Symbol> allowedColumns)
+    {
         if (allowedColumns.size() <= 1)
             throw new IllegalArgumentException("Unable to do multiple column query when there is only a single column");
 
         int numColumns = rs.nextInt(1, allowedColumns.size()) + 1;
-
         List<Symbol> cols = Gens.lists(Gens.pick(allowedColumns)).unique().ofSize(numColumns).next(rs);
-
-        Select.Builder builder = Select.builder().table(state.metadata).allowFiltering();
 
         for (Symbol symbol : cols)
         {
-            TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
+            TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = ref == null ? state.model.index(symbol) : state.model.index(ref, symbol);
             NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(), b -> !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b));
-            //TODO (now): support
             if (allowed.isEmpty())
                 return Property.ignoreCommand();
             ByteBuffer value = rs.pickOrderedSet(allowed);
@@ -381,6 +388,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                   .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
                                   .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
+                                  .addIf(State::allowPartitionMultiColumnQuery, this::multiColumnPartitionQuery)
                                   .destroyState(State::close)
                                   .commandsTransformer(LoggingCommand.factory())
                                   .onSuccess(onSuccess(logger))
@@ -580,11 +588,24 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             return allowNonPartitionQuery() && multiColumnQueryColumns().size() > 1;
         }
 
+        public boolean allowPartitionMultiColumnQuery()
+        {
+            return allowPartitionQuery() && multiColumnPartitionQueryColumns().size() > 1;
+        }
+
         private List<Symbol> multiColumnQueryColumns()
         {
             List<Symbol> allowedColumns = searchableColumns;
             if (hasMultiNodeMultiColumnAllowFilteringWithLocalWritesIssue())
                 allowedColumns = nonPkIndexedColumns;
+            if (IGNORED_ISSUES.contains(KnownIssue.SAI_AND_VECTOR_COLUMNS) && !indexes.isEmpty())
+                allowedColumns = allowedColumns.stream().filter(s -> !s.type().isVector()).collect(Collectors.toList());
+            return allowedColumns;
+        }
+
+        private List<Symbol> multiColumnPartitionQueryColumns()
+        {
+            List<Symbol> allowedColumns = searchableNonPartitionColumns;
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_AND_VECTOR_COLUMNS) && !indexes.isEmpty())
                 allowedColumns = allowedColumns.stream().filter(s -> !s.type().isVector()).collect(Collectors.toList());
             return allowedColumns;

@@ -36,7 +36,7 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
 
-public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRead
+public class PartialTrackedSinglePartitionRead extends PartialTrackedRead
 {
     private final Index.Searcher searcher;
     private final SinglePartitionReadCommand command;
@@ -74,7 +74,7 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
         }
 
         @Override
-        public State augment(PartitionUpdate update)
+        public void augment(PartitionUpdate update)
         {
             if (!update.partitionKey().equals(command.partitionKey()))
                 throw new IllegalArgumentException(String.format("Received update for partition key %s but command was for %s",
@@ -85,7 +85,6 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
                 augmentedData = new SimpleBTreePartition(command.partitionKey(), command.metadata(), UpdateTransaction.NO_OP);
 
             augmentedData.update(update);
-            return this;
         }
 
         @Override
@@ -95,7 +94,7 @@ public class PartialTrackedSinglePartitionRead extends AbstractPartialTrackedRea
         }
     }
 
-    private class SinglePartitionCompleted extends Completed
+    private class SinglePartitionCompleted extends AbstractCompleted
     {
         private final UnfilteredPartitionIterator initialData;
         private final SimpleBTreePartition augmentedData;

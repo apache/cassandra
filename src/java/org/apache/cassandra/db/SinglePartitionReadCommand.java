@@ -56,6 +56,7 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.Transformation;
@@ -547,11 +548,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     protected PartialTrackedRead createInProgressRead(UnfilteredPartitionIterator iterator,
                                                       ReadExecutionController executionController,
-                                                      Index.Searcher searcher,
                                                       ColumnFamilyStore cfs,
                                                       long startTimeNanos)
     {
-        return PartialTrackedSinglePartitionRead.create(executionController, searcher, cfs, startTimeNanos, this, iterator);
+        return PartialTrackedSinglePartitionRead.create(executionController, null, cfs, startTimeNanos, this, iterator);
     }
 
     /**
@@ -715,15 +715,20 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * Also note that one must have created a {@code ReadExecutionController} on the queried table and we require it as
      * a parameter to enforce that fact, even though it's not explicitlly used by the method.
      */
-    public UnfilteredRowIterator queryMemtableAndDisk(ColumnFamilyStore cfs, ReadExecutionController executionController)
+    public UnfilteredRowIterator queryMemtableAndDisk(ReadableView view, ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
         assert executionController != null && executionController.validForReadOn(cfs);
         Tracing.trace("Executing single-partition query on {}", cfs.name);
 
-        return queryMemtableAndDiskInternal(cfs, executionController);
+        return queryMemtableAndDiskInternal(view, cfs, executionController);
     }
 
-    private UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs, ReadExecutionController controller)
+    public UnfilteredRowIterator queryMemtableAndDisk(ColumnFamilyStore cfs, ReadExecutionController executionController)
+    {
+        return queryMemtableAndDisk(cfs.select(View.select(SSTableSet.LIVE, partitionKey())), cfs, executionController);
+    }
+
+    private UnfilteredRowIterator queryMemtableAndDiskInternal(ReadableView view, ColumnFamilyStore cfs, ReadExecutionController controller)
     {
         /*
          * We have 2 main strategies:
@@ -747,12 +752,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             && !queriesMulticellType()
             && !controller.isTrackingRepairedStatus())
         {
-            return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter(), controller);
+            return queryMemtableAndSSTablesInTimestampOrder(view, cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter(), controller);
         }
 
         Tracing.trace("Acquiring sstable references");
-        ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
-        view.sstables.sort(SSTableReader.maxTimestampDescending);
+        List<SSTableReader> sstables = view.sstables();
+        sstables.sort(SSTableReader.maxTimestampDescending);
         ClusteringIndexFilter filter = clusteringIndexFilter();
         long minTimestamp = Long.MAX_VALUE;
         long mostRecentPartitionTombstone = Long.MIN_VALUE;
@@ -761,7 +766,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
 
-            for (Memtable memtable : view.memtables)
+            for (UnfilteredSource memtable : view.memtables())
             {
                 UnfilteredRowIterator iter = memtable.rowIterator(partitionKey(), filter.getSlices(metadata()), columnFilter(), filter.isReversed(), metricsCollector);
                 if (iter == null)
@@ -790,14 +795,14 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
              * In other words, iterating in descending maxTimestamp order allow to do our mostRecentPartitionTombstone
              * elimination in one pass, and minimize the number of sstables for which we read a partition tombstone.
             */
-            view.sstables.sort(SSTableReader.maxTimestampDescending);
+            sstables.sort(SSTableReader.maxTimestampDescending);
             int nonIntersectingSSTables = 0;
             int includedDueToTombstones = 0;
 
             if (controller.isTrackingRepairedStatus())
                 Tracing.trace("Collecting data from sstables and tracking repaired status");
 
-            for (SSTableReader sstable : view.sstables)
+            for (SSTableReader sstable : sstables)
             {
                 // if we've already seen a partition tombstone with a timestamp greater
                 // than the most recent update to this sstable, we can skip it
@@ -865,7 +870,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
             if (Tracing.isTracing())
                 Tracing.trace("Skipped {}/{} non-slice-intersecting sstables, included {} due to tombstones",
-                               nonIntersectingSSTables, view.sstables.size(), includedDueToTombstones);
+                               nonIntersectingSSTables, sstables.size(), includedDueToTombstones);
 
             if (inputCollector.isEmpty())
                 return EmptyIterators.unfilteredRow(cfs.metadata(), partitionKey(), filter.isReversed());
@@ -989,16 +994,15 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * no collection or counters are included).
      * This method assumes the filter is a {@code ClusteringIndexNamesFilter}.
      */
-    private UnfilteredRowIterator queryMemtableAndSSTablesInTimestampOrder(ColumnFamilyStore cfs, ClusteringIndexNamesFilter filter, ReadExecutionController controller)
+    private UnfilteredRowIterator queryMemtableAndSSTablesInTimestampOrder(ReadableView view, ColumnFamilyStore cfs, ClusteringIndexNamesFilter filter, ReadExecutionController controller)
     {
         Tracing.trace("Acquiring sstable references");
-        ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
 
         ImmutableBTreePartition result = null;
         SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
 
         Tracing.trace("Merging memtable contents");
-        for (Memtable memtable : view.memtables)
+        for (UnfilteredSource memtable : view.memtables())
         {
             try (UnfilteredRowIterator iter = memtable.rowIterator(partitionKey, filter.getSlices(metadata()), columnFilter(), isReversed(), metricsCollector))
             {
@@ -1014,9 +1018,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
 
         /* add the SSTables on disk */
-        view.sstables.sort(SSTableReader.maxTimestampDescending);
+        List<SSTableReader> sstables = view.sstables();
+        sstables.sort(SSTableReader.maxTimestampDescending);
         // read sorted sstables
-        for (SSTableReader sstable : view.sstables)
+        for (SSTableReader sstable : sstables)
         {
             // if we've already seen a partition tombstone with a timestamp greater
             // than the most recent update to this sstable, we're done, since the rest of the sstables

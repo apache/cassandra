@@ -29,11 +29,14 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -44,6 +47,7 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadableView;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -54,6 +58,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.internal.CollatedViewIndexBuilder;
 import org.apache.cassandra.index.transactions.IndexTransaction;
@@ -67,6 +72,8 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
+import org.apache.cassandra.utils.CloseablePeekingIterator;
 
 /**
  * Consisting of a top level Index interface and two sub-interfaces which handle read and write operations,
@@ -705,6 +712,73 @@ public interface Index
         default PartitionIterator filterReplicaFilteringProtection(PartitionIterator fullResponse)
         {
             return command().rowFilter().filter(fullResponse, command().metadata(), command().nowInSec());
+        }
+
+        default boolean isMultiStep()
+        {
+            return false;
+        }
+
+        default MultiStepSearcher<?> asMultiStep()
+        {
+            throw new IllegalStateException(getClass().getSimpleName() + " is not a multi-step searcher");
+        }
+    }
+
+    interface IndexMatch
+    {
+        DecoratedKey key();
+    }
+
+    /**
+     * Extended searcher capable of participating in tracked reads
+     */
+    interface MultiStepSearcher<Match extends IndexMatch> extends Searcher
+    {
+
+        PartialTrackedRead beginRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos);
+
+        CloseablePeekingIterator<Match> matchIterator(ReadExecutionController executionController);
+        MatchIndexer<Match> matchIndexer();
+
+        UnfilteredRowIterator queryNextMatches(ReadExecutionController executionController, DecoratedKey partitionKey, ReadableView view, PeekingIterator<Match> matches);
+
+        /**
+         * Since partition updates may not contain all the info the index query needs to know if it will create a hit
+         * it may return false positives. This filter is meant to catch and remove them from the augmented result
+         */
+        UnfilteredPartitionIterator filterCompletedRead(UnfilteredPartitionIterator iterator);
+
+        MatchComparator<Match> matchComparator();
+
+        @Override
+        default boolean isMultiStep()
+        {
+            return true;
+        }
+
+        @Override
+        default MultiStepSearcher<?> asMultiStep()
+        {
+            return this;
+        }
+
+        interface MatchIndexer<Match extends IndexMatch>
+        {
+            void index(PartitionUpdate update, Consumer<Match> indexTo);
+        }
+
+        interface MatchComparator<Match extends IndexMatch> extends Comparator<Match>
+        {
+            int compare(Match a, Match b, boolean strict);
+
+            @Override
+            default int compare(Match a, Match b)
+            {
+                return compare(a, b, true);
+            }
+
+            default void consumeDuplicates(Match original, PeekingIterator<Match> iterator) { }
         }
     }
 

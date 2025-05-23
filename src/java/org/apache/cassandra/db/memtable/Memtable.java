@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -204,7 +205,17 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      */
     long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
-    // Read operations are provided by the UnfilteredSource interface.
+    /**
+     * Creates a point-in-time snapshot of a partition in this memtable.
+     * <p>
+     * This method returns an immutable view of the partition as it exists at the time of the call.
+     * The snapshot is isolated from subsequent writes to the memtable and can be safely read
+     * concurrently with ongoing mutations.
+     *
+     * @param key the partition key to snapshot
+     * @return an immutable snapshot of the partition, or {@code null} if the partition does not exist
+     */
+    Partition snapshotPartition(DecoratedKey key);
 
     // Statistics
 

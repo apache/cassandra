@@ -21,18 +21,23 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.PeekingIterator;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadableView;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Rows;
@@ -43,17 +48,37 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.CassandraIndexSearcher;
 import org.apache.cassandra.index.internal.IndexEntry;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.CloseablePeekingIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 
-public class CompositesSearcher extends CassandraIndexSearcher
+public class CompositesSearcher extends CassandraIndexSearcher<IndexEntry>
 {
     public CompositesSearcher(ReadCommand command,
                               RowFilter.Expression expression,
                               CassandraIndex index)
     {
         super(command, expression, index);
+    }
+
+    @Override
+    public MatchIndexer<IndexEntry> matchIndexer()
+    {
+        return new AbstractMatchIndexer<IndexEntry>()
+        {
+            @Override
+            protected IndexEntry createMatch(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, LivenessInfo info)
+            {
+                return index.createIndexEntry(rowKey, clustering, cell, info);
+            }
+        };
+    }
+
+    @Override
+    public MatchComparator<IndexEntry> matchComparator()
+    {
+        return (left, right, strict) -> IndexEntry.compare(index.getIndexCfs().metadata(), command.metadata(), left, right);
     }
 
     private boolean isMatchingEntry(DecoratedKey partitionKey, IndexEntry entry, ReadCommand command)
@@ -66,145 +91,105 @@ public class CompositesSearcher extends CassandraIndexSearcher
         return index.getIndexedColumn().isStatic();
     }
 
-    protected UnfilteredPartitionIterator queryDataFromIndex(final DecoratedKey indexKey,
-                                                             final RowIterator indexHits,
-                                                             final ReadCommand command,
-                                                             final ReadExecutionController executionController)
+    @Override
+    public CloseablePeekingIterator<IndexEntry> matchIterator(ReadExecutionController executionController)
     {
-        assert indexHits.staticRow() == Rows.EMPTY_STATIC_ROW;
-
-        return new UnfilteredPartitionIterator()
+        RowIterator indexHits = queryIndex(indexedKey, executionController);
+        try
         {
-            private IndexEntry nextEntry;
-
-            private UnfilteredRowIterator next;
-
-            public TableMetadata metadata()
+            Preconditions.checkState(indexHits.staticRow() == Rows.EMPTY_STATIC_ROW);
+            return new AbstractIterator<IndexEntry>()
             {
-                return command.metadata();
-            }
-
-            public boolean hasNext()
-            {
-                return prepareNext();
-            }
-
-            public UnfilteredRowIterator next()
-            {
-                if (next == null)
-                    prepareNext();
-
-                UnfilteredRowIterator toReturn = next;
-                next = null;
-                return toReturn;
-            }
-
-            private boolean prepareNext()
-            {
-                while (true)
+                @Override
+                protected IndexEntry computeNext()
                 {
-                    if (next != null)
-                        return true;
-
-                    if (nextEntry == null)
+                    while (indexHits.hasNext())
                     {
-                        if (!indexHits.hasNext())
-                            return false;
-
-                        nextEntry = index.decodeEntry(indexKey, indexHits.next());
-                    }
-
-                    SinglePartitionReadCommand dataCmd;
-                    DecoratedKey partitionKey = index.baseCfs.decorateKey(nextEntry.indexedKey);
-                    List<IndexEntry> entries = new ArrayList<>();
-                    if (isStaticColumn())
-                    {
-                        // The index hit may not match the commad key constraint
-                        if (!isMatchingEntry(partitionKey, nextEntry, command)) {
-                            nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
-                            continue;
-                        }
-
-                        // If the index is on a static column, we just need to do a full read on the partition.
-                        // Note that we want to re-use the command.columnFilter() in case of future change.
-                        dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata(),
-                                                                    command.nowInSec(),
-                                                                    command.columnFilter(),
-                                                                    RowFilter.none(),
-                                                                    DataLimits.NONE,
-                                                                    partitionKey,
-                                                                    command.clusteringIndexFilter(partitionKey));
-                        entries.add(nextEntry);
-                        nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
-                    }
-                    else
-                    {
-                        // Gather all index hits belonging to the same partition and query the data for those hits.
-                        // TODO: it's much more efficient to do 1 read for all hits to the same partition than doing
-                        // 1 read per index hit. However, this basically mean materializing all hits for a partition
-                        // in memory so we should consider adding some paging mechanism. However, index hits should
-                        // be relatively small so it's much better than the previous code that was materializing all
-                        // *data* for a given partition.
-                        BTreeSet.Builder<Clustering<?>> clusterings = BTreeSet.builder(index.baseCfs.getComparator());
-                        while (nextEntry != null && partitionKey.getKey().equals(nextEntry.indexedKey))
-                        {
-                            // We're queried a slice of the index, but some hits may not match some of the clustering column constraints
-                            if (isMatchingEntry(partitionKey, nextEntry, command))
-                            {
-                                clusterings.add(nextEntry.indexedEntryClustering);
-                                entries.add(nextEntry);
-                            }
-
-                            nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
-                        }
-
-                        // Because we've eliminated entries that don't match the clustering columns, it's possible we added nothing
-                        if (clusterings.isEmpty())
+                        IndexEntry nextEntry = index.decodeEntry(indexedKey, indexHits.next());
+                        DecoratedKey partitionKey = nextEntry.indexedKey;
+                        if (!isMatchingEntry(partitionKey, nextEntry, command))
                             continue;
 
-                        // Query the gathered index hits. We still need to filter stale hits from the resulting query.
-                        ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
-                        dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata(),
-                                                                    command.nowInSec(),
-                                                                    command.columnFilter(),
-                                                                    command.rowFilter(),
-                                                                    DataLimits.NONE,
-                                                                    partitionKey,
-                                                                    filter,
-                                                                    (Index.QueryPlan) null);
+                        return nextEntry;
                     }
-
-                    // by the next caller of next, or through closing this iterator is this come before.
-                    UnfilteredRowIterator dataIter =
-                        filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs, executionController),
-                                           indexKey.getKey(),
-                                           entries,
-                                           executionController.getWriteContext(),
-                                           command.nowInSec());
-
-                    if (dataIter.isEmpty())
-                    {
-                        dataIter.close();
-                        continue;
-                    }
-
-                    next = dataIter;
-                    return true;
+                    return endOfData();
                 }
-            }
 
-            public void remove()
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            public void close()
-            {
+                @Override
+                public void close()
+                {
+                    if (indexHits != null)
+                        indexHits.close();
+                }
+            };
+        }
+        catch (Throwable e)
+        {
+            if (indexHits != null)
                 indexHits.close();
-                if (next != null)
-                    next.close();
+            throw e;
+        }
+    }
+
+    @Override
+    public UnfilteredRowIterator queryNextMatches(ReadExecutionController executionController, DecoratedKey partitionKey, ReadableView view, PeekingIterator<IndexEntry> matches)
+    {
+        Preconditions.checkArgument(matches.hasNext());
+        SinglePartitionReadCommand dataCmd;
+        List<IndexEntry> entries = new ArrayList<>();
+        if (isStaticColumn())
+        {
+
+            // If the index is on a static column, we just need to do a full read on the partition.
+            // Note that we want to re-use the command.columnFilter() in case of future change.
+            dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata(),
+                                                        command.nowInSec(),
+                                                        command.columnFilter(),
+                                                        RowFilter.none(),
+                                                        DataLimits.NONE,
+                                                        partitionKey,
+                                                        command.clusteringIndexFilter(partitionKey));
+            entries.add(matches.next());
+        }
+        else
+        {
+            // Gather all index hits belonging to the same partition and query the data for those hits.
+            // TODO: it's much more efficient to do 1 read for all hits to the same partition than doing
+            // 1 read per index hit. However, this basically mean materializing all hits for a partition
+            // in memory so we should consider adding some paging mechanism. However, index hits should
+            // be relatively small so it's much better than the previous code that was materializing all
+            // *data* for a given partition.
+            BTreeSet.Builder<Clustering<?>> clusterings = BTreeSet.builder(index.baseCfs.getComparator());
+            while (matches.hasNext() && partitionKey.equals(matches.peek().indexedKey))
+            {
+                // We're queried a slice of the index, and some hits may not match some of the clustering column constraints,
+                // but they will have been filtered out upstream
+                IndexEntry nextEntry = matches.next();
+                clusterings.add(nextEntry.indexedEntryClustering);
+                entries.add(nextEntry);
             }
-        };
+
+            // since non-matching entries will have been filtered out by matchIterator, it should not be possible to have empty clusterings
+            Preconditions.checkArgument(!clusterings.isEmpty());
+
+            // Query the gathered index hits. We still need to filter stale hits from the resulting query.
+            ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
+            dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata(),
+                                                        command.nowInSec(),
+                                                        command.columnFilter(),
+                                                        command.rowFilter(),
+                                                        DataLimits.NONE,
+                                                        partitionKey,
+                                                        filter,
+                                                        (Index.QueryPlan) null);
+        }
+
+        // by the next caller of next, or through closing this iterator is this come before.
+        return filterStaleEntries(dataCmd.queryMemtableAndDisk(view, index.baseCfs, executionController),
+                                  indexedKey.getKey(),
+                                  entries,
+                                  executionController.getWriteContext(),
+                                  command.nowInSec());
     }
 
     private void deleteAllEntries(final List<IndexEntry> entries, final WriteContext ctx, final long nowInSec)
@@ -297,8 +282,8 @@ public class CompositesSearcher extends CassandraIndexSearcher
                         // those tables do not support static columns. By consequence if a table
                         // has some static columns and all its clustering key elements are null
                         // it means that the partition exists and contains only static data
-                       if (!dataIter.metadata().hasStaticColumns() || !containsOnlyNullValues(indexedEntryClustering))
-                           staleEntries.add(entry);
+                        if (!dataIter.metadata().hasStaticColumns() || !containsOnlyNullValues(indexedEntryClustering))
+                            staleEntries.add(entry);
                     }
                     // entries correspond to the rows we've queried, so we shouldn't have a row that has no corresponding entry.
                     throw new AssertionError();

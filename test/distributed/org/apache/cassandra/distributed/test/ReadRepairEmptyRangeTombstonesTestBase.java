@@ -81,9 +81,12 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
         for (int coordinator = 1; coordinator <= NUM_NODES; coordinator++)
             for (boolean paging : BOOLEANS)
                 for (boolean reverse : BOOLEANS)
-                    for (ReplicationType replication : ReplicationType.fixmeValues())
-                        result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, paging, reverse, replication });
-        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false, ReplicationType.untracked });
+                    for (ReplicationType replication : ReplicationType.values())
+                    {
+                        ReadRepairStrategy rrStrategy = replication == ReplicationType.untracked ? ReadRepairStrategy.BLOCKING : ReadRepairStrategy.NONE;
+                        result.add(new Object[]{ rrStrategy, coordinator, paging, reverse, replication });
+                    }
+
         return result;
     }
 
@@ -170,6 +173,11 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
     @Test
     public void testRangeQueriesWithRowsOvetrlappingWithTombstoneRangeStart()
     {
+        // Read-repair covers only the queried range, while mutation tracking pulls all missing mutations.
+        Object[][] postRepairInternalRows = replicationType == ReplicationType.tracked
+                                            ? new Object[][] { row(1), row(2), row(3), row(4), row(5), row(6) }
+                                            : new Object[][] { row(1), row(2), row(3), row(4), row(5) };
+
         tester().createTable("CREATE TABLE %s(k int, c int, PRIMARY KEY (k, c)) " +
                              "WITH CLUSTERING ORDER BY (c %s) AND read_repair='%s'")
                 .mutate(1, "DELETE FROM %s USING TIMESTAMP 1 WHERE k=0 AND c>=3 AND c<=6")
@@ -185,7 +193,7 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
                 .assertRowsDistributed("SELECT c FROM %s WHERE k=0 AND c>=2 AND c<=5",
                                        1,
                                        row(2), row(3), row(4), row(5))
-                .assertRowsInternal("SELECT c FROM %s", row(1), row(2), row(3), row(4), row(5))
+                .assertRowsInternal("SELECT c FROM %s", postRepairInternalRows)
                 .mutate(2, "DELETE FROM %s WHERE k=0 AND c>=1 AND c<=6")
                 .assertRowsInternal("SELECT * FROM %s");
     }
@@ -196,6 +204,11 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
     @Test
     public void testRangeQueriesWithRowsOverlappingWithTombstoneRangeEnd()
     {
+        // Read-repair covers only the queried range, while mutation tracking pulls all missing mutations.
+        Object[][] postRepairInternalRows = replicationType == ReplicationType.tracked 
+                                            ? new Object[][] { row(1), row(2), row(3), row(4), row(5), row(6) } 
+                                            : new Object[][] { row(2), row(3), row(4), row(5), row(6) };
+
         tester().createTable("CREATE TABLE %s(k int, c int, PRIMARY KEY (k, c)) " +
                              "WITH CLUSTERING ORDER BY (c %s) AND read_repair='%s'")
                 .mutate(1, "DELETE FROM %s USING TIMESTAMP 1 WHERE k=0 AND c>=1 AND c<=4")
@@ -211,7 +224,7 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
                 .assertRowsDistributed("SELECT c FROM %s WHERE k=0 AND c>=3 AND c<=6",
                                        1,
                                        row(3), row(4), row(5), row(6))
-                .assertRowsInternal("SELECT c FROM %s", row(2), row(3), row(4), row(5), row(6))
+                .assertRowsInternal("SELECT c FROM %s", postRepairInternalRows)
                 .mutate(2, "DELETE FROM %s WHERE k=0 AND c>=1 AND c<=6")
                 .assertRowsInternal("SELECT * FROM %s");
     }
@@ -222,6 +235,15 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
     @Test
     public void testPointQueriesWithRowsContainedInTombstoneRange()
     {
+        // Read-repair covers only the queried range, while mutation tracking pulls all missing mutations.
+        Object[][] postRepairInternalRows = replicationType == ReplicationType.tracked 
+                                            ? new Object[][] { row(0, 0), row(0, 1), row(0, 2) }
+                                            : new Object[][] { row(0, 1), row(0, 2) };
+
+        @SuppressWarnings("ZeroLengthArrayAllocation") Object[][] postDeleteInternalRows = replicationType == ReplicationType.tracked 
+                                                                                           ? new Object[][] { row(0, 0) }
+                                                                                           : new Object[0][0];
+
         tester().createTable("CREATE TABLE %s(k int, c int, PRIMARY KEY (k, c)) " +
                              "WITH CLUSTERING ORDER BY (c %s) AND read_repair='%s'")
                 .mutate(1, "DELETE FROM %s USING TIMESTAMP 1 WHERE k=0 AND c>0 AND c<3")
@@ -231,9 +253,9 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
                 .assertRowsDistributed("SELECT * FROM %s WHERE k=0 AND c=1", 1, row(0, 1))
                 .assertRowsDistributed("SELECT * FROM %s WHERE k=0 AND c=2", 1, row(0, 2))
                 .assertRowsDistributed("SELECT * FROM %s WHERE k=0 AND c=3", 0)
-                .assertRowsInternal("SELECT * FROM %s", row(0, 1), row(0, 2))
+                .assertRowsInternal("SELECT * FROM %s", postRepairInternalRows)
                 .mutate(2, "DELETE FROM %s WHERE k=0 AND c>0 AND c<3")
-                .assertRowsInternal("SELECT * FROM %s");
+                .assertRowsInternal("SELECT * FROM %s", postDeleteInternalRows);
     }
 
     /**
@@ -275,7 +297,7 @@ public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImp
         {
             String formattedQuery = String.format(query, qualifiedTableName);
 
-            if (strategy == ReadRepairStrategy.NONE)
+            if (strategy == ReadRepairStrategy.NONE && replicationType == ReplicationType.untracked)
                 expectedRows = EMPTY_ROWS;
             else if (reverse)
                 expectedRows = reverse(expectedRows);

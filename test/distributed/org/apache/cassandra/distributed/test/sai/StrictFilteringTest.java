@@ -19,17 +19,25 @@
 package org.apache.cassandra.distributed.test.sai;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.schema.ReplicationType;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -43,14 +51,36 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  * 
  * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-19018">CASSANDRA-19018</a>
  */
+@RunWith(Parameterized.class)
 public class StrictFilteringTest extends TestBaseImpl
 {
     private static Cluster CLUSTER;
+
+    private static int keyspaceIdx;
+
+    @Parameterized.Parameter
+    public ReplicationType replicationType;
 
     @BeforeClass
     public static void setUpCluster() throws IOException
     {
         CLUSTER = init(Cluster.build(2).withConfig(config -> config.set("hinted_handoff_enabled", false).with(GOSSIP).with(NETWORK)).start());
+    }
+
+    @Parameterized.Parameters(name = "{index}: replication={0}")
+    public static Collection<Object[]> data()
+    {
+        List<Object[]> result = new ArrayList<>();
+        for (ReplicationType replication : ReplicationType.values())
+            result.add(new Object[]{replication});
+        return result;
+    }
+
+    @Before
+    public void setup()
+    {
+        KEYSPACE = "ks_" + keyspaceIdx++;
+        CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + CLUSTER.size() + "} AND replication_type='" + replicationType + "';");
     }
 
     @Test
@@ -261,7 +291,11 @@ public class StrictFilteringTest extends TestBaseImpl
         assertRows(initialRows, row(0, 4, 1));
 
         Long srpRequestsAfter = CLUSTER.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("necessary_short_read").metric.shortReadProtectionRequests.getCount());
-        assertEquals(srpRequestsBefore + 2L, srpRequestsAfter.longValue());
+
+        if (replicationType == ReplicationType.untracked)
+            assertEquals(srpRequestsBefore + 2L, srpRequestsAfter.longValue());
+        else if (replicationType == ReplicationType.tracked)
+            assertThat(srpRequestsAfter).isGreaterThanOrEqualTo(0L).isLessThanOrEqualTo(2L);
     }
 
     @Test

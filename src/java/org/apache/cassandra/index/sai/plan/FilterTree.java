@@ -78,7 +78,12 @@ public class FilterTree
 
     public boolean isSatisfiedBy(DecoratedKey key, Row row, Row staticRow)
     {
-        boolean result = localSatisfiedBy(key, row, staticRow);
+        return isSatisfiedBy(key, row, staticRow, context.hasUnrepairedMatches);
+    }
+
+    public boolean isSatisfiedBy(DecoratedKey key, Row row, Row staticRow, boolean hasUnrepairedMatches)
+    {
+        boolean result = localSatisfiedBy(key, row, staticRow, hasUnrepairedMatches);
 
         for (FilterTree child : children)
             result = baseOperator.apply(result, child.isSatisfiedBy(key, row, staticRow));
@@ -86,19 +91,19 @@ public class FilterTree
         return result;
     }
 
-    private boolean localSatisfiedBy(DecoratedKey key, Row row, Row staticRow)
+    private boolean localSatisfiedBy(DecoratedKey key, Row row, Row staticRow, boolean hasUnrepairedMatches)
     {
         if (row == null)
             return false;
 
         final long now = FBUtilities.nowInSeconds();
         // Downgrade AND to OR unless the coordinator indicates strict filtering is safe or all matches are repaired:
-        BooleanOperator localOperator = (isStrict || !context.hasUnrepairedMatches) ? baseOperator : BooleanOperator.OR;
+        BooleanOperator localOperator = (isStrict || !hasUnrepairedMatches) ? baseOperator : BooleanOperator.OR;
         boolean result = localOperator == BooleanOperator.AND;
 
         // If all matches on indexed columns are repaired, strict filtering is not allowed, and there are multiple
         // unindexed column expressions, isolate the expressions on unindexed columns and union their results:
-        boolean isolateUnindexed = !context.hasUnrepairedMatches && !isStrict && expressions.hasMultipleUnindexedColumns();
+        boolean isolateUnindexed = !hasUnrepairedMatches && !isStrict && expressions.hasMultipleUnindexedColumns();
         boolean unindexedResult = false;
 
         Iterator<ColumnMetadata> columnIterator = expressions.columns().iterator();

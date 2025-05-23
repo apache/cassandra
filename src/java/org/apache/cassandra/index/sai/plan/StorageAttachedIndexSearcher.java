@@ -27,9 +27,13 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.PeekingIterator;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.Clustering;
@@ -41,19 +45,25 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadableView;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
@@ -64,17 +74,26 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedIndexRead;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CloseablePeekingIterator;
 
-public class StorageAttachedIndexSearcher implements Index.Searcher
+public class StorageAttachedIndexSearcher implements Index.MultiStepSearcher<PrimaryKey>
 {
     private static final int PARTITION_ROW_BATCH_SIZE = 100;
 
+    private final ColumnFamilyStore cfs;
     private final ReadCommand command;
     private final QueryController queryController;
     private final QueryContext queryContext;
     private final TableQueryMetrics tableQueryMetrics;
+    private final int partitionRowBatchSize;
+    private final FilterTree filterTree;
+    private final FilterTree strictFilterTree;
+    private final PrimaryKey.Factory keyFactory;
+    private final boolean topK;
 
     private static final FastThreadLocal<List<PrimaryKey>> nextKeys = new FastThreadLocal<>()
     {
@@ -91,10 +110,24 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                                         RowFilter indexFilter,
                                         long executionQuotaMs)
     {
+        this.cfs = cfs;
         this.command = command;
         this.queryContext = new QueryContext(command, executionQuotaMs);
         this.queryController = new QueryController(cfs, command, indexFilter, queryContext);
         this.tableQueryMetrics = tableQueryMetrics;
+
+        // Use PER PARTITION LIMIT if it exists, otherwise use global LIMIT
+        int effectiveLimit = command.limits().perPartitionCount() != DataLimits.NO_LIMIT
+                             ? command.limits().perPartitionCount()
+                             : command.limits().count();
+        this.partitionRowBatchSize = Math.min(PARTITION_ROW_BATCH_SIZE, effectiveLimit);
+
+        boolean useStrictFiltering = queryController.usesStrictFiltering();
+        this.filterTree = Operation.buildFilter(queryController, useStrictFiltering);
+        this.strictFilterTree = useStrictFiltering ? this.filterTree : Operation.buildFilter(queryController, true);
+
+        this.keyFactory = queryController.primaryKeyFactory();
+        this.topK = command.isTopK();
     }
 
     @Override
@@ -113,34 +146,132 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         }
 
         // if no analyzer does transformation
-        return Index.Searcher.super.filterReplicaFilteringProtection(fullResponse);
+        return Index.MultiStepSearcher.super.filterReplicaFilteringProtection(fullResponse);
+    }
+
+    protected class ResultIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    {
+        private final CloseablePeekingIterator<PrimaryKey> matchIterator;
+        private final ReadExecutionController executionController;
+
+        public ResultIterator(CloseablePeekingIterator<PrimaryKey> matchIterator, ReadExecutionController executionController)
+        {
+            this.matchIterator = matchIterator;
+            this.executionController = executionController;
+        }
+
+        @Override
+        protected UnfilteredRowIterator computeNext()
+        {
+            while (matchIterator.hasNext())
+            {
+                DecoratedKey key = matchIterator.peek().partitionKey();
+                ReadableView view = cfs.select(View.select(SSTableSet.LIVE, key));
+                UnfilteredRowIterator partition = queryNextMatches(executionController, key, view, matchIterator);
+
+                if (partition == null)
+                    continue;
+
+                if (!partition.isEmpty())
+                    return partition;
+
+                partition.close();
+            }
+            return endOfData();
+        }
+
+        @Override
+        public TableMetadata metadata()
+        {
+            return command.metadata();
+        }
+
+        @Override
+        public void close()
+        {
+            matchIterator.close();
+        }
+    }
+
+    private ResultIterator searchInternal(ReadExecutionController executionController)
+    {
+        CloseablePeekingIterator<PrimaryKey> matchIterator = matchIterator(executionController);
+        try
+        {
+            return new ResultIterator(matchIterator, executionController);
+        }
+        catch (Throwable e)
+        {
+            matchIterator.close();
+            throw e;
+        }
     }
 
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
         if (!command.isTopK())
-            return new ResultRetriever(executionController, false);
-        else
         {
-            Supplier<ResultRetriever> resultSupplier = () -> new ResultRetriever(executionController, true);
+            return searchInternal(executionController);
+        }
 
-            // VSTODO performance: if there is shadowed primary keys, we have to at least query twice.
-            //  First time to find out there are shadow keys, second time to find out there are no more shadow keys.
-            while (true)
+        Supplier<ResultIterator> resultSupplier = () -> searchInternal(executionController);
+        // VSTODO performance: if there is shadowed primary keys, we have to at least query twice.
+        //  First time to find out there are shadow keys, second time to find out there are no more shadow keys.
+        while (true)
+        {
+            long lastShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
+            ResultIterator result = resultSupplier.get();
+            UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command).filter(result);
+
+            long currentShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
+            if (lastShadowedKeysCount == currentShadowedKeysCount)
+                return topK;
+        }
+    }
+
+    private class MatchIndexer implements Index.MultiStepSearcher.MatchIndexer<PrimaryKey>
+    {
+        private final PrimaryKey.Factory keyFactory;
+
+        public MatchIndexer()
+        {
+            this.keyFactory = queryController.primaryKeyFactory();
+        }
+
+        @Override
+        public void index(PartitionUpdate update, Consumer<PrimaryKey> indexTo)
+        {
+            DecoratedKey key = update.partitionKey();
+            Row staticRow = update.staticRow();
+            boolean hasClustering = cfs.getComparator().size() > 0;
+
+            if (!filterTree.restrictsNonStaticRow())
             {
-                long lastShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
-                ResultRetriever result = resultSupplier.get();
-                UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command).filter(result);
+                if (filterTree.isSatisfiedBy(key, staticRow, staticRow, true))
+                    indexTo.accept(keyFactory.create(key, Clustering.STATIC_CLUSTERING));
+            }
+            else
+            {
+                if (hasClustering && filterTree.isSatisfiedBy(key, staticRow, staticRow, true))
+                {
+                    indexTo.accept(keyFactory.create(key, Clustering.STATIC_CLUSTERING));
+                    return;
+                }
 
-                long currentShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
-                if (lastShadowedKeysCount == currentShadowedKeysCount)
-                    return topK;
+                for (Row row : update)
+                {
+                    if (filterTree.isSatisfiedBy(key, row, staticRow, true))
+                    {
+                        PrimaryKey primaryKey = hasClustering ? keyFactory.create(key, row.clustering()) : keyFactory.create(key);
+                        indexTo.accept(primaryKey);
+                    }
+                }
             }
         }
     }
 
-    private class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    private class MatchIterator extends AbstractIterator<PrimaryKey>
     {
         private final PrimaryKey firstPrimaryKey;
         private final PrimaryKey lastPrimaryKey;
@@ -149,162 +280,91 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private AbstractBounds<PartitionPosition> currentKeyRange;
 
         private final KeyRangeIterator resultKeyIterator;
-        private final FilterTree filterTree;
-        private final ReadExecutionController executionController;
-        private final PrimaryKey.Factory keyFactory;
-        private final boolean topK;
-        private final int partitionRowBatchSize;
 
         private PrimaryKey lastKey;
 
-        private ResultRetriever(ReadExecutionController executionController, boolean topK)
+        private MatchIterator()
         {
             this.keyRanges = queryController.dataRanges().iterator();
             this.firstDataRange = keyRanges.next();
             this.currentKeyRange = firstDataRange.keyRange();
             this.resultKeyIterator = Operation.buildIterator(queryController);
-            this.filterTree = Operation.buildFilter(queryController, queryController.usesStrictFiltering());
-            this.executionController = executionController;
-            this.keyFactory = queryController.primaryKeyFactory();
             this.firstPrimaryKey = queryController.firstPrimaryKeyInRange();
             this.lastPrimaryKey = queryController.lastPrimaryKeyInRange();
-            this.topK = topK;
-
-            // Ensure we don't fetch larger batches than the provided LIMIT to avoid fetching keys we won't use: 
-            this.partitionRowBatchSize = Math.min(PARTITION_ROW_BATCH_SIZE, command.limits().count());
         }
 
         @Override
-        public UnfilteredRowIterator computeNext()
+        public PrimaryKey computeNext()
         {
             if (resultKeyIterator == null)
-                return endOfData();
+                throw new IllegalStateException("Result key iterator should be non-null. (Query: '" + queryController.command().toCQLString() + "')");
 
-            // If being called for the first time, skip to the beginning of the range.
-            // We can't put this code in the constructor because it may throw and the caller
-            // may not be prepared for that.
-            if (lastKey == null)
+            while (true)
             {
-                PrimaryKey skipTarget = firstPrimaryKey;
-                ClusteringComparator comparator = command.metadata().comparator;
-
-                // If there are no clusterings, the first data range selects an entire partitions, or we have static
-                // expressions, don't bother trying to skip forward within the partition.
-                if (comparator.size() > 0 && !firstDataRange.selectsAllPartition() && !command.rowFilter().hasStaticExpression())
+                // If being called for the first time, skip to the beginning of the range.
+                // We can't put this code in the constructor because it may throw and the caller
+                // may not be prepared for that.
+                if (lastKey == null)
                 {
-                    // Only attempt to skip if the first data range covers a single partition.
-                    if (currentKeyRange.left.equals(currentKeyRange.right) && currentKeyRange.left instanceof DecoratedKey)
+                    PrimaryKey skipTarget = firstPrimaryKey;
+                    ClusteringComparator comparator = command.metadata().comparator;
+
+                    // If there are no clusterings, the first data range selects an entire partitions, or we have static
+                    // expressions, don't bother trying to skip forward within the partition.
+                    if (comparator.size() > 0 && !firstDataRange.selectsAllPartition() && !command.rowFilter().hasStaticExpression())
                     {
-                        DecoratedKey decoratedKey = (DecoratedKey) currentKeyRange.left;
-                        ClusteringIndexFilter filter = firstDataRange.clusteringIndexFilter(decoratedKey);
-
-                        if (filter instanceof ClusteringIndexSliceFilter)
+                        // Only attempt to skip if the first data range covers a single partition.
+                        if (currentKeyRange.left.equals(currentKeyRange.right) && currentKeyRange.left instanceof DecoratedKey)
                         {
-                            Slices slices = ((ClusteringIndexSliceFilter) filter).requestedSlices();
+                            DecoratedKey decoratedKey = (DecoratedKey) currentKeyRange.left;
+                            ClusteringIndexFilter filter = firstDataRange.clusteringIndexFilter(decoratedKey);
 
-                            if (!slices.isEmpty())
+                            if (filter instanceof ClusteringIndexSliceFilter)
                             {
-                                ClusteringBound<?> startBound = slices.get(0).start();
+                                Slices slices = ((ClusteringIndexSliceFilter) filter).requestedSlices();
 
-                                if (!startBound.isEmpty())
+                                if (!slices.isEmpty())
                                 {
-                                    ByteBuffer[] rawValues = startBound.getBufferArray();
+                                    ClusteringBound<?> startBound = slices.get(0).start();
 
-                                    if (rawValues.length == comparator.size())
-                                        skipTarget = keyFactory.create(decoratedKey, Clustering.make(rawValues));
+                                    if (!startBound.isEmpty())
+                                    {
+                                        ByteBuffer[] rawValues = startBound.getBufferArray();
+
+                                        if (rawValues.length == comparator.size())
+                                            skipTarget = keyFactory.create(decoratedKey, Clustering.make(rawValues));
+                                    }
+                                }
+                            }
+                            else if (filter instanceof ClusteringIndexNamesFilter)
+                            {
+                                ClusteringIndexNamesFilter namesFilter = (ClusteringIndexNamesFilter) filter;
+
+                                if (!namesFilter.requestedRows().isEmpty())
+                                {
+                                    Clustering<?> skipClustering = namesFilter.requestedRows().iterator().next();
+                                    skipTarget = keyFactory.create(decoratedKey, skipClustering);
                                 }
                             }
                         }
-                        else if (filter instanceof ClusteringIndexNamesFilter)
-                        {
-                            ClusteringIndexNamesFilter namesFilter = (ClusteringIndexNamesFilter) filter;
-
-                            if (!namesFilter.requestedRows().isEmpty())
-                            {
-                                Clustering<?> skipClustering = namesFilter.requestedRows().iterator().next();
-                                skipTarget = keyFactory.create(decoratedKey, skipClustering);
-                            }
-                        }
                     }
+
+                    resultKeyIterator.skipTo(skipTarget);
                 }
 
-                resultKeyIterator.skipTo(skipTarget);
+                PrimaryKey nextKey = nextKeyInRange();
+                if (nextKey == null)
+                    return endOfData();
+
+                if (queryController.doesNotSelect(nextKey) || nextKey.equals(lastKey, false))
+                    continue;
+
+                lastKey = nextKey;
+                return nextKey;
             }
-
-            // Theoretically we wouldn't need this if the caller of computeNext always ran the
-            // returned iterators to the completion. Unfortunately, we have no control over the caller behavior here.
-            // Hence, we skip to the next partition in order to comply to the unwritten partition iterator contract
-            // saying this iterator must not return the same partition twice.
-            skipToNextPartition();
-
-            UnfilteredRowIterator iterator = nextRowIterator(this::nextSelectedKeysInRange);
-            return iterator != null ? iteratePartition(iterator) : endOfData();
         }
 
-        /**
-         * Tries to obtain a row iterator for the supplied keys by repeatedly calling
-         * {@link ResultRetriever#queryStorageAndFilter} until it gives a non-null result.
-         * The keysSupplier should return the next batch of keys with every call to get()
-         * and null when there are no more keys to try.
-         *
-         * @return an iterator or null if all keys were tried with no success
-         */
-        private @Nullable UnfilteredRowIterator nextRowIterator(@Nonnull Supplier<List<PrimaryKey>> keysSupplier)
-        {
-            UnfilteredRowIterator iterator = null;
-            while (iterator == null)
-            {
-                List<PrimaryKey> keys = keysSupplier.get();
-                if (keys.isEmpty())
-                    return null;
-                iterator = queryStorageAndFilter(keys);
-            }
-            return iterator;
-        }
 
-        /**
-         * Retrieves the next batch of primary keys (i.e. up to {@link #partitionRowBatchSize} of them) that are
-         * contained by one of the query key ranges and selected by the {@link QueryController}. If the next key falls
-         * out of the current key range, it skips to the next key range, and so on. If no more keys accepted by
-         * the controller are available, and empty list is returned.
-         *
-         * @return a list of up to {@link #partitionRowBatchSize} primary keys
-         */
-        private List<PrimaryKey> nextSelectedKeysInRange()
-        {
-            List<PrimaryKey> threadLocalNextKeys = nextKeys.get();
-            threadLocalNextKeys.clear();
-            PrimaryKey firstKey;
-
-            do
-            {
-                firstKey = nextKeyInRange();
-
-                if (firstKey == null)
-                    return Collections.emptyList();
-            }
-            while (queryController.doesNotSelect(firstKey) || firstKey.equals(lastKey, false));
-
-            lastKey = firstKey;
-            threadLocalNextKeys.add(firstKey);
-            fillNextSelectedKeysInPartition(firstKey.partitionKey(), threadLocalNextKeys);
-            return threadLocalNextKeys;
-        }
-
-        /**
-         * Retrieves the next batch of primary keys (i.e. up to {@link #partitionRowBatchSize} of them) that belong to 
-         * the given partition and are selected by the query controller, advancing the underlying iterator only while
-         * the next key belongs to that partition.
-         *
-         * @return a list of up to {@link #partitionRowBatchSize} primary keys within the given partition
-         */
-        private List<PrimaryKey> nextSelectedKeysInPartition(DecoratedKey partitionKey)
-        {
-            List<PrimaryKey> threadLocalNextKeys = nextKeys.get();
-            threadLocalNextKeys.clear();
-            fillNextSelectedKeysInPartition(partitionKey, threadLocalNextKeys);
-            return threadLocalNextKeys;
-        }
 
         /**
          * Returns the next available key contained by one of the keyRanges.
@@ -332,25 +392,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 }
             }
             return key;
-        }
-
-        private void fillNextSelectedKeysInPartition(DecoratedKey partitionKey, List<PrimaryKey> nextPrimaryKeys)
-        {
-            while (resultKeyIterator.hasNext()
-                   && resultKeyIterator.peek().partitionKey().equals(partitionKey)
-                   && nextPrimaryKeys.size() < partitionRowBatchSize)
-            {
-                PrimaryKey key = nextKey();
-
-                if (key == null)
-                    break;
-
-                if (queryController.doesNotSelect(key) || key.equals(lastKey, false))
-                    continue;
-
-                nextPrimaryKeys.add(key);
-                lastKey = key;
-            }
         }
 
         /**
@@ -389,189 +430,178 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             resultKeyIterator.skipTo(keyFactory.create(token));
         }
 
-        /**
-         * Skips to the key that belongs to a different partition than the last key we fetched.
-         */
-        private void skipToNextPartition()
-        {
-            if (lastKey == null)
-                return;
-            DecoratedKey lastPartitionKey = lastKey.partitionKey();
-            while (resultKeyIterator.hasNext() && resultKeyIterator.peek().partitionKey().equals(lastPartitionKey))
-                resultKeyIterator.next();
-        }
-
-
-        /**
-         * Returns an iterator over the rows in the partition associated with the given iterator.
-         * Initially, it retrieves the rows from the given iterator until it runs out of data.
-         * Then it iterates the remaining primary keys obtained from the index in batches until the end of the 
-         * partition, lazily constructing an itertor for each batch. Only one row iterator is open at a time.
-         * <p>
-         * The rows are retrieved in the order of primary keys provided by the underlying index.
-         * The iterator is complete when the next key to be fetched belongs to different partition
-         * (but the iterator does not consume that key).
-         *
-         * @param startIter an iterator positioned at the first row in the partition that we want to return
-         */
-        private @Nonnull UnfilteredRowIterator iteratePartition(@Nonnull UnfilteredRowIterator startIter)
-        {
-            return new AbstractUnfilteredRowIterator(startIter.metadata(),
-                                                     startIter.partitionKey(),
-                                                     startIter.partitionLevelDeletion(),
-                                                     startIter.columns(),
-                                                     startIter.staticRow(),
-                                                     startIter.isReverseOrder(),
-                                                     startIter.stats())
-            {
-                private UnfilteredRowIterator currentIter = startIter;
-                private final DecoratedKey partitionKey = startIter.partitionKey();
-
-                @Override
-                protected Unfiltered computeNext()
-                {
-                    while (!currentIter.hasNext())
-                    {
-                        currentIter.close();
-                        currentIter = nextRowIterator(() -> nextSelectedKeysInPartition(partitionKey));
-                        if (currentIter == null)
-                            return endOfData();
-                    }
-                    return currentIter.next();
-                }
-
-                @Override
-                public void close()
-                {
-                    FileUtils.closeQuietly(currentIter);
-                    super.close();
-                }
-            };
-        }
-
-        private UnfilteredRowIterator queryStorageAndFilter(List<PrimaryKey> keys)
-        {
-            long startTimeNanos = Clock.Global.nanoTime();
-
-            try (UnfilteredRowIterator partition = queryController.queryStorage(keys, executionController))
-            {
-                queryContext.partitionsRead++;
-                queryContext.checkpoint();
-
-                UnfilteredRowIterator filtered = filterPartition(keys, partition, filterTree);
-
-                // Note that we record the duration of the read after post-filtering, which actually 
-                // materializes the rows from disk.
-                tableQueryMetrics.postFilteringReadLatency.update(Clock.Global.nanoTime() - startTimeNanos, TimeUnit.NANOSECONDS);
-
-                return filtered;
-            }
-        }
-
-        private UnfilteredRowIterator filterPartition(List<PrimaryKey> keys, UnfilteredRowIterator partition, FilterTree tree)
-        {
-            Row staticRow = partition.staticRow();
-            DecoratedKey partitionKey = partition.partitionKey();
-            List<Unfiltered> matches = new ArrayList<>();
-            boolean hasMatch = false;
-            Set<PrimaryKey> keysToShadow = topK ? new HashSet<>(keys) : Collections.emptySet();
-
-            while (partition.hasNext())
-            {
-                Unfiltered unfiltered = partition.next();
-
-                if (unfiltered.isRow())
-                {
-                    queryContext.rowsFiltered++;
-
-                    if (tree.isSatisfiedBy(partitionKey, (Row) unfiltered, staticRow))
-                    {
-                        matches.add(unfiltered);
-                        hasMatch = true;
-
-                        if (topK)
-                        {
-                            PrimaryKey shadowed = keyFactory.hasClusteringColumns()
-                                                  ? keyFactory.create(partitionKey, ((Row) unfiltered).clustering())
-                                                  : keyFactory.create(partitionKey);
-                            keysToShadow.remove(shadowed);
-                        }
-                    }
-                }
-            }
-
-            // If any non-static rows match the filter, there should be no need to shadow the static primary key:
-            if (topK && hasMatch && keyFactory.hasClusteringColumns())
-                keysToShadow.remove(keyFactory.create(partitionKey, Clustering.STATIC_CLUSTERING));
-
-            // We may not have any non-static row data to filter...
-            if (!hasMatch)
-            {
-                queryContext.rowsFiltered++;
-
-                if (tree.isSatisfiedBy(partitionKey, staticRow, staticRow))
-                {
-                    hasMatch = true;
-
-                    if (topK)
-                        keysToShadow.clear();
-                }
-            }
-
-            if (topK && !keysToShadow.isEmpty())
-            {
-                // Record primary keys shadowed by expired TTLs, row tombstones, or range tombstones:
-                queryContext.vectorContext().recordShadowedPrimaryKeys(keysToShadow);
-            }
-
-            if (!hasMatch)
-            {
-                // If there are no matches, return an empty partition. If reconciliation is required at the
-                // coordinator, replica filtering protection may make a second round trip to complete its view
-                // of the partition.
-                return null;
-            }
-
-            // Return all matches found, along with the static row... 
-            return new PartitionIterator(partition, staticRow, matches.iterator());
-        }
-
-        private class PartitionIterator extends AbstractUnfilteredRowIterator
-        {
-            private final Iterator<Unfiltered> rows;
-
-            public PartitionIterator(UnfilteredRowIterator partition, Row staticRow, Iterator<Unfiltered> rows)
-            {
-                super(partition.metadata(),
-                      partition.partitionKey(),
-                      partition.partitionLevelDeletion(),
-                      partition.columns(),
-                      staticRow,
-                      partition.isReverseOrder(),
-                      partition.stats());
-
-                this.rows = rows;
-            }
-
-            @Override
-            protected Unfiltered computeNext()
-            {
-                return rows.hasNext() ? rows.next() : endOfData();
-            }
-        }
-
-        @Override
-        public TableMetadata metadata()
-        {
-            return queryController.metadata();
-        }
-
         @Override
         public void close()
         {
             FileUtils.closeQuietly(resultKeyIterator);
             if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
         }
+    }
+
+    @Override
+    public CloseablePeekingIterator<PrimaryKey> matchIterator(ReadExecutionController executionController)
+    {
+        return new MatchIterator();
+    }
+
+    @Override
+    public MatchComparator<PrimaryKey> matchComparator()
+    {
+        return new MatchComparator<PrimaryKey>()
+        {
+            @Override
+            public int compare(PrimaryKey a, PrimaryKey b, boolean strict)
+            {
+                return a.compareTo(b, strict);
+            }
+
+            @Override
+            public void consumeDuplicates(PrimaryKey original, PeekingIterator<PrimaryKey> iterator)
+            {
+                while (original.kind() == PrimaryKey.Kind.STATIC && iterator.hasNext() && original.equals(iterator.peek(), false))
+                    iterator.next();
+            }
+        };
+    }
+
+    @Override
+    public Index.MultiStepSearcher.MatchIndexer<PrimaryKey> matchIndexer()
+    {
+        return new MatchIndexer();
+    }
+
+    @Override
+    public PartialTrackedRead beginRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
+    {
+        return PartialTrackedIndexRead.create(executionController, cfs, startTimeNanos, command, this);
+    }
+
+    private UnfilteredRowIterator queryStorageAndFilter(ReadableView view, ReadExecutionController executionController, List<PrimaryKey> keys)
+    {
+        long startTimeNanos = Clock.Global.nanoTime();
+
+        try (UnfilteredRowIterator partition = queryController.queryStorage(view, keys, executionController))
+        {
+            queryContext.partitionsRead++;
+            queryContext.checkpoint();
+
+            UnfilteredRowIterator filtered = filterPartition(keys, partition, filterTree);
+
+            // Note that we record the duration of the read after post-filtering, which actually
+            // materializes the rows from disk.
+            tableQueryMetrics.postFilteringReadLatency.update(Clock.Global.nanoTime() - startTimeNanos, TimeUnit.NANOSECONDS);
+
+            return filtered;
+        }
+    }
+
+    /**
+     * Returns an iterator over the rows in the partition associated with the given iterator.
+     * Initially, it retrieves the rows from the given iterator until it runs out of data.
+     * Then it iterates the remaining primary keys obtained from the index in batches until the end of the
+     * partition, lazily constructing an itertor for each batch. Only one row iterator is open at a time.
+     * <p>
+     * The rows are retrieved in the order of primary keys provided by the underlying index.
+     * The iterator is complete when the next key to be fetched belongs to different partition
+     * (but the iterator does not consume that key).
+     *
+     * @param startIter an iterator positioned at the first row in the partition that we want to return
+     */
+    private @Nonnull UnfilteredRowIterator iteratePartition(ReadExecutionController executionController, ReadableView view, PeekingIterator<PrimaryKey> matchIter, @Nonnull UnfilteredRowIterator startIter)
+    {
+        return new AbstractUnfilteredRowIterator(startIter.metadata(),
+                                                 startIter.partitionKey(),
+                                                 startIter.partitionLevelDeletion(),
+                                                 startIter.columns(),
+                                                 startIter.staticRow(),
+                                                 startIter.isReverseOrder(),
+                                                 startIter.stats())
+        {
+            private UnfilteredRowIterator currentIter = startIter;
+            private final DecoratedKey partitionKey = startIter.partitionKey();
+
+            @Override
+            protected Unfiltered computeNext()
+            {
+                while (!currentIter.hasNext())
+                {
+                    currentIter.close();
+                    currentIter = nextRowIterator(executionController, partitionKey, view, matchIter);
+                    if (currentIter == null)
+                        return endOfData();
+                }
+                return currentIter.next();
+            }
+
+            @Override
+            public void close()
+            {
+                // skip to the next partition key if the matchIterator hasn't been exhausted
+                while (matchIter.hasNext() && matchIter.peek().partitionKey().equals(partitionKey))
+                    matchIter.next();
+
+                FileUtils.closeQuietly(currentIter);
+                super.close();
+            }
+        };
+    }
+
+    private void fillNextSelectedKeysInPartition(DecoratedKey partitionKey, List<PrimaryKey> nextPrimaryKeys, PeekingIterator<PrimaryKey> resultKeyIterator)
+    {
+        while (resultKeyIterator.hasNext()
+               && resultKeyIterator.peek().partitionKey().equals(partitionKey)
+               && nextPrimaryKeys.size() < partitionRowBatchSize)
+        {
+            nextPrimaryKeys.add(resultKeyIterator.next());
+        }
+    }
+
+    /**
+     * Retrieves the next batch of primary keys (i.e. up to {@link #partitionRowBatchSize} of them) that belong to
+     * the given partition and are selected by the query controller, advancing the underlying iterator only while
+     * the next key belongs to that partition.
+     *
+     * @return a list of up to {@link #partitionRowBatchSize} primary keys within the given partition
+     */
+    private List<PrimaryKey> nextSelectedKeysInPartition(DecoratedKey partitionKey, PeekingIterator<PrimaryKey> matches)
+    {
+        List<PrimaryKey> threadLocalNextKeys = nextKeys.get();
+        threadLocalNextKeys.clear();
+        fillNextSelectedKeysInPartition(partitionKey, threadLocalNextKeys, matches);
+        return threadLocalNextKeys;
+    }
+
+    /**
+     * Tries to obtain a row iterator for the supplied keys by repeatedly calling
+     * {@link StorageAttachedIndexSearcher#queryStorageAndFilter} until it gives a non-null result.
+     * The keysSupplier should return the next batch of keys with every call to get()
+     * and null when there are no more keys to try.
+     *
+     * @return an iterator or null if all keys were tried with no success
+     */
+    private @Nullable UnfilteredRowIterator nextRowIterator(ReadExecutionController executionController, DecoratedKey partitionKey, ReadableView view, PeekingIterator<PrimaryKey> matches)
+    {
+        UnfilteredRowIterator iterator = null;
+        while (iterator == null)
+        {
+            List<PrimaryKey> keys = nextSelectedKeysInPartition(partitionKey, matches);
+            if (keys.isEmpty())
+                return null;
+            iterator = queryStorageAndFilter(view, executionController, keys);
+        }
+        return iterator;
+    }
+
+    @Override
+    public UnfilteredRowIterator queryNextMatches(ReadExecutionController executionController, DecoratedKey partitionKey, ReadableView view, PeekingIterator<PrimaryKey> matchIter)
+    {
+        Preconditions.checkArgument(matchIter.hasNext());
+        Preconditions.checkArgument(matchIter.peek().partitionKey().equals(partitionKey));
+
+        UnfilteredRowIterator iterator = nextRowIterator(executionController, partitionKey, view, matchIter);
+        if (iterator == null)
+            return null;
+        return iteratePartition(executionController, view, matchIter, iterator);
     }
 
     /**
@@ -682,6 +712,130 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                         return result;
                     }
                 };
+            }
+        };
+    }
+
+    @Override
+    public UnfilteredPartitionIterator filterCompletedRead(UnfilteredPartitionIterator iterator)
+    {
+        return Transformation.apply(iterator, new Transformation<UnfilteredRowIterator>()
+        {
+            DecoratedKey key = null;
+            Row staticRow = null;
+
+            @Override
+            protected DecoratedKey applyToPartitionKey(DecoratedKey key)
+            {
+                this.key = key;
+                return super.applyToPartitionKey(key);
+            }
+
+            @Override
+            protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+            {
+                this.staticRow = partition.staticRow();
+                if (!strictFilterTree.restrictsNonStaticRow())
+                    return strictFilterTree.isSatisfiedBy(partition.partitionKey(), staticRow, staticRow) ? partition : null;
+
+                return Transformation.apply(partition, this);
+            }
+
+            @Override
+            protected Row applyToRow(Row row)
+            {
+                queryContext.rowsFiltered++;
+
+                ClusteringIndexFilter clusteringFilter = command.clusteringIndexFilter(key);
+                if (!clusteringFilter.selects(row.clustering()))
+                    return null;
+
+                if (!strictFilterTree.isSatisfiedBy(key, row, staticRow))
+                    return null;
+                return super.applyToRow(row);
+            }
+        });
+    }
+
+    private UnfilteredRowIterator filterPartition(List<PrimaryKey> keys, UnfilteredRowIterator partition, FilterTree tree)
+    {
+        Row staticRow = partition.staticRow();
+        DecoratedKey partitionKey = partition.partitionKey();
+        List<Unfiltered> matches = new ArrayList<>();
+        boolean hasMatch = false;
+        Set<PrimaryKey> keysToShadow = topK ? new HashSet<>(keys) : Collections.emptySet();
+
+        while (partition.hasNext())
+        {
+            Unfiltered unfiltered = partition.next();
+
+            if (unfiltered.isRow())
+            {
+                queryContext.rowsFiltered++;
+
+                if (tree.isSatisfiedBy(partitionKey, (Row) unfiltered, staticRow))
+                {
+                    matches.add(unfiltered);
+                    hasMatch = true;
+
+                    if (topK)
+                    {
+                        PrimaryKey shadowed = keyFactory.hasClusteringColumns()
+                                              ? keyFactory.create(partitionKey, ((Row) unfiltered).clustering())
+                                              : keyFactory.create(partitionKey);
+                        keysToShadow.remove(shadowed);
+                    }
+                }
+            }
+        }
+
+        // If any non-static rows match the filter, there should be no need to shadow the static primary key:
+        if (topK && hasMatch && keyFactory.hasClusteringColumns())
+            keysToShadow.remove(keyFactory.create(partitionKey, Clustering.STATIC_CLUSTERING));
+
+        // We may not have any non-static row data to filter...
+        if (!hasMatch)
+        {
+            queryContext.rowsFiltered++;
+
+            if (tree.isSatisfiedBy(partitionKey, staticRow, staticRow))
+            {
+                hasMatch = true;
+
+                if (topK)
+                    keysToShadow.clear();
+            }
+        }
+
+        if (topK && !keysToShadow.isEmpty())
+        {
+            // Record primary keys shadowed by expired TTLs, row tombstones, or range tombstones:
+            queryContext.vectorContext().recordShadowedPrimaryKeys(keysToShadow);
+        }
+
+        if (!hasMatch)
+        {
+            // If there are no matches, return an empty partition. If reconciliation is required at the
+            // coordinator, replica filtering protection may make a second round trip to complete its view
+            // of the partition.
+            return null;
+        }
+
+        // Return all matches found, along with the static row...
+        return new AbstractUnfilteredRowIterator(partition.metadata(),
+                                                 partition.partitionKey(),
+                                                 partition.partitionLevelDeletion(),
+                                                 partition.columns(),
+                                                 staticRow,
+                                                 partition.isReverseOrder(),
+                                                 partition.stats())
+        {
+            private final Iterator<Unfiltered> rows = matches.iterator();
+
+            @Override
+            protected Unfiltered computeNext()
+            {
+                return rows.hasNext() ? rows.next() : endOfData();
             }
         };
     }

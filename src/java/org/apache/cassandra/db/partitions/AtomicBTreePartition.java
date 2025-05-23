@@ -46,7 +46,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * A thread-safe and atomic Partition implementation.
- *
+ * <p>
  * Operations (in particular addAll) on this implementation are atomic and
  * isolated (in the sense of ACID). Typically a addAll is guaranteed that no
  * other thread can see the state where only parts but not all rows have
@@ -77,7 +77,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
     /**
      * (clock + allocation) granularity are combined to give us an acceptable (waste) allocation rate that is defined by
      * the passage of real time of ALLOCATION_GRANULARITY_BYTES/CLOCK_GRANULARITY, or in this case 7.63KiB/ms, or 7.45Mb/s
-     *
+     * <p>
      * in wasteTracker we maintain within EXCESS_WASTE_OFFSET before the current time; whenever we waste bytes
      * we increment the current value if it is within this window, and set it to the min of the window plus our waste
      * otherwise.
@@ -99,6 +99,11 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         this.metadata = metadata;
         this.allocator = allocator;
         this.ref = BTreePartitionData.EMPTY;
+    }
+
+    public ImmutableBTreePartition asImmutable()
+    {
+        return new ImmutableBTreePartition(metadata(), partitionKey, holder(), true);
     }
 
     protected BTreePartitionData holder()

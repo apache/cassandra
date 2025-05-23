@@ -35,7 +35,6 @@ import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
-import static org.apache.cassandra.distributed.test.TestBaseImpl.KEYSPACE;
 
 /**
  * Extensible helper class for read repair tests.
@@ -45,7 +44,7 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
     private static final AtomicInteger seqNumber = new AtomicInteger();
 
     private final String keyspaceName = "ks_" + seqNumber.getAndIncrement();
-    private static final String tableName = "tbl";
+    static final String tableName = "tbl";
     final String qualifiedTableName = keyspaceName + '.' + tableName;
 
     protected final Cluster cluster;
@@ -116,7 +115,7 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
 
         // flush the update node to ensure reads come from sstables
         if (flush)
-            cluster.get(node).flush(KEYSPACE);
+            cluster.get(node).flush(keyspaceName);
 
         return self();
     }
