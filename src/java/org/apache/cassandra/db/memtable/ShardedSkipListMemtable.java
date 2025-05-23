@@ -261,7 +261,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         return iterator;
     }
 
-    private Partition getPartition(DecoratedKey key)
+    private AtomicBTreePartition getPartition(DecoratedKey key)
     {
         int shardIndex = boundaries.getShardForKey(key);
         return shards[shardIndex].partitions.get(key);
@@ -282,6 +282,13 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
     {
         Partition p = getPartition(key);
         return p != null ? p.unfilteredIterator() : null;
+    }
+
+    @Override
+    public Partition snapshotPartition(DecoratedKey partitionKey)
+    {
+        AtomicBTreePartition partition = getPartition(partitionKey);
+        return partition == null ? null : partition.asImmutable();
     }
 
     public FlushablePartitionSet<AtomicBTreePartition> getFlushSet(PartitionPosition from, PartitionPosition to)

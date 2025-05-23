@@ -21,8 +21,11 @@
 package org.apache.cassandra.index.internal;
 
 import java.nio.ByteBuffer;
+import java.util.Optional;
 import java.util.SortedSet;
+import java.util.function.Consumer;
 
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,9 +35,12 @@ import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadableView;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
@@ -43,23 +49,112 @@ import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.internal.composites.CollectionValueIndex;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedIndexRead;
+import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
+import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.CloseablePeekingIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
-public abstract class CassandraIndexSearcher implements Index.Searcher
+public abstract class CassandraIndexSearcher<Match extends Index.IndexMatch> implements Index.MultiStepSearcher<Match>
 {
+    protected abstract class AbstractMatchIndexer<M extends Index.IndexMatch> extends CassandraIndex.AbstractIndexer implements MatchIndexer<M>
+    {
+        protected DecoratedKey key;
+        protected Consumer<M> indexTo;
+
+        @Override
+        long nowInSec()
+        {
+            return command.nowInSec();
+        }
+
+        @Override
+        CassandraIndex index()
+        {
+            return index;
+        }
+
+        @Override
+        DecoratedKey key()
+        {
+            return key;
+        }
+
+        protected abstract M createMatch(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, LivenessInfo info);
+
+        @Override
+        void insert(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, LivenessInfo info)
+        {
+            indexTo.accept(createMatch(rowKey, clustering, cell, info));
+        }
+
+        @Override
+        void delete(DecoratedKey rowKey, Clustering<?> clustering, Cell<?> cell, long nowInSec)
+        {
+
+        }
+
+        @Override
+        void delete(DecoratedKey rowKey, Clustering<?> clustering, DeletionTime deletion)
+        {
+
+        }
+
+        @Override
+        public void insertRow(Row row)
+        {
+            if (!expression.isSatisfiedBy(command.metadata(), key, row, nowInSec()))
+                return;
+
+            if (!command.selectsClustering(key, row.clustering()))
+                return;
+
+            super.insertRow(row);
+        }
+
+        @Override
+        public void index(PartitionUpdate update, Consumer<M> indexTo)
+        {
+            this.key = update.partitionKey();
+            this.indexTo = indexTo;
+
+            try
+            {
+                Row staticRow = update.staticRow();
+                if (staticRow != Rows.EMPTY_STATIC_ROW)
+                    insertRow(staticRow);
+
+                update.forEach(this::insertRow);
+            }
+            finally
+            {
+                this.key = null;
+                this.indexTo = null;
+            }
+        }
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(CassandraIndexSearcher.class);
 
     private final RowFilter.Expression expression;
     protected final CassandraIndex index;
     protected final ReadCommand command;
+    protected final DecoratedKey indexedKey;
 
     public CassandraIndexSearcher(ReadCommand command,
                                   RowFilter.Expression expression,
@@ -68,6 +163,9 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
         this.command = command;
         this.expression = expression;
         this.index = index;
+        Optional<ColumnFamilyStore> backingTable = index.getBackingTable();
+        Preconditions.checkState(backingTable.isPresent());
+        this.indexedKey = backingTable.get().decorateKey(expression.getIndexValue());
     }
 
     @Override
@@ -76,19 +174,96 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
         return command;
     }
 
-    // of this method.
+    @Override
+    public PartialTrackedRead beginRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
+    {
+        return PartialTrackedIndexRead.create(executionController, cfs, startTimeNanos, command, this);
+    }
+
+    @Override
+    public UnfilteredPartitionIterator filterCompletedRead(UnfilteredPartitionIterator iterator)
+    {
+        return Transformation.apply(iterator, new Transformation<UnfilteredRowIterator>()
+        {
+            DecoratedKey key = null;
+            @Override
+            protected DecoratedKey applyToPartitionKey(DecoratedKey key)
+            {
+                this.key = key;
+                return super.applyToPartitionKey(key);
+            }
+
+            @Override
+            protected Row applyToRow(Row row)
+            {
+                if (!expression.isSatisfiedBy(command.metadata(), key, row, command.nowInSec()))
+                    return null;
+                return row;
+            }
+        });
+    }
+
+    protected RowIterator queryIndex(DecoratedKey indexKey, ReadExecutionController executionController)
+    {
+        UnfilteredRowIterator indexIter = queryIndex(indexKey, command, executionController);
+        return UnfilteredRowIterators.filter(indexIter, command.nowInSec());
+    }
+
+    protected class ResultIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    {
+        private final CloseablePeekingIterator<Match> matchIterator;
+        private final ReadExecutionController executionController;
+
+        public ResultIterator(CloseablePeekingIterator<Match> matchIterator, ReadExecutionController executionController)
+        {
+            this.matchIterator = matchIterator;
+            this.executionController = executionController;
+        }
+
+        @Override
+        protected UnfilteredRowIterator computeNext()
+        {
+            while (matchIterator.hasNext())
+            {
+                DecoratedKey key = matchIterator.peek().key();
+                ReadableView view = index.baseCfs.select(View.select(SSTableSet.LIVE, key));
+                UnfilteredRowIterator partition = queryNextMatches(executionController, key, view, matchIterator);
+
+                if (partition == null)
+                    continue;
+
+                if (!partition.isEmpty())
+                    return partition;
+
+                partition.close();
+            }
+            return endOfData();
+        }
+
+        @Override
+        public TableMetadata metadata()
+        {
+            return command.metadata();
+        }
+
+        @Override
+        public void close()
+        {
+            matchIterator.close();
+        }
+    }
+
+    @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController)
     {
-        // the value of the index expression is the partition key in the index table
-        DecoratedKey indexKey = index.getBackingTable().get().decorateKey(expression.getIndexValue());
-        UnfilteredRowIterator indexIter = queryIndex(indexKey, command, executionController);
+        CloseablePeekingIterator<Match> matchIterator = matchIterator(executionController);
         try
         {
-            return queryDataFromIndex(indexKey, UnfilteredRowIterators.filter(indexIter, command.nowInSec()), command, executionController);
+            return new ResultIterator(matchIterator, executionController);
         }
-        catch (RuntimeException | Error e)
+        catch (Throwable e)
         {
-            indexIter.close();
+            matchIterator.close();
             throw e;
         }
     }
@@ -217,9 +392,4 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
     {
         return index.buildIndexClusteringPrefix(rowKey, clustering, null).build();
     }
-
-    protected abstract UnfilteredPartitionIterator queryDataFromIndex(DecoratedKey indexKey,
-                                                                      RowIterator indexHits,
-                                                                      ReadCommand command,
-                                                                      ReadExecutionController executionController);
 }

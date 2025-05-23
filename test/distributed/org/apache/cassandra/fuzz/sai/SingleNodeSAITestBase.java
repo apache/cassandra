@@ -66,8 +66,6 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     private static final int COMPACTION_SKIP = 4435;
     private static final int DEFAULT_REPAIR_SKIP = 8869;
 
-    private static final int OPERATIONS_PER_RUN = 30_000;
-
     private static final int NUM_PARTITIONS = 64;
     private static final int NUM_VISITED_PARTITIONS = 16;
     protected static final int MAX_PARTITION_SIZE = 2000;
@@ -87,6 +85,11 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     protected int iterations()
     {
         return 5;
+    }
+
+    protected int operationsPerRun()
+    {
+        return 30_000;
     }
 
     @BeforeClass
@@ -112,6 +115,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
         cluster.startup();
         cluster = init(cluster);
     }
+
     @AfterClass
     public static void afterClass()
     {
@@ -121,13 +125,17 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     @Before
     public void beforeEach()
     {
-        cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-        cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf() + "};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf() + "} AND replication_type = '" + replicationType() + "';");
     }
 
     protected int rf()
     {
         return 1;
+    }
+
+    protected String replicationType()
+    {
+        return "untracked";
     }
 
     @Test
@@ -234,7 +242,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
                 if (IndexTermType.isEqOnlyType(schema.clusteringKeys.get(i).type.asServerType()))
                     eqOnlyClusteringColumns.add(i);
 
-            for (int i = 0; i < OPERATIONS_PER_RUN; i++)
+            for (int i = 0; i < operationsPerRun(); i++)
             {
                 int partitionIndex = pkGen.generate(rng);
                 HistoryBuilderHelper.insertRandomData(schema, partitionIndex, ckGen.generate(rng), rng, 0.5d, history);
@@ -306,8 +314,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
 
     protected Generator<SchemaSpec> schemaGenerator(boolean disableReadRepair)
     {
-        SchemaSpec.OptionsBuilder builder = SchemaSpec.optionsBuilder().disableReadRepair(disableReadRepair)
-                                                                       .compactionStrategy("LeveledCompactionStrategy");
+        SchemaSpec.OptionsBuilder builder = SchemaSpec.optionsBuilder().disableReadRepair(disableReadRepair).compactionStrategy("LeveledCompactionStrategy");
         return SchemaGenerators.schemaSpecGen(KEYSPACE, "basic_sai", MAX_PARTITION_SIZE, builder);
     }
 

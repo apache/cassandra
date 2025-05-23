@@ -97,6 +97,7 @@ import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.db.streaming.CassandraStreamManager;
 import org.apache.cassandra.db.view.TableViews;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -3002,7 +3003,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return compactionStrategyManager.getLevelFanoutSize();
     }
 
-    public static class ViewFragment
+    public static class ViewFragment implements ReadableView
     {
         public final List<SSTableReader> sstables;
         public final Iterable<Memtable> memtables;
@@ -3011,6 +3012,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             this.sstables = sstables;
             this.memtables = memtables;
+        }
+
+        @Override
+        public Iterable<? extends UnfilteredSource> memtables()
+        {
+            return memtables;
+        }
+
+        @Override
+        public List<SSTableReader> sstables()
+        {
+            return sstables;
         }
     }
 

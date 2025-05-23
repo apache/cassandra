@@ -94,7 +94,7 @@ public class ClusteringColumnIndex extends CassandraIndex
         return new IndexEntry(indexedValue,
                               clustering,
                               indexEntry.primaryKeyLivenessInfo().timestamp(),
-                              clustering.bufferAt(0),
+                              baseCfs.decorateKey(clustering.bufferAt(0)),
                               builder.build());
     }
 
