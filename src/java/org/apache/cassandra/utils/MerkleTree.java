@@ -40,7 +40,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
@@ -987,7 +986,7 @@ public class MerkleTree
             Object attachment = MemoryUtil.getAttachment(buffer);
             if (attachment instanceof Ref.DirectBufferRef)
                 ((Ref.DirectBufferRef) attachment).release();
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
         }
 
         abstract int hashBytesOffset();

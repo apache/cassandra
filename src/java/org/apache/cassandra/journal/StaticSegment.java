@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * An immutable data segment that is no longer written to.
@@ -207,7 +208,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         @Override
         void onUnreferenced()
         {
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
             FileUtils.closeQuietly(channel);
             index.close();
             if (discard)
@@ -335,7 +336,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         public void close()
         {
             FileUtils.closeQuietly(channel);
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
         }
 
         public abstract boolean advance();

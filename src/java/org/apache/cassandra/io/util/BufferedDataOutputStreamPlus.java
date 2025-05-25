@@ -323,7 +323,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
 
         doFlush(0);
         channel.close();
-        FileUtils.clean(buffer);
+        MemoryUtil.clean(buffer);
         buffer = null;
     }
 

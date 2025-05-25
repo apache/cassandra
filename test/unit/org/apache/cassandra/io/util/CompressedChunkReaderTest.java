@@ -27,6 +27,7 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.assertj.core.api.Assertions;
 
 import org.junit.Assert;
@@ -107,7 +108,7 @@ public class CompressedChunkReaderTest
         }
         finally
         {
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
         }}
 
     private static Gen<SequentialWriterOption> options()

@@ -45,11 +45,11 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.hamcrest.Matchers;
 
 import static org.junit.Assert.assertEquals;
@@ -99,7 +99,7 @@ public class HintsReaderTest
                     session.append(Hint.create(m, timestamp));
                 }
             }
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
         }
 
         Assert.assertThat(descriptor.hintsFileSize(directory), Matchers.greaterThan(0L));

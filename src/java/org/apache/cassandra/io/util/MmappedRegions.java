@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static java.util.stream.Stream.of;
 import static org.apache.cassandra.utils.Throwables.perform;
@@ -400,7 +401,7 @@ public class MmappedRegions extends SharedCloseableImpl
                                 () ->
                                 {
                                     if (buffer != null)
-                                        FileUtils.clean(buffer);
+                                        MemoryUtil.clean(buffer);
                                 }));
         }
     }

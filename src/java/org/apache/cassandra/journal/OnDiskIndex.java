@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Crc;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.journal.Journal.validateCRC;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -97,7 +98,7 @@ final class OnDiskIndex<K> extends Index<K>
         }
         catch (Throwable e)
         {
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
             FileUtils.closeQuietly(channel);
             throw new JournalReadError(descriptor, file, e);
         }
@@ -117,7 +118,7 @@ final class OnDiskIndex<K> extends Index<K>
     {
         try
         {
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
             buffer = null;
             channel.close();
         }

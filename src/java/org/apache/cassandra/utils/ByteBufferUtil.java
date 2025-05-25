@@ -58,7 +58,7 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * Utility methods to make ByteBuffers less painful
@@ -904,7 +904,7 @@ public class ByteBufferUtil
         {
             if (!allowBufferResize)
                 throw new IllegalStateException(String.format("output buffer is not large enough for data: current capacity %d, required %d", buf.capacity(), outputLength));
-            FileUtils.clean(buf);
+            MemoryUtil.clean(buf);
             buf = bufferType.allocate(outputLength);
         }
         else

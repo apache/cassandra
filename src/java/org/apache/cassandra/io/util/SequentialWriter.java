@@ -27,6 +27,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.Transactional;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -77,7 +78,10 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
             if (buffer != null)
             {
-                try { FileUtils.clean(buffer); }
+                try
+                {
+                    MemoryUtil.clean(buffer);
+                }
                 catch (Throwable t) { accumulate = merge(accumulate, t); }
                 buffer = null;
             }

@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import com.sun.jna.Native;
 
 import sun.misc.Unsafe;
+import sun.nio.ch.DirectBuffer;
 
 public abstract class MemoryUtil
 {
@@ -321,5 +322,17 @@ public abstract class MemoryUtil
     public static void getBytes(long sourceAddress, ByteBuffer targetBuffer, int length)
     {
         getBytes(sourceAddress, targetBuffer, 0, length);
+    }
+
+    public static void clean(ByteBuffer buffer)
+    {
+        if (buffer == null || !buffer.isDirect())
+            return;
+
+        DirectBuffer db = (DirectBuffer) buffer;
+        if (db.attachment() != null)
+            return; // duplicate or slice
+
+        unsafe.invokeCleaner(buffer);
     }
 }

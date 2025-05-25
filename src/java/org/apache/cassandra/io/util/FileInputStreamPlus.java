@@ -24,6 +24,8 @@ import java.nio.channels.FileChannel;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 
+import org.apache.cassandra.utils.memory.MemoryUtil;
+
 public class FileInputStreamPlus extends RebufferingInputStream
 {
     final FileChannel channel;
@@ -76,7 +78,7 @@ public class FileInputStreamPlus extends RebufferingInputStream
         {
             try
             {
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
             }
             finally
             {

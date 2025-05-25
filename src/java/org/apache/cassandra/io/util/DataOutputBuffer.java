@@ -29,6 +29,7 @@ import com.google.common.base.Preconditions;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_BUFFER_ALLOCATE_TYPE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DOB_DOUBLING_THRESHOLD_MB;
@@ -183,7 +184,8 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     protected void setBuffer(ByteBuffer newBuffer)
     {
-        FileUtils.clean(buffer); // free if direct
+        // free if direct
+        MemoryUtil.clean(buffer);
         buffer = newBuffer;
     }
 

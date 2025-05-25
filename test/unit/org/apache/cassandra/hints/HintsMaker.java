@@ -44,11 +44,11 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 public class HintsMaker
 {
@@ -202,7 +202,7 @@ public class HintsMaker
             }
             finally
             {
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
             }
         }
 

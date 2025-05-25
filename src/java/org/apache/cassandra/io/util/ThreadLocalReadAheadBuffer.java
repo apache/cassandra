@@ -25,6 +25,7 @@ import java.util.Map;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 public final class ThreadLocalReadAheadBuffer
 {
@@ -144,7 +145,7 @@ public final class ThreadLocalReadAheadBuffer
         blockBuffer.clear();
         if (deallocate)
         {
-            FileUtils.clean(blockBuffer);
+            MemoryUtil.clean(blockBuffer);
             block.buffer = null;
         }
     }
