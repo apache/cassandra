@@ -30,11 +30,15 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
+import org.apache.cassandra.metrics.AutoRepairMetricsV2;
+import org.apache.cassandra.repair.AutoRepairConfig;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.repair.AutoRepairConfig.RepairType.bootstrap;
+import static org.junit.Assert.assertEquals;
 
 public class AutoRepairBootstrapRepairE2ETestHelper extends TestBaseImpl
 {
@@ -88,6 +92,18 @@ public class AutoRepairBootstrapRepairE2ETestHelper extends TestBaseImpl
             {
                 newInstance.logs().watchFor("Bootstrap repair either not enabled or failed");
             }
+            newInstance.runOnInstance(
+            () -> {
+                assertEquals(1, AutoRepairMetricsManager.getMetrics(AutoRepairConfig.RepairType.bootstrap).bootstrapRepairStarted.getCount());
+                if (bootstrapRepairEnabled)
+                {
+                    assertEquals(1, AutoRepairMetricsManager.getMetrics(bootstrap).bootstrapRepairSucceded.getCount());
+                }
+                else
+                {
+                    assertEquals(1, AutoRepairMetricsManager.getMetrics(bootstrap).bootstrapRepairDisabledOrFailed.getCount());
+                }
+            });
         }
     }
 

@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44843] Bootstrap repair additional metrics to track its status
  * [SO-44843] Make the bootstrap repair abort interval configurable
  * [SO-44932] Block unqualified queries for strict MV consistency enabled tables
  * [SO-28795] Implement dynamic rate-limiter in Paxos v2 path

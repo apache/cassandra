@@ -98,6 +98,7 @@ import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.metrics.GetEndpointsForAllTokenRangesMetrics;
 import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
@@ -7816,12 +7817,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             try
             {
+                AutoRepairMetricsManager.getMetrics(RepairType.bootstrap).bootstrapRepairStarted.inc();
                 if (AutoRepairUtilsV2.runBootstrapRepair())
                 {
+                    AutoRepairMetricsManager.getMetrics(RepairType.bootstrap).bootstrapRepairSucceded.inc();
                     logger.info("Bootstrap repair during node replacement succeeded");
                 }
                 else
                 {
+                    AutoRepairMetricsManager.getMetrics(RepairType.bootstrap).bootstrapRepairDisabledOrFailed.inc();
                     logger.info("Bootstrap repair either not enabled or failed");
                 }
             }

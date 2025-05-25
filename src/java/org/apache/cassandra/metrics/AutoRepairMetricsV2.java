@@ -50,6 +50,9 @@ public class AutoRepairMetricsV2
     public Counter ineligibleForRepairDueToNodeOrder;
     public Counter ineligibleForRepairDueToDCLimits;
     public Counter bootstrapRepairAborted;
+    public Counter bootstrapRepairStarted;
+    public Counter bootstrapRepairSucceded;
+    public Counter bootstrapRepairDisabledOrFailed;
 
     public AutoRepairMetricsV2(RepairType repairType)
     {
@@ -132,6 +135,9 @@ public class AutoRepairMetricsV2
         });
 
         bootstrapRepairAborted = Metrics.counter(factory.createMetricName("BootstrapRepairAborted"));
+        bootstrapRepairStarted = Metrics.counter(factory.createMetricName("BootstrapRepairStarted"));
+        bootstrapRepairSucceded = Metrics.counter(factory.createMetricName("BootstrapRepairSucceded"));
+        bootstrapRepairDisabledOrFailed = Metrics.counter(factory.createMetricName("BootstrapRepairDisabledOrFailed"));
     }
 
     public void recordTurn(AutoRepairUtilsV2.RepairTurn turn)
