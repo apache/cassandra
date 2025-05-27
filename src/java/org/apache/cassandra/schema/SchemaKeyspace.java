@@ -501,7 +501,7 @@ public final class SchemaKeyspace
                                               .add("id", table.id.asUUID())
                                               .add("flags", TableMetadata.Flag.toStringSet(table.flags));
 
-        addTableParamsToRowBuilder(table.params, rowBuilder);
+        addTableParamsToRowBuilder(table.params, rowBuilder, false);
 
         if (withColumnsAndTriggers)
         {
@@ -519,7 +519,7 @@ public final class SchemaKeyspace
         }
     }
 
-    private static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder)
+    private static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder, boolean isView)
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
@@ -548,6 +548,9 @@ public final class SchemaKeyspace
         // in mixed operation with pre-4.1 versioned node during upgrades.
         if (params.memtable != MemtableParams.DEFAULT)
             builder.add("memtable", params.memtable.configurationKey());
+
+        if (DatabaseDescriptor.getMaterializedViewStrictConsistencyEnabled() && !isView)
+            builder.add("strict_mv_consistency", params.strictMVConsistency);
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -714,7 +717,7 @@ public final class SchemaKeyspace
                                               .add("where_clause", view.whereClause.toCQLString())
                                               .add("id", table.id.asUUID());
 
-        addTableParamsToRowBuilder(table.params, rowBuilder);
+        addTableParamsToRowBuilder(table.params, rowBuilder, true);
 
         if (includeColumns)
         {
@@ -962,6 +965,7 @@ public final class SchemaKeyspace
                                                      SpeculativeRetryPolicy.fromString("99PERCENTILE"))
                           .cdc(row.has("cdc") && row.getBoolean("cdc"))
                           .readRepair(getReadRepairStrategy(row))
+                          .strictMVConsistency(row.has("strict_mv_consistency") && row.getBoolean("strict_mv_consistency"))
                           .build();
     }
 

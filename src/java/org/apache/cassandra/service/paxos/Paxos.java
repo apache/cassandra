@@ -1113,7 +1113,7 @@ public class Paxos
         }
     }
 
-    private static void getCurrentAndApplyMVMutations(SinglePartitionReadCommand query,
+    public static void getCurrentAndApplyMVMutations(SinglePartitionReadCommand query,
                                                       PartitionUpdate update,
                                                       PaxosPrepare.FoundIncompleteAccepted inProgress,
                                                       ConsistencyLevel consistencyForConsensus,

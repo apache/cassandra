@@ -37,9 +37,18 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.service.paxos.PaxosPropose;
 
@@ -47,13 +56,15 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNetworkTopology;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class StrictMVConsistencyTest extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(StrictMVConsistencyTest.class);
-    String baseTableName = "base_tbl";
-    String MVName = "mv";
+    static String baseTableName = "base_tbl";
+    static String MVName = "mv";
 
     @Test
     public void happyPathTest() throws Throwable
@@ -199,6 +210,122 @@ public class StrictMVConsistencyTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void paxosRepairAlwaysBringMVInConsistentWithBaseTableTest() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withTokenSupplier(evenlyDistributedTokens(3, 1))
+                                        .withNodeIdTopology(singleDcNetworkTopology(3, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK).set("materialized_views_enabled", "true")
+                                                                    .set("materialized_view_strict_consistency_enabled", "true")
+                                                                    .set("paxos_variant", "v2"))
+                                        .withInstanceInitializer(BBPaxosCommitExecuteHandler::install)
+                                        .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'NetworkTopologyStrategy', 'dc0': 3}"));
+            cluster.schemaChange(String.format("CREATE TABLE %s.%s (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH strict_mv_consistency = true;", KEYSPACE, baseTableName));
+            cluster.schemaChange(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT * FROM %s.%s WHERE pk IS NOT NULL AND ck IS NOT NULL " +
+                                               "AND v IS NOT NULL PRIMARY KEY (v, ck,pk)", KEYSPACE, MVName, KEYSPACE, baseTableName));
+
+
+            // verify block prepare so that prepare will fail and both MV and base table get 0 row
+            IMessageFilters.Filter filter = cluster.filters().verbs(Verb.PAXOS2_PREPARE_REQ.id).from(1).to(2, 3).drop();
+            populateRandomData(cluster, 5, 0, 0, true);
+            verifyBaseTableAndMVInSync(cluster, 0);
+            // resume message, run paxos repair, verify we still get 0 row
+            filter.off();
+            runPaxosRepairInCluster(cluster);
+            verifyBaseTableAndMVInSync(cluster, 0);
+            // verify there is no uncommitted data ie nothing to be repaired
+            assertClusterNoUncommitted(cluster);
+            // verify block propose so that propose will fail and both MV and base table get 0 row
+            filter = cluster.filters().verbs(Verb.PAXOS2_PROPOSE_REQ.id).from(1).to(2, 3).drop();
+            populateRandomData(cluster, 5, 0, 0, true);
+            verifyBaseTableAndMVInSync(cluster, 0);
+            // resume message, run paxos repair, verify we still get same rows
+            filter.off();
+            runPaxosRepairInCluster(cluster);
+            int rowCount = verifyBaseTableAndMVInSync(cluster, -1);
+            // verify there is no uncommitted data ie nothing to be repaired
+            assertClusterNoUncommitted(cluster);
+            // drop mutation request to node 2 and node 3 so the MV apply will not get quorum
+            // This will cause base table and MV mismatch because MV may have the change but base table has not
+            // committed the update yet.
+            filter = cluster.filters().verbs(Verb.MUTATION_REQ.id).from(1).to(2, 3).drop();
+            populateRandomData(cluster, 5, 10, 0, true);
+            Set<RowData> baseTableResultSet = getTableData("SELECT * FROM " + KEYSPACE + "." + baseTableName, cluster);
+            Set<RowData> MVResultSet = getTableData("SELECT * FROM " + KEYSPACE + "." + MVName, cluster);
+            assertEquals(rowCount, baseTableResultSet.size());
+            assertTrue(MVResultSet.size() > rowCount);
+            filter.off();
+            // verify run paxos repair will bring MV and base table in sync
+            runPaxosRepairInCluster(cluster);
+            rowCount = verifyBaseTableAndMVInSync(cluster, -1);
+            // verify there is no uncommitted data ie nothing to be repaired
+            assertClusterNoUncommitted(cluster);
+            // disable commit message execution on all nodes
+            // This will cause base table and MV mismatch because MV may have the change but base table has not
+            // committed the update yet.
+            for (int i = 1; i <= 3; i++)
+            {
+                cluster.get(i).runOnInstance(
+                () -> {
+                    BBPaxosCommitExecuteHandler.disableHandlingCommit.set(true);
+                }
+                );
+            }
+            populateRandomData(cluster, 5, 20, 0, true);
+            baseTableResultSet = getTableData("SELECT * FROM " + KEYSPACE + "." + baseTableName, cluster);
+            MVResultSet = getTableData("SELECT * FROM " + KEYSPACE + "." + MVName, cluster);
+            assertEquals(rowCount, baseTableResultSet.size());
+            assertTrue(MVResultSet.size() > rowCount);
+            // resume commit message, run repair MV and base table get back in sync
+            for (int i = 1; i <= 3; i++)
+            {
+                cluster.get(i).runOnInstance(
+                () -> {
+                    BBPaxosCommitExecuteHandler.disableHandlingCommit.set(false);
+                }
+                );
+            }
+            // verify run paxos repair will bring MV and base table in sync
+            runPaxosRepairInCluster(cluster);
+            verifyBaseTableAndMVInSync(cluster, -1);
+            // verify there is no uncommitted data ie nothing to be repaired
+            assertClusterNoUncommitted(cluster);
+        }
+    }
+
+    private void assertClusterNoUncommitted(Cluster cluster)
+    {
+        for (int i = 1; i <= 3; i++)
+            PaxosRepair2Test.assertUncommitted(cluster.get(i), KEYSPACE, baseTableName, 0);
+    }
+
+    private void runPaxosRepairInCluster(Cluster cluster)
+    {
+        // run paxos repari on all three nodes
+        for (int i = 1; i <= 3; i++)
+        {
+            cluster.get(i).runOnInstance(
+            () -> {
+                try
+                {
+                    TableId tableid = Schema.instance.getTableMetadata(KEYSPACE, baseTableName).id;
+                    StorageService.instance.autoRepairPaxos(tableid).get();
+                    return;
+                }
+                catch (Exception e)
+                {
+                    e.printStackTrace();
+
+                }
+                fail("Paxos repair failed");
+            }
+            );
+        }
+    }
+
     private void populateRandomData(Cluster cluster, int rowCount, int pkFrom, int ckFrom, boolean expectExceptions)
     {
         populateRandomData(cluster, rowCount, pkFrom, ckFrom, expectExceptions, false);
@@ -257,7 +384,7 @@ public class StrictMVConsistencyTest extends TestBaseImpl
 
     }
 
-    private void verifyBaseTableAndMVInSync(Cluster cluster, int expectedRows)
+    private int verifyBaseTableAndMVInSync(Cluster cluster, int expectedRows)
     {
         Set<RowData> baseTableResultSet = getTableData("SELECT * FROM " + KEYSPACE + "." + baseTableName, cluster);
         Set<RowData> MVResultSet = getTableData("SELECT * FROM " + KEYSPACE + "." + MVName, cluster);
@@ -265,7 +392,7 @@ public class StrictMVConsistencyTest extends TestBaseImpl
         if (expectedRows >= 0)
             Assert.assertEquals(expectedRows, baseTableResultSet.size());
         Assert.assertEquals(baseTableResultSet, MVResultSet);
-
+        return baseTableResultSet.size();
     }
 
     private Set<RowData> getTableData(String query, Cluster cluster)
@@ -324,6 +451,29 @@ public class StrictMVConsistencyTest extends TestBaseImpl
                 return;
             }
             zuper.call();
+        }
+    }
+
+    public static class BBPaxosCommitExecuteHandler
+    {
+        public static final AtomicBoolean disableHandlingCommit = new AtomicBoolean();
+        public static void install(ClassLoader cl, Integer i)
+        {
+            new ByteBuddy().rebase(PaxosCommit.RequestHandler.class)
+                           .method(named("execute"))
+                           .intercept(MethodDelegation.to(StrictMVConsistencyTest.BBPaxosCommitExecuteHandler.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static NoPayload execute(Commit.Agreed agreed, InetAddressAndPort from, @SuperCall Callable<NoPayload> zuper) throws Exception
+        {
+            if (disableHandlingCommit.get())
+            {
+                logger.info("Paxos commit handling is disabled");
+                return null;
+            }
+            return zuper.call();
         }
     }
 

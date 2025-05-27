@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -55,6 +56,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.util.Collections.emptyMap;
@@ -350,10 +352,11 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     }
 
     @SuppressWarnings("SameParameterValue")
-    static <T extends Consumer<Status>> T prepareWithBallot(Ballot ballot, Participants participants, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean acceptEarlyReadPermission, T onDone)
+    static <T extends Consumer<Status>> T prepareWithBallot(Ballot ballot, Participants participants, DecoratedKey partitionKey, TableMetadata table, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission, T onDone)
     {
         Tracing.trace("Preparing {}", ballot);
-        prepareWithBallotInternal(participants, new Request(ballot, participants.electorate, partitionKey, table, isWrite), acceptEarlyReadPermission, onDone);
+        Request request = readCommand == null ? new Request(ballot, participants.electorate, partitionKey, table, isWrite) : new Request(ballot, participants.electorate, readCommand, isWrite);
+        prepareWithBallotInternal(participants, request, acceptEarlyReadPermission, onDone);
         return onDone;
     }
 

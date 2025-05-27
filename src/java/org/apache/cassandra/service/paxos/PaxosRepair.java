@@ -38,6 +38,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -58,6 +59,7 @@ import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -249,7 +251,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                         : PaxosCommit.commit(latestCommitted, participants, paxosConsistency, commitConsistency(), true,
                                              new CommittingRepair());
             }
-            else if (isAcceptedButNotCommitted && !isPromisedButNotAccepted && !reproposalMayBeRejected)
+            else if (isAcceptedButNotCommitted && !isPromisedButNotAccepted && !reproposalMayBeRejected && !table.strictMVEnabled())
             {
                 if (logger.isTraceEnabled())
                     logger.trace("PaxosRepair of {} completing {}", partitionKey(), latestAccepted);
@@ -262,8 +264,11 @@ public class PaxosRepair extends AbstractPaxosRepair
                 // to avoid a livelock we simply try to poison, knowing we will fail but use a new ballot
                 // (note there are alternative approaches but this is conservative)
 
+                // for strict MV consistency enabled table, we cannot apply mutation directly, need to re-prepare and propose
+                // so we use the PoisonProposals in the next block
+
                 return PaxosPropose.propose(latestAccepted, participants, false,
-                        new ProposingRepair(latestAccepted));
+                        new ProposingRepair(latestAccepted, null));
             }
             else if (isAcceptedButNotCommitted || isPromisedButNotAccepted || latestWitnessed.compareTo(latestPreviouslyWitnessed) < 0)
             {
@@ -274,8 +279,14 @@ public class PaxosRepair extends AbstractPaxosRepair
                 // Since this operation is not urgent, and we can piggy-back on other paxos operations
                 if (logger.isTraceEnabled())
                     logger.trace("PaxosRepair of {} found incomplete promise or proposal; preparing stale ballot {}", partitionKey(), Ballot.toString(ballot));
+                SinglePartitionReadCommand readCommand = null;
+                if (isAcceptedButNotCommitted && table.strictMVEnabled() && !latestAccepted.update.isEmpty())
+                {
+                    assert latestAccepted.update.rowCount() == 1 : "latest accepted with multiple rows: " + latestAccepted.update.rowCount();
+                    readCommand = SinglePartitionReadCommand.create(table, FBUtilities.nowInSeconds(), latestAccepted.update.partitionKey(), latestAccepted.update.lastRow().clustering());
+                }
 
-                return prepareWithBallot(ballot, participants, partitionKey(), table, false, false,
+                return prepareWithBallot(ballot, participants, partitionKey(), table, readCommand, false, false,
                         new PoisonProposals());
             }
             else
@@ -322,7 +333,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                     Proposal propose = new Proposal(incomplete.ballot, incomplete.accepted.update);
                     logger.trace("PaxosRepair of {} found incomplete {}", partitionKey(), incomplete.accepted);
                     return PaxosPropose.propose(propose, participants, false,
-                            new ProposingRepair(propose)); // we don't know if we're done, so we must restart
+                            new ProposingRepair(propose, incomplete)); // we don't know if we're done, so we must restart
                 }
 
                 case FOUND_INCOMPLETE_COMMITTED:
@@ -340,7 +351,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                     logger.trace("PaxosRepair of {} submitting empty proposal", partitionKey());
                     Proposal proposal = Proposal.empty(input.success().ballot, partitionKey(), table);
                     return PaxosPropose.propose(proposal, participants, false,
-                            new ProposingRepair(proposal));
+                            new ProposingRepair(proposal, null));
                 }
 
                 default:
@@ -352,9 +363,11 @@ public class PaxosRepair extends AbstractPaxosRepair
     private class ProposingRepair extends ConsumerState<PaxosPropose.Status>
     {
         final Proposal proposal;
-        private ProposingRepair(Proposal proposal)
+        final FoundIncompleteAccepted incompleteAccepted;
+        private ProposingRepair(Proposal proposal, FoundIncompleteAccepted incompleteAccepted)
         {
             this.proposal = proposal;
+            this.incompleteAccepted = incompleteAccepted;
         }
 
         @Override
@@ -375,6 +388,15 @@ public class PaxosRepair extends AbstractPaxosRepair
                     {
                         logger.trace("PaxosRepair of {} complete after successful empty proposal", partitionKey());
                         return DONE;
+                    }
+
+                    if (proposal.update.metadata().strictMVEnabled())
+                    {
+                        // apply MV muatation before commit
+                        assert incompleteAccepted != null && !incompleteAccepted.responses.isEmpty();
+                        Paxos.getCurrentAndApplyMVMutations(
+                        SinglePartitionReadCommand.create(table, FBUtilities.nowInSeconds(), proposal.update.partitionKey(), proposal.update.lastRow().clustering()),
+                        proposal.update, incompleteAccepted, paxosConsistency, Dispatcher.RequestTime.forImmediateExecution());
                     }
 
                     logger.trace("PaxosRepair of {} committing successful proposal {}", partitionKey(), proposal);
