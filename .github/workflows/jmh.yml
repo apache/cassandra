@@ -1,0 +1,24 @@
+name: Cassandra JMH
+on:
+  push:
+    branches:
+      - trunk
+
+jobs:
+  benchmark:
+    name: jmh:tries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'adopt'
+          java-version: '11'
+      - name: Install tools
+        run: |
+          sudo apt install ant
+      - name: Run benchmark
+        run: |
+          # This is where actions/setup-java puts it
+          export JAVA_HOME=/opt/hostedtoolcache/Java_Adopt_jdk/11.0.27-6/x64
+          ant microbench -Dbenchmark.name=tries
