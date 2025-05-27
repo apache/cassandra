@@ -495,14 +495,20 @@ public class Controller
         {
             try
             {
-                targetSSTableSize = FBUtilities.parseHumanReadableBytes(s);
-                if (targetSSTableSize < MIN_TARGET_SSTABLE_SIZE)
+                double targetSize = FBUtilities.parseHumanReadable(s, null, "B");
+                if (targetSize >= Long.MAX_VALUE) {
+                    throw new ConfigurationException(String.format("%s %s is out of range of Long.",
+                                                                    TARGET_SSTABLE_SIZE_OPTION,
+                                                                    s));
+                }
+                if (targetSize < MIN_TARGET_SSTABLE_SIZE)
                 {
                     throw new ConfigurationException(String.format("%s %s is not acceptable, size must be at least %s",
                                                                    TARGET_SSTABLE_SIZE_OPTION,
                                                                    s,
                                                                    FBUtilities.prettyPrintMemory(MIN_TARGET_SSTABLE_SIZE)));
                 }
+                targetSSTableSize = (long) Math.ceil(targetSize);
             }
             catch (NumberFormatException e)
             {
@@ -603,12 +609,12 @@ public class Controller
                 if (sizeInBytes < 0)
                     throw new ConfigurationException(String.format("Invalid configuration, %s should be greater than or equal to 0 (zero)",
                                                                    MIN_SSTABLE_SIZE_OPTION));
-                int limit = (int) Math.ceil(targetSSTableSize * INVERSE_SQRT_2);
+                long limit = (long) Math.ceil(targetSSTableSize * INVERSE_SQRT_2);
                 if (sizeInBytes >= limit)
-                    throw new ConfigurationException(String.format("Invalid configuration, %s (%s) should be less than the target size minimum: %s",
+                    throw new ConfigurationException(String.format("Invalid configuration, %s (%s) should be less than 70%% of the targetSSTableSize (%s)",
                                                                    MIN_SSTABLE_SIZE_OPTION,
                                                                    FBUtilities.prettyPrintMemory(sizeInBytes),
-                                                                   FBUtilities.prettyPrintMemory(limit)));
+                                                                   FBUtilities.prettyPrintMemory(targetSSTableSize)));
             }
             catch (NumberFormatException e)
             {

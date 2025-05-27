@@ -1,4 +1,5 @@
 5.0.5
+ * Unified Compaction does not properly validate min and target sizes (CASSANDRA-20398)
  * Avoid lambda usage in TrieMemoryIndex range queries and ensure queue size tracking is per column (CASSANDRA-20668)
  * Avoid CQLSH throwing an exception loading .cqlshrc on non-supported platforms (CASSANDRA-20478)
  * Relax validation of snapshot name as a part of SSTable files path validation (CASSANDRA-20649)

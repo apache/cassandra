@@ -119,6 +119,64 @@ public class ControllerTest
         testValidateOptions(true);
     }
 
+    public void targetSSTableSizeValidator(String inputSize) 
+    {
+        Map<String, String> options = new HashMap<>();
+        options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, inputSize);
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException when target_sstable_size is greater than Long.MAX_VALUE")
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessageContaining(format("target_sstable_size %s is out of range of Long.", inputSize));
+    }
+
+    @Test
+    public void testCassandra20398Values()
+    {
+        //TARGET_SSTABLE_SIZE_OPTION = 12E899, the value reported in CASSANDRA-20398
+        String inputSize = "12E899 B";
+        targetSSTableSizeValidator(inputSize); 
+    }
+
+    @Test
+    public void testValidateOptionsTargetSSTableSizeGTLongMax()
+    {
+        //TARGET_SSTABLE_SIZE_OPTION > LONG.MAX_VALUE 
+        // the inputSize is Long.MAX_VALUE + 100
+        String inputSize = "9223372036854775907 B"; 
+        targetSSTableSizeValidator(inputSize); 
+    }
+
+    @Test
+    public void testValidateOptionsTargetSSTableSizeLTMinTargetSize()
+    {
+        // TARGET_SSTABLE_SIZE_OPTION < Default MIN_TARGET_SSTABLE_SIZE (1048576) 
+        Map<String, String> options = new HashMap<>();
+        String inputSize = "1048000 B";
+        options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, inputSize);
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException when target_sstable_size is less than default MIN_TARGET_SSTABLE_SIZE")
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessageContaining(format("target_sstable_size %s is not acceptable, size must be at least %s", inputSize, FBUtilities.prettyPrintMemory(Controller.MIN_TARGET_SSTABLE_SIZE)));
+    }
+
+    @Test
+    public void testValidateOptionsTargetSSTableSizeGTIntMax()
+    {
+        //TEST 4: Verifying if TARGET_SSTABLE_SIZE_OPTION (3650722199) < MIN_TARGET_SSTABLE_SIZE (2581450423)
+        // Previously, TARGET_SSTABLE_SIZE_OPTION * 0.7 was stored as Integer which would 3650722199 * 0.7 = 2147483647
+        // By storing it in a Long, 3650722199 * 0.7 = 2581450424. If TARGET_SSTABLE_SIZE_OPTION * 0.7 is truncated, 
+        //this test case will fail
+        try
+        {
+            Map<String, String> options = new HashMap<>();
+            options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, "3650722199 B");
+            options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, "2581450423 B");
+            Controller.validateOptions(options);
+        } catch(ConfigurationException e) {
+            fail("3650722199 * 0.7 got truncated. " + e.getMessage());
+        }
+    }
+
     void testValidateOptions(boolean useIntegers)
     {
         Map<String, String> options = new HashMap<>();
@@ -577,7 +635,7 @@ public class ControllerTest
         assertThatExceptionOfType(ConfigurationException.class)
         .describedAs("Should have thrown a ConfigurationException when min_sstable_size is greater than target_sstable_size")
         .isThrownBy(() -> Controller.validateOptions(options))
-        .withMessageContaining(format("less than the target size minimum: %s", FBUtilities.prettyPrintMemory(limit)));
+        .withMessageContaining(format("Invalid configuration, %s (%s) should be less than 70%% of the targetSSTableSize (%s)", Controller.MIN_SSTABLE_SIZE_OPTION,  FBUtilities.prettyPrintMemory(limit+1), FBUtilities.prettyPrintMemory(Controller.DEFAULT_TARGET_SSTABLE_SIZE)));
 
         // test min < configured target table size * INV_SQRT_2
         limit = (int) Math.ceil(Controller.MIN_TARGET_SSTABLE_SIZE * 2 * Controller.INVERSE_SQRT_2);
@@ -587,6 +645,6 @@ public class ControllerTest
         assertThatExceptionOfType(ConfigurationException.class)
         .describedAs("Should have thrown a ConfigurationException when min_sstable_size is greater than target_sstable_size")
         .isThrownBy(() -> Controller.validateOptions(options))
-        .withMessageContaining(format("less than the target size minimum: %s", FBUtilities.prettyPrintMemory(limit)));
+        .withMessageContaining(format("Invalid configuration, %s (%s) should be less than 70%% of the targetSSTableSize (%s)", Controller.MIN_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(limit + 1), FBUtilities.prettyPrintMemory(Controller.MIN_TARGET_SSTABLE_SIZE * 2)));
     }
 }
