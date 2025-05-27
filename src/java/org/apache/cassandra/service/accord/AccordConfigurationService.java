@@ -500,6 +500,9 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     public void reportEpochRetired(Ranges ranges, long epoch)
     {
+        if (epochs.wasTruncated(epoch))
+            return;
+
         checkStarted();
         // TODO (expected): ensure we aren't fetching a truncated epoch; otherwise this should be non-null
         Topology topology = getTopologyForEpoch(epoch);
