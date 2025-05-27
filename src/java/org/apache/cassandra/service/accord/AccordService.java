@@ -397,6 +397,7 @@ public class AccordService implements IAccordService, Shutdownable
             }
 
             WatermarkCollector.fetchAndReportWatermarksAsync(configService());
+            configService.unsafeMarkTruncated();
 
             int attempt = 0;
             int waitSeconds = 5;
