@@ -37,6 +37,7 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.UncheckedInterruptedException;
 import org.agrona.collections.LongHashSet;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -84,7 +85,6 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MergeIterator;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
-import static org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory.none;
 
 public class AccordJournalTable<K extends JournalKey, V> implements RangeSearcher.Supplier
 {
@@ -157,7 +157,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     {
         if (index == null) return;
         Index tableIndex = cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME);
-        RetryStrategy retry = RetryStrategy.parse("100ms", none());
+        RetryStrategy retry = DatabaseDescriptor.getAccord().retry_journal_index_ready.retry();
         for (int i = 0; !cfs.indexManager.isIndexQueryable(tableIndex); i++)
         {
             logger.debug("Journal index {} is not ready wait... waiting", AccordKeyspace.JOURNAL_INDEX_NAME);
