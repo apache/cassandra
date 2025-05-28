@@ -60,7 +60,6 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -94,6 +93,7 @@ import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
@@ -841,7 +841,7 @@ public class ScrubTest
                                          .setMetadataCollector(collector)
                                          .setSerializationHeader(header)
                                          .addDefaultComponents(Collections.emptySet())
-                                         .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
+                                         .setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets.NONE)
                                          .build(txn, cfs);
 
         return new TestMultiWriter(writer, txn);

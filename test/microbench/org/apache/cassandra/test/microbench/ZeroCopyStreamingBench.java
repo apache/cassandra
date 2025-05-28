@@ -35,7 +35,7 @@ import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
+
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -53,6 +53,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -149,7 +150,7 @@ public class ZeroCopyStreamingBench
             blockStreamReader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                                peer, session.planId(), false,
                                                                                                0, 0, 0,
-                                                                                               null, CoordinatorLogBoundaries.NONE), entireSSTableStreamHeader, session);
+                                                                                               null, ImmutableCoordinatorLogOffsets.NONE), entireSSTableStreamHeader, session);
 
             List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.getFirst().minValue().getToken(), sstable.getLast().getToken()));
             CassandraStreamHeader partialSSTableStreamHeader =
@@ -171,7 +172,7 @@ public class ZeroCopyStreamingBench
             partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                     peer, session.planId(), false,
                                                                                     0, 0, 0,
-                                                                                    null, CoordinatorLogBoundaries.NONE),
+                                                                                    null, ImmutableCoordinatorLogOffsets.NONE),
                                                             partialSSTableStreamHeader, session);
         }
 

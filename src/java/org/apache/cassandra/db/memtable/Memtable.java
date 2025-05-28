@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -324,8 +324,8 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
         /** Statistics required for writing an sstable efficiently */
         EncodingStats encodingStats();
 
-        /** The boundaries in coordinator logs for all included tracked mutations */
-        CoordinatorLogBoundaries coordinatorLogBoundaries();
+        /** The offsets in coordinator logs for all included tracked mutations */
+        ImmutableCoordinatorLogOffsets coordinatorLogOffsets();
 
         default TableMetadata metadata()
         {

@@ -29,7 +29,6 @@ import java.util.Set;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +50,7 @@ import org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -560,7 +560,7 @@ public abstract class AbstractCompactionStrategy
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
-                                                       CoordinatorLogBoundaries coordinatorLogBoundaries,
+                                                       ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
@@ -572,7 +572,7 @@ public abstract class AbstractCompactionStrategy
                                                repairedAt,
                                                pendingRepair,
                                                isTransient,
-                                               coordinatorLogBoundaries,
+                                               coordinatorLogOffsets,
                                                cfs.metadata,
                                                commitLogPositions,
                                                sstableLevel,

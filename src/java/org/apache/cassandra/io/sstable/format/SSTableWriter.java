@@ -25,15 +25,20 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,7 +80,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected long repairedAt;
     protected TimeUUID pendingRepair;
     protected boolean isTransient;
-    protected CoordinatorLogBoundaries coordinatorLogBoundaries;
+    protected ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
     protected long maxDataAge = -1;
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
@@ -99,13 +104,13 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         checkNotNull(builder.getIndexGroups());
         checkNotNull(builder.getMetadataCollector());
         checkNotNull(builder.getSerializationHeader());
-        checkNotNull(builder.getCoordinatorLogBoundaries());
+        checkNotNull(builder.getCoordinatorLogOffsets());
 
         this.keyCount = builder.getKeyCount();
         this.repairedAt = builder.getRepairedAt();
         this.pendingRepair = builder.getPendingRepair();
         this.isTransient = builder.isTransientSSTable();
-        this.coordinatorLogBoundaries = builder.getCoordinatorLogBoundaries();
+        this.coordinatorLogOffsets = builder.getCoordinatorLogOffsets();
         this.metadataCollector = builder.getMetadataCollector();
         this.header = builder.getSerializationHeader();
         this.mmappedRegionsCache = builder.getMmappedRegionsCache();
@@ -333,12 +338,24 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
+        // Migration from incremental repair to mutation tracking will be supported, but support for mixing
+        // incremental repair and mutation tracking is not planned
+        if (metadata().replicationType().isTracked() && repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
+        {
+            Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
+            if (MutationTrackingService.instance.isDurablyReconciled(getKeyspaceName(), coordinatorLogOffsets))
+            {
+                repairedAt = Clock.Global.currentTimeMillis();
+                logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
+            }
+        }
+
         return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
                                                   pendingRepair,
                                                   isTransient,
-                                                  coordinatorLogBoundaries,
+                                                  coordinatorLogOffsets,
                                                   header,
                                                   first.retainable().getKey(),
                                                   last.retainable().getKey());
@@ -443,7 +460,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         private boolean transientSSTable;
         private SerializationHeader serializationHeader;
         private List<Index.Group> indexGroups;
-        private CoordinatorLogBoundaries coordinatorLogBoundaries;
+        private ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
 
         public B setMetadataCollector(MetadataCollector metadataCollector)
         {
@@ -469,9 +486,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return (B) this;
         }
 
-        public B setCoordinatorLogBoundaries(CoordinatorLogBoundaries coordinatorLogBoundaries)
+        public B setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets coordinatorLogOffsets)
         {
-            this.coordinatorLogBoundaries = coordinatorLogBoundaries;
+            this.coordinatorLogOffsets = coordinatorLogOffsets;
             return (B) this;
         }
 
@@ -553,9 +570,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return transientSSTable;
         }
 
-        public CoordinatorLogBoundaries getCoordinatorLogBoundaries()
+        public ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets()
         {
-            return coordinatorLogBoundaries;
+            return coordinatorLogOffsets;
         }
 
         public SerializationHeader getSerializationHeader()
