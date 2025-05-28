@@ -134,6 +134,7 @@ public class CompactionTask extends AbstractCompactionTask
         {
 
             final Set<SSTableReader> fullyExpiredSSTables = controller.getFullyExpiredSSTables();
+            fullyExpiredSSTables.forEach(transaction::obsolete);
 
             TimeUUID taskId = transaction.opId();
             // select SSTables to compact based on available disk space.
