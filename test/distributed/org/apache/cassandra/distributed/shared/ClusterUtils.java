@@ -188,6 +188,24 @@ public class ClusterUtils
     }
 
     /**
+     * Restart an instance in a blocking manner.
+     * <p>
+     * This method stops the instance using {@link #stopUnchecked(IInstance)} and then
+     * restarts it using {@link IInstance#startup()}. The method blocks until the
+     * instance has been completely restarted.
+     *
+     * @param instance the instance to restart
+     */
+    public static void restartUnchecked(IInstance instance)
+    {
+        logger.info("Stopping instance {} to restart it", instance);
+        stopUnchecked(instance);
+        logger.info("Instance {} stopped, trying to start it now", instance);
+        instance.startup();
+        logger.info("Instance {} startup was success", instance);
+    }
+
+    /**
      * Create a new instance and add it to the cluster, without starting it.
      *
      * @param cluster to add to
@@ -1302,11 +1320,7 @@ public class ClusterUtils
      */
     public static File getCommitLogDirectory(IInstance instance)
     {
-        IInstanceConfig conf = instance.config();
-        // this isn't safe as it assumes the implementation of InstanceConfig
-        // might need to get smarter... some day...
-        String d = (String) conf.get("commitlog_directory");
-        return new File(d);
+        return getDirecotry(instance, "commitlog_directory");
     }
 
     /**
@@ -1317,11 +1331,7 @@ public class ClusterUtils
      */
     public static File getHintsDirectory(IInstance instance)
     {
-        IInstanceConfig conf = instance.config();
-        // this isn't safe as it assumes the implementation of InstanceConfig
-        // might need to get smarter... some day...
-        String d = (String) conf.get("hints_directory");
-        return new File(d);
+        return getDirecotry(instance, "hints_directory");
     }
 
     /**
@@ -1332,10 +1342,32 @@ public class ClusterUtils
      */
     public static File getSavedCachesDirectory(IInstance instance)
     {
+        return getDirecotry(instance, "saved_caches_directory");
+    }
+
+    /**
+     * Get the journal directory for the given instance.
+     * This directory is used by the Accord consensus protocol to store its journal files.
+     *
+     * @param instance to get the journal directory for
+     * @return journal directory
+     */
+    public static File getJournalDirectory(IInstance instance)
+    {
+        return getDirecotry(instance, "accord.journal_directory");
+    }
+
+    public static File getCdcRawDirectory(IInstance instance)
+    {
+        return getDirecotry(instance, "cdc_raw_directory");
+    }
+
+    private static File getDirecotry(IInstance instance, String key)
+    {
         IInstanceConfig conf = instance.config();
         // this isn't safe as it assumes the implementation of InstanceConfig
         // might need to get smarter... some day...
-        String d = (String) conf.get("saved_caches_directory");
+        String d = (String) conf.get(key);
         return new File(d);
     }
 
@@ -1352,7 +1384,54 @@ public class ClusterUtils
         out.add(getCommitLogDirectory(instance));
         out.add(getHintsDirectory(instance));
         out.add(getSavedCachesDirectory(instance));
+        out.add(getJournalDirectory(instance));
+        out.add(getCdcRawDirectory(instance));
         return out;
+    }
+
+    /**
+     * Clean up a cluster by stopping all instances, deleting all directories,
+     * and restarting all instances.
+     * <p>
+     * This effectively resets the cluster to a clean state without having to create
+     * a new cluster instance, which is useful for tests that need to start with a 
+     * fresh state between test phases.
+     *
+     * @param cluster the cluster to clean up
+     */
+    public static void cleanup(Cluster cluster)
+    {
+        stopAll(cluster);
+        for (var inst : cluster)
+        {
+            for (var f : getDirectories(inst))
+            {
+                if (f.exists())
+                    f.deleteRecursive();
+            }
+        }
+        for (var inst : cluster)
+            inst.startup();
+    }
+
+    /**
+     * Clean up a single instance by stopping it, deleting all its directories,
+     * and restarting it.
+     * <p>
+     * This effectively resets the instance to a clean state without having to create
+     * a new instance, which is useful for tests that need to start with a fresh state.
+     *
+     * @param inst the instance to clean up
+     */
+    public static void cleanup(IInvokableInstance inst)
+    {
+        stopUnchecked(inst);
+        for (var f : getDirectories(inst))
+        {
+            if (f.exists())
+                f.deleteRecursive();
+        }
+        inst.startup();
     }
 
     /**

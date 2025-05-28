@@ -22,10 +22,12 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.UncheckedInterruptedException;
 import org.agrona.collections.LongHashSet;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -72,6 +75,7 @@ import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -80,6 +84,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MergeIterator;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
+import static org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory.none;
 
 public class AccordJournalTable<K extends JournalKey, V> implements RangeSearcher.Supplier
 {
@@ -147,6 +152,37 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         if (index == null)
             return RangeSearcher.NoopRangeSearcher.instance;
         return new TableRangeSearcher();
+    }
+    public void start()
+    {
+        if (index == null) return;
+        Index tableIndex = cfs.indexManager.getIndexByName(AccordKeyspace.JOURNAL_INDEX_NAME);
+        RetryStrategy retry = RetryStrategy.parse("100ms", none());
+        for (int i = 0; !cfs.indexManager.isIndexQueryable(tableIndex); i++)
+        {
+            logger.debug("Journal index {} is not ready wait... waiting", AccordKeyspace.JOURNAL_INDEX_NAME);
+            maybeWait(retry, i);
+        }
+    }
+
+    /**
+     * This method is here to make it easier for org.apache.cassandra.distributed.test.accord.journal.JournalAccessRouteIndexOnStartupRaceTest
+     * to check when we need to do waiting
+     */
+    @VisibleForTesting
+    private static void maybeWait(RetryStrategy retry, int i)
+    {
+        long waitTime = retry.computeWait(i, TimeUnit.MICROSECONDS);
+        if (waitTime == -1)
+            throw new IllegalStateException("Gave up waiting on journal index to be ready");
+        try
+        {
+            TimeUnit.MICROSECONDS.sleep(waitTime);
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
     }
 
     public interface Reader

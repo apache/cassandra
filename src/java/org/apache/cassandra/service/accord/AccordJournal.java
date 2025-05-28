@@ -165,6 +165,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         this.node = node;
         status = Status.STARTING;
         journal.start();
+        journalTable.start();
     }
 
     public boolean started()
