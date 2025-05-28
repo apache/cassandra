@@ -1941,6 +1941,16 @@ public class DatabaseDescriptor
         return conf.read_request_timeout.to(unit);
     }
 
+    public static boolean getReadRequestIteratorMergeTimeoutEnabled()
+    {
+        return conf.read_request_iterator_merge_timeout_enabled;
+    }
+
+    public static void setReadRequestIteratorMergeTimeoutEnabled(boolean enabled)
+    {
+        conf.read_request_iterator_merge_timeout_enabled = enabled;
+    }
+
     public static void setReadRpcTimeout(long timeOutInMillis)
     {
         conf.read_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);

@@ -23,7 +23,13 @@ import java.io.OutputStream;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableSet;
@@ -37,6 +43,8 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -59,6 +67,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
@@ -85,12 +94,20 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class ReadCommandTest
 {
@@ -112,6 +129,7 @@ public class ReadCommandTest
     private static final String CF12 = "Standard12";
     private static final String CF13 = "Standard13";
     private static final String CF14 = "Standard14";
+    private static final String CF15 = "Standard15";
 
 
     private static final InetAddressAndPort REPAIR_COORDINATOR;
@@ -259,6 +277,11 @@ public class ReadCommandTest
                      .addRegularColumn("e", AsciiType.instance)
                      .addRegularColumn("f", AsciiType.instance);
 
+        TableMetadata.Builder metadata15 =
+        TableMetadata.builder(KEYSPACE, CF15)
+                     .addPartitionKeyColumn("key", Int32Type.instance)
+                     .addClusteringColumn("col", Int32Type.instance);
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
@@ -275,7 +298,8 @@ public class ReadCommandTest
                                     metadata11,
                                     metadata12,
                                     metadata13,
-                                    metadata14);
+                                    metadata14,
+                                    metadata15);
 
         LocalSessionAccessor.startup();
     }
@@ -1751,4 +1775,124 @@ public class ReadCommandTest
         return digests.iterator().next();
     }
 
+    @Test
+    public void testMergeIteratorTimeoutEnabled()
+    {
+        boolean originalValue = DatabaseDescriptor.getReadRequestIteratorMergeTimeoutEnabled();
+
+        // iterator timeout enabled
+        DatabaseDescriptor.setReadRequestIteratorMergeTimeoutEnabled(true);
+        ReadCommand cmd = prepareReadIteratorMergeTimeoutTest(new DurationSpec.IntMillisecondsBound("1ms"));
+
+        try (ReadExecutionController controller = cmd.executionController())
+        {
+            Util.getAll(cmd, controller);
+            Assert.fail("Expected QueryCancelledException");
+        }
+        catch (QueryCancelledException e)
+        {
+            assertTrue("Unexpected exception: " + e.getMessage(), e.getMessage().contains("merge iterator timed out"));
+            // Expected exception
+        }
+
+
+        // iterator timeout disabled
+        DatabaseDescriptor.setReadRequestIteratorMergeTimeoutEnabled(false);
+        cmd = prepareReadIteratorMergeTimeoutTest(new DurationSpec.IntMillisecondsBound("1ms"));
+
+        try (ReadExecutionController controller = cmd.executionController())
+        {
+            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            ReadCommand finalCmd = cmd;
+            Future<?> future = executor.submit(() -> Util.getAll(finalCmd, controller));
+
+            try {
+                future.get(5, TimeUnit.MILLISECONDS); // Wait for the task to complete
+            }
+            catch (TimeoutException e)
+            {
+                // expected exception, merge iterator should get stuck in an endless loop and the future should time out
+            }
+            catch (Exception e)
+            {
+                fail("Unexpected exception: " + e);
+            }
+            finally {
+                executor.shutdownNow();
+            }
+        }
+
+        DatabaseDescriptor.setReadRequestIteratorMergeTimeoutEnabled(originalValue);
+    }
+
+    private ReadCommand prepareReadIteratorMergeTimeoutTest(DurationSpec.IntMillisecondsBound mergeTimeout)
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF15);
+        cfs.truncateBlocking();
+
+        // create SSTable with range tombstone
+        long tombstoneTs = 50L;
+        new RowUpdateBuilder(cfs.metadata(), 50, tombstoneTs, ByteBufferUtil.bytes(1))
+        .addRangeTombstone(1, Integer.MAX_VALUE).build().apply();
+        Util.flush(cfs);
+
+        // create SSTable with one shadowed row and one live row
+
+        // shadowed row
+        new RowUpdateBuilder(cfs.metadata(), tombstoneTs / 10, ByteBufferUtil.bytes(1))
+        .clustering(0)
+        .timestamp(0) // shadowed row has lower timestamp than tombstone
+        .build()
+        .apply();
+
+        // live row is required for the SSTable to be included in the merge iterator
+        // if the max timestamp of the SSTable is lower than the tombstone's, the entire SSTable
+        // will be skipped
+        new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes(1))
+        .clustering(Integer.MAX_VALUE - 1)
+        .timestamp(tombstoneTs * 10) // live row has higher timestamp than tombstone
+        .build()
+        .apply();
+
+        Util.flush(cfs);
+
+        // we now want to mock out the SSTable containing rows
+        SSTableReader dataSSTable = cfs.getLiveSSTables().stream().sorted(SSTableReader.maxTimestampDescending).collect(Collectors.toList()).get(1);
+        assertNotNull(dataSSTable);
+
+        // remove the SSTable from the tracker so we can add it back after mocking it out
+        cfs.getTracker().removeUnsafe(Set.of(dataSSTable));
+
+        // create a spy for the SSTable and add it to the tracker
+        SSTableReader spyDataSSTable = spy(dataSSTable);
+        cfs.getTracker().addInitialSSTablesWithoutUpdatingSize(Set.of(spyDataSSTable));
+
+        // mock out the SSTable to return a mock iterator
+        UnfilteredRowIterator mockIter = mock(UnfilteredRowIterator.class);
+        doReturn(mockIter).when(spyDataSSTable).rowIterator(any(DecoratedKey.class), any(Slices.class), any(ColumnFilter.class), anyBoolean(), any(SSTableReadsListener.class));
+        when(mockIter.hasNext()).thenReturn(true);
+        when(mockIter.partitionLevelDeletion()).thenReturn(new DeletionTime(tombstoneTs / 5, 50));
+
+        // the mock iterator will always return a shadowed row trapping the merge iterator into an endless loop
+        Row shadowedRow = new SimpleBuilders.RowBuilder(cfs.metadata(), 10)
+                          .timestamp(tombstoneTs / 5) // making the row shadowed
+                          .build();
+        when(mockIter.next()).thenReturn(shadowedRow);
+
+        // prepare read command SELECT * FROM CF15 WHERE key = 1 AND col >= 1 LIMIT 1
+        ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), false).build();
+        RowFilter rowFilter = RowFilter.create();
+        rowFilter.add(cfs.metadata().getColumn(ByteBufferUtil.bytes("key")), Operator.EQ, ByteBufferUtil.bytes(1));
+        rowFilter.add(cfs.metadata().getColumn(ByteBufferUtil.bytes("col")), Operator.GTE, ByteBufferUtil.bytes(1));
+        Slice slice = Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP);
+        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfs.metadata().comparator, slice), false);
+        SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata(), 120,
+                                                                           columnFilter, rowFilter,
+                                                                           DataLimits.cqlLimits(1), Util.dk(ByteBufferUtil.bytes(1)), sliceFilter);
+
+        // add desired timeout
+        cmd.setMonitoringTime(nanoTime(), false, mergeTimeout.to(TimeUnit.NANOSECONDS), 1);
+
+        return cmd;
+    }
 }

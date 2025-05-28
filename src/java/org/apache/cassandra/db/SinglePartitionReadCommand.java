@@ -816,12 +816,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                        UnfilteredRowIterators.MergeListener rowMergeListener)
     {
         @SuppressWarnings("resource") //  Closed through the closing of the result of the caller method.
+        long deadlineNanos = DatabaseDescriptor.getReadRequestIteratorMergeTimeoutEnabled() ? deadlineNanos() : -1;
         UnfilteredRowIterator merged;
         if (iterators.size() > 1)
-            merged = UnfilteredRowIterators.merge(iterators, rowMergeListener);
+            merged = UnfilteredRowIterators.merge(iterators, rowMergeListener, deadlineNanos);
         else
         {
-            merged = UnfilteredRowIterators.merge(iterators);
+            merged = UnfilteredRowIterators.merge(iterators, deadlineNanos);
         }
         if (!merged.isEmpty())
         {

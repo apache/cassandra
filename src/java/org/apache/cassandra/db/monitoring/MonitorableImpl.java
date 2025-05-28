@@ -59,6 +59,14 @@ public abstract class MonitorableImpl implements Monitorable
         return timeoutNanos;
     }
 
+    public long deadlineNanos()
+    {
+        if (approxCreationTimeNanos < 0)
+            return -1;
+
+        return approxCreationTimeNanos + timeoutNanos;
+    }
+
     public boolean isCrossNode()
     {
         return isCrossNode;

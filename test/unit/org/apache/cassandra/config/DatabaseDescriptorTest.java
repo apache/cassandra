@@ -830,4 +830,28 @@ public class DatabaseDescriptorTest
         assertFalse(conf.compaction_ignore_disk_check);
         assertFalse(DatabaseDescriptor.getCompactionIgnoreDiskCheck());
     }
+
+    @Test
+    public void testGetReadRequestIteratorTimeoutEnabled()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        conf.read_request_iterator_merge_timeout_enabled = true;
+        assertTrue(DatabaseDescriptor.getReadRequestIteratorMergeTimeoutEnabled());
+
+        conf.read_request_iterator_merge_timeout_enabled = false;
+        assertFalse(DatabaseDescriptor.getReadRequestIteratorMergeTimeoutEnabled());
+    }
+
+    @Test
+    public void testSetReadRequestIteratorTimeoutEnabled()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        conf.read_request_iterator_merge_timeout_enabled = false;
+        DatabaseDescriptor.setReadRequestIteratorMergeTimeoutEnabled(true);
+        assertTrue(conf.read_request_iterator_merge_timeout_enabled);
+
+        conf.read_request_iterator_merge_timeout_enabled = true;
+        DatabaseDescriptor.setReadRequestIteratorMergeTimeoutEnabled(false);
+        assertFalse(conf.read_request_iterator_merge_timeout_enabled);
+    }
 }

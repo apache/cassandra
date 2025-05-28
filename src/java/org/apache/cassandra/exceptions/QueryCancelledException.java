@@ -21,6 +21,11 @@ import org.apache.cassandra.db.ReadCommand;
 
 public class QueryCancelledException extends RuntimeException
 {
+    public QueryCancelledException(String cause)
+    {
+        super("Query cancelled: " + cause);
+    }
+
     public QueryCancelledException(ReadCommand command)
     {
         super("Query cancelled for taking too long: " + command.toCQLString());

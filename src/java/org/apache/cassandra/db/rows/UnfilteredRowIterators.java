@@ -27,6 +27,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.FilteredRows;
 import org.apache.cassandra.db.transform.MoreRows;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -34,6 +35,8 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
+
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
  * Static methods to work with atom iterators.
@@ -145,11 +148,16 @@ public abstract class UnfilteredRowIterators
      */
     public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators)
     {
+       return merge(iterators, 0);
+    }
+
+    public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, long timeoutAt)
+    {
         assert !iterators.isEmpty();
         if (iterators.size() == 1)
             return iterators.get(0);
 
-        return UnfilteredRowMergeIterator.create(iterators, null);
+        return UnfilteredRowMergeIterator.create(iterators, null, timeoutAt);
     }
 
     /**
@@ -160,7 +168,11 @@ public abstract class UnfilteredRowIterators
      */
     public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, MergeListener mergeListener)
     {
-        return UnfilteredRowMergeIterator.create(iterators, mergeListener);
+        return merge(iterators, mergeListener, 0);
+    }
+    public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, MergeListener mergeListener, long timeoutAt)
+    {
+        return UnfilteredRowMergeIterator.create(iterators, mergeListener, timeoutAt);
     }
 
     /**
@@ -409,13 +421,15 @@ public abstract class UnfilteredRowIterators
     {
         private final IMergeIterator<Unfiltered, Unfiltered> mergeIterator;
         private final MergeListener listener;
+        private final long timeoutAtNanos;
 
         private UnfilteredRowMergeIterator(TableMetadata metadata,
                                            List<UnfilteredRowIterator> iterators,
                                            RegularAndStaticColumns columns,
                                            DeletionTime partitionDeletion,
                                            boolean reversed,
-                                           MergeListener listener)
+                                           MergeListener listener,
+                                           long timeoutAtNanos)
         {
             super(metadata,
                   iterators.get(0).partitionKey(),
@@ -429,9 +443,10 @@ public abstract class UnfilteredRowIterators
                                                    reversed ? metadata.comparator.reversed() : metadata.comparator,
                                                    new MergeReducer(iterators.size(), reversed, listener));
             this.listener = listener;
+            this.timeoutAtNanos = timeoutAtNanos;
         }
 
-        private static UnfilteredRowMergeIterator create(List<UnfilteredRowIterator> iterators, MergeListener listener)
+        private static UnfilteredRowMergeIterator create(List<UnfilteredRowIterator> iterators, MergeListener listener, long timeoutAtNanos)
         {
             try
             {
@@ -441,7 +456,8 @@ public abstract class UnfilteredRowIterators
                                                       collectColumns(iterators),
                                                       collectPartitionLevelDeletion(iterators, listener),
                                                       iterators.get(0).isReverseOrder(),
-                                                      listener);
+                                                      listener,
+                                                      timeoutAtNanos);
             }
             catch (RuntimeException | Error e)
             {
@@ -535,10 +551,18 @@ public abstract class UnfilteredRowIterators
                  : new RegularAndStaticColumns(statics, regulars);
         }
 
+        private boolean isTimedOut()
+        {
+            return timeoutAtNanos > 0 && approxTime.isAfter(timeoutAtNanos);
+        }
+
         protected Unfiltered computeNext()
         {
             while (mergeIterator.hasNext())
             {
+                if (this.isTimedOut())
+                    throw new QueryCancelledException("merge iterator timed out");
+
                 Unfiltered merged = mergeIterator.next();
                 if (merged != null)
                     return merged;

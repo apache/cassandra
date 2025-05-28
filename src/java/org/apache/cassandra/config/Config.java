@@ -138,6 +138,12 @@ public class Config
     @Replaces(oldName = "read_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound read_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
 
+    /** Allows the read command timeout to be propagated to the merge SSTable iterator.
+     * This allows the query execution to be interrupted while the iterator is scanning shadowed rows.
+     * With this disabled Cassandra may get stuck scanning a very large number of shadowed rows.
+     * For extra context see: https://docs.google.com/document/d/1dcX-GYC9CnXgXzVFcrYqjY8KryetOBspUBKQ0a5DQkc */
+    public volatile boolean read_request_iterator_merge_timeout_enabled = false;
+
     @Replaces(oldName = "range_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound range_request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
 

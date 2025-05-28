@@ -33,10 +33,14 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static junit.framework.TestCase.fail;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class UnfilteredRowIteratorsTest
 {
@@ -181,5 +185,38 @@ public class UnfilteredRowIteratorsTest
     {
         return new BufferCell(metadata,
                               1L, BufferCell.NO_TTL, BufferCell.NO_DELETION_TIME, ByteBufferUtil.bytes(v), null);
+    }
+
+    private UnfilteredRowIterator makeMergeIterator(long timeoutAt)
+    {
+        UnfilteredRowIterator iter1 = rows(metadata.regularAndStaticColumns(), 1,
+                                           row(1, cell(v1Metadata, 1), cell(v2Metadata, 1)));
+        UnfilteredRowIterator iter2 = rows(metadata.regularAndStaticColumns(), 1,
+                                           row(2, cell(v1Metadata, 2), cell(v2Metadata, 2)));
+        return UnfilteredRowIterators.merge(Arrays.asList(iter1, iter2), timeoutAt);
+    }
+
+    @Test
+    public void testMergeIteratorHasNext()
+    {
+        // Test with no timeout
+        UnfilteredRowIterator iter = makeMergeIterator(0);
+        Assert.assertTrue(iter.hasNext());
+
+        // Test with timeout in the past
+        iter = makeMergeIterator(nanoTime() - 1000);
+        try
+        {
+            iter.hasNext();
+            fail("Expected QueryCancelledException to be thrown");
+        }
+        catch (QueryCancelledException e)
+        {
+            // expected exception
+        }
+
+        // Test with timeout in the future
+        iter = makeMergeIterator(Long.MAX_VALUE);
+        Assert.assertTrue(iter.hasNext());
     }
 }
