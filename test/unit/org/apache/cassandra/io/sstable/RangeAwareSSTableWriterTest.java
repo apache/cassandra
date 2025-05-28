@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -34,6 +33,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.KeyspaceParams;
 
 import static org.junit.Assert.assertEquals;
@@ -76,7 +76,7 @@ public class RangeAwareSSTableWriterTest
                                                                      0,
                                                                      null,
                                                                      false,
-                                                                     CoordinatorLogBoundaries.NONE,
+                                                                     ImmutableCoordinatorLogOffsets.NONE,
                                                                      DatabaseDescriptor.getSelectedSSTableFormat(),
                                                                      0,
                                                                      0,

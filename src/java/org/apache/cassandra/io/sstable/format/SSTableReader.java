@@ -55,7 +55,6 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
@@ -95,6 +94,7 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -1175,9 +1175,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return sstableMetadata.pendingRepair;
     }
 
-    public CoordinatorLogBoundaries getCoordinatorLogBoundaries()
+    public ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets()
     {
-        return sstableMetadata.coordinatorLogBoundaries;
+        return sstableMetadata.coordinatorLogOffsets;
     }
 
     public long getRepairedAt()

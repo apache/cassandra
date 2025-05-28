@@ -180,12 +180,41 @@ public class MutationTrackingService
     }
     private final AtomicInteger nextHostLogId = new AtomicInteger();
 
-    private static class KeyspaceShards
+    public boolean isDurablyReconciled(String keyspace, ImmutableCoordinatorLogOffsets logOffsets)
+    {
+        // Could pass through SSTable bounds to exclude shards for non-overlapping ranges, but this will mostly be
+        // called on flush for L0 SSTables with wide bounds.
+
+        KeyspaceShards keyspaceShards = shards.get(keyspace);
+        if (keyspaceShards == null)
+        {
+            logger.debug("Could not find shards for keyspace {}", keyspace);
+            return false;
+        }
+
+        for (Long logId : logOffsets)
+        {
+            CoordinatorLogId coordinatorLogId = new CoordinatorLogId(logId);
+            CoordinatorLog log = keyspaceShards.logs.get(coordinatorLogId);
+            if (log == null)
+            {
+                logger.warn("Could not determine lifecycle for unknown logId {}, not marking as durably reconciled", coordinatorLogId);
+                return false;
+            }
+            if (!log.isDurablyReconciled(logOffsets))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static class KeyspaceShards implements Shard.Subscriber
     {
         private final String keyspace;
         private final Map<Range<Token>, Shard> shards;
 
         private transient final Map<Range<PartitionPosition>, Shard> ppShards;
+        private transient final Map<CoordinatorLogId, CoordinatorLog> logs;
 
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, IntSupplier logIdProvider)
         {
@@ -209,7 +238,11 @@ public class MutationTrackingService
             this.shards = shards;
 
             this.ppShards = new HashMap<>();
-            shards.forEach((range, shard) -> ppShards.put(Range.makeRowRange(range), shard));
+            this.logs = new HashMap<>();
+            shards.forEach((range, shard) -> {
+                ppShards.put(Range.makeRowRange(range), shard);
+                shard.addSubscriber(this);
+            });
         }
 
         MutationId nextMutationId(Token token)
@@ -284,6 +317,20 @@ public class MutationTrackingService
             KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
             Range<Token> range = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(token).range();
             return shards.get(range);
+        }
+
+        @Override
+        public void onLogCreation(CoordinatorLog log)
+        {
+            logger.debug("Indexing created log {}", log);
+            logs.put(log.logId, log);
+        }
+
+        @Override
+        public void onSubscribe(CoordinatorLog currentLog)
+        {
+            logger.debug("Indexing current log {}", currentLog);
+            logs.put(currentLog.logId, currentLog);
         }
     }
 

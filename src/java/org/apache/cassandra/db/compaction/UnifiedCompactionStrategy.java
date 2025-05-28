@@ -36,7 +36,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +55,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
@@ -301,7 +301,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
-                                                       CoordinatorLogBoundaries coordinatorLogBoundaries,
+                                                       ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
@@ -317,7 +317,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                       repairedAt,
                                       pendingRepair,
                                       isTransient,
-                                      coordinatorLogBoundaries,
+                                      coordinatorLogOffsets,
                                       commitLogPositions,
                                       header,
                                       indexGroups,

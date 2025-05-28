@@ -26,7 +26,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
@@ -38,6 +37,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.TimeUUID;
@@ -227,7 +227,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
-                                                       CoordinatorLogBoundaries coordinatorLogBoundaries,
+                                                       ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
@@ -253,7 +253,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                  repairedAt,
                                                  pendingRepair,
                                                  isTransient,
-                                                 coordinatorLogBoundaries,
+                                                 coordinatorLogOffsets,
                                                  commitLogPositions,
                                                  sstableLevel,
                                                  header,
