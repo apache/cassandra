@@ -43,7 +43,6 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
@@ -70,6 +69,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.Throwables;
@@ -1445,7 +1445,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             DecoratedKey key = MockSchema.readerBounds(generation);
             SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
             StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
-                                                     .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, CoordinatorLogBoundaries.NONE, header, key.getKey().slice(), key.getKey().slice())
+                                                     .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, ImmutableCoordinatorLogOffsets.NONE, header, key.getKey().slice(), key.getKey().slice())
                                                      .get(MetadataType.STATS);
             SSTableReader reader = new BigTableReader.Builder(descriptor).setComponents(components)
                                                                          .setTableMetadataRef(cfs.metadata)
@@ -1481,7 +1481,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
             DecoratedKey key = MockSchema.readerBounds(generation);
             SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
             StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
-                                                     .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, CoordinatorLogBoundaries.NONE, header, key.getKey().slice(), key.getKey().slice())
+                                                     .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, ImmutableCoordinatorLogOffsets.NONE, header, key.getKey().slice(), key.getKey().slice())
                                                      .get(MetadataType.STATS);
             SSTableReader reader = new BtiTableReader.Builder(descriptor).setComponents(components)
                                                                          .setTableMetadataRef(cfs.metadata)

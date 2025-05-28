@@ -44,6 +44,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -235,7 +236,7 @@ public class SSTableUtils
             if (cfs.metadata().replicationType().isTracked())
                 throw new IllegalStateException("Can't create writer for table with mutation tracking enabled");
             SerializationHeader header = appender.header();
-            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFileWithComponent(datafile, false).left, expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, CoordinatorLogBoundaries.NONE, header);
+            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFileWithComponent(datafile, false).left, expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, ImmutableCoordinatorLogOffsets.NONE, header);
             while (appender.append(writer)) { /* pass */ }
             Collection<SSTableReader> readers = writer.finish(true);
 

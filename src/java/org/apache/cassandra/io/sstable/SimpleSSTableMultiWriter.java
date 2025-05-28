@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable;
 import java.util.Collection;
 import java.util.Collections;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
@@ -31,6 +30,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.TimeUUID;
@@ -118,7 +118,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             long repairedAt,
                                             TimeUUID pendingRepair,
                                             boolean isTransient,
-                                            CoordinatorLogBoundaries coordinatorLogBoundaries,
+                                            ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                             TableMetadataRef metadata,
                                             IntervalSet<CommitLogPosition> commitLogPositions,
                                             int sstableLevel,
@@ -138,7 +138,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                          .setRepairedAt(repairedAt)
                                          .setPendingRepair(pendingRepair)
                                          .setTransientSSTable(isTransient)
-                                         .setCoordinatorLogBoundaries(coordinatorLogBoundaries)
+                                         .setCoordinatorLogOffsets(coordinatorLogOffsets)
                                          .setTableMetadataRef(metadata)
                                          .setMetadataCollector(metadataCollector)
                                          .setSerializationHeader(header)

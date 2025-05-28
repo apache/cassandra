@@ -35,7 +35,6 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -46,6 +45,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -169,7 +169,7 @@ public class SSTableWriterTestBase extends SchemaLoader
                    .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                    .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
                    .addDefaultComponents(cfs.indexManager.listIndexGroups())
-                   .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
+                   .setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets.NONE)
                    .build(txn, cfs);
     }
 

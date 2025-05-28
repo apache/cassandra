@@ -38,7 +38,6 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Keyspace;
@@ -66,6 +65,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -466,7 +466,7 @@ public class StreamReaderTest
                                        fakeSeq,
                                        System.currentTimeMillis(),
                                        pendingRepair,
-                                       CoordinatorLogBoundaries.NONE);
+                                       ImmutableCoordinatorLogOffsets.NONE);
     }
 
     private static CassandraStreamHeader streamMessageHeader(int...tokens)
@@ -505,9 +505,9 @@ public class StreamReaderTest
             super(header, streamHeader, session);
         }
 
-        protected SSTableTxnSingleStreamWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, CoordinatorLogBoundaries coordinatorLogBoundaries, SSTableFormat<?,?> format) throws IOException
+        protected SSTableTxnSingleStreamWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SSTableFormat<?,?> format) throws IOException
         {
-            return super.createWriter(cfs, totalSize, repairedAt, pendingRepair, coordinatorLogBoundaries, format);
+            return super.createWriter(cfs, totalSize, repairedAt, pendingRepair, coordinatorLogOffsets, format);
         }
 
         @Override

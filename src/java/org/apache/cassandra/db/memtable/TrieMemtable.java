@@ -38,12 +38,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
-import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.MutableCoordinatorLogBoundaries;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutableCoordinatorLogOffsets;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slices;
@@ -451,11 +450,11 @@ public class TrieMemtable extends AbstractShardedMemtable
         partitionKeySize = keySize;
         partitionCount = keyCount;
 
-        CoordinatorLogBoundaries flushableBoundaries;
+        ImmutableCoordinatorLogOffsets flushableBoundaries;
         {
-            CoordinatorLogBoundariesBuilder builder = new CoordinatorLogBoundariesBuilder();
+            ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
             for (MemtableShard shard : shards)
-                builder.addAll(shard.coordinatorLogBoundaries);
+                builder.addAll(shard.coordinatorLogOffsets);
             flushableBoundaries = builder.build();
         }
 
@@ -503,7 +502,7 @@ public class TrieMemtable extends AbstractShardedMemtable
             }
 
             @Override
-            public CoordinatorLogBoundaries coordinatorLogBoundaries()
+            public ImmutableCoordinatorLogOffsets coordinatorLogOffsets()
             {
                 return flushableBoundaries;
             }
@@ -548,7 +547,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         private final ColumnsCollector columnsCollector;
 
         private final StatsCollector statsCollector;
-        private final MutableCoordinatorLogBoundaries coordinatorLogBoundaries = MutableCoordinatorLogBoundaries.create();
+        private final MutableCoordinatorLogOffsets coordinatorLogOffsets = MutableCoordinatorLogOffsets.create(true);
 
         @Unmetered  // total pool size should not be included in memtable's deep size
         private final MemtableAllocator allocator;
@@ -605,7 +604,7 @@ public class TrieMemtable extends AbstractShardedMemtable
 
                     columnsCollector.update(update.columns());
                     statsCollector.update(update.stats());
-                    coordinatorLogBoundaries.add(mutationId);
+                    coordinatorLogOffsets.add(mutationId);
                 }
             }
             finally

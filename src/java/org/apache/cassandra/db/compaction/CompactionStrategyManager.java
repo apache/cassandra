@@ -50,7 +50,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.SerializationHeader;
@@ -82,6 +81,7 @@ import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.TimeUUID;
@@ -1412,7 +1412,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
-                                                       CoordinatorLogBoundaries coordinatorLogBoundaries,
+                                                       ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
@@ -1429,7 +1429,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               repairedAt,
                                                                                               pendingRepair,
                                                                                               isTransient,
-                                                                                              coordinatorLogBoundaries,
+                                                                                              coordinatorLogOffsets,
                                                                                               commitLogPositions,
                                                                                               sstableLevel,
                                                                                               header,

@@ -32,11 +32,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
-import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.MutableCoordinatorLogBoundaries;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutableCoordinatorLogOffsets;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -90,7 +89,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     // actually only store DecoratedKey.
     private final ConcurrentNavigableMap<PartitionPosition, AtomicBTreePartition> partitions = new ConcurrentSkipListMap<>();
 
-    private final MutableCoordinatorLogBoundaries coordinatorLogBoundaries = MutableCoordinatorLogBoundaries.create();
+    private final MutableCoordinatorLogOffsets coordinatorLogOffsets = MutableCoordinatorLogOffsets.create(false);
 
     private final AtomicLong liveDataSize = new AtomicLong(0);
 
@@ -149,7 +148,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         liveDataSize.addAndGet(initialSize + updater.dataSize);
         columnsCollector.update(update.columns());
         statsCollector.update(update.stats());
-        coordinatorLogBoundaries.add(mutationId);
+        coordinatorLogOffsets.add(mutationId);
         currentOperations.addAndGet(update.operationCount());
         return updater.colUpdateTimeDelta;
     }
@@ -295,8 +294,8 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         }
         final long partitionKeysSize = keysSize;
         final long partitionCount = keyCount;
-        CoordinatorLogBoundaries flushableBoundaries = new CoordinatorLogBoundariesBuilder()
-                                                       .addAll(coordinatorLogBoundaries)
+        ImmutableCoordinatorLogOffsets flushableBoundaries = new ImmutableCoordinatorLogOffsets.Builder()
+                                                       .addAll(coordinatorLogOffsets)
                                                        .build();
 
         return new AbstractFlushablePartitionSet<AtomicBTreePartition>()
@@ -346,7 +345,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             }
 
             @Override
-            public CoordinatorLogBoundaries coordinatorLogBoundaries()
+            public ImmutableCoordinatorLogOffsets coordinatorLogOffsets()
             {
                 return flushableBoundaries;
             }

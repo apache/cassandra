@@ -21,9 +21,9 @@ package org.apache.cassandra.streaming;
 import java.io.IOException;
 import java.util.List;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -49,7 +49,7 @@ public interface OutgoingStream
     long getRepairedAt();
     TimeUUID getPendingRepair();
 
-    CoordinatorLogBoundaries getCoordinatorLogBoundaries();
+    ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets();
 
     String getName();
 

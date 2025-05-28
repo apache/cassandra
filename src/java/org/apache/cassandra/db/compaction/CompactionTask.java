@@ -37,8 +37,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
-import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteContext;
@@ -57,6 +55,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
@@ -460,11 +459,11 @@ public class CompactionTask extends AbstractCompactionTask
         return isTransient;
     }
 
-    public static CoordinatorLogBoundaries getCoordinatorLogBoundaries(Set<SSTableReader> sstables)
+    public static ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets(Set<SSTableReader> sstables)
     {
-        CoordinatorLogBoundariesBuilder builder = new CoordinatorLogBoundariesBuilder();
+        ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
         for (SSTableReader sstable : sstables)
-            builder.addAll(sstable.getCoordinatorLogBoundaries());
+            builder.addAll(sstable.getCoordinatorLogOffsets());
         return builder.build();
     }
 

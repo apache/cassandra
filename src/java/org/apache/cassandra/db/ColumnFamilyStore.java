@@ -136,6 +136,7 @@ import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStat;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
@@ -675,19 +676,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return memtableFactory.streamFromMemtable();
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, CoordinatorLogBoundaries coordinatorLogBoundaries, SerializationHeader header, ILifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogBoundaries, null, 0, header, txn);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, null, 0, header, txn);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, CoordinatorLogBoundaries coordinatorLogBoundaries, IntervalSet<CommitLogPosition> commitLogPositions, SerializationHeader header, ILifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, IntervalSet<CommitLogPosition> commitLogPositions, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogBoundaries, commitLogPositions, 0, header, txn);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, commitLogPositions, 0, header, txn);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, CoordinatorLogBoundaries coordinatorLogBoundaries, IntervalSet<CommitLogPosition> commitLogPositions, int sstableLevel, SerializationHeader header, ILifecycleTransaction txn)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, IntervalSet<CommitLogPosition> commitLogPositions, int sstableLevel, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogBoundaries, commitLogPositions, sstableLevel, header, indexManager.listIndexGroups(), txn);
+        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, commitLogPositions, sstableLevel, header, indexManager.listIndexGroups(), txn);
     }
 
     public boolean supportsEarlyOpen()
@@ -2420,14 +2421,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             return null;
 
         List<Memtable.FlushablePartitionSet<?>> dataSets = new ArrayList<>(ranges.size());
-        CoordinatorLogBoundariesBuilder boundaries = new CoordinatorLogBoundariesBuilder();
+        ImmutableCoordinatorLogOffsets.Builder logOffsetsBuilder = new ImmutableCoordinatorLogOffsets.Builder();
         IntervalSet.Builder<CommitLogPosition> commitLogIntervals = new IntervalSet.Builder();
         long keys = 0;
         for (Range<PartitionPosition> range : ranges)
         {
             Memtable.FlushablePartitionSet<?> dataSet = current.getFlushSet(range.left, range.right);
             dataSets.add(dataSet);
-            boundaries.addAll(dataSet.coordinatorLogBoundaries());
+            logOffsetsBuilder.addAll(dataSet.coordinatorLogOffsets());
             commitLogIntervals.add(dataSet.commitLogLowerBound(), dataSet.commitLogUpperBound());
             keys += dataSet.partitionCount();
         }
@@ -2441,7 +2442,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                              0,
                                                              repairSessionID,
                                                              false,
-                                                             boundaries.build(),
+                                                             logOffsetsBuilder.build(),
                                                              commitLogIntervals.build(),
                                                              new SerializationHeader(true,
                                                                                      firstDataSet.metadata(),

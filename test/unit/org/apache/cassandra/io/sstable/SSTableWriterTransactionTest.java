@@ -21,7 +21,6 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.util.Collection;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
@@ -35,6 +34,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 
@@ -73,7 +73,7 @@ public class SSTableWriterTransactionTest extends AbstractTransactionalTest
 
         private TestableBTW(Descriptor desc)
         {
-            this(desc, SSTableTxnWriter.create(cfs, desc, 0, 0, null, false, CoordinatorLogBoundaries.NONE,
+            this(desc, SSTableTxnWriter.create(cfs, desc, 0, 0, null, false, ImmutableCoordinatorLogOffsets.NONE,
                                                new SerializationHeader(true, cfs.metadata(),
                                                                        cfs.metadata().regularAndStaticColumns(),
                                                                        EncodingStats.NO_STATS)));

@@ -158,7 +158,25 @@ public class Shard
     private CoordinatorLog getOrCreate(long logId)
     {
         CoordinatorLog log = logs.get(logId);
-        return log != null
-             ? log : logs.computeIfAbsent(logId, ignore -> CoordinatorLog.create(localHostId, new CoordinatorLogId(logId), participants));
+        if (log != null)
+            return log;
+        CoordinatorLog newLog = logs.computeIfAbsent(logId, ignore -> CoordinatorLog.create(localHostId, new CoordinatorLogId(logId), participants));
+        for (Subscriber subscriber : subscribers)
+            subscriber.onLogCreation(newLog);
+        return newLog;
+    }
+
+    private final List<Subscriber> subscribers = new ArrayList<>();
+
+    public interface Subscriber
+    {
+        default void onLogCreation(CoordinatorLog log) {}
+        default void onSubscribe(CoordinatorLog currentLog) {}
+    }
+
+    public void addSubscriber(Subscriber subscriber)
+    {
+        subscriber.onSubscribe(currentLocalLog);
+        subscribers.add(subscriber);
     }
 }

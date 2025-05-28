@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -44,6 +43,7 @@ import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -168,7 +168,7 @@ public class RealTransactionsTest extends SchemaLoader
                                           .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                                           .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
                                           .addDefaultComponents(cfs.indexManager.listIndexGroups())
-                                          .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
+                                          .setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets.NONE)
                                           .build(txn, cfs));
                 while (ci.hasNext())
                 {

@@ -28,6 +28,7 @@ import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
@@ -38,7 +39,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
-
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -54,7 +54,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @RunWith(Parameterized.class)
-public class CoordinatorLogBoundariesLifecycleTest
+public class CoordinatorLogOffsetsLifecycleTest
 {
     private static final AtomicInteger keyspaceNumber = new AtomicInteger();
 
@@ -176,9 +176,9 @@ public class CoordinatorLogBoundariesLifecycleTest
             assertNumSSTables(view, 0);
 
             Memtable memtable = view.getCurrentMemtable();
-            CoordinatorLogBoundaries boundaries = memtable.getFlushSet(null, null).coordinatorLogBoundaries();
-            Assertions.assertThat(boundaries.size()).isEqualTo(1);
-            Assertions.assertThat(boundaries.max(id2.logId())).isEqualTo(id2);
+            ImmutableCoordinatorLogOffsets logOffsets = memtable.getFlushSet(null, null).coordinatorLogOffsets();
+            Assertions.assertThat(logOffsets.size()).isEqualTo(1);
+            Assertions.assertThat(logOffsets.offsets(id2.logId()).contains(id2.offset())).isTrue();
         }
 
         // flush 1
@@ -190,9 +190,11 @@ public class CoordinatorLogBoundariesLifecycleTest
             assertNumSSTables(view, 1);
 
             SSTableReader sstable = Iterables.getOnlyElement(view.liveSSTables());
-            CoordinatorLogBoundaries boundaries = sstable.getCoordinatorLogBoundaries();
-            Assertions.assertThat(boundaries.size()).isEqualTo(1);
-            Assertions.assertThat(boundaries.max(id2.logId())).isEqualTo(id2);
+            ImmutableCoordinatorLogOffsets logOffsets = sstable.getCoordinatorLogOffsets();
+            Assertions.assertThat(logOffsets.size()).isEqualTo(1);
+            Assertions.assertThat(logOffsets.offsets(id2.logId()).contains(id2.offset())).isTrue();
+            // Single-participant, so mutations are immediately reconciled once applied
+            Assertions.assertThat(sstable.isRepaired()).isTrue();
         }
 
         MutationId id3;
@@ -207,9 +209,9 @@ public class CoordinatorLogBoundariesLifecycleTest
             assertNumSSTables(view, 1);
 
             Memtable memtable = view.getCurrentMemtable();
-            CoordinatorLogBoundaries boundaries = memtable.getFlushSet(null, null).coordinatorLogBoundaries();
-            Assertions.assertThat(boundaries.size()).isEqualTo(1);
-            Assertions.assertThat(boundaries.max(id4.logId())).isEqualTo(id4);
+            ImmutableCoordinatorLogOffsets logOffsets = memtable.getFlushSet(null, null).coordinatorLogOffsets();
+            Assertions.assertThat(logOffsets.size()).isEqualTo(1);
+            Assertions.assertThat(logOffsets.offsets(id4.logId()).contains(id4.offset())).isTrue();
         }
 
         // flush 2
@@ -223,16 +225,18 @@ public class CoordinatorLogBoundariesLifecycleTest
             List<SSTableReader> sstables = Lists.newArrayList(view.liveSSTables());
             sstables.sort(Comparator.comparing(sst -> sst.descriptor.id.asBytes()));
             {
-                CoordinatorLogBoundaries boundaries = sstables.get(0).getCoordinatorLogBoundaries();
-                Assertions.assertThat(boundaries.size()).isEqualTo(1);
-                Assertions.assertThat(boundaries.max(id2.logId())).isEqualTo(id2);
+                ImmutableCoordinatorLogOffsets logOffsets = sstables.get(0).getCoordinatorLogOffsets();
+                Assertions.assertThat(logOffsets.size()).isEqualTo(1);
+                Assertions.assertThat(logOffsets.offsets(id2.logId()).contains(id2.offset())).isTrue();
             }
             {
 
-                CoordinatorLogBoundaries boundaries = sstables.get(1).getCoordinatorLogBoundaries();
-                Assertions.assertThat(boundaries.size()).isEqualTo(1);
-                Assertions.assertThat(boundaries.max(id4.logId())).isEqualTo(id4);
+                ImmutableCoordinatorLogOffsets logOffsets = sstables.get(1).getCoordinatorLogOffsets();
+                Assertions.assertThat(logOffsets.size()).isEqualTo(1);
+                Assertions.assertThat(logOffsets.offsets(id4.logId()).contains(id4.offset())).isTrue();
             }
+            for (SSTableReader sstable : sstables)
+                Assertions.assertThat(sstable.isRepaired()).isTrue();
         }
 
         // compaction
@@ -244,9 +248,10 @@ public class CoordinatorLogBoundariesLifecycleTest
             assertNumSSTables(view, 1);
 
             SSTableReader sstable = Iterables.getOnlyElement(view.liveSSTables());
-            CoordinatorLogBoundaries boundaries = sstable.getCoordinatorLogBoundaries();
-            Assertions.assertThat(boundaries.size()).isEqualTo(1);
-            Assertions.assertThat(boundaries.max(id4.logId())).isEqualTo(id4);
+            ImmutableCoordinatorLogOffsets logOffsets = sstable.getCoordinatorLogOffsets();
+            Assertions.assertThat(logOffsets.size()).isEqualTo(1);
+            Assertions.assertThat(logOffsets.offsets(id4.logId()).contains(id4.offset())).isTrue();
+            Assertions.assertThat(sstable.isRepaired()).isTrue();
         }
     }
 }

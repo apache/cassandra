@@ -190,7 +190,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable)))
         {
             StatsMetadata metadata = sstable.getSSTableMetadata();
-            writer.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, metadata.coordinatorLogBoundaries, sstable, transaction));
+            writer.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, metadata.coordinatorLogOffsets, sstable, transaction));
 
             scrubInternal(writer);
 
@@ -240,7 +240,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
         // out of order partitions/rows, but no bad partition found - we can keep our repairedAt time
         long repairedAt = badPartitions > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt;
         SSTableReader newInOrderSstable;
-        try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, metadata.pendingRepair, metadata.isTransient, metadata.coordinatorLogBoundaries, sstable, transaction))
+        try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, metadata.pendingRepair, metadata.isTransient, metadata.coordinatorLogOffsets, sstable, transaction))
         {
             for (Partition partition : outOfOrder)
                 inOrderWriter.append(partition.unfilteredIterator());

@@ -41,7 +41,6 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -73,6 +72,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -215,14 +215,14 @@ public class MockSchema
                 BufferDecoratedKey last = readerBounds(lastToken);
                 Map<MetadataType, MetadataComponent> metadataComponents = collector.sstableLevel(level)
                                                                          .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(),
-                                                                        0.01f,
-                                                                        UNREPAIRED_SSTABLE,
-                                                                        null,
-                                                                        false,
-                                                                        CoordinatorLogBoundaries.NONE,
-                                                                        header,
-                                                                        first.retainable().getKey().slice(),
-                                                                        last.retainable().getKey().slice());
+                                                                                           0.01f,
+                                                                                           UNREPAIRED_SSTABLE,
+                                                                                           null,
+                                                                                           false,
+                                                                                           ImmutableCoordinatorLogOffsets.NONE,
+                                                                                           header,
+                                                                                           first.retainable().getKey().slice(),
+                                                                                           last.retainable().getKey().slice());
                 StatsMetadata statsMetadata = (StatsMetadata) metadataComponents.get(MetadataType.STATS);
                 try (DataOutputStreamPlus out = descriptor.fileFor(Components.STATS).newOutputStream(File.WriteMode.OVERWRITE))
                 {
@@ -271,7 +271,7 @@ public class MockSchema
                 BufferDecoratedKey first = readerBounds(firstToken);
                 BufferDecoratedKey last = readerBounds(lastToken);
                 StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
-                                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, CoordinatorLogBoundaries.NONE, header, first.retainable().getKey(), last.retainable().getKey())
+                                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, ImmutableCoordinatorLogOffsets.NONE, header, first.retainable().getKey(), last.retainable().getKey())
                                                                   .get(MetadataType.STATS);
                 BtiTableReader reader = new BtiTableReader.Builder(descriptor).setComponents(components)
                                                                               .setTableMetadataRef(cfs.metadata)

@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
@@ -58,6 +57,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -88,7 +88,7 @@ public class CassandraStreamReader implements IStreamReader
     protected final Version inputVersion;
     protected final long repairedAt;
     protected final TimeUUID pendingRepair;
-    protected final CoordinatorLogBoundaries coordinatorLogBoundaries;
+    protected final ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
     protected final int sstableLevel;
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
@@ -108,7 +108,7 @@ public class CassandraStreamReader implements IStreamReader
         this.inputVersion = streamHeader.version;
         this.repairedAt = header.repairedAt;
         this.pendingRepair = header.pendingRepair;
-        this.coordinatorLogBoundaries = header.coordinatorLogBoundaries;
+        this.coordinatorLogOffsets = header.coordinatorLogOffsets;
         this.sstableLevel = streamHeader.sstableLevel;
         this.header = streamHeader.serializationHeader;
         this.fileSeqNum = header.sequenceNumber;
@@ -138,7 +138,7 @@ public class CassandraStreamReader implements IStreamReader
         try (StreamCompressionInputStream streamCompressionInputStream = new StreamCompressionInputStream(inputPlus, current_version))
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream);
-            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, coordinatorLogBoundaries, inputVersion.format);
+            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, coordinatorLogOffsets, inputVersion.format);
             deserializer = getDeserializer(cfs.metadata(), in, inputVersion, session, writer);
             String sequenceName = writer.getFilename() + '-' + fileSeqNum;
             long lastBytesRead = 0;
@@ -179,7 +179,7 @@ public class CassandraStreamReader implements IStreamReader
     {
         return header != null? header.toHeader(metadata) : null; //pre-3.0 sstable have no SerializationHeader
     }
-    protected SSTableTxnSingleStreamWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, CoordinatorLogBoundaries coordinatorLogBoundaries, SSTableFormat<?, ?> format) throws IOException
+    protected SSTableTxnSingleStreamWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SSTableFormat<?, ?> format) throws IOException
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
@@ -188,7 +188,7 @@ public class CassandraStreamReader implements IStreamReader
         StreamReceiver streamReceiver = session.getAggregator(tableId);
         Preconditions.checkState(streamReceiver instanceof CassandraStreamReceiver);
         ILifecycleTransaction txn = createTxn();
-        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, false, coordinatorLogBoundaries, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()));
+        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, false, coordinatorLogOffsets, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()));
         return new SSTableTxnSingleStreamWriter(txn, writer);
     }
 

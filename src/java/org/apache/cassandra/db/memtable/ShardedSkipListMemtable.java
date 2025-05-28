@@ -25,18 +25,16 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 
 import org.github.jamm.Unmetered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
-import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.MutableCoordinatorLogBoundaries;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutableCoordinatorLogOffsets;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slices;
@@ -93,19 +91,21 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
     ShardedSkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound,
                             TableMetadataRef metadataRef,
                             Owner owner,
-                            Integer shardCountOption)
+                            Integer shardCountOption,
+                            boolean locking)
     {
         super(commitLogLowerBound, metadataRef, owner, shardCountOption);
-        this.shards = generatePartitionShards(boundaries.shardCount(), allocator, metadataRef);
+        this.shards = generatePartitionShards(boundaries.shardCount(), allocator, metadataRef, locking);
     }
 
     private static MemtableShard[] generatePartitionShards(int splits,
                                                            MemtableAllocator allocator,
-                                                           TableMetadataRef metadata)
+                                                           TableMetadataRef metadata,
+                                                           boolean locking)
     {
         MemtableShard[] partitionMapContainer = new MemtableShard[splits];
         for (int i = 0; i < splits; i++)
-            partitionMapContainer[i] = new MemtableShard(metadata, allocator);
+            partitionMapContainer[i] = new MemtableShard(metadata, allocator, locking);
 
         return partitionMapContainer;
     }
@@ -301,11 +301,11 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         int partitionCount = keyCount;
         Iterator<AtomicBTreePartition> toFlush = getPartitionIterator(from, true, to, false);
 
-        CoordinatorLogBoundaries flushableBoundaries;
+        ImmutableCoordinatorLogOffsets flushableBoundaries;
         {
-            CoordinatorLogBoundariesBuilder builder = new CoordinatorLogBoundariesBuilder();
+            ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
             for (MemtableShard shard : shards)
-                builder.addAll(shard.coordinatorLogBoundaries);
+                builder.addAll(shard.coordinatorLogOffsets);
             flushableBoundaries = builder.build();
         }
 
@@ -350,7 +350,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             }
 
             @Override
-            public CoordinatorLogBoundaries coordinatorLogBoundaries()
+            public ImmutableCoordinatorLogOffsets coordinatorLogOffsets()
             {
                 return flushableBoundaries;
             }
@@ -379,20 +379,21 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         private final ColumnsCollector columnsCollector;
 
         private final StatsCollector statsCollector;
-        private final MutableCoordinatorLogBoundaries coordinatorLogBoundaries = MutableCoordinatorLogBoundaries.create();
+
+        private final MutableCoordinatorLogOffsets coordinatorLogOffsets;
 
         @Unmetered  // total pool size should not be included in memtable's deep size
         private final MemtableAllocator allocator;
 
         private final TableMetadataRef metadata;
 
-        @VisibleForTesting
-        MemtableShard(TableMetadataRef metadata, MemtableAllocator allocator)
+        private MemtableShard(TableMetadataRef metadata, MemtableAllocator allocator, boolean locking)
         {
             this.columnsCollector = new ColumnsCollector(metadata.get().regularAndStaticColumns());
             this.statsCollector = new StatsCollector();
             this.allocator = allocator;
             this.metadata = metadata;
+            this.coordinatorLogOffsets = MutableCoordinatorLogOffsets.create(locking);
         }
 
         public long put(MutationId mutationId, DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
@@ -424,7 +425,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             liveDataSize.addAndGet(initialSize + updater.dataSize);
             columnsCollector.update(update.columns());
             statsCollector.update(update.stats());
-            coordinatorLogBoundaries.add(mutationId);
+            coordinatorLogOffsets.add(mutationId);
             currentOperations.addAndGet(update.operationCount());
             return updater.colUpdateTimeDelta;
         }
@@ -525,7 +526,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
     {
         Locking(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, Integer shardCountOption)
         {
-            super(commitLogLowerBound, metadataRef, owner, shardCountOption);
+            super(commitLogLowerBound, metadataRef, owner, shardCountOption, true);
         }
 
         /**
@@ -571,7 +572,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         {
             return isLocking
                    ? new Locking(commitLogLowerBound, metadataRef, owner, shardCount)
-                   : new ShardedSkipListMemtable(commitLogLowerBound, metadataRef, owner, shardCount);
+                   : new ShardedSkipListMemtable(commitLogLowerBound, metadataRef, owner, shardCount, false);
         }
 
         public boolean equals(Object o)

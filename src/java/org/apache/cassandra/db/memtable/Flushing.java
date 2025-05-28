@@ -244,7 +244,7 @@ public class Flushing
                                             ActiveRepairService.UNREPAIRED_SSTABLE,
                                             ActiveRepairService.NO_PENDING_REPAIR,
                                             false,
-                                            flushSet.coordinatorLogBoundaries(),
+                                            flushSet.coordinatorLogOffsets(),
                                             new IntervalSet<>(flushSet.commitLogLowerBound(),
                                                               flushSet.commitLogUpperBound()),
                                             new SerializationHeader(true,

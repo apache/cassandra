@@ -204,6 +204,7 @@ public class ClusterMetadataTestHelper
     {
         KeyspaceAttributes attributes = new KeyspaceAttributes();
         attributes.addProperty(KeyspaceParams.Option.REPLICATION.toString(), params.replication.asMap());
+        attributes.addProperty(KeyspaceParams.Option.REPLICATION_TYPE.toString(), params.replicationType.name());
         CreateKeyspaceStatement createKeyspaceStatement = new CreateKeyspaceStatement(name, attributes, false);
         try
         {

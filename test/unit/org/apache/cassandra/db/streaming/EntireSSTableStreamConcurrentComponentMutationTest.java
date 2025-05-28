@@ -44,7 +44,6 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -67,6 +66,7 @@ import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SharedDefaultFileRegion;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
@@ -235,7 +235,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         concurrentMutations.get(3, TimeUnit.MINUTES);
 
         session.prepareReceiving(new StreamSummary(sstable.metadata().id, emptyList(), 1, 5104));
-        StreamMessageHeader messageHeader = new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null, CoordinatorLogBoundaries.NONE);
+        StreamMessageHeader messageHeader = new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null, ImmutableCoordinatorLogOffsets.NONE);
 
         try (DataInputBuffer in = new DataInputBuffer(serializedFile.nioBuffer(), false))
         {

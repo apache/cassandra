@@ -61,6 +61,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.Schema;
@@ -281,7 +282,7 @@ public class AntiCompactionTest
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         Descriptor desc = cfs.newSSTableDescriptor(dir);
 
-        try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc, 0, 0, NO_PENDING_REPAIR, false, CoordinatorLogBoundaries.NONE, new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS)))
+        try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc, 0, 0, NO_PENDING_REPAIR, false, ImmutableCoordinatorLogOffsets.NONE, new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS)))
         {
             for (int i = 0; i < count; i++)
             {

@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Queue;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,6 +41,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.net.SharedDefaultFileRegion;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -164,7 +164,7 @@ public class CassandraEntireSSTableStreamWriterTest
                                  .withTableId(sstable.metadata().id)
                                  .build();
 
-            CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null, CoordinatorLogBoundaries.NONE), header, session);
+            CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null, ImmutableCoordinatorLogOffsets.NONE), header, session);
 
             SSTableTxnSingleStreamWriter sstableWriter = (SSTableTxnSingleStreamWriter) reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
             StreamingLifecycleTransaction stt = new StreamingLifecycleTransaction();

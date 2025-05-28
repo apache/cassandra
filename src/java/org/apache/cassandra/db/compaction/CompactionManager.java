@@ -70,8 +70,6 @@ import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.WrappedExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
-import org.apache.cassandra.db.CoordinatorLogBoundariesBuilder;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
@@ -114,6 +112,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -1652,8 +1651,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
              CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, nextTimeUUID(), active, null))
         {
             StatsMetadata metadata = sstable.getSSTableMetadata();
-            // TODO(aratnofsky): filter coordinatorLogBoundaries to exclude any CoordinatorLogIds we're no longer responsible for, after ownership change
-            writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, metadata.coordinatorLogBoundaries, sstable, txn));
+            // TODO(aratnofsky): filter coordinatorLogOffsets to exclude any CoordinatorLogIds we're no longer responsible for, after ownership change
+            writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, metadata.coordinatorLogOffsets, sstable, txn));
             long lastBytesScanned = 0;
 
             while (ci.hasNext())
@@ -1818,7 +1817,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                                              long repairedAt,
                                              TimeUUID pendingRepair,
                                              boolean isTransient,
-                                             CoordinatorLogBoundaries coordinatorLogBoundaries,
+                                             ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                              SSTableReader sstable,
                                              LifecycleTransaction txn)
     {
@@ -1830,7 +1829,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                          .setRepairedAt(repairedAt)
                          .setPendingRepair(pendingRepair)
                          .setTransientSSTable(isTransient)
-                         .setCoordinatorLogBoundaries(coordinatorLogBoundaries)
+                         .setCoordinatorLogOffsets(coordinatorLogOffsets)
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator).sstableLevel(sstable.getSSTableLevel()))
                          .setSerializationHeader(sstable.header)
@@ -1851,10 +1850,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     {
         FileUtils.createDirectory(compactionFileLocation);
         int minLevel = Integer.MAX_VALUE;
-        CoordinatorLogBoundariesBuilder boundaries = new CoordinatorLogBoundariesBuilder();
+        ImmutableCoordinatorLogOffsets.Builder logOffsetsBuilder = new ImmutableCoordinatorLogOffsets.Builder();
         for (SSTableReader sstable : sstables)
         {
-            boundaries.addAll(sstable.getCoordinatorLogBoundaries());
+            logOffsetsBuilder.addAll(sstable.getCoordinatorLogOffsets());
 
             // if all sstables have the same level, we can compact them together without creating overlap during anticompaction
             // note that we only anticompact from unrepaired sstables, which is not leveled, but we still keep original level
@@ -1873,7 +1872,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                          .setKeyCount(expectedBloomFilterSize)
                          .setRepairedAt(repairedAt)
                          .setPendingRepair(pendingRepair)
-                         .setCoordinatorLogBoundaries(boundaries.build())
+                         .setCoordinatorLogOffsets(logOffsetsBuilder.build())
                          .setTransientSSTable(isTransient)
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator).sstableLevel(minLevel))

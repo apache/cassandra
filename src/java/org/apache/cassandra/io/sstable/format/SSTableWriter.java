@@ -25,12 +25,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -38,7 +40,6 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
@@ -60,6 +61,10 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.MmappedRegionsCache;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -78,7 +83,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected long repairedAt;
     protected TimeUUID pendingRepair;
     protected boolean isTransient;
-    protected CoordinatorLogBoundaries coordinatorLogBoundaries;
+    protected ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
     protected long maxDataAge = -1;
     protected final long keyCount;
     public final MetadataCollector metadataCollector;
@@ -102,13 +107,13 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         checkNotNull(builder.getIndexGroups());
         checkNotNull(builder.getMetadataCollector());
         checkNotNull(builder.getSerializationHeader());
-        checkNotNull(builder.getCoordinatorLogBoundaries());
+        checkNotNull(builder.getCoordinatorLogOffsets());
 
         this.keyCount = builder.getKeyCount();
         this.repairedAt = builder.getRepairedAt();
         this.pendingRepair = builder.getPendingRepair();
         this.isTransient = builder.isTransientSSTable();
-        this.coordinatorLogBoundaries = builder.getCoordinatorLogBoundaries();
+        this.coordinatorLogOffsets = builder.getCoordinatorLogOffsets();
         this.metadataCollector = builder.getMetadataCollector();
         this.header = builder.getSerializationHeader();
         this.mmappedRegionsCache = builder.getMmappedRegionsCache();
@@ -347,12 +352,24 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected final Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
+        // Migration from incremental repair to mutation tracking will be supported, but support for mixing
+        // incremental repair and mutation tracking is not planned
+        if (metadata().replicationType().isTracked() && repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
+        {
+            Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
+            if (MutationTrackingService.instance.isDurablyReconciled(getKeyspaceName(), coordinatorLogOffsets))
+            {
+                repairedAt = Clock.Global.currentTimeMillis();
+                logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
+            }
+        }
+
         return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
                                                   pendingRepair,
                                                   isTransient,
-                                                  coordinatorLogBoundaries,
+                                                  coordinatorLogOffsets,
                                                   header,
                                                   first.retainable().getKey(),
                                                   last.retainable().getKey());
@@ -398,13 +415,31 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         protected void doPrepare()
         {
             transactionals.get().forEach(Transactional::prepareToCommit);
-            new StatsComponent(finalizeMetadata()).save(descriptor);
+            Map<MetadataType, MetadataComponent> metadata = finalizeMetadata();
+            new StatsComponent(metadata).save(descriptor);
 
             // save the table of components
             TOCComponent.updateTOC(descriptor, components);
 
             if (openResult)
+            {
                 finalReader = openFinal(SSTableReader.OpenReason.NORMAL);
+
+                /*
+                When we open above, we re-finalize metadata and may be durably reconciled, but this is after
+                StatsComponent is saved, so the next reload from disk loses the reconciliation update. We need to save
+                again to ensure the descriptor file matches what's in memory.
+
+                Could move this to the post-flush compaction, but then we couldn't flush directly into the repaired set.
+                Or see if we can open before the first save, so we never have to write stats to disk twice.
+                */
+                StatsMetadata stale = ((StatsMetadata) metadata.get(MetadataType.STATS));
+                if (finalReader.getSSTableMetadata().repairedAt != stale.repairedAt)
+                {
+                    metadata.put(MetadataType.STATS, finalReader.getSSTableMetadata());
+                    new StatsComponent(metadata).save(descriptor);
+                }
+            }
         }
 
         protected Throwable doCommit(Throwable accumulate)
@@ -459,7 +494,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         private List<Index.Group> indexGroups;
         @Nullable
         private CompressionDictionaryManager compressionDictionaryManager;
-        private CoordinatorLogBoundaries coordinatorLogBoundaries;
+        private ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
 
         public B setMetadataCollector(MetadataCollector metadataCollector)
         {
@@ -485,9 +520,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return (B) this;
         }
 
-        public B setCoordinatorLogBoundaries(CoordinatorLogBoundaries coordinatorLogBoundaries)
+        public B setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets coordinatorLogOffsets)
         {
-            this.coordinatorLogBoundaries = coordinatorLogBoundaries;
+            this.coordinatorLogOffsets = coordinatorLogOffsets;
             return (B) this;
         }
 
@@ -581,9 +616,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return transientSSTable;
         }
 
-        public CoordinatorLogBoundaries getCoordinatorLogBoundaries()
+        public ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets()
         {
-            return coordinatorLogBoundaries;
+            return coordinatorLogOffsets;
         }
 
         public SerializationHeader getSerializationHeader()

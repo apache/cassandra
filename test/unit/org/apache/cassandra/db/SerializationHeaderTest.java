@@ -51,6 +51,7 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -101,7 +102,7 @@ public class SerializationHeaderTest
                                                              .setTableMetadataRef(TableMetadataRef.forOfflineTools(schema))
                                                              .setKeyCount(1)
                                                              .setSerializationHeader(header)
-                                                             .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
+                                                             .setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets.NONE)
                                                              .setMetadataCollector(new MetadataCollector(schema.comparator))
                                                              .addDefaultComponents(Collections.emptySet())
                                                              .build(txn, null))

@@ -39,7 +39,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
@@ -64,6 +63,7 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -135,7 +135,7 @@ public class SSTableFlushObserverTest
                                                                   .setSerializationHeader(new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS))
                                                                   .setSecondaryIndexGroups(Collections.singleton(indexGroup))
                                                                   .addDefaultComponents(Collections.emptySet())
-                                                                  .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE);
+                                                                  .setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets.NONE);
             assertThat(observer.beginCalled).isFalse();
             assertThat(observer.isComplete).isFalse();
 
@@ -220,7 +220,7 @@ public class SSTableFlushObserverTest
                                                                     .setSerializationHeader(new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS))
                                                                     .setSecondaryIndexGroups(List.of(indexGroup1, indexGroup2))
                                                                     .addDefaultComponents(Collections.emptySet())
-                                                                    .setCoordinatorLogBoundaries(CoordinatorLogBoundaries.NONE)
+                                                                    .setCoordinatorLogOffsets(ImmutableCoordinatorLogOffsets.NONE)
                                                                     .build(transaction, null)
             ).withMessage("Failed to initialize");
 
