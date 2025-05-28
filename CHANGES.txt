@@ -19,6 +19,7 @@
  * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)
  * Upgrade com.datastax.cassandra:cassandra-driver-core:3.11.5 to org.apache.cassandra:cassandra-driver-core:3.12.1 (CASSANDRA-17231)
 Merged from 4.0:
+ * Ensure prepared_statement INSERT timestamp precedes eviction DELETE (CASSANDRA-19703)
  * Gossip doesn't converge due to race condition when updating EndpointStates multiple fields (CASSANDRA-20659)
  * Honor MAX_PARALLEL_TRANSFERS correctly (CASSANDRA-20532)
  * Updating a column with a new TTL but same expiration time is non-deterministic and causes repair mismatches. (CASSANDRA-20561)
