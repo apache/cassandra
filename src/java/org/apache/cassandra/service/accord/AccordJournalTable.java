@@ -153,6 +153,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             return RangeSearcher.NoopRangeSearcher.instance;
         return new TableRangeSearcher();
     }
+
     public void start()
     {
         if (index == null) return;
