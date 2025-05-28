@@ -23,6 +23,9 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -133,8 +136,11 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             op.accept(writer);
     }
 
+    private static final Logger logger = LoggerFactory.getLogger(SSTableRewriter.class);
+
     public AbstractRowIndexEntry append(UnfilteredRowIterator partition)
     {
+        logger.info("APPENDING");
         // we do this before appending to ensure we can resetAndTruncate() safely if appending fails
         DecoratedKey key = partition.partitionKey();
         maybeReopenEarly(key);
@@ -158,26 +164,34 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private void maybeReopenEarly(DecoratedKey key)
     {
+        logger.info("IN maybeReopenEarly - BEFORE IF");
         if (writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
         {
+            logger.info("IN IF AFTER writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval");
             if (transaction.isOffline())
             {
+                logger.info("IN IF - TRANSACTION OFFLINE");
                 for (SSTableReader reader : transaction.originals())
                 {
+                    logger.info("IN IF - TRANSACTION OFFLINE - IN FOR {}", reader.descriptor.baseFile());
                     reader.trySkipFileCacheBefore(key);
                 }
             }
             else
             {
                 writer.setMaxDataAge(maxAge);
+                logger.info("BEFORE OPENING EARLY");
                 writer.openEarly(reader -> {
                     transaction.update(reader, false);
                     currentlyOpenedEarlyAt = writer.getFilePointer();
                     moveStarts(reader.getLast());
+                    logger.info("IN IF - TRANSACTION ONLINE - CALLING CHECKPOINT");
                     transaction.checkpoint();
                 });
+                logger.info("AFTER OPENING EARLY");
             }
         }
+        logger.info("IN maybeReopenEarly - AFTER IF");
     }
 
     protected Throwable doAbort(Throwable accumulate)
@@ -265,6 +279,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             }
             writer = newWriter;
 
+            logger.info("RETURNING FROM switchWriter PREMATURELY");
             return;
         }
 
@@ -277,7 +292,9 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             SSTableReader reader = writer.openFinalEarly();
             transaction.update(reader, false);
             moveStarts(reader.getLast());
+            logger.info("BEFORE CHECKPOINTING IN switchWriter");
             transaction.checkpoint();
+            logger.info("AFTER CHECKPOINTING IN switchWriter");
         }
 
         currentlyOpenedEarlyAt = 0;
@@ -340,7 +357,9 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             transaction.update(reader, false);
             preparedForCommit.add(reader);
         }
+        logger.info("BEFORE CHECKPOINTING IN doPrepare");
         transaction.checkpoint();
+        logger.info("AFTER CHECKPOINTING IN doPrepare");
 
         if (throwLate)
             throw new RuntimeException("exception thrown after all sstables finished, for testing");
