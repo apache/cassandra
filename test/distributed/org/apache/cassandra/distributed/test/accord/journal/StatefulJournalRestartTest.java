@@ -47,6 +47,36 @@ import static accord.utils.Property.stateful;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JOURNAL;
 
+/**
+ * There are 2 errors blocking this test from being run
+ * <p>
+ * <pre>
+ * INFO  [node1_AccordExecutor[0,13]] 2025-05-27 16:02:51,792 SubstituteLogger.java:169 - ERROR 23:02:51 Uncaught accord exception
+ * java.lang.NullPointerException: Cannot invoke "accord.topology.Topology.nodes()" because "topology" is null
+ * 	at org.apache.cassandra.service.accord.AccordConfigurationService.reportEpochClosed(AccordConfigurationService.java:490)
+ * 	at accord.coordinate.CoordinationAdapter$Adapters$ExclusiveSyncPointAdapter.invokeSuccess(CoordinationAdapter.java:351)
+ * 	at accord.coordinate.CoordinationAdapter$Adapters$SyncPointAdapter.persist(CoordinationAdapter.java:282)
+ * 	at accord.coordinate.CoordinationAdapter.persist(CoordinationAdapter.java:80)
+ * 	at accord.coordinate.CoordinationAdapter$Adapters$SyncPointAdapter.execute(CoordinationAdapter.java:274)
+ * 	at accord.coordinate.CoordinationAdapter$Adapters$AbstractExclusiveSyncPointAdapter.execute(CoordinationAdapter.java:313)
+ * 	at accord.coordinate.Propose.onAccepted(Propose.java:199)
+ * 	at accord.coordinate.Propose.onSuccess(Propose.java:150)
+ * </pre>
+ * <p>
+ * and
+ * <p>
+ * <pre>
+ * INFO  [node1_isolatedExecutor:1] 2025-05-27 15:38:06,880 SubstituteLogger.java:169 - ERROR 22:38:06 Exiting due to error while processing journal AccordJournal during initialization.
+ * java.lang.IllegalStateException: duplicate key detected [6,1748385477237760,151(RX),1] == [6,1748385477237760,151(RX),1]
+ * 	at accord.utils.Invariants.createIllegalState(Invariants.java:77)
+ * 	at accord.utils.Invariants.illegalState(Invariants.java:82)
+ * 	at accord.utils.Invariants.require(Invariants.java:272)
+ * 	at org.apache.cassandra.service.accord.AccordJournal.replay(AccordJournal.java:452)
+ * 	at org.apache.cassandra.service.accord.AccordService.replayJournal(AccordService.java:246)
+ * 	at org.apache.cassandra.service.accord.AccordService.startup(AccordService.java:235)
+ * 	at org.apache.cassandra.distributed.impl.Instance.partialStartup(Instance.java:878)
+ * </pre>
+ */
 @Ignore("Unstable, need to fix")
 public class StatefulJournalRestartTest extends TestBaseImpl
 {
