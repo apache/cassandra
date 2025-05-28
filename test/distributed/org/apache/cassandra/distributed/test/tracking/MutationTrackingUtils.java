@@ -27,6 +27,9 @@ import java.util.Set;
 
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SimpleBuilders;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.replication.*;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -45,9 +48,12 @@ import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MutationTrackingUtils
 {
+    private static final Logger logger = LoggerFactory.getLogger(MutationTrackingUtils.class);
     private static final int VERSION = MessagingService.current_version;
 
     public static byte[] encodeId(MutationId id)
@@ -297,5 +303,25 @@ public class MutationTrackingUtils
     {
         Assert.assertEquals(1, summary.size());
         return summary.get(0).logId();
+    }
+
+    public static Mutation createMutation(TableMetadata tableMetadata, int k, int v)
+    {
+        DecoratedKey key = tableMetadata.partitioner.decorateKey(ByteBufferUtil.bytes(k));
+        MutationId mutationId = MutationTrackingService.instance.nextMutationId(tableMetadata.keyspace, key.getToken());
+        SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(mutationId, tableMetadata.keyspace, key);
+        PartitionUpdate.SimpleBuilder partition = builder.update(tableMetadata);
+        partition.row().add("v", v);
+        Mutation mutation = builder.build();
+        Assert.assertFalse(mutation.id().isNone());
+        return mutation;
+    }
+
+    public static MutationId applyMutation(TableMetadata tableMetadata, int k, int v)
+    {
+        Mutation mutation = createMutation(tableMetadata, k, v);
+        mutation.apply();
+        logger.debug("Applied mutation {}", mutation.id());
+        return mutation.id();
     }
 }

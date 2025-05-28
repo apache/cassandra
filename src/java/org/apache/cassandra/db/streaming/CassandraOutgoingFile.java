@@ -26,10 +26,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -153,9 +153,9 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @Override
-    public CoordinatorLogBoundaries getCoordinatorLogBoundaries()
+    public ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets()
     {
-        return ref.get().getCoordinatorLogBoundaries();
+        return ref.get().getCoordinatorLogOffsets();
     }
 
     @Override

@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -46,7 +46,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final long repairedAt;
     private final TimeUUID pendingRepair;
     private final boolean isTransient;
-    private final CoordinatorLogBoundaries coordinatorLogBoundaries;
+    private final ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
     private final SSTableFormat<?, ?> format;
     private final SerializationHeader header;
     private final ILifecycleTransaction txn;
@@ -55,7 +55,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final List<SSTableMultiWriter> finishedWriters = new ArrayList<>();
     private SSTableMultiWriter currentWriter = null;
 
-    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, TimeUUID pendingRepair, boolean isTransient, CoordinatorLogBoundaries coordinatorLogBoundaries, SSTableFormat<?, ?> format, int sstableLevel, long totalSize, ILifecycleTransaction txn, SerializationHeader header) throws IOException
+    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, TimeUUID pendingRepair, boolean isTransient, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SSTableFormat<?, ?> format, int sstableLevel, long totalSize, ILifecycleTransaction txn, SerializationHeader header) throws IOException
     {
         DiskBoundaries db = cfs.getDiskBoundaries();
         directories = db.directories;
@@ -65,7 +65,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         this.repairedAt = repairedAt;
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
-        this.coordinatorLogBoundaries = coordinatorLogBoundaries;
+        this.coordinatorLogOffsets = coordinatorLogOffsets;
         this.format = format;
         this.txn = txn;
         this.header = header;
@@ -77,7 +77,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
                 throw new IOException(String.format("Insufficient disk space to store %s",
                                                     FBUtilities.prettyPrintMemory(totalSize)));
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(localDir), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, coordinatorLogBoundaries, null, sstableLevel, header, txn);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, null, sstableLevel, header, txn);
         }
     }
 
@@ -99,7 +99,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
                 finishedWriters.add(currentWriter);
 
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(directories.get(currentIndex)), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, coordinatorLogBoundaries, null, sstableLevel, header, txn);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, coordinatorLogOffsets, null, sstableLevel, header, txn);
         }
     }
 

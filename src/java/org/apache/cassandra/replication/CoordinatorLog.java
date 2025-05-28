@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -32,6 +33,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -74,6 +76,7 @@ public abstract class CoordinatorLog
     void receivedWriteResponse(MutationId mutationId, int onHostId)
     {
         Preconditions.checkArgument(!mutationId.isNone());
+        Preconditions.checkArgument(!Objects.equals(onHostId, ClusterMetadata.current().myNodeId().id()));
         logger.trace("witnessed remote mutation {} from {}", mutationId, onHostId);
         lock.writeLock().lock();
         try
@@ -235,9 +238,35 @@ public abstract class CoordinatorLog
         return witnessedOffsets[participants.indexOf(hostId)];
     }
 
+    boolean isDurablyReconciled(CoordinatorLogOffsets<?> logOffsets)
+    {
+        lock.readLock().lock();
+        try
+        {
+            // TODO: reconciledOffsets not necessarily durable, update once durability is implemented
+            Offsets.RangeIterator durablyReconciled = reconciledOffsets.rangeIterator();
+            Offsets.RangeIterator difference = Offsets.difference(logOffsets.offsets(logId.asLong()).rangeIterator(), durablyReconciled);
+            return !difference.tryAdvance();
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     protected Offsets.Mutable getLocal()
     {
         return witnessedOffsets[participants.indexOf(localHostId)];
+    }
+
+    @Override
+    public String toString()
+    {
+        return "CoordinatorLog{" +
+               "logId=" + logId +
+               ", localHostId=" + localHostId +
+               ", participants=" + participants +
+               '}';
     }
 
     public static class CoordinatorLogPrimary extends CoordinatorLog

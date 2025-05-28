@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.BufferClusteringBound;
 import org.apache.cassandra.db.ClusteringBound;
-import org.apache.cassandra.db.CoordinatorLogBoundaries;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -43,6 +42,7 @@ import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.serializers.AbstractTypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -81,7 +81,7 @@ public class StatsMetadata extends MetadataComponent
     public final UUID originatingHostId;
     public final TimeUUID pendingRepair;
     public final boolean isTransient;
-    public final CoordinatorLogBoundaries coordinatorLogBoundaries;
+    public final ImmutableCoordinatorLogOffsets coordinatorLogOffsets;
     // just holds the current encoding stats to avoid allocating - it is not serialized
     public final EncodingStats encodingStats;
 
@@ -125,7 +125,7 @@ public class StatsMetadata extends MetadataComponent
                          TimeUUID pendingRepair,
                          boolean isTransient,
                          boolean hasPartitionLevelDeletions,
-                         CoordinatorLogBoundaries coordinatorLogBoundaries,
+                         ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                          ByteBuffer firstKey,
                          ByteBuffer lastKey)
     {
@@ -151,7 +151,7 @@ public class StatsMetadata extends MetadataComponent
         this.originatingHostId = originatingHostId;
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
-        this.coordinatorLogBoundaries = coordinatorLogBoundaries;
+        this.coordinatorLogOffsets = coordinatorLogOffsets;
         this.encodingStats = new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
         this.hasPartitionLevelDeletions = hasPartitionLevelDeletions;
         this.firstKey = firstKey;
@@ -212,7 +212,7 @@ public class StatsMetadata extends MetadataComponent
                                  pendingRepair,
                                  isTransient,
                                  hasPartitionLevelDeletions,
-                                 coordinatorLogBoundaries,
+                                 coordinatorLogOffsets,
                                  firstKey,
                                  lastKey);
     }
@@ -242,7 +242,7 @@ public class StatsMetadata extends MetadataComponent
                                  newPendingRepair,
                                  newIsTransient,
                                  hasPartitionLevelDeletions,
-                                 coordinatorLogBoundaries,
+                                 coordinatorLogOffsets,
                                  firstKey,
                                  lastKey);
     }
@@ -276,7 +276,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(originatingHostId, that.originatingHostId)
                        .append(pendingRepair, that.pendingRepair)
                        .append(hasPartitionLevelDeletions, that.hasPartitionLevelDeletions)
-                       .append(coordinatorLogBoundaries, that.coordinatorLogBoundaries)
+                       .append(coordinatorLogOffsets, that.coordinatorLogOffsets)
                        .append(firstKey, that.firstKey)
                        .append(lastKey, that.lastKey)
                        .build();
@@ -307,7 +307,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(originatingHostId)
                        .append(pendingRepair)
                        .append(hasPartitionLevelDeletions)
-                       .append(coordinatorLogBoundaries)
+                       .append(coordinatorLogOffsets)
                        .append(firstKey)
                        .append(lastKey)
                        .build();
@@ -396,7 +396,7 @@ public class StatsMetadata extends MetadataComponent
             }
 
             if (version.hasMutationTrackingMetadata())
-                size += CoordinatorLogBoundaries.serializer.serializedSize(component.coordinatorLogBoundaries, version.correspondingMessagingVersion());
+                size += ImmutableCoordinatorLogOffsets.serializer.serializedSize(component.coordinatorLogOffsets, version.correspondingMessagingVersion());
 
             return size;
         }
@@ -523,7 +523,7 @@ public class StatsMetadata extends MetadataComponent
             }
 
             if (version.hasMutationTrackingMetadata())
-                CoordinatorLogBoundaries.serializer.serialize(component.coordinatorLogBoundaries, out, version.correspondingMessagingVersion());
+                ImmutableCoordinatorLogOffsets.serializer.serialize(component.coordinatorLogOffsets, out, version.correspondingMessagingVersion());
         }
 
         private void serializeImprovedMinMax(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
@@ -669,9 +669,9 @@ public class StatsMetadata extends MetadataComponent
                 tokenSpaceCoverage = in.readDouble();
             }
 
-            CoordinatorLogBoundaries coordinatorLogBoundaries = CoordinatorLogBoundaries.NONE;
+            ImmutableCoordinatorLogOffsets coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.NONE;
             if (version.hasMutationTrackingMetadata())
-                coordinatorLogBoundaries = CoordinatorLogBoundaries.serializer.deserialize(in, version.correspondingMessagingVersion());
+                coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.serializer.deserialize(in, version.correspondingMessagingVersion());
 
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
@@ -696,7 +696,7 @@ public class StatsMetadata extends MetadataComponent
                                      pendingRepair,
                                      isTransient,
                                      hasPartitionLevelDeletions,
-                                     coordinatorLogBoundaries,
+                                     coordinatorLogOffsets,
                                      firstKey,
                                      lastKey);
         }
