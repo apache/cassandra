@@ -273,6 +273,28 @@ provide values for `LIMIT`, `TIMESTAMP`, and `TTL` clauses. If anonymous
 bind markers are used, the names for the query parameters will be
 `[limit]`, `[timestamp]`, and `[ttl]`, respectively.
 
+===== Prepared Statement Caching
+
+Prepared Statements are cached by cassandra in-memory using a
+https://github.com/ben-manes/caffeine[Caffeine]-managed cache which
+can be configured using
+xref:managing/configuration/cass_yaml_file.adoc#_prepared_statements_cache_size[`prepared_statements_cache_size`].
+The cache is also persisted to the `system.prepared_statements` table
+so it can be preloaded into memory on startup.
+
+To ensure optimal performance, it's important to use a bind `<variable>`
+for *all non-constant values* in your CQL statements. If you include
+literal values directly in the query instead, each variation will be
+treated as a unique statement that must be prepared and cached
+separately. This will soon overflow the prepared statement cache,
+which is small by design.
+
+When the cache reaches its maximum size, older or less frequently
+used statements are
+https://github.com/ben-manes/caffeine/wiki/Eviction[evicted],
+leading to additional overhead as previously prepared statements must
+be re-prepared.
+
 [[dataDefinition]]
 == Data Definition
 
