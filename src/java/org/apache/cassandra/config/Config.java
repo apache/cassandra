@@ -1264,4 +1264,6 @@ public class Config
     // 3.0 Cassandra Driver has its "read" timeout set to 12 seconds. Our recommendation is match this.
     public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("12000ms");
     public boolean enforce_native_deadline_for_hints = false;
+
+    public boolean paxos_repair_race_wait = true;
 }
