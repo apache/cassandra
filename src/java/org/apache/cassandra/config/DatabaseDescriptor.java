@@ -114,8 +114,8 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANALYTICS_DISABLE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_STCS_IN_L0;
 import static org.apache.cassandra.config.CassandraRelevantProperties.INITIAL_TOKEN;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT;
@@ -5295,5 +5295,16 @@ public class DatabaseDescriptor
     public static void setRejectOutOfTokenRangeRequests(boolean enabled)
     {
         conf.reject_out_of_token_range_requests = enabled;
+    }
+
+    public static boolean getPaxosRepairRaceWait()
+    {
+        return conf.paxos_repair_race_wait;
+    }
+
+    @VisibleForTesting
+    public static void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
+    {
+        conf.paxos_repair_race_wait = paxosRepairRaceWait;
     }
 }

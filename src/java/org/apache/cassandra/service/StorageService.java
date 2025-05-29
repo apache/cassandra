@@ -351,7 +351,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
     public volatile boolean skipNotificationListeners = false;
 
-    private final java.util.function.Predicate<Keyspace> anyOutOfRangeOpsRecorded = 
+    private final java.util.function.Predicate<Keyspace> anyOutOfRangeOpsRecorded =
                 keyspace -> keyspace.metric.outOfRangeTokenReads.getCount() > 0
                             || keyspace.metric.outOfRangeTokenWrites.getCount() > 0
                             || keyspace.metric.outOfRangeTokenPaxosRequests.getCount() > 0;
@@ -7667,5 +7667,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setPrioritizeSAIOverLegacyIndex(boolean value)
     {
         DatabaseDescriptor.setPrioritizeSAIOverLegacyIndex(value);
+    }
+
+    @Override
+    public void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
+    {
+        DatabaseDescriptor.setPaxosRepairRaceWait(paxosRepairRaceWait);
+    }
+
+    @Override
+    public boolean getPaxosRepairRaceWait()
+    {
+        return DatabaseDescriptor.getPaxosRepairRaceWait();
     }
 }
