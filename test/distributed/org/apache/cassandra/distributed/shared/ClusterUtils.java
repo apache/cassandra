@@ -24,7 +24,9 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +80,7 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
@@ -107,6 +110,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_
 import static org.apache.cassandra.config.CassandraRelevantProperties.BROADCAST_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
+import static org.apache.cassandra.distributed.impl.TestEndpointCache.fromCassandraInetAddressAndPort;
 import static org.apache.cassandra.distributed.impl.TestEndpointCache.toCassandraInetAddressAndPort;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -834,6 +838,21 @@ public class ClusterUtils
                                                         .collect(Collectors.toSet()));
     }
 
+    public static Set<NodeId> getCMSMemberIds(IInvokableInstance inst)
+    {
+        Set<Integer> idsAsInts = inst.callOnInstance(() -> ClusterMetadata.current()
+                                                        .fullCMSMemberIds()
+                                                        .stream()
+                                                        .map(NodeId::id)
+                                                        .collect(Collectors.toSet()));
+        return idsAsInts.stream().map(NodeId::new).collect(Collectors.toSet());
+    }
+
+    public static Set<InetSocketAddress> getCMSMemberAddresses(IInvokableInstance inst)
+    {
+        return inst.callOnInstance(() -> new HashSet<>(ClusterMetadata.current().fullCMSMembers()));
+    }
+
     public static boolean decommission(IInvokableInstance leaving)
     {
         return leaving.callOnInstance(() -> {
@@ -869,6 +888,12 @@ public class ClusterUtils
                 return null;
             }
         });
+    }
+
+    public static InetSocketAddress getEndpoint(IInvokableInstance target, NodeId id)
+    {
+        String idString = Integer.toString(id.id());
+        return  target.callOnInstance(() -> fromCassandraInetAddressAndPort(ClusterMetadata.current().directory.endpoint(NodeId.fromString(idString))));
     }
 
     public static boolean cancelInProgressSequences(IInvokableInstance executor)
@@ -1443,6 +1468,15 @@ public class ClusterUtils
         return (String) instance.config().get("partitioner");
     }
 
+
+    public static void updateSeed(IInstance instance, String...address)
+    {
+        IInstanceConfig conf = instance.config();
+        conf.set("seed_provider",
+                 new IInstanceConfig.ParameterizedClass(SimpleSeedProvider.class.getName(),
+                                                        Collections.singletonMap("seeds", String.join(",", address))));
+    }
+
     /**
      * Changes the instance's address to the new address.  This method should only be called while the instance is
      * down, else has undefined behavior.
@@ -1478,12 +1512,14 @@ public class ClusterUtils
         // are a risk
         if (!conf.broadcastAddress().equals(previous))
         {
-            conf.networkTopology().put(conf.broadcastAddress(), NetworkTopology.dcAndRack(conf.localDatacenter(), conf.localRack()));
+            NetworkTopology topology = conf.networkTopology();
+            NetworkTopology.DcAndRack location = NetworkTopology.dcAndRack(topology.localDC(previous), topology.localRack(previous));
+            topology.put(conf.broadcastAddress(), location);
             try
             {
                 Field field = NetworkTopology.class.getDeclaredField("map");
                 field.setAccessible(true);
-                Map<InetSocketAddress, NetworkTopology.DcAndRack> map = (Map<InetSocketAddress, NetworkTopology.DcAndRack>) field.get(conf.networkTopology());
+                Map<InetSocketAddress, NetworkTopology.DcAndRack> map = (Map<InetSocketAddress, NetworkTopology.DcAndRack>) field.get(topology);
                 map.remove(previous);
             }
             catch (NoSuchFieldException | IllegalAccessException e)
