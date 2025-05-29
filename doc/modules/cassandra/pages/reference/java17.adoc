@@ -8,7 +8,7 @@ the vertical axis and the run version is along the horizontal axis.
 [width="68%",cols="34%,30%,36%",]
 |===
 | | Java 11 (Run) | Java 17 (Run)
-| Java 11 (Build) | Supported | Experimental Support
+| Java 11 (Build) | Supported | Supported
 | Java 17(Build) | Not Supported | Experimental in CI
 |===
 

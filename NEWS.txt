@@ -206,6 +206,13 @@ Deprecation
       the new interfaces so that their functionality can also be used via the new `initial_location_provider`,
       `node_proximity` and `address_config` settings.
 
+5.0.5
+=====
+
+New features
+------------
+    - Full support for Java 17, it is not experimental anymore.
+
 5.0
 ===
 
