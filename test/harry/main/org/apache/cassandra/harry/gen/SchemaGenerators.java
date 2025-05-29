@@ -21,6 +21,7 @@ package org.apache.cassandra.harry.gen;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.SchemaSpec;
@@ -98,15 +99,15 @@ public class SchemaGenerators
 
     public static Generator<SchemaSpec> trivialSchema(String ks, String table, int population)
     {
-        return trivialSchema(ks, table, population, SchemaSpec.optionsBuilder().build());
+        return trivialSchema(ks, () -> table, population, SchemaSpec.optionsBuilder().build());
     }
 
-    public static Generator<SchemaSpec> trivialSchema(String ks, String table, int population, SchemaSpec.Options options)
+    public static Generator<SchemaSpec> trivialSchema(String ks, Supplier<String> table, int population, SchemaSpec.Options options)
     {
         return (rng) -> {
             return new SchemaSpec(rng.next(),
                                   population,
-                                  ks, table,
+                                  ks, table.get(),
                                   Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.int64Type, Generators.int64())),
                                   Arrays.asList(ColumnSpec.ck("ck1", ColumnSpec.int64Type, Generators.int64(), false)),
                                   Arrays.asList(ColumnSpec.regularColumn("v1", ColumnSpec.int64Type)),

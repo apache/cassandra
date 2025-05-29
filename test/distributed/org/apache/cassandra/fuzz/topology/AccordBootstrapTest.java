@@ -77,7 +77,7 @@ public class AccordBootstrapTest extends FuzzTestBase
 
             HashSet<Integer> downInstances = new HashSet<>();
             withRandom(rng -> {
-                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, "bootstrap_fuzz", POPULATION,
+                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "bootstrap_fuzz", POPULATION,
                                                                                  SchemaSpec.optionsBuilder()
                                                                                            .addWriteTimestamps(false)
                                                                                            .withTransactionalMode(TransactionalMode.full)

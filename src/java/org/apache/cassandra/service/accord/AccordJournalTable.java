@@ -583,7 +583,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
         catch (IOException e)
         {
-            // can only throw if serializer is buggy
+            // can only throw if serializer is buggy or bytes got corrupted
             throw new RuntimeException(e);
         }
     }

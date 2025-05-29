@@ -25,9 +25,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 
 import accord.utils.Invariants;
 import com.codahale.metrics.Timer;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -457,6 +459,21 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
                 appendOp.close();
             }
         }
+
+        // TODO (required): Find a better way to test unwritten allocations and/or corruption
+        @VisibleForTesting
+        void consumeBufferUnsafe(Consumer<ByteBuffer> fn)
+        {
+            try
+            {
+                fn.accept(buffer);
+            }
+            finally
+            {
+                appendOp.close();
+            }
+        }
+
 
         // Variant of write that does not allocate/return a record pointer
         void writeInternal(K id, ByteBuffer record)

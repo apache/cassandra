@@ -17,23 +17,22 @@
  */
 package org.apache.cassandra.journal;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-
-import org.junit.Test;
-
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.junit.Assert;
+import org.junit.Test;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+
+import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class SegmentTest
 {
@@ -185,6 +184,19 @@ public class SegmentTest
         assertEquals(record4, reader.record());
 
         assertFalse(reader.advance());
+    }
+
+    @Test
+    public void testAllZeroBytes()
+    {
+        for (int size = 1; size < 200; size++)
+        {
+            ByteBuffer buffer = ByteBuffer.allocate(size);
+            withRandom(rng -> {
+                buffer.put(rng.nextInt(buffer.limit()), (byte) 0xff);
+                Assert.assertFalse(StaticSegment.areAllBytesZero(buffer, 0, buffer.limit()));
+            });
+        }
     }
 
     private static Params params()
