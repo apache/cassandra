@@ -28,11 +28,11 @@ import java.util.concurrent.locks.LockSupport;
 
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
@@ -235,7 +235,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
         @Override
         void onUnreferenced()
         {
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
             try
             {
                 channel.close();

@@ -46,7 +46,6 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.FastThreadLocal;
 
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.BufferPoolMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Shared;
@@ -816,7 +815,7 @@ public class BufferPool
 
             if (chunk == null)
             {
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
                 updateOverflowMemoryUsage(-size);
             }
             else
@@ -1563,7 +1562,7 @@ public class BufferPool
             if (parent != null)
                 parent.free(slab);
             else
-                FileUtils.clean(slab);
+                MemoryUtil.clean(slab);
         }
 
         static void unsafeRecycle(Chunk chunk)

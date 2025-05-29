@@ -24,8 +24,8 @@ import java.nio.channels.FileChannel.MapMode;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -225,7 +225,7 @@ public class MappedBuffer implements Closeable
         try
         {
             for (MappedByteBuffer segment : pages)
-                FileUtils.clean(segment);
+                MemoryUtil.clean(segment);
         }
         catch (Exception e)
         {

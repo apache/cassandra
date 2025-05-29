@@ -28,11 +28,11 @@ import com.google.common.annotations.VisibleForTesting;
 import org.agrona.concurrent.UnsafeBuffer;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.github.jamm.MemoryMeterStrategy;
 
 /**
@@ -191,7 +191,7 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
         for (UnsafeBuffer b : buffers)
         {
             if (b != null)
-                FileUtils.clean(b.byteBuffer());
+                MemoryUtil.clean(b.byteBuffer());
         }
     }
 

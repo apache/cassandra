@@ -32,10 +32,10 @@ import java.util.zip.CRC32;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -101,7 +101,7 @@ final class HintsBuffer
 
     void free()
     {
-        FileUtils.clean(slab);
+        MemoryUtil.clean(slab);
     }
 
     /**

@@ -21,7 +21,6 @@ import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
@@ -55,7 +54,6 @@ import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
-import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -321,11 +319,6 @@ public final class FileUtils
     public static boolean isContained(File folder, File file)
     {
         return folder.isAncestorOf(file);
-    }
-
-    public static void clean(ByteBuffer buffer)
-    {
-        MemoryUtil.clean(buffer);
     }
 
     public static long parseFileSize(String value)

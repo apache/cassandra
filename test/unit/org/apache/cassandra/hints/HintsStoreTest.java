@@ -41,8 +41,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.hamcrest.Matchers;
 
 import static org.junit.Assert.assertEquals;
@@ -176,7 +176,7 @@ public class HintsStoreTest
                 for (int i = 0; i < hintsCount; i++)
                     session.append(createHint(i, hintCreationTime));
             }
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
         }
         Assert.assertThat(descriptor.hintsFileSize(directory), Matchers.greaterThan(0L));
         return new File(directory, descriptor.fileName()).lastModified(); // hint file last modified time

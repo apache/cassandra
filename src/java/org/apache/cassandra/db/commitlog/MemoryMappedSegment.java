@@ -27,10 +27,10 @@ import java.nio.file.StandardOpenOption;
 import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /*
  * Memory-mapped segment. Maps the destination channel into an appropriately-sized memory-mapped buffer in which the
@@ -108,7 +108,7 @@ public class MemoryMappedSegment extends CommitLogSegment
     @Override
     protected void internalClose()
     {
-        FileUtils.clean(buffer);
+        MemoryUtil.clean(buffer);
         super.internalClose();
     }
 

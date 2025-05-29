@@ -55,9 +55,26 @@ public class MemoryUtilTest
 
         ByteBuffer slice = original.slice();
         MemoryUtil.clean(slice);
+        try
+        {
+            original.putInt(10);
+        }
+        catch (Exception exc)
+        {
+            Assert.fail("Unable to write to original buffer after cleaning (slice). " + exc.getMessage());
+        }
 
         ByteBuffer duplicate = original.duplicate();
         MemoryUtil.clean(duplicate);
+
+        try
+        {
+            original.putInt(10);
+        }
+        catch (Exception exc)
+        {
+            Assert.fail("Unable to write to original buffer after cleaning (duplicate). " + exc.getMessage());
+        }
     }
 
     @Test
