@@ -29,8 +29,21 @@ import java.util.zip.CRC32;
 
 import static org.apache.cassandra.journal.Journal.validateCRC;
 
+/**
+ * Entry format:
+ *
+ *   [Total Size (4 bytes)]
+ *   [Header (variable size)]
+ *   [Header CRC (4 bytes)]
+ *   [Record Data (variable size)]
+ *   [Record CRC (4 bytes)]
+ */
 public final class EntrySerializer
 {
+    /**
+     * NOTE: out buffer already contains 4 bytes specifying the position of the next allocation, which
+     * can be used for determining current allocation size and reading / skipping unwritten allocations.
+     */
     static <K> void write(K key,
                           ByteBuffer record,
                           KeySupport<K> keySupport,
@@ -150,20 +163,26 @@ public final class EntrySerializer
             readValidated(into, from, start, keySupport, userVersion);
             return totalSize;
         }
-        catch (IOException e)
+        catch (Crc.InvalidCrc e)
         {
-            throw new RecoverableJournalError(totalSize, e);
+            throw new MaybeRecoverableJournalError(totalSize, e);
         }
     }
 
-    public static class RecoverableJournalError extends IOException
+    public static class MaybeRecoverableJournalError extends IOException
     {
         public final int knownLength;
 
-        public RecoverableJournalError(int knownLength, Throwable cause)
+        public MaybeRecoverableJournalError(int knownLength, Throwable cause)
         {
             super(cause);
             this.knownLength = knownLength;
+        }
+
+        @Override
+        public String getMessage()
+        {
+            return String.format("%s knownLength %d", super.getMessage(), knownLength);
         }
     }
 

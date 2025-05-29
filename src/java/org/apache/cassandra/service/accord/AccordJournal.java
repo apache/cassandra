@@ -497,6 +497,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         status = Status.STARTED;
     }
 
+    @VisibleForTesting
+    public Journal<JournalKey, Object> unsafeGetJournal()
+    {
+        return journal;
+    }
+
     @Override
     public RangeSearcher rangeSearcher()
     {

@@ -18,6 +18,7 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
@@ -29,10 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.BooleanSupplier;
-import java.util.function.Function;
-import java.util.function.LongConsumer;
-import java.util.function.Predicate;
+import java.util.function.*;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -498,10 +496,17 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
+    // TODO (require): Find a better way to test unwritten allocations and/or corruption
+    @VisibleForTesting
+    public void unsafeConsumeBytesForTesting(int entrySize, Consumer<ByteBuffer> corrupt)
+    {
+        allocate(entrySize).consumeBufferUnsafe(corrupt);
+    }
+
     private ActiveSegment<K, V>.Allocation allocate(int entrySize)
     {
-        ActiveSegment<K, V> segment = currentSegment;
 
+        ActiveSegment<K, V> segment = currentSegment;
         ActiveSegment<K, V>.Allocation alloc;
         while (null == (alloc = segment.allocate(entrySize)))
         {
