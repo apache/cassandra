@@ -631,8 +631,8 @@ public class Paxos
             throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
         final long start = nanoTime();
-        final long proposeDeadline = start + getCasContentionTimeout(NANOSECONDS);
-        final long commitDeadline = Math.max(proposeDeadline, start + getWriteRpcTimeout(NANOSECONDS));
+        final long proposeDeadline = requestTime.computeDeadline(getCasContentionTimeout(NANOSECONDS));
+        final long commitDeadline = Math.max(proposeDeadline, requestTime.computeDeadline(getWriteRpcTimeout(NANOSECONDS)));
         return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, start, proposeDeadline, commitDeadline, requestTime);
     }
     public static RowIterator cas(DecoratedKey key,
