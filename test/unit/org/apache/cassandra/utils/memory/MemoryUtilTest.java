@@ -51,7 +51,10 @@ public class MemoryUtilTest
     @Test
     public void testCleanViewDoesNotThrow()
     {
-        ByteBuffer original = ByteBuffer.allocateDirect(16);
+        // Use a large buffer to likely get mmap'd memory from the OS. This ensures that if cleaning a view incorrectly
+        // unmaps the original buffer's memory, subsequent access to 'original' would more reliably fail.
+        // For context: glibc's mmap threshold is 32MB on 64-bit systems
+        ByteBuffer original = ByteBuffer.allocateDirect(64 * 1024 * 1024);
 
         ByteBuffer slice = original.slice();
         MemoryUtil.clean(slice);
