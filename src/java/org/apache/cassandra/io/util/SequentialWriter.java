@@ -78,7 +78,8 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
             if (buffer != null)
             {
-                try {
+                try
+                {
                     MemoryUtil.clean(buffer);
                 }
                 catch (Throwable t) { accumulate = merge(accumulate, t); }

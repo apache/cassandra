@@ -401,7 +401,8 @@ public class CompressedSequentialWriter extends SequentialWriter
             accumulate = super.doPreCleanup(accumulate);
             if (compressed != null)
             {
-                try {
+                try
+                {
                     MemoryUtil.clean(compressed);
                 }
                 catch (Throwable t) { accumulate = merge(accumulate, t); }
