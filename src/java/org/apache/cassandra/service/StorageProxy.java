@@ -321,7 +321,7 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         return Paxos.useV2()
-                ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState)
+                ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState, requestTime)
                 : legacyCas(keyspaceName, cfName, key, request, consistencyForPaxos, consistencyForCommit, clientState, nowInSeconds, requestTime);
     }
 
