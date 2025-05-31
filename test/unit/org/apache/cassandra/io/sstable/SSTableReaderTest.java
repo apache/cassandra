@@ -310,7 +310,6 @@ public class SSTableReaderTest
         }
     }
 
-
     @Test
     public void testOnDiskSizeCompressedBoundaries()
     {
@@ -343,7 +342,6 @@ public class SSTableReaderTest
                          sstable.getCompressionMetadata().chunkFor(sstable.getPosition(dk0(k), SSTableReader.Operator.EQ)).offset,
                          onDiskSizeForRanges(sstable, Collections.singleton(new Range<>(partitioner.getMinimumToken(), t0(k - 1)))));   // inclusive end
     }
-
 
     long onDiskSizeForRanges(SSTableReader sstable, Collection<Range<Token>> ranges)
     {
@@ -653,8 +651,9 @@ public class SSTableReaderTest
         assertEquals(2, sstable.getFilterTracker().getTruePositiveCount());
         assertEquals(1, sstable.getFilterTracker().getTrueNegativeCount());
         assertEquals(fpCount + 2, sstable.getFilterTracker().getFalsePositiveCount());
-    }
 
+        sstable.selfRef().release();
+    }
 
     @Test
     public void testGetPositionsListenerCalls()
@@ -746,6 +745,8 @@ public class SSTableReaderTest
         sstable.getPosition(dk(81), SSTableReader.Operator.GE, listener);
         Mockito.verify(listener).onSSTableSelected(sstable, SSTableReadsListener.SelectionReason.INDEX_ENTRY_FOUND);
         Mockito.reset(listener);
+
+        sstable.selfRef().release();
     }
 
     private SSTableReaderWithFilter prepareGetPositions()
@@ -779,7 +780,6 @@ public class SSTableReaderTest
         sstable = (SSTableReaderWithFilter) sstable.cloneWithNewStart(dk(3));
         return sstable;
     }
-
 
     @Test
     public void testOpeningSSTable() throws Exception
@@ -1065,7 +1065,7 @@ public class SSTableReaderTest
      * see CASSANDRA-5407
      */
     @Test
-    public void testGetScannerForNoIntersectingRanges() throws Exception
+    public void testGetScannerForNoIntersectingRanges()
     {
         ColumnFamilyStore store = discardSSTables(KEYSPACE1, CF_STANDARD);
         partitioner = store.getPartitioner();
@@ -1242,6 +1242,7 @@ public class SSTableReaderTest
         }
         R reopen = (R) SSTableReader.open(store, sstable.descriptor);
         assert reopen.getIndexSummary().getSamplingLevel() == sstable.getIndexSummary().getSamplingLevel() + 1;
+        reopen.selfRef().release();
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS)
@@ -1325,7 +1326,7 @@ public class SSTableReaderTest
             assertFalse(f.exists());
             assertTrue(sstable.descriptor.fileFor(c).exists());
         }
-        SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components, false);
+        SSTableReader reader = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components, false);
         // make sure the files were moved:
         for (Component c : sstable.components)
         {
@@ -1335,6 +1336,7 @@ public class SSTableReaderTest
             f.deleteOnExit();
             assertFalse(sstable.descriptor.fileFor(c).exists());
         }
+        reader.selfRef().release();
     }
 
     private SSTableReader getNewSSTable(ColumnFamilyStore cfs)
