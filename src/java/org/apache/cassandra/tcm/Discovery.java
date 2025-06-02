@@ -36,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -47,6 +48,7 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -63,6 +65,28 @@ public class Discovery
 
     public static final Discovery instance = new Discovery();
     public static final Serializer serializer = new Serializer();
+    // TODO add this to MessageSerializers properly or define a real response format
+    public static final IVersionedSerializer<NodeId> nodeIdSerializer = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(NodeId t, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUnsignedVInt32(t.id());
+        }
+
+        @Override
+        public NodeId deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int id = in.readUnsignedVInt32();
+            return new NodeId(id);
+        }
+
+        @Override
+        public long serializedSize(NodeId t, int version)
+        {
+            return TypeSizes.sizeofUnsignedVInt(t.id());
+        }
+    };
 
     public final IVerbHandler<NoPayload> requestHandler;
     private final Set<InetAddressAndPort> discovered = new ConcurrentSkipListSet<>();
@@ -94,12 +118,14 @@ public class Discovery
 
     public DiscoveredNodes discover()
     {
-        return discover(5);
+        return discover(5, false);
     }
 
-    public DiscoveredNodes discover(int rounds)
+    public DiscoveredNodes discover(int rounds, boolean allPeers)
     {
         boolean res = state.compareAndSet(State.NOT_STARTED, State.IN_PROGRESS);
+        if (!res)
+            res = state.compareAndSet(State.FINISHED, State.IN_PROGRESS);
         assert res : String.format("Can not start discovery as it is in state %s", state.get());
 
         long deadline = nanoTime() + DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS);
@@ -114,7 +140,7 @@ public class Discovery
         while (nanoTime() <= deadline || unchangedFor < rounds)
         {
             long startTimeNanos = nanoTime();
-            last = discoverOnce(null, roundTimeNanos, TimeUnit.NANOSECONDS);
+            last = discoverOnce(allPeers, null, roundTimeNanos, TimeUnit.NANOSECONDS);
             if (last.kind == DiscoveredNodes.Kind.CMS_ONLY)
                 break;
 
@@ -136,11 +162,13 @@ public class Discovery
         assert res : String.format("Can not finish discovery as it is in state %s", state.get());
         return last;
     }
+
     public DiscoveredNodes discoverOnce(InetAddressAndPort initiator)
     {
-        return discoverOnce(initiator, 1, TimeUnit.SECONDS);
+        return discoverOnce(false, initiator, 1, TimeUnit.SECONDS);
     }
-    public DiscoveredNodes discoverOnce(InetAddressAndPort initiator, long timeout, TimeUnit timeUnit)
+
+    public DiscoveredNodes discoverOnce(boolean allPeers, InetAddressAndPort initiator, long timeout, TimeUnit timeUnit)
     {
         Set<InetAddressAndPort> candidates = new HashSet<>();
         if (initiator != null)
@@ -148,12 +176,11 @@ public class Discovery
         else
             candidates.addAll(discovered);
 
-        if (candidates.isEmpty())
-            candidates.addAll(seeds.get());
-
+        candidates.addAll(seeds.get());
         candidates.remove(self);
 
-        Collection<Pair<InetAddressAndPort, DiscoveredNodes>> responses = MessageDelivery.fanoutAndWait(messaging.get(), candidates, Verb.TCM_DISCOVER_REQ, NoPayload.noPayload, timeout, timeUnit);
+        Verb verb = allPeers ? Verb.TCM_DISCOVER_PEERS_REQ : Verb.TCM_DISCOVER_REQ;
+        Collection<Pair<InetAddressAndPort, DiscoveredNodes>> responses = MessageDelivery.fanoutAndWait(messaging.get(), candidates, verb, NoPayload.noPayload, timeout, timeUnit);
 
         for (Pair<InetAddressAndPort, DiscoveredNodes> discoveredNodes : responses)
         {
@@ -179,19 +206,30 @@ public class Discovery
         @Override
         public void doVerb(Message<NoPayload> message)
         {
+            discovered.add(message.from());
             Set<InetAddressAndPort> cms = ClusterMetadata.current().fullCMSMembers();
-            logger.debug("Responding to discovery request from {}: {}", message.from(), cms);
-
             DiscoveredNodes discoveredNodes;
-            if (!cms.isEmpty())
-                discoveredNodes = new DiscoveredNodes(cms, DiscoveredNodes.Kind.CMS_ONLY);
-            else
+            switch (message.verb())
             {
-                discovered.add(message.from());
-                discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
+                case TCM_DISCOVER_REQ:
+                    logger.trace("Responding to discovery request from {}: {}", message.from(), cms);
+                    if (!cms.isEmpty())
+                        discoveredNodes = new DiscoveredNodes(cms, DiscoveredNodes.Kind.CMS_ONLY);
+                    else
+                        discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
+                    messaging.get().send(message.responseWith(discoveredNodes), message.from());
+                    break;
+                case TCM_DISCOVER_PEERS_REQ:
+                    logger.trace("Responding to {} request from {}", message.verb(), message.from());
+                    discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
+                    messaging.get().send(message.responseWith(discoveredNodes), message.from());
+                    break;
+                case TCM_DISCOVER_SURVEY_REQ:
+                    logger.trace("Responding to {} request from {}", message.verb(), message.from());
+                    NodeId id = NodeId.fromUUID(SystemKeyspace.getLocalHostId());
+                    messaging.get().send(message.responseWith(id), message.from());
+                    break;
             }
-
-            messaging.get().send(message.responseWith(discoveredNodes), message.from());
         }
     }
 
