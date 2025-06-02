@@ -373,12 +373,22 @@ public class SSTableReaderTest
         return s.substring(0, s.length() - n);
     }
 
-
     @Test
     public void testSpannedIndexPositions() throws IOException
     {
+        doTestSpannedIndexPositions(PageAware.PAGE_SIZE);
+    }
+
+    @Test
+    public void testSpannedIndexPositionsWithMaxSegmentSizeSmallerThanPageSize() throws IOException
+    {
+        doTestSpannedIndexPositions(PageAware.PAGE_SIZE - 1);
+    }
+
+    public void doTestSpannedIndexPositions(int maxSegmentSize) throws IOException
+    {
         int originalMaxSegmentSize = MmappedRegions.MAX_SEGMENT_SIZE;
-        MmappedRegions.MAX_SEGMENT_SIZE = PageAware.PAGE_SIZE;
+        MmappedRegions.MAX_SEGMENT_SIZE = maxSegmentSize;
 
         try
         {
