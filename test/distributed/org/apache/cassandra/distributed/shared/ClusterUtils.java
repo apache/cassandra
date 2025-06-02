@@ -1386,36 +1386,7 @@ public class ClusterUtils
     }
 
     /**
-     * Clean up a cluster by stopping all instances, deleting all directories,
-     * and restarting all instances.
-     * <p>
-     * This effectively resets the cluster to a clean state without having to create
-     * a new cluster instance, which is useful for tests that need to start with a 
-     * fresh state between test phases.
-     *
-     * @param cluster the cluster to clean up
-     */
-    public static void cleanup(Cluster cluster)
-    {
-        stopAll(cluster);
-        for (var inst : cluster)
-        {
-            for (var f : getDirectories(inst))
-            {
-                if (f.exists())
-                    f.deleteRecursive();
-            }
-        }
-        for (var inst : cluster)
-            inst.startup();
-    }
-
-    /**
-     * Clean up a single instance by stopping it, deleting all its directories,
-     * and restarting it.
-     * <p>
-     * This effectively resets the instance to a clean state without having to create
-     * a new instance, which is useful for tests that need to start with a fresh state.
+     * Stops the instance then deletes all directories, effectively resets the instance to a clean state.
      *
      * @param inst the instance to clean up
      */
