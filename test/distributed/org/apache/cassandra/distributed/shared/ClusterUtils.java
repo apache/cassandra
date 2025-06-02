@@ -189,10 +189,6 @@ public class ClusterUtils
 
     /**
      * Restart an instance in a blocking manner.
-     * <p>
-     * This method stops the instance using {@link #stopUnchecked(IInstance)} and then
-     * restarts it using {@link IInstance#startup()}. The method blocks until the
-     * instance has been completely restarted.
      *
      * @param instance the instance to restart
      */
@@ -1320,7 +1316,7 @@ public class ClusterUtils
      */
     public static File getCommitLogDirectory(IInstance instance)
     {
-        return getDirecotry(instance, "commitlog_directory");
+        return getDirectory(instance, "commitlog_directory");
     }
 
     /**
@@ -1331,7 +1327,7 @@ public class ClusterUtils
      */
     public static File getHintsDirectory(IInstance instance)
     {
-        return getDirecotry(instance, "hints_directory");
+        return getDirectory(instance, "hints_directory");
     }
 
     /**
@@ -1342,7 +1338,7 @@ public class ClusterUtils
      */
     public static File getSavedCachesDirectory(IInstance instance)
     {
-        return getDirecotry(instance, "saved_caches_directory");
+        return getDirectory(instance, "saved_caches_directory");
     }
 
     /**
@@ -1354,15 +1350,15 @@ public class ClusterUtils
      */
     public static File getJournalDirectory(IInstance instance)
     {
-        return getDirecotry(instance, "accord.journal_directory");
+        return getDirectory(instance, "accord.journal_directory");
     }
 
     public static File getCdcRawDirectory(IInstance instance)
     {
-        return getDirecotry(instance, "cdc_raw_directory");
+        return getDirectory(instance, "cdc_raw_directory");
     }
 
-    private static File getDirecotry(IInstance instance, String key)
+    private static File getDirectory(IInstance instance, String key)
     {
         IInstanceConfig conf = instance.config();
         // this isn't safe as it assumes the implementation of InstanceConfig
