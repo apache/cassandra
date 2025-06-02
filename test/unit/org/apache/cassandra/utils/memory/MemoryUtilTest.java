@@ -26,6 +26,8 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.assertj.core.api.Assertions;
+
 public class MemoryUtilTest
 {
 
@@ -64,7 +66,7 @@ public class MemoryUtilTest
         }
         catch (Exception exc)
         {
-            Assert.fail("Unable to write to original buffer after cleaning (slice). " + exc.getMessage());
+            Assertions.fail("Unable to write to original buffer after cleaning (slice). " + exc.getMessage(), exc);
         }
 
         ByteBuffer duplicate = original.duplicate();
@@ -76,7 +78,7 @@ public class MemoryUtilTest
         }
         catch (Exception exc)
         {
-            Assert.fail("Unable to write to original buffer after cleaning (duplicate). " + exc.getMessage());
+            Assertions.fail("Unable to write to original buffer after cleaning (duplicate). " + exc.getMessage(), exc);
         }
     }
 
