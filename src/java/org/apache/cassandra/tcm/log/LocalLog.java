@@ -103,6 +103,8 @@ public abstract class LocalLog implements Closeable
     // notification to them all.
     private final AtomicBoolean replayComplete = new AtomicBoolean();
 
+    private final AtomicBoolean paused = new AtomicBoolean();
+
     public static LogSpec logSpec()
     {
         return new LogSpec();
@@ -378,6 +380,21 @@ public abstract class LocalLog implements Closeable
         }
     }
 
+    /**
+     * Temporarily halts processing of the pending buffer. While paused, entries may be appended to the buffer but
+     * they will not be enacted. Currently only used sparingly during startup if any address changes for CMS members are
+     * detected. In this case, we pause just while a mapping from old to new addresses is being built.
+     */
+    public void pause()
+    {
+        paused.set(true);
+    }
+
+    public void unpause()
+    {
+        paused.set(false);
+    }
+
     public void append(Entry entry)
     {
         maybeAppend(entry);
@@ -469,6 +486,12 @@ public abstract class LocalLog implements Closeable
      */
     void processPendingInternal()
     {
+        if (paused.get())
+        {
+            logger.trace("Entry processing is paused, returning without scanning pending buffer");
+            return;
+        }
+
         while (true)
         {
             Entry pendingEntry = peek();
