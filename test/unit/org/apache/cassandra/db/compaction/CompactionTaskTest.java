@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -36,7 +37,11 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.lifecycle.WrappedLifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -44,6 +49,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static java.lang.String.format;
@@ -55,13 +61,18 @@ public class CompactionTaskTest
     private static TableMetadata cfm;
     private static ColumnFamilyStore cfs;
 
+    private static TableMetadata gcGraceCfm;
+    private static ColumnFamilyStore gcGraceCfs;
+
     @BeforeClass
     public static void setUpClass() throws Exception
     {
         SchemaLoader.prepareServer();
         cfm = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", "ks").build();
-        SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1), cfm);
+        gcGraceCfm = CreateTableStatement.parse("CREATE TABLE tbl2 (k INT PRIMARY KEY, col1 INT, col2 INT, col3 INT) WITH gc_grace_seconds = 0", "ks").build();
+        SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1), cfm, gcGraceCfm);
         cfs = Schema.instance.getColumnFamilyStoreInstance(cfm.id);
+        gcGraceCfs = Schema.instance.getColumnFamilyStoreInstance(gcGraceCfm.id);
     }
 
     @Before
@@ -69,6 +80,9 @@ public class CompactionTaskTest
     {
         cfs.getCompactionStrategyManager().enable();
         cfs.truncateBlocking();
+
+        gcGraceCfs.getCompactionStrategyManager().enable();
+        gcGraceCfs.truncateBlocking();
     }
 
     @Test
@@ -134,6 +148,91 @@ public class CompactionTaskTest
             // expected
         }
         Assert.assertEquals(Transactional.AbstractTransactional.State.ABORTED, txn.state());
+    }
+
+    /**
+     * Test that even some SSTables are fully expired, we can still select and reference them
+     * while they are part of compaction.
+     *
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-19776>CASSANDRA-19776</a>
+     */
+    @Test
+    public void testFullyExpiredSSTablesAreNotReleasedPrematurely()
+    {
+        Assert.assertEquals(0, gcGraceCfs.getLiveSSTables().size());
+        gcGraceCfs.getCompactionStrategyManager().disable();
+
+        // similar technique to get fully expired SSTables as in TTLExpiryTest#testAggressiveFullyExpired
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col1) VALUES (1, 1) USING TIMESTAMP 1 AND TTL 1;");
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col2) VALUES (1, 1) USING TIMESTAMP 3 AND TTL 1;");
+        Util.flush(gcGraceCfs);
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col1) VALUES (1, 1) USING TIMESTAMP 2 AND TTL 1;");
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col2) VALUES (1, 1) USING TIMESTAMP 5 AND TTL 1;");
+        Util.flush(gcGraceCfs);
+        Set<SSTableReader> toBeObsolete = new HashSet<>(gcGraceCfs.getLiveSSTables());
+        Assert.assertEquals(2, toBeObsolete.size());
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col1) VALUES (1, 1) USING TIMESTAMP 4 AND TTL 1;");
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col3) VALUES (1, 1) USING TIMESTAMP 7 AND TTL 1;");
+        Util.flush(gcGraceCfs);
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col3) VALUES (1, 1) USING TIMESTAMP 6 AND TTL 3;");
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl2 (k, col2) VALUES (1, 1) USING TIMESTAMP 8 AND TTL 1;");
+        Util.flush(gcGraceCfs);
+
+        Set<SSTableReader> sstables = gcGraceCfs.getLiveSSTables();
+        Assert.assertEquals(4, sstables.size());
+
+        // hook to transaction's checkpoint and commit methods to verify that after checkpointing, we can still reference
+        ILifecycleTransaction txn = new WrappedLifecycleTransaction(gcGraceCfs.getTracker().tryModify(sstables, OperationType.COMPACTION))
+        {
+            @Override
+            public void checkpoint()
+            {
+                for (SSTableReader r : toBeObsolete)
+                    Assert.assertTrue(this.isObsolete(r));
+
+                Assert.assertEquals(4, getNumberOfReferences());
+
+                super.checkpoint();
+
+                Assert.assertEquals(4, getNumberOfReferences());
+            }
+
+            @Override
+            public Throwable commit(Throwable accumulate)
+            {
+                int referencesBeforeCommit = getNumberOfReferences();
+                Throwable commit = super.commit(accumulate);
+                int referencesAfterCommit = getNumberOfReferences();
+
+                Assert.assertTrue(referencesBeforeCommit > referencesAfterCommit);
+
+                return commit;
+            }
+
+            private int getNumberOfReferences()
+            {
+                // this will be used e.g. in EstimatedPartitionCount metric and similar.
+                // it is crucial it does not loop and returns hence we do not use ColumnFamilyStore's selectAndReference
+                // method which does that, we just quickly assert that refs are not null (they would be null if
+                // not all SSTables would be referenceable).
+                ColumnFamilyStore.ViewFragment view = gcGraceCfs.select(View.selectFunction(SSTableSet.CANONICAL));
+                Refs<SSTableReader> refs = Refs.tryRef(view.sstables);
+                Assert.assertNotNull(refs);
+                int size = refs.size();
+                refs.close();
+
+                return size;
+            }
+        };
+
+        CompactionTask task = new CompactionTask(gcGraceCfs, txn, FBUtilities.nowInSeconds() + 2);
+
+        try (CompactionController compactionController = task.getCompactionController(task.inputSSTables()))
+        {
+            Set<SSTableReader> fullyExpiredSSTables = compactionController.getFullyExpiredSSTables();
+            Assert.assertEquals(2, fullyExpiredSSTables.size());
+            task.execute(null);
+        }
     }
 
     private static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
