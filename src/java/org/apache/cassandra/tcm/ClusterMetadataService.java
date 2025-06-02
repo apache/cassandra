@@ -165,7 +165,7 @@ public class ClusterMetadataService
         return state(ClusterMetadata.current());
     }
 
-    public static State state(ClusterMetadata metadata)
+    public static ClusterMetadataService.State state(ClusterMetadata metadata)
     {
         if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
             return RESET;

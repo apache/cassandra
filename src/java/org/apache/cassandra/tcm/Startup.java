@@ -19,7 +19,9 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +54,10 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.NewGossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
@@ -118,7 +123,16 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             case NORMAL:
                 logger.info("Initializing as non CMS node");
                 initializeAsNonCmsNode(wrapProcessor);
+                ClusterMetadataService.instance().log().pause();
                 initMessaging.run();
+                UUID localHostId = SystemKeyspace.getLocalHostId();
+                // If null, this node has not yet registered so there will be more nothing to do here
+                if (localHostId != null)
+                {
+                    NodeId nodeId = NodeId.fromUUID(localHostId);
+                    initializeCMSLookup(nodeId, ClusterMetadata.current());
+                }
+                ClusterMetadataService.instance().log().unpause();
                 break;
             case VOTE:
                 logger.info("Initializing for discovery");
@@ -183,7 +197,6 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                       ClusterMetadataService::state,
                                                                       logSpec));
         ClusterMetadataService.instance().log().ready();
-
         NodeId nodeId = ClusterMetadata.current().myNodeId();
         UUID currentHostId = SystemKeyspace.getLocalHostId();
         if (nodeId != NodeId.UNREGISTERED && !Objects.equals(nodeId.toUUID(), currentHostId))
@@ -199,6 +212,127 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                          currentHostId, nodeId.toUUID(), FBUtilities.getBroadcastAddressAndPort());
             logger.error(error);
             throw new IllegalStateException(error);
+        }
+    }
+
+
+    /**
+     * If the broadcast address of this node has changed, we must verify the endpoints it knows for
+     * the members of the CMS are still reachable and valid. This is necessary for the node to submit
+     * a STARTUP transformation which updates its broadcast address in ClusterMetadata.
+     *
+     * If the node is itself a CMS member, it is also a requirement to be able to contact a
+     * majority of the other CMS members in order to perform the serial reads and writes which
+     * constitute committing to and fetching from the distributed metadata log.
+     *
+     * To do this, we use a simple protocol:
+     * 1. For each CMS member in our replayed ClusterMetadata, ping the associated broadcast address
+     *   to query for id of the node at that address. This determines whether the endpoint still
+     *   belongs to that same node (which is/was a CMS member).
+     * 2. While we don't have confirmed current addresses for a majority of CMS nodes:
+     * 2a. Run discovery to locate as many peer addresses as possible.
+     * 2b. Query every discovered endpoint and ask for its node id.
+     * If we still don't have confirmed addresses for a majority of CMS members, go to 2a and
+     * repeat as peers may themselves still be starting up and so may have become discoverable.
+     *
+     * This process builds up a mapping of id -> current address for CMS members which can then be
+     * used to construct a set of temporary redirects between addresses according to ClusterMetadata
+     * and the newly discovered ones.
+     *
+     * As each CMS node with a changed address goes through the startup process, it will commit its
+     * STARTUP transformation and the new broadcast address will be found in ClusterMetadata. A log
+     * listener is used to react to these transformations by removing redundant address overrides
+     * as they are enacted.
+     *
+     * @param nodeId derived from the persisted id of this node from the system.peers table
+     * @param replayed current ClusterMetadata after replaying the metadata log for startup
+     */
+    private static ClusterMetadata initializeCMSLookup(NodeId nodeId, ClusterMetadata replayed)
+    {
+        InetAddressAndPort oldAddress = replayed.directory.endpoint(nodeId);
+        InetAddressAndPort newAddress = FBUtilities.getBroadcastAddressAndPort();
+        if (newAddress.equals(oldAddress))
+            return replayed;
+
+        Map<NodeId, InetAddressAndPort> previousCMS = new HashMap<>();
+        replayed.fullCMSMemberIds().forEach(id -> previousCMS.put(id, replayed.directory.endpoint(id)));
+        Map<NodeId, InetAddressAndPort> confirmedCMS = new HashMap<>();
+
+        Set<InetAddressAndPort> candidates = new HashSet<>(previousCMS.values());
+        candidates.add(newAddress);
+
+        int maxRounds = 5;
+        int currentRound = 0;
+        long roundTimeNanos = Math.min(TimeUnit.SECONDS.toNanos(4),
+                                       DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS) / maxRounds);
+        // TODO a non-CMS node only needs to be able to contact a single CMS member to commit its STARTUP
+        int quorum = (previousCMS.size() / 2) + 1;
+        logger.info("Running survey and discovery for CMS nodes {} (quorum = {})", previousCMS, quorum);
+        while (confirmedCMS.size() < quorum && currentRound < maxRounds)
+        {
+            logger.info("In round {} sending survey to {}", currentRound, candidates);
+            Collection<Pair<InetAddressAndPort, NodeId>> surveyed =
+            MessageDelivery.fanoutAndWait(MessagingService.instance(),
+                                          candidates,
+                                          Verb.TCM_DISCOVER_SURVEY_REQ,
+                                          NoPayload.noPayload,
+                                          roundTimeNanos,
+                                          TimeUnit.NANOSECONDS);
+            logger.info("Survey of {} discovered {}", candidates, surveyed);
+            surveyed.forEach(pair -> {
+                if (previousCMS.containsKey(pair.right))
+                    confirmedCMS.put(pair.right, pair.left);
+            });
+
+            logger.info("Confirmed CMS members {}", confirmedCMS);
+            if (confirmedCMS.size() < quorum || (previousCMS.size() == 1 && confirmedCMS.containsKey(nodeId)))
+            {
+                // In the single node CMS case, run discovery simply to propagate this node's new address to the rest of
+                // the cluster via the seeds & discovery meshing. Otherwise, if every node has a new address the non-CMS
+                // members have no way to discover the CMS and it has no way to know the new places to push updates to.
+                logger.info("Running discovery round; either CMS quorum was not confirmed or this is the only CMS member");
+                Discovery.DiscoveredNodes nodes = Discovery.instance.discover(5, true);
+                candidates.addAll(nodes.nodes());
+                logger.info("Rediscovery completed, discovered nodes: {}", nodes);
+            }
+            currentRound++;
+        }
+
+        if (confirmedCMS.size() >= quorum)
+        {
+            logger.info("Identified a quorum of CMS members (found {}, required {}).", confirmedCMS.size(), quorum);
+            if (confirmedCMS.values().containsAll(previousCMS.values()))
+            {
+                logger.info("No endpoint changes found for CMS members");
+                return replayed;
+            }
+            else
+            {
+                logger.info("Applying temporary address overrides for uncommitted CMS endpoint changes");
+                CMSLookup.InitialBuilder builder = CMSLookup.builder(replayed);
+                for (NodeId confirmed : confirmedCMS.keySet())
+                {
+                    InetAddressAndPort prev = previousCMS.get(confirmed);
+                    InetAddressAndPort next = confirmedCMS.get(confirmed);
+                    if (!next.equals(prev))
+                    {
+                        logger.info("Added override for {}, ({} -> {})", confirmed, previousCMS.get(confirmed), confirmedCMS.get(confirmed));
+                        builder = builder.withOverride(confirmed, previousCMS.get(confirmed), confirmedCMS.get(confirmed));
+                    }
+                }
+                if (replayed.initCMSLookup(builder.build()))
+                {
+                    ClusterMetadataService.instance().log().addListener(new CMSLookup.LogListener());
+                    return replayed;
+                }
+
+                throw new RuntimeException("Could not initialize CMS lookup");
+            }
+        }
+        else
+        {
+            throw new RuntimeException(String.format("Unable to identify a quorum of CMS members (found %s, required %s)",
+                                                     confirmedCMS.size(), quorum));
         }
     }
 

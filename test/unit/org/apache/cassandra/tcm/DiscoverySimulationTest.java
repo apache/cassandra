@@ -101,7 +101,7 @@ public class DiscoverySimulationTest
 
         Map<InetAddressAndPort, CompletableFuture<Discovery.DiscoveredNodes>> futures = new HashMap<>();
         nodes.forEach((addr, discovery) -> {
-            futures.put(addr, CompletableFuture.supplyAsync(() -> discovery.discover(5), executor));
+            futures.put(addr, CompletableFuture.supplyAsync(() -> discovery.discover(5, false), executor));
         });
 
         Map<InetAddressAndPort, Discovery.DiscoveredNodes> discovered = new HashMap<>();
