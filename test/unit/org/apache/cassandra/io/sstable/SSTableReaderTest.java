@@ -36,11 +36,14 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import org.junit.After;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
@@ -88,6 +91,7 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.Ref;
 import org.mockito.Mockito;
 
 import static java.lang.String.format;
@@ -101,6 +105,8 @@ import static org.junit.Assume.assumeTrue;
 
 public class SSTableReaderTest
 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SSTableReaderTest.class);
+
     public static final String KEYSPACE1 = "SSTableReaderTest";
     public static final String CF_STANDARD = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
@@ -111,6 +117,7 @@ public class SSTableReaderTest
     public static final String CF_STANDARD_LOW_INDEX_INTERVAL = "StandardLowIndexInterval";
     public static final String CF_STANDARD_SMALL_BLOOM_FILTER = "StandardSmallBloomFilter";
 
+    private final List<Ref<?>> refsToRelease = new ArrayList<>();
     private IPartitioner partitioner;
 
     Token t(int i)
@@ -141,6 +148,23 @@ public class SSTableReaderTest
         
         // All tests in this class assume auto-compaction is disabled.
         CompactionManager.instance.disableAutoCompaction();
+    }
+
+    @After
+    public void teardown()
+    {
+        for (Ref<?> ref : refsToRelease)
+        {
+            try
+            {
+                ref.release();
+            }
+            catch (Exception exc)
+            {
+                LOGGER.error("Error releasing ref during teardown: {}", ref, exc);
+            }
+        }
+        refsToRelease.clear();
     }
 
     @Test
@@ -661,8 +685,6 @@ public class SSTableReaderTest
         assertEquals(2, sstable.getFilterTracker().getTruePositiveCount());
         assertEquals(1, sstable.getFilterTracker().getTrueNegativeCount());
         assertEquals(fpCount + 2, sstable.getFilterTracker().getFalsePositiveCount());
-
-        sstable.selfRef().release();
     }
 
     @Test
@@ -755,8 +777,6 @@ public class SSTableReaderTest
         sstable.getPosition(dk(81), SSTableReader.Operator.GE, listener);
         Mockito.verify(listener).onSSTableSelected(sstable, SSTableReadsListener.SelectionReason.INDEX_ENTRY_FOUND);
         Mockito.reset(listener);
-
-        sstable.selfRef().release();
     }
 
     private SSTableReaderWithFilter prepareGetPositions()
@@ -788,6 +808,7 @@ public class SSTableReaderTest
 
         SSTableReaderWithFilter sstable = (SSTableReaderWithFilter) store.getLiveSSTables().iterator().next();
         sstable = (SSTableReaderWithFilter) sstable.cloneWithNewStart(dk(3));
+        trackReleaseableRef(sstable.selfRef());
         return sstable;
     }
 
@@ -1065,8 +1086,8 @@ public class SSTableReaderTest
             {
                 new IndexSummaryComponent(((IndexSummarySupport<?>) sstable).getIndexSummary(), sstable.getFirst(), sstable.getLast()).save(sstable.descriptor.fileFor(Components.SUMMARY), true);
                 SSTableReader reopened = SSTableReader.open(store, sstable.descriptor);
+                trackReleaseableRef(sstable.selfRef());
                 assert reopened.getFirst().getToken() instanceof LocalToken;
-                reopened.selfRef().release();
             }
         }
     }
@@ -1251,8 +1272,8 @@ public class SSTableReaderTest
             txn.finish();
         }
         R reopen = (R) SSTableReader.open(store, sstable.descriptor);
+        trackReleaseableRef(reopen.selfRef());
         assert reopen.getIndexSummary().getSamplingLevel() == sstable.getIndexSummary().getSamplingLevel() + 1;
-        reopen.selfRef().release();
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS)
@@ -1323,8 +1344,9 @@ public class SSTableReaderTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_MOVE_AND_OPEN);
         SSTableReader sstable = getNewSSTable(cfs);
+        trackReleaseableRef(sstable.selfRef());
+
         cfs.clearUnsafe();
-        sstable.selfRef().release();
         File tmpdir = new File(Files.createTempDirectory("testMoveAndOpen"));
         tmpdir.deleteOnExit();
         SSTableId id = SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get();
@@ -1337,6 +1359,8 @@ public class SSTableReaderTest
             assertTrue(sstable.descriptor.fileFor(c).exists());
         }
         SSTableReader reader = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components, false);
+        trackReleaseableRef(reader.selfRef());
+
         // make sure the files were moved:
         for (Component c : sstable.components)
         {
@@ -1346,7 +1370,6 @@ public class SSTableReaderTest
             f.deleteOnExit();
             assertFalse(sstable.descriptor.fileFor(c).exists());
         }
-        reader.selfRef().release();
     }
 
     private SSTableReader getNewSSTable(ColumnFamilyStore cfs)
@@ -1446,5 +1469,10 @@ public class SSTableReaderTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cf);
         cfs.discardSSTables(System.currentTimeMillis());
         return cfs;
+    }
+
+    private void trackReleaseableRef(Ref<?> ref)
+    {
+        refsToRelease.add(ref);
     }
 }
