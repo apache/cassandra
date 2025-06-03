@@ -30,6 +30,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -181,12 +184,23 @@ public class CompactionTaskTest
         Set<SSTableReader> sstables = gcGraceCfs.getLiveSSTables();
         Assert.assertEquals(4, sstables.size());
 
+        final Logger logger = LoggerFactory.getLogger(CompactionTaskTest.class);
+
         // hook to transaction's checkpoint and commit methods to verify that after checkpointing, we can still reference
         ILifecycleTransaction txn = new WrappedLifecycleTransaction(gcGraceCfs.getTracker().tryModify(sstables, OperationType.COMPACTION))
         {
             @Override
+            public void obsoleteOriginals()
+            {
+                logger.info("OBSOLETE ORIGINALS");
+                super.obsoleteOriginals();
+            }
+
+            @Override
             public void checkpoint()
             {
+                logger.info("IN CHECKPOINT");
+
                 for (SSTableReader r : toBeObsolete)
                     Assert.assertTrue(this.isObsolete(r));
 
@@ -200,6 +214,8 @@ public class CompactionTaskTest
             @Override
             public Throwable commit(Throwable accumulate)
             {
+                logger.info("IN COMMIT");
+
                 int referencesBeforeCommit = getNumberOfReferences();
                 Throwable commit = super.commit(accumulate);
                 int referencesAfterCommit = getNumberOfReferences();
@@ -231,7 +247,9 @@ public class CompactionTaskTest
         {
             Set<SSTableReader> fullyExpiredSSTables = compactionController.getFullyExpiredSSTables();
             Assert.assertEquals(2, fullyExpiredSSTables.size());
+            System.out.println("=========== BEFORE EXECUTE");
             task.execute(null);
+            System.out.println("=========== AFTER EXECUTE");
         }
     }
 
