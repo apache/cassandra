@@ -66,7 +66,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
      * Represents the current status of a propose action: it is a status rather than a result,
      * as the result may be unknown without sufficient responses (though in most cases it is final status).
      */
-    static class Status
+    public static class Status
     {
         enum Outcome { SUCCESS, SUPERSEDED, MAYBE_FAILURE }
         final Outcome outcome;
@@ -80,12 +80,12 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         public String toString() { return "Success"; }
     }
 
-    static class Superseded extends Status
+    public static class Superseded extends Status
     {
-        enum SideEffects { NO, MAYBE }
+        public enum SideEffects { NO, MAYBE }
         final Ballot by;
         final SideEffects hadSideEffects;
-        Superseded(Ballot by, SideEffects hadSideEffects)
+        public Superseded(Ballot by, SideEffects hadSideEffects)
         {
             super(Outcome.SUPERSEDED);
             this.by = by;
@@ -95,10 +95,10 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         public String toString() { return "Superseded(" + by + ',' + hadSideEffects + ')'; }
     }
 
-    private static class MaybeFailure extends Status
+    public static class MaybeFailure extends Status
     {
         final Paxos.MaybeFailure info;
-        MaybeFailure(Paxos.MaybeFailure info)
+        public MaybeFailure(Paxos.MaybeFailure info)
         {
             super(Outcome.MAYBE_FAILURE);
             this.info = info;

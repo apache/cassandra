@@ -73,11 +73,11 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
      * Represents the current status of a commit action: it is a status rather than a result,
      * as the result may be unknown without sufficient responses (though in most cases it is final status).
      */
-    static class Status
+    public static class Status
     {
         private final Paxos.MaybeFailure maybeFailure;
 
-        Status(Paxos.MaybeFailure maybeFailure)
+        public Status(Paxos.MaybeFailure maybeFailure)
         {
             this.maybeFailure = maybeFailure;
         }
