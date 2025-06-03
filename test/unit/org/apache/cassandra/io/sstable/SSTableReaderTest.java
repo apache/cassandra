@@ -30,6 +30,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -41,9 +42,8 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.rules.ExpectedException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
@@ -91,7 +91,9 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.SelfRefCounted;
 import org.mockito.Mockito;
 
 import static java.lang.String.format;
@@ -105,7 +107,6 @@ import static org.junit.Assume.assumeTrue;
 
 public class SSTableReaderTest
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SSTableReaderTest.class);
 
     public static final String KEYSPACE1 = "SSTableReaderTest";
     public static final String CF_STANDARD = "Standard1";
@@ -153,17 +154,22 @@ public class SSTableReaderTest
     @After
     public void teardown()
     {
+        Throwable exceptions = null;
         for (Ref<?> ref : refsToRelease)
         {
             try
             {
                 ref.release();
             }
-            catch (Exception exc)
+            catch (Throwable exc)
             {
-                LOGGER.error("Error releasing ref during teardown: {}", ref, exc);
+                exceptions = Throwables.merge(exceptions, exc);
             }
         }
+
+        if (exceptions != null)
+            Assertions.fail("Unable to release all tracked references", exceptions);
+
         refsToRelease.clear();
     }
 
@@ -806,10 +812,10 @@ public class SSTableReaderTest
         Util.flush(store);
         CompactionManager.instance.performMaximal(store, false);
 
-        SSTableReaderWithFilter sstable = (SSTableReaderWithFilter) store.getLiveSSTables().iterator().next();
-        sstable = (SSTableReaderWithFilter) sstable.cloneWithNewStart(dk(3));
-        trackReleaseableRef(sstable.selfRef());
-        return sstable;
+        return (SSTableReaderWithFilter) trackReleaseableRef(() -> {
+            SSTableReader reader = store.getLiveSSTables().iterator().next();
+            return reader.cloneWithNewStart(dk(3));
+        });
     }
 
     @Test
@@ -926,7 +932,8 @@ public class SSTableReaderTest
         components.remove(Components.SUMMARY);
 
         target = SSTableReader.open(store, desc, components, store.metadata);
-        try {
+        try
+        {
             assertTrue("Bloomfilter was not recreated", bloomModified < bloomFile.lastModified());
             assertTrue("Summary was not recreated", summaryModified < summaryFile.lastModified());
         }
@@ -1085,8 +1092,7 @@ public class SSTableReaderTest
             if (sstable instanceof IndexSummarySupport<?>)
             {
                 new IndexSummaryComponent(((IndexSummarySupport<?>) sstable).getIndexSummary(), sstable.getFirst(), sstable.getLast()).save(sstable.descriptor.fileFor(Components.SUMMARY), true);
-                SSTableReader reopened = SSTableReader.open(store, sstable.descriptor);
-                trackReleaseableRef(sstable.selfRef());
+                SSTableReader reopened = trackReleaseableRef(() -> SSTableReader.open(store, sstable.descriptor));
                 assert reopened.getFirst().getToken() instanceof LocalToken;
             }
         }
@@ -1271,8 +1277,7 @@ public class SSTableReaderTest
             txn.update(replacement, true);
             txn.finish();
         }
-        R reopen = (R) SSTableReader.open(store, sstable.descriptor);
-        trackReleaseableRef(reopen.selfRef());
+        R reopen = (R) trackReleaseableRef(() -> SSTableReader.open(store, sstable.descriptor));
         assert reopen.getIndexSummary().getSamplingLevel() == sstable.getIndexSummary().getSamplingLevel() + 1;
     }
 
@@ -1343,8 +1348,7 @@ public class SSTableReaderTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_MOVE_AND_OPEN);
-        SSTableReader sstable = getNewSSTable(cfs);
-        trackReleaseableRef(sstable.selfRef());
+        SSTableReader sstable = trackReleaseableRef(() -> getNewSSTable(cfs));
 
         cfs.clearUnsafe();
         File tmpdir = new File(Files.createTempDirectory("testMoveAndOpen"));
@@ -1358,8 +1362,7 @@ public class SSTableReaderTest
             assertFalse(f.exists());
             assertTrue(sstable.descriptor.fileFor(c).exists());
         }
-        SSTableReader reader = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components, false);
-        trackReleaseableRef(reader.selfRef());
+        trackReleaseableRef(() -> SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components, false));
 
         // make sure the files were moved:
         for (Component c : sstable.components)
@@ -1471,8 +1474,10 @@ public class SSTableReaderTest
         return cfs;
     }
 
-    private void trackReleaseableRef(Ref<?> ref)
+    private <T extends SelfRefCounted<T>> T trackReleaseableRef(Supplier<T> refSupplier)
     {
-        refsToRelease.add(ref);
+        T ref = refSupplier.get();
+        refsToRelease.add(ref.selfRef());
+        return ref;
     }
 }
