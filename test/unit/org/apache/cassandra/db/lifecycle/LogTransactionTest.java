@@ -1469,7 +1469,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         }
         else if (BtiFormat.isSelected())
         {
-            Set<Component> components = ImmutableSet.of(Components.DATA, BtiFormat.Components.PARTITION_INDEX, BtiFormat.Components.ROW_INDEX, Components.FILTER, Components.TOC);
+            Set<Component> components = ImmutableSet.of(Components.DATA, BtiFormat.Components.PARTITION_INDEX, BtiFormat.Components.ROW_INDEX, Components.FILTER, Components.TOC, Components.STATS);
             for (Component component : components)
             {
                 File file = descriptor.fileFor(component);
