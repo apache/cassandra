@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.binlog.BinLogOptions;
 public class AuditLogOptions extends BinLogOptions
 {
     public volatile boolean enabled = false;
+    public volatile boolean role_filtering = true;
     public ParameterizedClass logger = new ParameterizedClass(BinAuditLogger.class.getSimpleName(), Collections.emptyMap());
     public String included_keyspaces = StringUtils.EMPTY;
     // CASSANDRA-14498: By default, system, system_schema and system_virtual_schema are excluded, but these can be included via cassandra.yaml
@@ -73,6 +74,7 @@ public class AuditLogOptions extends BinLogOptions
     public static class Builder
     {
         private boolean enabled;
+        private boolean roleFiltering;
         private ParameterizedClass logger;
         private String includedKeyspaces;
         private String excludedKeyspaces;
@@ -115,6 +117,11 @@ public class AuditLogOptions extends BinLogOptions
         public Builder withEnabled(boolean enabled)
         {
             this.enabled = enabled;
+            return this;
+        }
+
+        public Builder withRoleFiltering(boolean roleFiltering) {
+            this.roleFiltering = roleFiltering;
             return this;
         }
 
@@ -227,6 +234,7 @@ public class AuditLogOptions extends BinLogOptions
             final AuditLogOptions opts = new AuditLogOptions();
 
             opts.enabled = this.enabled;
+            opts.role_filtering = this.roleFiltering;
             opts.logger = this.logger;
             sanitise(this.includedKeyspaces).map(v -> opts.included_keyspaces = v);
             sanitise(this.excludedKeyspaces).map(v -> opts.excluded_keyspaces = v);
@@ -287,6 +295,7 @@ public class AuditLogOptions extends BinLogOptions
     {
         return "AuditLogOptions{" +
                "enabled=" + enabled +
+               ", role_filtering=" + role_filtering +
                ", logger='" + logger + '\'' +
                ", included_keyspaces='" + included_keyspaces + '\'' +
                ", excluded_keyspaces='" + excluded_keyspaces + '\'' +

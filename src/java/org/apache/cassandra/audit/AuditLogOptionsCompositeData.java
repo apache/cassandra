@@ -58,6 +58,7 @@ public class AuditLogOptionsCompositeData
         public static final String MAX_LOG_SIZE = "max_log_size";
         public static final String MAX_ARCHIVE_RETRIES = "max_archive_retries";
         public static final String ENABLED = "enabled";
+        public static final String ROLE_FILTERING = "role_filtering";
         public static final String INCLUDED_KEYSPACES = "included_keyspaces";
         public static final String EXCLUDED_KEYSPACES = "excluded_keyspaces";
         public static final String INCLUDED_CATEGORIES = "included_categories";
@@ -144,6 +145,12 @@ public class AuditLogOptionsCompositeData
            SimpleType.BOOLEAN,
            o -> o.enabled,
            (opts, obj) -> opts.enabled = (Boolean) obj),
+
+    option(AuditLogOption.ROLE_FILTERING,
+           "boolean indicating if role-based filtering is enabled or not",
+           SimpleType.BOOLEAN,
+           o -> o.role_filtering,
+           (opts, obj) -> opts.role_filtering = (Boolean) obj),
 
     option(AuditLogOption.INCLUDED_KEYSPACES,
            "included keyspaces",
