@@ -63,6 +63,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.service.accord.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
@@ -71,6 +73,7 @@ import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 @Simulate(with=MONITORS)
 public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
 {
+    public static final Logger logger = LoggerFactory.getLogger(AccordConfigurationService.class);
     private final AccordSyncPropagator syncPropagator;
     public final WatermarkCollector watermarkCollector;
 
@@ -531,6 +534,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     public void reportEpochRemoved(long epoch)
     {
+        logger.info("Epoch removed, truncated epochs until {}", epoch);
         epochs.truncateUntil(epoch);
     }
     

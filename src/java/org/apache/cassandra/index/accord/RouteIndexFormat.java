@@ -63,7 +63,7 @@ import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.utils.Clock.Global.nowInSeconds;
 
-// A route index consists of a few files: cintia_sorted_list, cintia_checkpoints, and metadata
+// A route index consists of a few files: cintia_sorted_list, cintia_checkpoints, and
 // metadata stores the segement mappings and stats needed for search selection
 public class RouteIndexFormat
 {
