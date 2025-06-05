@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -434,7 +435,20 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         journalTable.forceCompaction();
     }
 
-    @SuppressWarnings("unchecked") @Override
+    public void forEach(Consumer<JournalKey> consumer)
+    {
+        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
+        {
+            while (iter.hasNext())
+            {
+                Journal.KeyRefs<JournalKey> ref = iter.next();
+                consumer.accept(ref.key());
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
     public void replay(CommandStores commandStores)
     {
         try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())

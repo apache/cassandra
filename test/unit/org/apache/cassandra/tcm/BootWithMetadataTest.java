@@ -85,7 +85,7 @@ public class BootWithMetadataTest
         // General test setup, no need to use Paxos for log commits or to replicate
         // to (non-existent) peers
         CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
-        CassandraRelevantProperties.TCM_USE_NO_OP_REPLICATOR.setBoolean(true);
+        CassandraRelevantProperties.TCM_USE_TEST_NO_OP_REPLICATOR.setBoolean(true);
 
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);

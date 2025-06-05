@@ -22,6 +22,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
