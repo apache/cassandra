@@ -19,55 +19,56 @@
 package org.apache.cassandra.audit;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.concurrent.TimeUnit;
 
-/*
- * Create cache of audit users with filter percentage indicates percentage of logs to be filtered for each user/role
- * Cacahe is built by thread by reading table audit_users in system_distributed keyspace
- * Cache will keep following information
- *  a. role / User
- *  b. type of role (developer/service)
- *  b. filter percentage
- *  <p>
- *  Thread will periodically read table system_distributed.audit_users and update cache.
- *  It is not mandatory to have each configured role to be present in cache/table. It is possible that roles in audit_users and
- *  auth_roles are out of sync. If filter_percentage is not configured for role then by default Audit log manager will log
- *  all queries for role.
- *  This cache is referred only by AuditLogManager to decide whether to filter audit log for user.
+/**
+ * {@code AuditUsersCacheService} keeps an in‑memory cache of the <em>audit_users</em> table that tells
+ * {@code AuditLogManager} which roles should have their CQL statements written to the audit log – and
+ * with which sampling rate.  The cache is refreshed periodically by a task scheduled on
+ * {@link ScheduledExecutors#scheduledTasks}.
+ *
+ * <p>The class is a <strong>singleton</strong> exposed through {@link #instance}.  Its lifecycle is:</p>
+ * <ol>
+ *   <li>{@link #setup()} – initialise the service and start the periodic refresher.</li>
+ *   <li>{@link #teardown()} – cancel the refresher so the JVM can exit cleanly or the service be
+ *       re‑initialised.</li>
+ * </ol>
+ *
+ * <p>Once {@linkplain #setup() set up}, callers can query the cache through
+ * {@link #shouldLog(String)} and {@link #getAccountType(String)}.</p>
  */
 public class AuditUsersCacheService
 {
-    /*
-     * class to store properties of user
-     * 1. Type of account (developer/service)
-     * 2. Filter percentage
+    /**
+     * Value object that holds the audit-logging configuration for a role.
      */
-    public class UserProp
+    public static class UserProp
     {
+        /** Either {@code "SERVICE"} or {@code "DEVELOPER"}. */
         public String accountType;
+        /** Percentage (0.0–100.0) of statements to log for the role. */
         public Double filterPercent;
 
         public UserProp(String type, double percent)
@@ -77,31 +78,29 @@ public class AuditUsersCacheService
         }
     };
 
+    /** Handle to the periodic cache-refresh task. */
+    private ScheduledFuture<?> refreshTask;
+
     private static final Logger logger = LoggerFactory.getLogger(AuditUsersCacheService.class);
 
     private final static String SELECT_QUERY = String.format(
-    "SELECT * FROM %s.%s"
-            , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
+        "SELECT * FROM %s.%s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
     private final static String INSERT_CASSANDRA_ROLE_QUERY = String.format(
-            "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
-                    "('cassandra', 'SERVICE', 0.01)"
-            , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
+        "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES ('cassandra', 'SERVICE', 0.01)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
     private final static String INSERT_PINGLESS_ROLE_QUERY = String.format(
-            "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
-                    "('pingless', 'SERVICE', 0.01)"
-            , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
+        "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES ('pingless', 'SERVICE', 0.01)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
     private final static String INSERT_ODIN_WORKER_ROLE_QUERY = String.format(
-            "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
-                    "('odin_worker', 'SERVICE', 0.01)"
-            , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
+        "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES ('odin_worker', 'SERVICE', 0.01)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
     private final static String INSERT_UQL_ROLE_QUERY = String.format(
-            "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
-                    "('uql', 'SERVICE', 100.0)"
-            , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
+        "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES ('uql', 'SERVICE', 100.0)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
     private final static String INSERT_DOSA_ROLE_QUERY = String.format(
-            "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES " +
-                    "('dosa', 'SERVICE', 0.01)"
-            , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
+        "INSERT INTO %s.%s (role, account_type, filter_percent) VALUES ('dosa', 'SERVICE', 0.01)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER);
 
     private static ConsistencyLevel cl = ConsistencyLevel.ONE;
     private static SelectStatement selectStatement;
@@ -110,19 +109,45 @@ public class AuditUsersCacheService
     private static ModificationStatement insertOdinWorkerRoleStatement;
     private static ModificationStatement insertDosaRoleStatement;
     private static ModificationStatement insertUqlRoleStatement;
-    private static ConcurrentHashMap<String, UserProp> auditUserCache = new ConcurrentHashMap<String, UserProp>();
-    /*
-     * When node restarts, there will be time when cache is not warmed up, this indicates
-     * status of cache warmup
-    */
-    private boolean cacheWarmedUp = false;
+    private static ConcurrentHashMap<String, UserProp> auditUserCache = new ConcurrentHashMap<>();
 
+    /** Flag that becomes {@code true} once the first refresh cycle has completed. */
+    private volatile boolean cacheWarmedUp = false;
+
+    /** The singleton instance of the service. */
     public final static AuditUsersCacheService instance = new AuditUsersCacheService();
-    private AuditUsersCacheService()
+    private AuditUsersCacheService() {}
+
+    /** Helper function to atomically update the cache */
+    private void updateAuditUserCache(String role, String accountType, double percentage)
     {
+        UserProp newProp = new UserProp(accountType, percentage);
+        // Insert if the cache does not contain the role
+        if (!auditUserCache.containsKey(role))
+        {
+            auditUserCache.putIfAbsent(role, newProp);
+            return;
+        }
+
+        // Insert if the role value has changed
+        if (!auditUserCache.get(role).equals(newProp))
+        {
+            auditUserCache.replace(role, auditUserCache.get(role), newProp);
+        }
     }
 
-    public void setup()
+    /**
+     * Initialises the service and starts the background cache refresher.
+     * <p>The method performs these steps:</p>
+     * <ol>
+     *   <li>Prepare CQL {@link SelectStatement} / {@link ModificationStatement modification statements}.</li>
+     *   <li>Populate <em>audit_users</em> with a handful of essential service roles (idempotent <code>IF NOT EXISTS</code>).</li>
+     *   <li>Choose an appropriate {@link ConsistencyLevel} depending on the replication strategy of
+     *       {@code system_distributed}.</li>
+     *   <li>Schedule {@link #refresh()} to execute every five minutes if a task does not already exist.</li>
+     * </ol>
+     */
+    public synchronized void setup()
     {
         selectStatement = (SelectStatement) QueryProcessor.getStatement(SELECT_QUERY, ClientState.forInternalCalls());
         insertCassandraRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_CASSANDRA_ROLE_QUERY,
@@ -144,18 +169,24 @@ public class AuditUsersCacheService
 
         Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
         if (ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class)
-        {
             cl = ConsistencyLevel.LOCAL_ONE;
+
+        // only start the refresh task if it has not beeen started
+        if (refreshTask == null)
+        {
+            // Refresh cache every 5 minutes with an initial delay of 2 seconds.
+            refreshTask = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> refresh(),
+                                                                                   2,
+                                                                                   300,
+                                                                                   TimeUnit.SECONDS);
         }
-
-        //refresh cache every 5 minutes
-        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> refresh(),
-                2,
-                300,
-                TimeUnit.SECONDS);
-
     }
 
+    /**
+     * Reloads the <em>audit_users</em> table into the in‑memory cache.
+     * <p>The method is called automatically by the scheduled refresher but can also be invoked manually.
+     * Any CQL or runtime exception is caught and logged; the cache is left unchanged in that case.</p>
+     */
     public void refresh()
     {
         try
@@ -168,91 +199,78 @@ public class AuditUsersCacheService
             {
                 String role = row.getString("role");
                 String accountType = row.getString("account_type");
-                Double percentage = row.getDouble("filter_percent");
+                double percentage = row.getDouble("filter_percent");
 
-
-                // If role not present in cache
-                if (!auditUserCache.containsKey(role))
-                {
-                    AuditUsersCacheService.UserProp value = new AuditUsersCacheService.UserProp(accountType, percentage);
-                    auditUserCache.putIfAbsent(role, value);
-                    continue;
-                }
-
-
-                // Ignore if its in AuditCache and filter_percent is same
-                AuditUsersCacheService.UserProp currVal = auditUserCache.get(role);
-                if (currVal.filterPercent == percentage)
-                {
-                    continue;
-                }
-
-                // Update filter_percent
-                AuditUsersCacheService.UserProp newValue = new AuditUsersCacheService.UserProp(accountType, percentage);
-                auditUserCache.replace(role, currVal, newValue);
+                // Atomically update the cache
+                updateAuditUserCache(role, accountType, percentage);
             }
-
-            if (!cacheWarmedUp)
-            {
-                cacheWarmedUp = true;
-            }
+            cacheWarmedUp = true;
         }
-
         catch (Exception e)
         {
             logger.error("Exception in audit user cache refresh:", e);
         }
-
     }
 
     /**
-     * shouldLog returns if query should be logged for user
-     * @param : role - user
-     * returns: true if query should be logged else false
+     * Stops the background refresher task.
+     */
+    public synchronized void teardown() {
+        if (refreshTask != null && !refreshTask.isCancelled())
+            refreshTask.cancel(false);
+        refreshTask = null;
+        cacheWarmedUp = false;
+    }
+
+    /**
+     * Decide probabilistically whether a statement executed by the supplied role should be written to the audit log.
      *
-     * function checks of role/user is present in cache.
-     * If role is absent then return false
-     * If role is present then check filterPercent_percentage and decide whether to
-     * log or not based on probability.
+     * @param role the CQL role that executed the statement (maybe {@code null})
+     * @return {@code true} if the statement should be logged; {@code false} otherwise
      */
     public boolean shouldLog(String role)
     {
-        if (role == null || !cacheWarmedUp || !auditUserCache.containsKey(role))
-        {
-            return false;
+        // TODO: remove once conf.audit_user_cache_enabled is deprecated and removed
+        if (!DatabaseDescriptor.getAuditUserCacheEnabled()) {
+            return true;
         }
 
-        double filter_percent = Double.valueOf(auditUserCache.get(role).filterPercent);
+        if (role == null || !cacheWarmedUp)
+            return false;
 
-        // Log with probability
-        double prob = filter_percent / 100.0;
-        double random_value = ThreadLocalRandom.current().nextDouble(0, 1);
-        return random_value < prob;
+        UserProp prop = auditUserCache.get(role);
+        if (prop == null)
+            return false;
+
+        // Log with probability - clamp filterPercent
+        return ThreadLocalRandom.current().nextDouble(0, 1) <
+               ((Math.max(0.0, Math.min(100.0, prop.filterPercent))) / 100.0);
     }
 
     /**
-     * getAccountType returns type of account (service/developer) for given user
-     * @param: role(username)
-     * returns: accountType if user is present in cache else returns ""
+     * Get the account type of role as cached by this service.
+     *
+     * @param role the CQL role name – case‑sensitive and must match the entry in <em>audit_users</em>
+     * @return the {@code account_type} string or an empty string if the role is unknown or the cache has not warmed up
      */
     public String getAccountType(String role)
     {
-        String accountType = "";
+        if (role == null || !cacheWarmedUp)
+            return "";
 
-        if (role == null || !cacheWarmedUp || !auditUserCache.containsKey(role))
-        {
-            return accountType;
-        }
-
-        return auditUserCache.get(role).accountType;
+        UserProp prop = auditUserCache.get(role);
+        return prop != null ? prop.accountType : "";
     }
 
     /**
-     *  Should be used only for Testing
+     * Insert an entry directly into the in‑memory cache – <strong>for testing only</strong>.
+     *
+     * @param role    role name
+     * @param type    either {@code "SERVICE"} or {@code "DEVELOPER"}
+     * @param percent sampling rate (0–100)
      */
-    public void insert(String role, String type, double percent)
+    protected void insert(String role, String type, double percent)
     {
-        AuditUsersCacheService.UserProp value = new AuditUsersCacheService.UserProp(type, percent);
-        auditUserCache.putIfAbsent(role, value);
+        auditUserCache.put(role, new UserProp(type, percent));
     }
 }

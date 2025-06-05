@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44851] [Part 2] Refactors the AuditUserCacheService to Improve Thread Safety and Backwards Compatibility
  * [SO-44851] [Part 1] Adds a New Audit Logging Config Option, role_filtering
 4.1.3.26
  * [SO-43081] Include StorageProxyMetrics in Paxos v2 path
