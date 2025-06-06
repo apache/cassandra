@@ -57,7 +57,8 @@ public final class TableParams
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
-        READ_REPAIR;
+        READ_REPAIR,
+        DISABLED_AUTOMATED_REPAIR;
 
         @Override
         public String toString()
@@ -83,6 +84,7 @@ public final class TableParams
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
+    public final boolean disableAutomatedRepair;
 
     private TableParams(Builder builder)
     {
@@ -105,6 +107,7 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
+        disableAutomatedRepair = builder.disableAutomatedRepair;
     }
 
     public static Builder builder()
@@ -130,7 +133,9 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair);
+                            .readRepair(params.readRepair)
+                .disableAutomatedRepair(params.disableAutomatedRepair)
+                ;
     }
 
     public Builder unbuild()
@@ -218,7 +223,8 @@ public final class TableParams
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
-            && readRepair == p.readRepair;
+            && readRepair == p.readRepair
+                && disableAutomatedRepair == p.disableAutomatedRepair;
     }
 
     @Override
@@ -239,7 +245,8 @@ public final class TableParams
                                 memtable,
                                 extensions,
                                 cdc,
-                                readRepair);
+                                readRepair,
+                disableAutomatedRepair);
     }
 
     @Override
@@ -262,6 +269,7 @@ public final class TableParams
                           .add(Option.EXTENSIONS.toString(), extensions)
                           .add(Option.CDC.toString(), cdc)
                           .add(Option.READ_REPAIR.toString(), readRepair)
+                          .add(Option.DISABLED_AUTOMATED_REPAIR.toString(), disableAutomatedRepair)
                           .toString();
     }
 
@@ -309,7 +317,9 @@ public final class TableParams
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
                .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
+               .newLine()
+               .append("AND disabled_automated_repair = ").append(disableAutomatedRepair);
     }
 
     public static final class Builder
@@ -331,6 +341,8 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
+
+        private boolean disableAutomatedRepair;
 
         public Builder()
         {
@@ -442,5 +454,12 @@ public final class TableParams
             extensions = ImmutableMap.copyOf(val);
             return this;
         }
+
+        public Builder disableAutomatedRepair(boolean val)
+        {
+            disableAutomatedRepair = val;
+            return this;
+        }
+
     }
 }
