@@ -981,6 +981,10 @@ public interface StorageServiceMBean extends NotificationEmitter
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
                                Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException;
 
+    public void enableAuditLog(Boolean withRoleFiltering, String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                                            String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                                            Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException;
+
     public boolean isAuditLogEnabled();
 
     CompositeData getSampledQueryEventLoggerOptions();

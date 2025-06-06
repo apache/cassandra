@@ -2232,6 +2232,13 @@ public class NodeProbe implements AutoCloseable
                                maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
     }
 
+    public void enableAuditLog(Boolean withRoleFiltering, String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                                             String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                                             Long maxLogSize, Integer maxQueueWeight, String archiveCommand) {
+        ssProxy.enableAuditLog(withRoleFiltering, loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                               maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
+    }
+
     public void enableOldProtocolVersions()
     {
         ssProxy.enableNativeTransportOldProtocolVersions();

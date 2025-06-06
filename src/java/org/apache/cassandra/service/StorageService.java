@@ -1455,6 +1455,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    public void doAuditLogUsersCacheTeardown()
+    {
+        if (auditLogUsersCacheSetupCalled.get()) {
+            AuditUsersCacheService.instance.teardown();
+        }
+    }
+
     private void doRequestThrottlerSetup()
     {
         IRequestThrottler throttler = DatabaseDescriptor.getRequestThrottler();
@@ -6973,12 +6980,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
                                Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException
     {
+        enableAuditLog(true, loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                       maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
+    }
+
+    public void enableAuditLog(Boolean roleFiltering, String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
+                               String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                               Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException
+    {
         AuditLogOptions auditOptions = DatabaseDescriptor.getAuditLoggingOptions();
         if (archiveCommand != null && !auditOptions.allow_nodetool_archive_command)
             throw new ConfigurationException("Can't enable audit log archiving via nodetool unless audit_logging_options.allow_nodetool_archive_command is set to true");
 
         final AuditLogOptions options = new AuditLogOptions.Builder(auditOptions)
                                         .withEnabled(true)
+                                        .withRoleFiltering(roleFiltering)
                                         .withLogger(loggerName, parameters)
                                         .withIncludedKeyspaces(includedKeyspaces)
                                         .withExcludedKeyspaces(excludedKeyspaces)
@@ -6994,6 +7010,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                         .withArchiveCommand(archiveCommand)
                                         .build();
 
+        // TODO: Remove "DatabaseDescriptor.getAuditUserCacheEnabled" once conf.audit_user_cache_enabled is deprecated and removed
+        // first, enable dependencies
+        if (options.role_filtering && DatabaseDescriptor.getAuditUserCacheEnabled())
+            doAuditLogUsersCacheSetup();
+
+        // then, start the audit logger
         AuditLogManager.instance.enable(options);
         logger.info("AuditLog is enabled with configuration: {}", options);
     }

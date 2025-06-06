@@ -17,11 +17,22 @@
  */
 package org.apache.cassandra.audit;
 
+import java.lang.NoSuchFieldError;
+import java.lang.NoSuchFieldException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.InetAddress;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -39,17 +50,27 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.service.StorageService;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /** AuditUsersCacheTest class is responsible for covering test cases for AuditUsersCacheService */
-
 public class AuditUsersCacheTest
 {
+    private static Field refreshTaskField;
+    private static Field auditUserCacheField;
+    private static Field auditLoggerField;
+    private static Field auditLogUsersCacheSetupCalledField;
+    private static Map<String, AuditUsersCacheService.UserProp> auditUserCache;
     private static EmbeddedCassandraService embedded;
 
     private static final String TEST_USER = "testuser";
@@ -66,6 +87,7 @@ public class AuditUsersCacheTest
             config.role_manager = "CassandraRoleManager";
             config.authorizer = "CassandraAuthorizer";
             config.audit_logging_options.enabled = true;
+            config.audit_logging_options.role_filtering = true;
             config.audit_logging_options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         });
         CQLTester.prepareServer();
@@ -78,8 +100,9 @@ public class AuditUsersCacheTest
         AuditUsersCacheService.instance.setup();
 
         executeWithCredentials(
-        Arrays.asList(String.format("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('%s', 'SERVICE', 100.0)", CASS_USER)),
-        CASS_USER, CASS_PW, null);
+        Collections.singletonList(String.format("INSERT INTO system_distributed.audit_users " +
+            "(role, account_type, filter_percent) VALUES ('%s', 'SERVICE', 100.0)", CASS_USER)),
+            CASS_USER, CASS_PW, null);
 
         executeWithCredentials(
                 Arrays.asList(getCreateRoleCql(TEST_USER, true, false, TEST_PW),
@@ -99,19 +122,59 @@ public class AuditUsersCacheTest
         AuditUsersCacheService.instance.insert(TEST_USER, "EMPLOYEE", 100.0);
         AuditUsersCacheService.instance.insert(TEST_SERVICE, "SERVICE", 0.0);
         AuditUsersCacheService.instance.refresh();
+
+        try
+        {
+            refreshTaskField = AuditUsersCacheService.class.getDeclaredField("refreshTask");
+            refreshTaskField.setAccessible(true);
+
+            auditUserCacheField = AuditUsersCacheService.class.getDeclaredField("auditUserCache");
+            auditUserCacheField.setAccessible(true);
+
+            auditLoggerField = AuditLogManager.class.getDeclaredField("auditLogger");
+            auditLoggerField.setAccessible(true);
+
+            auditLogUsersCacheSetupCalledField = StorageService.class.getDeclaredField("auditLogUsersCacheSetupCalled");
+            auditLogUsersCacheSetupCalledField.setAccessible(true);
+            Field modifiersField3 = Field.class.getDeclaredField("modifiers");
+            modifiersField3.setAccessible(true);
+            modifiersField3.setInt(auditLogUsersCacheSetupCalledField, auditLogUsersCacheSetupCalledField.getModifiers() & ~Modifier.FINAL);
+        } catch (NoSuchFieldException | NoSuchFieldError e) {
+            fail("MUST change fild accessability: " + e.getMessage());
+        }
+
+        Object obj = auditUserCacheField.get(AuditUsersCacheService.instance);
+        if (obj instanceof Map) {
+            auditUserCache = (Map<String, AuditUsersCacheService.UserProp>)obj;
+        } else {
+            fail("should be of type Map<String, UserProp>");
+        }
     }
 
 
     @AfterClass
     public static void shutdown()
     {
+        StorageService.instance.doAuditLogUsersCacheTeardown();
         embedded.stop();
     }
 
     @Before
     public void clearInMemoryLogger()
     {
+        StorageService.instance.enableAuditLog(true, "InMemoryAuditLogger",
+                                               Map.of(), "", "", "", "", "", "",
+                                               10, true, "HOURLY",
+                                               1024L, 1024, null);
+        auditUserCache.put(TEST_USER, new AuditUsersCacheService.UserProp("EMPLOYEE", 100.0));
+        auditUserCache.put(TEST_SERVICE, new AuditUsersCacheService.UserProp("SERVICE", 0.0));
         getInMemAuditLogger().clear();
+    }
+
+    @After
+    public void afterEachMethod()
+    {
+        AuditLogManager.instance.disableAuditLog();
     }
 
     @Test
@@ -170,6 +233,61 @@ public class AuditUsersCacheTest
         // test execute failure
         executeWithCredentials(Arrays.asList(cql), TEST_SERVICE, TEST_PW, null, true);
         assertTrue(getInMemAuditLogger().size() == 0);
+    }
+
+    @Test
+    public void cacheProbabilityIsHonouredWhenFilteringEnabled() throws Throwable {
+        auditUserCache.put(TEST_USER, new AuditUsersCacheService.UserProp("EMPLOYEE", 0.0));
+
+        // toggle the assigned logger to force audit log options reload
+        StorageService.instance.enableAuditLog(false, "NoOpAuditLogger",
+                                               Map.of(), "", "", "", "", "", "",
+                                               10, true, "HOURLY",
+                                               1024L, 1024, null);
+
+        StorageService.instance.enableAuditLog(true, "InMemoryAuditLogger",
+                                               Map.of(), "", "", "", "", "", "",
+                                               10, true, "HOURLY",
+                                               1024L, 1024, null);
+
+        String cql = "SELECT * FROM testks.table1";
+        getInMemAuditLogger().clear();
+        executeWithCredentials(Arrays.asList(cql), TEST_USER, TEST_PW, null);
+        assertEquals(0, getInMemAuditLogger().size());
+    }
+
+    @Test
+    public void cacheStartedOnlyWhenRoleFilteringEnabled() {
+        try
+        {
+            AuditUsersCacheService.instance.teardown();
+            auditLogUsersCacheSetupCalledField.set(StorageService.instance, new AtomicBoolean(false));
+
+            // Enable without role filtering should not start refresh task
+            StorageService.instance.enableAuditLog(false, "NoOpAuditLogger", Map.of(), "", "", "", "", "", "", 10, true, "HOURLY", 1024L, 1024, null);
+            assertNull(refreshTaskField.get(AuditUsersCacheService.instance));
+            StorageService.instance.disableAuditLog();
+
+            // Enable with role filtering should start refresh task once
+            StorageService.instance.enableAuditLog(true, "BinAuditLogger", Map.of(), "", "", "", "", "", "", 10, true, "HOURLY", 1024L, 1024, null);
+            ScheduledFuture<?> first = (ScheduledFuture<?>) refreshTaskField.get(AuditUsersCacheService.instance);
+            assertNotNull(first);
+            assertFalse(first.isCancelled());
+
+            // Additional calls should not create another task
+            auditLogUsersCacheSetupCalledField.set(StorageService.instance, new AtomicBoolean(false));
+            StorageService.instance.enableAuditLog(true, "InMemoryAuditLogger", Map.of(), "", "", "", "", "", "", 10, true, "HOURLY", 1024L, 1024, null);
+            ScheduledFuture<?> second = (ScheduledFuture<?>) refreshTaskField.get(AuditUsersCacheService.instance);
+            assertSame(first, second);
+
+            // Audit log disabled -> task still runs
+            StorageService.instance.disableAuditLog();
+            assertNotNull(refreshTaskField.get(AuditUsersCacheService.instance));
+        }
+        catch (IllegalAccessException e)
+        {
+            fail(e.getMessage());
+        }
     }
 
     /**
