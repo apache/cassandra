@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -425,6 +426,12 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
                                }
                            });
         });
+    }
+
+    @Override
+    protected Executor executor()
+    {
+        return Stage.ACCORD_MIGRATION::execute;
     }
 
     @Override
