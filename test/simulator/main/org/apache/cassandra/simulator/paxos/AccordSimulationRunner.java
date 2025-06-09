@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.SimulatorUtils;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
@@ -41,6 +42,7 @@ public class AccordSimulationRunner extends SimulationRunner
     public static void beforeAll()
     {
         CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.setString(StorageCompatibilityMode.NONE.toString());
+        DatabaseDescriptor.clientInitialization();
     }
 
     @Command(name = "run")

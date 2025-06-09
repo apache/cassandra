@@ -28,8 +28,13 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.ByteArrayUtil;
+
+import static org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent.CINTIA_SORTED_LIST;
 
 public class RouteSSTableManager implements SSTableManager
 {
@@ -85,7 +90,17 @@ public class RouteSSTableManager implements SSTableManager
         Group group = new Group(storeId, tableId);
         TreeSet<ByteBuffer> matches = new TreeSet<>();
         for (SSTableIndex index : sstables.values())
-            matches.addAll(index.search(group, start, startInclusive, end, endInclusive));
+        {
+            try
+            {
+                matches.addAll(index.search(group, start, startInclusive, end, endInclusive));
+            }
+            catch (Throwable t)
+            {
+                File file = index.id.fileFor(CINTIA_SORTED_LIST);
+                throw new FSReadError("Failed to search range index " + file + " for " + (startInclusive ? "[" : "(") + ByteArrayUtil.bytesToHex(start) + "..." + ByteArrayUtil.bytesToHex(end) + (endInclusive ? "]" : ")"), t, file);
+            }
+        }
         return matches;
     }
 

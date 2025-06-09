@@ -94,12 +94,12 @@ public class AccordInteropAdapter extends TxnAdapter
     }
 
     @Override
-    public void persist(Node node, Topologies any, Route<?> require, Route<?> sendTo, SelectNodeOwnership selectSendTo, FullRoute<?> route, Ballot ballot, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, BiConsumer<? super Result, Throwable> callback)
+    public void persist(Node node, Topologies any, Route<?> require, Route<?> sendTo, SelectNodeOwnership selectSendTo, FullRoute<?> route, Ballot ballot, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> callback)
     {
-        if (applyKind == Minimal && doInteropPersist(node, any, require, sendTo, selectSendTo, ballot, txnId, txn, executeAt, deps, writes, result, route, callback))
+        if (applyKind == Minimal && doInteropPersist(node, any, require, sendTo, selectSendTo, ballot, txnId, txn, executeAt, deps, writes, result, route, informDurableOnDone, callback))
             return;
 
-        super.persist(node, any, require, sendTo, selectSendTo, route, ballot, txnId, txn, executeAt, deps, writes, result, callback);
+        super.persist(node, any, require, sendTo, selectSendTo, route, ballot, txnId, txn, executeAt, deps, writes, result, informDurableOnDone, callback);
     }
 
 
@@ -116,7 +116,7 @@ public class AccordInteropAdapter extends TxnAdapter
         return true;
     }
 
-    private boolean doInteropPersist(Node node, Topologies any, Route<?> require, Route<?> sendTo, SelectNodeOwnership selectSendTo, Ballot ballot, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, BiConsumer<? super Result, Throwable> callback)
+    private boolean doInteropPersist(Node node, Topologies any, Route<?> require, Route<?> sendTo, SelectNodeOwnership selectSendTo, Ballot ballot, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> callback)
     {
         Update update = txn.update();
         ConsistencyLevel consistencyLevel = update instanceof AccordUpdate ? ((AccordUpdate) update).cassandraCommitCL() : null;
@@ -124,7 +124,7 @@ public class AccordInteropAdapter extends TxnAdapter
             return false;
 
         Topologies all = execution(node, any, sendTo, selectSendTo, fullRoute, txnId, executeAt);
-        new AccordInteropPersist(node, all, txnId, require, ballot, txn, executeAt, deps, writes, result, fullRoute, consistencyLevel, callback)
+        new AccordInteropPersist(node, all, txnId, require, ballot, txn, executeAt, deps, writes, result, fullRoute, consistencyLevel, informDurableOnDone, callback)
             .start(Minimal, any, writes, result);
         return true;
     }

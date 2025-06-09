@@ -431,7 +431,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             SimpleDataSet ds = new SimpleDataSet(metadata());
             for (CommandStore commandStore : commandStores.all())
             {
-                DefaultProgressLog.ImmutableView view = (DefaultProgressLog.ImmutableView) commandStore.unsafeProgressLog();
+                DefaultProgressLog.ImmutableView view = ((DefaultProgressLog) commandStore.unsafeProgressLog()).immutableView();
                 TableId tableId = ((AccordCommandStore)commandStore).tableId();
                 TableMetadata tableMetadata = tableMetadata(tableId);
                 while (view.advance())

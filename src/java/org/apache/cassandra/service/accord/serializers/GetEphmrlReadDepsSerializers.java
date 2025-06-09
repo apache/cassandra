@@ -60,16 +60,21 @@ public class GetEphmrlReadDepsSerializers
         @Override
         public void serialize(GetEphemeralReadDepsOk reply, DataOutputPlus out) throws IOException
         {
-            DepsSerializers.deps.serialize(reply.deps, out);
             out.writeUnsignedVInt(reply.latestEpoch);
+            out.writeBoolean(reply.deps != null);
+            if (reply.deps == null)
+                return;
+            DepsSerializers.deps.serialize(reply.deps, out);
             out.writeUnsignedVInt32(reply.flags.bits());
         }
 
         @Override
         public GetEphemeralReadDepsOk deserialize(DataInputPlus in) throws IOException
         {
-            Deps deps = DepsSerializers.deps.deserialize(in);
             long latestEpoch = in.readUnsignedVInt();
+            if (!in.readBoolean())
+                return new GetEphemeralReadDepsOk(latestEpoch);
+            Deps deps = DepsSerializers.deps.deserialize(in);
             ExecuteFlags flags = ExecuteFlags.get(in.readUnsignedVInt32());
             return new GetEphemeralReadDepsOk(deps, latestEpoch, flags);
         }
@@ -77,9 +82,13 @@ public class GetEphmrlReadDepsSerializers
         @Override
         public long serializedSize(GetEphemeralReadDepsOk reply)
         {
-            return DepsSerializers.deps.serializedSize(reply.deps)
-                   + TypeSizes.sizeofUnsignedVInt(reply.latestEpoch)
-                   + TypeSizes.sizeofUnsignedVInt(reply.flags.bits());
+            long size = 1 + TypeSizes.sizeofUnsignedVInt(reply.latestEpoch);
+            if (reply.deps != null)
+            {
+                size += DepsSerializers.deps.serializedSize(reply.deps)
+                        + TypeSizes.sizeofUnsignedVInt(reply.flags.bits());
+            }
+            return size;
         }
     };
 }

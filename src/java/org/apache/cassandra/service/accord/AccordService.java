@@ -77,6 +77,7 @@ import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
@@ -962,12 +963,13 @@ public class AccordService implements IAccordService, Shutdownable
     {
         // Need to make sure no existing txn are still being processed for this table... this is only used by DROP TABLE so NEW txn are expected to be blocked, so just need to "wait" for existing ones to complete
         Topology topology = node.topology().current();
-        List<TokenRange> rangeList = topology.reduce(new ArrayList<>(),
-                                                  s -> ((TokenRange) s.range).table().equals(id),
-                                                  (accum, s) -> {
-                                                      accum.add((TokenRange) s.range);
-                                                      return accum;
-                                                  });
+        List<TokenRange> rangeList = new ArrayList<>();
+        for (Shard shard : topology.shards())
+        {
+            TokenRange range = (TokenRange) shard.range;
+            if (id.equals(range.table()))
+                rangeList.add(range);
+        }
         if (rangeList.isEmpty()) return; // nothing to see here
 
         Ranges ranges = Ranges.of(rangeList.toArray(accord.primitives.Range[]::new));
