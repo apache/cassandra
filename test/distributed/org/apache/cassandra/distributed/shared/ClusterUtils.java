@@ -188,6 +188,20 @@ public class ClusterUtils
     }
 
     /**
+     * Restart an instance in a blocking manner.
+     *
+     * @param instance the instance to restart
+     */
+    public static void restartUnchecked(IInstance instance)
+    {
+        logger.info("Stopping instance {} to restart it", instance);
+        stopUnchecked(instance);
+        logger.info("Instance {} stopped, trying to start it now", instance);
+        instance.startup();
+        logger.info("Instance {} startup was success", instance);
+    }
+
+    /**
      * Create a new instance and add it to the cluster, without starting it.
      *
      * @param cluster to add to
@@ -1302,11 +1316,7 @@ public class ClusterUtils
      */
     public static File getCommitLogDirectory(IInstance instance)
     {
-        IInstanceConfig conf = instance.config();
-        // this isn't safe as it assumes the implementation of InstanceConfig
-        // might need to get smarter... some day...
-        String d = (String) conf.get("commitlog_directory");
-        return new File(d);
+        return getDirectory(instance, "commitlog_directory");
     }
 
     /**
@@ -1317,11 +1327,7 @@ public class ClusterUtils
      */
     public static File getHintsDirectory(IInstance instance)
     {
-        IInstanceConfig conf = instance.config();
-        // this isn't safe as it assumes the implementation of InstanceConfig
-        // might need to get smarter... some day...
-        String d = (String) conf.get("hints_directory");
-        return new File(d);
+        return getDirectory(instance, "hints_directory");
     }
 
     /**
@@ -1332,10 +1338,32 @@ public class ClusterUtils
      */
     public static File getSavedCachesDirectory(IInstance instance)
     {
+        return getDirectory(instance, "saved_caches_directory");
+    }
+
+    /**
+     * Get the journal directory for the given instance.
+     * This directory is used by the Accord consensus protocol to store its journal files.
+     *
+     * @param instance to get the journal directory for
+     * @return journal directory
+     */
+    public static File getJournalDirectory(IInstance instance)
+    {
+        return getDirectory(instance, "accord.journal_directory");
+    }
+
+    public static File getCdcRawDirectory(IInstance instance)
+    {
+        return getDirectory(instance, "cdc_raw_directory");
+    }
+
+    private static File getDirectory(IInstance instance, String key)
+    {
         IInstanceConfig conf = instance.config();
         // this isn't safe as it assumes the implementation of InstanceConfig
         // might need to get smarter... some day...
-        String d = (String) conf.get("saved_caches_directory");
+        String d = (String) conf.get(key);
         return new File(d);
     }
 
@@ -1352,7 +1380,25 @@ public class ClusterUtils
         out.add(getCommitLogDirectory(instance));
         out.add(getHintsDirectory(instance));
         out.add(getSavedCachesDirectory(instance));
+        out.add(getJournalDirectory(instance));
+        out.add(getCdcRawDirectory(instance));
         return out;
+    }
+
+    /**
+     * Stops the instance then deletes all directories, effectively resets the instance to a clean state.
+     *
+     * @param inst the instance to clean up
+     */
+    public static void cleanup(IInvokableInstance inst)
+    {
+        stopUnchecked(inst);
+        for (var f : getDirectories(inst))
+        {
+            if (f.exists())
+                f.deleteRecursive();
+        }
+        inst.startup();
     }
 
     /**

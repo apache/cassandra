@@ -1,4 +1,5 @@
 5.1
+ * Accord: startup race condition where accord journal tries to access the 2i index before its ready (CASSANDRA-20686)
  * Adopt Unsafe::invokeCleaner for Direct ByteBuffer cleaning (CASSANDRA-20677)
  * Add additional metrics around hints (CASSANDRA-20499)
  * Support for add and replace in IntervalTree (CASSANDRA-20513)

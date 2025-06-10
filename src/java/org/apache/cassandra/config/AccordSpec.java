@@ -154,6 +154,7 @@ public class AccordSpec
     public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempts <= 600s");
     public StringRetryStrategy retry_fetch_min_epoch = new StringRetryStrategy("200ms...1s*attempts <= 1s,retries=3");
     public StringRetryStrategy retry_fetch_topology = new StringRetryStrategy("200ms...1s*attempts <= 1s,retries=100");
+    public StringRetryStrategy retry_journal_index_ready = new StringRetryStrategy("100ms");
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
 
