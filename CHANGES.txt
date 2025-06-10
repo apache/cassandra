@@ -198,6 +198,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Fix MAX_SEGMENT_SIZE < chunkSize in MmappedRegions::updateState (CASSANDRA-20636)
  * Full Java 17 support (CASSANDRA-20681)
  * Ensure replica filtering protection does not trigger unnecessary short read protection reads (CASSANDRA-20639)
  * Unified Compaction does not properly validate min and target sizes (CASSANDRA-20398)
