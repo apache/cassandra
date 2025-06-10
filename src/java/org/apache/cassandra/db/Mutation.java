@@ -263,7 +263,10 @@ public class Mutation implements IMutation, Supplier<Mutation>
     public Future<?> applyFuture()
     {
         Keyspace ks = Keyspace.open(keyspaceName);
-        return ks.applyFuture(this, Keyspace.open(keyspaceName).getMetadata().params.durableWrites, true);
+        // make mutation not deferrable on MV lock contention. Mutation task should never defer itself into the same
+        // mutation stage queue, otherwise under heavy load it will block mutation stage forever on waiting for available
+        // worker thread indefinitely.
+        return ks.applyFuture(this, Keyspace.open(keyspaceName).getMetadata().params.durableWrites, true, true, false);
     }
 
     private void apply(Keyspace keyspace, boolean durableWrites, boolean isDroppable)
