@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -62,7 +63,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.topology.AccordFastPath;
 import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
@@ -89,7 +89,6 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.serialization.Version.MIN_ACCORD_VERSION;
@@ -114,6 +113,7 @@ public class ClusterMetadata
     public final ConsensusMigrationState consensusMigrationState;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
     public final AccordStaleReplicas accordStaleReplicas;
+    public final CMSMembership cmsMembership;
 
     // This isn't serialized as part of ClusterMetadata it's really just a view over the Directory.
     public final Locator locator;
@@ -121,7 +121,6 @@ public class ClusterMetadata
     // These fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
     private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
-    private Set<NodeId> fullCMSIds;
     private volatile Map<ReplicationParams, RangesAtEndpoint> localRangesAllSettled = null;
     private static final RangesAtEndpoint EMPTY_LOCAL_RANGES = RangesAtEndpoint.empty(FBUtilities.getBroadcastAddressAndPort());
 
@@ -151,7 +150,8 @@ public class ClusterMetadata
              InProgressSequences.EMPTY,
              ConsensusMigrationState.EMPTY,
              ImmutableMap.of(),
-             AccordStaleReplicas.EMPTY);
+             AccordStaleReplicas.EMPTY,
+             CMSMembership.EMPTY);
     }
 
     public ClusterMetadata(Epoch epoch,
@@ -165,7 +165,8 @@ public class ClusterMetadata
                            InProgressSequences inProgressSequences,
                            ConsensusMigrationState consensusMigrationState,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions,
-                           AccordStaleReplicas accordStaleReplicas)
+                           AccordStaleReplicas accordStaleReplicas,
+                           CMSMembership cmsMembership)
     {
         this(EMPTY_METADATA_IDENTIFIER,
              epoch,
@@ -179,22 +180,25 @@ public class ClusterMetadata
              inProgressSequences,
              consensusMigrationState,
              extensions,
-             accordStaleReplicas);
+             accordStaleReplicas,
+             cmsMembership);
     }
 
+
     private ClusterMetadata(int metadataIdentifier,
-                           Epoch epoch,
-                           IPartitioner partitioner,
-                           DistributedSchema schema,
-                           Directory directory,
-                           TokenMap tokenMap,
-                           DataPlacements placements,
-                           AccordFastPath accordFastPath,
-                           LockedRanges lockedRanges,
-                           InProgressSequences inProgressSequences,
-                           ConsensusMigrationState consensusMigrationState,
-                           Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions,
-                           AccordStaleReplicas accordStaleReplicas)
+                            Epoch epoch,
+                            IPartitioner partitioner,
+                            DistributedSchema schema,
+                            Directory directory,
+                            TokenMap tokenMap,
+                            DataPlacements placements,
+                            AccordFastPath accordFastPath,
+                            LockedRanges lockedRanges,
+                            InProgressSequences inProgressSequences,
+                            ConsensusMigrationState consensusMigrationState,
+                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions,
+                            AccordStaleReplicas accordStaleReplicas,
+                            CMSMembership cmsMembership)
     {
         // TODO: token map is a feature of the specific placement strategy, and so may not be a relevant component of
         //  ClusterMetadata in the long term. We need to consider how the actual components of metadata can be evolved
@@ -214,6 +218,7 @@ public class ClusterMetadata
         this.extensions = ImmutableMap.copyOf(extensions);
         this.locator = Locator.usingDirectory(directory);
         this.accordStaleReplicas = accordStaleReplicas;
+        this.cmsMembership = cmsMembership;
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -223,9 +228,10 @@ public class ClusterMetadata
 
         if (fullCMSEndpoints == null)
         {
-            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
-                return Collections.emptySet();
-            this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet());
+            fullCMSEndpoints = ImmutableSet.copyOf(cmsMembership.fullMembers()
+                                                                .stream()
+                                                                .map(directory::endpoint)
+                                                                .collect(Collectors.toSet()));
         }
         return fullCMSEndpoints;
     }
@@ -235,13 +241,7 @@ public class ClusterMetadata
         if (epoch.isBefore(Epoch.FIRST))
             return Collections.emptySet();
 
-        if (fullCMSIds == null)
-        {
-            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
-                return Collections.emptySet();
-            this.fullCMSIds = placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet().stream().map(directory::peerId).collect(toImmutableSet());
-        }
-        return fullCMSIds;
+        return cmsMembership.fullMembers();
     }
 
     public EndpointsForRange fullCMSMembersAsReplicas()
@@ -251,9 +251,10 @@ public class ClusterMetadata
 
         if (fullCMSReplicas == null)
         {
-            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
-                return EndpointsForRange.empty(MetaStrategy.entireRange);
-            fullCMSReplicas = placements.get(ReplicationParams.meta(this)).reads.forRange(MetaStrategy.entireRange).get();
+            EndpointsForRange.Builder builder = EndpointsForRange.builder(MetaStrategy.entireRange);
+            for (NodeId nodeId : fullCMSMemberIds())
+                builder.add(MetaStrategy.replica(directory.endpoint(nodeId)));
+            fullCMSReplicas = builder.build();
         }
         return fullCMSReplicas;
     }
@@ -291,7 +292,8 @@ public class ClusterMetadata
                                    capLastModified(inProgressSequences, epoch),
                                    capLastModified(consensusMigrationState, epoch),
                                    capLastModified(extensions, epoch),
-                                   capLastModified(accordStaleReplicas, epoch));
+                                   capLastModified(accordStaleReplicas, epoch),
+                                   capLastModified(cmsMembership, epoch));
     }
 
     public ClusterMetadata initializeClusterIdentifier(int clusterIdentifier)
@@ -314,7 +316,8 @@ public class ClusterMetadata
                                    inProgressSequences,
                                    consensusMigrationState,
                                    extensions,
-                                   accordStaleReplicas);
+                                   accordStaleReplicas,
+                                   cmsMembership);
     }
 
     private static Map<ExtensionKey<?,?>, ExtensionValue<?>> capLastModified(Map<ExtensionKey<?,?>, ExtensionValue<?>> original, Epoch maxEpoch)
@@ -495,6 +498,7 @@ public class ClusterMetadata
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
         private AccordStaleReplicas accordStaleReplicas;
+        private CMSMembership cmsMembership;
 
         private Transformer(ClusterMetadata metadata, Epoch epoch)
         {
@@ -634,6 +638,30 @@ public class ClusterMetadata
             tokenMap = tokenMap.unassignTokens(id);
             directory = directory.withNodeState(id, NodeState.LEFT)
                                  .withoutRackAndDC(id);
+            return this;
+        }
+
+        public Transformer startJoiningCMS(NodeId id)
+        {
+            cmsMembership = cmsMembership.startJoining(id);
+            return this;
+        }
+
+        public Transformer finishJoiningCMS(NodeId id)
+        {
+            cmsMembership = cmsMembership.finishJoining(id);
+            return this;
+        }
+
+        public Transformer cancelJoiningCMS(NodeId id)
+        {
+            cmsMembership = cmsMembership.cancelJoining(id);
+            return this;
+        }
+
+        public Transformer leaveCMS(NodeId id)
+        {
+            cmsMembership = cmsMembership.leave(id);
             return this;
         }
 
@@ -834,7 +862,8 @@ public class ClusterMetadata
                                                        inProgressSequences,
                                                        consensusMigrationState,
                                                        extensions,
-                                                       accordStaleReplicas),
+                                                       accordStaleReplicas,
+                                                       cmsMembership),
                                    ImmutableSet.copyOf(modifiedKeys));
         }
 
@@ -852,7 +881,8 @@ public class ClusterMetadata
                                        inProgressSequences,
                                        consensusMigrationState,
                                        extensions,
-                    accordStaleReplicas);
+                                       accordStaleReplicas,
+                                       cmsMembership);
         }
 
         @Override
@@ -871,6 +901,7 @@ public class ClusterMetadata
                    ", inProgressSequences=" + inProgressSequences +
                    ", consensusMigrationState=" + consensusMigrationState +
                    ", extensions=" + extensions +
+                   ", cmsMembership=" + cmsMembership +
                    ", modifiedKeys=" + modifiedKeys +
                    '}';
         }
@@ -966,6 +997,9 @@ public class ClusterMetadata
                ", placements=" + placements +
                ", lockedRanges=" + lockedRanges +
                ", consensusMigrationState=" + lockedRanges +
+               ", inProgressSequences=" + inProgressSequences +
+               ", extensions=" + extensions +
+               ", cmsMembership=" + cmsMembership +
                '}';
     }
 
@@ -994,7 +1028,8 @@ public class ClusterMetadata
                inProgressSequences.equals(that.inProgressSequences) &&
                consensusMigrationState.equals(that.consensusMigrationState) &&
                accordStaleReplicas.equals(that.accordStaleReplicas) &&
-               extensions.equals(that.extensions);
+               extensions.equals(that.extensions) &&
+               cmsMembership.equals(that.cmsMembership);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterMetadata.class);
@@ -1037,12 +1072,16 @@ public class ClusterMetadata
         {
             logger.warn("Extensions differ: {} != {}", extensions, other.extensions);
         }
+        if (!cmsMembership.equals(other.cmsMembership))
+        {
+            logger.warn("CMS Membership differ: {} != {}", cmsMembership, other.cmsMembership);
+        }
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(epoch, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, accordStaleReplicas, extensions);
+        return Objects.hash(epoch, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, accordStaleReplicas, extensions, cmsMembership);
     }
 
     public static ClusterMetadata current()
@@ -1132,6 +1171,8 @@ public class ClusterMetadata
                 assert key.valueType.isInstance(value);
                 value.serialize(out, version);
             }
+            if (version.isAtLeast(Version.V9))
+                CMSMembership.serializer.serialize(metadata.cmsMembership, out, version);
         }
 
         @Override
@@ -1188,6 +1229,11 @@ public class ClusterMetadata
                 value.deserialize(in, version);
                 extensions.put(key, value);
             }
+
+            CMSMembership cmsMembership = CMSMembership.EMPTY;
+            if (version.isAtLeast(Version.V9))
+                cmsMembership = CMSMembership.serializer.deserialize(in, version);
+
             return new ClusterMetadata(clusterIdentifier,
                                        epoch,
                                        partitioner,
@@ -1200,7 +1246,8 @@ public class ClusterMetadata
                                        ips,
                                        consensusMigrationState,
                                        extensions,
-                                       staleReplicas);
+                                       staleReplicas,
+                                       cmsMembership);
         }
 
         private DistributedSchema deduplicateReplicationParams(DistributedSchema schema, DataPlacements placements)
@@ -1247,6 +1294,9 @@ public class ClusterMetadata
 
             size += LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
                     InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
+
+            if (version.isAtLeast(Version.V9))
+                size += CMSMembership.serializer.serializedSize(metadata.cmsMembership, version);
 
             return size;
         }

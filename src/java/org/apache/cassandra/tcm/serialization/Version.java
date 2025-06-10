@@ -38,13 +38,13 @@ public enum Version
      */
     V0(0),
     /**
-     *  - Moved Partitioner in ClusterMetadata serializer to be the first field
-     *  - Added a counter to Directory serializer to keep track of NodeIds
+     * - Moved Partitioner in ClusterMetadata serializer to be the first field
+     * - Added a counter to Directory serializer to keep track of NodeIds
      */
     V1(1),
     /**
-     *  - Added version to PlacementForRange serializer
-     *  - Serialize MemtableParams when serializing TableParams
+     * - Added version to PlacementForRange serializer
+     * - Serialize MemtableParams when serializing TableParams
      */
     V2(2),
     /**
@@ -78,6 +78,10 @@ public enum Version
      *  - Comments and security labels for schema elements (keyspaces, tables, columns, UDTs, and UDT fields)
      */
     V8(8),
+    /**
+     * - DataPlacements don't include MetaStrategy, replaced by ClusterMetadata.CMSMembership
+     */
+    V9(9),
 
     UNKNOWN(Integer.MAX_VALUE);
 
@@ -95,6 +99,7 @@ public enum Version
     }
 
     private final int version;
+
     Version(int version)
     {
         this.version = version;

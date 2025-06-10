@@ -327,14 +327,15 @@ public class ClusterMetadataService
                                                     DatabaseDescriptor.getPartitioner(),
                                                     new DistributedSchema(keyspaces),
                                                     Directory.EMPTY,
-                                   new TokenMap(DatabaseDescriptor.getPartitioner()),
-                                   DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
-                                   LockedRanges.EMPTY,
-                                   InProgressSequences.EMPTY,
-                                   ConsensusMigrationState.EMPTY,
-                                   Collections.emptyMap(),
-                                   AccordStaleReplicas.EMPTY);
+                                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
+                                                    DataPlacements.empty(),
+                                                    AccordFastPath.EMPTY,
+                                                    LockedRanges.EMPTY,
+                                                    InProgressSequences.EMPTY,
+                                                    ConsensusMigrationState.EMPTY,
+                                                    Collections.emptyMap(),
+                                                    AccordStaleReplicas.EMPTY,
+                                                    CMSMembership.EMPTY);
 
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
@@ -358,6 +359,24 @@ public class ClusterMetadataService
         log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC, (p) -> {});
         ClusterMetadataService.setInstance(cms);
+    }
+
+    @SuppressWarnings("resource")
+    public static void initializeForClients()
+    {
+        if (instance != null)
+            return;
+
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools());
+    }
+
+    public static void initializeForClients(DistributedSchema initialSchema)
+    {
+        if (instance != null)
+            return;
+
+
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools(initialSchema));
     }
 
     /*
@@ -391,25 +410,8 @@ public class ClusterMetadataService
             };
         }
         // otherwise, this is a noop.
-        return preInit -> {};
-    }
-
-    @SuppressWarnings("resource")
-    public static void initializeForClients()
-    {
-        if (instance != null)
-            return;
-
-        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools());
-    }
-
-    public static void initializeForClients(DistributedSchema initialSchema)
-    {
-        if (instance != null)
-            return;
-
-
-        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools(initialSchema));
+        return preInit -> {
+        };
     }
 
     public boolean isCurrentMember(InetAddressAndPort peer)
