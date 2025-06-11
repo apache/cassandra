@@ -181,6 +181,7 @@ public class AuditUsersCacheTest
     public void testAuditCaasUser()
     {
         String cql = "LIST ALL";
+        AuditUsersCacheService.instance.insert(CASS_USER, "SERVICE", 100.0);
         executeWithCredentials(Arrays.asList(cql), CASS_USER, CASS_PW, AuditLogEntryType.LOGIN_SUCCESS);
         assertTrue(getInMemAuditLogger().size() > 0);
         AuditLogEntry logEntry = getInMemAuditLogger().poll();
@@ -189,6 +190,7 @@ public class AuditUsersCacheTest
         assertLogEntry(logEntry, AuditLogEntryType.LIST_PERMISSIONS, cql, CASS_USER);
 
         // test execute failure
+        AuditUsersCacheService.instance.insert(CASS_USER, "SERVICE", 100.0);
         executeWithCredentials(Arrays.asList(cql), CASS_USER, CASS_PW, AuditLogEntryType.LOGIN_SUCCESS, true);
         // remove all prepared statement related log
         getInMemAuditLogger().removeIf(auditLogEntry -> auditLogEntry.getType() == AuditLogEntryType.PREPARE_STATEMENT);
@@ -257,7 +259,8 @@ public class AuditUsersCacheTest
     }
 
     @Test
-    public void cacheStartedOnlyWhenRoleFilteringEnabled() {
+    public void cacheStartedOnlyWhenRoleFilteringEnabled()
+    {
         try
         {
             AuditUsersCacheService.instance.teardown();
@@ -288,6 +291,54 @@ public class AuditUsersCacheTest
         {
             fail(e.getMessage());
         }
+    }
+
+    @Test
+    public void testRefreshSkipsRowsMissingFilterPercent()
+    {
+        final String INVALID_ROLE = "invalid_role_missing_columns";
+
+        executeWithCredentials(
+        Arrays.asList(String.format(
+        "INSERT INTO system_distributed.audit_users (role, account_type) " +
+        "VALUES ('%s', 'SERVICE')",
+        INVALID_ROLE)),
+        CASS_USER, CASS_PW, null);
+
+        // Re-load the cache
+        AuditUsersCacheService.instance.refresh();
+
+        // The incomplete row must NOT be present in the in-memory cache
+        assertEquals("", AuditUsersCacheService.instance.getAccountType(INVALID_ROLE));
+        assertFalse(AuditUsersCacheService.instance.shouldLog(INVALID_ROLE));
+
+        executeWithCredentials(Arrays.asList(String.format(
+                                             "DELETE FROM system_distributed.audit_users WHERE role = '%s'",
+                                             INVALID_ROLE)
+        ), CASS_USER, CASS_PW, null);
+    }
+
+    @Test
+    public void testRefreshSkipsRowsMissingAccountType()
+    {
+        final String INVALID_ROLE = "invalid_role_missing_columns";
+
+        executeWithCredentials(
+        Arrays.asList(String.format(
+        "INSERT INTO system_distributed.audit_users (role, filter_percent) " +
+        "VALUES ('%s', 0.01)",
+        INVALID_ROLE)),
+        CASS_USER, CASS_PW, null);
+
+        AuditUsersCacheService.instance.refresh();
+
+        assertEquals("", AuditUsersCacheService.instance.getAccountType(INVALID_ROLE));
+        assertFalse(AuditUsersCacheService.instance.shouldLog(INVALID_ROLE));
+
+        executeWithCredentials(Arrays.asList(String.format(
+                                             "DELETE FROM system_distributed.audit_users WHERE role = '%s'",
+                                             INVALID_ROLE)
+        ), CASS_USER, CASS_PW, null);;
     }
 
     /**

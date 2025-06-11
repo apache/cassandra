@@ -61,6 +61,11 @@ import java.util.concurrent.TimeUnit;
  */
 public class AuditUsersCacheService
 {
+
+    private static final String ROLE_COLUMN = "role";
+    private static final String ACCOUNT_TYPE_COLUMN = "account_type";
+    private static final String FILTER_PERCENT_COLUMN = "filter_percent";
+
     /**
      * Value object that holds the audit-logging configuration for a role.
      */
@@ -197,9 +202,15 @@ public class AuditUsersCacheService
             UntypedResultSet result = UntypedResultSet.create(rows.result);
             for (UntypedResultSet.Row row : result)
             {
-                String role = row.getString("role");
-                String accountType = row.getString("account_type");
-                double percentage = row.getDouble("filter_percent");
+                if (!row.has(ROLE_COLUMN) || !row.has(ACCOUNT_TYPE_COLUMN) || !row.has(FILTER_PERCENT_COLUMN))
+                {
+                    logger.warn("Skipping row - " + row);
+                    continue;
+                }
+
+                String role = row.getString(ROLE_COLUMN);
+                String accountType = row.getString(ACCOUNT_TYPE_COLUMN);
+                double percentage = row.getDouble(FILTER_PERCENT_COLUMN);
 
                 // Atomically update the cache
                 updateAuditUserCache(role, accountType, percentage);

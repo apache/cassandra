@@ -112,6 +112,8 @@ public class AuditLoggerAuthTest
     @Before
     public void clearInMemoryLogger()
     {
+        AuditUsersCacheService.instance.insert(CASS_USER, "SERVICE", 100.0);
+        AuditUsersCacheService.instance.insert(TEST_USER, "PERSONNEL", 100.0);
         getInMemAuditLogger().clear();
     }
 
