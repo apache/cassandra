@@ -36,6 +36,8 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
@@ -200,6 +202,7 @@ public class AuditUsersCacheService
             ResultMessage.Rows rows = selectStatement.execute(QueryState.forInternalCalls(),
                     QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
             UntypedResultSet result = UntypedResultSet.create(rows.result);
+            Set<String> rolesInTable = new HashSet<>();
             for (UntypedResultSet.Row row : result)
             {
                 if (!row.has(ROLE_COLUMN) || !row.has(ACCOUNT_TYPE_COLUMN) || !row.has(FILTER_PERCENT_COLUMN))
@@ -212,9 +215,12 @@ public class AuditUsersCacheService
                 String accountType = row.getString(ACCOUNT_TYPE_COLUMN);
                 double percentage = row.getDouble(FILTER_PERCENT_COLUMN);
 
+                rolesInTable.add(role);
+
                 // Atomically update the cache
                 updateAuditUserCache(role, accountType, percentage);
             }
+            auditUserCache.keySet().removeIf(role -> !rolesInTable.contains(role));
             cacheWarmedUp = true;
         }
         catch (Exception e)

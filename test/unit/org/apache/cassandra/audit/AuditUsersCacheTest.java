@@ -28,6 +28,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.lang.reflect.Field;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -53,14 +55,14 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
 
 /** AuditUsersCacheTest class is responsible for covering test cases for AuditUsersCacheService */
@@ -105,19 +107,19 @@ public class AuditUsersCacheTest
             CASS_USER, CASS_PW, null);
 
         executeWithCredentials(
-                Arrays.asList(getCreateRoleCql(TEST_USER, true, false, TEST_PW),
-                        getCreateRoleCql(TEST_SERVICE, true, false, TEST_PW),
-                        "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
-                        "CREATE TABLE testks.table1 (key text PRIMARY KEY, col1 int, col2 int)"),
-                "cassandra", "cassandra", null);
+        Arrays.asList(getCreateRoleCql(TEST_USER, true, false, TEST_PW),
+                      getCreateRoleCql(TEST_SERVICE, true, false, TEST_PW),
+                      "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
+                      "CREATE TABLE testks.table1 (key text PRIMARY KEY, col1 int, col2 int)"),
+        "cassandra", "cassandra", null);
         /**
          * Insert into system_distributed/audit_users table
          */
         executeWithCredentials(
-                Arrays.asList(getInsertAuditRoleCql(TEST_USER, "Developer", 100.0),
-                        getInsertAuditRoleCql(TEST_SERVICE, "Service", 0.0),
-                        getGrantPermCql(TEST_USER, "testks"), getGrantPermCql(TEST_SERVICE, "testks")),
-                "cassandra", "cassandra", null);
+        Arrays.asList(getInsertAuditRoleCql(TEST_USER, "Developer", 100.0),
+                      getInsertAuditRoleCql(TEST_SERVICE, "Service", 0.0),
+                      getGrantPermCql(TEST_USER, "testks"), getGrantPermCql(TEST_SERVICE, "testks")),
+        "cassandra", "cassandra", null);
 
         AuditUsersCacheService.instance.insert(TEST_USER, "EMPLOYEE", 100.0);
         AuditUsersCacheService.instance.insert(TEST_SERVICE, "SERVICE", 0.0);
@@ -341,6 +343,78 @@ public class AuditUsersCacheTest
         ), CASS_USER, CASS_PW, null);;
     }
 
+    @Test
+    public void testRefreshRemovesOrphanRole() throws Exception
+    {
+        Field cacheField = AuditUsersCacheService.class.getDeclaredField("auditUserCache");
+        cacheField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        ConcurrentHashMap<String, AuditUsersCacheService.UserProp> originalCache =
+        (ConcurrentHashMap<String, AuditUsersCacheService.UserProp>) cacheField.get(null);
+
+        ConcurrentHashMap<String, AuditUsersCacheService.UserProp> testCache = new ConcurrentHashMap<>();
+        cacheField.set(null, testCache);
+
+        try
+        {
+            executeWithCredentials(List.of("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('shouldexist','SERVICE',0.01)",
+                                           "INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('ghost_role','SERVICE',1.0)"), CASS_USER, CASS_PW, null);
+
+            AuditUsersCacheService.instance.insert("shouldexist", "SERVICE", 0.01);
+
+            AuditUsersCacheService.instance.refresh();
+            assertTrue(testCache.containsKey("shouldexist"));
+            assertTrue(testCache.containsKey("ghost_role"));
+
+            executeWithCredentials(List.of("DELETE FROM system_distributed.audit_users WHERE role = 'ghost_role'"), CASS_USER, CASS_PW, null);
+
+            AuditUsersCacheService.instance.insert("ghost_role", "SERVICE", 1.0);
+            AuditUsersCacheService.instance.insert("shouldexist", "SERVICE", 0.01);
+
+            AuditUsersCacheService.instance.refresh();
+
+            assertFalse(testCache.containsKey("ghost_role"));
+            assertTrue(testCache.containsKey("shouldexist"));
+            executeWithCredentials(List.of("DELETE FROM system_distributed.audit_users WHERE role = 'ghost_role'"), CASS_USER, CASS_PW, null);
+            executeWithCredentials(List.of("DELETE FROM system_distributed.audit_users WHERE role = 'shouldexist'"), CASS_USER, CASS_PW, null);
+        }
+        finally
+        {
+            cacheField.set(null, originalCache);
+        }
+    }
+
+    @Test
+    public void testRefreshKeepsExistingRole() throws Exception
+    {
+        Field cacheField = AuditUsersCacheService.class.getDeclaredField("auditUserCache");
+        cacheField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        ConcurrentHashMap<String, AuditUsersCacheService.UserProp> originalCache =
+        (ConcurrentHashMap<String, AuditUsersCacheService.UserProp>) cacheField.get(null);
+
+        ConcurrentHashMap<String, AuditUsersCacheService.UserProp> testCache = new ConcurrentHashMap<>();
+        cacheField.set(null, testCache);
+
+        try
+        {
+            executeWithCredentials(List.of("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('shouldexist','SERVICE',0.01)"), CASS_USER, CASS_PW, null);
+
+//            AuditUsersCacheService.instance.insert("shouldexist", "SERVICE", 0.01);
+
+            AuditUsersCacheService.instance.refresh();
+
+            assertTrue(testCache.containsKey("shouldexist"));
+            assertTrue(testCache.containsKey("cassandra"));
+        }
+        finally
+        {
+            cacheField.set(null, originalCache);
+            executeWithCredentials(List.of("DELETE FROM system_distributed.audit_users WHERE role = 'shouldexist'"), CASS_USER, CASS_PW, null);
+            AuditUsersCacheService.instance.refresh();
+        }
+    }
+
     /**
      * Helper methods
      */
@@ -357,9 +431,9 @@ public class AuditUsersCacheTest
     {
         boolean authFailed = false;
         try (Cluster cluster = Cluster.builder().addContactPoints(InetAddress.getLoopbackAddress())
-                .withoutJMXReporting()
-                .withCredentials(username, password)
-                .withPort(DatabaseDescriptor.getNativeTransportPort()).build())
+                                      .withoutJMXReporting()
+                                      .withCredentials(username, password)
+                                      .withPort(DatabaseDescriptor.getNativeTransportPort()).build())
         {
             try (Session session = cluster.connect())
             {
