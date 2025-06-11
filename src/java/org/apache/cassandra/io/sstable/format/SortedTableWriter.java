@@ -35,7 +35,7 @@ import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.Threshold;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.PartitionSerializationException;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
@@ -88,9 +88,9 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     private long lastEarlyOpenLength;
     private final Supplier<Double> crcCheckChanceSupplier;
 
-    public SortedTableWriter(Builder<P, I, ?, ?> builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
+    public SortedTableWriter(Builder<P, I, ?, ?> builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
-        super(builder, lifecycleNewTracker, owner);
+        super(builder, txn, owner);
 
         TableMetadataRef ref = builder.getTableMetadataRef();
         crcCheckChanceSupplier = () -> ref.getLocal().params.crcCheckChance;

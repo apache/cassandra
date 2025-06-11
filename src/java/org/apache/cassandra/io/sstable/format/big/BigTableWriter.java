@@ -33,7 +33,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
@@ -74,16 +73,15 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
     private final boolean shouldMigrateKeyCache;
 
-    public BigTableWriter(Builder builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
+    public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
-        super(builder, lifecycleNewTracker, owner);
+        super(builder, txn, owner);
 
         this.rowIndexEntrySerializer = builder.getRowIndexEntrySerializer();
         checkNotNull(this.rowIndexEntrySerializer);
 
         this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
-                                     && lifecycleNewTracker instanceof ILifecycleTransaction
-                                     && !((ILifecycleTransaction) lifecycleNewTracker).isOffline();
+                                     && !txn.isOffline();
     }
 
     @Override
@@ -114,7 +112,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
         if (shouldMigrateKeyCache)
         {
-            for (SSTableReader reader : ((ILifecycleTransaction) lifecycleNewTracker).originals())
+            for (SSTableReader reader : txn.originals())
             {
                 if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
                 {
@@ -431,14 +429,14 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         }
 
         @Override
-        protected BigTableWriter buildInternal(LifecycleNewTracker lifecycleNewTracker, Owner owner)
+        protected BigTableWriter buildInternal(ILifecycleTransaction txn, Owner owner)
         {
             try
             {
-                this.operationType = lifecycleNewTracker.opType();
+                this.operationType = txn.opType();
                 this.mmappedRegionsCache = new MmappedRegionsCache();
                 this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, getSerializationHeader(), owner != null ? owner.getMetrics() : null);
-                return new BigTableWriter(this, lifecycleNewTracker, owner);
+                return new BigTableWriter(this, txn, owner);
             }
             catch (RuntimeException | Error ex)
             {

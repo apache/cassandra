@@ -28,7 +28,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -174,7 +175,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
         StreamReceiver streamReceiver = session.getAggregator(tableId);
         assert streamReceiver instanceof CassandraStreamReceiver;
 
-        LifecycleNewTracker lifecycleNewTracker = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId)).createLifecycleNewTracker();
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 
         Descriptor desc = cfs.newSSTableDescriptor(dataDir, header.version);
 
@@ -196,6 +197,6 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                    .setComponents(components)
                    .setTableMetadataRef(cfs.metadata)
                    .setIOOptions(ioOptions)
-                   .createZeroCopyWriter(lifecycleNewTracker, cfs);
+                   .createZeroCopyWriter(txn, cfs);
     }
 }

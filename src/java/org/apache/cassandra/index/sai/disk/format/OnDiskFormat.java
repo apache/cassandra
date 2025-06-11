@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Set;
 
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -80,19 +80,19 @@ public interface OnDiskFormat
     PerSSTableIndexWriter newPerSSTableIndexWriter(IndexDescriptor indexDescriptor) throws IOException;
 
     /**
-     * Create a new {@link PerColumnIndexWriter} to write the per-column on-disk components of an index. The {@link LifecycleNewTracker}
+     * Create a new {@link PerColumnIndexWriter} to write the per-column on-disk components of an index. The {@link ILifecycleTransaction}
      * is used to determine the type of index write about to happen this will either be an
      * {@code OperationType.FLUSH} indicating that we are about to flush a {@link org.apache.cassandra.index.sai.memory.MemtableIndex}
      * or one of the other operation types indicating that we will be writing from an existing SSTable
      *
      * @param index The {@link StorageAttachedIndex} holding the current index build status
      * @param indexDescriptor The {@link IndexDescriptor} for the SSTable
-     * @param tracker The {@link LifecycleNewTracker} for index build operation.
+     * @param txn The {@link ILifecycleTransaction} for index build operation.
      * @param rowMapping The {@link RowMapping} that is used to map rowID to {@code PrimaryKey} during the write operation
      */
     PerColumnIndexWriter newPerColumnIndexWriter(StorageAttachedIndex index,
                                                  IndexDescriptor indexDescriptor,
-                                                 LifecycleNewTracker tracker,
+                                                 ILifecycleTransaction txn,
                                                  RowMapping rowMapping);
 
     /**

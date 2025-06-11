@@ -31,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
@@ -54,14 +54,15 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
     private volatile SSTableReader finalReader;
     private final Map<String, ZeroCopySequentialWriter> componentWriters; // indexed by component name
+    private final ILifecycleTransaction txn;
 
     public SSTableZeroCopyWriter(Builder<?, ?> builder,
-                                 LifecycleNewTracker lifecycleNewTracker,
+                                 ILifecycleTransaction txn,
                                  SSTable.Owner owner)
     {
         super(builder, owner);
-
-        lifecycleNewTracker.trackNew(this);
+        this.txn = txn;
+        txn.trackNew(this);
         this.componentWriters = new HashMap<>();
 
         Set<Component> unsupported = components.stream()

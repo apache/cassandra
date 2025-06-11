@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.TableId;
@@ -73,10 +73,10 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
     }
 
     @Override
-    public MemtableIndex getPendingMemtableIndex(LifecycleNewTracker tracker)
+    public MemtableIndex getPendingMemtableIndex(ILifecycleTransaction txn)
     {
         return liveMemtableIndexMap.keySet().stream()
-                                   .filter(m -> tracker.equals(m.getFlushTransaction()))
+                                   .filter(m -> txn.equals(m.getFlushTransaction()))
                                    .findFirst()
                                    .map(liveMemtableIndexMap::get)
                                    .orElse(null);

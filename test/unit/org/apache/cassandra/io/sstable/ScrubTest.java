@@ -69,7 +69,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -847,9 +847,9 @@ public class ScrubTest
 
     private static class TestMultiWriter extends SimpleSSTableMultiWriter
     {
-        TestMultiWriter(SSTableWriter writer, LifecycleNewTracker lifecycleNewTracker)
+        TestMultiWriter(SSTableWriter writer, ILifecycleTransaction txn)
         {
-            super(writer, lifecycleNewTracker);
+            super(writer, txn);
         }
     }
 

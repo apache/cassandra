@@ -210,7 +210,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return log;
     }
 
-    @Override //LifecycleNewTracker
+    @Override
     public OperationType opType()
     {
         return log.type();
@@ -646,8 +646,6 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return getFirst(originals, null);
     }
 
-    // LifecycleNewTracker
-
     @Override
     public void trackNew(SSTable table)
     {
@@ -659,7 +657,6 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     {
         log.untrackNew(table);
     }
-
     public static boolean removeUnfinishedLeftovers(ColumnFamilyStore cfs)
     {
         return LogTransaction.removeUnfinishedLeftovers(cfs.getDirectories().getCFDirectories());
