@@ -36,7 +36,7 @@ public interface IncomingStream
      * Read in the stream data.
      */
     void read(DataInputPlus inputPlus, int version) throws Throwable;
-
+    default Throwable abort(Throwable t) { return t; }
     String getName();
     long getSize();
     int getNumFiles();

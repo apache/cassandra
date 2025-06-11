@@ -87,6 +87,13 @@ public class CassandraIncomingFile implements IncomingStream
         sstable = reader.read(in);
     }
 
+    public synchronized Throwable abort(Throwable t)
+    {
+        if (sstable != null)
+            t = sstable.abort(t);
+        return t;
+    }
+
     @Override
     public synchronized String getName()
     {

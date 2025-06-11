@@ -25,11 +25,13 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -39,12 +41,12 @@ import org.apache.cassandra.utils.concurrent.Transactional;
  * the writer is the only participant in the transaction and therefore
  * it can safely own the transaction.
  */
-public class SSTableTxnWriter extends Transactional.AbstractTransactional implements Transactional
+public class SSTableTxnWriter extends Transactional.AbstractTransactional implements Transactional, SSTableMultiWriter
 {
-    private final LifecycleTransaction txn;
+    private final ILifecycleTransaction txn;
     private final SSTableMultiWriter writer;
 
-    public SSTableTxnWriter(LifecycleTransaction txn, SSTableMultiWriter writer)
+    public SSTableTxnWriter(ILifecycleTransaction txn, SSTableMultiWriter writer)
     {
         this.txn = txn;
         this.writer = writer;
@@ -58,6 +60,12 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     public String getFilename()
     {
         return writer.getFilename();
+    }
+
+    @Override
+    public long getBytesWritten()
+    {
+        return writer.getBytesWritten();
     }
 
     public long getFilePointer()
@@ -74,6 +82,12 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     public long getOnDiskBytesWritten()
     {
         return writer.getOnDiskBytesWritten();
+    }
+
+    @Override
+    public TableId getTableId()
+    {
+        return writer.getTableId();
     }
 
     protected Throwable doCommit(Throwable accumulate)
@@ -105,6 +119,18 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         writer.setOpenResult(openResult);
         finish();
         return writer.finished();
+    }
+
+    @Override
+    public Collection<SSTableReader> finished()
+    {
+        return writer.finished();
+    }
+
+    @Override
+    public SSTableMultiWriter setOpenResult(boolean openResult)
+    {
+        return writer.setOpenResult(openResult);
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"}) // log and writer closed during doPostCleanup
