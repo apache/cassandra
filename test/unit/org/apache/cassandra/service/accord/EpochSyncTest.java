@@ -87,6 +87,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.accord.AccordConfigurationService.EpochSnapshot;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -682,7 +683,7 @@ public class EpochSyncTest
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
                 TimeService time = TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS);
                 this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, time, new DefaultTimeouts(time));
-                config = new AccordConfigurationService(node, messagingService, failureDetector, scheduler);
+                config = new AccordConfigurationService(node, new AccordAgent(), messagingService, failureDetector, scheduler);
                 config.registerListener(new ConfigurationService.Listener()
                 {
                     @Override

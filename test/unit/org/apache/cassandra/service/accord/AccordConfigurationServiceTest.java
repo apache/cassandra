@@ -62,6 +62,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ValidatingClusterMetadataService;
@@ -171,7 +172,7 @@ public class AccordConfigurationServiceTest
         try
         {
             journal = initJournal();
-            AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), ScheduledExecutors.scheduledTasks);
+            AccordConfigurationService service = new AccordConfigurationService(ID1, new AccordAgent(), new Messaging(), new MockFailureDetector(), ScheduledExecutors.scheduledTasks);
             AccordJournal journal_ = journal;
             TestListener listener = new TestListener(service, true)
             {
@@ -200,7 +201,7 @@ public class AccordConfigurationServiceTest
             Topology topology3 = createTopology(cms);
             service.reportTopology(topology3);
 
-            AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector(), ScheduledExecutors.scheduledTasks);
+            AccordConfigurationService loaded = new AccordConfigurationService(ID1, new AccordAgent(), new Messaging(), new MockFailureDetector(), ScheduledExecutors.scheduledTasks);
             loaded.updateMapping(mappingForEpoch(cms.metadata().epoch.getEpoch() + 1));
             listener = new AbstractConfigurationServiceTest.TestListener(loaded, true);
             loaded.registerListener(listener);

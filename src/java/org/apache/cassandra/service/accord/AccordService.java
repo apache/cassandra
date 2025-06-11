@@ -300,7 +300,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
-        this.configService = new AccordConfigurationService(localId);
+        this.configService = new AccordConfigurationService(localId, agent);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
         this.messageSink = new AccordMessageSink(agent, configService, callbacks);
         this.node = new Node(localId,

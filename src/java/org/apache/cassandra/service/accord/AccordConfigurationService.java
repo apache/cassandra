@@ -32,6 +32,7 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
+import accord.api.Agent;
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
 import accord.primitives.Ranges;
@@ -138,17 +139,17 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         }
     }
 
-    public AccordConfigurationService(Node.Id node, MessageDelivery messagingService, IFailureDetector failureDetector, ScheduledExecutorPlus scheduledTasks)
+    public AccordConfigurationService(Node.Id node, Agent agent, MessageDelivery messagingService, IFailureDetector failureDetector, ScheduledExecutorPlus scheduledTasks)
     {
-        super(node);
+        super(node, agent);
         this.syncPropagator = new AccordSyncPropagator(localId, this, messagingService, failureDetector, scheduledTasks, this);
         this.watermarkCollector = new WatermarkCollector();
         listeners.add(watermarkCollector);
     }
 
-    public AccordConfigurationService(Node.Id node)
+    public AccordConfigurationService(Node.Id node, Agent agent)
     {
-        this(node, MessagingService.instance(), FailureDetector.instance, ScheduledExecutors.scheduledTasks);
+        this(node, agent, MessagingService.instance(), FailureDetector.instance, ScheduledExecutors.scheduledTasks);
     }
 
     @Override

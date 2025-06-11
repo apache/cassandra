@@ -70,6 +70,7 @@ import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.tcm.ValidatingClusterMetadataService;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AccordGenerators;
@@ -419,7 +420,7 @@ public class AccordSyncPropagatorTest
 
             private ConfigService(Node.Id node)
             {
-                super(node);
+                super(node, new AccordAgent());
             }
 
             @Override
