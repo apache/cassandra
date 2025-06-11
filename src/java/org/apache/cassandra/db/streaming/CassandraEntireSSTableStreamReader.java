@@ -19,7 +19,9 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 import java.util.Collection;
+import java.util.List;
 import java.util.function.UnaryOperator;
 
 import org.slf4j.Logger;
@@ -29,12 +31,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IOOptions;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.sstable.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -103,7 +107,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                      prettyPrintMemory(totalSize),
                      cfs.metadata());
 
-        SSTableZeroCopyWriter writer = null;
+        SSTableTxnZeroCopyWriter writer = null;
 
         try
         {
@@ -122,7 +126,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                              prettyPrintMemory(totalSize));
 
                 writer.writeComponent(component, in, length);
-                session.progress(writer.descriptor.fileFor(component).toString(), ProgressInfo.Direction.IN, length, length, length);
+                session.progress(writer.descriptor().fileFor(component).toString(), ProgressInfo.Direction.IN, length, length, length);
                 bytesRead += length;
 
                 logger.debug("[Stream #{}] Finished receiving {} component from {}, componentSize = {}, readBytes = {}, totalSize = {}",
@@ -138,7 +142,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                                                                    .mutateRepairedMetadata(messageHeader.repairedAt, messageHeader.pendingRepair, false);
             String description = String.format("level %s and repairedAt time %s and pendingRepair %s",
                                                header.sstableLevel, messageHeader.repairedAt, messageHeader.pendingRepair);
-            writer.descriptor.getMetadataSerializer().mutate(writer.descriptor, description, transform);
+            writer.descriptor().getMetadataSerializer().mutate(writer.descriptor(), description, transform);
             return writer;
         }
         catch (Throwable e)
@@ -168,7 +172,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
         return dir;
     }
 
-    protected SSTableZeroCopyWriter createWriter(ColumnFamilyStore cfs, long totalSize, Collection<Component> components) throws IOException
+    protected SSTableTxnZeroCopyWriter createWriter(ColumnFamilyStore cfs, long totalSize, Collection<Component> components) throws IOException
     {
         File dataDir = getDataDir(cfs, totalSize);
 
@@ -191,12 +195,32 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                                             DatabaseDescriptor.getFlushCompression());
 
         logger.debug("[Table #{}] {} Components to write: {}", cfs.metadata(), desc, components);
-        return desc.getFormat()
-                   .getWriterFactory()
-                   .builder(desc)
-                   .setComponents(components)
-                   .setTableMetadataRef(cfs.metadata)
-                   .setIOOptions(ioOptions)
-                   .createZeroCopyWriter(txn, cfs);
+        return new SSTableTxnZeroCopyWriter(txn, desc.getFormat()
+                                                     .getWriterFactory()
+                                                     .builder(desc)
+                                                     .setComponents(components)
+                                                     .setTableMetadataRef(cfs.metadata)
+                                                     .setIOOptions(ioOptions)
+                                                     .createZeroCopyWriter(txn, cfs));
+    }
+
+    public static class SSTableTxnZeroCopyWriter extends SSTableTxnWriter
+    {
+        private final SSTableZeroCopyWriter writer;
+        public SSTableTxnZeroCopyWriter(ILifecycleTransaction txn, SSTableZeroCopyWriter writer)
+        {
+            super(txn, writer);
+            this.writer = writer;
+        }
+
+        public void writeComponent(Component component, DataInputPlus in, long length) throws ClosedChannelException
+        {
+            writer.writeComponent(component, in, length);
+        }
+
+        public Descriptor descriptor()
+        {
+            return writer.descriptor;
+        }
     }
 }
