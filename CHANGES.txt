@@ -1,4 +1,5 @@
 5.1
+ * Stream individual files in their own transactions and hand over ownership to a parent transaction on completion (CASSANDRA-20728)
  * Limit the number of held heap dumps to not consume disk space excessively (CASSANDRA-20457)
  * Accord: BEGIN TRANSACTIONs IF condition logic does not properly support meaningless emptiness and null values (CASSANDRA-20667)
  * Accord: startup race condition where accord journal tries to access the 2i index before its ready (CASSANDRA-20686)

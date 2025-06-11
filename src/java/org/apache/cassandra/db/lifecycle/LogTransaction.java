@@ -209,6 +209,18 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         }
     }
 
+    void takeOwnership(LogTransaction log)
+    {
+        synchronized (lock)
+        {
+            if (state() != State.IN_PROGRESS)
+                throw new IllegalStateException("The LogTransaction getting ownership should be IN_PROGRESS, not " + state());
+            if (log.state() != State.READY_TO_COMMIT)
+                throw new IllegalStateException("The LogTransaction giving up its ownership should be READY_TO_COMMIT, not " + log.state());
+            txnFile.takeOwnership(log.txnFile);
+        }
+    }
+
     Map<SSTable, LogRecord> makeRemoveRecords(Iterable<SSTableReader> sstables)
     {
         synchronized (lock)

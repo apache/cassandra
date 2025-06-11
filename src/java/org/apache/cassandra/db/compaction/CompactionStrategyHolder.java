@@ -29,7 +29,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
@@ -230,7 +230,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         if (isRepaired)
         {
@@ -255,7 +255,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                  sstableLevel,
                                                  header,
                                                  indexGroups,
-                                                 lifecycleNewTracker);
+                                                 txn);
     }
 
     @Override

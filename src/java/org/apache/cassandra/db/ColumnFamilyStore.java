@@ -85,7 +85,7 @@ import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.Tracker;
@@ -652,19 +652,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return memtableFactory.streamFromMemtable();
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, null, 0, header, lifecycleNewTracker);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, null, 0, header, txn);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, IntervalSet<CommitLogPosition> commitLogPositions, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, IntervalSet<CommitLogPosition> commitLogPositions, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, commitLogPositions, 0, header, lifecycleNewTracker);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, commitLogPositions, 0, header, txn);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, IntervalSet<CommitLogPosition> commitLogPositions, int sstableLevel, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, IntervalSet<CommitLogPosition> commitLogPositions, int sstableLevel, SerializationHeader header, ILifecycleTransaction txn)
     {
-        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, commitLogPositions, sstableLevel, header, indexManager.listIndexGroups(), lifecycleNewTracker);
+        return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, commitLogPositions, sstableLevel, header, indexManager.listIndexGroups(), txn);
     }
 
     public boolean supportsEarlyOpen()
@@ -2410,22 +2410,67 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
-    private static final LifecycleNewTracker DO_NOT_TRACK = new LifecycleNewTracker()
+    private static final ILifecycleTransaction DO_NOT_TRACK = new ILifecycleTransaction()
     {
-        public void trackNew(SSTable table)
+        @Override
+        public void trackNew(SSTable sstable)
         {
-            // not tracking
+
         }
 
-        public void untrackNew(SSTable table)
+        @Override
+        public void untrackNew(SSTable sstable)
         {
-            // not tracking
+
         }
 
-        public OperationType opType()
-        {
-            return OperationType.FLUSH;
-        }
+        @Override
+        public OperationType opType() {return null;}
+
+        @Override
+        public void checkpoint() {}
+
+        @Override
+        public void update(SSTableReader reader, boolean original) {}
+
+        @Override
+        public void update(Collection<SSTableReader> readers, boolean original) {}
+
+        @Override
+        public SSTableReader current(SSTableReader reader) {return null;}
+
+        @Override
+        public void obsolete(SSTableReader reader) {}
+
+        @Override
+        public void obsoleteOriginals() {}
+
+        @Override
+        public Set<SSTableReader> originals() {return Set.of();}
+
+        @Override
+        public boolean isObsolete(SSTableReader reader) {return false;}
+
+        @Override
+        public boolean isOffline() {return false;}
+
+        @Override
+        public TimeUUID opId() {return null;}
+
+        @Override
+        public void cancel(SSTableReader removedSSTable) {}
+
+        @Override
+        public Throwable commit(Throwable accumulate) {return null;}
+
+        @Override
+        public Throwable abort(Throwable accumulate) {return null;}
+
+        @Override
+        public void prepareToCommit() {}
+
+        @Override
+        public void close() {}
     };
 
     /**

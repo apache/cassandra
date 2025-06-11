@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.NavigableSet;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.TableId;
@@ -31,7 +31,7 @@ public interface MemtableIndexManager
 {
     long index(DecoratedKey key, Row row, Memtable mt);
 
-    MemtableIndex getPendingMemtableIndex(LifecycleNewTracker tracker);
+    MemtableIndex getPendingMemtableIndex(ILifecycleTransaction txn);
 
     void discardMemtable(Memtable memtable);
 

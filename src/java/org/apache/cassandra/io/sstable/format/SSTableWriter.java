@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
@@ -63,7 +63,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * A root class for a writer implementation. A writer must be created by passing an implementation-specific
- * {@link Builder}, a {@link LifecycleNewTracker} and {@link SSTable.Owner} instances. Implementing classes should
+ * {@link Builder}, a {@link ILifecycleTransaction} and {@link SSTable.Owner} instances. Implementing classes should
  * not extend that list and all the additional properties should be included in the builder.
  */
 public abstract class SSTableWriter extends SSTable implements Transactional
@@ -80,7 +80,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected final List<SSTableFlushObserver> observers;
     protected final MmappedRegionsCache mmappedRegionsCache;
     protected final TransactionalProxy txnProxy = txnProxy();
-    protected final LifecycleNewTracker lifecycleNewTracker;
+    protected final ILifecycleTransaction txn;
     protected DecoratedKey first;
     protected DecoratedKey last;
 
@@ -90,7 +90,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
      */
     protected abstract TransactionalProxy txnProxy();
 
-    protected SSTableWriter(Builder<?, ?> builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
+    protected SSTableWriter(Builder<?, ?> builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
         super(builder, owner);
         checkNotNull(builder.getIndexGroups());
@@ -104,7 +104,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.metadataCollector = builder.getMetadataCollector();
         this.header = builder.getSerializationHeader();
         this.mmappedRegionsCache = builder.getMmappedRegionsCache();
-        this.lifecycleNewTracker = lifecycleNewTracker;
+        this.txn = txn;
 
         // We need to ensure that no sstable components exist before the lifecycle transaction starts tracking it.
         // Otherwise, it means that we either want to overwrite some existing sstable, which is not allowed, or some
@@ -116,7 +116,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                                             descriptor.directory,
                                                             existingComponents);
 
-        lifecycleNewTracker.trackNew(this);
+        txn.trackNew(this);
 
         try
         {
@@ -124,7 +124,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             this.observers = Collections.unmodifiableList(observers);
             for (Index.Group group : builder.getIndexGroups())
             {
-                SSTableFlushObserver observer = group.getFlushObserver(descriptor, lifecycleNewTracker, metadata.getLocal());
+                SSTableFlushObserver observer = group.getFlushObserver(descriptor, txn, metadata.getLocal());
                 if (observer != null)
                 {
                     observer.begin();
@@ -146,7 +146,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
      * The caught exception should be then rethrown so the {@link Builder} can handle it and close any resources opened
      * implicitly by the builder.
      * <p>
-     * See {@link SortedTableWriter#SortedTableWriter(SortedTableWriter.Builder, LifecycleNewTracker, Owner)} as of CASSANDRA-18737.
+     * See {@link SortedTableWriter#SortedTableWriter(SortedTableWriter.Builder, ILifecycleTransaction, Owner)} as of CASSANDRA-18737.
      *
      * @param ex the exception thrown during the construction
      */
@@ -156,7 +156,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         for (int i = observers.size()-1; i >= 0; i--)
             observers.get(i).abort(ex);
         descriptor.getFormat().deleteOrphanedComponents(descriptor, components);
-        lifecycleNewTracker.untrackNew(this);
+        txn.untrackNew(this);
     }
 
     @Override
@@ -422,7 +422,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     /**
      * A builder of this sstable writer. It should be extended for each implementation with the specific fields.
      *
-     * An implementation should open all the resources when {@link #build(LifecycleNewTracker, Owner)} and pass them
+     * An implementation should open all the resources when {@link #build(ILifecycleTransaction, Owner)} and pass them
      * in builder fields to the writer, so that the writer can access them via getters.
      *
      * @param <W> type of the sstable writer to be build with this builder
@@ -557,20 +557,20 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             super(descriptor);
         }
 
-        public W build(LifecycleNewTracker lifecycleNewTracker, Owner owner)
+        public W build(ILifecycleTransaction txn, Owner owner)
         {
             checkNotNull(getComponents());
 
             validateRepairedMetadata(getRepairedAt(), getPendingRepair(), isTransientSSTable());
 
-            return buildInternal(lifecycleNewTracker, owner);
+            return buildInternal(txn, owner);
         }
 
-        protected abstract W buildInternal(LifecycleNewTracker lifecycleNewTracker, Owner owner);
+        protected abstract W buildInternal(ILifecycleTransaction txn, Owner owner);
 
-        public SSTableZeroCopyWriter createZeroCopyWriter(LifecycleNewTracker lifecycleNewTracker, Owner owner)
+        public SSTableZeroCopyWriter createZeroCopyWriter(ILifecycleTransaction txn, Owner owner)
         {
-            return new SSTableZeroCopyWriter(this, lifecycleNewTracker, owner);
+            return new SSTableZeroCopyWriter(this, txn, owner);
         }
     }
 }

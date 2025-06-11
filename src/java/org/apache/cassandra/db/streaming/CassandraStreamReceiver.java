@@ -35,10 +35,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.StreamingLifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.ThrottledUnfilteredIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -47,8 +45,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTopology;
@@ -80,7 +77,7 @@ public class CassandraStreamReceiver implements StreamReceiver
     private final StreamSession session;
 
     // Transaction tracking new files received
-    private final LifecycleTransaction txn;
+    private final StreamingLifecycleTransaction txn;
 
     //  holds references to SSTables received
     protected final Collection<SSTableReader> sstables;
@@ -98,7 +95,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         this.session = session;
         // this is an "offline" transaction, as we currently manually expose the sstables once done;
         // this should be revisited at a later date, so that LifecycleTransaction manages all sstable state changes
-        this.txn = LifecycleTransaction.offline(OperationType.STREAM);
+        this.txn = new StreamingLifecycleTransaction();
         this.ranges = ranges;
         this.sstables = new ArrayList<>(totalFiles);
         this.requiresWritePath = requiresWritePath(cfs);
@@ -122,16 +119,16 @@ public class CassandraStreamReceiver implements StreamReceiver
         CassandraIncomingFile file = getFile(stream);
 
         Collection<SSTableReader> finished = null;
-        SSTableMultiWriter sstable = file.getSSTable();
+        SSTableTxnSingleStreamWriter sstable = (SSTableTxnSingleStreamWriter)file.getSSTable();
         try
         {
-            finished = sstable.finish(true);
+            finished = sstable.transferOwnershipTo(txn);
         }
         catch (Throwable t)
         {
             Throwables.maybeFail(sstable.abort(t));
         }
-        txn.update(finished, false);
+        txn.update(finished);
         sstables.addAll(finished);
         receivedEntireSSTable = file.isEntireSSTable();
     }
@@ -142,39 +139,6 @@ public class CassandraStreamReceiver implements StreamReceiver
         CassandraIncomingFile file = getFile(stream);
         Throwables.maybeFail(file.getSSTable().abort(null));
     }
-
-    /**
-     * @return a LifecycleNewTracker whose operations are synchronised on this StreamReceiveTask.
-     */
-    public synchronized LifecycleNewTracker createLifecycleNewTracker()
-    {
-        return new LifecycleNewTracker()
-        {
-            @Override
-            public void trackNew(SSTable table)
-            {
-                synchronized (CassandraStreamReceiver.this)
-                {
-                    txn.trackNew(table);
-                }
-            }
-
-            @Override
-            public void untrackNew(SSTable table)
-            {
-                synchronized (CassandraStreamReceiver.this)
-                {
-                    txn.untrackNew(table);
-                }
-            }
-
-            public OperationType opType()
-            {
-                return txn.opType();
-            }
-        };
-    }
-
 
     @Override
     public synchronized void abort()

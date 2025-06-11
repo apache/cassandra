@@ -49,7 +49,7 @@ import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -317,17 +317,17 @@ public class RouteJournalIndex implements Index, INotificationConsumer
 
     @Override
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor,
-                                                 LifecycleNewTracker tracker)
+                                                 ILifecycleTransaction txn)
     {
         // mimics org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat.newPerColumnIndexWriter
         IndexDescriptor id = IndexDescriptor.create(descriptor, baseCfs.getPartitioner(), baseCfs.metadata().comparator);
-        if (tracker.opType() != OperationType.FLUSH || !initBuildStarted)
+        if (txn.opType() != OperationType.FLUSH || !initBuildStarted)
         {
             return new RouteIndexFormat.SSTableIndexWriter(this, id);
         }
         else
         {
-            return new RouteIndexFormat.MemtableRouteIndexWriter(id, memtableIndexManager.getPendingMemtableIndex(tracker));
+            return new RouteIndexFormat.MemtableRouteIndexWriter(id, memtableIndexManager.getPendingMemtableIndex(txn));
         }
     }
 

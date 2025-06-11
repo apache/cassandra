@@ -56,7 +56,6 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -68,6 +67,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.WriteContext;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -1287,7 +1287,7 @@ public class CustomIndexTest extends CQLTester
         }
 
         @Override
-        public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker)
+        public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn)
         {
             return new SSTableFlushObserver() {
 
@@ -1672,11 +1672,11 @@ public class CustomIndexTest extends CQLTester
             }
 
             @Override
-            public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata)
+            public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn, TableMetadata tableMetadata)
             {
                 Set<SSTableFlushObserver> observers = indexes.values()
                                                              .stream()
-                                                             .map(i -> i.getFlushObserver(descriptor, tracker))
+                                                             .map(i -> i.getFlushObserver(descriptor, txn))
                                                              .filter(Objects::nonNull)
                                                              .collect(Collectors.toSet());
 

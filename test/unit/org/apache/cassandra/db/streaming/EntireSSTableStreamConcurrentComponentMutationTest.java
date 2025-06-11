@@ -52,10 +52,12 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.StreamingLifecycleTransaction;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryManager;
@@ -236,9 +238,11 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         {
             CassandraStreamHeader header = CassandraStreamHeader.serializer.deserialize(in, MessagingService.current_version);
             CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(messageHeader, header, session);
-            SSTableReader streamedSSTable = Iterables.getOnlyElement(reader.read(in).finished());
-
+            StreamingLifecycleTransaction stt = new StreamingLifecycleTransaction();
+            SSTableTxnSingleStreamWriter writer = (SSTableTxnSingleStreamWriter) reader.read(in);
+            SSTableReader streamedSSTable = Iterables.getOnlyElement(writer.transferOwnershipTo(stt));
             SSTableUtils.assertContentEquals(sstable, streamedSSTable);
+            stt.abort();
         }
     }
 

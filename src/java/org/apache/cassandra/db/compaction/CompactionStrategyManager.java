@@ -54,7 +54,7 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.TaskSupplier;
 import org.apache.cassandra.db.compaction.PendingRepairManager.CleanupTask;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
@@ -1257,7 +1257,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
         maybeReloadDiskBoundaries();
@@ -1273,7 +1273,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               sstableLevel,
                                                                                               header,
                                                                                               indexGroups,
-                                                                                              lifecycleNewTracker);
+                                                                                              txn);
         }
         finally
         {

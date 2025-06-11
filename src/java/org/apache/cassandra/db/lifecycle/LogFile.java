@@ -552,4 +552,19 @@ final class LogFile implements AutoCloseable
     {
         return records.isEmpty();
     }
+
+    public void takeOwnership(LogFile txnFile)
+    {
+        if (completed)
+            throw TransactionAlreadyCompletedException.create(getFiles());
+        for (LogRecord record : txnFile.records)
+        {
+            if (record.type != Type.ADD)
+                throw new IllegalStateException("Can only transfer ADD records - not " + record + " - " + txnFile.records);
+            File directory = new File(record.absolutePath.get()).parent();
+            String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
+            replicas.maybeCreateReplica(directory, fileName, onDiskRecords);
+            addRecord(record);
+        }
+    }
 }

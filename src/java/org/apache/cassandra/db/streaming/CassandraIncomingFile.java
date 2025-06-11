@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.IncomingStream;
@@ -43,7 +44,7 @@ public class CassandraIncomingFile implements IncomingStream
     private final StreamSession session;
     private final StreamMessageHeader header;
 
-    private volatile SSTableMultiWriter sstable;
+    private volatile SSTableTxnSingleStreamWriter sstable;
     private volatile long size = -1;
     private volatile int numFiles = 1;
 
@@ -84,7 +85,14 @@ public class CassandraIncomingFile implements IncomingStream
             reader = new CassandraStreamReader(header, streamHeader, session);
 
         size = streamHeader.size();
-        sstable = reader.read(in);
+        sstable = (SSTableTxnSingleStreamWriter)reader.read(in);
+    }
+
+    public synchronized Throwable abort(Throwable t)
+    {
+        if (sstable != null)
+            t = sstable.abort(t);
+        return t;
     }
 
     @Override

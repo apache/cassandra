@@ -67,7 +67,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.GuardrailViolatedException;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.MaxThreshold;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -541,7 +541,7 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
-    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker)
+    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn)
     {
         // flush observers should be created from the index group, this is only used by the singleton index group
         throw new UnsupportedOperationException("Storage-attached index flush observers should never be created directly.");

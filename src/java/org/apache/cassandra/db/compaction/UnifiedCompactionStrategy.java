@@ -46,7 +46,7 @@ import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.ShardedMultiWriter;
 import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
 import org.apache.cassandra.db.lifecycle.CompositeLifecycleTransaction;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.PartialLifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -303,7 +303,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         ShardManager shardManager = getShardManager();
         double flushDensity = cfs.metric.flushSizeOnDisk.get() * shardManager.shardSetCoverage() / shardManager.localSpaceCoverage();
@@ -317,7 +317,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                       commitLogPositions,
                                       header,
                                       indexGroups,
-                                      lifecycleNewTracker,
+                                      txn,
                                       boundaries);
     }
 
