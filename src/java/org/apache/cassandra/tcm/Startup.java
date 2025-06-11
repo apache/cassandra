@@ -63,8 +63,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.CMSInitializationException;
 import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 import org.apache.cassandra.tcm.migration.Election;
@@ -152,15 +155,24 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         String datacenter = DatabaseDescriptor.getLocator().local().datacenter;
         ClusterMetadataService cms = ClusterMetadataService.instance();
         cms.log().bootstrap(addr, datacenter, cms.logBootstrapCallback());
+
+        NodeAddresses addresses = NodeAddresses.current();
+        Location location = DatabaseDescriptor.getLocator().local();
         ClusterMetadata metadata =  ClusterMetadata.current();
         assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
-        Initialize initialize = new Initialize(metadata.initializeClusterIdentifier(addr.hashCode()));
+        Initialize initialize = new Initialize(metadata.initializeClusterIdentifier(addresses.broadcastAddress.hashCode(),
+                                                                                    addresses,
+                                                                                    NodeVersion.CURRENT,
+                                                                                    location));
         ClusterMetadataService.instance().commit(initialize,
                                                  m -> { logger.info("INITIALIZE_CMS committed successfully"); return m;},
                                                  (code, message) -> {
                                                      logger.info("INITIALIZE_CMS commit failure: ({}) {}", code, message);
                                                      throw new CMSInitializationException();
                                                  });
+        ClusterMetadata initialized = ClusterMetadataService.instance().commit(initialize);
+        NodeId id = initialized.myNodeId();
+        SystemKeyspace.setLocalHostId(id.toUUID());
     }
 
     public static void initializeAsNonCmsNode(Function<Processor, Processor> wrapProcessor) throws StartupException

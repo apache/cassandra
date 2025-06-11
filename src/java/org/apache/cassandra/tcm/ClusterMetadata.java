@@ -77,6 +77,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
@@ -210,8 +211,8 @@ public class ClusterMetadata
         this.schema = schema;
         this.directory = directory;
         this.tokenMap = tokenMap;
-        this.placements = placements;
         this.accordFastPath = accordFastPath;
+        this.placements = addMetaPlacement(placements, cmsMembership);
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
         this.consensusMigrationState = consensusMigrationState;
@@ -219,6 +220,16 @@ public class ClusterMetadata
         this.locator = Locator.usingDirectory(directory);
         this.accordStaleReplicas = accordStaleReplicas;
         this.cmsMembership = cmsMembership;
+    }
+
+    public Set<NodeId> fullCMSMemberIds()
+    {
+        return cmsMembership.fullMembers();
+    }
+
+    public boolean isCMSMember(InetAddressAndPort endpoint)
+    {
+        return fullCMSMembers().contains(endpoint);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -236,14 +247,6 @@ public class ClusterMetadata
         return fullCMSEndpoints;
     }
 
-    public Set<NodeId> fullCMSMemberIds()
-    {
-        if (epoch.isBefore(Epoch.FIRST))
-            return Collections.emptySet();
-
-        return cmsMembership.fullMembers();
-    }
-
     public EndpointsForRange fullCMSMembersAsReplicas()
     {
         if (epoch.isBefore(Epoch.FIRST))
@@ -259,9 +262,34 @@ public class ClusterMetadata
         return fullCMSReplicas;
     }
 
-    public boolean isCMSMember(InetAddressAndPort endpoint)
+    private DataPlacements addMetaPlacement(DataPlacements placements, CMSMembership cms)
     {
-        return fullCMSMembers().contains(endpoint);
+        if (epoch.isBefore(Epoch.FIRST))
+            return placements;
+
+        DataPlacement.Builder metaBuilder = DataPlacement.builder();
+        if (epoch.is(Epoch.FIRST))
+        {
+            metaBuilder.withReadReplica(Epoch.FIRST, MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort()));
+            metaBuilder.withWriteReplica(Epoch.FIRST, MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort()));
+        }
+        else
+        {
+            for (NodeId id : cms.fullMembers())
+            {
+                Replica replica = MetaStrategy.replica(directory.endpoint(id));
+                metaBuilder.withReadReplica(cms.lastModified(), replica);
+                metaBuilder.withWriteReplica(cms.lastModified(), replica);
+            }
+
+            for(NodeId id : cms.joiningMembers())
+            {
+                metaBuilder.withWriteReplica(cms.lastModified(), MetaStrategy.replica(directory.endpoint(id)));
+            }
+        }
+        return placements.unbuild()
+                         .with(ReplicationParams.meta(this), metaBuilder.build())
+                         .build();
     }
 
     public Transformer transformer()
@@ -296,7 +324,10 @@ public class ClusterMetadata
                                    capLastModified(cmsMembership, epoch));
     }
 
-    public ClusterMetadata initializeClusterIdentifier(int clusterIdentifier)
+    public ClusterMetadata initializeClusterIdentifier(int clusterIdentifier,
+                                                       NodeAddresses addresses,
+                                                       NodeVersion version,
+                                                       Location location)
     {
         if (this.metadataIdentifier != EMPTY_METADATA_IDENTIFIER)
             throw new IllegalStateException(String.format("Can only initialize cluster identifier once, but it was already set to %d", this.metadataIdentifier));
@@ -304,11 +335,21 @@ public class ClusterMetadata
         if (clusterIdentifier == EMPTY_METADATA_IDENTIFIER)
             throw new IllegalArgumentException("Can not initialize cluster with empty cluster identifier");
 
+        if (this.epoch.isAfter(Epoch.FIRST))
+            throw new IllegalStateException(String.format("Can only initialize cluster identifier during epoch %d, but current epoch is %d", Epoch.FIRST.getEpoch(), epoch.getEpoch()));
+
+        // Maybe register the first CMS node. If upgrading from gossip, this should be a no-op
+        Directory withRegistered = directory.with(addresses, location, version);
+        NodeId firstNode = withRegistered.peerId(addresses.broadcastAddress);
+        if (firstNode == null)
+            throw new IllegalStateException("Failed to find first CMS node in directory");
+
+        CMSMembership initialCMS = cmsMembership.startJoining(firstNode).finishJoining(firstNode);
         return new ClusterMetadata(clusterIdentifier,
                                    epoch,
                                    partitioner,
                                    schema,
-                                   directory,
+                                   withRegistered,
                                    tokenMap,
                                    placements,
                                    accordFastPath,
@@ -317,7 +358,7 @@ public class ClusterMetadata
                                    consensusMigrationState,
                                    extensions,
                                    accordStaleReplicas,
-                                   cmsMembership);
+                                   initialCMS);
     }
 
     private static Map<ExtensionKey<?,?>, ExtensionValue<?>> capLastModified(Map<ExtensionKey<?,?>, ExtensionValue<?>> original, Epoch maxEpoch)
@@ -516,6 +557,7 @@ public class ClusterMetadata
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
             accordStaleReplicas = metadata.accordStaleReplicas;
+            cmsMembership = metadata.cmsMembership;
         }
 
         public Epoch epoch()
