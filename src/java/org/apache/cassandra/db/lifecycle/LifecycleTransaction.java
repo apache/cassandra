@@ -322,6 +322,14 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return accumulate;
     }
 
+    public void transfer(ILifecycleTransaction txn)
+    {
+        LifecycleTransaction ltn = (LifecycleTransaction)txn;
+        if (!ltn.obsoletions.isEmpty() || !ltn.originals.isEmpty() || !ltn.logged.isEmpty())
+            throw new IllegalStateException("takeOwnership is only supported in add-only transactions (streams)");
+        log.transfer(ltn.log);
+    }
+
     private Throwable runOnCommitHooks(Throwable accumulate)
     {
         return runHooks(commitHooks, accumulate);

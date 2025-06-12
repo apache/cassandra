@@ -102,6 +102,15 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 {
     private static final Logger logger = LoggerFactory.getLogger(LogTransaction.class);
 
+    void transfer(LogTransaction log)
+    {
+        synchronized (lock)
+        {
+            assert state() == State.IN_PROGRESS;
+            txnFile.takeOwnership(log.txnFile);
+        }
+    }
+
     /**
      * If the format of the lines in the transaction log is wrong or the checksum
      * does not match, then we throw this exception.

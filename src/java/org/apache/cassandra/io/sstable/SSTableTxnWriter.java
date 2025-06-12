@@ -36,6 +36,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
+
 /**
  * A wrapper for SSTableWriter and LifecycleTransaction to be used when
  * the writer is the only participant in the transaction and therefore
@@ -131,6 +132,15 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     public SSTableMultiWriter setOpenResult(boolean openResult)
     {
         return writer.setOpenResult(openResult);
+    }
+
+    public Collection<SSTableReader> transferOwnershipTo(LifecycleTransaction globalTxn)
+    {
+        writer.setOpenResult(true);
+        prepareToCommit();
+        globalTxn.transfer(txn);
+        commit();
+        return writer.finished();
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"}) // log and writer closed during doPostCleanup
