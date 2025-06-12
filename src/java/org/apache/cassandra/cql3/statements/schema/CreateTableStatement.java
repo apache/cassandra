@@ -179,10 +179,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (table.params.transactionalMode.accordIsEnabled && SchemaConstants.isSystemKeyspace(keyspaceName))
             throw ire("Cannot enable accord on system tables (%s.%s)", keyspaceName, tableName);
 
-        if (table.params.transactionalMode.accordIsEnabled && !DatabaseDescriptor.getAccordTransactionsEnabled())
-            throw ire(format("Cannot create table %s.%s with transactional mode %s with accord.enabled set to false",
-                             keyspaceName, tableName, table.params.transactionalMode));
-
         if (table.params.transactionalMigrationFrom.isMigrating())
             throw ire("Cannot set transactional migration on new tables (%s.%s), %s", keyspaceName, tableName, table.params.transactionalMigrationFrom);
 
@@ -193,7 +189,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
     public void validate(ClientState state)
     {
         super.validate(state);
-
         // If a memtable configuration is specified, validate it against config
         if (attrs.hasOption(TableParams.Option.MEMTABLE))
             MemtableParams.get(attrs.getString(TableParams.Option.MEMTABLE.toString()));
@@ -203,7 +198,14 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         // Guardrail on columns per table
         Guardrails.columnsPerTable.guard(rawColumns.size(), tableName, false, state);
+        TableParams params = attrs.asNewTableParams(keyspaceName);
 
+        // Guardrail on Accord
+        if (params.transactionalMode.accordIsEnabled && !DatabaseDescriptor.getAccordTransactionsEnabled()) 
+        {
+            throw ire(format("Cannot create table %s with transactional mode set to full and accord disabled. Enable Accord in cassandra.yaml",
+                             tableName));
+        }
         // Guardrail on number of tables
         if (Guardrails.tables.enabled(state))
         {

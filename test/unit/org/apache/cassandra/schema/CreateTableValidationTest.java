@@ -23,6 +23,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.utils.BloomCalculations;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.junit.Test;
 
@@ -89,6 +90,14 @@ public class CreateTableValidationTest extends CQLTester
     {
         expectedFailure(InvalidRequestException.class, "CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck2 ASC);",
                         "Missing CLUSTERING ORDER for column ck1");
+    }
+
+    @Test
+    public void testCreateAccordTableWithAccordDisabled()
+    {
+        DatabaseDescriptor.setAccordTransactionsEnabled(false);
+        expectedFailure(InvalidRequestException.class, "CREATE TABLE test_accord_disabled (a int PRIMARY KEY, b int) WITH transactional_mode = full",
+                        "Cannot create table test_accord_disabled with transactional mode set to full and accord disabled. Enable Accord in cassandra.yaml");
     }
 
     private void expectedFailure(final Class<? extends RequestValidationException> exceptionType, String statement, String errorMsg)
