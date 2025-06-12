@@ -373,7 +373,7 @@ class BootstrapRepairState extends AutoRepairState
     @Override
     public AutoRepairUtilsV2.RepairTurn calcRepairTurn(UUID myId)
     {
-        if (!StorageService.instance.isBootstrapMode())
+        if (!AutoRepairUtilsV2.isBootstrapRepair())
         {
             return NOT_MY_TURN;
         }
