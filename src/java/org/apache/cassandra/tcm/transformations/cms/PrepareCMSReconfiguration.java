@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,7 +82,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
 
         logger.info("Proposed CMS reconfiguration resulted in {}", diff);
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
-        Set<NodeId> cms = prev.fullCMSMembers().stream().map(prev.directory::peerId).collect(Collectors.toSet());
+        Set<NodeId> cms = prev.fullCMSMemberIds();
         Set<NodeId> tmp = new HashSet<>(cms);
         tmp.addAll(diff.additions);
         tmp.removeAll(diff.removals);
@@ -355,10 +354,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
     public static boolean needsReconfiguration(ClusterMetadata metadata)
     {
         Map<String, Integer> dcRf = extractRf(ReplicationParams.meta(metadata));
-        Set<NodeId> currentCms = metadata.fullCMSMembers()
-                                         .stream()
-                                         .map(metadata.directory::peerId)
-                                         .collect(Collectors.toSet());
+        Set<NodeId> currentCms = metadata.fullCMSMemberIds();
         int expectedSize = dcRf.values().stream().mapToInt(Integer::intValue).sum();
         if (currentCms.size() != expectedSize)
             return true;

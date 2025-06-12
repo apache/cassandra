@@ -29,15 +29,12 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
-import org.apache.cassandra.locator.RangesByEndpoint;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
@@ -45,7 +42,6 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.RECONFIGURE_CMS;
 
 /**
@@ -154,38 +150,26 @@ public class AdvanceCMSReconfiguration implements Transformation
     {
         // Pop the next node to be added from the list diff.additions
         NodeId addition = diff.additions.get(0);
-        InetAddressAndPort endpoint = prev.directory.endpoint(addition);
-        Replica replica = new Replica(endpoint, entireRange, true);
-        List<NodeId> newAdditions = new ArrayList<>(diff.additions.subList(1, diff.additions.size()));
 
         // Check that the candidate is not already a CMS member
-        ReplicationParams metaParams = ReplicationParams.meta(prev);
-        RangesByEndpoint readReplicas = prev.placements.get(metaParams).reads.byEndpoint();
-        RangesByEndpoint writeReplicas = prev.placements.get(metaParams).writes.byEndpoint();
-        if (readReplicas.containsKey(endpoint) || writeReplicas.containsKey(endpoint))
-            return new Transformation.Rejected(INVALID, "Endpoint is already a member of CMS");
+        CMSMembership cms = prev.cmsMembership;
+        if (cms.joiningMembers().contains(addition) || cms.fullMembers().contains(addition))
+            return new Transformation.Rejected(INVALID, "Endpoint is already a full or joining member of the CMS: " + prev.directory.endpoint(addition));
 
-
-        ClusterMetadata.Transformer transformer = prev.transformer();
-        // Add the candidate as a write replica
-        DataPlacement.Builder builder = prev.placements.get(metaParams).unbuild()
-                                                       .withWriteReplica(prev.nextEpoch(), replica);
-        transformer.with(prev.placements.unbuild().with(metaParams, builder.build()).build());
+        // Add the candidate as a joining member
+        ClusterMetadata.Transformer transformer = prev.transformer().startJoiningCMS(addition);
 
         // Construct a set of sources for the new member to stream log tables from (essentially this is the existing members)
-        Set<InetAddressAndPort> streamCandidates = new HashSet<>();
-        for (Replica r : prev.placements.get(metaParams).reads.byEndpoint().flattenValues())
-        {
-            if (!replica.equals(r))
-                streamCandidates.add(r.endpoint());
-        }
+        Set<InetAddressAndPort> streamCandidates = prev.fullCMSMembers();
 
         // Set up the next step in the sequence. This encapsulates the entire state of the reconfiguration sequence,
         // including the remaining add/remove operations and the streaming that needs to be done by the joining node
+        List<NodeId> newAdditions = new ArrayList<>(diff.additions.subList(1, diff.additions.size()));
         AdvanceCMSReconfiguration next = next(prev.nextEpoch(),
                                               newAdditions,
                                               diff.removals,
                                               new ReconfigureCMS.ActiveTransition(addition, streamCandidates));
+
         // Create a new sequence instance with the next step to reflect that the state has progressed.
         ReconfigureCMS advanced = sequence.advance(next);
         // Finally, replace the existing reconfiguration sequence with this updated one.
@@ -206,21 +190,21 @@ public class AdvanceCMSReconfiguration implements Transformation
      */
     private Transformation.Result finishAdd(ClusterMetadata prev, ReconfigureCMS sequence, NodeId addition)
     {
+        // Check that the candidate is already a joining CMS member
+        CMSMembership cms = prev.cmsMembership;
+        if (!cms.joiningMembers().contains(addition))
+            return new Transformation.Rejected(INVALID, "Endpoint is not a in the process of joining the CMS: " + prev.directory.endpoint(addition));
+
         // Add the new member as a full read replica, able to participate in quorums for log updates
-        ReplicationParams metaParams = ReplicationParams.meta(prev);
-        InetAddressAndPort endpoint = prev.directory.endpoint(addition);
-        Replica replica = new Replica(endpoint, entireRange, true);
-        ClusterMetadata.Transformer transformer = prev.transformer();
-        DataPlacement.Builder builder = prev.placements.get(metaParams)
-                                                       .unbuild()
-                                                       .withReadReplica(prev.nextEpoch(), replica);
-        transformer = transformer.with(prev.placements.unbuild().with(metaParams, builder.build()).build());
+        ClusterMetadata.Transformer transformer = prev.transformer().finishJoiningCMS(addition);
 
         // Set up the next step in the sequence. This encapsulates the entire state of the reconfiguration sequence,
         // which includes the remaining add/remove operations
         AdvanceCMSReconfiguration next = next(prev.nextEpoch(), diff.additions, diff.removals, null);
+
         // Create a new sequence instance with the next step to reflect that the state has progressed.
         ReconfigureCMS advanced = sequence.advance(next);
+
         // Finally, replace the existing reconfiguration sequence with this updated one.
         transformer.with(prev.inProgressSequences.with(ReconfigureCMS.SequenceKey.instance, (ReconfigureCMS old) -> advanced));
         return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
@@ -238,29 +222,25 @@ public class AdvanceCMSReconfiguration implements Transformation
         List<NodeId> newRemovals = new ArrayList<>(diff.removals.subList(1, diff.removals.size()));
 
         // Check that the candidate is actually a CMS member
-        ClusterMetadata.Transformer transformer = prev.transformer();
+        Set<NodeId> cms = prev.fullCMSMemberIds();
         InetAddressAndPort endpoint = prev.directory.endpoint(removal);
-        Replica replica = new Replica(endpoint, entireRange, true);
-        ReplicationParams metaParams = ReplicationParams.meta(prev);
-        if (!prev.fullCMSMembers().contains(endpoint))
+        if (!prev.fullCMSMemberIds().contains(removal))
             return new Transformation.Rejected(INVALID, String.format("%s is not currently a CMS member, cannot remove it", endpoint));
 
         // Check that the candidate is not the only CMS member
-        DataPlacement.Builder builder = prev.placements.get(metaParams).unbuild();
-        builder.reads.withoutReplica(prev.nextEpoch(), replica);
-        builder.writes.withoutReplica(prev.nextEpoch(), replica);
-        DataPlacement proposed = builder.build();
-        if (proposed.reads.byEndpoint().isEmpty() || proposed.writes.byEndpoint().isEmpty())
+        if (cms.size() == 1)
             return new Transformation.Rejected(INVALID, String.format("Removing %s will leave no nodes in CMS", endpoint));
 
-        // Actually remove the candidate
-        transformer = transformer.with(prev.placements.unbuild().with(metaParams, proposed).build());
+        // Remove the CMS member
+        ClusterMetadata.Transformer transformer = prev.transformer().leaveCMS(removal);
 
         // Set up the next step in the sequence. This encapsulates the entire state of the reconfiguration sequence,
         // which includes the remaining add/remove operations
         AdvanceCMSReconfiguration next = next(prev.nextEpoch(), diff.additions, newRemovals, null);
+
         // Create a new sequence instance with the next step to reflect that the state has progressed.
         ReconfigureCMS advanced = sequence.advance(next);
+
         // Finally, replace the existing reconfiguration sequence with this updated one.
         transformer.with(prev.inProgressSequences.with(ReconfigureCMS.SequenceKey.instance, (ReconfigureCMS old) -> advanced));
         return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
