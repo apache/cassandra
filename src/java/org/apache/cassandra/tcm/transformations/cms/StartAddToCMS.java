@@ -18,25 +18,20 @@
 
 package org.apache.cassandra.tcm.transformations.cms;
 
-import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
-import org.apache.cassandra.locator.RangesByEndpoint;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 /**
  * This class along with AddToCMS, FinishAddToCMS & RemoveFromCMS, contain a high degree of duplication with their intended
@@ -76,27 +71,13 @@ public class StartAddToCMS extends BaseMembershipTransformation
         if (prev.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance) != null)
             return new Rejected(INVALID, String.format("Cannot add node to CMS as a CMS reconfiguration is currently active"));
 
-        Replica replica = new Replica(endpoint, entireRange, true);
-        ReplicationParams metaParams = ReplicationParams.meta(prev);
-        RangesByEndpoint readReplicas = prev.placements.get(metaParams).reads.byEndpoint();
-        RangesByEndpoint writeReplicas = prev.placements.get(metaParams).writes.byEndpoint();
-
-        if (readReplicas.containsKey(endpoint) || writeReplicas.containsKey(endpoint))
+        CMSMembership cms = prev.cmsMembership;
+        if (cms.joiningMembers().contains(nodeId) || cms.fullMembers().contains(nodeId))
             return new Transformation.Rejected(INVALID, "Endpoint is already a member of CMS");
 
-        ClusterMetadata.Transformer transformer = prev.transformer();
-        DataPlacement.Builder builder = prev.placements.get(metaParams).unbuild()
-                                                       .withWriteReplica(prev.nextEpoch(), replica);
+        ClusterMetadata.Transformer transformer = prev.transformer().startJoiningCMS(nodeId);
 
-        transformer.with(prev.placements.unbuild().with(metaParams, builder.build()).build());
-
-        Set<InetAddressAndPort> streamCandidates = new HashSet<>();
-        for (Replica r : prev.placements.get(metaParams).reads.byEndpoint().flattenValues())
-        {
-            if (!replica.equals(r))
-                streamCandidates.add(r.endpoint());
-        }
-
+        Set<InetAddressAndPort> streamCandidates = prev.fullCMSMembers();
         AddToCMS joinSequence = new AddToCMS(prev.nextEpoch(), nodeId, streamCandidates, new FinishAddToCMS(endpoint));
         transformer = transformer.with(prev.inProgressSequences.with(nodeId, joinSequence));
         return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));

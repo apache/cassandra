@@ -26,7 +26,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -84,12 +83,9 @@ public class FinishAddToCMS extends BaseMembershipTransformation
         InetAddressAndPort endpoint = prev.directory.endpoint(targetNode);
         Replica replica = new Replica(endpoint, entireRange, true);
 
-        ClusterMetadata.Transformer transformer = prev.transformer();
-        DataPlacement.Builder builder = prev.placements.get(metaParams)
-                                                       .unbuild()
-                                                       .withReadReplica(prev.nextEpoch(), replica);
-        transformer = transformer.with(prev.placements.unbuild().with(metaParams, builder.build()).build())
-                                 .with(prev.inProgressSequences.without(targetNode));
+        ClusterMetadata.Transformer transformer = prev.transformer()
+                                                      .finishJoiningCMS(targetNode)
+                                                      .with(prev.inProgressSequences.without(targetNode));
         return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
     }
 
