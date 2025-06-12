@@ -21,7 +21,6 @@ package org.apache.cassandra.db.streaming;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collection;
-import java.util.List;
 import java.util.function.UnaryOperator;
 
 import org.slf4j.Logger;
