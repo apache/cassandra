@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-45715] Fix the context data log mixed with ClientLibsEnforcementLevel log
  * [SO-45500] Add Null Check to AuditUsersCacheService.refresh()
  * [SO-45749] Add a test case to validate bootstrap repair status on Graceful replacement
  * [SO-45578] Mutations should not be deferrable on MV lock contention

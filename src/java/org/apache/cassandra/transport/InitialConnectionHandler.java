@@ -71,6 +71,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
     private static final String SERVICE = "SERVICE";
     private static final String TIER = "TIER";
     private static final String UNDEFINED = "undefined";
+    private static final String CLIENT_LIBS_ENFORCEMENT_LEVEL = "ClientLibsEnforcementLevel";
 
     final Envelope.Decoder decoder;
     final Connection.Factory factory;
@@ -255,7 +256,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                 isDriverAllowed = false;
             }
             else if (enforcementLevel == ClientLibsEnforcementLevel.soft) {
-                NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 5, TimeUnit.MINUTES, "Soft enforcement: Allowing connection with unsupported driver: {}. Allowed drivers: {}, {}", errorMsg, allowedDrivers, optionsWithClientPrefix);
+                NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key + CLIENT_LIBS_ENFORCEMENT_LEVEL, 5, TimeUnit.MINUTES, "Soft enforcement: Allowing connection with unsupported driver: {}. Allowed drivers: {}", errorMsg, allowedDrivers);
                 isDriverAllowed = true;
             } else { // enforcementLevel == ClientLibsEnforcementLevel.none
                 isDriverAllowed = true;
