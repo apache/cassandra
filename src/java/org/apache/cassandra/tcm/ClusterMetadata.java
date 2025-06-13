@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -213,7 +214,7 @@ public class ClusterMetadata
         this.directory = directory;
         this.tokenMap = tokenMap;
         this.accordFastPath = accordFastPath;
-        this.placements = addMetaPlacement(placements, cmsMembership);
+        this.placements = maybeAddMetaPlacement(placements, cmsMembership);
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
         this.consensusMigrationState = consensusMigrationState;
@@ -263,7 +264,7 @@ public class ClusterMetadata
         return fullCMSReplicas;
     }
 
-    private DataPlacements addMetaPlacement(DataPlacements placements, CMSMembership cms)
+    private DataPlacements maybeAddMetaPlacement(DataPlacements placements, CMSMembership cms)
     {
         if (epoch.isBefore(Epoch.FIRST) || schema.getKeyspaces().get(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
             return placements;
@@ -271,8 +272,23 @@ public class ClusterMetadata
         DataPlacement.Builder metaBuilder = DataPlacement.builder();
         if (epoch.is(Epoch.FIRST))
         {
+            // PRE_INITIALIZE_CMS: placements need to be hardcoded to the local address so that the subsequent
+            // INITIALIZE_CMS can be committed
             metaBuilder.withReadReplica(Epoch.FIRST, MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort()));
             metaBuilder.withWriteReplica(Epoch.FIRST, MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort()));
+        }
+        else if (epoch.isAfter(Epoch.FIRST) && directory.isEmpty())
+        {
+            // This cluster did not previously upgrade from a gossip based version (i.e. pre-6.0) but did at some point
+            // run a version prior to MetadataVersion.V7 where we started to encode CMS membership directly. This
+            // condition implies that we are reconstructing a serialized cluster metadata during replay or else the
+            // directory should not be empty after Epoch.FIRST as the base state in INITIALIZE_CMS now includes the
+            // first CMS node. Similarly, if the cluster had previously been running a gossip-based version, the
+            // directory would contain entries for each of the live nodes at the time of upgrade.
+            // Given this state, the very next transformation that is/was applied will be to register the node that
+            // committed the PRE_INITIALIZE_CMS and INTIALIZE_CMS transformations. So we just leave the placements
+            // untouched as they will already contain that node as an endpoint.
+            return placements;
         }
         else
         {
@@ -1282,6 +1298,37 @@ public class ClusterMetadata
             CMSMembership cmsMembership = CMSMembership.EMPTY;
             if (version.isAtLeast(Version.V9))
                 cmsMembership = CMSMembership.serializer.deserialize(in, version);
+            else
+            {
+                Optional<KeyspaceMetadata> metadataKs = schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
+                if (metadataKs.isPresent())
+                {
+                    // Pre-V9 the membership of the CMS was always inferred from the placement of the distributed
+                    // metadata keyspace.
+                    // If the directory is not empty the endpoints in the placement must belong to registered nodes,
+                    // so we can derive the CMSMembership using the data placement and directory.
+
+                    // If the directory is empty, then the cluster metadata must be the payload of an INITIALIZE_CMS
+                    // transformation of a cluster that began on a post-6.0, pre-MetadataVersion.V9 version.
+                    // In this case, we can and must assume that the initial CMS membership will consist of a single
+                    // node, with the node_id 1.
+                    // Note: the only route to arrive at this scenario is if a cluster is initialized on a post-6.0,
+                    // pre-V9 version and then upgraded to a post-V9 version without any metadata snapshots being taken.
+                    // If there is a snapshot available locally, when the upgraded node starts up it will replay its
+                    // local log from that point. The INITIALIZE_CMS transform will not be replayed.
+                    if (!dir.isEmpty())
+                    {
+                        DataPlacement placement = placements.get(metadataKs.get().params.replication);
+                        cmsMembership = CMSMembership.reconstruct(placement, dir);
+                    }
+                    else
+                    {
+                        NodeId id = new NodeId(1);
+                        cmsMembership = CMSMembership.EMPTY.startJoining(id).finishJoining(id);
+                    }
+                    placements = placements.unbuild().without(metadataKs.get().params.replication).build();
+                }
+            }
 
             return new ClusterMetadata(clusterIdentifier,
                                        epoch,

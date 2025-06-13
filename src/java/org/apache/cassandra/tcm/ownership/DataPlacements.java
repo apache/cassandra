@@ -256,9 +256,14 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         public void serialize(DataPlacements t, DataOutputPlus out, Version version) throws IOException
         {
             Map<ReplicationParams, DataPlacement> map = t.asMap();
-            out.writeInt(map.size());
+
+            // From V7, placements for the metadata keyspace are derived from CMSMembership, not serialized
+            int mapSize = version.isBefore(Version.V7) ? map.size() : Math.max(map.size() - 1, 0);
+            out.writeInt(mapSize);
             for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
+                if (version.isAtLeast(Version.V7) && entry.getKey().isMeta())
+                    continue;
                 ReplicationParams.serializer.serialize(entry.getKey(), out, version);
                 DataPlacement.serializerFor(entry.getKey()).serialize(entry.getValue(), out, version);
             }
@@ -280,9 +285,14 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
         public long serializedSize(DataPlacements t, Version version)
         {
-            long size = sizeof(t.size());
-            for (Map.Entry<ReplicationParams, DataPlacement> entry : t.asMap().entrySet())
+            Map<ReplicationParams, DataPlacement> map = t.asMap();
+            // From V7, placements for the metadata keyspace are derived from CMSMembership, not serialized
+            int mapSize = version.isBefore(Version.V7) ? map.size() : Math.max(map.size() - 1, 0);
+            long size = sizeof(mapSize);
+            for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
+                if (version.isAtLeast(Version.V7) && entry.getKey().isMeta())
+                    continue;
                 size += ReplicationParams.serializer.serializedSize(entry.getKey(), version);
                 size += DataPlacement.serializerFor(entry.getKey()).serializedSize(entry.getValue(), version);
             }

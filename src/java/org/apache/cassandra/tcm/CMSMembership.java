@@ -28,7 +28,10 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -41,6 +44,39 @@ public class CMSMembership implements MetadataValue<CMSMembership>
     private final Epoch lastModified;
     private final BTreeSet<NodeId> fullMembers;
     private final BTreeSet<NodeId> joiningMembers;
+
+    /**
+     * Used to derive a CMSMembership when deserializing a ClusterMetadata instance written with a metadata version
+     * prior to V7. At that time, CMS membership was always inferred from the data placements of the distributed
+     * cluster metadata keyspace. Read replicas are full members of the CMS and write-only replicas are in the process
+     * of joining. Note: every read replica must also be a write replica, leaving the CMS is atomic in respect of the
+     * placements.
+     * @param placement
+     * @param directory
+     * @return
+     */
+    public static CMSMembership reconstruct(DataPlacement placement, Directory directory)
+    {
+        SortedSet<NodeId> full = new TreeSet<>();
+        SortedSet<NodeId> joining = new TreeSet<>();
+        Epoch lm = Epoch.EMPTY;
+        for (VersionedEndpoints.ForRange endpoints : placement.reads.endpoints)
+        {
+            lm = endpoints.lastModified().isAfter(lm) ? endpoints.lastModified() : lm;
+            endpoints.get().endpoints().forEach(e -> full.add(directory.peerId(e)));
+        }
+
+        for (VersionedEndpoints.ForRange endpoints : placement.writes.endpoints)
+        {
+            lm = endpoints.lastModified().isAfter(lm) ? endpoints.lastModified() : lm;
+            endpoints.get().endpoints().forEach(e -> {
+                NodeId id = directory.peerId(e);
+                if (!full.contains(id))
+                    joining.add(id);
+            });
+        }
+        return new CMSMembership(lm, BTreeSet.of(full), BTreeSet.of(joining));
+    }
 
     private CMSMembership()
     {
