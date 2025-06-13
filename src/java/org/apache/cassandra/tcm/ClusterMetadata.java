@@ -269,13 +269,16 @@ public class ClusterMetadata
         if (epoch.isBefore(Epoch.FIRST) || schema.getKeyspaces().get(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
             return placements;
 
-        DataPlacement.Builder metaBuilder = DataPlacement.builder();
+        DataPlacement metaPlacement;
         if (epoch.is(Epoch.FIRST))
         {
             // PRE_INITIALIZE_CMS: placements need to be hardcoded to the local address so that the subsequent
             // INITIALIZE_CMS can be committed
-            metaBuilder.withReadReplica(Epoch.FIRST, MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort()));
-            metaBuilder.withWriteReplica(Epoch.FIRST, MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort()));
+            Replica localReplica = MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort());
+            metaPlacement = DataPlacement.builder()
+                                         .withReadReplica(Epoch.FIRST, localReplica)
+                                         .withWriteReplica(Epoch.FIRST, localReplica)
+                                         .build();
         }
         else if (epoch.isAfter(Epoch.FIRST) && directory.isEmpty())
         {
@@ -292,20 +295,11 @@ public class ClusterMetadata
         }
         else
         {
-            for (NodeId id : cms.fullMembers())
-            {
-                Replica replica = MetaStrategy.replica(directory.endpoint(id));
-                metaBuilder.withReadReplica(cms.lastModified(), replica);
-                metaBuilder.withWriteReplica(cms.lastModified(), replica);
-            }
-
-            for(NodeId id : cms.joiningMembers())
-            {
-                metaBuilder.withWriteReplica(cms.lastModified(), MetaStrategy.replica(directory.endpoint(id)));
-            }
+            // Build a placement based on the CMS membership
+            metaPlacement = cms.toPlacement(directory);
         }
         return placements.unbuild()
-                         .with(ReplicationParams.meta(this), metaBuilder.build())
+                         .with(ReplicationParams.meta(this), metaPlacement)
                          .build();
     }
 

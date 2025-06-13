@@ -28,6 +28,8 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.MetaStrategy;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -76,6 +78,22 @@ public class CMSMembership implements MetadataValue<CMSMembership>
             });
         }
         return new CMSMembership(lm, BTreeSet.of(full), BTreeSet.of(joining));
+    }
+
+    public DataPlacement toPlacement(Directory directory)
+    {
+        DataPlacement.Builder builder = DataPlacement.builder();
+        for (NodeId id : fullMembers)
+        {
+            Replica replica = MetaStrategy.replica(directory.endpoint(id));
+            builder.withReadReplica(lastModified, replica);
+            builder.withWriteReplica(lastModified, replica);
+        }
+        for(NodeId id : joiningMembers)
+        {
+            builder.withWriteReplica(lastModified, MetaStrategy.replica(directory.endpoint(id)));
+        }
+        return builder.build();
     }
 
     private CMSMembership()
