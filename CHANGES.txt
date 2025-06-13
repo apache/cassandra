@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44851] [Part 5] Add the Ability to Start and Stop the Audit Users Cache via EnableAuditLog
  * [SO-46655] Alter table for strict_mv_consistency should invalidate parepared statements
  * [SO-44851] [Part 4] Respect audit_logging_options.role_filtering in AuditLogManager
  * Gossip doesn't converge due to race condition when updating EndpointStates multiple fields (CASSANDRA-20659)

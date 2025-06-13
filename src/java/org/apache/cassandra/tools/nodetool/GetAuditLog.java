@@ -36,6 +36,7 @@ public class GetAuditLog extends NodeTool.NodeToolCmd
 
         final AuditLogOptions options = probe.getAuditLogOptions();
 
+        tableBuilder.add("role_filtering", String.valueOf(options.role_filtering));
         tableBuilder.add("logger", options.logger.class_name);
         tableBuilder.add("parameters", String.valueOf(options.logger.parameters));
         tableBuilder.add("audit_logs_dir", options.audit_logs_dir);

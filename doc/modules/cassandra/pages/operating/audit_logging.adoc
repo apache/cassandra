@@ -55,6 +55,7 @@ To use audit logging on one node, either edit that file or enable and configure 
 The following options are supported:
 
 * `enabled`: This option enables/ disables audit log
+* `role_filtering`: If true, this option enables role-based event filtering
 * `logger`: Class name of the logger/ custom logger.
 * `audit_logs_dir`: Auditlogs directory location, if not set, default to
 [.title-ref]#cassandra.logdir.audit# or [.title-ref]#cassandra.logdir# +
@@ -88,7 +89,8 @@ nodetool enableauditlog
 ----
 
 ==== Options
-
+`--disable-role-filtering`::
+  If set, role-generated-events will not be sampled
 `--excluded-categories`::
   Comma separated list of Audit Log Categories to be excluded for audit
   log. If not set the value from cassandra.yaml will be used

@@ -89,6 +89,14 @@ public class GetAuditLogTest extends CQLTester
         assertThat(err).contains("Duplicate parameter");
     }
 
+
+    @Test
+    public void enableAuditLogWithoutRoleFiltering()
+    {
+        enableAuditLogSimpleWithoutRoleFiltering();
+        testChangedOutputSimpleWithoutRoleFiltering(getAuditLog());
+    }
+
     private String getAuditLog()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getauditlog");
@@ -106,6 +114,12 @@ public class GetAuditLogTest extends CQLTester
         ToolRunner.invokeNodetool("enableauditlog").assertOnCleanExit();
     }
 
+    private void enableAuditLogSimpleWithoutRoleFiltering()
+    {
+        ToolRunner.invokeNodetool("enableauditlog",
+                                  "--disable-role-filtering").assertOnCleanExit();
+    }
+
     private void enableAuditLogComplex()
     {
         ToolRunner.invokeNodetool("enableauditlog",
@@ -115,11 +129,33 @@ public class GetAuditLogTest extends CQLTester
                                   "--parameters", "key1=value1,key2=value2,key3=value3").assertOnCleanExit();
     }
 
+
+    @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
+    private void testChangedOutputSimpleWithoutRoleFiltering(final String getAuditLogOutput)
+    {
+        final String output = getAuditLogOutput.replaceAll("( )+", " ").trim();
+        assertThat(output).startsWith("enabled true");
+        assertThat(output).contains("role_filtering false");
+        assertThat(output).contains("logger BinAuditLogger");
+        assertThat(output).contains("roll_cycle HOURLY");
+        assertThat(output).contains("block true");
+        assertThat(output).contains("max_log_size 17179869184");
+        assertThat(output).contains("max_queue_weight 268435456");
+        assertThat(output).contains("max_archive_retries 10");
+        assertThat(output).contains("included_keyspaces \n");
+        assertThat(output).contains("excluded_keyspaces system,system_schema,system_virtual_schema");
+        assertThat(output).contains("included_categories \n");
+        assertThat(output).contains("excluded_categories \n");
+        assertThat(output).contains("included_users \n");
+        assertThat(output).endsWith("excluded_users");
+    }
+
     @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
     private void testChangedOutputSimple(final String getAuditLogOutput)
     {
         final String output = getAuditLogOutput.replaceAll("( )+", " ").trim();
         assertThat(output).startsWith("enabled true");
+        assertThat(output).contains("role_filtering true");
         assertThat(output).contains("logger BinAuditLogger");
         assertThat(output).contains("roll_cycle HOURLY");
         assertThat(output).contains("block true");
@@ -139,6 +175,7 @@ public class GetAuditLogTest extends CQLTester
     {
         final String output = getAuditLogOutput.replaceAll("( )+", " ").trim();
         assertThat(output).startsWith("enabled true");
+        assertThat(output).contains("role_filtering true");
         assertThat(output).contains("logger BinAuditLogger");
         assertThat(output).contains("parameters {key1=value1, key2=value2, key3=value3}");
         assertThat(output).contains("roll_cycle HOURLY");
@@ -159,6 +196,7 @@ public class GetAuditLogTest extends CQLTester
     {
         final String output = getAuditLogOutput.replaceAll("( )+", " ").trim();
         assertThat(output).startsWith("enabled false");
+        assertThat(output).contains("role_filtering true");
         assertThat(output).contains("logger BinAuditLogger");
         assertThat(output).contains("roll_cycle HOURLY");
         assertThat(output).contains("block true");
