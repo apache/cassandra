@@ -35,9 +35,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.StreamingLifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.ThrottledUnfilteredIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -78,7 +77,7 @@ public class CassandraStreamReceiver implements StreamReceiver
     private final StreamSession session;
 
     // Transaction tracking new files received
-    private final LifecycleTransaction txn;
+    private final StreamingLifecycleTransaction txn;
 
     //  holds references to SSTables received
     protected final Collection<SSTableReader> sstables;
@@ -96,7 +95,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         this.session = session;
         // this is an "offline" transaction, as we currently manually expose the sstables once done;
         // this should be revisited at a later date, so that LifecycleTransaction manages all sstable state changes
-        this.txn = LifecycleTransaction.offline(OperationType.STREAM);
+        this.txn = new StreamingLifecycleTransaction();
         this.ranges = ranges;
         this.sstables = new ArrayList<>(totalFiles);
         this.requiresWritePath = requiresWritePath(cfs);
@@ -129,7 +128,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         {
             Throwables.maybeFail(sstable.abort(t));
         }
-        txn.update(finished, false);
+        txn.update(finished);
         sstables.addAll(finished);
         receivedEntireSSTable = file.isEntireSSTable();
     }

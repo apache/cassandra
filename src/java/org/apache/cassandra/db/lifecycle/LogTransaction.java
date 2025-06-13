@@ -102,15 +102,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 {
     private static final Logger logger = LoggerFactory.getLogger(LogTransaction.class);
 
-    void transfer(LogTransaction log)
-    {
-        synchronized (lock)
-        {
-            assert state() == State.IN_PROGRESS;
-            txnFile.takeOwnership(log.txnFile);
-        }
-    }
-
     /**
      * If the format of the lines in the transaction log is wrong or the checksum
      * does not match, then we throw this exception.
@@ -215,6 +206,18 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                 tracker.notifyDeleting(reader);
 
             return new SSTableTidier(reader, false, this);
+        }
+    }
+
+    void takeOwnership(LogTransaction log)
+    {
+        synchronized (lock)
+        {
+            if (state() != State.IN_PROGRESS)
+                throw new IllegalStateException("The LogTransaction getting ownership should be IN_PROGRESS, not " + state());
+            if (log.state() != State.READY_TO_COMMIT)
+                throw new IllegalStateException("The LogTransaction giving up its ownership should be READY_TO_COMMIT, not " + log.state());
+            txnFile.takeOwnership(log.txnFile);
         }
     }
 

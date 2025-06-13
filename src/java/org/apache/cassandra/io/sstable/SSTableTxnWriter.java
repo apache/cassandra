@@ -27,6 +27,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.StreamingLifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -134,11 +135,11 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return writer.setOpenResult(openResult);
     }
 
-    public Collection<SSTableReader> transferOwnershipTo(LifecycleTransaction globalTxn)
+    public Collection<SSTableReader> transferOwnershipTo(StreamingLifecycleTransaction globalTxn)
     {
         writer.setOpenResult(true);
         prepareToCommit();
-        globalTxn.transfer(txn);
+        globalTxn.takeOwnership(txn);
         commit();
         return writer.finished();
     }
