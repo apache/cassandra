@@ -57,6 +57,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected final Collection<Index.Group> indexGroups;
     protected Consumer<Collection<SSTableReader>> sstableProducedListener;
     protected boolean openSSTableOnProduced = false;
+    protected boolean enabledConstraints = true;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
@@ -89,6 +90,11 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected void setShouldOpenProducedSSTable(boolean openSSTableOnProduced)
     {
         this.openSSTableOnProduced = openSSTableOnProduced;
+    }
+
+    protected void enableConstraints(boolean enabledConstraints)
+    {
+        this.enabledConstraints = enabledConstraints;
     }
 
     /**
