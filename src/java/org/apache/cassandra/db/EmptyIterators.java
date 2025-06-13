@@ -136,7 +136,7 @@ public class EmptyIterators
         }
     }
 
-    private static class EmptyUnfilteredRowIterator extends EmptyBaseRowIterator<Unfiltered> implements UnfilteredRowIterator
+    public static class EmptyUnfilteredRowIterator extends EmptyBaseRowIterator<Unfiltered> implements UnfilteredRowIterator
     {
         final DeletionTime partitionLevelDeletion;
         public EmptyUnfilteredRowIterator(RegularAndStaticColumns columns, TableMetadata metadata, DecoratedKey partitionKey,

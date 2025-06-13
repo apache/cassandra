@@ -67,6 +67,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.index.accord.RouteJournalIndex;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -191,7 +192,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         void read(DataInputPlus input, Version userVersion) throws IOException;
     }
 
-    private class RecordConsumerAdapter implements RecordConsumer<K>
+    private static class RecordConsumerAdapter<K> implements RecordConsumer<K>
     {
         protected final Reader reader;
 
@@ -200,18 +201,16 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             this.reader = reader;
         }
 
-        private long prevSegment = -1;
-        private long prevPosition = -1;
+        private long prevSegment = Long.MAX_VALUE;
+        private long prevPosition = Long.MAX_VALUE;
 
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
-            Invariants.require(prevSegment == -1 || segment <= prevSegment,
-                               "Records should always be iterated over in a reverse order, but %s was seen after %s", segment, prevSegment);
-            if (prevSegment != segment)
-                prevPosition = -1;
-            Invariants.require(prevPosition == -1 || position < prevPosition,
-                               "Records should always be iterated over in a reverse order, but %s was seen after %s", position, prevPosition);
+            Invariants.require(segment <= prevSegment,
+                               "Records should always be iterated over in a reverse order, but segment %d was seen after %d while reading %s", segment, prevSegment, key);
+            Invariants.require(segment != prevSegment || position < prevPosition,
+                               "Records should always be iterated over in a reverse order, but position %d was seen after %d for segment %d while reading %s", position, prevPosition, segment, key);
             readBuffer(buffer, reader, Version.fromVersion(userVersion));
             prevSegment = segment;
             prevPosition = position;
@@ -410,18 +409,37 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             if (view.sstables.isEmpty())
                 return;
 
-            List<UnfilteredRowIterator> iters = new ArrayList<>(view.sstables.size());
-            for (SSTableReader sstable : view.sstables)
-                if (sstable.mayContainAssumingKeyIsInRange(pk))
-                    iters.add(StorageHook.instance.makeRowIterator(cfs, sstable, pk, Slices.ALL, ColumnFilter.all(cfs.metadata()), false, NOOP_LISTENER));
-
-            if (!iters.isEmpty())
+            List<UnfilteredRowIterator> iters = new ArrayList<>(Math.min(4, view.sstables.size()));
+            try
             {
-                EntryHolder<K> into = new EntryHolder<>();
-                try (UnfilteredRowIterator iter = UnfilteredRowIterators.merge(iters))
+                for (SSTableReader sstable : view.sstables)
                 {
-                    while (iter.hasNext()) readRow(key, iter.next(), into, onEntry);
+                    if (!sstable.mayContainAssumingKeyIsInRange(pk))
+                        continue;
+
+                    UnfilteredRowIterator iter = StorageHook.instance.makeRowIterator(cfs, sstable, pk, Slices.ALL, ColumnFilter.all(cfs.metadata()), false, NOOP_LISTENER);
+                    if (iter.getClass() != EmptyIterators.EmptyUnfilteredRowIterator.class)
+                        iters.add(iter);
                 }
+
+                if (!iters.isEmpty())
+                {
+                    EntryHolder<K> into = new EntryHolder<>();
+                    try (UnfilteredRowIterator iter = UnfilteredRowIterators.merge(iters))
+                    {
+                        while (iter.hasNext()) readRow(key, iter.next(), into, onEntry);
+                    }
+                }
+            }
+            catch (Throwable t)
+            {
+                String message = "Failed to read from " + iters;
+                for (UnfilteredRowIterator iter : iters)
+                {
+                    try { iter.close(); }
+                    catch (Throwable t2) { t.addSuppressed(t2); }
+                }
+                throw new FSReadError(message, t);
             }
         }
     }

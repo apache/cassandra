@@ -183,4 +183,10 @@ public class SSTableIterator extends AbstractSSTableIterator<RowIndexEntry>
             }
         }
     }
+
+    @Override
+    public String toString()
+    {
+        return sstable.toString();
+    }
 }
