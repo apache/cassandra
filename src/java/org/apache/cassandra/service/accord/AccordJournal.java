@@ -223,7 +223,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         Builder builder = load(commandStoreId, txnId);
-        builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
+        Cleanup cleanup = builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
+        if (cleanup == Cleanup.EXPUNGE)
+            return null;
+
         return builder.construct(redundantBefore);
     }
 

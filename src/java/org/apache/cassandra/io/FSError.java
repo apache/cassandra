@@ -68,6 +68,12 @@ public abstract class FSError extends IOError
     }
 
     @Override
+    public String getMessage()
+    {
+        return message;
+    }
+
+    @Override
     public String toString()
     {
         return getClass().getSimpleName() + (message != null ? ' ' + message : "") + (path != null ? " in " + path : "");

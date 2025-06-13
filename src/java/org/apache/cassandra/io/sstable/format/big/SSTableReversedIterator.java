@@ -463,4 +463,10 @@ public class SSTableReversedIterator extends AbstractSSTableIterator<RowIndexEnt
             return iterator.hasNext() ? next : endOfData();
         }
     }
+
+    @Override
+    public String toString()
+    {
+        return sstable.toString();
+    }
 }
