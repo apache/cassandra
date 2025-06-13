@@ -160,7 +160,8 @@ public class ClusterMetadataTestHelper
 
     public static ClusterMetadata minimalForTesting(Epoch epoch, IPartitioner partitioner)
     {
-        return new ClusterMetadata(epoch, Murmur3Partitioner.instance,
+        return new ClusterMetadata(epoch,
+                                   Murmur3Partitioner.instance,
                                    DistributedSchema.empty(),
                                    Directory.EMPTY,
                                    new TokenMap(partitioner),
@@ -185,6 +186,23 @@ public class ClusterMetadataTestHelper
                                                              .with(new DistributedSchema(keyspaces))
                                                              .build()
                .metadata.forceEpoch(Epoch.EMPTY);
+    }
+
+    public static ClusterMetadata minimalForTesting(Epoch epoch, IPartitioner partitioner, DistributedSchema schema)
+    {
+        return new ClusterMetadata(epoch,
+                                   Murmur3Partitioner.instance,
+                                   schema,
+                                   Directory.EMPTY,
+                                   new TokenMap(partitioner),
+                                   DataPlacements.empty(),
+                                   AccordFastPath.EMPTY,
+                                   LockedRanges.EMPTY,
+                                   InProgressSequences.EMPTY,
+                                   ConsensusMigrationState.EMPTY,
+                                   ImmutableMap.of(),
+                                   AccordStaleReplicas.EMPTY,
+                                   CMSMembership.EMPTY);
     }
 
     public static ClusterMetadataService syncInstanceForTest()

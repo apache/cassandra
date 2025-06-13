@@ -45,6 +45,7 @@ public class MetadataKeys
     public static final MetadataKey LOCKED_RANGES           = make(CORE_NS, "sequences", "locked_ranges");
     public static final MetadataKey IN_PROGRESS_SEQUENCES   = make(CORE_NS, "sequences", "in_progress");
     public static final MetadataKey CONSENSUS_MIGRATION_STATE = make(CORE_NS, "consensus", "migration_state");
+    public static final MetadataKey CMS_MEMBERSHIP          = make(CORE_NS, "cms_membership", "cms_membership");
 
     public static final ImmutableMap<MetadataKey, Function<ClusterMetadata, MetadataValue<?>>> CORE_METADATA
     = ImmutableMap.<MetadataKey, Function<ClusterMetadata, MetadataValue<?>>>builder()
@@ -57,6 +58,7 @@ public class MetadataKeys
                   .put(ACCORD_FAST_PATH, cm -> cm.accordFastPath)
                   .put(ACCORD_STALE_REPLICAS, cm -> cm.accordStaleReplicas)
                   .put(CONSENSUS_MIGRATION_STATE, cm -> cm.consensusMigrationState)
+                  .put(CMS_MEMBERSHIP, cm -> cm.cmsMembership)
                   .build();
 
     public static MetadataKey make(String...parts)

@@ -63,6 +63,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.topology.AccordFastPath;
 import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
@@ -264,7 +265,7 @@ public class ClusterMetadata
 
     private DataPlacements addMetaPlacement(DataPlacements placements, CMSMembership cms)
     {
-        if (epoch.isBefore(Epoch.FIRST))
+        if (epoch.isBefore(Epoch.FIRST) || schema.getKeyspaces().get(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
             return placements;
 
         DataPlacement.Builder metaBuilder = DataPlacement.builder();
@@ -890,6 +891,12 @@ public class ClusterMetadata
             if (consensusMigrationState != base.consensusMigrationState || schema != base.schema)
             {
                 consensusMigrationState.validateAgainstSchema(schema);
+            }
+
+            if (cmsMembership != base.cmsMembership)
+            {
+                modifiedKeys.add(MetadataKeys.CMS_MEMBERSHIP);
+                cmsMembership = cmsMembership.withLastModified(epoch);
             }
 
             return new Transformed(new ClusterMetadata(base.metadataIdentifier,

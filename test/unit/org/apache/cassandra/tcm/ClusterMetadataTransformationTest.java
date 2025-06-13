@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -33,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata.Transformer.Transformed;
@@ -55,6 +57,7 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 
 import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_FAST_PATH;
 import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_STALE_REPLICAS;
+import static org.apache.cassandra.tcm.MetadataKeys.CMS_MEMBERSHIP;
 import static org.apache.cassandra.tcm.MetadataKeys.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
 import static org.apache.cassandra.tcm.MetadataKeys.IN_PROGRESS_SEQUENCES;
@@ -135,6 +138,42 @@ public class ClusterMetadataTransformationTest
         assertModifications(transformed, NODE_DIRECTORY);
         transformed = transformed.metadata.transformer().left(n3).build();
         assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP);
+    }
+
+    @Test
+    public void testModifyCMSMembership()
+    {
+        ClusterMetadata metadata = new ClusterMetadata(Murmur3Partitioner.instance, Directory.EMPTY, DistributedSchema.empty());
+        Transformed transformed = metadata.transformer().build();
+        assertTrue(transformed.modifiedKeys.isEmpty());
+
+        List<InetAddressAndPort> endpoints = MembershipUtils.uniqueEndpoints(random, 2);
+        NodeAddresses a1 = new NodeAddresses(endpoints.get(0));
+        NodeAddresses a2 = new NodeAddresses(endpoints.get(1));
+
+        transformed = metadata.transformer()
+                              .register(a1, new Location("dc1", "rack1"), NodeVersion.CURRENT)
+                              .register(a2, new Location("dc1", "rack1"), NodeVersion.CURRENT)
+                              .build();
+        assertModifications(transformed, NODE_DIRECTORY);
+        NodeId n1 = transformed.metadata.directory.peerId(a1.broadcastAddress);
+        NodeId n2 = transformed.metadata.directory.peerId(a2.broadcastAddress);
+
+        transformed = metadata.transformer().startJoiningCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+        transformed = transformed.metadata.transformer().cancelJoiningCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+
+        transformed = transformed.metadata.transformer().startJoiningCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+        transformed = transformed.metadata.transformer().finishJoiningCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+
+        transformed = transformed.metadata.transformer().startJoiningCMS(n2).finishJoiningCMS(n2).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
+
+        transformed = transformed.metadata.transformer().leaveCMS(n1).build();
+        assertModifications(transformed, CMS_MEMBERSHIP);
     }
 
     @Test
@@ -320,6 +359,8 @@ public class ClusterMetadataTransformationTest
             return metadata.consensusMigrationState;
         else if (key == ACCORD_STALE_REPLICAS)
             return metadata.accordStaleReplicas;
+        else if (key == CMS_MEMBERSHIP)
+            return metadata.cmsMembership;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }
