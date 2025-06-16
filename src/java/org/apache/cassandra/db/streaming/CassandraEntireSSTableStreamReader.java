@@ -37,7 +37,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IOOptions;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -203,7 +203,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                                                      .createZeroCopyWriter(txn, cfs));
     }
 
-    public static class SSTableTxnZeroCopyWriter extends SSTableTxnWriter
+    public static class SSTableTxnZeroCopyWriter extends SSTableTxnSingleStreamWriter
     {
         private final SSTableZeroCopyWriter writer;
         public SSTableTxnZeroCopyWriter(ILifecycleTransaction txn, SSTableZeroCopyWriter writer)

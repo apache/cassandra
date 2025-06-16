@@ -45,8 +45,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTopology;
@@ -119,10 +118,10 @@ public class CassandraStreamReceiver implements StreamReceiver
         CassandraIncomingFile file = getFile(stream);
 
         Collection<SSTableReader> finished = null;
-        SSTableMultiWriter sstable = file.getSSTable();
+        SSTableTxnSingleStreamWriter sstable = (SSTableTxnSingleStreamWriter)file.getSSTable();
         try
         {
-            finished = ((SSTableTxnWriter)sstable).transferOwnershipTo(txn);
+            finished = sstable.transferOwnershipTo(txn);
         }
         catch (Throwable t)
         {

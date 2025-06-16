@@ -54,14 +54,12 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
     private volatile SSTableReader finalReader;
     private final Map<String, ZeroCopySequentialWriter> componentWriters; // indexed by component name
-    private final ILifecycleTransaction txn;
 
     public SSTableZeroCopyWriter(Builder<?, ?> builder,
                                  ILifecycleTransaction txn,
                                  SSTable.Owner owner)
     {
         super(builder, owner);
-        this.txn = txn;
         txn.trackNew(this);
         this.componentWriters = new HashMap<>();
 

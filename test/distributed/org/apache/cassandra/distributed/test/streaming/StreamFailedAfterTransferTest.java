@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.streaming;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -79,13 +80,14 @@ public class StreamFailedAfterTransferTest extends TestBaseImpl
                 {
                     try
                     {
-                        long start = System.currentTimeMillis();
-                        while (f.list().length > 0 && System.currentTimeMillis() - start < TimeUnit.SECONDS.toNanos(10))
+                        int i = 0;
+                        while (f.list().length > 0 && i++ < 20)
                         {
                             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
                             LifecycleTransaction.waitForDeletions();
                         }
-                        assertEquals(0, f.list().length);
+                        File [] files = f.list();
+                        assertEquals(Arrays.toString(files), 0, files.length);
 
                     }
                     catch (IOException e)
