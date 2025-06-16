@@ -28,9 +28,9 @@ import java.util.stream.Collectors;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
+import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * Build a query specific view of the on-disk indexes for a query. This will return a
@@ -52,12 +52,26 @@ public class QueryViewBuilder
         this.range = range;
     }
 
+    public static class QueryExpressionView
+    {
+        public final Expression expression;
+        public final Collection<MemtableIndex> memtableIndexes;
+        public final Collection<SSTableIndex> sstableIndexes;
+
+        public QueryExpressionView(Expression expression, Collection<MemtableIndex> memtableIndexes, Collection<SSTableIndex> sstableIndexes)
+        {
+            this.expression = expression;
+            this.memtableIndexes = memtableIndexes;
+            this.sstableIndexes = sstableIndexes;
+        }
+    }
+
     public static class QueryView
     {
-        public final Collection<Pair<Expression, Collection<SSTableIndex>>> view;
+        public final Collection<QueryExpressionView> view;
         public final Set<SSTableIndex> referencedIndexes;
 
-        public QueryView(Collection<Pair<Expression, Collection<SSTableIndex>>> view, Set<SSTableIndex> referencedIndexes)
+        public QueryView(Collection<QueryExpressionView> view, Set<SSTableIndex> referencedIndexes)
         {
             this.view = view;
             this.referencedIndexes = referencedIndexes;
@@ -72,8 +86,8 @@ public class QueryViewBuilder
             referencedIndexes.clear();
             boolean failed = false;
 
-            Collection<Pair<Expression, Collection<SSTableIndex>>> view = getQueryView(expressions);
-            for (SSTableIndex index : view.stream().map(pair -> pair.right).flatMap(Collection::stream).collect(Collectors.toList()))
+            Collection<QueryExpressionView> view = getQueryView(expressions);
+            for (SSTableIndex index : view.stream().map(v -> v.sstableIndexes).flatMap(Collection::stream).collect(Collectors.toList()))
             {
                 if (index.reference())
                     referencedIndexes.add(index);
@@ -88,9 +102,9 @@ public class QueryViewBuilder
         }
     }
 
-    private Collection<Pair<Expression, Collection<SSTableIndex>>> getQueryView(Collection<Expression> expressions)
+    private Collection<QueryExpressionView> getQueryView(Collection<Expression> expressions)
     {
-        List<Pair<Expression, Collection<SSTableIndex>>> queryView = new ArrayList<>();
+        List<QueryExpressionView> queryView = new ArrayList<>();
 
         for (Expression expression : expressions)
         {
@@ -99,10 +113,13 @@ public class QueryViewBuilder
             if (expression.isNotIndexed())
                 continue;
 
-            // Select all the sstable indexes that have a term range that is satisfied by this expression and 
+            // Fetch the memtables first to ensure we don't miss any newly flushed memtable index
+            Collection<MemtableIndex> memtableIndexes = expression.getIndex().memtableIndexManager().getLiveMemtableIndexesSnapshot();
+            // Select all the sstable indexes that have a term range that is satisfied by this expression and
             // overlap with the key range being queried.
             View view = expression.getIndex().view();
-            queryView.add(Pair.create(expression, selectIndexesInRange(view.match(expression))));
+            Collection<SSTableIndex> sstableIndexes = selectIndexesInRange(view.match(expression));
+            queryView.add(new QueryExpressionView(expression, memtableIndexes, sstableIndexes));
         }
 
         return queryView;
