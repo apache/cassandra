@@ -8,7 +8,7 @@ Both virtual tables and JMX-based metrics can be used to monitor the SAI indexes
 
 You can refer to data in the following {product} virtual tables to determine the status of indexes created with SAI:
 
-* `system_views.indexes` -- provides information at the column index level, including the index name, number of indexed SSTables, disk usage, and index state.
+* `system_views.sai_column_indexes` -- provides information at the column index level, including the index name and index state.
 From the index state, the data reveals if the index is currently building, and whether the index can be queried.
 +
 [TIP]
@@ -16,8 +16,8 @@ From the index state, the data reveals if the index is currently building, and w
 include::cassandra:partial$sai/queryable-paragraph.adoc[]
 ====
 
-* `system_views.sstable_indexes` -- describes individual SSTable indexes, and includes information around disk size, min/max row ID, the min/max ring token, and the write-time version of the index.
-* `system_views.sstable_index_segments` -- describes the segments of the SSTable indexes.
+* `system_views.sai_sstable_indexes` -- describes individual SSTable indexes, and includes information around disk size, min/max row ID, the min/max ring token, and the write-time version of the index.
+* `system_views.sai_sstable_index_segments` -- describes the segments of the SSTable indexes.
 It exposes the segment row ID offset and most of the information in the SSTable-level virtual table, specifically at a segment granularity.
 For more details, refer to xref:cassandra:reference/sai-virtual-table-indexes.adoc[Virtual tables for SAI indexes and SSTables].
 
