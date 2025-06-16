@@ -270,6 +270,8 @@ public class ClusterMetadata
             return placements;
 
         DataPlacement metaPlacement;
+        Epoch previousLastModified = placements.lastModified();
+        Epoch nextLastModified;
         if (epoch.is(Epoch.FIRST))
         {
             // PRE_INITIALIZE_CMS: placements need to be hardcoded to the local address so that the subsequent
@@ -279,6 +281,7 @@ public class ClusterMetadata
                                          .withReadReplica(Epoch.FIRST, localReplica)
                                          .withWriteReplica(Epoch.FIRST, localReplica)
                                          .build();
+            nextLastModified = Epoch.FIRST;
         }
         else if (epoch.isAfter(Epoch.FIRST) && directory.isEmpty())
         {
@@ -297,10 +300,16 @@ public class ClusterMetadata
         {
             // Build a placement based on the CMS membership
             metaPlacement = cms.toPlacement(directory);
+            if (cms.lastModified().isAfter(previousLastModified))
+                nextLastModified = cms.lastModified();
+            else
+                nextLastModified = previousLastModified;
+
         }
         return placements.unbuild()
                          .with(ReplicationParams.meta(this), metaPlacement)
-                         .build();
+                         .build()
+                         .withLastModified(nextLastModified);
     }
 
     public Transformer transformer()
