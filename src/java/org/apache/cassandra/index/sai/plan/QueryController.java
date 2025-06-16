@@ -65,7 +65,6 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.InsertionOrderedNavigableSet;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE;
@@ -178,12 +177,12 @@ public class QueryController
      * This is achieved by creating an on-disk view of the query that maps the expressions to
      * the {@link SSTableIndex}s that will satisfy the expression.
      * <p>
-     * Each (expression, SSTable indexes) pair is then passed to
-     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean, Runnable)}
-     * to search the in-memory index associated with the expression and the SSTable indexes, the results of
+     * Each {@link QueryViewBuilder.QueryExpressionView} is then passed to
+     * {@link IndexSearchResultIterator#build(QueryViewBuilder.QueryExpressionView, AbstractBounds, QueryContext, boolean, Runnable)}
+     * to search the in-memory indexes associated with the expression and the SSTable indexes, the results of
      * which are unioned and returned.
      * <p>
-     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean, Runnable)}
+     * The results from each call to {@link IndexSearchResultIterator#build(QueryViewBuilder.QueryExpressionView, AbstractBounds, QueryContext, boolean, Runnable)}
      * are added to a {@link KeyRangeIntersectionIterator} and returned if strict filtering is allowed.
      * <p>
      * If strict filtering is not allowed, indexes are split into two groups according to the repaired status of their 
@@ -214,22 +213,23 @@ public class QueryController
                 // If strict filtering is enabled, evaluate indexes for both repaired and un-repaired SSTables together.
                 // This usually means we are making this local index query in the context of a user query that reads 
                 // from a single replica and thus can safely perform local intersections.
-                for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
-                    builder.add(IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, true, () -> {}));
+                for (QueryViewBuilder.QueryExpressionView queryExpressionView : queryView.view)
+                    builder.add(IndexSearchResultIterator.build(queryExpressionView, mergeRange, queryContext, true, () -> {}));
             }
             else
             {
                 KeyRangeIterator.Builder repairedBuilder = KeyRangeIntersectionIterator.builder(expressions.size(), () -> {});
 
-                for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
+                for (QueryViewBuilder.QueryExpressionView queryExpressionView : queryView.view)
                 {
+                    Expression expression = queryExpressionView.expression;
                     // The initial sizes here reflect little more than an effort to avoid resizing for 
                     // partition-restricted searches w/ LCS:
                     List<SSTableIndex> repaired = new ArrayList<>(5);
                     List<SSTableIndex> unrepaired = new ArrayList<>(5);
 
                     // Split SSTable indexes into repaired and un-reparired:
-                    for (SSTableIndex index : queryViewPair.right)
+                    for (SSTableIndex index : queryExpressionView.sstableIndexes)
                         if (index.getSSTable().isRepaired())
                             repaired.add(index);
                         else
@@ -237,7 +237,7 @@ public class QueryController
 
                     // Always build an iterator for the un-repaired set, given this must include Memtable indexes...  
                     IndexSearchResultIterator unrepairedIterator =
-                            IndexSearchResultIterator.build(queryViewPair.left, unrepaired, mergeRange, queryContext, true, () -> {});
+                            IndexSearchResultIterator.build(expression, queryExpressionView.memtableIndexes, unrepaired, mergeRange, queryContext, true, () -> {});
 
                     // ...but ignore it if our combined results are empty.
                     if (unrepairedIterator.getMaxKeys() > 0)
@@ -253,7 +253,7 @@ public class QueryController
 
                     // ...then only add an iterator to the repaired intersection if repaired SSTable indexes exist. 
                     if (!repaired.isEmpty())
-                        repairedBuilder.add(IndexSearchResultIterator.build(queryViewPair.left, repaired, mergeRange, queryContext, false, () -> {}));
+                        repairedBuilder.add(IndexSearchResultIterator.build(expression, Collections.emptyList(), repaired, mergeRange, queryContext, false, () -> {}));
                 }
 
                 if (repairedBuilder.rangeCount() > 0)
@@ -274,8 +274,8 @@ public class QueryController
         int referencedIndexes = 0;
 
         // We want to make sure that no individual column expression touches too many SSTable-attached indexes:
-        for (Pair<Expression, Collection<SSTableIndex>> expressionSSTables : queryView.view)
-            referencedIndexes = Math.max(referencedIndexes, expressionSSTables.right.size());
+        for (QueryViewBuilder.QueryExpressionView expressionSSTables : queryView.view)
+            referencedIndexes = Math.max(referencedIndexes, expressionSSTables.sstableIndexes.size());
 
         if (Guardrails.saiSSTableIndexesPerQuery.failsOn(referencedIndexes, null))
         {
@@ -319,14 +319,19 @@ public class QueryController
         StorageAttachedIndex index = indexFor(expression);
         assert index != null;
         Expression planExpression = Expression.create(index).add(Operator.ANN, expression.getIndexValue().duplicate());
-        // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
-        KeyRangeIterator memtableResults = index.memtableIndexManager().searchMemtableIndexes(queryContext, planExpression, mergeRange);
 
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
         Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
 
         try
         {
+            List<KeyRangeIterator> memtableResults = queryView.view
+                                                              .stream()
+                                                              .map(v -> v.memtableIndexes)
+                                                              .flatMap(Collection::stream)
+                                                              .map(idx -> idx.search(queryContext, planExpression, mergeRange))
+                                                              .collect(Collectors.toList());
+
             List<KeyRangeIterator> sstableIntersections = queryView.view
                                                                    .stream()
                                                                    .map(this::createRowIdIterator)
@@ -360,16 +365,21 @@ public class QueryController
         Expression planExpression = Expression.create(index);
         planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
 
-        // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
-        KeyRangeIterator memtableResults = index.memtableIndexManager().limitToTopResults(queryContext, sourceKeys, planExpression);
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
         Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
 
         try
         {
+            List<KeyRangeIterator> memtableResults = queryView.view
+                                                              .stream()
+                                                              .map(v -> v.memtableIndexes)
+                                                              .flatMap(Collection::stream)
+                                                              .map(idx -> idx.limitToTopResults(sourceKeys, planExpression, vectorQueryContext.limit()))
+                                                              .collect(Collectors.toList());
+
             List<KeyRangeIterator> sstableIntersections = queryView.view
                                                                    .stream()
-                                                                   .flatMap(pair -> pair.right.stream())
+                                                                   .flatMap(pair -> pair.sstableIndexes.stream())
                                                                    .map(idx -> {
                                                                        try
                                                                        {
@@ -395,15 +405,15 @@ public class QueryController
     /**
      * Create row id iterator from different indexes' on-disk searcher of the same sstable
      */
-    private KeyRangeIterator createRowIdIterator(Pair<Expression, Collection<SSTableIndex>> indexExpression)
+    private KeyRangeIterator createRowIdIterator(QueryViewBuilder.QueryExpressionView indexExpression)
     {
-        List<KeyRangeIterator> subIterators = indexExpression.right
+        List<KeyRangeIterator> subIterators = indexExpression.sstableIndexes
                            .stream()
                            .map(index ->
                                 {
                                     try
                                     {
-                                        List<KeyRangeIterator> iterators = index.search(indexExpression.left, mergeRange, queryContext);
+                                        List<KeyRangeIterator> iterators = index.search(indexExpression.expression, mergeRange, queryContext);
                                         // concat the result from multiple segments for the same index
                                         return KeyRangeConcatIterator.builder(iterators.size()).add(iterators).build();
                                     }
