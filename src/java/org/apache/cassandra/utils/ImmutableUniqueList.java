@@ -32,7 +32,7 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements UniqueLis
 
     private final T[] values;
     private final Object2IntHashMap<T> indexLookup;
-    
+
     private ImmutableUniqueList(Builder<T> builder)
     {
         values = (T[]) builder.values.toArray(Object[]::new);

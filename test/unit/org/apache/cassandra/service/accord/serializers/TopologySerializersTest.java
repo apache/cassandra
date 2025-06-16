@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.accord.CompactTopology;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -69,6 +70,9 @@ public class TopologySerializersTest
         });
     }
 
+    /**
+     * This test focuses on correctness, given any random topology does the serde operation work as expected?
+     */
     @Test
     public void compactTopology()
     {
@@ -76,22 +80,25 @@ public class TopologySerializersTest
         qt().forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
             AccordGenerators.maybeUpdatePartitioner(expected.ranges());
 
-            TopologySerializers.CompactTopology global = new TopologySerializers.CompactTopology(expected);
-            Serializers.testSerde(output, TopologySerializers.dictionaryTopology, global);
+            CompactTopology global = new CompactTopology(expected);
+            Serializers.testSerde(output, CompactTopology.serializer, global);
 
             Assertions.assertThat(global.topology()).isEqualTo(expected);
 
             for (Node.Id node : expected.nodes())
             {
                 Topology expectedSubset = expected.forNode(node);
-                TopologySerializers.CompactTopology subset = new TopologySerializers.CompactTopology(expectedSubset);
-                Serializers.testSerde(output, TopologySerializers.dictionaryTopology, subset);
+                CompactTopology subset = new CompactTopology(expectedSubset);
+                Serializers.testSerde(output, CompactTopology.serializer, subset);
 
                 Assertions.assertThat(subset.topology()).isEqualTo(expectedSubset);
             }
         });
     }
 
+    /**
+     * This test tries to create Topologies that would look closer to what one would expect in a production environment; namily each table having the same ranges.
+     */
     @Test
     public void compactTopologyAreCompact()
     {
@@ -104,12 +111,12 @@ public class TopologySerializersTest
         qt().forAll(gen).check(expected -> {
             AccordGenerators.maybeUpdatePartitioner(expected.ranges());
 
-            TopologySerializers.CompactTopology global = new TopologySerializers.CompactTopology(expected);
-            Serializers.testSerde(output, TopologySerializers.dictionaryTopology, global);
+            CompactTopology global = new CompactTopology(expected);
+            Serializers.testSerde(output, CompactTopology.serializer, global);
 
             Assertions.assertThat(global.topology()).isEqualTo(expected);
 
-            long size = TopologySerializers.dictionaryTopology.serializedSize(global);
+            long size = CompactTopology.serializer.serializedSize(global);
             long upperLimit = TopologySerializers.topology.serializedSize(expected);
             collector.register(expected, ((upperLimit - size) / (double) upperLimit) * 100.0D);
             Assertions.assertThat(size).isLessThan(upperLimit);
