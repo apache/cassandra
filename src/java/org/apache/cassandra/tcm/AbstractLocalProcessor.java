@@ -46,6 +46,7 @@ public abstract class AbstractLocalProcessor implements Processor
         this.log = log;
     }
 
+
     /**
      * Epoch returned by processor in the Result is _not_ guaranteed to be visible by the Follower by
      * the time when this method returns.
@@ -59,7 +60,7 @@ public abstract class AbstractLocalProcessor implements Processor
         while (!retryPolicy.hasExpired())
         {
             ClusterMetadata previous = log.waitForHighestConsecutive();
-            if (!previous.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()) && previous.epoch.isAfter(Epoch.FIRST))
+            if (!acceptCommit(previous))
             {
                 String msg = String.format("Node %s is not a CMS member in epoch %s; members=%s",
                                            FBUtilities.getBroadcastAddressAndPort(),
@@ -228,4 +229,5 @@ public abstract class AbstractLocalProcessor implements Processor
 
     public abstract ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry retryPolicy);
     protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch);
+    protected abstract boolean acceptCommit(ClusterMetadata metadata);
 }

@@ -60,6 +60,18 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
+    public boolean acceptCommit(ClusterMetadata metadata)
+    {
+        // AtomicLongBackedProcessor is only for use in tests and offline tools and it should be safe to assume that it
+        // is always allowed to process commit requests. In a non-test setup, when the CMS is initialized the initiating
+        // node is also registered. This is not the case in tests (see initCMS/recreateCMS in ServerTestUtils for more
+        // detail), as this simplifies setting up/tearing down topologies in test cases. The processor intended for use
+        // in real clusters (PaxosBackedProcessor) performs some actual validation here to ensure that the node is
+        // really a CMS member.
+        return true;
+    }
+
+    @Override
     protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
     {
         if (epochHolder.get() == 0)

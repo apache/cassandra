@@ -43,6 +43,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
@@ -61,6 +62,15 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     public PaxosBackedProcessor(LocalLog log)
     {
         super(log);
+    }
+
+    @Override
+    protected boolean acceptCommit(ClusterMetadata metadata)
+    {
+        if (metadata.epoch.isAfter(Epoch.FIRST) && metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
+            return true;
+        return metadata.epoch.isEqualOrBefore(Epoch.FIRST)
+               && metadata.placements.get(ReplicationParams.meta(metadata)).reads.byEndpoint().keySet().contains(FBUtilities.getBroadcastAddressAndPort());
     }
 
     @Override
