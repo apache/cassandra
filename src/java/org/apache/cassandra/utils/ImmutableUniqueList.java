@@ -19,22 +19,20 @@
 package org.apache.cassandra.utils;
 
 import java.util.AbstractList;
-import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.RandomAccess;
 
 import org.agrona.collections.Object2IntHashMap;
 
-public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAccess
+public class ImmutableUniqueList<T> extends AbstractList<T> implements UniqueList<T>, RandomAccess
 {
     private static final ImmutableUniqueList<Object> EMPTY = ImmutableUniqueList.builder().build();
 
     private final T[] values;
     private final Object2IntHashMap<T> indexLookup;
-    private transient AsSet asSet = null;
+    
     private ImmutableUniqueList(Builder<T> builder)
     {
         values = (T[]) builder.values.toArray(Object[]::new);
@@ -69,12 +67,6 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
             if (!builder.maybeAdd(v))
                 throw new IllegalArgumentException("Unable to add " + v +  " as its a duplicate");
         return builder.build();
-    }
-
-    public AsSet asSet()
-    {
-        if (asSet != null) return asSet;
-        return asSet = new AsSet();
     }
 
     @Override
@@ -168,21 +160,6 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
             ImmutableUniqueList<T> list = new ImmutableUniqueList<>(this);
             clear();
             return list;
-        }
-    }
-
-    public class AsSet extends AbstractSet<T>
-    {
-        @Override
-        public Iterator<T> iterator()
-        {
-            return ImmutableUniqueList.this.iterator();
-        }
-
-        @Override
-        public int size()
-        {
-            return values.length;
         }
     }
 }
