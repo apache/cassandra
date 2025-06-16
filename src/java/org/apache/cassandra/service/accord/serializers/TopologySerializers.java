@@ -41,6 +41,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.ArraySerializers;
+import org.apache.cassandra.utils.BitSetSerializer;
 import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 
@@ -199,13 +200,35 @@ public class TopologySerializers
             }
         }
 
+        private static BitSet bitSet(SortedArrayList<Node.Id> src, SortedArrayList<Node.Id> subset)
+        {
+            BitSet bitSet = new BitSet(src.size());
+            for (int i = 0; i < src.size(); i++)
+            {
+                if (subset.contains(src.get(i)))
+                    bitSet.set(i);
+            }
+            return bitSet;
+        }
+
+        private static SortedArrayList<Node.Id> fromBitSet(SortedArrayList<Node.Id> src, BitSet bitSet)
+        {
+            SortedArrayList.Builder<Node.Id> builder = new SortedArrayList.Builder<>(new Node.Id[bitSet.cardinality()]);
+            for (int i = 0; i < src.size(); i++)
+            {
+                if (bitSet.get(i))
+                    builder.add(src.get(i));
+            }
+            return builder.build();
+        }
+
         private static class ShardRef
         {
             final int tableIdx;
             final int rangeIdx;
             final SortedArrayList<Node.Id> nodes;
-            final SortedArrayList<Node.Id> notInFastPath;
-            final SortedArrayList<Node.Id> joining;
+            final BitSet notInFastPath;
+            final BitSet joining;
             final TinyEnumSet<Shard.Flag> flags;
 
             private ShardRef(int tableIdx, int rangeIdx,
@@ -217,9 +240,24 @@ public class TopologySerializers
                 this.tableIdx = tableIdx;
                 this.rangeIdx = rangeIdx;
                 this.nodes = nodes;
+                this.notInFastPath = bitSet(nodes, notInFastPath);
+                this.joining = bitSet(nodes, joining);
+                this.flags = flags;
+            }
+
+            private ShardRef(int tableIdx, int rangeIdx, SortedArrayList<Node.Id> nodes, BitSet notInFastPath, BitSet joining, TinyEnumSet<Shard.Flag> flags)
+            {
+                this.tableIdx = tableIdx;
+                this.rangeIdx = rangeIdx;
+                this.nodes = nodes;
                 this.notInFastPath = notInFastPath;
                 this.joining = joining;
                 this.flags = flags;
+            }
+
+            public Shard shard(TokenRange range)
+            {
+                return Shard.SerializerSupport.create(range, nodes, fromBitSet(nodes, notInFastPath), fromBitSet(nodes, joining), flags);
             }
 
             @Override
@@ -297,7 +335,7 @@ public class TopologySerializers
                 ShardRef ref = this.shards.get(i);
                 TokenRange range = tokenRange(ref.tableIdx, ref.rangeIdx);
 
-                result[i] = Shard.SerializerSupport.create(range, ref.nodes, ref.notInFastPath, ref.joining, ref.flags);
+                result[i] = ref.shard(range);
             }
             return result;
         }
@@ -364,8 +402,8 @@ public class TopologySerializers
 
                 //TODO (perf): can this be compressed?
                 CollectionSerializers.serializeList(shard.nodes, out, nodeId);
-                CollectionSerializers.serializeList(shard.notInFastPath, out, nodeId);
-                CollectionSerializers.serializeList(shard.joining, out, nodeId);
+                BitSetSerializer.instance.serialize(shard.notInFastPath, out);
+                BitSetSerializer.instance.serialize(shard.joining, out);
                 out.writeUnsignedVInt32(shard.flags.bitset());
             }
         }
@@ -390,8 +428,8 @@ public class TopologySerializers
                 size += TypeSizes.sizeofUnsignedVInt(shard.rangeIdx);
 
                 size += CollectionSerializers.serializedListSize(shard.nodes, nodeId);
-                size += CollectionSerializers.serializedListSize(shard.notInFastPath, nodeId);
-                size += CollectionSerializers.serializedListSize(shard.joining, nodeId);
+                size += BitSetSerializer.instance.serializedSize(shard.notInFastPath);
+                size += BitSetSerializer.instance.serializedSize(shard.joining);
                 size += TypeSizes.sizeofUnsignedVInt(shard.flags.bitset());
             }
             return size;
@@ -420,8 +458,8 @@ public class TopologySerializers
                 ranges.get(rangeIndex); // will index-out-of-bounds if not valid
 
                 SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
-                SortedArrayList<Node.Id> notInFastPath = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
-                SortedArrayList<Node.Id> joining = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
+                BitSet notInFastPath = BitSetSerializer.instance.deserialize(in);
+                BitSet joining = BitSetSerializer.instance.deserialize(in);
                 int flags = in.readUnsignedVInt32();
                 shards.add(new CompactTopology.ShardRef(tableIndex, rangeIndex, nodes, notInFastPath, joining, new TinyEnumSet<>(flags)));
             }
