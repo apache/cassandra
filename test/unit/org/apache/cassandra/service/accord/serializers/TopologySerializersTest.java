@@ -29,6 +29,7 @@ import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.accord.TokenRange;
@@ -123,12 +124,14 @@ public class TopologySerializersTest
             final int numTables;
             final int numRanges;
             final double savings;
+            final IPartitioner partitioner;
 
-            private E(int numTables, int numRanges, double savings)
+            private E(int numTables, int numRanges, double savings, IPartitioner partitioner)
             {
                 this.numTables = numTables;
                 this.numRanges = numRanges;
                 this.savings = savings;
+                this.partitioner = partitioner;
             }
 
             @Override
@@ -149,8 +152,7 @@ public class TopologySerializersTest
             int numTables = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(TokenRange::table).distinct().count());
             int numRanges = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(r -> r.withTable(TopologySerializers.EMPTY)).distinct().count());
 
-            E e = new E(numTables, numRanges, savings);
-//            System.out.println(String.format("tables=%d, ranges=%d By %.2f%%", numTables, numRanges, savings));
+            E e = new E(numTables, numRanges, savings, DatabaseDescriptor.getPartitioner());
             if (min == null || e.compareTo(min) < 0)
                 min = e;
             if (max == null || e.compareTo(max) > 0)
@@ -161,7 +163,9 @@ public class TopologySerializersTest
         public String toString()
         {
             return "min: " + String.format("tables=%d, ranges=%d By %.2f%%", min.numTables, min.numRanges, min.savings)
-                   + "\nmax: " + String.format("tables=%d, ranges=%d By %.2f%%", max.numTables, max.numRanges, max.savings);
+                   + "\nmin partitioner: " + min.partitioner.getClass().getSimpleName()
+                   + "\nmax: " + String.format("tables=%d, ranges=%d By %.2f%%", max.numTables, max.numRanges, max.savings)
+                   + "\nmax partitioner: " + max.partitioner.getClass().getSimpleName();
         }
     }
 }
