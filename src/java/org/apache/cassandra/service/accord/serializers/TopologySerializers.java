@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import accord.local.Node;
 import accord.primitives.Range;
@@ -350,21 +349,6 @@ public class TopologySerializers
         private TableId tableId(int tableIdx)
         {
             return tables.get(tableIdx);
-        }
-
-        private static BitSet getStaleNodes(Topology topology)
-        {
-            if (topology.staleIds().isEmpty())
-                return null;
-            BitSet set = new BitSet();
-            SortedArrayList<Node.Id> nodes = topology.nodes();
-            Set<Node.Id> staleIds = topology.staleIds();
-            for (int i = 0; i < nodes.size(); i++)
-            {
-                if (staleIds.contains(nodes.get(i)))
-                    set.set(i);
-            }
-            return set.isEmpty() ? null : set;
         }
 
         @Override
