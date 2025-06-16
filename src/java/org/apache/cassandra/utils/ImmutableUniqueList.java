@@ -145,6 +145,12 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
             return this;
         }
 
+        public int indexOf(T t)
+        {
+            if (!indexLookup.containsKey(t)) return -1;
+            return indexLookup.get(t);
+        }
+
         public void clear()
         {
             values.clear();
