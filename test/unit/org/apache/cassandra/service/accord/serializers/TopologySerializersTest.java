@@ -22,6 +22,9 @@ import java.io.IOException;
 
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.local.Node;
 import accord.primitives.Ranges;
 import accord.topology.Topology;
@@ -44,6 +47,8 @@ import static accord.utils.Property.qt;
 
 public class TopologySerializersTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(TopologySerializersTest.class);
+
     static
     {
         DatabaseDescriptor.clientInitialization();
@@ -121,7 +126,7 @@ public class TopologySerializersTest
             collector.register(expected, ((upperLimit - size) / (double) upperLimit) * 100.0D);
             Assertions.assertThat(size).isLessThan(upperLimit);
         });
-        System.out.println(collector);
+        logger.info(collector.toString());
     }
 
     private static class CompactCollector
