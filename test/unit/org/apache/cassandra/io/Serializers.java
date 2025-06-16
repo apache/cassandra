@@ -116,6 +116,14 @@ public class Serializers
         }
     }
 
+    public static <T, P> void testSerde(ParameterisedUnversionedSerializer<T, P> serializer, T input, P param) throws IOException
+    {
+        try (DataOutputBuffer output = new DataOutputBuffer(Math.toIntExact(serializer.serializedSize(input, param))))
+        {
+            testSerde(output, serializer, input, param);
+        }
+    }
+
     public static <T, P, Version> void testSerde(ParameterisedVersionedSerializer<T, P, Version> serializer, T input, P param, Version version) throws IOException
     {
         try (DataOutputBuffer output = new DataOutputBuffer(Math.toIntExact(serializer.serializedSize(input, param, version))))
