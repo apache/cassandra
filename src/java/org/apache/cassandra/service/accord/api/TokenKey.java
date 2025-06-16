@@ -40,6 +40,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
@@ -232,9 +233,11 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
 
     public static final NoTableSerializer noTableSerializer = new NoTableSerializer();
 
-    public static class NoTableSerializer
+
+    public static class NoTableSerializer implements ParameterisedUnversionedSerializer<TokenKey, TableId>
     {
-        public void serialize(TokenKey key, DataOutputPlus out) throws IOException
+        @Override
+        public void serialize(TokenKey key, TableId tableId, DataOutputPlus out) throws IOException
         {
             IPartitioner partitioner = key.token.getPartitioner();
             int fixedLength = partitioner.accordFixedLength();
@@ -246,7 +249,13 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
             serializer.serializeWithoutPrefixOrLength(key, out);
         }
 
-        public long serializedSize(TokenKey key)
+        public void serialize(TokenKey key, DataOutputPlus out) throws IOException
+        {
+            serialize(key, key.table, out);
+        }
+
+        @Override
+        public long serializedSize(TokenKey key, TableId tableId)
         {
             IPartitioner partitioner = key.token.getPartitioner();
             int tokenSize = partitioner.accordFixedLength();
@@ -256,6 +265,12 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
             return 2 + tokenSize + VIntCoding.sizeOfUnsignedVInt(tokenSize);
         }
 
+        public long serializedSize(TokenKey key)
+        {
+            return serializedSize(key, key.table);
+        }
+
+        @Override
         public TokenKey deserialize(TableId tableId, DataInputPlus in) throws IOException
         {
             IPartitioner partitioner = getPartitioner();
