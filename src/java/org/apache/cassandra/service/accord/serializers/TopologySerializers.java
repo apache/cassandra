@@ -20,6 +20,13 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+import javax.annotation.Nullable;
 
 import accord.local.Node;
 import accord.primitives.Range;
@@ -32,9 +39,12 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.ImmutableUniqueList;
 
 public class TopologySerializers
 {
@@ -129,6 +139,235 @@ public class TopologySerializers
             return size;
         }
     }
+
+    public static class DictionaryTopology
+    {
+        private static class Range
+        {
+            final TokenKey start;
+            final TokenKey end;
+
+            private Range(TokenKey start, TokenKey end)
+            {
+                this.start = start;
+                this.end = end;
+            }
+
+            private Range(TokenRange other)
+            {
+                this(other.start(), other.end());
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                if (o == null || getClass() != o.getClass()) return false;
+                Range range = (Range) o;
+                return Objects.equals(start, range.start) && Objects.equals(end, range.end);
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return Objects.hash(start, end);
+            }
+        }
+
+        private static final class RangeSerializer implements UnversionedSerializer<DictionaryTopology.Range>
+        {
+            private final ImmutableUniqueList<TableId> tables;
+
+            private RangeSerializer(ImmutableUniqueList<TableId> tables)
+            {
+                this.tables = tables;
+            }
+
+            @Override
+            public void serialize(DictionaryTopology.Range t, DataOutputPlus out) throws IOException
+            {
+                out.writeUnsignedVInt32(tables.indexOf(t.start.table()));
+                TokenKey.noTableSerializer.serialize(t.start, out);
+                TokenKey.noTableSerializer.serialize(t.end, out);
+            }
+
+            @Override
+            public DictionaryTopology.Range deserialize(DataInputPlus in) throws IOException
+            {
+                int idx = in.readUnsignedVInt32();
+                TableId tableId = tables.get(idx);
+                return new DictionaryTopology.Range(TokenKey.noTableSerializer.deserialize(tableId, in),
+                                                    TokenKey.noTableSerializer.deserialize(tableId, in));
+            }
+
+            @Override
+            public long serializedSize(DictionaryTopology.Range t)
+            {
+                return TypeSizes.sizeofUnsignedVInt(tables.indexOf(t.start.table()))
+                       + TokenKey.noTableSerializer.serializedSize(t.start)
+                       + TokenKey.noTableSerializer.serializedSize(t.end);
+            }
+        }
+
+        private final long epoch;
+        private final SortedArrayList<Node.Id> nodeIds;
+        @Nullable
+        private final BitSet staleNodes;
+        private final ImmutableUniqueList<TableId> tables;
+        private final ImmutableUniqueList<Range> ranges;
+        private final List<Shard> shards;
+
+        public DictionaryTopology(long epoch,
+                                  SortedArrayList<Node.Id> nodeIds,
+                                  @Nullable BitSet staleNodes,
+                                  ImmutableUniqueList<TableId> tables,
+                                  ImmutableUniqueList<Range> ranges,
+                                  List<Shard> shards)
+        {
+            this.epoch = epoch;
+            this.nodeIds = nodeIds;
+            this.staleNodes = staleNodes;
+            this.tables = tables;
+            this.ranges = ranges;
+            this.shards = shards;
+        }
+
+        public DictionaryTopology(Topology topology)
+        {
+            epoch = topology.epoch();
+            nodeIds = topology.nodes();
+            staleNodes = getStaleNodes(topology);
+            ImmutableUniqueList.Builder<TableId> tablesBuilder = ImmutableUniqueList.builder();
+            ImmutableUniqueList.Builder<Range> rangesBuilder = ImmutableUniqueList.builder();
+            for (Shard shard : topology.shards())
+            {
+                TokenRange range = (TokenRange) shard.range;
+                tablesBuilder.add(range.table());
+                rangesBuilder.add(new Range(range));
+            }
+            this.tables = tablesBuilder.buildAndClear();
+            this.ranges = rangesBuilder.buildAndClear();
+            this.shards = topology.shards();
+        }
+
+        private static BitSet getStaleNodes(Topology topology)
+        {
+            if (topology.staleIds().isEmpty())
+                return null;
+            BitSet set = new BitSet();
+            SortedArrayList<Node.Id> nodes = topology.nodes();
+            Set<Node.Id> staleIds = topology.staleIds();
+            for (int i = 0; i < nodes.size(); i++)
+            {
+                if (staleIds.contains(nodes.get(i)))
+                    set.set(i);
+            }
+            return set.isEmpty() ? null : set;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == null || getClass() != o.getClass()) return false;
+            DictionaryTopology that = (DictionaryTopology) o;
+            return epoch == that.epoch && Objects.equals(nodeIds, that.nodeIds) && Objects.equals(staleNodes, that.staleNodes) && Objects.equals(tables, that.tables) && Objects.equals(ranges, that.ranges) && Objects.equals(shards, that.shards);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(epoch, nodeIds, staleNodes, tables, ranges, shards);
+        }
+    }
+
+    public static final UnversionedSerializer<DictionaryTopology> dictionaryTopology = new UnversionedSerializer<DictionaryTopology>()
+    {
+        @Override
+        public void serialize(DictionaryTopology topology, DataOutputPlus out) throws IOException
+        {
+            out.writeLong(topology.epoch);
+            CollectionSerializers.serializeList(topology.nodeIds, out, nodeId);
+
+            byte[] staleNodes = topology.staleNodes == null ? new byte[0] : topology.staleNodes.toByteArray();
+            out.writeUnsignedVInt32(staleNodes.length);
+            out.write(staleNodes);
+
+            CollectionSerializers.serializeList(topology.tables, out, TableId.compactComparableSerializer);
+            CollectionSerializers.serializeList(topology.ranges, out, new DictionaryTopology.RangeSerializer(topology.tables));
+
+            ImmutableUniqueList<TableId> tables = topology.tables;
+            ImmutableUniqueList<DictionaryTopology.Range> ranges = topology.ranges;
+
+            out.writeUnsignedVInt32(topology.shards.size());
+            for (Shard shard : topology.shards)
+            {
+                TokenRange tokenRange = (TokenRange) shard.range;
+                out.writeUnsignedVInt32(ranges.indexOf(new DictionaryTopology.Range(tokenRange)));
+
+                //TODO (perf): can this be compressed?
+                CollectionSerializers.serializeList(shard.nodes, out, nodeId);
+                CollectionSerializers.serializeList(shard.notInFastPath, out, nodeId);
+                CollectionSerializers.serializeList(shard.joining, out, nodeId);
+                out.writeUnsignedVInt32(shard.flags().bitset());
+            }
+        }
+
+        @Override
+        public long serializedSize(DictionaryTopology topology)
+        {
+            long size = Long.BYTES;
+            size += CollectionSerializers.serializedListSize(topology.nodeIds, nodeId);
+            byte[] staleNodes = topology.staleNodes == null ? new byte[0] : topology.staleNodes.toByteArray();
+            size += TypeSizes.sizeofUnsignedVInt(staleNodes.length);
+            size += staleNodes.length;
+            size += CollectionSerializers.serializedListSize(topology.tables, TableId.compactComparableSerializer);
+            size += CollectionSerializers.serializedListSize(topology.ranges, new DictionaryTopology.RangeSerializer(topology.tables));
+
+            ImmutableUniqueList<TableId> tables = topology.tables;
+            ImmutableUniqueList<DictionaryTopology.Range> ranges = topology.ranges;
+
+            size += TypeSizes.sizeofUnsignedVInt(topology.shards.size());
+            for (Shard shard : topology.shards)
+            {
+                TokenRange tokenRange = (TokenRange) shard.range;
+                size += TypeSizes.sizeofUnsignedVInt(ranges.indexOf(new DictionaryTopology.Range(tokenRange)));
+
+                size += CollectionSerializers.serializedListSize(shard.nodes, nodeId);
+                size += CollectionSerializers.serializedListSize(shard.notInFastPath, nodeId);
+                size += CollectionSerializers.serializedListSize(shard.joining, nodeId);
+                size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
+            }
+            return size;
+        }
+
+        @Override
+        public DictionaryTopology deserialize(DataInputPlus in) throws IOException
+        {
+            long epoch = in.readLong();
+            SortedArrayList<Node.Id> nodeIds = SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, nodeId), Node.Id[]::new);
+            int size = in.readUnsignedVInt32();
+            byte[] staleNodesBytes = new byte[size];
+            in.readFully(staleNodesBytes);
+            BitSet staleNodes = staleNodesBytes.length == 0 ? null : BitSet.valueOf(staleNodesBytes);
+
+            ImmutableUniqueList<TableId> tables = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, TableId.compactComparableSerializer));
+            ImmutableUniqueList<DictionaryTopology.Range> ranges = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, new DictionaryTopology.RangeSerializer(tables)));
+
+            size = in.readUnsignedVInt32();
+            List<Shard> shards = new ArrayList<>();
+            for (int i = 0; i < size; i++)
+            {
+                DictionaryTopology.Range range = ranges.get(in.readUnsignedVInt32());
+                TokenRange tokenRange = TokenRange.createUnsafe(range.start, range.end);
+
+                SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
+                SortedArrayList<Node.Id> notInFastPath = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
+                SortedArrayList<Node.Id> joining = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
+                int flags = in.readUnsignedVInt32();
+                shards.add(Shard.SerializerSupport.create(tokenRange, nodes, notInFastPath, joining, new TinyEnumSet<>(flags)));
+            }
+            return new DictionaryTopology(epoch, nodeIds, staleNodes, tables, ranges, shards);
+        }
+    };
 
     public static final UnversionedSerializer<Topology> topology = new UnversionedSerializer<>()
     {

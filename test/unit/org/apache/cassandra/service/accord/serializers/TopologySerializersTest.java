@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.AccordGenerators;
+import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 
@@ -48,13 +49,22 @@ public class TopologySerializersTest
     @Test
     public void topology()
     {
+        //NOTE FOR MONDAY
+        // This test does random ranges, so the dictionary method takes more bytes than non-dictionary
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
-        qt().forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
+        qt().withSeed(3625886965894734595L).forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
             AccordGenerators.maybeUpdatePartitioner(expected.ranges());
             Serializers.testSerde(output, TopologySerializers.topology, expected);
+            TopologySerializers.DictionaryTopology global = new TopologySerializers.DictionaryTopology(expected);
+            Serializers.testSerde(output, TopologySerializers.dictionaryTopology, global);
+
+            Assertions.assertThat(TopologySerializers.dictionaryTopology.serializedSize(global)).isLessThan(TopologySerializers.topology.serializedSize(expected));
 
             for (Node.Id node : expected.nodes())
+            {
                 Serializers.testSerde(output, TopologySerializers.topology, expected.forNode(node));
+                Serializers.testSerde(output, TopologySerializers.dictionaryTopology, new TopologySerializers.DictionaryTopology(expected.forNode(node)));
+            }
         });
     }
 }

@@ -25,6 +25,8 @@ import java.util.UUID;
 import java.util.function.LongUnaryOperator;
 
 import javax.annotation.Nullable;
+
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -399,6 +401,27 @@ public final class TableId implements Comparable<TableId>
         public long serializedSize(TableId t, int version)
         {
             return t.serializedSize();
+        }
+    };
+
+    public static final UnversionedSerializer<TableId> compactComparableSerializer = new UnversionedSerializer<TableId>()
+    {
+        @Override
+        public void serialize(TableId t, DataOutputPlus out) throws IOException
+        {
+            t.serializeCompactComparable(out);
+        }
+
+        @Override
+        public TableId deserialize(DataInputPlus in) throws IOException
+        {
+            return TableId.deserializeCompactComparable(in);
+        }
+
+        @Override
+        public long serializedSize(TableId t)
+        {
+            return t.serializedCompactComparableSize();
         }
     };
 
