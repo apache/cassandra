@@ -41,7 +41,6 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -57,6 +56,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.dcAndRack;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.networkTopology;
+import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.psjava.util.AssertStatus.assertTrue;
@@ -85,10 +85,10 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 ClusterMetadata metadata = ClusterMetadata.current();
                 assertEquals(5, metadata.fullCMSMembers().size());
                 assertEquals(ReplicationParams.simpleMeta(5, metadata.directory.knownDatacenters()),
-                             metadata.placements().keys().stream().filter(ReplicationParams::isMeta).findFirst().get());
+                             metadata.schema.getKeyspaceMetadata(METADATA_KEYSPACE_NAME).params.replication);
             });
             cluster.stream().forEach(i -> {
-                Assert.assertTrue(i.executeInternal(String.format("SELECT * FROM %s.%s", SchemaConstants.METADATA_KEYSPACE_NAME, DistributedMetadataLogKeyspace.TABLE_NAME)).length > 0);
+                Assert.assertTrue(i.executeInternal(String.format("SELECT * FROM %s.%s", METADATA_KEYSPACE_NAME, DistributedMetadataLogKeyspace.TABLE_NAME)).length > 0);
             });
 
             cluster.get(nodeSelector.get()).nodetoolResult("cms", "reconfigure", "1").asserts().success();
@@ -96,7 +96,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 ClusterMetadata metadata = ClusterMetadata.current();
                 assertEquals(1, metadata.fullCMSMembers().size());
                 assertEquals(ReplicationParams.simpleMeta(1, metadata.directory.knownDatacenters()),
-                             metadata.placements().keys().stream().filter(ReplicationParams::isMeta).findFirst().get());
+                             metadata.schema.getKeyspaceMetadata(METADATA_KEYSPACE_NAME).params.replication);
             });
         }
     }
@@ -326,11 +326,11 @@ public class ReconfigureCMSTest extends FuzzTestBase
         Object[][] rows = instance.executeInternal("select points from system.paxos_repair_history " +
                                                    "where keyspace_name = ? " +
                                                    "and table_name = ?",
-                                                   SchemaConstants.METADATA_KEYSPACE_NAME,
+                                                   METADATA_KEYSPACE_NAME,
                                                    DistributedMetadataLogKeyspace.TABLE_NAME);
 
         if (rows.length == 0)
-            return PaxosRepairHistory.empty(SchemaConstants.METADATA_KEYSPACE_NAME, DistributedMetadataLogKeyspace.TABLE_NAME);
+            return PaxosRepairHistory.empty(METADATA_KEYSPACE_NAME, DistributedMetadataLogKeyspace.TABLE_NAME);
         assertEquals(1, rows.length);
         //noinspection unchecked
         List<ByteBuffer> points = (List<ByteBuffer>)rows[0][0];

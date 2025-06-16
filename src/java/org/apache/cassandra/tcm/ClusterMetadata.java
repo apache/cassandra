@@ -233,7 +233,13 @@ public class ClusterMetadata
 
     public boolean isCMSMember(InetAddressAndPort endpoint)
     {
-        return fullCMSMembers().contains(endpoint);
+        if (epoch.isAfter(Epoch.FIRST))
+            return fullCMSMembers().contains(endpoint);
+
+        // special case to handle initialization of the CMS for the first time
+        return epoch.isEqualOrBefore(Epoch.FIRST) && cmsDataPlacement.reads.byEndpoint()
+                                                                           .keySet()
+                                                                           .contains(endpoint);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -264,11 +270,6 @@ public class ClusterMetadata
             fullCMSReplicas = builder.build();
         }
         return fullCMSReplicas;
-    }
-
-    public DataPlacement getCMSPlacement()
-    {
-        return cmsDataPlacement;
     }
 
     private DataPlacement calculateCMSPlacement(DataPlacements placements, CMSMembership cms)

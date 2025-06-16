@@ -41,6 +41,7 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.MembershipUtils;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -110,7 +111,10 @@ public class BootWithMetadataTest
         Directory directory = first.directory;
         int nodeCount = 10;
         int tokensPerNode = 5;
-        for (int i = 0; i < nodeCount; i++)
+        // Ensure that the "local" node is registered as it being member of the CMS is a precondition of booting from
+        // a ClusterMetadata.
+        directory = directory.with(NodeAddresses.current(), new Location("DC1", "RACK1"));
+        for (int i = 0; i < nodeCount-1; i++)
             directory = directory.with(nodeAddresses(random), new Location("DC1", "RACK1"));
         t = t.with(directory);
 
