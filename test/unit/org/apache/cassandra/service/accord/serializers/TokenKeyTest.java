@@ -184,6 +184,7 @@ public class TokenKeyTest
     {
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(tokenKeyGen()).check(key -> {
+            AccordGenerators.maybeUpdatePartitioner(key);
             Serializers.testSerde(output, TokenKey.noTableSerializer, key, key.table());
         });
     }

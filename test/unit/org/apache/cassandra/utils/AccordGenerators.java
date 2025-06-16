@@ -113,10 +113,15 @@ public class AccordGenerators
         for (Range range : ranges)
         {
             TokenRange tr = (TokenRange) range;
-            DatabaseDescriptor.setPartitionerUnsafe(tr.start().token().getPartitioner());
+            maybeUpdatePartitioner(tr.start());
             return true;
         }
         return false;
+    }
+
+    public static void maybeUpdatePartitioner(TokenKey key)
+    {
+        DatabaseDescriptor.setPartitionerUnsafe(key.token().getPartitioner());
     }
 
     public static Gen<IPartitioner> partitioner()
