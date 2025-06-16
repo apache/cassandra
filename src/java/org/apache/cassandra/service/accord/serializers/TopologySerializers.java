@@ -275,21 +275,18 @@ public class TopologySerializers
         }
 
         private final long epoch;
-        private final SortedArrayList<Node.Id> nodeIds;
         private final SortedArrayList<Node.Id> staleNodes;
         private final ImmutableUniqueList<TableId> tables;
         private final ImmutableUniqueList<Range> ranges;
         private final List<ShardRef> shards;
 
         CompactTopology(long epoch,
-                        SortedArrayList<Node.Id> nodeIds,
                         SortedArrayList<Node.Id> staleNodes,
                         ImmutableUniqueList<TableId> tables,
                         ImmutableUniqueList<Range> ranges,
                         List<ShardRef> shards)
         {
             this.epoch = epoch;
-            this.nodeIds = nodeIds;
             this.staleNodes = staleNodes;
             this.tables = tables;
             this.ranges = ranges;
@@ -299,7 +296,6 @@ public class TopologySerializers
         public CompactTopology(Topology topology)
         {
             epoch = topology.epoch();
-            nodeIds = topology.nodes();
             staleNodes = topology.staleIds();
             ImmutableUniqueList.Builder<TableId> tablesBuilder = ImmutableUniqueList.builder();
             ImmutableUniqueList.Builder<Range> rangesBuilder = ImmutableUniqueList.builder();
@@ -356,13 +352,13 @@ public class TopologySerializers
         {
             if (o == null || getClass() != o.getClass()) return false;
             CompactTopology that = (CompactTopology) o;
-            return epoch == that.epoch && Objects.equals(nodeIds, that.nodeIds) && Objects.equals(staleNodes, that.staleNodes) && Objects.equals(tables, that.tables) && Objects.equals(ranges, that.ranges) && Objects.equals(shards, that.shards);
+            return epoch == that.epoch && Objects.equals(staleNodes, that.staleNodes) && Objects.equals(tables, that.tables) && Objects.equals(ranges, that.ranges) && Objects.equals(shards, that.shards);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(epoch, nodeIds, staleNodes, tables, ranges, shards);
+            return Objects.hash(epoch, staleNodes, tables, ranges, shards);
         }
     }
 
@@ -372,7 +368,6 @@ public class TopologySerializers
         public void serialize(CompactTopology topology, DataOutputPlus out) throws IOException
         {
             out.writeLong(topology.epoch);
-            CollectionSerializers.serializeList(topology.nodeIds, out, nodeId);
             CollectionSerializers.serializeList(topology.staleNodes, out, nodeId);
 
             CollectionSerializers.serializeList(topology.tables, out, TableId.compactComparableSerializer);
@@ -396,7 +391,6 @@ public class TopologySerializers
         public long serializedSize(CompactTopology topology)
         {
             long size = Long.BYTES;
-            size += CollectionSerializers.serializedListSize(topology.nodeIds, nodeId);
             size += CollectionSerializers.serializedListSize(topology.staleNodes, nodeId);
 
             size += CollectionSerializers.serializedListSize(topology.tables, TableId.compactComparableSerializer);
@@ -423,7 +417,6 @@ public class TopologySerializers
         public CompactTopology deserialize(DataInputPlus in) throws IOException
         {
             long epoch = in.readLong();
-            SortedArrayList<Node.Id> nodeIds = SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, nodeId), Node.Id[]::new);
             SortedArrayList<Node.Id> staleNodes = SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, nodeId), Node.Id[]::new);
 
             ImmutableUniqueList<TableId> tables = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, TableId.compactComparableSerializer));
@@ -447,7 +440,7 @@ public class TopologySerializers
                 int flags = in.readUnsignedVInt32();
                 shards.add(new CompactTopology.ShardRef(tableIndex, rangeIndex, nodes, notInFastPath, joining, new TinyEnumSet<>(flags)));
             }
-            return new CompactTopology(epoch, nodeIds, staleNodes, tables, ranges, shards);
+            return new CompactTopology(epoch, staleNodes, tables, ranges, shards);
         }
     };
 
