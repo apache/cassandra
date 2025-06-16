@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.junit.Test;
 
 import accord.local.Node;
+import accord.topology.Topology;
 import accord.utils.AccordGens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.Serializers;
@@ -55,7 +56,7 @@ public class TopologySerializersTest
         qt().withSeed(3625886965894734595L).forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
             AccordGenerators.maybeUpdatePartitioner(expected.ranges());
             Serializers.testSerde(output, TopologySerializers.topology, expected);
-            TopologySerializers.DictionaryTopology global = new TopologySerializers.DictionaryTopology(expected);
+            TopologySerializers.CompactTopology global = new TopologySerializers.CompactTopology(expected);
             Serializers.testSerde(output, TopologySerializers.dictionaryTopology, global);
 
             Assertions.assertThat(TopologySerializers.dictionaryTopology.serializedSize(global)).isLessThan(TopologySerializers.topology.serializedSize(expected));
@@ -63,7 +64,30 @@ public class TopologySerializersTest
             for (Node.Id node : expected.nodes())
             {
                 Serializers.testSerde(output, TopologySerializers.topology, expected.forNode(node));
-                Serializers.testSerde(output, TopologySerializers.dictionaryTopology, new TopologySerializers.DictionaryTopology(expected.forNode(node)));
+                Serializers.testSerde(output, TopologySerializers.dictionaryTopology, new TopologySerializers.CompactTopology(expected.forNode(node)));
+            }
+        });
+    }
+
+    @Test
+    public void compactTopology()
+    {
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
+            AccordGenerators.maybeUpdatePartitioner(expected.ranges());
+
+            TopologySerializers.CompactTopology global = new TopologySerializers.CompactTopology(expected);
+            Serializers.testSerde(output, TopologySerializers.dictionaryTopology, global);
+
+            Assertions.assertThat(global.topology()).isEqualTo(expected);
+
+            for (Node.Id node : expected.nodes())
+            {
+                Topology expectedSubset = expected.forNode(node);
+                TopologySerializers.CompactTopology subset = new TopologySerializers.CompactTopology(expectedSubset);
+                Serializers.testSerde(output, TopologySerializers.dictionaryTopology, subset);
+
+                Assertions.assertThat(subset.topology()).isEqualTo(expectedSubset);
             }
         });
     }

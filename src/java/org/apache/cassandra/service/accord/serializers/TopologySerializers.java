@@ -140,7 +140,7 @@ public class TopologySerializers
         }
     }
 
-    public static class DictionaryTopology
+    public static class CompactTopology
     {
         private static class Range
         {
@@ -173,7 +173,7 @@ public class TopologySerializers
             }
         }
 
-        private static final class RangeSerializer implements UnversionedSerializer<DictionaryTopology.Range>
+        private static final class RangeSerializer implements UnversionedSerializer<CompactTopology.Range>
         {
             private final ImmutableUniqueList<TableId> tables;
 
@@ -183,7 +183,7 @@ public class TopologySerializers
             }
 
             @Override
-            public void serialize(DictionaryTopology.Range t, DataOutputPlus out) throws IOException
+            public void serialize(CompactTopology.Range t, DataOutputPlus out) throws IOException
             {
                 out.writeUnsignedVInt32(tables.indexOf(t.start.table()));
                 TokenKey.noTableSerializer.serialize(t.start, out);
@@ -191,16 +191,16 @@ public class TopologySerializers
             }
 
             @Override
-            public DictionaryTopology.Range deserialize(DataInputPlus in) throws IOException
+            public CompactTopology.Range deserialize(DataInputPlus in) throws IOException
             {
                 int idx = in.readUnsignedVInt32();
                 TableId tableId = tables.get(idx);
-                return new DictionaryTopology.Range(TokenKey.noTableSerializer.deserialize(tableId, in),
-                                                    TokenKey.noTableSerializer.deserialize(tableId, in));
+                return new CompactTopology.Range(TokenKey.noTableSerializer.deserialize(tableId, in),
+                                                 TokenKey.noTableSerializer.deserialize(tableId, in));
             }
 
             @Override
-            public long serializedSize(DictionaryTopology.Range t)
+            public long serializedSize(CompactTopology.Range t)
             {
                 return TypeSizes.sizeofUnsignedVInt(tables.indexOf(t.start.table()))
                        + TokenKey.noTableSerializer.serializedSize(t.start)
@@ -216,12 +216,12 @@ public class TopologySerializers
         private final ImmutableUniqueList<Range> ranges;
         private final List<Shard> shards;
 
-        public DictionaryTopology(long epoch,
-                                  SortedArrayList<Node.Id> nodeIds,
-                                  @Nullable BitSet staleNodes,
-                                  ImmutableUniqueList<TableId> tables,
-                                  ImmutableUniqueList<Range> ranges,
-                                  List<Shard> shards)
+        public CompactTopology(long epoch,
+                               SortedArrayList<Node.Id> nodeIds,
+                               @Nullable BitSet staleNodes,
+                               ImmutableUniqueList<TableId> tables,
+                               ImmutableUniqueList<Range> ranges,
+                               List<Shard> shards)
         {
             this.epoch = epoch;
             this.nodeIds = nodeIds;
@@ -231,7 +231,7 @@ public class TopologySerializers
             this.shards = shards;
         }
 
-        public DictionaryTopology(Topology topology)
+        public CompactTopology(Topology topology)
         {
             epoch = topology.epoch();
             nodeIds = topology.nodes();
@@ -247,6 +247,11 @@ public class TopologySerializers
             this.tables = tablesBuilder.buildAndClear();
             this.ranges = rangesBuilder.buildAndClear();
             this.shards = topology.shards();
+        }
+
+        public Topology topology()
+        {
+            return null;
         }
 
         private static BitSet getStaleNodes(Topology topology)
@@ -268,7 +273,7 @@ public class TopologySerializers
         public boolean equals(Object o)
         {
             if (o == null || getClass() != o.getClass()) return false;
-            DictionaryTopology that = (DictionaryTopology) o;
+            CompactTopology that = (CompactTopology) o;
             return epoch == that.epoch && Objects.equals(nodeIds, that.nodeIds) && Objects.equals(staleNodes, that.staleNodes) && Objects.equals(tables, that.tables) && Objects.equals(ranges, that.ranges) && Objects.equals(shards, that.shards);
         }
 
@@ -279,10 +284,10 @@ public class TopologySerializers
         }
     }
 
-    public static final UnversionedSerializer<DictionaryTopology> dictionaryTopology = new UnversionedSerializer<DictionaryTopology>()
+    public static final UnversionedSerializer<CompactTopology> dictionaryTopology = new UnversionedSerializer<CompactTopology>()
     {
         @Override
-        public void serialize(DictionaryTopology topology, DataOutputPlus out) throws IOException
+        public void serialize(CompactTopology topology, DataOutputPlus out) throws IOException
         {
             out.writeLong(topology.epoch);
             CollectionSerializers.serializeList(topology.nodeIds, out, nodeId);
@@ -292,16 +297,16 @@ public class TopologySerializers
             out.write(staleNodes);
 
             CollectionSerializers.serializeList(topology.tables, out, TableId.compactComparableSerializer);
-            CollectionSerializers.serializeList(topology.ranges, out, new DictionaryTopology.RangeSerializer(topology.tables));
+            CollectionSerializers.serializeList(topology.ranges, out, new CompactTopology.RangeSerializer(topology.tables));
 
             ImmutableUniqueList<TableId> tables = topology.tables;
-            ImmutableUniqueList<DictionaryTopology.Range> ranges = topology.ranges;
+            ImmutableUniqueList<CompactTopology.Range> ranges = topology.ranges;
 
             out.writeUnsignedVInt32(topology.shards.size());
             for (Shard shard : topology.shards)
             {
                 TokenRange tokenRange = (TokenRange) shard.range;
-                out.writeUnsignedVInt32(ranges.indexOf(new DictionaryTopology.Range(tokenRange)));
+                out.writeUnsignedVInt32(ranges.indexOf(new CompactTopology.Range(tokenRange)));
 
                 //TODO (perf): can this be compressed?
                 CollectionSerializers.serializeList(shard.nodes, out, nodeId);
@@ -312,7 +317,7 @@ public class TopologySerializers
         }
 
         @Override
-        public long serializedSize(DictionaryTopology topology)
+        public long serializedSize(CompactTopology topology)
         {
             long size = Long.BYTES;
             size += CollectionSerializers.serializedListSize(topology.nodeIds, nodeId);
@@ -320,16 +325,16 @@ public class TopologySerializers
             size += TypeSizes.sizeofUnsignedVInt(staleNodes.length);
             size += staleNodes.length;
             size += CollectionSerializers.serializedListSize(topology.tables, TableId.compactComparableSerializer);
-            size += CollectionSerializers.serializedListSize(topology.ranges, new DictionaryTopology.RangeSerializer(topology.tables));
+            size += CollectionSerializers.serializedListSize(topology.ranges, new CompactTopology.RangeSerializer(topology.tables));
 
             ImmutableUniqueList<TableId> tables = topology.tables;
-            ImmutableUniqueList<DictionaryTopology.Range> ranges = topology.ranges;
+            ImmutableUniqueList<CompactTopology.Range> ranges = topology.ranges;
 
             size += TypeSizes.sizeofUnsignedVInt(topology.shards.size());
             for (Shard shard : topology.shards)
             {
                 TokenRange tokenRange = (TokenRange) shard.range;
-                size += TypeSizes.sizeofUnsignedVInt(ranges.indexOf(new DictionaryTopology.Range(tokenRange)));
+                size += TypeSizes.sizeofUnsignedVInt(ranges.indexOf(new CompactTopology.Range(tokenRange)));
 
                 size += CollectionSerializers.serializedListSize(shard.nodes, nodeId);
                 size += CollectionSerializers.serializedListSize(shard.notInFastPath, nodeId);
@@ -340,7 +345,7 @@ public class TopologySerializers
         }
 
         @Override
-        public DictionaryTopology deserialize(DataInputPlus in) throws IOException
+        public CompactTopology deserialize(DataInputPlus in) throws IOException
         {
             long epoch = in.readLong();
             SortedArrayList<Node.Id> nodeIds = SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, nodeId), Node.Id[]::new);
@@ -350,13 +355,13 @@ public class TopologySerializers
             BitSet staleNodes = staleNodesBytes.length == 0 ? null : BitSet.valueOf(staleNodesBytes);
 
             ImmutableUniqueList<TableId> tables = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, TableId.compactComparableSerializer));
-            ImmutableUniqueList<DictionaryTopology.Range> ranges = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, new DictionaryTopology.RangeSerializer(tables)));
+            ImmutableUniqueList<CompactTopology.Range> ranges = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, new CompactTopology.RangeSerializer(tables)));
 
             size = in.readUnsignedVInt32();
             List<Shard> shards = new ArrayList<>();
             for (int i = 0; i < size; i++)
             {
-                DictionaryTopology.Range range = ranges.get(in.readUnsignedVInt32());
+                CompactTopology.Range range = ranges.get(in.readUnsignedVInt32());
                 TokenRange tokenRange = TokenRange.createUnsafe(range.start, range.end);
 
                 SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, nodeId, Node.Id[]::new);
@@ -365,7 +370,7 @@ public class TopologySerializers
                 int flags = in.readUnsignedVInt32();
                 shards.add(Shard.SerializerSupport.create(tokenRange, nodes, notInFastPath, joining, new TinyEnumSet<>(flags)));
             }
-            return new DictionaryTopology(epoch, nodeIds, staleNodes, tables, ranges, shards);
+            return new CompactTopology(epoch, nodeIds, staleNodes, tables, ranges, shards);
         }
     };
 
