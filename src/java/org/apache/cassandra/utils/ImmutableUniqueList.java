@@ -35,6 +35,7 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements UniqueLis
 
     private ImmutableUniqueList(Builder<T> builder)
     {
+        //noinspection unchecked
         values = (T[]) builder.values.toArray(Object[]::new);
         indexLookup = new Object2IntHashMap<>(builder.indexLookup);
     }
@@ -55,11 +56,13 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements UniqueLis
         return new Builder<>(expectedSize);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> ImmutableUniqueList<T> empty()
     {
         return (ImmutableUniqueList<T>) EMPTY;
     }
 
+    @SafeVarargs
     public static <T> ImmutableUniqueList<T> of(T... values)
     {
         Builder<T> builder = builder(values.length);
