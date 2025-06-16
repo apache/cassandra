@@ -26,6 +26,22 @@ import java.util.RandomAccess;
 
 import org.agrona.collections.Object2IntHashMap;
 
+/**
+ * An immutable implementation of {@link UniqueList} that preserves insertion order.
+ * <p>
+ * This class provides:
+ * - Immutability: Once created, the list cannot be modified
+ * - Uniqueness: Each element can only appear once in the list
+ * - Insertion order: Elements are stored and iterated in the order they were first added
+ * <p>
+ * Use the static factory methods or builder to create instances.
+ *
+ * @see #of(Object[])
+ * @see #builder()
+ * @see #builder(int)
+ * @see #empty()
+ * @param <T> the type of elements in this list
+ */
 public class ImmutableUniqueList<T> extends AbstractList<T> implements UniqueList<T>, RandomAccess
 {
     private static final ImmutableUniqueList<Object> EMPTY = ImmutableUniqueList.builder().build();
