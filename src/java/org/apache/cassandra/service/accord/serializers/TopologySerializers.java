@@ -32,15 +32,12 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 public class TopologySerializers
 {
-    public static final TableId EMPTY = TableId.fromRaw(Long.MIN_VALUE, Long.MIN_VALUE);
-
     private TopologySerializers() {}
 
     public static final NodeIdSerializer nodeId = new NodeIdSerializer();

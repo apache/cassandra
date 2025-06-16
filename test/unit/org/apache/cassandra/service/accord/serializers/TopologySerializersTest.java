@@ -162,7 +162,7 @@ public class TopologySerializersTest
         void register(Topology topology, double savings)
         {
             int numTables = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(TokenRange::table).distinct().count());
-            int numRanges = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(r -> r.withTable(TopologySerializers.EMPTY)).distinct().count());
+            int numRanges = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(r -> r.withTable(CompactTopology.EMPTY)).distinct().count());
 
             E e = new E(numTables, numRanges, savings, DatabaseDescriptor.getPartitioner());
             if (min == null || e.compareTo(min) < 0)

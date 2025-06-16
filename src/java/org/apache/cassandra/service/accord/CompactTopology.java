@@ -42,6 +42,8 @@ import org.apache.cassandra.utils.ImmutableUniqueList;
 
 public class CompactTopology
 {
+    public static final TableId EMPTY = TableId.fromRaw(Long.MIN_VALUE, Long.MIN_VALUE);
+    
     public static class Range
     {
         final TokenKey start;
@@ -49,8 +51,8 @@ public class CompactTopology
 
         private Range(TokenKey start, TokenKey end)
         {
-            this.start = start.withTable(TopologySerializers.EMPTY);
-            this.end = end.withTable(TopologySerializers.EMPTY);
+            this.start = start.withTable(EMPTY);
+            this.end = end.withTable(EMPTY);
         }
 
         private Range(TokenRange other)
@@ -138,8 +140,8 @@ public class CompactTopology
         @Override
         public Range deserialize(DataInputPlus in) throws IOException
         {
-            return new Range(TokenKey.noTableSerializer.deserialize(TopologySerializers.EMPTY, in),
-                             TokenKey.noTableSerializer.deserialize(TopologySerializers.EMPTY, in));
+            return new Range(TokenKey.noTableSerializer.deserialize(EMPTY, in),
+                             TokenKey.noTableSerializer.deserialize(EMPTY, in));
         }
 
         @Override
