@@ -23,12 +23,18 @@ import java.io.IOException;
 import org.junit.Test;
 
 import accord.local.Node;
+import accord.primitives.Ranges;
 import accord.topology.Topology;
 import accord.utils.AccordGens;
+import accord.utils.Gen;
+import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.AccordGenerators;
+import org.apache.cassandra.utils.CassandraGenerators;
+import org.apache.cassandra.utils.Generators;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
@@ -53,19 +59,12 @@ public class TopologySerializersTest
         //NOTE FOR MONDAY
         // This test does random ranges, so the dictionary method takes more bytes than non-dictionary
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
-        qt().withSeed(3625886965894734595L).forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
+        qt().forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
             AccordGenerators.maybeUpdatePartitioner(expected.ranges());
             Serializers.testSerde(output, TopologySerializers.topology, expected);
-            TopologySerializers.CompactTopology global = new TopologySerializers.CompactTopology(expected);
-            Serializers.testSerde(output, TopologySerializers.dictionaryTopology, global);
-
-            Assertions.assertThat(TopologySerializers.dictionaryTopology.serializedSize(global)).isLessThan(TopologySerializers.topology.serializedSize(expected));
 
             for (Node.Id node : expected.nodes())
-            {
                 Serializers.testSerde(output, TopologySerializers.topology, expected.forNode(node));
-                Serializers.testSerde(output, TopologySerializers.dictionaryTopology, new TopologySerializers.CompactTopology(expected.forNode(node)));
-            }
         });
     }
 
@@ -90,5 +89,79 @@ public class TopologySerializersTest
                 Assertions.assertThat(subset.topology()).isEqualTo(expectedSubset);
             }
         });
+    }
+
+    @Test
+    public void compactTopologyAreCompact()
+    {
+        Gen<Ranges> rangeGen = AccordGenerators.ranges(Gens.lists(Generators.toGen(CassandraGenerators.TABLE_ID_GEN)).ofSizeBetween(2, 10),
+                                                       AccordGenerators.partitioner(),
+                                                       Gens.ints().between(2, 1000));
+        Gen<Topology> gen = AccordGenerators.topologyGen(AccordGens.epochs(), rangeGen);
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        CompactCollector collector = new CompactCollector();
+        qt().forAll(gen).check(expected -> {
+            AccordGenerators.maybeUpdatePartitioner(expected.ranges());
+
+            TopologySerializers.CompactTopology global = new TopologySerializers.CompactTopology(expected);
+            Serializers.testSerde(output, TopologySerializers.dictionaryTopology, global);
+
+            Assertions.assertThat(global.topology()).isEqualTo(expected);
+
+            long size = TopologySerializers.dictionaryTopology.serializedSize(global);
+            long upperLimit = TopologySerializers.topology.serializedSize(expected);
+            collector.register(expected, ((upperLimit - size) / (double) upperLimit) * 100.0D);
+            Assertions.assertThat(size).isLessThan(upperLimit);
+        });
+        System.out.println(collector);
+    }
+
+    private static class CompactCollector
+    {
+        private static class E implements Comparable<E>
+        {
+            final int numTables;
+            final int numRanges;
+            final double savings;
+
+            private E(int numTables, int numRanges, double savings)
+            {
+                this.numTables = numTables;
+                this.numRanges = numRanges;
+                this.savings = savings;
+            }
+
+            @Override
+            public int compareTo(E o)
+            {
+                int rc = Double.compare(savings, o.savings);
+                if (rc == 0)
+                    rc = Integer.compare(numRanges, o.numRanges);
+                if (rc == 0)
+                    rc = Integer.compare(numTables, o.numTables);
+                return rc;
+            }
+        }
+
+        E min, max;
+        void register(Topology topology, double savings)
+        {
+            int numTables = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(TokenRange::table).distinct().count());
+            int numRanges = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(r -> r.withTable(TopologySerializers.EMPTY)).distinct().count());
+
+            E e = new E(numTables, numRanges, savings);
+//            System.out.println(String.format("tables=%d, ranges=%d By %.2f%%", numTables, numRanges, savings));
+            if (min == null || e.compareTo(min) < 0)
+                min = e;
+            if (max == null || e.compareTo(max) > 0)
+                max = e;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "min: " + String.format("tables=%d, ranges=%d By %.2f%%", min.numTables, min.numRanges, min.savings)
+                   + "\nmax: " + String.format("tables=%d, ranges=%d By %.2f%%", max.numTables, max.numRanges, max.savings);
+        }
     }
 }
