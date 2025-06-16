@@ -170,9 +170,9 @@ public class TopologySerializersTest
         public String toString()
         {
             return "min: " + String.format("tables=%d, ranges=%d By %.2f%%", min.numTables, min.numRanges, min.savings)
-                   + "\nmin partitioner: " + min.partitioner.getClass().getSimpleName()
+                   + ", partitioner: " + min.partitioner.getClass().getSimpleName()
                    + "\nmax: " + String.format("tables=%d, ranges=%d By %.2f%%", max.numTables, max.numRanges, max.savings)
-                   + "\nmax partitioner: " + max.partitioner.getClass().getSimpleName();
+                   + ", partitioner: " + max.partitioner.getClass().getSimpleName();
         }
     }
 }
