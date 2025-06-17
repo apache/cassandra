@@ -1539,9 +1539,10 @@ public class ASTSingleTableModel
 
     private Clustering<ByteBuffer> key(Map<Symbol, Expression> values, ImmutableUniqueList<Symbol> columns)
     {
+        if (columns.isEmpty()) return Clustering.EMPTY;
         // same as keys, but only one possible value can happen
         List<Clustering<ByteBuffer>> keys = keys(Maps.transformValues(values, Collections::singletonList), columns);
-        Preconditions.checkState(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
+        Preconditions.checkState(keys.size() == 1, "Expected 1 key, but found %s", keys.size());
         return keys.get(0);
     }
 
