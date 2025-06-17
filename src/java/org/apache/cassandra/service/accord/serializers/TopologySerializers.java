@@ -20,11 +20,14 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.BitSet;
+import java.util.List;
 
 import accord.local.Node;
 import accord.primitives.Range;
 import accord.topology.Shard;
 import accord.topology.Topology;
+import accord.utils.SortedArrays;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
 import org.apache.cassandra.db.TypeSizes;
@@ -32,10 +35,14 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.CompactTopology;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ArraySerializers;
+import org.apache.cassandra.utils.BitSetSerializer;
 import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.ImmutableUniqueList;
+
+import static accord.utils.SortedArrays.fromBitSet;
 
 public class TopologySerializers
 {
@@ -164,23 +171,123 @@ public class TopologySerializers
     public static final UnversionedSerializer<Topology> compactTopology = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(Topology t, DataOutputPlus out) throws IOException
+        public void serialize(Topology topology, DataOutputPlus out) throws IOException
         {
-            CompactTopology compact = new CompactTopology(t);
-            CompactTopology.serializer.serialize(compact, out);
+            out.writeLong(topology.epoch());
+            CollectionSerializers.serializeList(topology.staleIds(), out, TopologySerializers.nodeId);
+
+            List<Shard> shards = topology.shards();
+
+            // need to loop twice; once to collect tables/ranges, and another to save shards
+            ImmutableUniqueList<TableId> tables;
+            ImmutableUniqueList<TokenRange> ranges;
+            {
+                ImmutableUniqueList.Builder<TableId> tablesBuilder = ImmutableUniqueList.builder();
+                ImmutableUniqueList.Builder<TokenRange> rangesBuilder = ImmutableUniqueList.builder();
+                for (Shard shard : shards)
+                {
+                    TokenRange range = (TokenRange) shard.range;
+                    tablesBuilder.add(range.table());
+                    rangesBuilder.add(range.withTable(TableId.UNDEFINED));
+                }
+                tables = tablesBuilder.buildAndClear();
+                ranges = rangesBuilder.buildAndClear();
+            }
+
+            CollectionSerializers.serializeList(tables, out, TableId.compactComparableSerializer);
+            CollectionSerializers.serializeList(ranges, out, TokenRange.noTableSerializer);
+
+            out.writeUnsignedVInt32(shards.size());
+            for (Shard shard : shards)
+            {
+                TokenRange range = (TokenRange) shard.range;
+                int tableIdx = tables.indexOf(range.table());
+                int rangeIdx = ranges.indexOf(range.withTable(TableId.UNDEFINED));
+                out.writeUnsignedVInt32(tableIdx);
+                out.writeUnsignedVInt32(rangeIdx);
+
+                CollectionSerializers.serializeList(shard.nodes, out, TopologySerializers.nodeId);
+                BitSet notInFastPath = SortedArrays.toBitSet(shard.nodes, shard.notInFastPath);
+                BitSetSerializer.instance.serialize(notInFastPath, out);
+                BitSet joining = SortedArrays.toBitSet(shard.nodes, shard.joining);
+                BitSetSerializer.instance.serialize(joining, out);
+                out.writeUnsignedVInt32(shard.flags().bitset());
+            }
         }
 
         @Override
-        public long serializedSize(Topology t)
+        public long serializedSize(Topology topology)
         {
-            CompactTopology compact = new CompactTopology(t);
-            return CompactTopology.serializer.serializedSize(compact);
+            long size = Long.BYTES;
+            size += CollectionSerializers.serializedListSize(topology.staleIds(), TopologySerializers.nodeId);
+
+            List<Shard> shards = topology.shards();
+
+            // need to loop twice; once to collect tables/ranges, and another to save shards
+            ImmutableUniqueList<TableId> tables;
+            ImmutableUniqueList<TokenRange> ranges;
+            {
+                ImmutableUniqueList.Builder<TableId> tablesBuilder = ImmutableUniqueList.builder();
+                ImmutableUniqueList.Builder<TokenRange> rangesBuilder = ImmutableUniqueList.builder();
+                for (Shard shard : shards)
+                {
+                    TokenRange range = (TokenRange) shard.range;
+                    tablesBuilder.add(range.table());
+                    rangesBuilder.add(range.withTable(TableId.UNDEFINED));
+                }
+                tables = tablesBuilder.buildAndClear();
+                ranges = rangesBuilder.buildAndClear();
+            }
+
+            size += CollectionSerializers.serializedListSize(tables, TableId.compactComparableSerializer);
+            size += CollectionSerializers.serializedListSize(ranges, TokenRange.noTableSerializer);
+
+            size += TypeSizes.sizeofUnsignedVInt(shards.size());
+            for (Shard shard : shards)
+            {
+                TokenRange range = (TokenRange) shard.range;
+                int tableIdx = tables.indexOf(range.table());
+                int rangeIdx = ranges.indexOf(range.withTable(TableId.UNDEFINED));
+
+                size += TypeSizes.sizeofUnsignedVInt(tableIdx);
+                size += TypeSizes.sizeofUnsignedVInt(rangeIdx);
+
+                size += CollectionSerializers.serializedListSize(shard.nodes, TopologySerializers.nodeId);
+                BitSet notInFastPath = SortedArrays.toBitSet(shard.nodes, shard.notInFastPath);
+                size += BitSetSerializer.instance.serializedSize(notInFastPath);
+                BitSet joining = SortedArrays.toBitSet(shard.nodes, shard.joining);
+                size += BitSetSerializer.instance.serializedSize(joining);
+                size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
+            }
+            return size;
         }
 
         @Override
         public Topology deserialize(DataInputPlus in) throws IOException
         {
-            return CompactTopology.serializer.deserialize(in).topology();
+            long epoch = in.readLong();
+            SortedArrays.SortedArrayList<Node.Id> staleNodes = SortedArrays.SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, TopologySerializers.nodeId), Node.Id[]::new);
+
+            ImmutableUniqueList<TableId> tables = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, TableId.compactComparableSerializer));
+            ImmutableUniqueList<TokenRange> ranges = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, TokenRange.noTableSerializer));
+
+            int size = in.readUnsignedVInt32();
+            Shard[] shards = new Shard[size];
+            for (int i = 0; i < size; i++)
+            {
+                int tableIndex = in.readUnsignedVInt32();
+                int rangeIndex = in.readUnsignedVInt32();
+
+                TableId tableId = tables.get(tableIndex);
+                TokenRange range = ranges.get(rangeIndex).withTable(tableId);
+
+                SortedArrays.SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+                BitSet notInFastPath = BitSetSerializer.instance.deserialize(in);
+                BitSet joining = BitSetSerializer.instance.deserialize(in);
+                int flags = in.readUnsignedVInt32();
+                shards[i] = Shard.SerializerSupport.create(range, nodes, fromBitSet(nodes, notInFastPath, Node.Id[]::new), fromBitSet(nodes, joining, Node.Id[]::new), new TinyEnumSet<>(flags));
+            }
+            return new Topology(epoch, staleNodes, shards);
         }
     };
 }

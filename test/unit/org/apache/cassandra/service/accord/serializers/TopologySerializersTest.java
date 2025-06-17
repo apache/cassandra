@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.slf4j.Logger;
@@ -35,7 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.service.accord.CompactTopology;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -148,7 +149,7 @@ public class TopologySerializersTest
         void register(Topology topology, double savings)
         {
             int numTables = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(TokenRange::table).distinct().count());
-            int numRanges = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(r -> r.withTable(CompactTopology.EMPTY)).distinct().count());
+            int numRanges = Math.toIntExact(topology.shards().stream().map(s -> (TokenRange) s.range).map(r -> r.withTable(TableId.UNDEFINED)).distinct().count());
 
             E e = new E(numTables, numRanges, savings, DatabaseDescriptor.getPartitioner());
             if (min == null || e.compareTo(min) < 0)

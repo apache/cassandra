@@ -87,7 +87,7 @@ public class TokenRange extends Range.EndInclusive
     }
 
     @VisibleForTesting
-    public Range withTable(TableId table)
+    public TokenRange withTable(TableId table)
     {
         return new TokenRange(start().withTable(table), end().withTable(table));
     }
@@ -147,6 +147,30 @@ public class TokenRange extends Range.EndInclusive
         {
             return TokenKey.serializer.serializedSize(range.start())
                    + TokenKey.serializer.serializedSize(range.end());
+        }
+    }
+
+    public static final UnversionedSerializer<TokenRange> noTableSerializer = new UnversionedSerializer<TokenRange>()
+    {
+        @Override
+        public void serialize(TokenRange t, DataOutputPlus out) throws IOException
+        {
+            TokenKey.noTableSerializer.serialize(t.start(), out);
+            TokenKey.noTableSerializer.serialize(t.end(), out);
+        }
+
+        @Override
+        public TokenRange deserialize(DataInputPlus in) throws IOException
+        {
+            return TokenRange.create(TokenKey.noTableSerializer.deserialize(TableId.UNDEFINED, in),
+                                     TokenKey.noTableSerializer.deserialize(TableId.UNDEFINED, in));
+        }
+
+        @Override
+        public long serializedSize(TokenRange t)
+        {
+            return TokenKey.noTableSerializer.serializedSize(t.start())
+                   + TokenKey.noTableSerializer.serializedSize(t.end());
         }
     };
 }
