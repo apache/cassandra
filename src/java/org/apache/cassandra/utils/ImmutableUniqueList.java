@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.RandomAccess;
+import java.util.Set;
 
 import org.agrona.collections.Object2IntHashMap;
 
@@ -117,6 +118,23 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements UniqueLis
     public int size()
     {
         return values.length;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == this)
+            return true;
+        if (o instanceof List)
+            return super.equals(o);
+        if (o instanceof Set)
+        {
+            Set<?> other = (Set<?>) o;
+            if (other.size() != size())
+                return false;
+            return containsAll(other);
+        }
+        return false;
     }
 
     public static final class Builder<T>
