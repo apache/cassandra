@@ -202,7 +202,7 @@ JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s
 # Cassandra heap dump files management options:
 # if not set externally, this script assigns defauls:
 #  - enable heap dump files clean up
-#  - keeping last 2 files
+#  - keeping 2 newest files
 #  - keeping 1 oldest file to help identify first OOM incident
 if [ "$CASSANDRA_HEAPDUMP_CLEAN" = "" ]; then
     CASSANDRA_HEAPDUMP_CLEAN=1
