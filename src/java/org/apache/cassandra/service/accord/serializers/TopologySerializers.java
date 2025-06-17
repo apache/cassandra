@@ -32,6 +32,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.CompactTopology;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
@@ -157,6 +158,29 @@ public class TopologySerializers
             size += CollectionSerializers.serializedListSize(topology.shards(), shard);
             size += CollectionSerializers.serializedCollectionSize(topology.staleIds(), TopologySerializers.nodeId);
             return size;
+        }
+    };
+
+    public static final UnversionedSerializer<Topology> compactTopology = new UnversionedSerializer<>()
+    {
+        @Override
+        public void serialize(Topology t, DataOutputPlus out) throws IOException
+        {
+            CompactTopology compact = new CompactTopology(t);
+            CompactTopology.serializer.serialize(compact, out);
+        }
+
+        @Override
+        public long serializedSize(Topology t)
+        {
+            CompactTopology compact = new CompactTopology(t);
+            return CompactTopology.serializer.serializedSize(compact);
+        }
+
+        @Override
+        public Topology deserialize(DataInputPlus in) throws IOException
+        {
+            return CompactTopology.serializer.deserialize(in).topology();
         }
     };
 }
