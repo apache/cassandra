@@ -63,8 +63,6 @@ public class TopologySerializersTest
     @Test
     public void topology()
     {
-        //NOTE FOR MONDAY
-        // This test does random ranges, so the dictionary method takes more bytes than non-dictionary
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
             AccordGenerators.maybeUpdatePartitioner(expected.ranges());
