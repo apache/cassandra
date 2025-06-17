@@ -188,7 +188,7 @@ launch_service()
         cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"
     fi
 
-    if [ "x$clean_heap_dump_files_defined" = "x1" ]; then
+    if [ "$should_clean_heap_dump_files" = "1" ]; then
       clean_heap_dump_files
     fi
 

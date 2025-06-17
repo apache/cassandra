@@ -204,21 +204,21 @@ JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s
 #  - enable heap dump files clean up
 #  - keeping last 2 files
 #  - keeping 1 oldest file to help identify first OOM incident
-if [ "x$CASSANDRA_HEAPDUMP_CLEAN" = "x" ]; then
+if [ "$CASSANDRA_HEAPDUMP_CLEAN" = "" ]; then
     CASSANDRA_HEAPDUMP_CLEAN=1
 fi
-if [ "x$CASSANDRA_HEAPDUMP_KEEP_LAST_N_FILES" = "x" ]; then
-    CASSANDRA_HEAPDUMP_KEEP_LAST_N_FILES=2
+if [ "$CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES" = "" ]; then
+    CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES=2
 fi
-if [ "x$CASSANDRA_HEAPDUMP_KEEP_FIRST_N_FILES" = "x" ]; then
-    CASSANDRA_HEAPDUMP_KEEP_FIRST_N_FILES=1
+if [ "$CASSANDRA_HEAPDUMP_KEEP_OLDEST_N_FILES" = "" ]; then
+    CASSANDRA_HEAPDUMP_KEEP_OLDEST_N_FILES=1
 fi
 
 clean_heap_dump_files()
 {
     if [ "$CASSANDRA_HEAPDUMP_CLEAN" -eq 1 ] && \
-           [ "$CASSANDRA_HEAPDUMP_KEEP_LAST_N_FILES" -ge 0 ] && \
-           [ "$CASSANDRA_HEAPDUMP_KEEP_FIRST_N_FILES" -ge 0 ] && \
+           [ "$CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES" -ge 0 ] && \
+           [ "$CASSANDRA_HEAPDUMP_KEEP_OLDEST_N_FILES" -ge 0 ] && \
            [ -d "$CASSANDRA_HEAPDUMP_DIR" ]; then
         # find all files under CASSANDRA_HEAPDUMP_DIR,
         # sort by last modification date descending,
@@ -226,7 +226,7 @@ clean_heap_dump_files()
         ls -pt1 "$CASSANDRA_HEAPDUMP_DIR" | grep -v / | \
         grep "^cassandra-.*-pid.*[.]hprof$" | \
         awk "BEGIN{ f=0; }{ files[f]=\$0; f+=1; }END{
-            for(i = $CASSANDRA_HEAPDUMP_KEEP_LAST_N_FILES; i < f - $CASSANDRA_HEAPDUMP_KEEP_FIRST_N_FILES; i++) {
+            for(i = $CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES; i < f - $CASSANDRA_HEAPDUMP_KEEP_OLDEST_N_FILES; i++) {
               print files[i];
             }
           }" | while IFS= read -r file; do
@@ -235,7 +235,7 @@ clean_heap_dump_files()
     fi
 }
 
-clean_heap_dump_files_defined=1
+should_clean_heap_dump_files=1
 
 # stop the jvm on OutOfMemoryError as it can result in some data corruption
 # uncomment the preferred option
