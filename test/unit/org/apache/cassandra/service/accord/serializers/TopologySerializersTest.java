@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.slf4j.Logger;
