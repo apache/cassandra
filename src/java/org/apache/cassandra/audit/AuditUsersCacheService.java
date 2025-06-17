@@ -36,6 +36,8 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,6 +46,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@code AuditUsersCacheService} keeps an in‑memory cache of the <em>audit_users</em> table that tells
@@ -53,7 +56,8 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>The class is a <strong>singleton</strong> exposed through {@link #instance}.  Its lifecycle is:</p>
  * <ol>
- *   <li>{@link #setup()} – initialise the service and start the periodic refresher.</li>
+ *   <li>{@link #initialize()} initialise the service.</li>
+ *   <li>{@link #setup()} – start the periodic refresher.</li>
  *   <li>{@link #teardown()} – cancel the refresher so the JVM can exit cleanly or the service be
  *       re‑initialised.</li>
  * </ol>
@@ -83,12 +87,34 @@ public class AuditUsersCacheService
             accountType = type;
             filterPercent = percent;
         }
+
+        @Override
+        public String toString()
+        {
+            return "{\"accountType\": \"" + accountType + "\", \"filterPercent\"=" + filterPercent + '}';
+        }
     };
+
+    public enum State {
+        READY,
+        INIT,
+        CREATED,
+        REFRESH_FAILED
+    }
 
     /** Handle to the periodic cache-refresh task. */
     private ScheduledFuture<?> refreshTask;
 
     private static final Logger logger = LoggerFactory.getLogger(AuditUsersCacheService.class);
+
+    @VisibleForTesting
+    protected volatile State state = State.CREATED;
+
+    @VisibleForTesting
+    protected final AtomicBoolean initCalled = new AtomicBoolean(false);
+
+    @VisibleForTesting
+    protected final AtomicBoolean startingRefresh = new AtomicBoolean(false);
 
     private final static String SELECT_QUERY = String.format(
         "SELECT * FROM %s.%s",
@@ -118,11 +144,9 @@ public class AuditUsersCacheService
     private static ModificationStatement insertUqlRoleStatement;
     private static ConcurrentHashMap<String, UserProp> auditUserCache = new ConcurrentHashMap<>();
 
-    /** Flag that becomes {@code true} once the first refresh cycle has completed. */
-    private volatile boolean cacheWarmedUp = false;
-
     /** The singleton instance of the service. */
     public final static AuditUsersCacheService instance = new AuditUsersCacheService();
+
     private AuditUsersCacheService() {}
 
     /** Helper function to atomically update the cache */
@@ -144,48 +168,92 @@ public class AuditUsersCacheService
     }
 
     /**
-     * Initialises the service and starts the background cache refresher.
+     * Initializes the service
+     *
      * <p>The method performs these steps:</p>
      * <ol>
      *   <li>Prepare CQL {@link SelectStatement} / {@link ModificationStatement modification statements}.</li>
      *   <li>Populate <em>audit_users</em> with a handful of essential service roles (idempotent <code>IF NOT EXISTS</code>).</li>
      *   <li>Choose an appropriate {@link ConsistencyLevel} depending on the replication strategy of
      *       {@code system_distributed}.</li>
-     *   <li>Schedule {@link #refresh()} to execute every five minutes if a task does not already exist.</li>
      * </ol>
+     */
+    public void initialize()
+    {
+        if (!initCalled.getAndSet(true))
+        {
+            try
+            {
+                selectStatement = (SelectStatement) QueryProcessor.getStatement(SELECT_QUERY, ClientState.forInternalCalls());
+                insertCassandraRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_CASSANDRA_ROLE_QUERY,
+                                                                                                   ClientState.forInternalCalls());
+                insertPinglessRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_PINGLESS_ROLE_QUERY,
+                                                                                                  ClientState.forInternalCalls());
+                insertOdinWorkerRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_ODIN_WORKER_ROLE_QUERY,
+                                                                                                    ClientState.forInternalCalls());
+                insertUqlRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_UQL_ROLE_QUERY,
+                                                                                             ClientState.forInternalCalls());
+                insertDosaRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_DOSA_ROLE_QUERY,
+                                                                                              ClientState.forInternalCalls());
+
+                insertCassandraRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null),
+                                                     Dispatcher.RequestTime.forImmediateExecution());
+                insertPinglessRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null),
+                                                    Dispatcher.RequestTime.forImmediateExecution());
+                insertOdinWorkerRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null),
+                                                      Dispatcher.RequestTime.forImmediateExecution());
+                insertUqlRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null),
+                                               Dispatcher.RequestTime.forImmediateExecution());
+                insertDosaRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null),
+                                                Dispatcher.RequestTime.forImmediateExecution());
+
+                Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
+                if (ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class)
+                    cl = ConsistencyLevel.LOCAL_ONE;
+                initCalled.set(true);
+                logger.info("Initialized");
+                state = State.INIT;
+            }
+            catch (Exception e)
+            {
+                logger.error("Failed to initialize:", e);
+                initCalled.compareAndSet(true,false);
+            }
+        }
+
+
+    }
+
+    @VisibleForTesting
+    public State getState() {
+        return state;
+    }
+
+    /**
+     * Starts the background cache refresher
      */
     public synchronized void setup()
     {
-        selectStatement = (SelectStatement) QueryProcessor.getStatement(SELECT_QUERY, ClientState.forInternalCalls());
-        insertCassandraRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_CASSANDRA_ROLE_QUERY,
-                ClientState.forInternalCalls());
-        insertPinglessRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_PINGLESS_ROLE_QUERY,
-                ClientState.forInternalCalls());
-        insertOdinWorkerRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_ODIN_WORKER_ROLE_QUERY,
-                ClientState.forInternalCalls());
-        insertUqlRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_UQL_ROLE_QUERY,
-                ClientState.forInternalCalls());
-        insertDosaRoleStatement = (ModificationStatement) QueryProcessor.getStatement(INSERT_DOSA_ROLE_QUERY,
-                ClientState.forInternalCalls());
-
-        insertCassandraRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
-        insertPinglessRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
-        insertOdinWorkerRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
-        insertUqlRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
-        insertDosaRoleStatement.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null), Dispatcher.RequestTime.forImmediateExecution());
-
-        Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
-        if (ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class)
-            cl = ConsistencyLevel.LOCAL_ONE;
-
-        // only start the refresh task if it has not beeen started
-        if (refreshTask == null)
+        try
         {
-            // Refresh cache every 5 minutes with an initial delay of 2 seconds.
-            refreshTask = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> refresh(),
-                                                                                   2,
-                                                                                   300,
-                                                                                   TimeUnit.SECONDS);
+            if (!startingRefresh.getAndSet(true))
+            {
+                // only start the refresh task if it has not beeen started or doesn't exist
+                if (refreshTask == null || refreshTask.isCancelled() || refreshTask.isDone())
+                {
+                    // Refresh cache every 5 minutes with an initial delay of 2 seconds.
+                    refreshTask = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> refresh(),
+                                                                                           2,
+                                                                                           300,
+                                                                                           TimeUnit.SECONDS);
+                    logger.info("RefreshTask started");
+                }
+                startingRefresh.set(false);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.error("Exception in audit user refresh task setup:", e);
         }
     }
 
@@ -196,6 +264,9 @@ public class AuditUsersCacheService
      */
     public void refresh()
     {
+        if (state == State.CREATED) {
+            return;
+        }
         try
         {
             // Refresh cache
@@ -221,22 +292,29 @@ public class AuditUsersCacheService
                 updateAuditUserCache(role, accountType, percentage);
             }
             auditUserCache.keySet().removeIf(role -> !rolesInTable.contains(role));
-            cacheWarmedUp = true;
+            state = State.READY;
         }
         catch (Exception e)
         {
+            state = State.REFRESH_FAILED;
             logger.error("Exception in audit user cache refresh:", e);
         }
+
+        logger.info("FOOBAR: The cache now has - "+ auditUserCache);
     }
 
     /**
-     * Stops the background refresher task.
+     * Stops the background refresher task. If the task does not exist, perfoms a no-op
      */
     public synchronized void teardown() {
         if (refreshTask != null && !refreshTask.isCancelled())
-            refreshTask.cancel(false);
+            refreshTask.cancel(true);
         refreshTask = null;
-        cacheWarmedUp = false;
+
+        if (state != State.CREATED)
+            state = State.INIT;
+        this.initCalled.set(false);
+        logger.info("Audit users cache teardown complete");
     }
 
     /**
@@ -252,7 +330,8 @@ public class AuditUsersCacheService
             return true;
         }
 
-        if (role == null || !cacheWarmedUp)
+        // TODO: while the cache is not ready, fail open for specific event types
+        if (state != State.READY || role == null)
             return false;
 
         UserProp prop = auditUserCache.get(role);
@@ -272,7 +351,7 @@ public class AuditUsersCacheService
      */
     public String getAccountType(String role)
     {
-        if (role == null || !cacheWarmedUp)
+        if (role == null || state != State.READY)
             return "";
 
         UserProp prop = auditUserCache.get(role);

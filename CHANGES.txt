@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-45500] Refactor how the AuditUsersCacheService Starts
  * [SO-45485] AuditUsersCacehService Remove Items from Cache if not Present in system_distributed.audit_users
  * [SO-45715] Fix the context data log mixed with ClientLibsEnforcementLevel log
  * [SO-45500] Add Null Check to AuditUsersCacheService.refresh()

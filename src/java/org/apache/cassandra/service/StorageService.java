@@ -1035,7 +1035,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Gossiper.instance.addLocalApplicationStates(states);
             }
             doAuthSetup(true);
-            doAuditLogUsersCacheSetup();
+            doAuditUsersCacheServiceInit();
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
@@ -1364,7 +1364,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 joinTokenRing(SCHEMA_DELAY_MILLIS, 0);
                 doAuthSetup(false);
-                doAuditLogUsersCacheSetup();
+                doAuditUsersCacheServiceInit();
             }
             catch (ConfigurationException e)
             {
@@ -1380,7 +1380,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.info("Leaving write survey mode and joining ring at operator request");
                 finishJoiningRing(resumedBootstrap, SystemKeyspace.getSavedTokens());
                 doAuthSetup(false);
-                doAuditLogUsersCacheSetup();
+                doAuditUsersCacheServiceInit();
                 isSurveyMode = false;
                 daemon.start();
             }
@@ -1447,19 +1447,33 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    public void doAuditLogUsersCacheSetup()
+    public void doAuditUsersCacheServiceInit()
     {
-        if (!auditLogUsersCacheSetupCalled.getAndSet(true)) {
-            if (DatabaseDescriptor.getAuditLoggingOptions().enabled)
-                AuditUsersCacheService.instance.setup();
+        // TODO: remove DatabaseDescriptor.getAuditUserCacheEnabled()
+        //  once conf.audit_user_cache_enabled is deprecated and removed
+        if (DatabaseDescriptor.getAuditLoggingOptions().enabled &&
+            DatabaseDescriptor.getAuditLoggingOptions().role_filtering &&
+            DatabaseDescriptor.getAuditUserCacheEnabled())
+        {
+            AuditUsersCacheService.instance.initialize();
         }
     }
 
-    public void doAuditLogUsersCacheTeardown()
+    public void doAuditUsersCacheServiceSetup()
     {
-        if (auditLogUsersCacheSetupCalled.get()) {
-            AuditUsersCacheService.instance.teardown();
+        // TODO: remove DatabaseDescriptor.getAuditUserCacheEnabled()
+        //  once conf.audit_user_cache_enabled is deprecated and removed
+        if (DatabaseDescriptor.getAuditLoggingOptions().enabled &&
+            DatabaseDescriptor.getAuditLoggingOptions().role_filtering &&
+            DatabaseDescriptor.getAuditUserCacheEnabled())
+        {
+            AuditUsersCacheService.instance.setup();
         }
+    }
+
+    public void doAuditUsersCacheServiceTeardown()
+    {
+        AuditUsersCacheService.instance.teardown();
     }
 
     private void doRequestThrottlerSetup()
@@ -2401,7 +2415,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
                             finishJoiningRing(true, bootstrapTokens);
                             doAuthSetup(false);
-                            doAuditLogUsersCacheSetup();
+                            doAuditUsersCacheServiceInit();
                         }
                         progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                         if (!isNativeTransportRunning())
@@ -6949,6 +6963,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void disableAuditLog()
     {
         AuditLogManager.instance.disableAuditLog();
+        doAuditUsersCacheServiceTeardown();
         logger.info("Auditlog is disabled");
     }
 
@@ -7013,7 +7028,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // TODO: Remove "DatabaseDescriptor.getAuditUserCacheEnabled" once conf.audit_user_cache_enabled is deprecated and removed
         // first, enable dependencies
         if (options.role_filtering && DatabaseDescriptor.getAuditUserCacheEnabled())
-            doAuditLogUsersCacheSetup();
+        {
+            doAuditUsersCacheServiceInit();
+            doAuditUsersCacheServiceSetup();
+        }
 
         // then, start the audit logger
         AuditLogManager.instance.enable(options);
