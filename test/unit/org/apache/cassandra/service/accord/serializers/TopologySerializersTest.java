@@ -83,19 +83,10 @@ public class TopologySerializersTest
         qt().forAll(AccordGenerators.partitioner().flatMap(p -> AccordGenerators.topologyGen(p))).check(expected -> {
             AccordGenerators.maybeUpdatePartitioner(expected.ranges());
 
-            CompactTopology global = new CompactTopology(expected);
-            Serializers.testSerde(output, CompactTopology.serializer, global);
-
-            Assertions.assertThat(global.topology()).isEqualTo(expected);
+            Serializers.testSerde(output, TopologySerializers.compactTopology, expected);
 
             for (Node.Id node : expected.nodes())
-            {
-                Topology expectedSubset = expected.forNode(node);
-                CompactTopology subset = new CompactTopology(expectedSubset);
-                Serializers.testSerde(output, CompactTopology.serializer, subset);
-
-                Assertions.assertThat(subset.topology()).isEqualTo(expectedSubset);
-            }
+                Serializers.testSerde(output, TopologySerializers.compactTopology, expected.forNode(node));
         });
     }
 
@@ -114,12 +105,9 @@ public class TopologySerializersTest
         qt().forAll(gen).check(expected -> {
             AccordGenerators.maybeUpdatePartitioner(expected.ranges());
 
-            CompactTopology global = new CompactTopology(expected);
-            Serializers.testSerde(output, CompactTopology.serializer, global);
+            Serializers.testSerde(output, TopologySerializers.compactTopology, expected);
 
-            Assertions.assertThat(global.topology()).isEqualTo(expected);
-
-            long size = CompactTopology.serializer.serializedSize(global);
+            long size = TopologySerializers.compactTopology.serializedSize(expected);
             long upperLimit = TopologySerializers.topology.serializedSize(expected);
             collector.register(expected, ((upperLimit - size) / (double) upperLimit) * 100.0D);
             Assertions.assertThat(size).isLessThan(upperLimit);
