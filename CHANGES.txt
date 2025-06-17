@@ -1,4 +1,5 @@
 5.0.5
+ * Make Commitlog flush data safely in Direct IO mode (CASSANDRA-20692)
  * Get SAI MemtableIndex refs before SSTableIndex refs at query time (CASSANDRA-20709)
  * Fix MAX_SEGMENT_SIZE < chunkSize in MmappedRegions::updateState (CASSANDRA-20636)
  * Full Java 17 support (CASSANDRA-20681)
