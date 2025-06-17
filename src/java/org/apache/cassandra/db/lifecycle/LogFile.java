@@ -559,12 +559,12 @@ final class LogFile implements AutoCloseable
             throw TransactionAlreadyCompletedException.create(getFiles());
         for (LogRecord record : txnFile.records)
         {
-            assert record.type == Type.ADD : "Can only transfer ADD records";
+            if (record.type != Type.ADD)
+                throw new IllegalStateException("Can only transfer ADD records - not " + record + " - " + txnFile.records);
             File directory = new File(record.absolutePath.get()).parent();
             String fileName = StringUtils.join(directory, File.pathSeparator(), getFileName());
             replicas.maybeCreateReplica(directory, fileName, onDiskRecords);
             addRecord(record);
         }
     }
-
 }

@@ -2395,7 +2395,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                                                      firstDataSet.metadata(),
                                                                                      firstDataSet.columns(),
                                                                                      firstDataSet.encodingStats()),
-                                                             null); // TODO
+                                                             DO_NOT_TRACK);
         try
         {
             for (Memtable.FlushablePartitionSet<?> dataSet : dataSets)
@@ -2409,6 +2409,69 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             throw t;
         }
     }
+
+    private static final ILifecycleTransaction DO_NOT_TRACK = new ILifecycleTransaction()
+    {
+        @Override
+        public void trackNew(SSTable sstable)
+        {
+
+        }
+
+        @Override
+        public void untrackNew(SSTable sstable)
+        {
+
+        }
+
+        @Override
+        public OperationType opType() {return null;}
+
+        @Override
+        public void checkpoint() {}
+
+        @Override
+        public void update(SSTableReader reader, boolean original) {}
+
+        @Override
+        public void update(Collection<SSTableReader> readers, boolean original) {}
+
+        @Override
+        public SSTableReader current(SSTableReader reader) {return null;}
+
+        @Override
+        public void obsolete(SSTableReader reader) {}
+
+        @Override
+        public void obsoleteOriginals() {}
+
+        @Override
+        public Set<SSTableReader> originals() {return Set.of();}
+
+        @Override
+        public boolean isObsolete(SSTableReader reader) {return false;}
+
+        @Override
+        public boolean isOffline() {return false;}
+
+        @Override
+        public TimeUUID opId() {return null;}
+
+        @Override
+        public void cancel(SSTableReader removedSSTable) {}
+
+        @Override
+        public Throwable commit(Throwable accumulate) {return null;}
+
+        @Override
+        public Throwable abort(Throwable accumulate) {return null;}
+
+        @Override
+        public void prepareToCommit() {}
+
+        @Override
+        public void close() {}
+    };
 
     /**
      * For testing.  No effort is made to clear historical or even the current memtables, nor for

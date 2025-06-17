@@ -239,6 +239,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         LifecycleTransaction sharedTxn = LifecycleTransaction.offline(OperationType.UNKNOWN);
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.UNKNOWN);
         readers.forEach(txn::trackNew);
+        txn.prepareToCommit();
         txn.abort();
         try
         {

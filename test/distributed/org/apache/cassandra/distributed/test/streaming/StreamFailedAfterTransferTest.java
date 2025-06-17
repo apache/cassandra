@@ -70,7 +70,7 @@ public class StreamFailedAfterTransferTest extends TestBaseImpl
                     node1.flush(KEYSPACE);
             }
             node1.flush(KEYSPACE);
-
+            cluster.setUncaughtExceptionsFilter((e) -> e.getClass().getName().contains("TransactionAlreadyCompletedException"));
             node1.nodetoolResult("repair", "-pr", "-full", KEYSPACE, "tbl").asserts().failure();
 
             node2.runOnInstance(() -> {

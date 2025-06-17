@@ -34,7 +34,6 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
-
 /**
  * A wrapper for SSTableWriter and LifecycleTransaction to be used when
  * the writer is the only participant in the transaction and therefore

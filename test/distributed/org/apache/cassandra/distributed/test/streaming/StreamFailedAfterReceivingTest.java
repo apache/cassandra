@@ -18,11 +18,10 @@
 package org.apache.cassandra.distributed.test.streaming;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -31,22 +30,17 @@ import org.junit.Test;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.streaming.CassandraStreamReader;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static net.bytebuddy.implementation.MethodDelegation.to;
 import static net.bytebuddy.matcher.ElementMatchers.named;
-import static net.bytebuddy.matcher.ElementMatchers.takesNoArguments;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
 public class StreamFailedAfterReceivingTest extends TestBaseImpl
 {
@@ -85,9 +79,11 @@ public class StreamFailedAfterReceivingTest extends TestBaseImpl
                     node1.flush(KEYSPACE);
             }
             node1.flush(KEYSPACE);
-
+            node2.runOnInstance(() -> BBHelper.enabled.set(true));
+            cluster.setUncaughtExceptionsFilter((e) -> e.getClass().getName().contains("TransactionAlreadyCompletedException"));
             node1.nodetoolResult("repair", "-pr", "-full", KEYSPACE, "tbl").asserts().failure();
             node2.runOnInstance(() -> BBHelper.cdl.awaitUninterruptibly());
+            node2.runOnInstance(() -> BBHelper.enabled.set(false));
             node2.shutdown().get();
             node2.startup();
         }
@@ -101,138 +97,32 @@ public class StreamFailedAfterReceivingTest extends TestBaseImpl
             if (num == 2)
             {
                 // in this case we need to throw after trackNew:ing the sstable, but before it is finished
-                new ByteBuddy().rebase(CassandraStreamReader.class)
-                               .method(named("createTxn").and(takesNoArguments()))
-                               .intercept(to(BBHelper.class))
+                new ByteBuddy().rebase(LifecycleTransaction.class)
+                               .method(named("trackNew").and(takesArguments(1)))
+                               .intercept(to(StreamFailedAfterReceivingTest.BBHelper.class))
                                .make()
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
             }
         }
 
         static AtomicInteger waiting = new AtomicInteger();
+        static AtomicBoolean enabled = new AtomicBoolean();
         static CountDownLatch cdl = CountDownLatch.newCountDownLatch(1);
 
-        public static ILifecycleTransaction createTxn(@SuperCall Callable<LifecycleTransaction> zuper) throws Exception
+        public static void trackNew(SSTable sstable, @SuperCall Callable<Void> zuper) throws Exception
         {
-            LifecycleTransaction txn = zuper.call();
-            return new ILifecycleTransaction()
+            zuper.call();
+            if (enabled.get())
             {
-                @Override
-                public void trackNew(SSTable sstable)
-                {
-                    txn.trackNew(sstable);
-                    if (waiting.incrementAndGet() > 3)
-                        throw new RuntimeException();
+                if (waiting.incrementAndGet() > 4)
+                    throw new RuntimeException();
 
-                    // using a sleep instead of a horrible nesting of latches - this should
-                    // not make the test flaky, just might flakily pass without hitting the
-                    // right condition
-                    Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
-                    cdl.decrement();
-                }
-
-                @Override
-                public void untrackNew(SSTable sstable)
-                {
-                    txn.untrackNew(sstable);
-                }
-
-                @Override
-                public OperationType opType()
-                {
-                    return txn.opType();
-                }
-
-                @Override
-                public void checkpoint()
-                {
-                    txn.checkpoint();
-                }
-
-                @Override
-                public void update(SSTableReader reader, boolean original)
-                {
-                    txn.update(reader, original);
-                }
-
-                @Override
-                public void update(Collection<SSTableReader> readers, boolean original)
-                {
-                    txn.update(readers, original);
-                }
-
-                @Override
-                public SSTableReader current(SSTableReader reader)
-                {
-                    return txn.current(reader);
-                }
-
-                @Override
-                public void obsolete(SSTableReader reader)
-                {
-                    txn.obsolete(reader);
-                }
-
-                @Override
-                public void obsoleteOriginals()
-                {
-                    txn.obsoleteOriginals();
-                }
-
-                @Override
-                public Set<SSTableReader> originals()
-                {
-                    return txn.originals();
-                }
-
-                @Override
-                public boolean isObsolete(SSTableReader reader)
-                {
-                    return txn.isObsolete(reader);
-                }
-
-                @Override
-                public boolean isOffline()
-                {
-                    return txn.isOffline();
-                }
-
-                @Override
-                public TimeUUID opId()
-                {
-                    return txn.opId();
-                }
-
-                @Override
-                public void cancel(SSTableReader removedSSTable)
-                {
-                    txn.cancel(removedSSTable);
-                }
-
-                @Override
-                public Throwable commit(Throwable accumulate)
-                {
-                    return txn.commit(accumulate);
-                }
-
-                @Override
-                public Throwable abort(Throwable accumulate)
-                {
-                    return txn.abort(accumulate);
-                }
-
-                @Override
-                public void prepareToCommit()
-                {
-                    txn.prepareToCommit();
-                }
-
-                @Override
-                public void close()
-                {
-                    txn.close();
-                }
-            };
+                // using a sleep instead of a horrible nesting of latches - this should
+                // not make the test flaky, just might flakily pass without hitting the
+                // right condition
+                Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
+                cdl.decrement();
+            }
         }
     }
 
