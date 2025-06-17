@@ -37,6 +37,7 @@ import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.utils.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -401,6 +402,7 @@ public class AccordService implements IAccordService, Shutdownable
 
             int attempt = 0;
             int waitSeconds = 5;
+            long deadine = Clock.Global.nanoTime() + SECONDS.toNanos(60);
             while (true)
             {
                 Epoch await = Epoch.max(Epoch.create(configService.currentEpoch()), metadata.epoch);
@@ -413,6 +415,9 @@ public class AccordService implements IAccordService, Shutdownable
                 {
                     logger.warn("Epoch {} is not ready after waiting for {} seconds", metadata.epoch, (++attempt) * waitSeconds);
                 }
+
+                if (Clock.Global.nanoTime() > deadine)
+                    throw new IllegalStateException(String.format("Could not initialize epoch %s. Config service state:\n%s", await, configService.getDebugStr()));
             }
         }
         catch (InterruptedException e)
