@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,6 +89,20 @@ public class FetchTopologies
     {
         this.minEpoch = minEpoch;
         this.maxEpoch = maxEpoch;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o == null || getClass() != o.getClass()) return false;
+        FetchTopologies that = (FetchTopologies) o;
+        return minEpoch == that.minEpoch && maxEpoch == that.maxEpoch;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(minEpoch, maxEpoch);
     }
 
     public static final UnversionedSerializer<TopologyRange> responseSerializer = new UnversionedSerializer<>()
