@@ -70,7 +70,7 @@ public abstract class FSError extends IOError
     @Override
     public String getMessage()
     {
-        return message;
+        return message == null ? super.getMessage() : message;
     }
 
     @Override
