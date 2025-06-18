@@ -7043,6 +7043,70 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return AuditLogManager.instance.isEnabled();
     }
 
+    public List<List<String>> getAuditLogRoleFilter(List<String> roles, boolean refresh)
+    {
+        logger.info("Fetching audit log filters for roles: " + roles);
+        if (refresh)
+        {
+            AuditUsersCacheService.instance.refresh();
+        }
+        return AuditUsersCacheService.instance.toNestedList(roles);
+    }
+
+    public void setAuditLogRoleFilter(String role, String type, double rate, boolean refresh)
+    {
+        logger.info(String.format("Setting audit log filter: role=%s, account-type=%s, filter-rate=%s",
+                                  role, type, rate));
+        AuditUsersCacheService.instance.updateRole(role, type, rate);
+        if (refresh)
+        {
+            AuditUsersCacheService.instance.refresh();
+        }
+    }
+
+    public void disableAuditLogRoleFilter(boolean shouldDelete, List<String> roles, boolean refresh)
+    {
+        logger.info(String.format("Disabling audit log filters for roles: %s (delete=%s)",
+                                  roles, shouldDelete));
+
+        // refresh before deletion to update cache
+        if (refresh)
+        {
+            AuditUsersCacheService.instance.refresh();
+        }
+
+        List<String> filteredRoles = AuditUsersCacheService.instance.filterRoles(roles);
+
+        if (filteredRoles.isEmpty())
+        {
+            logger.warn(String.format("roles %s do not exist", roles));
+            return;
+        }
+
+        if (shouldDelete)
+        {
+            AuditUsersCacheService.instance.deleteRoles(filteredRoles, false);
+        }
+        else {
+            for (String role : filteredRoles)
+            {
+                String accountType = AuditUsersCacheService.instance.getAccountType(role);
+                if (StringUtils.isEmpty(accountType))
+                {
+                    logger.warn("no account type found for " + role);
+                    continue;
+                }
+                AuditUsersCacheService.instance.updateRole(role, accountType, 0.0);
+            }
+        }
+
+        // refresh after deletion
+        if (refresh)
+        {
+            AuditUsersCacheService.instance.refresh();
+        }
+    }
+
     public String getCorruptedTombstoneStrategy()
     {
         return DatabaseDescriptor.getCorruptedTombstoneStrategy().toString();

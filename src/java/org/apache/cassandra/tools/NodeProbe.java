@@ -2207,6 +2207,22 @@ public class NodeProbe implements AutoCloseable
         ssProxy.clearConnectionHistory();
     }
 
+
+    public List<List<String>> getAuditLogRoleFilter(List<String> roles, boolean refresh)
+    {
+        return ssProxy.getAuditLogRoleFilter(roles, refresh);
+    }
+
+    public void setAuditLogRoleFilter(String role, String type, double rate, boolean refresh)
+    {
+        ssProxy.setAuditLogRoleFilter(role, type, rate, refresh);
+    }
+
+    public void disableAuditLogRoleFilter(boolean shouldDelete, List<String> roles, boolean refresh)
+    {
+        ssProxy.disableAuditLogRoleFilter(shouldDelete, roles, refresh);
+    }
+
     public void disableAuditLog()
     {
         ssProxy.disableAuditLog();

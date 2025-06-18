@@ -962,6 +962,11 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Clears the history of clients that have connected in the past **/
     void clearConnectionHistory();
+
+    public List<List<String>> getAuditLogRoleFilter(List<String> roles, boolean refresh);
+    public void setAuditLogRoleFilter(String role, String type, double rate, boolean refersh);
+    public void disableAuditLogRoleFilter(boolean shouldDelete, List<String> roles, boolean refresh);
+
     public void disableAuditLog();
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,

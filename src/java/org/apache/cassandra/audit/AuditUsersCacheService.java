@@ -23,6 +23,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.DeleteStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -37,8 +38,11 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import com.google.common.annotations.VisibleForTesting;
-
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -47,6 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * {@code AuditUsersCacheService} keeps an in‑memory cache of the <em>audit_users</em> table that tells
@@ -78,20 +83,55 @@ public class AuditUsersCacheService
     public static class UserProp
     {
         /** Either {@code "SERVICE"} or {@code "DEVELOPER"}. */
-        public String accountType;
+        public final String accountType;
         /** Percentage (0.0–100.0) of statements to log for the role. */
-        public Double filterPercent;
+        public final Double filterPercent;
 
-        public UserProp(String type, double percent)
+        public String role;
+
+        public UserProp(String role, String accountType, Double filterPercent)
         {
-            accountType = type;
-            filterPercent = percent;
+            this(accountType, filterPercent);
+            this.role = role;
         }
 
+        public UserProp(String accountType, double filterPercent)
+        {
+            this.accountType = accountType;
+            this.filterPercent = filterPercent;
+        }
+
+        public List<String> toList()
+        {
+            return List.of(role, accountType, String.valueOf(filterPercent));
+        }
+        
         @Override
         public String toString()
         {
             return "{\"accountType\": \"" + accountType + "\", \"filterPercent\"=" + filterPercent + '}';
+        }
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            if (obj == null) {
+                return false;
+            }
+            if (!(obj instanceof UserProp)) {
+                return false;
+            }
+            UserProp prop = (UserProp) obj;
+
+            return
+            this.accountType.equals(prop.accountType) &&
+            this.filterPercent.equals(prop.filterPercent);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(accountType, filterPercent);
         }
     };
 
@@ -106,6 +146,13 @@ public class AuditUsersCacheService
     private ScheduledFuture<?> refreshTask;
 
     private static final Logger logger = LoggerFactory.getLogger(AuditUsersCacheService.class);
+
+    private static final String INSERT_AUDIT_USER_ROLE_CQL = "INSERT INTO %s.%s (role, account_type, filter_percent) " +
+                                                             "VALUES ('%s', '%s', %s)";
+    private static final String UPDATE_AUDIT_USER_ROLE_CQL = "UPDATE %s.%s " +
+                                                             "SET account_type = '%s', filter_percent = %s " +
+                                                             "WHERE role = '%s'";
+    private static final String DELETE_AUDIT_USER_ROLE_CQL = "DELETE FROM %s.%s WHERE role in (%s)";
 
     @VisibleForTesting
     protected volatile State state = State.CREATED;
@@ -152,7 +199,7 @@ public class AuditUsersCacheService
     /** Helper function to atomically update the cache */
     private void updateAuditUserCache(String role, String accountType, double percentage)
     {
-        UserProp newProp = new UserProp(accountType, percentage);
+        UserProp newProp = new UserProp(role, accountType, percentage);
         // Insert if the cache does not contain the role
         if (!auditUserCache.containsKey(role))
         {
@@ -165,6 +212,120 @@ public class AuditUsersCacheService
         {
             auditUserCache.replace(role, auditUserCache.get(role), newProp);
         }
+    }
+
+    /**
+     * Convert the auditUserCache into a List<String>, but only for roles
+     * whose key is present in the input roles list
+     *
+     * @param roles list of role keys that we want to filter form the
+     *              cache
+     * @return      list of roles in the cahce filtered by roles; empty if
+     *              the cache is not READY; all roles in the cahce if
+     *              roles is nil or empty
+     */
+    public List<String> filterRoles(List<String> roles)
+    {
+        if (roles == null) {
+            roles = new ArrayList<>();
+        }
+        if (state != State.READY) {
+            return new ArrayList<>();
+        }
+
+        Set<String> roleMap = new HashSet<>(roles);
+
+        return auditUserCache.keySet()
+                             .stream()
+                             .filter(userProp -> roleMap.isEmpty() || roleMap.contains(userProp))
+                             .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /**
+     * Convert the auditUserCache into a List<List<String>> of the shape
+     * List.of(Role, accountType, filterPercent), but only for oles whose
+     * key is present in the input roles list.
+     *
+     * @param roles  list of role keys that we want to filter form the
+     *               cache
+     * @return       nested list sorted alphabetically by role name,
+     *               filtered by roles; empty if the cache is not READY
+     *               up; all roles in the cahce if roles is nil or empty
+     */
+    public List<List<String>> toNestedList(List<String> roles) {
+        if (roles == null) {
+            roles = new ArrayList<>();
+        }
+        if (state != State.READY) {
+            return new ArrayList<>();
+        }
+
+        Set<String> roleMap = new HashSet<>(roles);
+
+        return auditUserCache.entrySet()
+                             .stream()
+                             /* If roles is empty, include all results */
+                             .filter(e -> roleMap.isEmpty() || roleMap.contains(e.getKey()))
+                             .sorted(Map.Entry.comparingByKey())
+                             .map(e -> e.getValue().toList())
+                             .collect(Collectors.toCollection(ArrayList::new));
+
+    }
+
+    /**
+     * Insert a role into the `system_distributed.audit_users` table
+     *
+     * @param role          the role to insert
+     * @param accountType   the account type
+     * @param percentage    the filter percentage
+     */
+    public void insertRole(String role, String accountType, double percentage)
+    {
+        String cql = String.format(INSERT_AUDIT_USER_ROLE_CQL,
+                                   SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER,
+                                   role, accountType, percentage);
+        ModificationStatement stmt = (ModificationStatement) QueryProcessor.getStatement(cql,
+                                                                                         ClientState.forInternalCalls());
+        stmt.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null),
+                      Dispatcher.RequestTime.forImmediateExecution());
+    }
+
+    /**
+     * Update a role into the `system_distributed.audit_users` table
+     *
+     * @param role          the role to insert
+     * @param accountType   the account type
+     * @param percentage    the filter percentage
+     */
+    public void updateRole(String role, String accountType, double percentage)
+    {
+        String cql = String.format(UPDATE_AUDIT_USER_ROLE_CQL,
+                                   SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER,
+                                   accountType, percentage, role);
+        ModificationStatement stmt = (ModificationStatement) QueryProcessor.getStatement(cql,
+                                                                                         ClientState.forInternalCalls());
+        stmt.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null),
+                     Dispatcher.RequestTime.forImmediateExecution());
+    }
+
+    /**
+     * Removes a role from the `system_distributed.audit_users` table
+     *
+     * @param roles     a comma seperated string of roles to remove
+     * @param ifExists  if true, will enforce deletion using "if exists"
+     */
+    public void deleteRoles(List<String> roles, boolean ifExists)
+    {
+        String rolesToDelete = roles.stream()
+                                            .map(e -> '\'' + e + '\'')
+                                            .collect(Collectors.joining(","));
+
+        String cql = String.format(DELETE_AUDIT_USER_ROLE_CQL,
+                                   SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUDIT_USER,
+                                   rolesToDelete + (ifExists ? "IF EXISTS" : ""));
+        ModificationStatement stmt = (DeleteStatement) QueryProcessor.getStatement(cql, ClientState.forInternalCalls());
+        stmt.execute(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, null),
+                     Dispatcher.RequestTime.forImmediateExecution());
     }
 
     /**
@@ -347,7 +508,7 @@ public class AuditUsersCacheService
      * Get the account type of role as cached by this service.
      *
      * @param role the CQL role name – case‑sensitive and must match the entry in <em>audit_users</em>
-     * @return the {@code account_type} string or an empty string if the role is unknown or the cache has not warmed up
+     * @return the {@code account_type} string or an empty string if the role is unknown or the cache has not READY
      */
     public String getAccountType(String role)
     {
@@ -367,6 +528,6 @@ public class AuditUsersCacheService
      */
     protected void insert(String role, String type, double percent)
     {
-        auditUserCache.put(role, new UserProp(type, percent));
+        auditUserCache.put(role, new UserProp(role, type, percent));
     }
 }

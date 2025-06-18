@@ -417,6 +417,83 @@ public class AuditUsersCacheTest
         }
     }
 
+    @Test
+    public void testInsertRoleAndShouldLog() {
+        String role = "insert_test_role";
+        AuditUsersCacheService.instance.insertRole(role, "SERVICE", 99.0);
+        AuditUsersCacheService.instance.refresh();
+
+        assertTrue(AuditUsersCacheService.instance.shouldLog(role));
+
+        AuditUsersCacheService.instance.deleteRoles(List.of(role), false);
+        AuditUsersCacheService.instance.refresh();
+    }
+
+    @Test
+    public void testUpdateRoleReflectsChanges() {
+        String role = "update_test_role";
+        AuditUsersCacheService.instance.insertRole(role, "DEVELOPER", 10.0);
+        AuditUsersCacheService.instance.refresh();
+
+        assertEquals("DEVELOPER", AuditUsersCacheService.instance.getAccountType(role));
+
+        AuditUsersCacheService.instance.updateRole(role, "SERVICE", 0.01);
+        AuditUsersCacheService.instance.refresh();
+
+        assertEquals("SERVICE", AuditUsersCacheService.instance.getAccountType(role));
+        assertFalse(AuditUsersCacheService.instance.shouldLog(role));
+
+        AuditUsersCacheService.instance.deleteRoles(List.of(role), false);
+        AuditUsersCacheService.instance.refresh();
+    }
+
+    @Test
+    public void testDeleteRoleRemovesFromCache() {
+        String role = "delete_test_role";
+        AuditUsersCacheService.instance.insertRole(role, "SERVICE", 55.0);
+        AuditUsersCacheService.instance.refresh();
+        assertEquals("SERVICE", AuditUsersCacheService.instance.getAccountType(role));
+
+        AuditUsersCacheService.instance.deleteRoles(List.of(role), false);
+        AuditUsersCacheService.instance.refresh();
+
+        assertEquals("", AuditUsersCacheService.instance.getAccountType(role));
+        assertFalse(AuditUsersCacheService.instance.shouldLog(role));
+    }
+
+    @Test
+    public void testToNestedListFiltersCorrectly() {
+        AuditUsersCacheService.instance.insert("role1", "SERVICE", 5.0);
+        AuditUsersCacheService.instance.insert("role2", "DEVELOPER", 95.0);
+        AuditUsersCacheService.instance.state = AuditUsersCacheService.State.READY;
+
+        List<List<String>> nested = AuditUsersCacheService.instance.toNestedList(List.of("role1", "role2"));
+        assertFalse(nested.isEmpty());
+        assertEquals(2, nested.size());
+        assertEquals("role1", nested.get(0).get(0));
+        assertEquals("role2", nested.get(1).get(0));
+
+        List<List<String>> all = AuditUsersCacheService.instance.toNestedList(List.of());
+        assertTrue(all.size() >= 2);
+    }
+
+    @Test
+    public void testFilterRolesSubset() {
+        AuditUsersCacheService.instance.insert("roleA", "SERVICE", 10.0);
+        AuditUsersCacheService.instance.insert("roleB", "DEVELOPER", 20.0);
+        AuditUsersCacheService.instance.state = AuditUsersCacheService.State.READY;
+
+        List<String> filtered = AuditUsersCacheService.instance.filterRoles(List.of("roleA"));
+        assertFalse(filtered.isEmpty());
+        assertEquals(1, filtered.size());
+        assertEquals("roleA", filtered.get(0));
+
+        List<String> all = AuditUsersCacheService.instance.filterRoles(Collections.emptyList());
+        assertTrue(all.contains("roleA"));
+        assertTrue(all.contains("roleB"));
+    }
+
+
     /**
      * Helper methods
      */
