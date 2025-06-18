@@ -588,7 +588,15 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         ResultSerializers.result.serialize(command.result(), out);
                         break;
                     case CLEANUP:
-                        throw new IllegalStateException();
+                        Cleanup cleanup;
+                        switch (command.saveStatus())
+                        {
+                            default: throw new UnhandledEnum(command.saveStatus());
+                            case Erased: cleanup = Cleanup.ERASE; break;
+                            case Invalidated: cleanup = Cleanup.INVALIDATE; break;
+                        }
+                        out.writeByte(cleanup.ordinal());
+                        break;
                 }
 
                 iterable = unsetIterable(field, iterable);

@@ -46,7 +46,7 @@ public class AccordProgressLogTest extends TestBaseImpl
                                            .withoutVNodes()
                                            .withConfig(c -> c.with(Feature.NETWORK)
                                                              .set("accord.enabled", "true")
-                                                             .set("accord.recover_txn", "1s"))
+                                                             .set("accord.recover_txn", "100ms"))
                                            .start()))
         {
             cluster.schemaChange("CREATE KEYSPACE ks WITH replication={'class':'SimpleStrategy', 'replication_factor': 3}");
@@ -59,7 +59,7 @@ public class AccordProgressLogTest extends TestBaseImpl
             AtomicLong recoveryStartedAt = new AtomicLong();
             Semaphore waitForRecovery = new Semaphore(0);
             IMessageFilters.Filter recovery = cluster.filters().outbound().messagesMatching((from, to, message) -> {
-                if (message.verb() == Verb.ACCORD_BEGIN_RECOVER_RSP.id)
+                if (message.verb() == Verb.ACCORD_BEGIN_RECOVER_REQ.id)
                 {
                     recoveryStartedAt.compareAndSet(0, System.nanoTime());
                     waitForRecovery.release();
@@ -75,7 +75,7 @@ public class AccordProgressLogTest extends TestBaseImpl
 
             waitForRecovery.acquire();
             long timeDeltaMillis = TimeUnit.NANOSECONDS.toMillis(recoveryStartedAt.get() - coordinationStartedAt);
-            Assert.assertTrue("Recovery started in " + timeDeltaMillis + "ms", timeDeltaMillis >= 1000);
+            Assert.assertTrue("Recovery started in " + timeDeltaMillis + "ms", timeDeltaMillis >= 100);
             Assert.assertTrue("Recovery started in " + timeDeltaMillis + "ms", timeDeltaMillis <= 5000);
         }
     }

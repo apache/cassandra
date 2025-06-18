@@ -223,18 +223,22 @@ public class AccordAgent implements Agent
         Command command = safeCommand.current();
         Invariants.nonNull(command);
 
-        Timestamp mostRecentAttempt = Timestamp.max(command.txnId(), command.promised());
         RoutingKey homeKey = command.route().homeKey();
         Shard shard = node.topology().forEpochIfKnown(homeKey, command.txnId().epoch());
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
         long oneSecond = SECONDS.toMicros(1L);
-        long startTime = mostRecentAttempt.hlc() + recover(txnId).computeWait(retryCount, MICROSECONDS);
+        long mostRecentStart = Math.max(command.txnId().hlc(), command.promised().hlc());
+        long waitMicros = recover(txnId).computeWait(retryCount, MICROSECONDS);
+        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+        Invariants.expect(mostRecentStart <= nowMicros + SECONDS.toMicros(1L), "max(%s,%s)>%d", command.txnId(), command.promised(), nowMicros);
+        long startTime = mostRecentStart + waitMicros;
+        if (startTime < nowMicros)
+            startTime = nowMicros + waitMicros/2;
 
         startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), oneSecond, random);
-        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         long delayMicros = Math.max(1, startTime - nowMicros);
-        Invariants.require(delayMicros < TimeUnit.HOURS.toMicros(1L));
+        Invariants.require(delayMicros < TimeUnit.HOURS.toMicros(1L), "unexpectedly long coordination recovery delay proposed: %d (start %d, now %d)", delayMicros, startTime, nowMicros, command.txnId(), command.promised());
         return units.convert(delayMicros, MICROSECONDS);
     }
 

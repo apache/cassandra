@@ -35,6 +35,7 @@ import com.google.common.collect.Ordering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.CommandChange;
 import accord.local.Cleanup;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
@@ -109,6 +110,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static accord.local.Cleanup.ERASE;
 import static accord.local.Cleanup.Input.PARTIAL;
 import static accord.local.Cleanup.NO;
 import static com.google.common.base.Preconditions.checkState;
@@ -117,6 +119,7 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
+import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -880,7 +883,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         protected void beginPartition(UnfilteredRowIterator partition)
         {
-            key = AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
+            key = getJournalKey(partition.partitionKey());
             if (compactor == null || compactor.serializer != key.type.serializer)
             {
                 switch (key.type)
@@ -895,15 +898,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                         compactor = new AccordMergingCompactor(key.type.serializer, userVersion);
                 }
             }
-            compactor.reset(key);
+            compactor.reset(key, partition);
         }
 
         @Override
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
-            if (!partition.hasNext())
-                return partition;
-
             try
             {
                 beginPartition(partition);
@@ -941,7 +941,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             this.serializer = serializer;
         }
 
-        abstract void reset(JournalKey key);
+        abstract void reset(JournalKey key, UnfilteredRowIterator partition);
         abstract void collect(JournalKey key, Row row, ByteBuffer bytes, Version userVersion) throws IOException;
         abstract UnfilteredRowIterator result(JournalKey journalKey, DecoratedKey partitionKey) throws IOException;
     }
@@ -962,7 +962,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
 
         @Override
-        void reset(JournalKey key)
+        void reset(JournalKey key, UnfilteredRowIterator partition)
         {
             builder.reset(key);
             lastDescriptor = -1;
@@ -1060,13 +1060,15 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
 
         @Override
-        void reset(JournalKey key)
+        void reset(JournalKey key, UnfilteredRowIterator partition)
         {
             mainBuilder.reset(key);
             reuseEntries.addAll(entries);
             for (int i = 0; i < entries.size() ; ++i)
                 entries.get(i).clear();
             entries.clear();
+            if (!partition.partitionLevelDeletion().isLive())
+                mainBuilder.addCleanup(false, ERASE);
         }
 
         @Override
@@ -1103,7 +1105,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     case EXPUNGE:
                         return null;
                     case ERASE:
-                        return PartitionUpdate.fullPartitionDelete(AccordKeyspace.Journal, partitionKey, Long.MAX_VALUE, nowInSec).unfilteredIterator();
+                        return erase(partitionKey);
 
                     case TRUNCATE:
                     case TRUNCATE_WITH_OUTCOME:
@@ -1136,7 +1138,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             }
             return newVersion.build().unfilteredIterator();
         }
+
+        private UnfilteredRowIterator erase(DecoratedKey partitionKey)
+        {
+            return PartitionUpdate.fullPartitionDelete(AccordKeyspace.Journal, partitionKey, Long.MAX_VALUE, nowInSec).unfilteredIterator();
+        }
     }
+
 
     private static class AbortableUnfilteredPartitionTransformation extends Transformation<UnfilteredRowIterator>
     {
