@@ -17,20 +17,33 @@
  */
 package org.apache.cassandra.journal;
 
-import java.io.EOFException;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.zip.CRC32;
-
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Crc;
 
+import java.io.EOFException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.zip.CRC32;
+
 import static org.apache.cassandra.journal.Journal.validateCRC;
 
+/**
+ * Entry format:
+ *
+ *   [Total Size (4 bytes)]
+ *   [Header (variable size)]
+ *   [Header CRC (4 bytes)]
+ *   [Record Data (variable size)]
+ *   [Record CRC (4 bytes)]
+ */
 public final class EntrySerializer
 {
+    /**
+     * NOTE: out buffer already contains 4 bytes specifying the position of the next allocation, which
+     * can be used for determining current allocation size and reading / skipping unwritten allocations.
+     */
     static <K> void write(K key,
                           ByteBuffer record,
                           KeySupport<K> keySupport,
@@ -96,48 +109,81 @@ public final class EntrySerializer
                            KeySupport<K> keySupport,
                            ByteBuffer from,
                            int syncedOffset,
-                           int userVersion)
-    throws IOException
+                           int userVersion) throws IOException
     {
         CRC32 crc = Crc.crc32();
         into.clear();
 
-        int start = from.position();
         if (from.remaining() < TypeSizes.INT_SIZE)
             return -1;
+        int start = from.position();
 
-        int totalSize = from.getInt(start) - start;
-        if (totalSize == 0)
-            return -1;
-
-        if (from.remaining() < totalSize)
-            return handleReadException(new EOFException(), from.limit(), syncedOffset);
-
+        int endOffset = from.getInt(start);
+        // If the node was shut down abruptly, it may happen that we end up with a log that does not have an index or metadata, in
+        // which case we infer the last contiuous fsynced offset from
+        if (endOffset == 0)
         {
-            int headerSize = EntrySerializer.headerSize(keySupport, userVersion);
-            int headerCrc = readAndUpdateHeaderCrc(crc, from, headerSize);
-            try
-            {
-                validateCRC(crc, headerCrc);
-            }
-            catch (IOException e)
-            {
-                return handleReadException(e, from.position() + headerSize, syncedOffset);
-            }
-
-            int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
-            try
-            {
-                validateCRC(crc, recordCrc);
-            }
-            catch (IOException e)
-            {
-                return handleReadException(e, from.position(), syncedOffset);
-            }
+            Invariants.require(syncedOffset == Integer.MAX_VALUE, "Synced offset %d, but end offset is not set", syncedOffset, endOffset);
+            return -1;
         }
 
-        readValidated(into, from, start, keySupport, userVersion);
-        return totalSize;
+        int totalSize = endOffset - start;
+        // TODO (required): figure out when this condition can be hit.
+        if (totalSize == 0)
+            return -1;
+        Invariants.require(totalSize > 0);
+
+        try
+        {
+            if (from.remaining() < totalSize)
+                return handleReadException(new EOFException(), from.limit(), syncedOffset);
+            {
+                int headerSize = EntrySerializer.headerSize(keySupport, userVersion);
+                int headerCrc = readAndUpdateHeaderCrc(crc, from, headerSize);
+                try
+                {
+                    validateCRC(crc, headerCrc);
+                }
+                catch (IOException e)
+                {
+                    return handleReadException(e, from.position() + headerSize, syncedOffset);
+                }
+
+                int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
+                try
+                {
+                    validateCRC(crc, recordCrc);
+                }
+                catch (IOException e)
+                {
+                    return handleReadException(e, from.position(), syncedOffset);
+                }
+            }
+
+            readValidated(into, from, start, keySupport, userVersion);
+            return totalSize;
+        }
+        catch (Crc.InvalidCrc e)
+        {
+            throw new MaybeRecoverableJournalError(totalSize, e);
+        }
+    }
+
+    public static class MaybeRecoverableJournalError extends IOException
+    {
+        public final int knownLength;
+
+        public MaybeRecoverableJournalError(int knownLength, Throwable cause)
+        {
+            super(cause);
+            this.knownLength = knownLength;
+        }
+
+        @Override
+        public String getMessage()
+        {
+            return String.format("%s knownLength %d", super.getMessage(), knownLength);
+        }
     }
 
     private static <K> void readValidated(EntryHolder<K> into, ByteBuffer from, int start, KeySupport<K> keySupport, int userVersion)

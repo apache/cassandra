@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -434,38 +435,60 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         journalTable.forceCompaction();
     }
 
-    @SuppressWarnings("unchecked") @Override
-    public void replay(CommandStores commandStores)
+    public void forEach(Consumer<JournalKey> consumer)
     {
         try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
         {
             while (iter.hasNext())
             {
                 Journal.KeyRefs<JournalKey> ref = iter.next();
+                consumer.accept(ref.key());
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void replay(CommandStores commandStores)
+    {
+        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
+        {
+            JournalKey prev = null;
+            while (iter.hasNext())
+            {
+                Journal.KeyRefs<JournalKey> ref = iter.next();
 
                 if (ref.key().type != JournalKey.Type.COMMAND_DIFF)
                     continue;
-
                 CommandStore commandStore = commandStores.forId(ref.key().commandStoreId);
                 Loader loader = commandStore.loader();
-                AsyncChains.getUnchecked(loader.load(ref.key().id)
-                                               .map(command -> {
-                                                   if (journalTable.shouldIndex(ref.key())
-                                                       && command.participants() != null
-                                                       && command.participants().route() != null)
-                                                   {
-                                                       ref.segments(segment -> {
-                                                           journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, ref.key().id, command.participants().route()));
-                                                       });
-                                                   }
-                                                   return command;
-                                               })
-                                               .beginAsResult());
+                TxnId txnId = ref.key().id;
+                try
+                {
+                    Invariants.require(prev == null ||
+                                       ref.key().commandStoreId != prev.commandStoreId ||
+                                       ref.key().id.compareTo(prev.id) != 0,
+                                       "duplicate key detected %s == %s", ref.key(), prev);
+                    prev = ref.key();
+                    AsyncChains.getUnchecked(loader.load(txnId)
+                                                   .map(command -> {
+                                                       if (journalTable.shouldIndex(ref.key())
+                                                           && command.participants() != null
+                                                           && command.participants().route() != null)
+                                                       {
+                                                           ref.segments(segment -> {
+                                                               journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, txnId, command.participants().route()));
+                                                           });
+                                                       }
+                                                       return command;
+                                                   })
+                                                   .beginAsResult());
+                }
+                catch (Throwable t)
+                {
+                    journal.handleError("Could not replay command " + ref.key().id, t);
+                }
             }
-        }
-        catch (Throwable t)
-        {
-            throw new RuntimeException("Can not replay journal.", t);
         }
     }
 
@@ -486,6 +509,12 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public void unsafeSetStarted()
     {
         status = Status.STARTED;
+    }
+
+    @VisibleForTesting
+    public Journal<JournalKey, Object> unsafeGetJournal()
+    {
+        return journal;
     }
 
     @Override

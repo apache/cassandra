@@ -18,6 +18,7 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
@@ -29,10 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.BooleanSupplier;
-import java.util.function.Function;
-import java.util.function.LongConsumer;
-import java.util.function.Predicate;
+import java.util.function.*;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -52,10 +50,10 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -498,10 +496,17 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
+    // TODO (require): Find a better way to test unwritten allocations and/or corruption
+    @VisibleForTesting
+    public void unsafeConsumeBytesForTesting(int entrySize, Consumer<ByteBuffer> corrupt)
+    {
+        allocate(entrySize).consumeBufferUnsafe(corrupt);
+    }
+
     private ActiveSegment<K, V>.Allocation allocate(int entrySize)
     {
-        ActiveSegment<K, V> segment = currentSegment;
 
+        ActiveSegment<K, V> segment = currentSegment;
         ActiveSegment<K, V>.Allocation alloc;
         while (null == (alloc = segment.allocate(entrySize)))
         {
@@ -861,7 +866,7 @@ public class Journal<K, V> implements Shutdownable
     /**
      * @return true if the invoking thread should continue, or false if it should terminate itself
      */
-    boolean handleError(String message, Throwable t)
+    public boolean handleError(String message, Throwable t)
     {
         Params.FailurePolicy policy = params.failurePolicy();
         JVMStabilityInspector.inspectJournalThrowable(t, name, policy);
@@ -878,6 +883,7 @@ public class Journal<K, V> implements Shutdownable
                 message = format("%s. Journal %s failure policy is %s; terminating thread.", message, name, policy);
                 logger.error(maybeAddDiskSpaceContext(message), t);
                 return false;
+            case ALLOW_UNSAFE_STARTUP:
             case IGNORE:
                 message = format("%s. Journal %s failure policy is %s; ignoring excepton.", message, name, policy);
                 logger.error(maybeAddDiskSpaceContext(message), t);
@@ -965,15 +971,16 @@ public class Journal<K, V> implements Shutdownable
             return key;
         }
 
+        public void ensureSorted()
+        {
+            Arrays.sort(segments);
+        }
+
         private void add(K key, long segment)
         {
+            Invariants.require(this.key == null || key.equals(this.key));
             this.key = key;
-            if (size == 0 || segments[size - 1] < segment)
-                segments[size++] = segment;
-            else
-                Invariants.require(segments[size - 1] == segment,
-                                   "Tried to add an out-of-order segment: %d, %s", segment,
-                                   LazyToString.lazy(() -> Arrays.toString(Arrays.copyOf(segments, size))));
+            segments[size++] = segment;
         }
 
         private void reset()
@@ -981,6 +988,16 @@ public class Journal<K, V> implements Shutdownable
             key = null;
             size = 0;
             Arrays.fill(segments, 0);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "KeyRefs{" +
+                   "segments=" + Arrays.toString(segments) +
+                   ", key=" + key +
+                   ", size=" + size +
+                   '}';
         }
     }
 
@@ -997,31 +1014,37 @@ public class Journal<K, V> implements Shutdownable
             for (Segment<K, V> segment : segments.allSorted(true))
             {
                 StaticSegment<K, V> staticSegment = (StaticSegment<K, V>) segment;
-                Iterator<K> iter = staticSegment.index().reader();
-                Head head = new Head(staticSegment.descriptor.timestamp);
-                iterators.add(new Iterator<>()
+                iterators.add(new AbstractIterator<>()
                 {
-                    public boolean hasNext()
-                    {
-                        return iter.hasNext();
-                    }
+                    final Iterator<K> iter = staticSegment.index().reader();
+                    final Head head = new Head(staticSegment.descriptor.timestamp);
 
-                    public Head next()
+                    @Override
+                    protected Head computeNext()
                     {
-                        head.key = iter.next();
+                        if (!iter.hasNext())
+                            return endOfData();
+
+                        K next = iter.next();
+                        while (next.equals(head.key))
+                        {
+                            if (!iter.hasNext())
+                                return endOfData();
+
+                            next = iter.next();
+                        }
+
+                        Invariants.require(!next.equals(head.key),
+                                           "%s == %s", next, head.key);
+                        head.key = next;
                         return head;
                     }
                 });
             }
 
             this.iterator = MergeIterator.get(iterators,
-                                              (r1, r2) -> {
-                                                  int keyCmp = keySupport.compare(r1.key, r2.key);
-                                                  if (keyCmp != 0)
-                                                      return keyCmp;
-                                                  return Long.compare(r1.segment, r2.segment);
-                                              },
-                                              new MergeIterator.Reducer<Head, KeyRefs<K>>()
+                                              (r1, r2) -> keySupport.compare(r1.key, r2.key),
+                                              new MergeIterator.Reducer<>()
                                               {
                                                   final KeyRefs<K> ret = new KeyRefs<>(segments.count());
 
@@ -1034,6 +1057,7 @@ public class Journal<K, V> implements Shutdownable
                                                   @Override
                                                   protected KeyRefs<K> getReduced()
                                                   {
+                                                      ret.ensureSorted();
                                                       return ret;
                                                   }
 

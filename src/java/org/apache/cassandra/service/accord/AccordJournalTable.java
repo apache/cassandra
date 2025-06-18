@@ -217,21 +217,16 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
+    // TODO (expected): this can be removed entirely when we "flush" segments directly to sstables (but we perhaps need to be careful about the active segment)
     private class TableRecordConsumer implements RecordConsumer<K>
     {
-        protected LongHashSet visited = null;
-        protected RecordConsumer<K> delegate;
+        final LongHashSet visited;
+        final RecordConsumer<K> delegate;
 
-        TableRecordConsumer(RecordConsumer<K> delegate)
+        TableRecordConsumer(LongHashSet visited, RecordConsumer<K> delegate)
         {
+            this.visited = visited;
             this.delegate = delegate;
-        }
-
-        void visit(long segment)
-        {
-            if (visited == null)
-                visited = new LongHashSet();
-            visited.add(segment);
         }
 
         boolean visited(long segment)
@@ -242,34 +237,40 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
-            visit(segment);
-            delegate.accept(segment, position, key, buffer, userVersion);
+            if (!visited(segment))
+                delegate.accept(segment, position, key, buffer, userVersion);
         }
     }
 
     private class JournalAndTableRecordConsumer implements RecordConsumer<K>
     {
         private final K key;
-        private final TableRecordConsumer tableRecordConsumer;
         private final RecordConsumer<K> delegate;
+        private LongHashSet visited;
+
+        void visit(long segment)
+        {
+            if (visited == null)
+                visited = new LongHashSet();
+            visited.add(segment);
+        }
 
         JournalAndTableRecordConsumer(K key, RecordConsumer<K> reader)
         {
             this.key = key;
-            this.tableRecordConsumer = new TableRecordConsumer(reader);
             this.delegate = reader;
         }
 
         void readTable()
         {
-            readAllFromTable(key, tableRecordConsumer);
+            readAllFromTable(key, new TableRecordConsumer(visited, delegate));
         }
 
         @Override
         public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
         {
-            if (!tableRecordConsumer.visited(segment)) //TODO (required): don't need this anymore
-                delegate.accept(segment, position, key, buffer, userVersion);
+            visit(segment);
+            delegate.accept(segment, position, key, buffer, userVersion);
         }
     }
 
@@ -484,13 +485,19 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         @CheckForNull
         protected K computeNext()
         {
+            K ret = null;
             if (mergeIterator.hasNext())
             {
                 try (UnfilteredRowIterator partition = mergeIterator.next())
                 {
-                    return (K) AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
+                    ret = (K) AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
+                    while (partition.hasNext())
+                        partition.next();
                 }
             }
+
+            if (ret != null)
+                return ret;
             else
                 return endOfData();
         }
@@ -514,10 +521,36 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             this.journalIterator = journal.staticSegmentKeyIterator();
         }
 
+        K prevFromTable = null;
+        K prevFromJournal = null;
+
+        @Override
         protected Journal.KeyRefs<K> computeNext()
         {
             K tableKey = tableIterator.hasNext() ? tableIterator.peek() : null;
-            Journal.KeyRefs<K> journalKey = journalIterator.hasNext() ? journalIterator.peek() : null;
+            K journalKey = journalIterator.hasNext() ? journalIterator.peek().key() : null;
+
+            if (journalKey != null)
+            {
+                Invariants.require(prevFromJournal == null || keySupport.compare(journalKey, prevFromJournal) >= 0, // == for case where we have not consumed previous on prev iteration
+                                   "Incorrect sort order in journal segments: %s should strictrly follow %s " + this, journalKey, prevFromJournal);
+                prevFromJournal = journalKey;
+            }
+            else
+            {
+                prevFromJournal = null;
+            }
+
+            if (tableKey != null)
+            {
+                Invariants.require(prevFromTable == null || keySupport.compare(tableKey, prevFromTable) >= 0, // == for case where we have not consumed previous on prev iteration
+                                   "Incorrect sort order in journal table: %s should strictrly follow %s " + this, tableKey, prevFromTable);
+                prevFromTable = tableKey;
+            }
+            else
+            {
+                prevFromTable = null;
+            }
 
             if (tableKey == null)
                 return journalKey == null ? endOfData() : journalIterator.next();
@@ -525,7 +558,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             if (journalKey == null)
                 return new Journal.KeyRefs<>(tableIterator.next());
 
-            int cmp = keySupport.compare(tableKey, journalKey.key());
+            int cmp = keySupport.compare(tableKey, journalKey);
             if (cmp == 0)
             {
                 tableIterator.next();
@@ -550,7 +583,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
         catch (IOException e)
         {
-            // can only throw if serializer is buggy
+            // can only throw if serializer is buggy or bytes got corrupted
             throw new RuntimeException(e);
         }
     }

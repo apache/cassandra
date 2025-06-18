@@ -535,8 +535,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return runOnCaller -> {
             if (!internodeMessagingStarted)
             {
-                inInstancelogger.debug("Dropping inbound message {} to {} as internode messaging has not been started yet",
-                             message, config().broadcastAddress());
+                if (inInstancelogger != null)
+                    inInstancelogger.debug("Dropping inbound message {} to {} as internode messaging has not been started yet",
+                            message, config().broadcastAddress());
                 return;
             }
             if (message.version() > MessagingService.current_version)

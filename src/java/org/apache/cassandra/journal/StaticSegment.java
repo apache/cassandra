@@ -17,6 +17,15 @@
  */
 package org.apache.cassandra.journal;
 
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.memory.MemoryUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
@@ -26,16 +35,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.Throwables;
-import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * An immutable data segment that is no longer written to.
@@ -80,7 +79,11 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     {
         List<Segment<K, V>> segments = new ArrayList<>(descriptors.size());
         for (Descriptor descriptor : descriptors)
-            segments.add(open(descriptor, keySupport));
+        {
+            StaticSegment<K, V> segment = open(descriptor, keySupport);
+            segments.add(segment);
+        }
+
         return segments;
     }
 
@@ -393,6 +396,8 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         {
             super(descriptor, keySupport);
             this.fsyncedLimit = fsyncedLimit;
+            if (fsyncedLimit < buffer.limit())
+                buffer.limit(fsyncedLimit);
         }
 
         @Override
@@ -415,6 +420,20 @@ public final class StaticSegment<K, V> extends Segment<K, V>
                     return eof();
                 buffer.position(offset + length);
             }
+            catch (EntrySerializer.MaybeRecoverableJournalError e)
+            {
+                logger.warn("Caught a recoverable journal error, skipping bytes", e);
+                int sizeMarker = buffer.getInt(offset);
+                if (e.knownLength <= Integer.BYTES || sizeMarker != offset + e.knownLength)
+                    throw new JournalReadError(descriptor, file,  e.getCause());
+
+                if (!areAllBytesZero(buffer, offset + Integer.BYTES, e.knownLength - Integer.BYTES))
+                    throw new JournalReadError(descriptor, file, e.getCause());
+
+                buffer.position(offset + e.knownLength);
+                // Recur here, as we anticipate a corrupt or incompletely written entry to be a very rare case.
+                return doAdvance();
+            }
             catch (IOException e)
             {
                 throw new JournalReadError(descriptor, file, e);
@@ -430,6 +449,25 @@ public final class StaticSegment<K, V> extends Segment<K, V>
             holder.clear();
             state = State.RESET;
         }
+    }
+
+    public static boolean areAllBytesZero(ByteBuffer buffer, int start, int length)
+    {
+        int mod8 = (length/8) * 8;
+        // Make sure all bytes are zero
+        for (int i = 0; i < mod8; i += Long.BYTES)
+        {
+            long v = buffer.getLong(start + i);
+            if (v != 0L)
+                return false;
+        }
+        for (int i = mod8; i < length; i++)
+        {
+            byte v = buffer.get(start + i);
+            if (v != 0)
+                return false;
+        }
+        return true;
     }
 
     public StaticSegment.KeyOrderReader<K> keyOrderReader()

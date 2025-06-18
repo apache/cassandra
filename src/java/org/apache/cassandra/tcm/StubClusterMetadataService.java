@@ -34,7 +34,6 @@ import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.Commit.Replicator;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
-import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
@@ -152,20 +151,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
         {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public LogState getLocalState(Epoch start, Epoch end, boolean includeSnapshot)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot, Retry retryPolicy)
-        {
-            throw new UnsupportedOperationException();
-        }
     }
-
 
     public static Builder builder()
     {

@@ -156,8 +156,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 TableId tableId = (TableId) view.shard().range.start().prefix();
                 TableMetadata tableMetadata = tableMetadata(tableId);
                 ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(view.shard().range.start()))
-                  .column("start_token", printToken(view.shard().range.start()))
-                  .column("end_token", printToken(view.shard().range.end()))
+                  .column("token_start", printToken(view.shard().range.start()))
+                  .column("token_end", printToken(view.shard().range.end()))
                   .column("last_started_at", approxTime.translate().toMillisSinceEpoch(view.lastStartedAtMicros() * 1000))
                   .column("cycle_started_at", approxTime.translate().toMillisSinceEpoch(view.cycleStartedAtMicros() * 1000))
                   .column("active", Objects.toString(view.active()))
@@ -169,7 +169,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                   .column("nextToIndex", view.toIndex())
                   .column("endIndex", view.cycleLength())
                   .column("current_splits", view.currentSplits())
-                  .column("stopping", view.stopping())
                   .column("stopping", view.stopping())
                 ;
             }
@@ -204,8 +203,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     TableId tableId = (TableId) start.prefix();
                     TableMetadata tableMetadata = tableMetadata(tableId);
                     ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(start))
-                      .column("start_token", printToken(start))
-                      .column("end_token", printToken(end))
+                      .column("token_start", printToken(start))
+                      .column("token_end", printToken(end))
                       .column("majority_before", entry.majorityBefore.toString())
                       .column("universal_before", entry.universalBefore.toString());
                     return ds;
@@ -292,8 +291,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 maxConflicts.foldlWithBounds(
                     (timestamp, ds, start, end) -> {
                         return ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(start), commandStoreId)
-                                 .column("start_token", printToken(start))
-                                 .column("end_token", printToken(end))
+                                 .column("token_start", printToken(start))
+                                 .column("token_end", printToken(end))
                                  .column("timestamp", timestamp.toString())
                         ;
                     },
@@ -508,8 +507,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 commandStore.unsafeGetRedundantBefore().foldl(
                     (entry, ds) -> {
                         ds.row(keyspace, table, sortToken(entry.range.start()), commandStoreId)
-                          .column("start_token", printToken(entry.range.start()))
-                          .column("end_token", printToken(entry.range.end()))
+                          .column("token_start", printToken(entry.range.start()))
+                          .column("token_end", printToken(entry.range.end()))
                           .column("start_epoch", entry.startEpoch)
                           .column("end_epoch", entry.endEpoch)
                           .column("gc_before", entry.maxBound(GC_BEFORE).toString())

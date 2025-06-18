@@ -204,7 +204,7 @@ public final class JVMStabilityInspector
 
     private static void inspectJournalError(Throwable t, String journalName, FailurePolicy failurePolicy)
     {
-        if (!StorageService.instance.isDaemonSetupCompleted())
+        if (!StorageService.instance.isDaemonSetupCompleted() && failurePolicy != FailurePolicy.ALLOW_UNSAFE_STARTUP)
         {
             logger.error("Exiting due to error while processing journal {} during initialization.", journalName, t);
             killer.killCurrentJVM(t, true);

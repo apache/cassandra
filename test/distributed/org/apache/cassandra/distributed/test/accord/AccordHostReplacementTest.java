@@ -69,7 +69,8 @@ public class AccordHostReplacementTest extends TestBaseImpl
 
             withRandom(rng -> {
                 Generator<SchemaSpec> schemaGen = SchemaGenerators.schemaSpecGen(KEYSPACE, "host_replace", 1000,
-                        SchemaSpec.optionsBuilder().withTransactionalMode(transactionalModeGen.generate(rng)));
+                        SchemaSpec.optionsBuilder().withTransactionalMode(transactionalModeGen.generate(rng))
+                                .withSpeculativeRetry("ALWAYS"));
                 SchemaSpec schema = schemaGen.generate(rng);
                 Generators.TrackingGenerator<Integer> pkGen = Generators.tracking(Generators.int32(0, Math.min(schema.valueGenerators.pkPopulation(), 1000)));
 

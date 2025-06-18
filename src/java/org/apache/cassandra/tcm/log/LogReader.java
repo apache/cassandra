@@ -28,8 +28,6 @@ import java.util.TreeSet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Ordering;
 
-import accord.utils.Invariants;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
@@ -114,58 +112,6 @@ public interface LogReader
                 entries = getEntries(startEpoch);
             return new LogState(null, entries.immutable());
 
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    default LogState getLogState(Epoch start, Epoch end, boolean includeSnapshot)
-    {
-        try
-        {
-            ClusterMetadata closestSnapshot = null;
-            if (includeSnapshot)
-                closestSnapshot = snapshots().getSnapshotBefore(start);
-
-            // Snapshot could not be found, fetch enough epochs to reconstruct the start metadata
-            if (closestSnapshot == null)
-            {
-                if (includeSnapshot)
-                    closestSnapshot = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-                ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
-                EntryHolder entryHolder = getEntries(Epoch.EMPTY, end);
-                for (Entry entry : entryHolder.entries)
-                {
-                    if (entry.epoch.isAfter(start))
-                        entries.add(entry);
-                    else if (includeSnapshot)
-                        closestSnapshot = entry.transform.execute(closestSnapshot).success().metadata;
-                }
-                return new LogState(closestSnapshot, entries.build());
-            }
-            else if (closestSnapshot.epoch.isBefore(start))
-            {
-                ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
-                // start is exclusive, so use the closest snapshot
-                EntryHolder entryHolder = getEntries(closestSnapshot.epoch, end);
-                for (Entry entry : entryHolder.entries)
-                {
-                    if (entry.epoch.isAfter(start))
-                        entries.add(entry);
-                    else if (includeSnapshot)
-                        closestSnapshot = entry.transform.execute(closestSnapshot).success().metadata;
-                }
-                return new LogState(closestSnapshot, entries.build());
-            }
-            else
-            {
-                Invariants.require(closestSnapshot.epoch.isEqualOrAfter(start),
-                                      "Got %s, but requested snapshot of %s", closestSnapshot.epoch, start);
-                EntryHolder entryHolder = getEntries(closestSnapshot.epoch, end);
-                return new LogState(closestSnapshot, ImmutableList.copyOf(entryHolder.entries));
-            }
         }
         catch (IOException e)
         {

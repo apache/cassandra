@@ -187,6 +187,15 @@ public class SchemaSpec
             shouldAppendAnd = true;
         }
 
+        if (options.speculativeRetry() != null)
+        {
+            appendWith.run();
+            if (shouldAppendAnd)
+                sb.append(" AND");
+            sb.append(" ").append("speculative_retry = '" + options.speculativeRetry() + "'");
+            shouldAppendAnd = true;
+        }
+
         if (options.disableReadRepair())
         {
             appendWith.run();
@@ -350,6 +359,7 @@ public class SchemaSpec
     public interface Options
     {
         TransactionalMode transactionalMode();
+        String speculativeRetry();
         boolean addWriteTimestamps();
         boolean disableReadRepair();
         String compactionStrategy();
@@ -372,6 +382,7 @@ public class SchemaSpec
         private boolean ifNotExists = false;
         private boolean trackLts = false;
         private boolean compactStorage = false;
+        private String speculativeRetry = null;
 
         private OptionsBuilder()
         {
@@ -379,6 +390,12 @@ public class SchemaSpec
 
         public Options build()
         {
+            return this;
+        }
+
+        public OptionsBuilder withSpeculativeRetry(String speculativeRetry)
+        {
+            this.speculativeRetry = speculativeRetry;
             return this;
         }
 
@@ -392,6 +409,11 @@ public class SchemaSpec
         public TransactionalMode transactionalMode()
         {
             return transactionalMode;
+        }
+
+        @Override
+        public String speculativeRetry() {
+            return speculativeRetry;
         }
 
         public OptionsBuilder addWriteTimestamps(boolean newValue)

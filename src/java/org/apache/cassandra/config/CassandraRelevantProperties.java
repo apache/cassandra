@@ -585,7 +585,7 @@ public enum CassandraRelevantProperties
     TCM_SORT_REPLICA_GROUPS("cassandra.sorted_replica_groups_enabled", "true"),
     TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA("cassandra.unsafe_boot_with_clustermetadata", null),
     TCM_USE_ATOMIC_LONG_PROCESSOR("cassandra.test.use_atomic_long_processor", "false"),
-    TCM_USE_NO_OP_REPLICATOR("cassandra.test.use_no_op_replicator", "false"),
+    TCM_USE_TEST_NO_OP_REPLICATOR("cassandra.test.use_no_op_replicator", "false"),
     TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED("cassandra.test.accord.store.thread_checks_enabled", "true"),
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
     TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed", "42"),
