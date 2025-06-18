@@ -90,7 +90,7 @@ public class TxnReference
      */
     public static TxnReference column(int tuple, TableMetadata table, ColumnMetadata column)
     {
-        return new TxnReference(tuple, table, column, null);
+        return column(tuple, table, column, null);
     }
 
     /**
@@ -99,6 +99,8 @@ public class TxnReference
      */
     public static TxnReference column(int tuple, TableMetadata table, ColumnMetadata column, CellPath path)
     {
+        Invariants.nonNull(table, "table is null");
+        Invariants.nonNull(column, "column is null");
         return new TxnReference(tuple, table, column, path);
     }
 
@@ -113,7 +115,7 @@ public class TxnReference
             Invariants.require(path == null, "Column is null but path isn't; unknown reference type");
             return row(tuple);
         }
-        return column(tuple, Invariants.nonNull(table), column, path);
+        return column(tuple, table, column, path);
     }
 
     @Override
