@@ -161,8 +161,8 @@ public class TxnConditionTest
                 builder.addPartitionKeyColumn(cm.name.toString().equals("_") ? "__" : "_", Int32Type.instance);
             TableMetadata tm = builder.build();
             cm = tm.getExistingColumn(cm.name);
-            return rs.nextBoolean() ? new TxnReference(rs.nextInt(0, Integer.MAX_VALUE), cm, tm)
-                                    : new TxnReference(rs.nextInt(0, Integer.MAX_VALUE), tm, cm, CellPath.create(BYTES_GEN.next(rs)));
+            return rs.nextBoolean() ? TxnReference.column(rs.nextInt(0, Integer.MAX_VALUE), tm, cm)
+                                    : TxnReference.column(rs.nextInt(0, Integer.MAX_VALUE), tm, cm, CellPath.create(BYTES_GEN.next(rs)));
         }
     };
     private static Gen<Clustering<?>> CLUSTERING_GEN = toGen(CassandraGenerators.CLUSTERING_GEN);

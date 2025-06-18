@@ -25,8 +25,8 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import accord.utils.Invariants;
 import accord.utils.VIntCoding;
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -67,7 +67,7 @@ public class TxnReference
     @Nullable
     private final CellPath path;
 
-    public TxnReference(int tuple, @Nullable TableMetadata table, @Nullable ColumnMetadata column, @Nullable CellPath path)
+    private TxnReference(int tuple, @Nullable TableMetadata table, @Nullable ColumnMetadata column, @Nullable CellPath path)
     {
         this.tuple = tuple;
         this.table = table;
@@ -75,16 +75,10 @@ public class TxnReference
         this.path = path;
     }
 
-    public TxnReference(int tuple, ColumnMetadata column, TableMetadata table)
-    {
-        this(tuple, table, column, null);
-    }
-
     /**
      * Creates a reference to a "row".  This method isn't directly used by the main logic and instead
      * exists to aid in testing.
      */
-    @VisibleForTesting
     public static TxnReference row(int tuple)
     {
         return new TxnReference(tuple, null, null, null);
@@ -94,7 +88,6 @@ public class TxnReference
      * Creates a reference to a "column".  This method isn't directly used by the main logic and instead
      * exists to aid in testing.
      */
-    @VisibleForTesting
     public static TxnReference column(int tuple, TableMetadata table, ColumnMetadata column)
     {
         return new TxnReference(tuple, table, column, null);
@@ -104,10 +97,23 @@ public class TxnReference
      * Creates a reference to a "column".  This method isn't directly used by the main logic and instead
      * exists to aid in testing.
      */
-    @VisibleForTesting
     public static TxnReference column(int tuple, TableMetadata table, ColumnMetadata column, CellPath path)
     {
         return new TxnReference(tuple, table, column, path);
+    }
+
+    public static TxnReference columnOrRow(int tuple,
+                                           @Nullable TableMetadata table,
+                                           @Nullable ColumnMetadata column,
+                                           @Nullable CellPath path)
+    {
+        if (column == null)
+        {
+            Invariants.require(table == null, "Column is null but table isn't; unknown reference type");
+            Invariants.require(path == null, "Column is null but path isn't; unknown reference type");
+            return row(tuple);
+        }
+        return column(tuple, Invariants.nonNull(table), column, path);
     }
 
     @Override
