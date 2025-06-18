@@ -21,12 +21,11 @@ package org.apache.cassandra.db.partitions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
-import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -34,40 +33,44 @@ import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
-import org.apache.cassandra.db.rows.ColumnData;
-import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.transform.FilteredRows;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.UpdateFunction;
-import org.apache.cassandra.utils.memory.Cloner;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapCloner;
+import org.apache.cassandra.utils.memory.HeapPool;
 
 public class SimplePartition extends AbstractBTreePartition
 {
+    static
+    {
+        DatabaseDescriptor.clientInitialization(false); // if the user setup DD respect w/e was done
+        if (DatabaseDescriptor.getPartitioner() == null)
+            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+    }
     public static final int DEFAULT_TIMESTAMP = 42;
+    private static final HeapPool POOL = new HeapPool(Long.MAX_VALUE, 1.0f, () -> ImmediateFuture.success(Boolean.TRUE));
 
-    private final TableMetadata metadata;
-    private final Updater updater;
-    private BTreePartitionData current;
+    private final OpOrder writeOrder = new OpOrder();
+    private final AtomicBTreePartition delegate;
 
     public SimplePartition(TableMetadata metadata, DecoratedKey partitionKey)
     {
         super(partitionKey);
-        this.metadata = metadata;
-        this.current = BTreePartitionData.EMPTY;
-        this.updater = new Updater();
+        delegate = new AtomicBTreePartition(TableMetadataRef.forOfflineTools(metadata), partitionKey, POOL.newAllocator(metadata.toString()));
     }
 
     @Override
     protected BTreePartitionData holder()
     {
-        return current;
+        return delegate.holder();
     }
 
     @Override
@@ -79,19 +82,22 @@ public class SimplePartition extends AbstractBTreePartition
     @Override
     public TableMetadata metadata()
     {
-        return metadata;
+        return delegate.metadata();
     }
 
     public SimplePartition clear()
     {
-        this.current = BTreePartitionData.EMPTY;
+        delegate.unsafeSetHolder(BTreePartitionData.EMPTY);
         return this;
     }
 
     public SimplePartition add(Row row)
     {
-        PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, partitionKey, row);
-        current = updater.makeMergedPartition(current, update);
+        PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata(), partitionKey, row);
+        try (OpOrder.Group group = writeOrder.start())
+        {
+            delegate.addAll(update, HeapCloner.instance, group, UpdateTransaction.NO_OP);
+        }
         return this;
     }
 
@@ -212,81 +218,6 @@ public class SimplePartition extends AbstractBTreePartition
         {
             SimplePartition.this.add(builder.build());
             return SimplePartition.this;
-        }
-    }
-
-    private class Updater implements UpdateFunction<Row, Row>, ColumnData.PostReconciliationFunction
-    {
-        private final Cloner cloner = HeapCloner.instance;
-
-        private BTreePartitionData makeMergedPartition(BTreePartitionData current, PartitionUpdate update)
-        {
-            DeletionInfo newDeletionInfo = merge(current.deletionInfo, update.deletionInfo());
-
-            RegularAndStaticColumns columns = current.columns;
-            RegularAndStaticColumns newColumns = update.columns().mergeTo(columns);
-            Row newStatic = mergeStatic(current.staticRow, update.staticRow());
-
-            Object[] tree = BTree.update(current.tree, update.holder().tree, metadata.comparator, this);
-            EncodingStats newStats = current.stats.mergeWith(update.stats());
-
-            return new BTreePartitionData(newColumns, tree, newDeletionInfo, newStatic, newStats);
-        }
-
-        private DeletionInfo merge(DeletionInfo existing, DeletionInfo update)
-        {
-            if (update.isLive() || !update.mayModify(existing))
-                return existing;
-
-            return existing.mutableCopy().add(update.clone(HeapCloner.instance));
-        }
-
-        private Row mergeStatic(Row current, Row update)
-        {
-            if (update.isEmpty())
-                return current;
-            if (current.isEmpty())
-                return insert(update);
-
-            return merge(current, update);
-        }
-
-        @Override
-        public Row insert(Row insert)
-        {
-            return insert.clone(cloner);
-        }
-
-        public Row merge(Row existing, Row update)
-        {
-            return Rows.merge(existing, update, this);
-        }
-
-        @Override
-        public ColumnData insert(ColumnData insert)
-        {
-            return insert.clone(cloner);
-        }
-
-        @Override
-        public Cell<?> merge(Cell<?> previous, Cell<?> insert)
-        {
-            if (insert == previous)
-                return insert;
-
-            return cloner.clone(insert);
-        }
-
-        @Override
-        public void delete(ColumnData existing)
-        {
-            // no-op
-        }
-
-        @Override
-        public void onAllocatedOnHeap(long delta)
-        {
-            // no-op
         }
     }
 }
