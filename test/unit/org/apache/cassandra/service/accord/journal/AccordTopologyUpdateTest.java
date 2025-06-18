@@ -141,7 +141,8 @@ public class AccordTopologyUpdateTest
             switch (kind)
             {
                 case NewTopology: return new AccordTopologyUpdate.NewTopology(topologyUpdateGen.next(rs));
-                case Topologies: return new AccordTopologyUpdate.TopologyImage(epochGen.nextLong(rs));
+                case TopologyImage: return new AccordTopologyUpdate.TopologyImage(epochGen.nextLong(rs), AccordTopologyUpdate.Kind.TopologyImage);
+                case NoOp: return new AccordTopologyUpdate.TopologyImage(epochGen.nextLong(rs), AccordTopologyUpdate.Kind.NoOp);
                 default: throw new AssertionError("Unknown kind: " + kind);
             }
         };
