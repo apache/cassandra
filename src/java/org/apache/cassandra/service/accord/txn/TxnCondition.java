@@ -291,8 +291,8 @@ public abstract class TxnCondition
             FilteredPartition partition = reference.getPartition(data);
             boolean exists = partition != null && !partition.isEmpty();
 
-            if (reference.column() != null
-                && !reference.column().isPartitionKey())
+            ColumnMetadata column = reference.column();
+            if (column != null && !column.isPartitionKey())
             {
                 Row row = null;
                 if (exists)
@@ -319,7 +319,7 @@ public abstract class TxnCondition
                             // This is NULL when touched, so need to still check each value
                             if (exists)
                             {
-                                CollectionType<?> type = (CollectionType<?>) reference.column().type.unwrap();
+                                CollectionType<?> type = (CollectionType<?>) column.type.unwrap();
                                 switch (type.kind)
                                 {
                                     case MAP:
@@ -360,7 +360,7 @@ public abstract class TxnCondition
                     {
                         // This is frozen, so check if the Cell is a tombstone and that the element is present.
                         Cell<?> cell = (Cell<?>) columnData;
-                        exists = exists(cell, reference.column().type);
+                        exists = exists(cell, column.type);
                         if (exists)
                         {
                             ByteBuffer element = reference.getFrozenCollectionElement(cell);
@@ -371,7 +371,7 @@ public abstract class TxnCondition
                     {
                         // This is frozen, so check if the Cell is a tombstone and that the field is present.
                         Cell<?> cell = (Cell<?>) columnData;
-                        exists = exists(cell, reference.column().type);
+                        exists = exists(cell, column.type);
                         if (exists)
                         {
                             ByteBuffer fieldValue = reference.getFrozenFieldValue(cell);
@@ -381,7 +381,7 @@ public abstract class TxnCondition
                     else
                     {
                         Cell<?> cell = (Cell<?>) columnData;
-                        exists = exists(cell, reference.column().type);
+                        exists = exists(cell, column.type);
                     }
                 }
             }
