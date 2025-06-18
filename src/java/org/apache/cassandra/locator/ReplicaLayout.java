@@ -239,7 +239,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         {
             // todo deduplicate so that "pending" contains "read - write",
             // which is a hack until we revisit how consistency level handles pending
-            DataPlacement dataPlacement = metadata.placements.get(ks.params.replication);
+            DataPlacement dataPlacement = ks.params.replication.isMeta()
+                                      ? metadata.getCMSPlacement()
+                                      : metadata.placements.get(ks.params.replication);
             natural = forNonLocalStrategyTokenRead(dataPlacement, token);
             // perf optimization to avoid double endpoints search and filtering for a typical case
             // DataPlacement constructor does a deduplication of reads/writes, so we can use cheap == comparision here
@@ -394,7 +396,10 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
 
     static EndpointsForRange forNonLocalStategyRangeRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, AbstractBounds<PartitionPosition> range)
     {
-        return metadata.placements.get(keyspace.params.replication).reads.forRange(range.right.getToken()).get();
+        DataPlacement placement = keyspace.params.replication.isMeta()
+                                  ? metadata.getCMSPlacement()
+                                  : metadata.placements.get(keyspace.params.replication);
+        return placement.reads.forRange(range.right.getToken()).get();
     }
 
     public static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
@@ -407,16 +412,10 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         return dataPlacement.reads.forToken(token).get();
     }
 
-    static EndpointsForToken forNonLocalStrategyTokenWrite(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
-    {
-        return forNonLocalStrategyTokenWrite(metadata.placements.get(keyspace.params.replication), token);
-    }
-
-    static EndpointsForToken forNonLocalStrategyTokenWrite(DataPlacement dataPlacement, Token token)
+    private static EndpointsForToken forNonLocalStrategyTokenWrite(DataPlacement dataPlacement, Token token)
     {
         return dataPlacement.writes.forToken(token).get();
     }
-
 
     static EndpointsForRange forLocalStrategyRange(ClusterMetadata metadata, AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
     {

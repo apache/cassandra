@@ -80,6 +80,7 @@ public enum Version
     V8(8),
     /**
      * - DataPlacements don't include MetaStrategy, replaced by ClusterMetadata.CMSMembership
+     * - Size of DataPlacements is encoded as vint
      */
     V9(9),
 

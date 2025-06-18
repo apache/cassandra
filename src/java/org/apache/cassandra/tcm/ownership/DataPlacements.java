@@ -46,6 +46,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class DataPlacements extends ReplicationMap<DataPlacement> implements MetadataValue<DataPlacements>
 {
@@ -256,14 +257,13 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         public void serialize(DataPlacements t, DataOutputPlus out, Version version) throws IOException
         {
             Map<ReplicationParams, DataPlacement> map = t.asMap();
+            if (version.isBefore(Version.V9))
+                out.writeInt(map.size());
+            else
+                out.writeUnsignedVInt32(map.size());
 
-            // From V7, placements for the metadata keyspace are derived from CMSMembership, not serialized
-            int mapSize = version.isBefore(Version.V7) ? map.size() : Math.max(map.size() - 1, 0);
-            out.writeInt(mapSize);
             for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
-                if (version.isAtLeast(Version.V7) && entry.getKey().isMeta())
-                    continue;
                 ReplicationParams.serializer.serialize(entry.getKey(), out, version);
                 DataPlacement.serializerFor(entry.getKey()).serialize(entry.getValue(), out, version);
             }
@@ -272,7 +272,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
         public DataPlacements deserialize(DataInputPlus in, Version version) throws IOException
         {
-            int size = in.readInt();
+            int size = version.isBefore(Version.V9) ? in.readInt() : in.readUnsignedVInt32();
             Map<ReplicationParams, DataPlacement> map = Maps.newHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++)
             {
@@ -286,13 +286,9 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         public long serializedSize(DataPlacements t, Version version)
         {
             Map<ReplicationParams, DataPlacement> map = t.asMap();
-            // From V7, placements for the metadata keyspace are derived from CMSMembership, not serialized
-            int mapSize = version.isBefore(Version.V7) ? map.size() : Math.max(map.size() - 1, 0);
-            long size = sizeof(mapSize);
+            long size = version.isBefore(Version.V9) ? sizeof(map.size()) :  sizeofUnsignedVInt(map.size());
             for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
-                if (version.isAtLeast(Version.V7) && entry.getKey().isMeta())
-                    continue;
                 size += ReplicationParams.serializer.serializedSize(entry.getKey(), version);
                 size += DataPlacement.serializerFor(entry.getKey()).serializedSize(entry.getValue(), version);
             }

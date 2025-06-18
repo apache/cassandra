@@ -25,7 +25,9 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
 /**
@@ -164,7 +166,11 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
 
     public static VersionedEndpoints.ForToken natural(Keyspace keyspace, Token token)
     {
-        return ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).reads.forToken(token);
+        ReplicationParams replication = keyspace.getMetadata().params.replication;
+        DataPlacement placement = replication.isMeta()
+                                  ? ClusterMetadata.current().getCMSPlacement()
+                                  : ClusterMetadata.current().placements.get(replication);
+        return placement.reads.forToken(token);
     }
 
 }

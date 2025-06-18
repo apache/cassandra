@@ -126,6 +126,7 @@ public class ClusterMetadata
     private Set<InetAddressAndPort> fullCMSEndpoints;
     private volatile Map<ReplicationParams, RangesAtEndpoint> localRangesAllSettled = null;
     private static final RangesAtEndpoint EMPTY_LOCAL_RANGES = RangesAtEndpoint.empty(FBUtilities.getBroadcastAddressAndPort());
+    private DataPlacement cmsDataPlacement;
 
     public ClusterMetadata(IPartitioner partitioner)
     {
@@ -214,7 +215,7 @@ public class ClusterMetadata
         this.directory = directory;
         this.tokenMap = tokenMap;
         this.accordFastPath = accordFastPath;
-        this.placements = maybeAddMetaPlacement(placements, cmsMembership);
+        this.placements = placements;
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
         this.consensusMigrationState = consensusMigrationState;
@@ -222,6 +223,7 @@ public class ClusterMetadata
         this.locator = Locator.usingDirectory(directory);
         this.accordStaleReplicas = accordStaleReplicas;
         this.cmsMembership = cmsMembership;
+        this.cmsDataPlacement = calculateCMSPlacement(placements, cmsMembership);
     }
 
     public Set<NodeId> fullCMSMemberIds()
@@ -264,52 +266,57 @@ public class ClusterMetadata
         return fullCMSReplicas;
     }
 
-    private DataPlacements maybeAddMetaPlacement(DataPlacements placements, CMSMembership cms)
+    public DataPlacement getCMSPlacement()
+    {
+        return cmsDataPlacement;
+    }
+
+    private DataPlacement calculateCMSPlacement(DataPlacements placements, CMSMembership cms)
     {
         if (epoch.isBefore(Epoch.FIRST) || schema.getKeyspaces().get(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
-            return placements;
+            return DataPlacement.empty();
 
-        DataPlacement metaPlacement;
-        Epoch previousLastModified = placements.lastModified();
-        Epoch nextLastModified;
-        if (epoch.is(Epoch.FIRST))
+        if (directory.isEmpty())
         {
-            // PRE_INITIALIZE_CMS: placements need to be hardcoded to the local address so that the subsequent
-            // INITIALIZE_CMS can be committed
-            Replica localReplica = MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort());
-            metaPlacement = DataPlacement.builder()
-                                         .withReadReplica(Epoch.FIRST, localReplica)
-                                         .withWriteReplica(Epoch.FIRST, localReplica)
-                                         .build();
-            nextLastModified = Epoch.FIRST;
-        }
-        else if (epoch.isAfter(Epoch.FIRST) && directory.isEmpty())
-        {
-            // This cluster did not previously upgrade from a gossip based version (i.e. pre-6.0) but did at some point
-            // run a version prior to MetadataVersion.V7 where we started to encode CMS membership directly. This
-            // condition implies that we are reconstructing a serialized cluster metadata during replay or else the
-            // directory should not be empty after Epoch.FIRST as the base state in INITIALIZE_CMS now includes the
-            // first CMS node. Similarly, if the cluster had previously been running a gossip-based version, the
-            // directory would contain entries for each of the live nodes at the time of upgrade.
-            // Given this state, the very next transformation that is/was applied will be to register the node that
-            // committed the PRE_INITIALIZE_CMS and INTIALIZE_CMS transformations. So we just leave the placements
-            // untouched as they will already contain that node as an endpoint.
-            return placements;
+            if (epoch.is(Epoch.FIRST))
+            {
+                // PRE_INITIALIZE_CMS: placements need to be hardcoded to the local address so that the subsequent
+                // INITIALIZE_CMS can be committed
+                Replica localReplica = MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort());
+                return DataPlacement.builder()
+                                    .withReadReplica(Epoch.FIRST, localReplica)
+                                    .withWriteReplica(Epoch.FIRST, localReplica)
+                                    .build();
+            }
+            else
+            {
+                // This cluster did not previously upgrade from a gossip based version (i.e. pre-6.0) but did at some point
+                // run a version prior to MetadataVersion.V7 where we started to encode CMS membership directly. This
+                // condition implies that we are reconstructing a serialized cluster metadata during replay or else the
+                // directory should not be empty after Epoch.FIRST as the base state in INITIALIZE_CMS now includes the
+                // first CMS node. Similarly, if the cluster had previously been running a gossip-based version, the
+                // directory would contain entries for each of the live nodes at the time of upgrade.
+                // Given this state, the very next transformation that is/was applied will be to register the node that
+                // committed the PRE_INITIALIZE_CMS and INTIALIZE_CMS transformations. So we just extract the placements
+                // associated with the MetaStrategy params as they will already contain that node as an endpoint.
+                for (ReplicationParams params : placements.keys())
+                    if (params.isMeta())
+                        return placements.get(params);
+
+                // This point can only be reached in tests.
+                // TODO enforce that invariant somehow
+                Replica localReplica = MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort());
+                return DataPlacement.builder()
+                                    .withReadReplica(epoch, localReplica)
+                                    .withWriteReplica(epoch, localReplica)
+                                    .build();
+            }
         }
         else
         {
             // Build a placement based on the CMS membership
-            metaPlacement = cms.toPlacement(directory);
-            if (cms.lastModified().isAfter(previousLastModified))
-                nextLastModified = cms.lastModified();
-            else
-                nextLastModified = previousLastModified;
-
+            return cms.toPlacement(directory);
         }
-        return placements.unbuild()
-                         .with(ReplicationParams.meta(this), metaPlacement)
-                         .build()
-                         .withLastModified(nextLastModified);
     }
 
     public Transformer transformer()
@@ -1220,7 +1227,10 @@ public class ClusterMetadata
             DistributedSchema.serializer.serialize(metadata.schema, out, version);
             Directory.serializer.serialize(metadata.directory, out, version);
             TokenMap.serializer.serialize(metadata.tokenMap, out, version);
-            DataPlacements.serializer.serialize(metadata.placements, out, version);
+            // Prior to V9, placements for the MetaStrategy keyspace were included in the main DataPlacements
+            // so when targetting such a version, emulate that.
+            DataPlacements placements = version.isBefore(Version.V9) ? preV9Placements(metadata) : metadata.placements;
+            DataPlacements.serializer.serialize(placements, out, version);
             if (version.isAtLeast(MIN_ACCORD_VERSION))
             {
                 AccordFastPath.serializer.serialize(metadata.accordFastPath, out, version);
@@ -1239,6 +1249,7 @@ public class ClusterMetadata
                 assert key.valueType.isInstance(value);
                 value.serialize(out, version);
             }
+            // From V9 CMS membership is directly encoded in ClusterMetadata
             if (version.isAtLeast(Version.V9))
                 CMSMembership.serializer.serialize(metadata.cmsMembership, out, version);
         }
@@ -1381,8 +1392,7 @@ public class ClusterMetadata
                     sizeof(metadata.partitioner.getClass().getCanonicalName()) +
                     DistributedSchema.serializer.serializedSize(metadata.schema, version) +
                     Directory.serializer.serializedSize(metadata.directory, version) +
-                    TokenMap.serializer.serializedSize(metadata.tokenMap, version) +
-                    DataPlacements.serializer.serializedSize(metadata.placements, version);
+                    TokenMap.serializer.serializedSize(metadata.tokenMap, version);
 
             if (version.isAtLeast(MIN_ACCORD_VERSION))
             {
@@ -1394,10 +1404,25 @@ public class ClusterMetadata
             size += LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
                     InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
 
+            // Prior to V9, placements for the MetaStrategy keyspace were included in the main DataPlacements
+            // so when targetting such a version, emulate that.
+            DataPlacements placements = version.isBefore(Version.V9) ? preV9Placements(metadata) : metadata.placements;
+            size += DataPlacements.serializer.serializedSize(placements, version);
+            // From V9 CMS membership is directly encoded in ClusterMetadata
             if (version.isAtLeast(Version.V9))
                 size += CMSMembership.serializer.serializedSize(metadata.cmsMembership, version);
 
             return size;
+        }
+
+        private DataPlacements preV9Placements(ClusterMetadata metadata)
+        {
+            if (metadata.cmsDataPlacement.isEmpty())
+                return metadata.placements;
+
+            return metadata.placements.unbuild()
+                                      .with(ReplicationParams.meta(metadata), metadata.cmsDataPlacement)
+                                      .build();
         }
 
         public static IPartitioner getPartitioner(DataInputPlus in, Version version) throws IOException

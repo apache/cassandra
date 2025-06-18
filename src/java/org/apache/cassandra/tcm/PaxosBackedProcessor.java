@@ -70,7 +70,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         if (metadata.epoch.isAfter(Epoch.FIRST) && metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
             return true;
         return metadata.epoch.isEqualOrBefore(Epoch.FIRST)
-               && metadata.placements.get(ReplicationParams.meta(metadata)).reads.byEndpoint().keySet().contains(FBUtilities.getBroadcastAddressAndPort());
+               && metadata.getCMSPlacement().reads.byEndpoint().keySet().contains(FBUtilities.getBroadcastAddressAndPort());
     }
 
     @Override
