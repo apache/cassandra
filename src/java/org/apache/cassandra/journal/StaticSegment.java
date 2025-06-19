@@ -80,7 +80,11 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     {
         List<Segment<K, V>> segments = new ArrayList<>(descriptors.size());
         for (Descriptor descriptor : descriptors)
-            segments.add(open(descriptor, keySupport));
+        {
+            StaticSegment<K, V> segment = open(descriptor, keySupport);
+            segments.add(segment);
+        }
+
         return segments;
     }
 
@@ -393,6 +397,8 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         {
             super(descriptor, keySupport);
             this.fsyncedLimit = fsyncedLimit;
+            if (fsyncedLimit < buffer.limit())
+                buffer.limit(fsyncedLimit);
         }
 
         @Override
