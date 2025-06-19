@@ -89,6 +89,10 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
     abstract void finishAndAddWriter();
     abstract Throwable cleanupWriter(Throwable t);
 
+    // Only valid in the scope of a single `compact` call
+    private JournalKey prevKey;
+    private DecoratedKey prevDecoratedKey;
+
     @Override
     public Collection<StaticSegment<JournalKey, V>> compact(Collection<StaticSegment<JournalKey, V>> segments)
     {
@@ -191,20 +195,22 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
             t = cleanupWriter(t);
             throw new RuntimeException(String.format("Caught exception while serializing. Last seen key: %s", key), t);
         }
+        finally
+        {
+            prevKey = null;
+            prevDecoratedKey = null;
+        }
 
         finishAndAddWriter();
         return Collections.emptyList();
     }
-
-    private JournalKey prevKey;
-    private DecoratedKey prevDecoratedKey;
 
     private void maybeWritePartition(JournalKey key, FlyweightImage builder, FlyweightSerializer<Object, FlyweightImage> serializer, long descriptor, int offset) throws IOException
     {
         if (builder != null)
         {
             DecoratedKey decoratedKey = AccordKeyspace.JournalColumns.decorate(key);
-            Invariants.requireArgument(prevKey == null || ((decoratedKey.compareTo(prevDecoratedKey) >= 0 ? 1 : -1) == (JournalKey.SUPPORT.compare(key, prevKey) >= 0 ? 1 : -1)),
+            Invariants.requireArgument(prevKey == null || normalize(decoratedKey.compareTo(prevDecoratedKey)) == normalize(JournalKey.SUPPORT.compare(key, prevKey)),
                                        "Partition key and JournalKey didn't have matching order, which may imply a serialization issue.\n%s (%s)\n%s (%s)",
                                        key, decoratedKey, prevKey, prevDecoratedKey);
             prevKey = key;
@@ -221,6 +227,15 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
             PartitionUpdate update = PartitionUpdate.singleRowUpdate(AccordKeyspace.Journal, decoratedKey, row);
             writer().append(update.unfilteredIterator());
         }
+    }
+
+    private static int normalize(int cmp)
+    {
+        if (cmp == 0)
+            return 0;
+        if (cmp < 0)
+            return -1;
+        return 1;
     }
 }
 
