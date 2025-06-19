@@ -1077,7 +1077,7 @@ public class ClusterMetadataTestHelper
     public static VersionedEndpoints.ForToken getNaturalReplicasForToken(ClusterMetadata metadata, String keyspace, Token searchPosition)
     {
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
-        return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(searchPosition);
+        return metadata.placement(keyspaceMetadata.params.replication).reads.forToken(searchPosition);
     }
 
     public static BootstrapAndJoin getBootstrapPlan(int idx)

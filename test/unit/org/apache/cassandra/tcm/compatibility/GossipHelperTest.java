@@ -104,7 +104,7 @@ public class GossipHelperTest
         assertEquals(internal, metadata.directory.addresses.get(nodeId).localAddress);
         assertEquals(nativeAddress, metadata.directory.addresses.get(nodeId).nativeAddress);
 
-        DataPlacements dp = metadata.placements;
+        DataPlacements dp = metadata.placements();
         assertEquals(1, dp.get(KSM.params.replication).reads.forToken(token).get().size());
         assertTrue(dp.get(KSM.params.replication).reads.forToken(token).get().contains(endpoint));
         assertEquals(1, dp.get(KSM.params.replication).writes.forToken(token).get().size());
@@ -196,8 +196,8 @@ public class GossipHelperTest
             assertEquals(entry.getValue(), metadata.tokenMap.tokens(nodeId).iterator().next());
         }
 
-        ReplicaGroups reads = metadata.placements.get(KSM_NTS.params.replication).reads;
-        ReplicaGroups writes = metadata.placements.get(KSM_NTS.params.replication).writes;
+        ReplicaGroups reads = metadata.placement(KSM_NTS.params.replication).reads;
+        ReplicaGroups writes = metadata.placement(KSM_NTS.params.replication).writes;
         assertEquals(reads, writes);
         // tokens are
         // dc1: 1: 1000, 3: 3000, 5: 5000, 6: 7000, 7: 9000

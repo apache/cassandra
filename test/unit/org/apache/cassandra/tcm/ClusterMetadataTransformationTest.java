@@ -348,7 +348,7 @@ public class ClusterMetadataTransformationTest
         else if (key == TOKEN_MAP)
             return metadata.tokenMap;
         else if (key == DATA_PLACEMENTS)
-            return metadata.placements;
+            return metadata.placements();
         else if (key == LOCKED_RANGES)
             return metadata.lockedRanges;
         else if (key == IN_PROGRESS_SEQUENCES)

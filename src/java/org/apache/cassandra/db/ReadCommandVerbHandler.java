@@ -240,8 +240,8 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
     private static Replica getLocalReplica(ClusterMetadata metadata, Token token, String keyspace)
     {
-        return metadata.placements
-               .get(metadata.schema.getKeyspaces().getNullable(keyspace).params.replication)
+        return metadata
+               .placement(metadata.schema.getKeyspaces().getNullable(keyspace).params.replication)
                .reads
                .forToken(token)
                .get()

@@ -60,7 +60,7 @@ public class ClusterMetadataUpgradeAssassinateTest extends UpgradeTestBase
         ((IInvokableInstance) i).runOnInstance(() -> {
             ClusterMetadata metadata = ClusterMetadata.current();
             InetAddressAndPort ep = InetAddressAndPort.getByNameUnchecked(host);
-            metadata.placements.asMap().forEach((key, value) -> {
+            metadata.placements().forEach((key, value) -> {
                 if (key.isMeta())
                     return;
                 boolean existsInPlacements = Streams.concat(value.reads.endpoints.stream(),

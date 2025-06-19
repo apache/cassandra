@@ -318,7 +318,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     @Override
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
-        DataPlacements placements = metadata.placements;
+        DataPlacements placements = metadata.placements();
         switch (next)
         {
             // need to undo MID_REPLACE and START_REPLACE, but PREPARE_REPLACE doesn't affect placements
@@ -355,7 +355,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     private static MovementMap movementMap(InetAddressAndPort beingReplaced, PlacementDeltas startDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
-        DataPlacements placements = ClusterMetadata.current().placements;
+        DataPlacements placements = ClusterMetadata.current().placements();
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement originalPlacements = placements.get(params);

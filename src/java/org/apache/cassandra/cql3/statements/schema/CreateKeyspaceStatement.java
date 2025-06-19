@@ -96,7 +96,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         // as we have as keys in metadata.placements to have a fast map lookup
         // ReplicationParams are immutable, so it is a safe optimization
         KeyspaceParams keyspaceParams = attrs.asNewKeyspaceParams();
-        ReplicationParams replicationParams = metadata.placements.deduplicateReplicationParams(keyspaceParams.replication);
+        ReplicationParams replicationParams = metadata.placements().deduplicateReplicationParams(keyspaceParams.replication);
         keyspaceParams = keyspaceParams.withSwapped(replicationParams);
         KeyspaceMetadata keyspaceMetadata = KeyspaceMetadata.create(keyspaceName, keyspaceParams);
 

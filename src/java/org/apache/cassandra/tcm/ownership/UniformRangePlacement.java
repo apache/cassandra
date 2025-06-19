@@ -335,7 +335,7 @@ public class UniformRangePlacement implements PlacementProvider
             }
             else if (params.isLocal())
             {
-                placements.put(params, metadata.placements.get(params));
+                placements.put(params, metadata.placement(params));
             }
             else
             {

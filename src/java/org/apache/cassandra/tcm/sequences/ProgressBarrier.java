@@ -58,6 +58,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
@@ -170,8 +171,9 @@ public class ProgressBarrier
             Set<Range<Token>> ranges = e.getValue();
             for (Range<Token> range : ranges)
             {
-                EndpointsForRange writes = metadata.placements.get(params).writes.matchRange(range).get().filter(r -> filter.test(r.endpoint()));
-                EndpointsForRange reads = metadata.placements.get(params).reads.matchRange(range).get().filter(r -> filter.test(r.endpoint()));
+                DataPlacement placement = metadata.placement(params);
+                EndpointsForRange writes = placement.writes.matchRange(range).get().filter(r -> filter.test(r.endpoint()));
+                EndpointsForRange reads = placement.reads.matchRange(range).get().filter(r -> filter.test(r.endpoint()));
                 // Affected ranges can contain ranges which are the results of merging or splitting and may not exist
                 // as keys in the existing ReplicaGroups. As such, no replicas will be found for these ranges and so no
                 // WaitFor is necessary.

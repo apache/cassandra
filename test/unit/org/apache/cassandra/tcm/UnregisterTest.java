@@ -110,7 +110,7 @@ public class UnregisterTest
         assertFalse(metadata.directory.allJoinedEndpoints().contains(ep));
         assertFalse(metadata.directory.allDatacenterRacks().containsKey("dc2"));
         assertFalse(metadata.directory.knownDatacenters().contains("dc2"));
-        metadata.placements.asMap().forEach((params, placement) -> {
+        metadata.placements().forEach((params, placement) -> {
             assertFalse(Streams.concat(placement.writes.endpoints.stream(), placement.reads.endpoints.stream()).anyMatch((fr) -> fr.endpoints().contains(ep)));
         });
     }

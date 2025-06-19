@@ -109,7 +109,7 @@ public class MetadataSnapshotListenerTest
         listener.notify(entry, result);
         ClusterMetadata snapshot = snapshots.getSnapshot(nextEpoch);
         assertEquals(nextEpoch, snapshot.epoch);
-        assertEquals(toSnapshot.placements, snapshot.placements);
+        assertEquals(toSnapshot.placements(), snapshot.placements());
     }
 
     private MetadataSnapshots init()

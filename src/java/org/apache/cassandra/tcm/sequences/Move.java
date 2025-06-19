@@ -321,7 +321,7 @@ public class Move extends MultiStepOperation<Epoch>
                     StreamPlan streamPlan = new StreamPlan(StreamOperation.RELOCATION);
                     Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
                     Map<ReplicationParams, EndpointsByReplica> movementMap = movementMap(FailureDetector.instance,
-                                                                                         metadata.placements,
+                                                                                         metadata.placements(),
                                                                                          toSplitRanges,
                                                                                          startMove.delta(),
                                                                                          midMove.delta(),
@@ -430,7 +430,7 @@ public class Move extends MultiStepOperation<Epoch>
     @Override
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
-        DataPlacements placements = metadata.placements;
+        DataPlacements placements = metadata.placements();
 
         switch (next)
         {

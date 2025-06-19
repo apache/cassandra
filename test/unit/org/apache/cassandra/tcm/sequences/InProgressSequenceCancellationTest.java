@@ -301,7 +301,7 @@ public class InProgressSequenceCancellationTest
 
     private void assertRelevantMetadata(ClusterMetadata first, ClusterMetadata second)
     {
-        assertTrue(first.placements.equivalentTo(second.placements));
+        assertTrue(first.placements().equivalentTo(second.placements()));
         assertTrue(first.directory.equivalentTo(second.directory));
         assertTrue(first.tokenMap.equivalentTo(second.tokenMap));
         assertEquals(first.lockedRanges.locked.keySet(), second.lockedRanges.locked.keySet());

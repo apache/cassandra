@@ -156,7 +156,7 @@ public class BootWithMetadataTest
         assertEquals(toWrite.schema, fromRead.schema);
         assertEquals(toWrite.directory, fromRead.directory);
         assertEquals(toWrite.tokenMap, fromRead.tokenMap);
-        assertEquals(toWrite.placements, fromRead.placements);
+        assertEquals(toWrite.placements(), fromRead.placements());
         assertEquals(toWrite.lockedRanges, fromRead.lockedRanges);
         assertEquals(toWrite.inProgressSequences, fromRead.inProgressSequences);
         assertEquals(toWrite.extensions, fromRead.extensions);

@@ -254,6 +254,6 @@ public class OwnershipUtils
             assert result.isSuccess();
             workingMetadata = result.success().metadata;
         }
-        return workingMetadata.placements;
+        return workingMetadata.placements();
     }
 }

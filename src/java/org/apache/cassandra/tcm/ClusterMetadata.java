@@ -319,6 +319,16 @@ public class ClusterMetadata
         }
     }
 
+    public DataPlacement placement(ReplicationParams params)
+    {
+        return params.isMeta() ? cmsDataPlacement : placements.get(params);
+    }
+
+    public DataPlacements placements()
+    {
+        return placements;
+    }
+
     public Transformer transformer()
     {
         return new Transformer(this, this.nextEpoch());
@@ -484,8 +494,8 @@ public class ClusterMetadata
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, Token token)
     {
-        ReplicaGroups writes = placements.get(ksm.params.replication).writes;
-        ReplicaGroups reads = placements.get(ksm.params.replication).reads;
+        ReplicaGroups writes = placement(ksm.params.replication).writes;
+        ReplicaGroups reads = placement(ksm.params.replication).reads;
         if (ksm.params.replication.isMeta())
             return !reads.equals(writes);
         return !reads.forToken(token).equals(writes.forToken(token));
@@ -494,8 +504,8 @@ public class ClusterMetadata
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, InetAddressAndPort endpoint)
     {
-        ReplicaGroups writes = placements.get(ksm.params.replication).writes;
-        ReplicaGroups reads = placements.get(ksm.params.replication).reads;
+        ReplicaGroups writes = placement(ksm.params.replication).writes;
+        ReplicaGroups reads = placement(ksm.params.replication).reads;
         return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
     }
 
@@ -506,22 +516,22 @@ public class ClusterMetadata
 
     public RangesAtEndpoint writeRanges(KeyspaceMetadata metadata, InetAddressAndPort peer)
     {
-        return placements.get(metadata.params.replication).writes.byEndpoint().get(peer);
+        return placement(metadata.params.replication).writes.byEndpoint().get(peer);
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public Map<Range<Token>, VersionedEndpoints.ForRange> pendingRanges(KeyspaceMetadata metadata)
     {
         Map<Range<Token>, VersionedEndpoints.ForRange> map = new HashMap<>();
-        ReplicaGroups writes = placements.get(metadata.params.replication).writes;
-        ReplicaGroups reads = placements.get(metadata.params.replication).reads;
+        ReplicaGroups writes = placement(metadata.params.replication).writes;
+        ReplicaGroups reads = placement(metadata.params.replication).reads;
 
         // first, pending ranges as the result of range splitting or merging
         // i.e. new ranges being created through join/leave
         List<Range<Token>> pending = new ArrayList<>(writes.ranges());
         pending.removeAll(reads.ranges());
         for (Range<Token> p : pending)
-            map.put(p, placements.get(metadata.params.replication).writes.forRange(p));
+            map.put(p, placement(metadata.params.replication).writes.forRange(p));
 
         // next, ranges where the ranges themselves are not changing, but the replicas are
         // i.e. replacement or RF increase
@@ -538,8 +548,8 @@ public class ClusterMetadata
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending endpoints
     public VersionedEndpoints.ForToken pendingEndpointsFor(KeyspaceMetadata metadata, Token t)
     {
-        VersionedEndpoints.ForToken writeEndpoints = placements.get(metadata.params.replication).writes.forToken(t);
-        VersionedEndpoints.ForToken readEndpoints = placements.get(metadata.params.replication).reads.forToken(t);
+        VersionedEndpoints.ForToken writeEndpoints = placement(metadata.params.replication).writes.forToken(t);
+        VersionedEndpoints.ForToken readEndpoints = placement(metadata.params.replication).reads.forToken(t);
         EndpointsForToken.Builder endpointsForToken = writeEndpoints.get().newBuilder(writeEndpoints.size() - readEndpoints.size());
 
         for (Replica writeReplica : writeEndpoints.get())

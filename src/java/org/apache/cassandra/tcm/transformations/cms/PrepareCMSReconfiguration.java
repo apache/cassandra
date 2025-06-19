@@ -266,9 +266,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
             KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
             KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, replicationParams, FastPathStrategy.simple()));
 
-            return executeInternal(prev,
-                                   transformer -> transformer.with(prev.placements.replaceParams(prev.nextEpoch(), ReplicationParams.meta(prev), replicationParams))
-                                                             .with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace))));
+            return executeInternal(prev, transformer -> transformer.with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace))));
         }
 
         public String toString()

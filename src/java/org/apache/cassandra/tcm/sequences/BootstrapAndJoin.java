@@ -326,7 +326,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @Override
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
-        DataPlacements placements = metadata.placements;
+        DataPlacements placements = metadata.placements();
         switch (next)
         {
             // need to undo MID_JOIN and START_JOIN, then merge the ranges split by PrepareJoin
@@ -357,7 +357,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @VisibleForTesting
     public Pair<MovementMap, MovementMap> getMovementMaps(ClusterMetadata metadata)
     {
-        MovementMap movementMap = movementMap(metadata.directory.endpoint(startJoin.nodeId()), metadata.placements, startJoin.delta());
+        MovementMap movementMap = movementMap(metadata.directory.endpoint(startJoin.nodeId()), metadata.placements(), startJoin.delta());
         MovementMap strictMovementMap = toStrict(movementMap, finishJoin.delta());
         return Pair.create(movementMap, strictMovementMap);
     }

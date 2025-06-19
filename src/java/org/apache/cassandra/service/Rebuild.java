@@ -232,7 +232,7 @@ public class Rebuild
     private static MovementMap movementMap(ClusterMetadata metadata, String keyspace, String tokens)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
-        DataPlacements placements = metadata.placements;
+        DataPlacements placements = metadata.placements();
         if (keyspace == null)
         {
             placements.forEach((params, placement) -> movementMapBuilder.put(params, addMovementsForParams(placement, null)));

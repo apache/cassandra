@@ -33,8 +33,8 @@ public class PlacementsChangeListener implements ChangeListener
 
     private boolean shouldInvalidate(ClusterMetadata prev, ClusterMetadata next)
     {
-        if (!prev.placements.lastModified().equals(next.placements.lastModified()) &&
-            !prev.placements.equivalentTo(next.placements)) // <- todo should we update lastModified if the result is the same?
+        if (!prev.placements().lastModified().equals(next.placements().lastModified()) &&
+            !prev.placements().equivalentTo(next.placements())) // <- todo should we update lastModified if the result is the same?
             return true;
 
         if (prev.schema.getKeyspaces().size() != next.schema.getKeyspaces().size())

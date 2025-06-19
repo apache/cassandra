@@ -85,7 +85,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 ClusterMetadata metadata = ClusterMetadata.current();
                 assertEquals(5, metadata.fullCMSMembers().size());
                 assertEquals(ReplicationParams.simpleMeta(5, metadata.directory.knownDatacenters()),
-                                    metadata.placements.keys().stream().filter(ReplicationParams::isMeta).findFirst().get());
+                             metadata.placements().keys().stream().filter(ReplicationParams::isMeta).findFirst().get());
             });
             cluster.stream().forEach(i -> {
                 Assert.assertTrue(i.executeInternal(String.format("SELECT * FROM %s.%s", SchemaConstants.METADATA_KEYSPACE_NAME, DistributedMetadataLogKeyspace.TABLE_NAME)).length > 0);
@@ -96,7 +96,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 ClusterMetadata metadata = ClusterMetadata.current();
                 assertEquals(1, metadata.fullCMSMembers().size());
                 assertEquals(ReplicationParams.simpleMeta(1, metadata.directory.knownDatacenters()),
-                                    metadata.placements.keys().stream().filter(ReplicationParams::isMeta).findFirst().get());
+                             metadata.placements().keys().stream().filter(ReplicationParams::isMeta).findFirst().get());
             });
         }
     }
@@ -136,7 +136,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 Assert.assertNull(metadata.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance));
                 assertEquals(2, metadata.fullCMSMembers().size());
                 ReplicationParams params = ReplicationParams.meta(metadata);
-                DataPlacement placements = metadata.placements.get(params);
+                DataPlacement placements = metadata.placements().get(params);
                 assertTrue(placements.reads.equivalentTo(placements.writes));
                 assertEquals(metadata.fullCMSMembers().size(), Integer.parseInt(params.asMap().get("dc0")));
             });
@@ -161,7 +161,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 Assert.assertNull(metadata.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance));
                 Assert.assertTrue(metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()));
                 assertEquals(3, metadata.fullCMSMembers().size());
-                DataPlacement placements = metadata.placements.get(ReplicationParams.meta(metadata));
+                DataPlacement placements = metadata.placements().get(ReplicationParams.meta(metadata));
                 Assert.assertTrue(placements.reads.equivalentTo(placements.writes));
             });
         }

@@ -44,7 +44,7 @@ public class ReplaceSameAddress
     {
         MovementMap.Builder builder = MovementMap.builder();
         InetAddressAndPort addr = metadata.directory.endpoint(nodeId);
-        metadata.placements.forEach((params, placement) -> {
+        metadata.placements().forEach((params, placement) -> {
             EndpointsByReplica.Builder sources = new EndpointsByReplica.Builder();
             placement.reads.byEndpoint().get(addr).forEach(destination -> {
                 placement.reads.forRange(destination.range()).forEach(potentialSource -> {

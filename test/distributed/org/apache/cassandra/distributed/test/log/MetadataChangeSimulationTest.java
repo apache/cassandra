@@ -508,7 +508,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 Set<NodeId> bouncing = new HashSet<>();
                 Set<NodeId> replicasFromBouncedReplicaSets = new HashSet<>();
                 outer:
-                for (VersionedEndpoints.ForRange placements : sut.service.metadata().placements.get(rf.asKeyspaceParams().replication).writes.endpoints)
+                for (VersionedEndpoints.ForRange placements : sut.service.metadata().placement(rf.asKeyspaceParams().replication).writes.endpoints)
                 {
                     List<NodeId> replicas = new ArrayList<>(metadata.directory.toNodeIds(placements.get().endpoints()));
                     List<NodeId> bounceCandidates = new ArrayList<>();
@@ -545,8 +545,8 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         ClusterMetadata actualMetadata = sut.service.metadata();
         ReplicationParams replication = actualMetadata.schema.getKeyspaces().get("test").get().params.replication;
         Assert.assertEquals(replication, sut.rf.asKeyspaceParams().replication);
-        match(actualMetadata.placements.get(replication).reads, sut.rf.replicate(modelState.simulatedPlacements.nodes).asMap());
-        match(actualMetadata.placements.get(replication).writes, sut.rf.replicate(modelState.simulatedPlacements.nodes).asMap());
+        match(actualMetadata.placement(replication).reads, sut.rf.replicate(modelState.simulatedPlacements.nodes).asMap());
+        match(actualMetadata.placement(replication).writes, sut.rf.replicate(modelState.simulatedPlacements.nodes).asMap());
     }
 
     public static void validatePlacements(CMSTestBase.CMSSut sut, ModelState modelState) throws Throwable
@@ -559,7 +559,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         Assert.assertEquals(modelState.simulatedPlacements.nodes.stream().map(Node::token).collect(Collectors.toSet()),
                             actualMetadata.tokenMap.tokens().stream().map(t -> ((LongToken) t).getLongValue()).collect(Collectors.toSet()));
 
-        for (Map.Entry<ReplicationParams, DataPlacement> e : actualMetadata.placements.asMap().entrySet())
+        for (Map.Entry<ReplicationParams, DataPlacement> e : actualMetadata.placements().asMap().entrySet())
         {
             if (!e.getKey().equals(replication))
                 continue;
@@ -569,7 +569,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             match(placement.reads, modelState.simulatedPlacements.readPlacements);
         }
 
-        validatePlacements(sut.partitioner, sut.rf, modelState, actualMetadata.placements);
+        validatePlacements(sut.partitioner, sut.rf, modelState, actualMetadata.placements());
     }
 
     public static ModelChecker.Pair<ModelState, Node> registerNewNode(ModelState state, CMSSut sut, int dcIdx, int rackIdx)
@@ -953,7 +953,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 validatePlacements(sut, state);
             }
             // Finally verify that the predicted placements match the actual ones
-            Assert.assertTrue(allSettled.equivalentTo(sut.service.metadata().placements.get(ksm.params.replication)));
+            Assert.assertTrue(allSettled.equivalentTo(sut.service.metadata().placement(ksm.params.replication)));
         }
     }
 }

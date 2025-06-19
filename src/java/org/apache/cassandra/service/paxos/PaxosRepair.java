@@ -586,7 +586,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         ClusterMetadata metadata = ClusterMetadata.current();
         Collection<InetAddressAndPort> allEndpoints = replication.isMeta()
                                                       ? metadata.fullCMSMembers()
-                                                      : metadata.placements.get(replication).reads.forRange(range).endpoints();
+                                                      : metadata.placement(replication).reads.forRange(range).endpoints();
         return hasSufficientLiveNodesForTopologyChange(allEndpoints,
                                                        liveEndpoints,
                                                        ep -> metadata.locator.location(ep).datacenter,
