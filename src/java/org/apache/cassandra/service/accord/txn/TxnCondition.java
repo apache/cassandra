@@ -519,9 +519,7 @@ public abstract class TxnCondition
         @Override
         public void collect(TableMetadatas.Collector collector)
         {
-            TableMetadata table = reference.table();
-            if (table != null)
-                collector.add(table);
+            reference.collect(collector);
         }
 
         @Override
