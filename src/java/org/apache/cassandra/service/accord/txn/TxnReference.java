@@ -113,7 +113,6 @@ public abstract class TxnReference
         return column(tuple, table, column, path);
     }
 
-    public abstract Row getRow(FilteredPartition partition);
     public abstract void collect(TableMetadatas.Collector collector);
 
     public RowReference asRow()
@@ -138,12 +137,16 @@ public abstract class TxnReference
         FilteredPartition partition = getPartition(data);
         return partition != null ? getRow(partition) : null;
     }
-//
-//
-//    public boolean selectsColumn()
-//    {
-//        return column != null;
-//    }
+
+    public Row getRow(FilteredPartition partition)
+    {
+        if (kind == Kind.COLUMN && asColumn().column.isStatic())
+            return partition.staticRow();
+        assert partition.rowCount() <= 1 : "Multi-row references are not allowed";
+        if (partition.rowCount() == 0)
+            return null;
+        return partition.getAtIdx(0);
+    }
 
     public static final UnversionedSerializer<RowReference> rowSerializer = new UnversionedSerializer<>()
     {
@@ -262,12 +265,6 @@ public abstract class TxnReference
         }
 
         @Override
-        public Row getRow(FilteredPartition partition)
-        {
-            return partition.staticRow();
-        }
-
-        @Override
         public void collect(TableMetadatas.Collector collector)
         {
             // no-op
@@ -347,15 +344,6 @@ public abstract class TxnReference
             return partition.metadata().partitionKeyColumns().size() == 1
                    ? partition.partitionKey().getKey()
                    : ((CompositeType) partition.metadata().partitionKeyType).split(partition.partitionKey().getKey())[column.position()];
-        }
-
-        @Override
-        public Row getRow(FilteredPartition partition)
-        {
-            assert partition.rowCount() <= 1 : "Multi-row references are not allowed";
-            if (partition.rowCount() == 0)
-                return null;
-            return partition.getAtIdx(0);
         }
 
         @Override
