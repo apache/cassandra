@@ -78,7 +78,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
 
-public class TxnNamedRead extends AbstractSerialized<ReadCommand, TableMetadatas>
+public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadCommand, TableMetadatas>
 {
     @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(TxnNamedRead.class);

@@ -77,7 +77,7 @@ public class TxnUpdate extends AccordUpdate
     final TableMetadatas tables;
     private final Keys keys;
     private final ByteBuffer[] fragments;
-    private final AbstractSerialized<TxnCondition, TableMetadatas> condition;
+    private final SerializedTxnCondition condition;
 
     @Nullable
     private final ConsistencyLevel cassandraCommitCL;
@@ -107,7 +107,7 @@ public class TxnUpdate extends AccordUpdate
         this.preserveTimestamps = preserveTimestamps;
     }
 
-    private TxnUpdate(TableMetadatas tables, Keys keys, ByteBuffer[] fragments, AbstractSerialized<TxnCondition, TableMetadatas> condition, ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
+    private TxnUpdate(TableMetadatas tables, Keys keys, ByteBuffer[] fragments, SerializedTxnCondition condition, ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
     {
         this.tables = tables;
         this.keys = keys;
@@ -261,14 +261,14 @@ public class TxnUpdate extends AccordUpdate
         return updates;
     }
 
-    public static final AccordUpdateSerializer<TxnUpdate> serializer = new AccordUpdateSerializer<TxnUpdate>()
+    public static final AccordUpdateSerializer<TxnUpdate> serializer = new AccordUpdateSerializer<>()
     {
         @Override
         public void serialize(TxnUpdate update, TableMetadatasAndKeys tablesAndKeys, DataOutputPlus out, Version version) throws IOException
         {
             out.writeByte(update.preserveTimestamps ? FLAG_PRESERVE_TIMESTAMPS : 0);
             tablesAndKeys.serializeKeys(update.keys, out);
-            writeWithVIntLength(update.condition.bytes(tablesAndKeys.tables, version), out);
+            writeWithVIntLength(update.condition.bytes(), out);
             serializeArray(update.fragments, out, ByteBufferUtil.byteBufferSerializer);
             serializeNullable(update.cassandraCommitCL, out, consistencyLevelSerializer);
         }
@@ -290,7 +290,7 @@ public class TxnUpdate extends AccordUpdate
         {
             long size = 1; // flags
             size += tablesAndKeys.serializedKeysSize(update.keys);
-            size += serializedSizeWithVIntLength(update.condition.bytes(tablesAndKeys.tables, version));
+            size += serializedSizeWithVIntLength(update.condition.bytes());
             size += serializedArraySize(update.fragments, ByteBufferUtil.byteBufferSerializer);
             size += serializedNullableSize(update.cassandraCommitCL, consistencyLevelSerializer);
             return size;

@@ -43,14 +43,13 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.CellPath;
-import org.apache.cassandra.io.ParameterisedVersionedSerializer;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordSerializers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
-import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.MAP;
@@ -265,15 +264,15 @@ public class TxnReferenceOperation
         return new Constants.Value(bytes);
     }
 
-    static final ParameterisedVersionedSerializer<TxnReferenceOperation, TableMetadatas, Version> serializer = new ParameterisedVersionedSerializer<>()
+    static final ParameterisedUnversionedSerializer<TxnReferenceOperation, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>()
     {
         @Override
-        public void serialize(TxnReferenceOperation operation, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+        public void serialize(TxnReferenceOperation operation, TableMetadatas tables, DataOutputPlus out) throws IOException
         {
             out.writeByte(operation.kind.id);
             tables.serialize(operation.table, out);
             columnMetadataSerializer.serialize(operation.receiver, operation.table, out);
-            TxnReferenceValue.serializer.serialize(operation.value, tables, out, version);
+            TxnReferenceValue.serializer.serialize(operation.value, tables, out);
 
             out.writeBoolean(operation.key != null);
             if (operation.key != null)
@@ -285,24 +284,24 @@ public class TxnReferenceOperation
         }
 
         @Override
-        public TxnReferenceOperation deserialize(TableMetadatas tables, DataInputPlus in, Version version) throws IOException
+        public TxnReferenceOperation deserialize(TableMetadatas tables, DataInputPlus in) throws IOException
         {
             Kind kind = Kind.from(in.readByte());
             TableMetadata table = tables.deserialize(in);
             ColumnMetadata receiver = columnMetadataSerializer.deserialize(table, in);
-            TxnReferenceValue value = TxnReferenceValue.serializer.deserialize(tables, in, version);
+            TxnReferenceValue value = TxnReferenceValue.serializer.deserialize(tables, in);
             ByteBuffer key = in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null;
             ByteBuffer field = in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null;
             return new TxnReferenceOperation(kind, receiver, table, key, field, value);
         }
 
         @Override
-        public long serializedSize(TxnReferenceOperation operation, TableMetadatas tables, Version version)
+        public long serializedSize(TxnReferenceOperation operation, TableMetadatas tables)
         {
             long size = Byte.BYTES;
             size +=  tables.serializedSize(operation.table);
             size += columnMetadataSerializer.serializedSize(operation.receiver, operation.table);
-            size += TxnReferenceValue.serializer.serializedSize(operation.value, tables, version);
+            size += TxnReferenceValue.serializer.serializedSize(operation.value, tables);
 
             if (operation.key != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.key);

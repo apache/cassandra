@@ -19,48 +19,24 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.nio.ByteBuffer;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.NotThreadSafe;
 
-import accord.utils.Invariants;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 
-/**
- * Item that is serialized by default
- */
-@NotThreadSafe
-public abstract class AbstractSerialized<T>
+public abstract class AbstractParameterisedUnversionedSerialized<T, P> extends AbstractSerialized<T>
 {
-    protected @Nullable final ByteBuffer latestVersionBytes;
-    protected transient @Nullable T memoized = null;
-
-    public AbstractSerialized(@Nullable ByteBuffer latestVersionBytes)
+    public AbstractParameterisedUnversionedSerialized(@Nullable ByteBuffer latestVersionBytes)
     {
-        this.latestVersionBytes = latestVersionBytes;
+        super(latestVersionBytes);
     }
 
-    public abstract long estimatedSizeOnHeap();
+    protected abstract ParameterisedUnversionedSerializer<T, P> serializer();
 
-    protected boolean isNull()
+    protected T deserialize(P param)
     {
-        return latestVersionBytes == null;
-    }
-
-    public void unmemoize()
-    {
-        memoized = null;
-    }
-
-    @Nullable
-    protected ByteBuffer unsafeBytes()
-    {
-        return latestVersionBytes;
-    }
-
-    @Nonnull
-    protected ByteBuffer bytes()
-    {
-        Invariants.nonNull(latestVersionBytes);
-        return latestVersionBytes;
+        T result = memoized;
+        if (result == null && latestVersionBytes != null)
+            memoized = result = serializer().deserializeUnchecked(param, latestVersionBytes);
+        return result;
     }
 }

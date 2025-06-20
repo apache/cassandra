@@ -60,7 +60,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
-import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -179,8 +178,7 @@ public class TxnConditionTest
             TableMetadatas.Collector collector = new TableMetadatas.Collector();
             condition.collect(collector);
             TableMetadatas tables = collector.build();
-            for (Version version : Version.V1.greaterThanOrEqual())
-                Serializers.testSerde(output, TxnCondition.serializer, condition, tables, version);
+            Serializers.testSerde(output, TxnCondition.serializer, condition, tables);
             SCHEMA.clear();
         });
     }
@@ -344,7 +342,7 @@ public class TxnConditionTest
                     {
                         TxnReference ref = TxnReference.column(0, metadata, column);
                         // empty logic reuses this which doesn't make the most sense... flesh it out
-                        TxnCondition.Value condition = new TxnCondition.Value(ref, kind, EMPTY_BYTE_BUFFER, version);
+                        TxnCondition.Value condition = new TxnCondition.Value(ref.asColumn(), kind, EMPTY_BYTE_BUFFER, version);
                         Assertions.assertThat(condition.applies(data))
                                   .describedAs("column=%s, type=%s, kind=%s", column.name, type.asCQL3Type(), kind.name())
                                   .isFalse();
@@ -368,7 +366,7 @@ public class TxnConditionTest
                     {
                         TxnReference ref = TxnReference.column(0, metadata, column);
                         // empty logic reuses this which doesn't make the most sense... flesh it out
-                        TxnCondition.Value condition = new TxnCondition.Value(ref, kind, nonEmpty, version);
+                        TxnCondition.Value condition = new TxnCondition.Value(ref.asColumn(), kind, nonEmpty, version);
                         Assertions.assertThat(condition.applies(data))
                                   .describedAs("column=%s, type=%s, kind=%s", column.name, type.asCQL3Type(), kind.name())
                                   .isFalse();
@@ -405,7 +403,7 @@ public class TxnConditionTest
                     {
                         TxnReference ref = TxnReference.column(0, metadata, column);
                         // empty logic reuses this which doesn't make the most sense... flesh it out
-                        TxnCondition.Value condition = new TxnCondition.Value(ref, kind, value, version);
+                        TxnCondition.Value condition = new TxnCondition.Value(ref.asColumn(), kind, value, version);
 
                         partition.clear().addEmptyAndLive(clustering);
                         // empty partition
@@ -498,7 +496,7 @@ public class TxnConditionTest
             {
                 case 0: return TxnCondition.none();
                 case 1: return new TxnCondition.Exists(TXN_REF_GEN.next(rs), EXISTS_KIND_GEN.next(rs));
-                case 2: return new TxnCondition.Value(TXN_REF_GEN.next(rs), VALUE_KIND_GEN.next(rs), BYTES_GEN.next(rs), PROTOCOL_VERSION_GEN.next(rs));
+                case 2: return new TxnCondition.Value(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_GEN.next(rs), BYTES_GEN.next(rs), PROTOCOL_VERSION_GEN.next(rs));
                 case 3: return new TxnCondition.ColumnConditionsAdapter(CLUSTERING_GEN.next(rs), Gens.lists(BOUND_GEN).ofSizeBetween(0, 3).next(rs));
                 case 4: return new TxnCondition.BooleanGroup(BOOLEAN_KIND_GEN.next(rs), Gens.lists(txnConditionGen()).ofSizeBetween(0, 3).next(rs));
                 default: throw new AssertionError();
