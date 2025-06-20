@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -62,5 +63,21 @@ public abstract class AbstractSerialized<T>
     {
         Invariants.nonNull(latestVersionBytes);
         return latestVersionBytes;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || (o.getClass() != getClass())) return false;
+
+        AbstractSerialized<?> that = (AbstractSerialized<?>) o;
+        return Objects.equals(latestVersionBytes, that.latestVersionBytes);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return latestVersionBytes != null ? latestVersionBytes.hashCode() : 0;
     }
 }

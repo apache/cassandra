@@ -38,22 +38,6 @@ public abstract class AbstractParameterisedVersionedSerialized<T, P> extends Abs
         super(latestVersionBytes);
     }
 
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || (o.getClass() != getClass())) return false;
-
-        AbstractParameterisedVersionedSerialized<?,?> that = (AbstractParameterisedVersionedSerialized<?,?>) o;
-        return Objects.equals(latestVersionBytes, that.latestVersionBytes);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return latestVersionBytes != null ? latestVersionBytes.hashCode() : 0;
-    }
-
     protected abstract ByteBuffer serialize(T value, P param, Version version);
     protected abstract ByteBuffer reserialize(ByteBuffer bytes, P param, Version srcVersion, Version trgVersion);
     protected abstract T deserialize(P param, ByteBuffer bytes, Version version);
