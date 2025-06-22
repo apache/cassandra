@@ -200,42 +200,12 @@ fi
 JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 
 # Cassandra heap dump files management options:
-# if not set externally, this script assigns defauls:
-#  - enable heap dump files clean up
-#  - keeping 2 newest files
-#  - keeping 1 oldest file to help identify first OOM incident
+# 0..N > 0 - keep N newest files
+# -1 or empty - disable clean up
+# default: 2 - keep 2 newest files
 if [ "$CASSANDRA_HEAPDUMP_CLEAN" = "" ]; then
-    CASSANDRA_HEAPDUMP_CLEAN=1
+    CASSANDRA_HEAPDUMP_CLEAN=2
 fi
-if [ "$CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES" = "" ]; then
-    CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES=2
-fi
-if [ "$CASSANDRA_HEAPDUMP_KEEP_OLDEST_N_FILES" = "" ]; then
-    CASSANDRA_HEAPDUMP_KEEP_OLDEST_N_FILES=1
-fi
-
-clean_heap_dump_files()
-{
-    if [ "$CASSANDRA_HEAPDUMP_CLEAN" -eq 1 ] && \
-           [ "$CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES" -ge 0 ] && \
-           [ "$CASSANDRA_HEAPDUMP_KEEP_OLDEST_N_FILES" -ge 0 ] && \
-           [ -d "$CASSANDRA_HEAPDUMP_DIR" ]; then
-        # find all files under CASSANDRA_HEAPDUMP_DIR,
-        # sort by last modification date descending,
-        # print those, that need to be removed
-        ls -pt1 "$CASSANDRA_HEAPDUMP_DIR" | grep -v / | \
-        grep "^cassandra-.*-pid.*[.]hprof$" | \
-        awk "BEGIN{ f=0; }{ files[f]=\$0; f+=1; }END{
-            for(i = $CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES; i < f - $CASSANDRA_HEAPDUMP_KEEP_OLDEST_N_FILES; i++) {
-              print files[i];
-            }
-          }" | while IFS= read -r file; do
-          rm -f "$CASSANDRA_HEAPDUMP_DIR/$file"
-        done
-    fi
-}
-
-should_clean_heap_dump_files=1
 
 # stop the jvm on OutOfMemoryError as it can result in some data corruption
 # uncomment the preferred option
