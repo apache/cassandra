@@ -87,7 +87,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     @Override
     protected void onStartPartition(DecoratedKey key)
     {
-        notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), indexWriter.writer.position()));
+        notifyObservers(o -> o.startPartition(key, partitionWriter.getPartitionStartPosition(), indexWriter.writer.position()));
     }
 
     @Override
@@ -97,7 +97,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         // serialized size to the index-writer position
         long indexFilePosition = ByteBufferUtil.serializedSizeWithShortLength(key.getKey()) + indexWriter.writer.position();
 
-        RowIndexEntry entry = RowIndexEntry.create(partitionWriter.getInitialPosition(),
+        RowIndexEntry entry = RowIndexEntry.create(partitionWriter.getPartitionStartPosition(),
                                                    indexFilePosition,
                                                    partitionLevelDeletion,
                                                    partitionWriter.getHeaderLength(),
@@ -229,16 +229,30 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         return openInternal(null, openReason);
     }
 
+    @Override
+    public void setFirst(DecoratedKey key)
+    {
+        super.setFirst(key);
+        indexWriter.first = key;
+    }
+
+    @Override
+    public void setLast(DecoratedKey key)
+    {
+        super.setLast(key);
+        indexWriter.last = key;
+    }
+
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    protected static class IndexWriter extends SortedTableWriter.AbstractIndexWriter
+    public static class IndexWriter extends SortedTableWriter.AbstractIndexWriter
     {
         private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
-        final SequentialWriter writer;
+        public final SequentialWriter writer;
         final FileHandle.Builder builder;
-        final IndexSummaryBuilder summary;
+        public final IndexSummaryBuilder summary;
         private DataPosition mark;
         private DecoratedKey first;
         private DecoratedKey last;

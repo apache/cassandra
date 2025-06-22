@@ -120,7 +120,7 @@ public class InteropTokenRangeTest extends TestBaseImpl
     {
         NavigableSet<Long> set = new TreeSet<>();
         while (result.hasNext())
-            set.add(Murmur3Partitioner.instance.getToken(result.next().get("pk")).token);
+            set.add(Murmur3Partitioner.instance.getToken(result.next().get("pk")).getLongValue());
         return set;
     }
 

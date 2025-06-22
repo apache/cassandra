@@ -145,7 +145,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         add(tombstone.deletedSlice().start(),
             tombstone.deletedSlice().end(),
             tombstone.deletionTime().markedForDeleteAt(),
-            tombstone.deletionTime().localDeletionTimeUnsignedInteger);
+            tombstone.deletionTime().localDeletionTimeUnsignedInteger());
     }
 
     /**

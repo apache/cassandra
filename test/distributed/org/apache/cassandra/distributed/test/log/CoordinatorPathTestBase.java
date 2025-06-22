@@ -1005,9 +1005,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             SinglePartitionReadCommand sprc = (SinglePartitionReadCommand) command;
 
             Murmur3Partitioner.LongToken requestToken = (Murmur3Partitioner.LongToken) sprc.partitionKey().getToken();
-            assert node.cluster.state.get().isReadReplicaFor(requestToken.token, node.matcher) :
+            assert node.cluster.state.get().isReadReplicaFor(requestToken.getLongValue(), node.matcher) :
             String.format("Node %s is not a read replica for %s. Replicas: %s",
-                          node, requestToken.token, node.cluster.state.get().readReplicasFor(requestToken.token));
+                          node, requestToken.getLongValue(), node.cluster.state.get().readReplicasFor(requestToken.getLongValue()));
         }
 
         @Override
@@ -1048,7 +1048,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
             Murmur3Partitioner.LongToken leftToken = (Murmur3Partitioner.LongToken) prrc.dataRange().keyRange().left.getToken();
             Murmur3Partitioner.LongToken rightToken = (Murmur3Partitioner.LongToken) prrc.dataRange().keyRange().right.getToken();
-            assert node.cluster.state.get().isReadReplicaFor(leftToken.token, rightToken.token, node.matcher);
+            assert node.cluster.state.get().isReadReplicaFor(leftToken.getLongValue(), rightToken.getLongValue(), node.matcher);
         }
 
         @Override
@@ -1085,8 +1085,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         {
             Mutation command = request.payload;
             Murmur3Partitioner.LongToken requestToken = (Murmur3Partitioner.LongToken) command.key().getToken();
-            assert node.cluster.state.get().isWriteTargetFor(requestToken.token, node.matcher) : String.format("Node %s is not a write target for %s. Write placements: %s",
-                                                                                                               node.node.idx(), requestToken, node.cluster.state.get().writePlacementsFor(requestToken.token));
+            assert node.cluster.state.get().isWriteTargetFor(requestToken.getLongValue(), node.matcher) : String.format("Node %s is not a write target for %s. Write placements: %s",
+                                                                                                               node.node.idx(), requestToken, node.cluster.state.get().writePlacementsFor(requestToken.getLongValue()));
         }
 
         public Message<NoPayload> respondTo(Message<Mutation> request)
@@ -1145,7 +1145,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
     public static long token(Object... pk)
     {
-        return ((Murmur3Partitioner.LongToken) DatabaseDescriptor.getPartitioner().decorateKey(toBytes(pk)).getToken()).token;
+        return ((Murmur3Partitioner.LongToken) DatabaseDescriptor.getPartitioner().decorateKey(toBytes(pk)).getToken()).getLongValue();
     }
 
     public static ByteBuffer toBytes(Object... pk)

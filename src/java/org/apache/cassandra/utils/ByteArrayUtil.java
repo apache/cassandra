@@ -46,6 +46,11 @@ public class ByteArrayUtil
         return FastByteOperations.compareUnsigned(o1, off1, len, o2, off2, len);
     }
 
+    public static int compareUnsigned(byte[] o1, int off1, int len1, byte[] o2, int off2, int len2)
+    {
+        return FastByteOperations.compareUnsigned(o1, off1, len1, o2, off2, len2);
+    }
+
     public static byte[] bytes(byte b)
     {
         return new byte[] {b};
@@ -232,6 +237,16 @@ public class ByteArrayUtil
          : String.format("Attempted serializing to buffer exceeded maximum of %s bytes: %s", FBUtilities.MAX_UNSIGNED_SHORT, length);
         out.writeShort(length);
         out.write(buffer);
+    }
+
+    public static void writeWithShortLength(byte[] buffer, int offset, int length, DataOutput out) throws IOException
+    {
+        assert length <= buffer.length;
+        assert offset <= length;
+        assert length <= FBUtilities.MAX_UNSIGNED_SHORT
+            : String.format("Attempted serializing to buffer exceeded maximum of %s bytes: %s", FBUtilities.MAX_UNSIGNED_SHORT, length);
+        out.writeShort(length);
+        out.write(buffer, offset, length);
     }
 
     public static void writeWithVIntLength(byte[] bytes, DataOutputPlus out) throws IOException

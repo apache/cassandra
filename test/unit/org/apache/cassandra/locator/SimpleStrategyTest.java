@@ -286,7 +286,7 @@ public class SimpleStrategyTest extends CassandraTestBase
         configOptions.put(ReplicationParams.CLASS, SimpleStrategy.class.getName());
         configOptions.put("replication_factor", "3/1");
         SchemaLoader.createKeyspace("ks", KeyspaceParams.create(false, configOptions));
-        Range<Token> range1 = range(Murmur3Partitioner.MINIMUM.token, 100);
+        Range<Token> range1 = range(Murmur3Partitioner.MINIMUM.getLongValue(), 100);
 
         Util.assertRCEquals(EndpointsForToken.of(range1.right,
                                                  Replica.fullReplica(endpoints.get(0), range1),

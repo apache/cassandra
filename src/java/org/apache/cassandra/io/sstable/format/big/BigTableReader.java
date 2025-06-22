@@ -141,9 +141,9 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     }
 
     @Override
-    public KeyReader keyReader() throws IOException
+    public KeyReader keyReader(boolean detailed) throws IOException
     {
-        return BigTableKeyReader.create(ifile, rowIndexEntrySerializer);
+        return BigTableKeyReader.create(ifile, rowIndexEntrySerializer, detailed);
     }
 
     @Override

@@ -19,16 +19,16 @@ package org.apache.cassandra.db;
 
 public interface DeletionPurger
 {
-    public static final DeletionPurger PURGE_ALL = (ts, ldt) -> true;
+    DeletionPurger PURGE_ALL = (ts, ldt) -> true;
 
-    public boolean shouldPurge(long timestamp, long localDeletionTime);
+    boolean shouldPurge(long timestamp, long localDeletionTime);
 
-    public default boolean shouldPurge(DeletionTime dt)
+    default boolean shouldPurge(DeletionTime dt)
     {
         return !dt.isLive() && shouldPurge(dt.markedForDeleteAt(), dt.localDeletionTime());
     }
 
-    public default boolean shouldPurge(LivenessInfo liveness, long nowInSec)
+    default boolean shouldPurge(LivenessInfo liveness, long nowInSec)
     {
         return !liveness.isLive(nowInSec) && shouldPurge(liveness.timestamp(), liveness.localExpirationTime());
     }

@@ -79,9 +79,9 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
 
     // TODO dataWriter is not needed to be directly accessible - we can access everything we need for the dataWriter
     //   from a partition writer
-    protected final SequentialWriter dataWriter;
-    protected final I indexWriter;
-    protected final P partitionWriter;
+    public final SequentialWriter dataWriter;
+    public final I indexWriter;
+    public final P partitionWriter;
     private final FileHandle.Builder dataFileBuilder = new FileHandle.Builder(descriptor.fileFor(Components.DATA));
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
@@ -237,13 +237,15 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
 
     private AbstractRowIndexEntry endPartition(DecoratedKey key, DeletionTime partitionLevelDeletion) throws IOException
     {
+        // partitionLength not inclusive of last byte for BIG/default impl, but something different for BTI (and maybe other impls)
         long finishResult = partitionWriter.finish();
 
         long endPosition = dataWriter.position();
-        long rowSize = endPosition - partitionWriter.getInitialPosition();
-        guardPartitionThreshold(Guardrails.partitionSize, key, rowSize);
+        // inclusive of last byte
+        long partitionSize = endPosition - partitionWriter.getPartitionStartPosition();
+        guardPartitionThreshold(Guardrails.partitionSize, key, partitionSize);
         guardPartitionThreshold(Guardrails.partitionTombstones, key, metadataCollector.totalTombstones);
-        metadataCollector.addPartitionSizeInBytes(rowSize);
+        metadataCollector.addPartitionSizeInBytes(partitionSize);
         metadataCollector.addKey(key.getKey());
         metadataCollector.addCellPerPartitionCount();
 
@@ -260,7 +262,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     protected void onStartPartition(DecoratedKey key)
     {
         if (hasObservers())
-            notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), partitionWriter.getInitialPosition()));
+            notifyObservers(o -> o.startPartition(key, partitionWriter.getPartitionStartPosition(), partitionWriter.getPartitionStartPosition()));
     }
 
     protected void onStaticRow(Row row)
@@ -331,7 +333,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     }
 
     @Override
-    public long getFilePointer()
+    public final long getFilePointer()
     {
         return dataWriter.position();
     }
@@ -435,13 +437,13 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
         }
     }
 
-    protected static abstract class AbstractIndexWriter extends AbstractTransactional implements Transactional
+    public static abstract class AbstractIndexWriter extends AbstractTransactional implements Transactional
     {
         protected final Descriptor descriptor;
         protected final TableMetadataRef metadata;
         protected final Set<Component> components;
 
-        protected final IFilter bf;
+        public final IFilter bf;
 
         protected AbstractIndexWriter(Builder<?, ?, ?, ?> b)
         {

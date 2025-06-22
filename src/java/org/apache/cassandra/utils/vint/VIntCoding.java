@@ -230,6 +230,7 @@ public class VIntCoding
     {
         return getUnsignedVInt(input, readerIndex, input.limit());
     }
+
     public static long getUnsignedVInt(ByteBuffer input, int readerIndex, int readerLimit)
     {
         if (readerIndex < 0)

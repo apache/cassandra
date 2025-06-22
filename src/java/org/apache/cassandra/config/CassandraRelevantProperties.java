@@ -193,6 +193,7 @@ public enum CassandraRelevantProperties
     CONSISTENT_RANGE_MOVEMENT("cassandra.consistent.rangemovement", "true"),
     CONSISTENT_SIMULTANEOUS_MOVES_ALLOW("cassandra.consistent.simultaneousmoves.allow"),
     CRYPTO_PROVIDER_CLASS_NAME("cassandra.crypto_provider_class_name"),
+    CURSOR_COMPACTION_ENABLED("cassandra.cursor_compaction_enabled", "true"),
     CUSTOM_DISK_ERROR_HANDLER("cassandra.custom_disk_error_handler"),
     CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS("cassandra.custom_guardrails_config_provider_class"),
     CUSTOM_QUERY_HANDLER_CLASS("cassandra.custom_query_handler_class"),

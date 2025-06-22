@@ -812,9 +812,14 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
         ByteBuffer collision = Util.generateMurmurCollision(original, append.getBytes(StandardCharsets.UTF_8));
 
         long[] hash = new long[2];
+        long[] hash2 = new long[2];
         MurmurHash.hash3_x64_128(original, 0, original.limit(), 0, hash);
+        MurmurHash.hash3_x64_128(original.array(), original.arrayOffset(), original.limit(), 0, hash2);
+        Assert.assertArrayEquals(hash, hash2);
         logger.info(String.format("Original hash  %016x,%016x", hash[0], hash[1]));
         MurmurHash.hash3_x64_128(collision, 0, collision.limit(), 0, hash);
+        MurmurHash.hash3_x64_128(collision.array(), collision.arrayOffset(), original.limit(), 0, hash2);
+        Assert.assertArrayEquals(hash, hash2);
         logger.info(String.format("Collision hash %016x,%016x", hash[0], hash[1]));
 
         DecoratedKey kk1 = partitioner.decorateKey(original);

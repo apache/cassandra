@@ -207,6 +207,14 @@ public class SerializationHeader
         return DeletionTime.build(markedAt, localDeletionTime);
     }
 
+    public void readDeletionTime(DataInputPlus in, DeletionTime.ReusableDeletionTime reuse) throws IOException
+    {
+        long markedAt = readTimestamp(in);
+        long localDeletionTime = readLocalDeletionTime(in);
+        reuse.reset(markedAt, localDeletionTime);
+    }
+
+
     public long timestampSerializedSize(long timestamp)
     {
         return TypeSizes.sizeofUnsignedVInt(timestamp - stats.minTimestamp);

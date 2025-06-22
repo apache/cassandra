@@ -178,7 +178,7 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
         checkNotNull(serializationHeader);
 
         RowIndexEntry.IndexSerializer serializer = new RowIndexEntry.Serializer(descriptor.version, serializationHeader, tableMetrics);
-        return BigTableKeyReader.create(indexFile, serializer);
+        return BigTableKeyReader.create(indexFile, serializer, false);
     }
 
     /**

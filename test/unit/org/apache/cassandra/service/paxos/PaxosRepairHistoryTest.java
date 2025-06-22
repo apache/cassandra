@@ -481,7 +481,7 @@ public class PaxosRepairHistoryTest
         Ballot ballotForToken(LongToken token)
         {
             return canonical
-                    .floorEntry(token.token == Long.MIN_VALUE ? token : token.decreaseSlightly())
+                    .floorEntry(token.getLongValue() == Long.MIN_VALUE ? token : token.decreaseSlightly())
                     .getValue();
         }
 

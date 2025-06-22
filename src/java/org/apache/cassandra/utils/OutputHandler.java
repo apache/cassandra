@@ -36,7 +36,7 @@ public interface OutputHandler
     void debug(String msg);
     default void debug(String msg, Object ... args)
     {
-        debug(String.format(msg, args));
+        if (isDebugEnabled()) debug(String.format(msg, args));
     }
 
     // called when the user needs to be warn
@@ -55,6 +55,8 @@ public interface OutputHandler
         warn(String.format(msg, args));
     }
 
+    boolean isDebugEnabled();
+
     class LogOutput implements OutputHandler
     {
         private static Logger logger = LoggerFactory.getLogger(LogOutput.class);
@@ -66,7 +68,7 @@ public interface OutputHandler
 
         public void debug(String msg)
         {
-            logger.trace(msg);
+            logger.debug(msg);
         }
 
         public void warn(String msg)
@@ -78,6 +80,18 @@ public interface OutputHandler
         {
             logger.warn(msg, th);
         }
+
+        public boolean isDebugEnabled() { return logger.isDebugEnabled();}
+    }
+
+    class NullOutput implements OutputHandler
+    {
+        public void output(String msg) {}
+        public void debug(String msg, Object ... args) {}
+        public void debug(String msg) {}
+        public void warn(String msg) {}
+        public void warn(Throwable th, String msg) {}
+        public boolean isDebugEnabled() { return false;}
     }
 
     class SystemOutput implements OutputHandler
@@ -119,6 +133,11 @@ public interface OutputHandler
             warnOut.println("WARNING: " + msg);
             if (printStack && th != null)
                 th.printStackTrace(warnOut);
+        }
+
+        public boolean isDebugEnabled()
+        {
+            return debug;
         }
     }
 }

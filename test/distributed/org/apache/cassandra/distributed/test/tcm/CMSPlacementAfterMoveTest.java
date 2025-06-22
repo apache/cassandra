@@ -46,7 +46,7 @@ public class CMSPlacementAfterMoveTest extends TestBaseImpl
             long node1Token = cluster.get(1).callOnInstance(() -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
                 ImmutableList<Token> tokens = ClusterMetadata.current().tokenMap.tokens(metadata.myNodeId());
-                return ((Murmur3Partitioner.LongToken) tokens.get(0)).token;
+                return ((Murmur3Partitioner.LongToken) tokens.get(0)).getLongValue();
             });
             long newNode4Token = node1Token + 100; // token after node1s token should be in cms
             cluster.get(4).nodetoolResult("move", String.valueOf(newNode4Token));

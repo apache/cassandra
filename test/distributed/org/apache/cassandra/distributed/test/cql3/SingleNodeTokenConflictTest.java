@@ -405,10 +405,10 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             for (ByteBuffer bb : values)
             {
                 var token = Murmur3Partitioner.instance.getToken(bb);
-                if (token.token > Long.MIN_VALUE + 1)
-                    neighbors.add(keyForToken(token.token - 1));
-                if (token.token < Long.MAX_VALUE)
-                    neighbors.add(keyForToken(token.token + 1));
+                if (token.getLongValue() > Long.MIN_VALUE + 1)
+                    neighbors.add(keyForToken(token.getLongValue() - 1));
+                if (token.getLongValue() < Long.MAX_VALUE)
+                    neighbors.add(keyForToken(token.getLongValue() + 1));
             }
             return neighbors.build();
         }

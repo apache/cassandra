@@ -71,7 +71,7 @@ public class GossipDeadlockTest extends TestBaseImpl
             ExecutorPlus e = ExecutorFactory.Global.executorFactory().pooled("BounceMove", 2);
             long startToken = cluster.get(2).callOnInstance(() -> {
                 NodeId nodeId = ClusterMetadata.current().myNodeId();
-                return ((Murmur3Partitioner.LongToken)ClusterMetadata.current().tokenMap.tokens(nodeId).get(0)).token;
+                return ((Murmur3Partitioner.LongToken)ClusterMetadata.current().tokenMap.tokens(nodeId).get(0)).getLongValue();
             });
             AtomicBoolean stop = new AtomicBoolean(false);
             Future<Integer> moves = e.submit(() -> {

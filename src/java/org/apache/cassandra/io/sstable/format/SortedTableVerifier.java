@@ -175,7 +175,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
     {
         try
         {
-            outputHandler.debug("Deserializing bloom filter for %s", sstable);
+            if (outputHandler.isDebugEnabled()) outputHandler.debug("Deserializing bloom filter for %s", sstable);
             deserializeBloomFilter(sstable);
         }
         catch (Throwable t)
@@ -217,7 +217,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
     protected int verifyOwnedRanges()
     {
         List<Range<Token>> ownedRanges = Collections.emptyList();
-        outputHandler.debug("Checking that all tokens are owned by the current node");
+        if (outputHandler.isDebugEnabled()) outputHandler.debug("Checking that all tokens are owned by the current node");
         try (KeyIterator iter = sstable.keyIterator())
         {
             ownedRanges = Range.normalize(tokenLookup.apply(cfs.metadata.keyspace));
@@ -287,7 +287,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
                     throw new CompactionInterruptedException(verifyInfo.getCompactionInfo());
 
                 long rowStart = dataFile.getFilePointer();
-                outputHandler.debug("Reading row at %d", rowStart);
+                if (outputHandler.isDebugEnabled()) outputHandler.debug("Reading row at %d", rowStart);
 
                 DecoratedKey key = null;
                 try
@@ -332,8 +332,11 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
 
                 long dataSize = nextRowPositionFromIndex - dataStartFromIndex;
                 // avoid an NPE if key is null
-                String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
-                outputHandler.debug("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSize));
+                if (outputHandler.isDebugEnabled())
+                {
+                    String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
+                    outputHandler.debug("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSize));
+                }
 
                 try
                 {
@@ -352,7 +355,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
                     prevKey = key;
 
 
-                    outputHandler.debug("Row %s at %s valid, moving to next row at %s ", goodRows, rowStart, nextRowPositionFromIndex);
+                    if (outputHandler.isDebugEnabled()) outputHandler.debug("Row %s at %s valid, moving to next row at %s ", goodRows, rowStart, nextRowPositionFromIndex);
                     dataFile.seek(nextRowPositionFromIndex);
                 }
                 catch (Throwable th)
@@ -374,7 +377,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
     {
         try
         {
-            outputHandler.debug("Deserializing index for %s", sstable);
+            if (outputHandler.isDebugEnabled()) outputHandler.debug("Deserializing index for %s", sstable);
             deserializeIndex(sstable);
         }
         catch (Throwable t)
@@ -384,7 +387,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
         }
     }
 
-    private void deserializeIndex(SSTableReader sstable) throws IOException
+    protected void deserializeIndex(SSTableReader sstable) throws IOException
     {
         try (KeyReader it = sstable.keyReader())
         {

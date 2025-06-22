@@ -280,4 +280,12 @@ implements ISSTableScanner
             }
         }
     }
+
+    @Override
+    public boolean isFullRange()
+    {
+        return dataRange == null || (dataRange.startKey().equals(sstable.getFirst()) &&
+               dataRange.stopKey().equals(sstable.getLast()) &&
+               dataRange.isUnrestricted(sstable.metadata()));
+    }
 }

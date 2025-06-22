@@ -26,14 +26,17 @@ import java.util.Objects;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.io.sstable.ClusteringDescriptor;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.serializers.MarshalException;
-
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.utils.bytecomparable.ByteSource.EXCLUDED;
 import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT;
@@ -154,6 +157,107 @@ public class ClusteringComparator implements Comparator<Clusterable>
             return ClusteringPrefix.Kind.compare(c1.kind(), c2.kind());
 
         return s1 < s2 ? c1.kind().comparedToClustering : -c2.kind().comparedToClustering;
+    }
+
+    public static int compare(ClusteringDescriptor c1, ClusteringDescriptor c2)
+    {
+        final int c1Size = c1.clusteringColumnsBound();
+        final int c2Size = c2.clusteringColumnsBound();
+        final int minColumns = Math.min(c1Size, c2Size);
+
+        final int cmp = compare(c1.clusteringTypes(), c1.clusteringBuffer(), c2.clusteringBuffer(), minColumns);
+        if (cmp != 0)
+            return cmp;
+
+        final ClusteringPrefix.Kind c1Kind = c1.clusteringKind();
+        final ClusteringPrefix.Kind c2Kind = c2.clusteringKind();
+        if (c1Size == c2Size)
+        {
+            return ClusteringPrefix.Kind.compare(c1Kind, c2Kind);
+        }
+
+        return c1Size < c2Size ? c1Kind.comparedToClustering : -c2Kind.comparedToClustering;
+    }
+
+    public static int compare(AbstractType<?>[] types, ByteBuffer c1, ByteBuffer c2) {
+        return compare(types, c1, c2, types.length);
+    }
+
+    private static int compare(AbstractType<?>[] types, ByteBuffer c1, ByteBuffer c2, int size)
+    {
+        long clusteringBlock1 = 0;
+        long clusteringBlock2 = 0;
+        final int position1 = c1.position();
+        final int position2 = c2.position();
+        final int limit1 = c1.limit();
+        final int limit2 = c2.limit();
+        try
+        {
+            for (int clusteringIndex = 0; clusteringIndex < size; clusteringIndex++)
+            {
+                if (clusteringIndex % 32 == 0)
+                {
+                    clusteringBlock1 = VIntCoding.readUnsignedVInt(c1);
+                    clusteringBlock2 = VIntCoding.readUnsignedVInt(c2);
+                }
+
+                AbstractType<?> type = types[clusteringIndex];
+
+                byte v1Flags = (byte) (clusteringBlock1 & 0b11);
+                byte v2Flags = (byte) (clusteringBlock2 & 0b11);
+
+                // both values are present
+                if ((v1Flags|v2Flags) == 0)
+                {
+                    boolean isByteOrderComparable = type.isByteOrderComparable;
+                    int vlen1,vlen2;
+                    if (type.isValueLengthFixed())
+                    {
+                        vlen1 = vlen2 = type.valueLengthIfFixed();
+                    }
+                    else
+                    {
+                        vlen1 = VIntCoding.readUnsignedVInt32(c1);
+                        vlen2 = VIntCoding.readUnsignedVInt32(c2);
+                    }
+                    int v1Limit = c1.position() + vlen1;
+                    if (v1Limit > limit1)
+                        throw new IllegalArgumentException("Value limit exceeds buffer limit.");
+                    c1.limit(v1Limit);
+                    int v2Limit = c2.position() + vlen2;
+                    if (v2Limit > limit2)
+                        throw new IllegalArgumentException("Value limit exceeds buffer limit.");
+                    c2.limit(v2Limit);
+                    int cmp = isByteOrderComparable ?
+                                ByteBufferUtil.compareUnsigned(c1, c2) :
+                                type.compareCustom(c1, ByteBufferAccessor.instance, c2, ByteBufferAccessor.instance);
+                    if (cmp != 0)
+                        return cmp;
+                    c1.position(v1Limit);
+                    c2.position(v2Limit);
+                    c1.limit(limit1);
+                    c2.limit(limit2);
+                }
+                // present > not present
+                else
+                {
+                    // null (0b10) is smaller than empty (0b01) which is smaller than valued (0b00);
+                    // compare swapped arguments to reverse the order
+                    int cmp = Long.compare(v2Flags, v1Flags);
+                    if (cmp != 0)
+                        return cmp;
+                    // null/empty == null/empty, continue...
+                }
+                clusteringBlock1 = clusteringBlock1 >>> 2;
+                clusteringBlock2 = clusteringBlock2 >>> 2;
+            }
+        }
+        finally
+        {
+            c1.position(position1).limit(limit1);
+            c2.position(position2).limit(limit2);
+        }
+        return 0;
     }
 
     public <V1, V2> int compare(Clustering<V1> c1, Clustering<V2> c2)

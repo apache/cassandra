@@ -288,7 +288,7 @@ public abstract class UnfilteredPartitionIterators
     }
 
     /**
-     * Digests the the provided iterator.
+     * Digests the provided iterator.
      *
      * Caller must close the provided iterator.
      *

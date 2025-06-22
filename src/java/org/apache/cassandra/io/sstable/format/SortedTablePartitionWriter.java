@@ -43,11 +43,11 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
     private final SerializationHelper helper;
     private final Version version;
 
-    private long previousRowStart;
-    private long initialPosition;
+    private long previousRowStartOffset;
+    private long partitionStartPosition;
     private long headerLength;
 
-    protected long startPosition;
+    protected long indexBlockStartOffset;
     protected int written;
 
     protected ClusteringPrefix<?> firstClustering;
@@ -78,9 +78,9 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
 
     protected void reset()
     {
-        this.initialPosition = writer.position();
-        this.startPosition = -1;
-        this.previousRowStart = 0;
+        this.partitionStartPosition = writer.position();
+        this.indexBlockStartOffset = -1;
+        this.previousRowStartOffset = 0;
         this.written = 0;
         this.firstClustering = null;
         this.lastClustering = null;
@@ -106,7 +106,7 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
 
         if (!header.hasStatic())
         {
-            this.headerLength = writer.position() - initialPosition;
+            this.headerLength = writer.position() - partitionStartPosition;
             state = State.AWAITING_ROWS;
             return;
         }
@@ -121,7 +121,7 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
 
         UnfilteredSerializer.serializer.serializeStaticRow(staticRow, helper, writer, version.correspondingMessagingVersion());
 
-        this.headerLength = writer.position() - initialPosition;
+        this.headerLength = writer.position() - partitionStartPosition;
         state = State.AWAITING_ROWS;
     }
 
@@ -129,21 +129,21 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
     {
         checkState(state == State.AWAITING_ROWS);
 
-        long pos = currentPosition();
+        long offset = currentOffsetInPartition();
 
         if (firstClustering == null)
         {
-            // Beginning of an index block. Remember the start and position
+            // Beginning of an index block. Remember the start clustering and position
             firstClustering = unfiltered.clustering();
-            startOpenMarker = openMarker;
-            startPosition = pos;
+            startOpenMarker = openMarker; // first entry is always LIVE (for BTI format)
+            indexBlockStartOffset = offset;
         }
 
         long unfilteredPosition = writer.position();
-        unfilteredSerializer.serialize(unfiltered, helper, writer, pos - previousRowStart, version.correspondingMessagingVersion());
+        unfilteredSerializer.serialize(unfiltered, helper, writer, offset - previousRowStartOffset, version.correspondingMessagingVersion());
 
         lastClustering = unfiltered.clustering();
-        previousRowStart = pos;
+        previousRowStartOffset = offset;
         ++written;
 
         if (unfiltered.kind() == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
@@ -159,19 +159,30 @@ public abstract class SortedTablePartitionWriter implements AutoCloseable
 
         state = State.COMPLETED;
 
-        long endPosition = currentPosition();
+        long partitionLength = currentOffsetInPartition();
         unfilteredSerializer.writeEndOfPartition(writer);
 
-        return endPosition;
+        return partitionLength;
     }
 
-    protected long currentPosition()
+    protected long currentOffsetInPartition()
     {
-        return writer.position() - initialPosition;
+        return writer.position() - partitionStartPosition;
     }
 
-    public long getInitialPosition()
+    public long getPartitionStartPosition()
     {
-        return initialPosition;
+        return partitionStartPosition;
+    }
+
+    /** Some bullshit access for now */
+    public SerializationHeader getHeader()
+    {
+        return header;
+    }
+
+    public SerializationHelper getHelper()
+    {
+        return helper;
     }
 }

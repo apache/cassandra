@@ -40,7 +40,6 @@ import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -69,7 +68,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     private final List<PartitionPosition> diskBoundaries;
     private int locationIndex;
     protected Directories.DataDirectory currentDirectory;
-
+    protected String sstableDirectoryPath;
     public CompactionAwareWriter(ColumnFamilyStore cfs,
                                  Directories directories,
                                  ILifecycleTransaction txn,
@@ -151,9 +150,10 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         return realAppend(partition);
     }
 
-    public final File getSStableDirectory() throws IOException
+    // hot path, called per partition
+    public final String getSStableDirectoryPath() throws IOException
     {
-        return getDirectories().getLocationForDisk(currentDirectory);
+        return sstableDirectoryPath;
     }
 
     @Override
@@ -173,35 +173,36 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      * specific strategy has decided a new sstable is needed.
      * Guaranteed to be called before the first call to realAppend.
      */
-    protected void maybeSwitchWriter(DecoratedKey key)
+    public final SSTableWriter maybeSwitchWriter(DecoratedKey key)
     {
-        if (maybeSwitchLocation(key))
-            return;
-
-        if (shouldSwitchWriterInCurrentLocation(key))
-            switchCompactionWriter(currentDirectory, key);
+        SSTableWriter newWriter = maybeSwitchLocation(key);
+        if (newWriter == null && shouldSwitchWriterInCurrentLocation(key))
+        {
+            newWriter = switchCompactionWriter(currentDirectory, key);
+        }
+        return newWriter;
     }
 
     /**
      * Switches the file location and writer and returns true if the new key should be placed in a different data
      * directory.
      */
-    protected boolean maybeSwitchLocation(DecoratedKey key)
+    private SSTableWriter maybeSwitchLocation(DecoratedKey key)
     {
         if (diskBoundaries == null)
         {
             if (locationIndex < 0)
             {
                 Directories.DataDirectory defaultLocation = getWriteDirectory(nonExpiredSSTables, getExpectedWriteSize());
-                switchCompactionWriter(defaultLocation, key);
+                SSTableWriter writer = switchCompactionWriter(defaultLocation, key);
                 locationIndex = 0;
-                return true;
+                return writer;
             }
-            return false;
+            return null;
         }
 
         if (locationIndex > -1 && key.compareTo(diskBoundaries.get(locationIndex)) < 0)
-            return false;
+            return null;
 
         int prevIdx = locationIndex;
         while (locationIndex == -1 || key.compareTo(diskBoundaries.get(locationIndex)) > 0)
@@ -209,8 +210,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         Directories.DataDirectory newLocation = locations.get(locationIndex);
         if (prevIdx >= 0)
             logger.debug("Switching write location from {} to {}", locations.get(prevIdx), newLocation);
-        switchCompactionWriter(newLocation, key);
-        return true;
+        return switchCompactionWriter(newLocation, key);
     }
 
     /**
@@ -223,14 +223,14 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      * Implementations of this method should finish the current sstable writer and start writing to this directory.
      * <p>
      * Called once before starting to append and then whenever we see a need to start writing to another directory.
-     *
-     * @param directory
-     * @param nextKey
      */
-    protected void switchCompactionWriter(Directories.DataDirectory directory, DecoratedKey nextKey)
+    protected SSTableWriter switchCompactionWriter(Directories.DataDirectory directory, DecoratedKey nextKey)
     {
         currentDirectory = directory;
-        sstableWriter.switchWriter(sstableWriter(directory, nextKey));
+        sstableDirectoryPath = getDirectories().getLocationForDisk(currentDirectory).path();
+        SSTableWriter newWriter = sstableWriter(directory, nextKey);
+        sstableWriter.switchWriter(newWriter);
+        return newWriter;
     }
 
     protected SSTableWriter sstableWriter(Directories.DataDirectory directory, DecoratedKey nextKey)

@@ -129,6 +129,13 @@ implements ISSTableScanner
         return ImmutableSet.of(sstable);
     }
 
+    @Override
+    public boolean isFullRange()
+    {
+        // hasNext will init start and end
+        return hasNext() && currentStartPosition == 0 && currentEndPosition == sstable.uncompressedLength();
+    }
+
     public TableMetadata metadata()
     {
         return sstable.metadata();

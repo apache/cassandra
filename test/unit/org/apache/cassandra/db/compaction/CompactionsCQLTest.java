@@ -664,6 +664,9 @@ public class CompactionsCQLTest extends CQLTester
             Throwable cause = t;
             while (cause != null && !(cause instanceof MarshalException))
                 cause = cause.getCause();
+            if (cause == null) {
+                t.printStackTrace();
+            }
             assertNotNull(cause);
             MarshalException me = (MarshalException) cause;
             assertTrue(me.getMessage().contains(cfs.metadata.keyspace+"."+cfs.metadata.name));

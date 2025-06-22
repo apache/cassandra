@@ -2251,6 +2251,9 @@ public abstract class CQLTester
         Assert.assertEquals(String.format("expected %d rows but received %d", expectedCount, actualRowCount), expectedCount, actualRowCount);
     }
 
+    public static void assertRows(UntypedResultSet result, Object[]... rows) {
+        assertRows(result, List.of(rows));
+    }
     public abstract static class CellValidator
     {
         public abstract ByteBuffer expected();
@@ -2378,21 +2381,21 @@ public abstract class CQLTester
         };
     }
 
-    public static void assertRows(UntypedResultSet result, Object[]... rows)
+    public static void assertRows(UntypedResultSet result, List<Object[]> rows)
     {
         if (result == null)
         {
-            if (rows.length > 0)
-                Assert.fail(String.format("No rows returned by query but %d expected", rows.length));
+            if (rows.size() > 0)
+                Assert.fail(String.format("No rows returned by query but %d expected", rows.size()));
             return;
         }
 
         List<ColumnSpecification> meta = result.metadata();
         Iterator<UntypedResultSet.Row> iter = result.iterator();
         int i = 0;
-        while (iter.hasNext() && i < rows.length)
+        while (iter.hasNext() && i < rows.size())
         {
-            Object[] expected = rows[i];
+            Object[] expected = rows.get(i);
             UntypedResultSet.Row actual = iter.next();
 
             Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d", i), expected == null ? 1 : expected.length, meta.size());
@@ -2445,10 +2448,11 @@ public abstract class CQLTester
                 }
                 logger.info("Extra row num {}: {}", i, str);
             }
-            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.\nExpected: %s\nActual: %s", rows.length, i, toString(rows), result.toStringUnsafe()));
+            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.", rows.size(), i));
+            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.\nExpected: %s\nActual: %s", rows.size(), i, toString(rows), result.toStringUnsafe()));
         }
 
-        Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.length>i ? "less" : "more", rows.length, i), i == rows.length);
+        Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.size()>i ? "less" : "more", rows.size(), i), i == rows.size());
     }
 
     private static String toString(Object o)

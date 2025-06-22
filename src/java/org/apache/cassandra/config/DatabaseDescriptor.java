@@ -4725,6 +4725,17 @@ public class DatabaseDescriptor
         conf.transient_replication_enabled = enabled;
     }
 
+    public static boolean cursorCompactionEnabled()
+    {
+        return conf.cursor_compaction_enabled;
+    }
+
+    @VisibleForTesting
+    public static void setCursorCompactionEnabled(boolean cursor_compaction_enabled)
+    {
+        conf.cursor_compaction_enabled = cursor_compaction_enabled;
+    }
+
     public static boolean enableDropCompactStorage()
     {
         return conf.drop_compact_storage_enabled;

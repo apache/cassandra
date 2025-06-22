@@ -299,7 +299,7 @@ public abstract class AccordMigrationReadRaceTestBase extends AccordTestBase
     @Test
     public void testRangeRouting() throws Throwable
     {
-        String cql = "SELECT * FROM " + qualifiedAccordTableName + " WHERE token(pk) > " + Murmur3Partitioner.MINIMUM.token;
+        String cql = "SELECT * FROM " + qualifiedAccordTableName + " WHERE token(pk) > " + Murmur3Partitioner.MINIMUM.getLongValue();
         testSplitAndRetry(cql, this::loadData, result -> {
             assertThat(result).isDeepEqualTo(dataFlat);
         });

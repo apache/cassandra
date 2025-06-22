@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -331,6 +332,7 @@ public class CompactionsTest
         {
             keys.add(Util.dk(Integer.toString(i)));
         }
+        Collections.sort(keys);
 
         int[] dks = {0, 1, 3};
         writeSSTableWithRangeTombstoneMaskingOneColumn(cfs, table, dks);

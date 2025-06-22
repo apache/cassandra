@@ -529,6 +529,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             int supersetCount = superset.size();
             if (columnCount == supersetCount)
             {
+                /** This is prevented by caller for row serialization: {@link org.apache.cassandra.db.rows.UnfilteredSerializer#serializeRowBody}*/
                 out.writeUnsignedVInt32(0);
             }
             else if (supersetCount < 64)

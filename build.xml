@@ -1414,6 +1414,7 @@
         <jvmarg value="-Dcassandra.config=file:///${scm_none_yaml}"/>
         <jvmarg value="-Dcassandra.test.storage_compatibility_mode=NONE"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dcassandra.cursor_compaction_enabled=false" />
       </testmacrohelper>
     </sequential>
   </macrodef>

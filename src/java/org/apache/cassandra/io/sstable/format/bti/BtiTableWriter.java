@@ -73,7 +73,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
     @Override
     protected TrieIndexEntry createRowIndexEntry(DecoratedKey key, DeletionTime partitionLevelDeletion, long finishResult) throws IOException
     {
-        TrieIndexEntry entry = TrieIndexEntry.create(partitionWriter.getInitialPosition(),
+        TrieIndexEntry entry = TrieIndexEntry.create(partitionWriter.getPartitionStartPosition(),
                                                      finishResult,
                                                      partitionLevelDeletion,
                                                      partitionWriter.getRowIndexBlockCount());

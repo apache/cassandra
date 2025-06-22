@@ -42,6 +42,19 @@ public interface IPartitioner
     }
 
     /**
+     * @return a new instance of a reusable key
+     */
+    default ReusableDecoratedKey createReusableKey(int initialSize)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    default boolean supportsReusableKeys()
+    {
+        return false;
+    }
+
+    /**
      * Transform key to object representation of the on-disk format.
      *
      * @param key the raw, client-facing key
