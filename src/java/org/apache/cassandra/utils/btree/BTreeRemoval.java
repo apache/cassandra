@@ -21,6 +21,8 @@ package org.apache.cassandra.utils.btree;
 import java.util.Arrays;
 import java.util.Comparator;
 
+import static org.apache.cassandra.utils.btree.BTree.sizeMap;
+
 public class BTreeRemoval
 {
     /**
@@ -45,7 +47,7 @@ public class BTreeRemoval
                     index = lb + i;
                 else
                 {
-                    final int indexInNode = BTree.getSizeMap(node)[i];
+                    final int indexInNode = sizeMap(node)[i];
                     index = lb + indexInNode - 1;
                     elemToSwap = BTree.findByIndex(node, indexInNode - 1);
                 }
@@ -56,7 +58,7 @@ public class BTreeRemoval
 
             i = -1 - i;
             if (i > 0)
-                lb += BTree.getSizeMap(node)[i - 1] + 1;
+                lb += sizeMap(node)[i - 1] + 1;
 
             node = (Object[]) node[keyEnd + i];
         }
@@ -80,9 +82,9 @@ public class BTreeRemoval
         while (!BTree.isLeaf(node))
         {
             final int keyEnd = BTree.getBranchKeyEnd(node);
-            int i = -1 - Arrays.binarySearch(BTree.getSizeMap(node), index);
+            int i = -1 - Arrays.binarySearch(sizeMap(node), index);
             if (i > 0)
-                index -= (1 + BTree.getSizeMap(node)[i - 1]);
+                index -= (1 + sizeMap(node)[i - 1]);
             Object[] nextNode = (Object[]) node[keyEnd + i];
             boolean nextNodeNeedsCopy = true;
             if (BTree.getKeyEnd(nextNode) > BTree.MIN_KEYS)
@@ -124,7 +126,7 @@ public class BTreeRemoval
 
             if (node != null)
             {
-                final int[] sizeMap = BTree.getSizeMap(node);
+                final int[] sizeMap = sizeMap(node);
                 for (int j = i; j < sizeMap.length; ++j)
                     sizeMap[j] -= 1;
                 if (prevNode != null)
@@ -160,7 +162,7 @@ public class BTreeRemoval
                 copyWithKeyAndChildInserted(nextNode, nextKeyEnd, node[i], BTree.getChildCount(nextNode), newChild);
         node[i] = rightNeighbour[0];
         node[keyEnd + i + 1] = copyWithKeyAndChildRemoved(rightNeighbour, 0, 0, true);
-        BTree.getSizeMap(node)[i] +=
+        sizeMap(node)[i] +=
                 leaves ? 1 : 1 + BTree.size((Object[]) newNextNode[BTree.getChildEnd(newNextNode) - 1]);
         return newNextNode;
     }
@@ -176,7 +178,7 @@ public class BTreeRemoval
         final Object[] newNextNode = copyWithKeyAndChildInserted(nextNode, 0, node[i - 1], 0, newChild);
         node[i - 1] = leftNeighbour[leftNeighbourEndKey - 1];
         node[keyEnd + i - 1] = copyWithKeyAndChildRemoved(leftNeighbour, leftNeighbourEndKey - 1, leftNeighbourEndKey, true);
-        BTree.getSizeMap(node)[i - 1] -= leaves ? 1 : 1 + BTree.getSizeMap(newNextNode)[0];
+        sizeMap(node)[i - 1] -= leaves ? 1 : 1 + sizeMap(newNextNode)[0];
         return newNextNode;
     }
 
@@ -211,7 +213,7 @@ public class BTreeRemoval
                                  copy,
                                  keyEnd + childIndex + 2,
                                  keyEnd - childIndex + 1);
-            final int[] sizeMap = BTree.getSizeMap(node);
+            final int[] sizeMap = sizeMap(node);
             final int[] newSizeMap = new int[sizeMap.length + 1];
             if (childIndex > 0)
                 System.arraycopy(sizeMap, 0, newSizeMap, 0, childIndex);
@@ -241,7 +243,7 @@ public class BTreeRemoval
         if (!leaf)
         {
             offset = copyChildren(node, newNode, offset, childIndex);
-            final int[] nodeSizeMap = BTree.getSizeMap(node);
+            final int[] nodeSizeMap = sizeMap(node);
             final int[] newNodeSizeMap = new int[nodeSizeMap.length - 1];
             int pos = 0;
             final int sizeToRemove = BTree.size((Object[])node[BTree.getChildStart(node) + childIndex]) + 1;
@@ -272,8 +274,8 @@ public class BTreeRemoval
         {
             offset = copyChildren(left, result, offset);
             offset = copyChildren(right, result, offset);
-            final int[] leftSizeMap = BTree.getSizeMap(left);
-            final int[] rightSizeMap = BTree.getSizeMap(right);
+            final int[] leftSizeMap = sizeMap(left);
+            final int[] rightSizeMap = sizeMap(right);
             final int[] newSizeMap = new int[leftSizeMap.length + rightSizeMap.length];
             offset = 0;
             offset = copySizeMap(leftSizeMap, newSizeMap, offset, 0);
@@ -335,7 +337,7 @@ public class BTreeRemoval
         System.arraycopy(node, 0, copy, 0, node.length);
         if (!BTree.isLeaf(node))
         {
-            final int[] sizeMap = BTree.getSizeMap(node);
+            final int[] sizeMap = sizeMap(node);
             final int[] copySizeMap = new int[sizeMap.length];
             System.arraycopy(sizeMap, 0, copySizeMap, 0, sizeMap.length);
             copy[copy.length - 1] = copySizeMap;

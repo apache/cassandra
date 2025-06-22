@@ -389,6 +389,14 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         return (V)unwrap();
     }
 
+    public V tryGetExclusive()
+    {
+        Invariants.require(owner == null || owner.commandStore == null || owner.commandStore.executor().isOwningThread());
+        if (!isLoaded() || isShrunk())
+            return null;
+        return (V)unwrap();
+    }
+
     private Object unwrap()
     {
         return isNested() ? ((Nested)state).state : state;

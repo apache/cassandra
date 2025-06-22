@@ -209,12 +209,6 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     }
 
     @Override
-    public TxnId primaryTxnId()
-    {
-        return txnId;
-    }
-
-    @Override
     public Unseekables<?> keys()
     {
         return scope;

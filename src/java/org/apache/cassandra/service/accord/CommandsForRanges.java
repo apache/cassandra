@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -28,27 +29,121 @@ import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import javax.annotation.Nullable;
 
+import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandSummaries;
 import accord.local.CommandSummaries.Summary;
 import accord.local.KeyHistory;
+import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
+import accord.primitives.AbstractRanges;
+import accord.primitives.AbstractUnseekableKeys;
+import accord.primitives.Range;
+import accord.primitives.RangeRoute;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.Txn.Kind.Kinds;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekable;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
-import org.agrona.collections.ObjectHashSet;
+import accord.utils.UnhandledEnum;
+import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.utils.btree.IntervalBTree;
 
 import static accord.local.CommandSummaries.SummaryStatus.NOT_DIRECTLY_WITNESSED;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalEndWithKeyEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalEndWithKeyStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalStartWithKeyEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalStartWithKeyStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyEndWithIntervalEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyEndWithIntervalStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyStartWithIntervalEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyStartWithIntervalStart;
 
 // TODO (expected): move to accord-core, merge with existing logic there
 public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements CommandSummaries.ByTxnIdSnapshot
 {
+    static final IntervalComparators COMPARATORS = new IntervalComparators();
+    static final IntervalKeyComparators KEY_COMPARATORS = new IntervalKeyComparators();
+    static class TxnIdInterval implements Comparable<TxnIdInterval>
+    {
+        final RoutingKey start, end;
+        final TxnId txnId;
+
+        TxnIdInterval(RoutingKey start, RoutingKey end, TxnId txnId)
+        {
+            this.start = start;
+            this.end = end;
+            this.txnId = txnId;
+        }
+
+        TxnIdInterval(Range range, TxnId txnId)
+        {
+            this.start = range.start();
+            this.end = range.end();
+            this.txnId = txnId;
+        }
+
+        @Override
+        public int compareTo(TxnIdInterval that)
+        {
+            int c = this.start.compareTo(that.start);
+            if (c == 0) c = this.end.compareTo(that.end);
+            if (c == 0) c = this.txnId.compareTo(that.txnId);
+            return c;
+        }
+    }
+
+    static class IntervalComparators implements IntervalBTree.IntervalComparators<TxnIdInterval>
+    {
+        @Override public Comparator<TxnIdInterval> totalOrder() { return TxnIdInterval::compareTo; }
+        @Override public Comparator<TxnIdInterval> startWithStartComparator() { return (a, b) -> a.start.compareTo(b.start); }
+        @Override public Comparator<TxnIdInterval> startWithEndComparator() { return (a, b) -> a.start.compareTo(b.end); }
+        @Override public Comparator<TxnIdInterval> endWithStartComparator() { return (a, b) -> a.end.compareTo(b.start); }
+        @Override public Comparator<TxnIdInterval> endWithEndComparator() { return (a, b) -> a.end.compareTo(b.end); }
+    }
+
+    static class IntervalKeyComparators implements IntervalBTree.IntervalComparators<Object>
+    {
+        @Override public Comparator<Object> totalOrder() { throw new UnsupportedOperationException(); }
+
+        @Override
+        public Comparator<Object> startWithStartComparator()
+        {
+            return (a, b) -> a.getClass() == TxnIdInterval.class
+                             ? intervalStartWithKeyStart(((TxnIdInterval) a).start.compareTo((RoutingKey)b))
+                             : keyStartWithIntervalStart(((RoutingKey)a).compareTo(((TxnIdInterval)b).start));
+        }
+
+        @Override
+        public Comparator<Object> startWithEndComparator()
+        {
+            return (a, b) -> a.getClass() == TxnIdInterval.class
+                             ? intervalStartWithKeyEnd(((TxnIdInterval)a).start.compareTo((RoutingKey)b))
+                             : keyStartWithIntervalEnd(((RoutingKey)a).compareTo(((TxnIdInterval)b).end));
+        }
+
+        @Override
+        public Comparator<Object> endWithStartComparator()
+        {
+            return (a, b) -> a.getClass() == TxnIdInterval.class
+                             ? intervalEndWithKeyStart(((TxnIdInterval)a).end.compareTo((RoutingKey)b))
+                             : keyEndWithIntervalStart(((RoutingKey)a).compareTo(((TxnIdInterval)b).start));
+        }
+
+        @Override
+        public Comparator<Object> endWithEndComparator()
+        {
+            return (a, b) -> a.getClass() == TxnIdInterval.class
+                             ? intervalEndWithKeyEnd(((TxnIdInterval)a).end.compareTo((RoutingKey)b))
+                             : keyEndWithIntervalEnd(((RoutingKey)a).compareTo(((TxnIdInterval)b).end));
+        }
+    }
+
     public CommandsForRanges(Map<? extends Timestamp, ? extends Summary> m)
     {
         super(m);
@@ -64,8 +159,10 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
     {
         private final AccordCommandStore commandStore;
         private final RangeSearcher searcher;
-        private AtomicReference<NavigableMap<TxnId, Ranges>> transitive = new AtomicReference<>(new TreeMap<>());
-        private final ObjectHashSet<TxnId> cachedRangeTxns = new ObjectHashSet<>();
+        private final AtomicReference<NavigableMap<TxnId, Ranges>> transitive = new AtomicReference<>(new TreeMap<>());
+        // TODO (desired): manage memory consumed by this auxillary information
+        private final Object2ObjectHashMap<TxnId, RangeRoute> cachedRangeTxnsById = new Object2ObjectHashMap<>();
+        private Object[] cachedRangeTxnsByRange = IntervalBTree.empty();
 
         public Manager(AccordCommandStore commandStore)
         {
@@ -78,11 +175,27 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
         }
 
         @Override
-        public void onAdd(AccordCacheEntry<TxnId, Command> state)
+        public void onUpdate(AccordCacheEntry<TxnId, Command> state)
         {
             TxnId txnId = state.key();
             if (txnId.is(Routable.Domain.Range))
-                cachedRangeTxns.add(txnId);
+            {
+                Command cmd = state.tryGetExclusive();
+                if (cmd != null)
+                {
+                    RangeRoute upd = (RangeRoute) cmd.route();
+                    if (upd != null)
+                    {
+                        RangeRoute cur = cachedRangeTxnsById.put(cmd.txnId(), upd);
+                        if (!upd.equals(cur))
+                        {
+                            if (cur != null)
+                                remove(txnId, cur);
+                            cachedRangeTxnsByRange = IntervalBTree.update(cachedRangeTxnsByRange, toMap(txnId, upd), COMPARATORS);
+                        }
+                    }
+                }
+            }
         }
 
         @Override
@@ -90,7 +203,36 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
         {
             TxnId txnId = state.key();
             if (txnId.is(Routable.Domain.Range))
-                cachedRangeTxns.remove(txnId);
+            {
+                RangeRoute cur = cachedRangeTxnsById.remove(txnId);
+                if (cur != null)
+                    remove(txnId, cur);
+            }
+        }
+
+        private void remove(TxnId txnId, RangeRoute route)
+        {
+            cachedRangeTxnsByRange = IntervalBTree.subtract(cachedRangeTxnsByRange, toMap(txnId, route), COMPARATORS);
+        }
+
+        static Object[] toMap(TxnId txnId, RangeRoute route)
+        {
+            int size = route.size();
+            switch (size)
+            {
+                case 0: return IntervalBTree.empty();
+                case 1: return IntervalBTree.singleton(new TxnIdInterval(route.get(0), txnId));
+                default:
+                {
+                    try (IntervalBTree.FastInteralTreeBuilder<TxnIdInterval> builder = IntervalBTree.fastBuilder(COMPARATORS.endWithEndComparator()))
+                    {
+                        for (int i = 0 ; i < size ; ++i)
+                            builder.add(new TxnIdInterval(route.get(i), txnId));
+                        return builder.build();
+                    }
+                }
+            }
+
         }
 
         public CommandsForRanges.Loader loader(@Nullable TxnId primaryTxnId, KeyHistory keyHistory, Unseekables<?> keysOrRanges)
@@ -99,9 +241,12 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             return Loader.loader(redundantBefore, primaryTxnId, keyHistory, keysOrRanges, this::newLoader);
         }
 
-        private Loader newLoader(Unseekables<?> searchKeysOrRanges, RedundantBefore redundantBefore, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId findAsDep)
+        private Loader newLoader(@Nullable TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, RedundantBefore redundantBefore, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId findAsDep)
         {
-            return new Loader(this, searchKeysOrRanges, redundantBefore, testKind, minTxnId, maxTxnId, findAsDep);
+            MaxDecidedRX maxDecidedRX = null;
+            if (primaryTxnId != null && primaryTxnId.is(Txn.Kind.ExclusiveSyncPoint) && findAsDep == null)
+                maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();
+            return new Loader(this, searchKeysOrRanges, redundantBefore, testKind, minTxnId, maxTxnId, findAsDep, maxDecidedRX);
         }
 
         private void updateTransitive(UnaryOperator<NavigableMap<TxnId, Ranges>> update)
@@ -150,15 +295,20 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
     public static class Loader extends Summary.Loader
     {
         private final Manager manager;
+        private final MaxDecidedRX maxDecidedRX;
+        private final TxnId minRelevantId;
 
-        public Loader(Manager manager, Unseekables<?> searchKeysOrRanges, RedundantBefore redundantBefore, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId findAsDep)
+        public Loader(Manager manager, Unseekables<?> searchKeysOrRanges, RedundantBefore redundantBefore, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId findAsDep, MaxDecidedRX maxDecidedRX)
         {
-            super(searchKeysOrRanges, redundantBefore, testKinds, minTxnId, maxTxnId, findAsDep);
+            super(null, searchKeysOrRanges, redundantBefore, testKinds, minTxnId, maxTxnId, findAsDep);
             this.manager = manager;
+            this.maxDecidedRX = maxDecidedRX;
+            this.minRelevantId = maxDecidedRX == null ? null : TxnId.nonNullOrMax(TxnId.NONE, maxDecidedRX.foldl(searchKeysOrRanges, TxnId::nonNullOrMin, null));
         }
 
         public void intersects(Consumer<TxnId> forEach)
         {
+            // TODO (expected): use the ranges we find to filter results by MaxDecidedRX (don't just consume the TxnId)
             switch (searchKeysOrRanges.domain())
             {
                 case Range:
@@ -173,27 +323,76 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             NavigableMap<TxnId, Ranges> transitive = manager.transitive.get();
             if (!transitive.isEmpty())
             {
-                    for (Map.Entry<TxnId, Ranges> e : transitive.tailMap(minTxnId, true).entrySet())
-                    {
-                        if (e.getValue().intersects(searchKeysOrRanges))
-                            forEach.accept(e.getKey());
-                    }
+                for (Map.Entry<TxnId, Ranges> e : transitive.tailMap(minTxnId, true).entrySet())
+                {
+                    if (e.getValue().intersects(searchKeysOrRanges))
+                        forEach.accept(e.getKey());
+                }
             }
         }
 
-        public void forEachInCache(Consumer<Summary> forEach, AccordCommandStore.Caches caches)
+        boolean isRelevant(TxnIdInterval txnIdInterval)
         {
-            for (TxnId txnId : manager.cachedRangeTxns)
+            if (maxDecidedRX == null)
+                return true;
+            if (txnIdInterval.txnId.compareTo(minRelevantId) < 0)
+                return false;
+            return maxDecidedRX.foldl(txnIdInterval.start, txnIdInterval.end, (decided, anyUndecided, test, ignore) -> test.compareTo(decided) >= 0, false, txnIdInterval.txnId, null);
+        }
+
+        boolean isMaybeRelevant(TxnId txnId)
+        {
+            return maxDecidedRX == null || txnId.compareTo(minRelevantId) >= 0;
+        }
+
+        public void forEachInCache(Unseekables<?> keysOrRanges, Consumer<Summary> forEach, AccordCommandStore.Caches caches)
+        {
+            switch (keysOrRanges.domain())
             {
-                AccordCacheEntry<TxnId, Command> state = caches.commands().getUnsafe(txnId);
-                Summary summary = ifRelevant(state);
-                if (summary != null)
-                    forEach.accept(summary);
+                default: throw new UnhandledEnum(keysOrRanges.domain());
+                case Key:
+                {
+                    for (RoutingKey key : (AbstractUnseekableKeys)keysOrRanges)
+                    {
+                        IntervalBTree.accumulate(manager.cachedRangeTxnsByRange, KEY_COMPARATORS, key, (f, s, i, c) -> {
+                            TxnIdInterval interval = (TxnIdInterval)i;
+                            if (isRelevant(interval))
+                            {
+                                TxnId txnId = ((TxnIdInterval)i).txnId;
+                                Summary summary = ifRelevant(c.getUnsafe(txnId));
+                                if (summary != null)
+                                    f.accept(summary);
+                            }
+                            return c;
+                        }, forEach, this, caches.commands());
+                    }
+                    break;
+                }
+                case Range:
+                {
+                    for (Range range : (AbstractRanges)keysOrRanges)
+                    {
+                        IntervalBTree.accumulate(manager.cachedRangeTxnsByRange, COMPARATORS, new TxnIdInterval(range.start(), range.end(), TxnId.NONE), (f, s, i, c) -> {
+                            if (isRelevant(i))
+                            {
+                                TxnId txnId = i.txnId;
+                                Summary summary = ifRelevant(c.getUnsafe(txnId));
+                                if (summary != null)
+                                    f.accept(summary);
+                            }
+                            return c;
+                        }, forEach, this, caches.commands());
+                    }
+                    break;
+                }
             }
         }
 
         public Summary load(TxnId txnId)
         {
+            if (!isMaybeRelevant(txnId))
+                return null;
+
             if (findAsDep == null)
             {
                 Command.Minimal cmd = manager.commandStore.loadMinimal(txnId);
