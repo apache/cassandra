@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
+import java.math.BigInteger;
 
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,6 +43,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+
+import static org.apache.cassandra.db.compaction.LeveledGenerations.MAX_LEVEL_COUNT;
 
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 {
@@ -565,10 +568,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     {
         Map<String, String> uncheckedOptions = AbstractCompactionStrategy.validateOptions(options);
 
+        int ssSize;
+        int fanoutSize;
+
+        // Validate the sstable_size option
         String size = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "1";
         try
         {
-            int ssSize = Integer.parseInt(size);
+            ssSize = Integer.parseInt(size);
             if (ssSize < 1)
             {
                 throw new ConfigurationException(String.format("%s must be larger than 0, but was %s", SSTABLE_SIZE_OPTION, ssSize));
@@ -585,7 +592,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         String levelFanoutSize = options.containsKey(LEVEL_FANOUT_SIZE_OPTION) ? options.get(LEVEL_FANOUT_SIZE_OPTION) : String.valueOf(DEFAULT_LEVEL_FANOUT_SIZE);
         try
         {
-            int fanoutSize = Integer.parseInt(levelFanoutSize);
+            fanoutSize = Integer.parseInt(levelFanoutSize);
             if (fanoutSize < 1)
             {
                 throw new ConfigurationException(String.format("%s must be larger than 0, but was %s", LEVEL_FANOUT_SIZE_OPTION, fanoutSize));
@@ -593,7 +600,23 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         }
         catch (NumberFormatException ex)
         {
-            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", size, LEVEL_FANOUT_SIZE_OPTION), ex);
+            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", levelFanoutSize, LEVEL_FANOUT_SIZE_OPTION), ex);
+        }
+
+        // Validate max Bytes for a level
+        try
+        {
+            long maxSSTableSizeInBytes = Math.multiplyExact(ssSize, 1024L * 1024L); // Convert MB to Bytes
+            BigInteger fanoutPower = BigInteger.valueOf(fanoutSize).pow(MAX_LEVEL_COUNT - 1);
+            BigInteger maxBytes = fanoutPower.multiply(BigInteger.valueOf(maxSSTableSizeInBytes));
+            BigInteger longMaxValue = BigInteger.valueOf(Long.MAX_VALUE);
+            if (maxBytes.compareTo(longMaxValue) > 0)
+                throw new ConfigurationException(String.format("At most %s bytes may be in a compaction level; " +
+                        "your maxSSTableSize must be absurdly high to compute %s", Long.MAX_VALUE, maxBytes));
+        }
+        catch (ArithmeticException ex)
+        {
+            throw new ConfigurationException(String.format("sstable_size_in_mb=%d is too large; resulting bytes exceed Long.MAX_VALUE (%d)", ssSize, Long.MAX_VALUE), ex);
         }
 
         uncheckedOptions.remove(LEVEL_FANOUT_SIZE_OPTION);
