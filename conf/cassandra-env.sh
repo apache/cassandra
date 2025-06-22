@@ -200,9 +200,9 @@ fi
 JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 
 # Cassandra heap dump files management options:
-# 0..N > 0 - keep N newest files
-# -1 or empty - disable clean up
-# default: 2 - keep 2 newest files
+#  N >= 0 - keep N newest files
+# -1 - disable clean up
+# defaults to 2 if not set
 if [ "$CASSANDRA_HEAPDUMP_CLEAN" = "" ]; then
     CASSANDRA_HEAPDUMP_CLEAN=2
 fi
