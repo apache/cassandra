@@ -42,6 +42,7 @@ import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandStore;
+import accord.local.MaxDecidedRX;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
@@ -1091,8 +1092,9 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
 
         void startInternal(Caches caches)
         {
+            MaxDecidedRX maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();
             summaryLoader = commandStore.commandsForRanges().loader(preLoadContext.primaryTxnId(), preLoadContext.keyHistory(), keysOrRanges);
-            summaryLoader.forEachInCache(summary -> summaries.put(summary.txnId, summary), caches);
+            summaryLoader.forEachInCache(keysOrRanges, summary -> summaries.put(summary.txnId, summary), caches);
             caches.commands().register(commandWatcher);
         }
 

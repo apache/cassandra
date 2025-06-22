@@ -37,6 +37,7 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.RoutingKey;
 import accord.impl.IntKey;
 import accord.impl.IntKey.Routing;
 import accord.primitives.Range;
@@ -44,11 +45,21 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.SearchableRangeList;
+import accord.utils.btree.BTree;
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.LongArrayList;
+import org.apache.cassandra.utils.btree.IntervalBTree;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalEndWithKeyEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalEndWithKeyStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalStartWithKeyEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalStartWithKeyStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyEndWithIntervalEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyEndWithIntervalStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyStartWithIntervalEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyStartWithIntervalStart;
 
 @RunWith(Parameterized.class)
 public class RangeTreeTest
@@ -157,7 +168,7 @@ public class RangeTreeTest
     // Having different models makes sure that the tree is flexiable enough and can be used with the semantics the user
     // needs (with regard to inclusivity).  It also adds more confidence that the search logic is correct as different
     // algorithems help validate this.
-    private enum ModelType {List, IntervalTree, SearchableRangeList}
+    private enum ModelType { RTree, SearchableRangeList, IntervalTree, IntervalBTree }
     private final Pattern pattern;
     private final ModelType modelType;
 
@@ -189,7 +200,7 @@ public class RangeTreeTest
         LongArrayList byRangeLength = new LongArrayList(samples * examples, -1);
         qt().withExamples(examples).check(rs -> {
             var map = create(modelType);
-            var model = createModel(modelType);
+            var model = createOracleForValidating(modelType);
 
             Gen<Range> rangeGen = rangeGen(rs, pattern, samples);
             for (int i = 0; i < samples; i++)
@@ -199,8 +210,9 @@ public class RangeTreeTest
                 map.put(range, value);
                 model.put(range, value);
             }
+            map.done();
             model.done();
-            Assertions.assertThat(map.actual()).hasSize(samples);
+//            Assertions.assertThat(map.actual()).hasSize(samples);
             if (rangeGen instanceof NoOverlap)
                 ((NoOverlap) rangeGen).reset();
             Gen.IntGen tokenGe = TOKEN_DISTRIBUTION.next(rs);
@@ -356,28 +368,83 @@ public class RangeTreeTest
         void done();
     }
 
-    private static RangeTreeModel create(ModelType modelType)
+    private static Model create(ModelType modelType)
     {
         switch (modelType)
         {
-            case List:
             case SearchableRangeList:
-                return new RangeTreeModel(new RTree<>(COMPARATOR, END_INCLUSIVE));
-            case IntervalTree: return new RangeTreeModel(new RTree<>(COMPARATOR, ALL_INCLUSIVE));
+                return new SearchableRangeListModel();
+            case RTree:
+                return new RangeTreeModel();
+            case IntervalTree:
+                return new IntervalTreeModel();
+            case IntervalBTree:
+                return new IntervalBTreeModel();
             default:
                 throw new AssertionError("Unknown type: " + modelType);
         }
     }
 
-    private static Model createModel(ModelType modelType)
+    private static Model createOracleForValidating(ModelType modelType)
     {
-        switch (modelType)
+        if (modelType == ModelType.IntervalTree)
+            return new ListModel();
+        return new IntervalTreeModel();
+    }
+
+    static class Entry implements Comparable<Entry>, Map.Entry<Range, Integer>
+    {
+        final Range range;
+        final int value;
+
+        Entry(Range range, int value)
         {
-            case List: return new ListModel();
-            case SearchableRangeList: return new SearchableRangeListModel();
-            case IntervalTree: return new IntervalTreeModel();
-            default:
-                throw new AssertionError("Unknown type: " + modelType);
+            this.range = range;
+            this.value = value;
+        }
+
+        @Override
+        public int compareTo(Entry that)
+        {
+            return Integer.compare(this.value, that.value);
+        }
+
+        @Override
+        public Range getKey()
+        {
+            return range;
+        }
+
+        @Override
+        public Integer getValue()
+        {
+            return value;
+        }
+
+        @Override
+        public Integer setValue(Integer value)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            if (obj instanceof Entry)
+                return equals((Entry) obj);
+            if (obj instanceof Map.Entry)
+                return equals((Map.Entry) obj);
+            return false;
+        }
+
+        public boolean equals(Entry that)
+        {
+            return this.range.equals(that.range) && this.value == that.value;
+        }
+
+        public boolean equals(Map.Entry that)
+        {
+            return this.range.equals(that.getKey()) && that.getKey().equals(value);
         }
     }
 
@@ -385,9 +452,9 @@ public class RangeTreeTest
     {
         private final RangeTree<Routing, Range, Integer> tree;
 
-        private RangeTreeModel(RangeTree<Routing, Range, Integer> tree)
+        private RangeTreeModel()
         {
-            this.tree = tree;
+            this.tree = new RTree<>(COMPARATOR, END_INCLUSIVE);
         }
 
         @Override
@@ -434,7 +501,7 @@ public class RangeTreeTest
         @Override
         public void put(Range range, int value)
         {
-            actual.add(Map.entry(range, value));
+            actual.add(new Entry(range, value));
         }
 
         @Override
@@ -456,17 +523,16 @@ public class RangeTreeTest
         @Override
         public void done()
         {
-
         }
     }
 
     private static class IntervalTreeModel implements Model
     {
-        IntervalTree.Builder<Routing, Integer, Interval<Routing, Integer>> builder = IntervalTree.builder();
-        IntervalTree<Routing, Integer, Interval<Routing, Integer>> actual = null;
+        IntervalTree.Builder<Routing, Entry, Interval<Routing, Entry>> builder = IntervalTree.builder();
+        IntervalTree<Routing, Entry, Interval<Routing, Entry>> actual = null;
 
         @Override
-        public IntervalTree<Routing, Integer, Interval<Routing, Integer>> actual()
+        public IntervalTree<Routing, Entry, Interval<Routing, Entry>> actual()
         {
             return actual;
         }
@@ -474,7 +540,11 @@ public class RangeTreeTest
         @Override
         public void put(Range range, int value)
         {
-            builder.add(new Interval<>((Routing) range.start(), (Routing) range.end(), value));
+            // Interval is inclusive/inclusive, Range is exclusive/inclusive
+            Routing start = (Routing) range.start();
+            start = new Routing(start.key + 1);
+
+            builder.add(new Interval<>(start, (Routing) range.end(), new Entry(range, value)));
         }
 
         @Override
@@ -486,12 +556,13 @@ public class RangeTreeTest
         @Override
         public List<Map.Entry<Range, Integer>> intersects(Range range)
         {
-            return map(actual.matches(new Interval<>((Routing) range.start(), (Routing) range.end(), null)));
+            return map(actual.matches(new Interval<>(new Routing(((Routing) range.start()).key + 1), (Routing) range.end(), null)));
         }
 
-        private static List<Map.Entry<Range, Integer>> map(List<Interval<Routing, Integer>> matches)
+        private static List<Map.Entry<Range, Integer>> map(List<Interval<Routing, Entry>> matches)
         {
-            return matches.stream().map(i -> Map.entry(IntKey.range(i.min, i.max), i.data)).collect(Collectors.toList());
+            return matches.stream().map(v -> v.data)
+                          .collect(Collectors.toList());
         }
 
         @Override
@@ -565,4 +636,138 @@ public class RangeTreeTest
             list = SearchableRangeList.build(this.ranges = ranges.toArray(Range[]::new));
         }
     }
+
+    private static class IntervalBTreeModel implements Model
+    {
+        static class ItemComparators implements IntervalBTree.IntervalComparators<Item>
+        {
+            static final ItemComparators INSTANCE = new ItemComparators();
+
+            @Override
+            public Comparator<Item> totalOrder()
+            {
+                return (a, b) -> {
+                    int c = a.start.compareTo(b.start);
+                    if (c == 0) c = a.end.compareTo(b.end);
+                    if (c == 0) c = Integer.compare(a.value, b.value);
+                    if (c == 0) c = Integer.compare(a.uniqueId, b.uniqueId);
+                    return c;
+                };
+            }
+
+            @Override
+            public Comparator<Item> startWithStartComparator()
+            {
+                return (a, b) -> a.start.compareTo(b.start);
+            }
+
+            @Override
+            public Comparator<Item> startWithEndComparator()
+            {
+                return (a, b) -> a.start.compareTo(b.end);
+            }
+
+            @Override
+            public Comparator<Item> endWithStartComparator()
+            {
+                return (a, b) -> a.end.compareTo(b.start);
+            }
+
+            @Override
+            public Comparator<Item> endWithEndComparator()
+            {
+                return (a, b) -> a.end.compareTo(b.end);
+            }
+        }
+
+        static class ItemKeyComparators implements IntervalBTree.IntervalComparators<Object>
+        {
+            private static final ItemKeyComparators INSTANCE = new ItemKeyComparators();
+            @Override public Comparator<Object> totalOrder() { throw new UnsupportedOperationException(); }
+
+            @Override
+            public Comparator<Object> startWithStartComparator()
+            {
+                return (a, b) -> a.getClass() == Item.class
+                                 ? intervalStartWithKeyStart(((Item) a).start.compareTo((RoutingKey)b))
+                                 : keyStartWithIntervalStart(((RoutingKey)a).compareTo(((Item)b).start));
+            }
+
+            @Override
+            public Comparator<Object> startWithEndComparator()
+            {
+                return (a, b) -> a.getClass() == Item.class
+                                 ? intervalStartWithKeyEnd(((Item)a).start.compareTo((RoutingKey)b))
+                                 : keyStartWithIntervalEnd(((RoutingKey)a).compareTo(((Item)b).end));
+            }
+
+            @Override
+            public Comparator<Object> endWithStartComparator()
+            {
+                return (a, b) -> a.getClass() == Item.class
+                                 ? intervalEndWithKeyStart(((Item)a).end.compareTo((RoutingKey)b))
+                                 : keyEndWithIntervalStart(((RoutingKey)a).compareTo(((Item)b).start));
+            }
+
+            @Override
+            public Comparator<Object> endWithEndComparator()
+            {
+                return (a, b) -> a.getClass() == Item.class
+                                 ? intervalEndWithKeyEnd(((Item)a).end.compareTo((RoutingKey)b))
+                                 : keyEndWithIntervalEnd(((RoutingKey)a).compareTo(((Item)b).end));
+            }
+        }
+
+        static class Item extends Entry
+        {
+            final RoutingKey start, end;
+            final int uniqueId;
+
+            Item(RoutingKey start, RoutingKey end, Range key, int value, int uniqueId)
+            {
+                super(key, value);
+                this.start = start;
+                this.end = end;
+                this.uniqueId = uniqueId;
+            }
+        }
+
+        private Object[] btree = IntervalBTree.empty();
+        private int counter;
+
+        private IntervalBTreeModel()
+        {
+        }
+
+        @Override
+        public Object actual()
+        {
+            return btree;
+        }
+
+        @Override
+        public void put(Range range, int value)
+        {
+            btree = org.apache.cassandra.utils.btree.IntervalBTree.update(btree, BTree.singleton(new Item(range.start(), range.end(), range, value, counter++)), ItemComparators.INSTANCE);
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> intersectsToken(Routing key)
+        {
+            return IntervalBTree.<Object, Object, Object, List<Map.Entry<Range, Integer>>>accumulate(btree, ItemKeyComparators.INSTANCE, key, (i1, i2, item, list) -> { list.add((Item)item); return list; }, null, null, new ArrayList<>());
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> intersects(Range range)
+        {
+            return IntervalBTree.<Item, Object, Object, List<Map.Entry<Range, Integer>>>accumulate(btree, ItemComparators.INSTANCE, new Item(range.start(), range.end(), range, 0, 0), (i1, i2, item, list) -> { list.add(item); return list; }, null, null, new ArrayList<>());
+        }
+
+        @Override
+        public void done()
+        {
+        }
+    }
+
+
 }

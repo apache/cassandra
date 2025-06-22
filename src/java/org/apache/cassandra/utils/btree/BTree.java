@@ -32,8 +32,12 @@ import com.google.common.collect.Ordering;
 import accord.utils.Invariants;
 import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.BulkIterator;
+import org.apache.cassandra.utils.IndexedSearchIterator;
 import org.apache.cassandra.utils.LongAccumulator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.PeekingSearchIterator;
+import org.apache.cassandra.utils.SearchIterator;
+import org.apache.cassandra.utils.btree.IntervalBTree.IntervalMaxIndex;
 import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
 
 import static java.lang.Math.max;
@@ -66,7 +70,7 @@ public class BTree
      */
     public static final int BRANCH_SHIFT = BTREE_BRANCH_SHIFT.getInt();
 
-    private static final int BRANCH_FACTOR = 1 << BRANCH_SHIFT;
+    static final int BRANCH_FACTOR = 1 << BRANCH_SHIFT;
     public static final int MIN_KEYS = BRANCH_FACTOR / 2 - 1;
     public static final int MAX_KEYS = BRANCH_FACTOR - 1;
     public static final long STOP_SENTINEL_VALUE = Long.MAX_VALUE;
@@ -559,6 +563,7 @@ public class BTree
             for (int i = keyCount; i <= keyCount * 2; ++i)
                 reverseInSitu((Object[]) tree[i], height - 1, copySizeMaps);
 
+            // TODO (expected): support IntervalMaxIndex
             int[] sizeMap = (int[]) tree[2 * keyCount + 1];
             if (sizeMap != DENSE_SIZE_MAPS[height - 2]) // no need to reverse a dense map; same in both directions
             {
@@ -701,7 +706,7 @@ public class BTree
 
         while (!isLeaf(tree))
         {
-            final int[] sizeMap = getSizeMap(tree);
+            final int[] sizeMap = sizeMap(tree);
             int boundary = Arrays.binarySearch(sizeMap, index);
             if (boundary >= 0)
             {
@@ -769,7 +774,7 @@ public class BTree
             if (!exact)
                 i = -1 - i;
 
-            int[] sizeMap = getSizeMap(node);
+            int[] sizeMap = sizeMap(node);
             if (exact)
                 return lb + sizeMap[i];
             else if (i > 0)
@@ -798,7 +803,7 @@ public class BTree
                 return (V) node[index];
             }
 
-            int[] sizeMap = getSizeMap(node);
+            int[] sizeMap = sizeMap(node);
             int boundary = Arrays.binarySearch(sizeMap, index);
             if (boundary >= 0)
             {
@@ -934,17 +939,9 @@ public class BTree
     /**
      * @return the size map for the branch node
      */
-    static int[] getSizeMap(Object[] branchNode)
-    {
-        return (int[]) branchNode[getChildEnd(branchNode)];
-    }
-
-    /**
-     * @return the size map for the branch node
-     */
     static int lookupSizeMap(Object[] branchNode, int index)
     {
-        return getSizeMap(branchNode)[index];
+        return sizeMap(branchNode)[index];
     }
 
     // get the size from the btree's index (fails if not present)
@@ -956,7 +953,7 @@ public class BTree
         // length - 1 == getChildEnd == getPositionOfSizeMap
         // (length / 2) - 1 == getChildCount - 1 == position of full tree size
         // hard code this, as will be used often;
-        return ((int[]) tree[length - 1])[(length / 2) - 1];
+        return sizeMap(tree)[(length / 2) - 1];
     }
 
     public static long sizeOfStructureOnHeap(Object[] tree)
@@ -1378,7 +1375,7 @@ public class BTree
             appendBranchOrLeaf(builder, (Object[]) branch[i]);
         }
         // add sizeMap
-        builder.append(", ").append(Arrays.toString((int[]) branch[branch.length - 1]));
+        builder.append(", ").append(Arrays.toString(sizeMap(branch)));
         return builder;
     }
 
@@ -1400,7 +1397,7 @@ public class BTree
     {
         if (isLeaf(root))
             return keyIndex;
-        int[] sizeMap = getSizeMap(root);
+        int[] sizeMap = sizeMap(root);
         if ((keyIndex >= 0) & (keyIndex < sizeMap.length))
             return sizeMap[keyIndex];
         // we support asking for -1 or size, so that we can easily use this for iterator bounds checking
@@ -2191,7 +2188,7 @@ public class BTree
         // length - 1 == getChildEnd == getPositionOfSizeMap
         // (length / 2) - 1 == getChildCount - 1 == position of full tree size
         // hard code this, as will be used often;
-        return ((int[]) branch[length - 1])[(length / 2) - 1];
+        return sizeMap(branch)[(length / 2) - 1];
     }
 
     /**
@@ -2207,7 +2204,11 @@ public class BTree
      */
     static int[] sizeMap(Object[] branch)
     {
-        return (int[]) branch[branch.length - 1];
+        Object map = branch[branch.length - 1];
+        if (map.getClass() == int[].class)
+            return (int[])map;
+
+        return ((IntervalMaxIndex)map).sizeMap;
     }
 
     public static long sizeOnHeapOf(Object[] tree)
@@ -2334,7 +2335,7 @@ public class BTree
      * Base class for AbstractFastBuilder.BranchBuilder, LeafBuilder and AbstractFastBuilder,
      * containing shared behaviour and declaring some useful abstract methods.
      */
-    private static abstract class LeafOrBranchBuilder
+    static abstract class LeafOrBranchBuilder
     {
         final int height;
         final LeafOrBranchBuilder child;
@@ -2471,10 +2472,19 @@ public class BTree
          */
         final BranchBuilder ensureParent()
         {
-            if (parent == null)
-                parent = new BranchBuilder(this);
-            parent.inUse = true;
+            if (parent == null) parent = allocateParent();
+            else if (!parent.inUse) initParent();
             return parent;
+        }
+
+        BranchBuilder allocateParent()
+        {
+            return new BranchBuilder(this);
+        }
+
+        void initParent()
+        {
+            parent.inUse = true;
         }
 
         /**
@@ -2959,7 +2969,8 @@ public class BTree
             // assumes sizes != null, since only makes sense to use this method in that context
 
             int predKeys = shallowSizeOfBranch(pred);
-            int[] sizeMap = (int[]) pred[2 * predKeys + 1];
+            // TODO (desired): handle/copy IntervalMaxIndex
+            int[] sizeMap = sizeMap(pred);
             int newKeys = 1 + predKeys;
             if (newKeys + count <= MAX_KEYS)
             {
@@ -3252,6 +3263,13 @@ public class BTree
             for (int i = 0; i < count; ++i)
                 out[outOffset + i] = in[inOffset + i] - (1 + in[inOffset + i - 1]);
         }
+
+        void reset()
+        {
+            Arrays.fill(buffer, null);
+            count = 0;
+            inUse = false;
+        }
     }
 
     /**
@@ -3293,7 +3311,7 @@ public class BTree
     public static class FastBuilder<V> extends AbstractFastBuilder implements AutoCloseable
     {
         private static final TinyThreadLocalPool<FastBuilder<?>> POOL = new TinyThreadLocalPool<>();
-        private TinyThreadLocalPool.TinyPool<FastBuilder<?>> pool;
+        TinyThreadLocalPool.TinyPool pool;
 
         FastBuilder()
         {
@@ -3341,9 +3359,7 @@ public class BTree
             BranchBuilder branch = leaf().parent;
             while (branch != null && branch.inUse)
             {
-                Arrays.fill(branch.buffer, null);
-                branch.count = 0;
-                branch.inUse = false;
+                branch.reset();
                 branch = branch.parent;
             }
         }
@@ -3442,17 +3458,16 @@ public class BTree
      * Searches within both trees to accelerate the process of modification, instead of performing a simple
      * iteration over the new tree.
      */
-    private static class Updater<Compare, Existing extends Compare, Insert extends Compare> extends AbstractUpdater implements AutoCloseable
+    static class Updater<Compare, Existing extends Compare, Insert extends Compare> extends AbstractUpdater implements AutoCloseable
     {
         static final TinyThreadLocalPool<Updater> POOL = new TinyThreadLocalPool<>();
-        TinyThreadLocalPool.TinyPool<Updater> pool;
+        TinyThreadLocalPool.TinyPool pool;
 
         // the new tree we navigate linearly, and are always on a key or at the end
         final SimpleTreeKeysIterator<Compare, Insert> insert = new SimpleTreeKeysIterator<>();
 
         Comparator<? super Compare> comparator;
         UpdateFunction<Insert, Existing> updateF;
-
 
         static <Compare, Existing extends Compare, Insert extends Compare> Updater<Compare, Existing, Insert> get()
         {
@@ -3626,6 +3641,7 @@ public class BTree
             reset();
             pool.offer(this);
             pool = null;
+            comparator = null;
         }
 
         void reset()
@@ -3655,7 +3671,7 @@ public class BTree
      * <p>
      * The approach taken here hopefully balances simplicity, garbage generation and execution time.
      */
-    private static abstract class AbstractTransformer<I, O> extends AbstractUpdater implements AutoCloseable
+    static abstract class AbstractTransformer<I, O> extends AbstractUpdater implements AutoCloseable
     {
         /**
          * An iterator over the tree we are updating
@@ -3840,7 +3856,7 @@ public class BTree
          * we refuse to construct a leaf and return null.  Otherwise we propagate the branch to its parent's buffer
          * and return the branch we have constructed.
          */
-        private boolean finish(LeafOrBranchBuilder level, Object[] unode)
+        final boolean finish(LeafOrBranchBuilder level, Object[] unode)
         {
             if (!level.isSufficient())
                 return false;
@@ -3857,7 +3873,7 @@ public class BTree
          * does not, we recursively apply the stealing procedure to obtain a non-empty parent. If this process manages
          * to reach the root and still find no preceding branch, this will result in making this branch the new root.
          */
-        private Object[] finishAndDrain(boolean skipLeaf)
+        final Object[] finishAndDrain(boolean skipLeaf)
         {
             LeafOrBranchBuilder level = leaf();
             if (skipLeaf)
@@ -3971,6 +3987,191 @@ public class BTree
             Arrays.fill(queuedToFinish, 0, update.leafDepth, null);
             update.reset();
             super.reset();
+        }
+    }
+
+    /**
+     * Implement set subtraction/difference using a modified version of the Transformer logic
+     */
+    static abstract class Subtraction<K, T extends K> extends AbstractTransformer<T, T> implements AutoCloseable
+    {
+        /**
+         * An iterator over the tree we are updating
+         */
+        PeekingSearchIterator<K, ? extends K> remove;
+        Comparator<K> comparator;
+
+        Object[] apply(Object[] update, PeekingSearchIterator<K, ? extends K> remove)
+        {
+            int height = this.update.init(update);
+            this.remove = remove;
+            if (queuedToFinish.length < height - 1)
+                queuedToFinish = new Object[height - 1][];
+            return apply();
+        }
+
+        @Override
+        T apply(T v)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        /**
+         * We base our operation on the shape of {@code update}, trying to steal as much of the original tree as
+         * possible for our new tree
+         */
+        private Object[] apply()
+        {
+            Object[] unode = update.node();
+            int upos = update.position(), usz = sizeOfLeaf(unode);
+            while (true)
+            {
+                // we always start the loop on a leaf node, for both input and output
+                boolean propagatedOriginalLeaf = false;
+                if (leaf().count == 0 && upos == 0)
+                {
+                    int prev = 0;
+                    while (upos < usz)
+                    {
+                        // fast path - buffer is empty and input unconsumed, so may be able to propagate original
+                        if (null == remove.next((T)unode[upos]))
+                        {
+                            if (!remove.hasNext())
+                                break;
+                            upos = exponentialSearch(comparator, unode, upos + 1, usz, remove.peek());
+                            if (upos < 0)
+                            {
+                                upos = -1 - upos;
+                                continue;
+                            }
+                        }
+
+                        leaf().copyNoOverflow(unode, prev, upos - prev);
+                        ++upos;
+                        prev = upos;
+                    }
+                    if (propagatedOriginalLeaf = (prev == 0))
+                    {
+                        // if input is unmodified by transformation, propagate the input node
+                        markUsed(parent).addChild(unode, usz);
+                    }
+                    else
+                    {
+                        leaf().copyNoOverflow(unode, prev, usz - prev);
+                    }
+                }
+                else
+                {
+                    int prev = upos;
+                    while (upos < usz)
+                    {
+                        if (null == remove.next((T)unode[upos]))
+                        {
+                            if (!remove.hasNext())
+                                break;
+                            upos = exponentialSearch(comparator, unode, upos + 1, usz, remove.peek());
+                            if (upos < 0)
+                            {
+                                upos = -1 - upos;
+                                continue;
+                            }
+                        }
+
+                        leaf().copy(unode, prev, upos - prev);
+                        ++upos;
+                        prev = upos;
+                    }
+                    leaf().copy(unode, prev, usz - prev);
+                }
+
+                // we've finished a leaf, and have to hand it to a parent alongside its right-hand key
+                // so now we try to do two things:
+                //    1) find the next unfiltered key from our unfinished parent
+                //    2) determine how many parents are "finished" and whose buffers we should also attempt to propagate
+                // we do (1) unconditionally, because:
+                //    a) we need to handle the branch keys somewhere, and it may as well happen in one place
+                //    b) we either need more keys for our incomplete leaf; or
+                //    c) we need a key to go after our last propagated node in any unfinished parent
+
+                int finishToHeight = 0;
+                T next;
+                do
+                {
+                    if (!update.ascendToParent())
+                        return finishAndDrain(propagatedOriginalLeaf);
+
+                    BranchBuilder level = parent;
+                    unode = update.node();
+                    upos = update.position();
+                    usz = shallowSizeOfBranch(unode);
+
+                    while (upos == usz)
+                    {
+                        queuedToFinish[level.height - 2] = unode;
+                        finishToHeight = max(finishToHeight, level.height);
+
+                        if (!update.ascendToParent())
+                            return finishAndDrain(propagatedOriginalLeaf);
+
+                        level = level.ensureParent();
+                        unode = update.node();
+                        upos = update.position();
+                        usz = shallowSizeOfBranch(unode);
+                    }
+
+                    next = (T) unode[upos];
+                    if (null != remove.next(next))
+                        next = null;
+
+                    update.descendIntoNextLeaf(unode, upos, usz);
+                    unode = update.node();
+                    upos = update.position();
+                    usz = sizeOfLeaf(unode);
+
+                    // nextKey might have been filtered, so we may need to look in this next leaf for it
+                    while (next == null && upos < usz)
+                    {
+                        next = (T)unode[upos++];
+                        if (null != remove.next(next))
+                            next = null;
+                    }
+
+                    // if we still found no key loop and try again on the next parent, leaf, parent... ad infinitum
+                } while (next == null);
+
+                // we always end with unode a leaf, though it may be that upos == usz and that we will do nothing with it
+
+                // we've found a non-null key, now decide what to do with it:
+                //   1) if we have insufficient keys in our leaf, simply append to the leaf and continue;
+                //   2) otherwise, walk our parent branches finishing those *before* {@code finishTo}
+                //   2a) if any cannot be finished, append our new key to it and stop finishing further parents; they
+                //   will be finished the next time we ascend to their level with a complete chain of finishable branches
+                //   2b) otherwise, add our new key to {@code finishTo}
+
+                if (!propagatedOriginalLeaf && !finish(leaf(), null))
+                {
+                    leaf().addKeyNoOverflow(next);
+                    continue;
+                }
+
+                BranchBuilder finish = parent;
+                while (true)
+                {
+                    if (finish.height <= finishToHeight)
+                    {
+                        Object[] originalNode = queuedToFinish[finish.height - 2];
+                        if (finish(finish, originalNode))
+                        {
+                            finish = finish.parent;
+                            continue;
+                        }
+                    }
+
+                    // add our key to the last unpropagated parent branch buffer
+                    finish.addKey(next);
+                    break;
+                }
+            }
         }
     }
 
@@ -4130,7 +4331,6 @@ public class BTree
             return --depth >= 0;
         }
     }
-
 
     private static class SimpleTreeKeysIterator<Compare, Insert extends Compare>
     {
