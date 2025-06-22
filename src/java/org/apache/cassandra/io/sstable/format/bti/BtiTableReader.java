@@ -317,7 +317,7 @@ public class BtiTableReader extends SSTableReaderWithFilter
     }
 
     @Override
-    public PartitionIterator keyReader() throws IOException
+    public PartitionIterator keyReader(boolean detailed) throws IOException
     {
         return PartitionIterator.create(partitionIndex, metadata().partitioner, rowIndexFile, dfile, descriptor.version);
     }

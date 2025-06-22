@@ -23,64 +23,87 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.openjdk.jmh.annotations.*;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 25, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 5, time = 2, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 1)
 @Threads(1)
 @State(Scope.Benchmark)
 public class CompactionBench extends CQLTester
 {
-    static String keyspace;
-    String table;
-    String writeStatement;
-    String readStatement;
-    ColumnFamilyStore cfs;
-    List<File> snapshotFiles;
-    List<Descriptor> liveFiles;
+    protected static String keyspace;
+    protected String table;
+    protected String writeStatement;
+    protected ColumnFamilyStore cfs;
+    protected List<File> snapshotFiles;
+
+    @Param("2")
+    protected int sstableCount = 2;
+
+    @Param("50000")
+    protected int rowCount = 50000;
+
+    @Param("NONE")
+    protected String overlap = "NONE";
+
+    @Param("true")
+    protected boolean isCursor = true;
 
     @Setup(Level.Trial)
     public void setup() throws Throwable
     {
         CQLTester.prepareServer();
+        DatabaseDescriptor.setCursorCompactionEnabled(isCursor);
+        DatabaseDescriptor.setCompactionThroughputMebibytesPerSec(10*1024); // no rate limiting
+        createSStables();
+        takeSnapshot();
+    }
+
+    protected void createSStables()
+    {
         keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
         table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))");
         execute("use "+keyspace+";");
         writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";
-        readStatement = "SELECT * from "+table+" limit 100";
 
         Keyspace.system().forEach(k -> k.getColumnFamilyStores().forEach(c -> c.disableAutoCompaction()));
 
         cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
         cfs.disableAutoCompaction();
 
-        //Warm up
-        System.err.println("Writing 50k");
-        for (long i = 0; i < 50000; i++)
-            execute(writeStatement, i, i, i );
+        for (int j = 0; j < sstableCount; j++)
+        {
+            int pPrefix = overlap.startsWith("PK") ? 0 : j * rowCount;
+            int rPrefix = overlap.startsWith("PK.ROW") ? 0 : j * rowCount;
+            for (long i = 0; i < rowCount; i++)
+            {
+                execute(writeStatement, (pPrefix + i), (rPrefix + i), j * rowCount + i);
+            }
 
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+        }
+    }
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-
-        System.err.println("Writing 50k again...");
-        for (long i = 0; i < 50000; i++)
-            execute(writeStatement, i, i, i );
-
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-
+    private void takeSnapshot()
+    {
         SnapshotManager.instance.takeSnapshot("originals", cfs.getKeyspaceTableName());
         snapshotFiles = cfs.getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots("originals").listFiles();
+        long[] sum = new long[1];
+        snapshotFiles.forEach(f -> sum[0] += f.length());
+        System.out.println("Total input size: " + sum[0]);
     }
 
     @TearDown(Level.Trial)
@@ -95,28 +118,36 @@ public class CompactionBench extends CQLTester
                 System.err.println("Thread "+t.getName());
         }
 
+        CommitLog.instance.shutdownBlocking();
+        ClusterMetadataService.instance().log().close();
+        CQLTester.tearDownClass();
         CQLTester.cleanup();
     }
 
 
     @TearDown(Level.Invocation)
-    public void resetSnapshot()
+    public void resetSnapshot() throws IOException, InterruptedException
     {
         cfs.truncateBlocking();
 
         List<File> directories = cfs.getDirectories().getCFDirectories();
-
-        for (File file : directories)
+        // Sometimes deletes are unreliable...
+        int deleted = 0;
+        do
         {
-            for (File f : file.tryList())
+            deleted = 0;
+            for (File file : directories)
             {
-                if (f.isDirectory())
-                    continue;
-
-                FileUtils.delete(f);
+                for (File f : file.tryList())
+                {
+                    if (f.isDirectory())
+                        continue;
+                    f.tryDelete();
+                    deleted++;
+                }
             }
-        }
-
+            Thread.sleep(10);
+        } while (deleted != 0);
 
         for (File file : snapshotFiles)
             FileUtils.createHardLink(file, new File(new File(file.toPath().getParent().getParent().getParent()), file.name()));

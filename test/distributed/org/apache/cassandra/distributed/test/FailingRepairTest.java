@@ -338,6 +338,12 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
             return Collections.emptySet();
         }
 
+        @Override
+        public boolean isFullRange()
+        {
+            return false;
+        }
+
         public TableMetadata metadata()
         {
             return null;

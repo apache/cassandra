@@ -32,6 +32,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CursorCompactor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -56,6 +58,7 @@ import static org.junit.Assert.assertTrue;
 
 public class RandomSchemaTest extends CQLTester.InMemory
 {
+    static final boolean STRESS_CURSOR_COMPACTION = false;
     static
     {
         // make sure blob is always the same
@@ -75,30 +78,34 @@ public class RandomSchemaTest extends CQLTester.InMemory
             resetSchema();
 
             // TODO : when table level override of sstable format is allowed, migrate to that
-            DatabaseDescriptor.setSelectedSSTableFormat(sstableFormatGen.generate(random));
+            if (!STRESS_CURSOR_COMPACTION) DatabaseDescriptor.setSelectedSSTableFormat(sstableFormatGen.generate(random));
 
             Gen<String> udtName = Generators.unique(IDENTIFIER_GEN);
 
             TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality()
                                                                          .withUDTNames(udtName);
-            TableMetadata metadata = new TableMetadataBuilder()
-                                     .withKeyspaceName(KEYSPACE)
-                                     .withTableKinds(TableMetadata.Kind.REGULAR)
-                                     .withKnownMemtables()
-                                     .withDefaultTypeGen(AbstractTypeGenerators.builder()
-                                                                               .withoutEmpty()
-                                                                               .withMaxDepth(2)
-                                                                               .withDefaultSetKey(withoutUnsafeEquality)
-                                                                               .withoutTypeKinds(AbstractTypeGenerators.TypeKind.COUNTER)
-                                                                               .withUDTNames(udtName))
-                                     .withPartitionColumnsCount(1)
-                                     .withPrimaryColumnTypeGen(new TypeGenBuilder(withoutUnsafeEquality)
-                                                               // map of vector of map crossed the size cut-off for one of the tests, so changed max depth from 2 to 1, so we can't have the second map
-                                                               .withMaxDepth(1))
-                                     .withClusteringColumnsBetween(1, 2)
-                                     .withRegularColumnsBetween(1, 5)
-                                     .withStaticColumnsBetween(0, 2)
-                                     .build(random);
+            TableMetadata metadata;
+            do
+            {
+                metadata = new TableMetadataBuilder()
+                           .withKeyspaceName(KEYSPACE)
+                           .withTableKinds(TableMetadata.Kind.REGULAR)
+                           .withKnownMemtables()
+                           .withDefaultTypeGen(AbstractTypeGenerators.builder()
+                                                                     .withoutEmpty()
+                                                                     .withMaxDepth(2)
+                                                                     .withDefaultSetKey(withoutUnsafeEquality)
+                                                                     .withoutTypeKinds(AbstractTypeGenerators.TypeKind.COUNTER)
+                                                                     .withUDTNames(udtName))
+                           .withPartitionColumnsCount(1)
+                           .withPrimaryColumnTypeGen(new TypeGenBuilder(withoutUnsafeEquality)
+                                                     // map of vector of map crossed the size cut-off for one of the tests, so changed max depth from 2 to 1, so we can't have the second map
+                                                     .withMaxDepth(1))
+                           .withClusteringColumnsBetween(1, 2)
+                           .withRegularColumnsBetween(1, 5)
+                           .withStaticColumnsBetween(0, 2)
+                           .build(random);
+            } while (STRESS_CURSOR_COMPACTION && CursorCompactor.unsupportedMetadata(metadata));
             maybeCreateUDTs(metadata);
             String createTable = metadata.toCqlString(true, false, false);
             // just to make the CREATE TABLE stmt easier to read for CUSTOM types
@@ -129,6 +136,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                     // check sstable
                     flush(KEYSPACE, metadata.name);
                     compact(KEYSPACE, metadata.name);
+                    ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, metadata.name);
                     assertRows(execute(selectStmt, (Object[]) rowKey), expected);
                     assertRows(execute(tokenStmt, (Object[]) partitionKeys), partitionKeys);
                     assertRowsNet(executeNet(selectStmt, (Object[]) rowKey), expected);

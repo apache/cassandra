@@ -220,8 +220,8 @@ public class KeyspaceActions extends ClusterActions
         {
             int primaryKey = primaryKeys[i];
             LongToken token = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(primaryKey));
-            List<TokenPlacementModel.Replica> readReplicas = readPlacements.replicasFor(token.token);
-            List<TokenPlacementModel.Replica> writeReplicas = writePlacements.replicasFor(token.token);
+            List<TokenPlacementModel.Replica> readReplicas = readPlacements.replicasFor(token.getLongValue());
+            List<TokenPlacementModel.Replica> writeReplicas = writePlacements.replicasFor(token.getLongValue());
 
             replicasForKey[i] = readReplicas.stream().mapToInt(r -> r.node().idx()).toArray();
             Set<TokenPlacementModel.Replica> pendingReplicas = new HashSet<>(writeReplicas);

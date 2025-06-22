@@ -151,7 +151,7 @@ public class BackgroundCompactionTrackingTest extends CQLTester
 
                     if (i == 0)
                         Assert.assertEquals(uncompressedSize * 1.0 / tasks, op.getTotal(), uncompressedSize * 0.03);
-                    assertTrue(op.getCompleted() <= op.getTotal() * 1.03);
+                    assertTrue("Expected:" + op.getCompleted() +"<=" + (long)(op.getTotal() * 1.03), op.getCompleted() <= op.getTotal() * 1.03);
                     if (op.getCompleted() >= op.getTotal() * 0.97)
                         ++finished;
                 }

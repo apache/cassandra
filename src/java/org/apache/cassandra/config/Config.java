@@ -49,6 +49,7 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTOCOMPACTION_ON_STARTUP_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CURSOR_COMPACTION_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_CACHE_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
@@ -660,6 +661,8 @@ public class Config
 
     @Replaces(oldName = "enable_drop_compact_storage", converter = Converters.IDENTITY, deprecated = true)
     public volatile boolean drop_compact_storage_enabled = false;
+
+    public boolean cursor_compaction_enabled = CURSOR_COMPACTION_ENABLED.getBoolean();
 
     public volatile boolean use_statements_enabled = true;
 

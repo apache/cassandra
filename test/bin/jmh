@@ -136,6 +136,6 @@ CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/test/conf/"
 CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/build/test/classes/"
 CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/build/test/lib/jars/*"
 
-exec $NUMACTL "$JAVA" -cp "$CLASSPATH" org.openjdk.jmh.Main -jvmArgs="$cassandra_parms $JVM_OPTS" "$@"
+exec $NUMACTL "$JAVA" -Xmx8g -XX:+UseParallelGC -cp "$CLASSPATH" org.openjdk.jmh.Main -jvmArgs="-Djmh.shutdownTimeout=120 $cassandra_parms $JVM_OPTS" "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et

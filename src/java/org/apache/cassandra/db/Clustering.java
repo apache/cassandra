@@ -133,7 +133,7 @@ public interface Clustering<V> extends ClusteringPrefix<V>, IMeasurableMemory
     /**
      * Serializer for Clustering object.
      * <p>
-     * Because every clustering in a given table must have the same size (ant that size cannot actually change once the table
+     * Because every clustering in a given table must have the same size (and that size cannot actually change once the table
      * has been defined), we don't record that size.
      */
     public static class Serializer

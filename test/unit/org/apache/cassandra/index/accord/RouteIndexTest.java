@@ -178,8 +178,8 @@ public class RouteIndexTest extends CQLTester
         TokenRange range = selectExistingRange(rs, ranges);
 
         // have a key, so find a key within the range
-        long start = range.start().isMin() ? Long.MIN_VALUE : ((LongToken) range.start().token()).token;
-        long end = range.end().isMax() ? Long.MAX_VALUE : ((LongToken) range.end().token()).token;
+        long start = range.start().isMin() ? Long.MIN_VALUE : ((LongToken) range.start().token()).getLongValue();
+        long end = range.end().isMax() ? Long.MAX_VALUE : ((LongToken) range.end().token()).getLongValue();
         long token = 1 + rs.nextLong(start, end);
         @Nullable DecidedRX decidedRX = state.nextDecidedRX(rs);
         return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)), state.nextTxnRange(rs), decidedRX);

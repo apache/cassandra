@@ -70,7 +70,9 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class CompactionTask extends AbstractCompactionTask
 {
+    private static final int MEGABYTE = 1024 * 1024;
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
+
     protected final long gcBefore;
     protected final boolean keepOriginals;
     protected static long totalBytesCompacted = 0;
@@ -151,9 +153,11 @@ public class CompactionTask extends AbstractCompactionTask
      * For internal use and testing only.  The rest of the system should go through the submit* methods,
      * which are properly serialized.
      * Caller is in charge of marking/unmarking the sstables as compacting.
+     *
+     * NOTE: this method is a Byteman hook location
      */
     @Override
-    protected void runMayThrow() throws Exception
+    protected final void runMayThrow() throws Exception
     {
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
@@ -245,7 +249,7 @@ public class CompactionTask extends AbstractCompactionTask
             long nowInSec = FBUtilities.nowInSeconds();
             try (Refs<SSTableReader> refs = Refs.ref(actuallyCompact);
                  AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact, rangeList);
-                 CompactionIterator ci = new CompactionIterator(compactionType, scanners.scanners, controller, nowInSec, taskId))
+                 AbstractCompactionPipeline ci = AbstractCompactionPipeline.create(this, compactionType, scanners, controller, nowInSec, taskId))
             {
                 long lastCheckObsoletion = start;
                 inputSizeBytes = scanners.getTotalCompressedSize();
@@ -253,30 +257,29 @@ public class CompactionTask extends AbstractCompactionTask
                 if (compressionRatio == MetadataCollector.NO_COMPRESSION_RATIO)
                     compressionRatio = 1.0;
 
-                long lastBytesScanned = 0;
-
                 activeCompactions.beginCompaction(ci);
-                try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, getDirectories(), transaction, actuallyCompact))
+                try (AutoCloseable resource = getCompactionAwareWriter(actuallyCompact, ci))
                 {
+                    long lastBytesScanned = 0;
                     // Note that we need to re-check this flag after calling beginCompaction above to avoid a window
                     // where the compaction does not exist in activeCompactions but the CSM gets paused.
                     // We already have the sstables marked compacting here so CompactionManager#waitForCessation will
                     // block until the below exception is thrown and the transaction is cancelled.
                     if (!controller.cfs.getCompactionStrategyManager().isActive())
                         throw new CompactionInterruptedException(ci.getCompactionInfo());
-                    estimatedKeys = writer.estimatedKeys();
-                    while (ci.hasNext())
+                    estimatedKeys = ci.estimatedKeys();
+                    while (ci.processNextPartitionKey())
                     {
-                        if (writer.append(ci.next()))
-                            totalKeysWritten++;
+                        long bytesScanned = ci.getTotalBytesScanned();
 
-                        ci.setTargetDirectory(writer.getSStableDirectory().path());
-                        long bytesScanned = scanners.getTotalBytesScanned();
+                        // If we ingested less than a MB, keep going
+                        if (bytesScanned - lastBytesScanned > MEGABYTE)
+                        {
+                            // Rate limit the scanners, and account for compression
+                            CompactionManager.instance.compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
 
-                        // Rate limit the scanners, and account for compression
-                        CompactionManager.instance.compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
-
-                        lastBytesScanned = bytesScanned;
+                            lastBytesScanned = bytesScanned;
+                        }
 
                         if (nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
                         {
@@ -284,18 +287,26 @@ public class CompactionTask extends AbstractCompactionTask
                             lastCheckObsoletion = nanoTime();
                         }
                     }
+                    if (ci.getTotalBytesScanned() != lastBytesScanned)
+                    {
+                        // Report any leftover bytes
+                        CompactionManager.instance.compactionRateLimiterAcquire(limiter, ci.getTotalBytesScanned(), lastBytesScanned, compressionRatio);
+                    }
                     timeSpentWritingKeys = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
 
                     // point of no return
-                    newSStables = writer.finish();
+                    newSStables = finish(ci);
                 }
                 finally
                 {
                     activeCompactions.finishCompaction(ci);
                     mergedRowCounts = ci.getMergedRowCounts();
                     totalSourceCQLRows = ci.getTotalSourceCQLRows();
+
+                    totalKeysWritten = ci.getTotalKeysWritten();
                 }
             }
+
 
             if (transaction.isOffline())
                 return;
@@ -343,6 +354,28 @@ public class CompactionTask extends AbstractCompactionTask
             // update the metrics
             cfs.metric.compactionBytesWritten.inc(endsize);
         }
+        catch (Throwable e)
+        {
+            /** This should not be needed (because {@link org.apache.cassandra.utils.WrappedRunnable}) but some exceptions seem to slip by in tests */
+            logger.debug("Unexpected exception in compaction", e);
+            throw e;
+        }
+    }
+
+    /**
+     * NOTE: a Byteman hook
+     */
+    protected Collection<SSTableReader> finish(AbstractCompactionPipeline pipeline)
+    {
+        return pipeline.finishWriting();
+    }
+
+    /**
+     * NOTE: a Byteman hook
+     */
+    protected AutoCloseable getCompactionAwareWriter(Set<SSTableReader> actuallyCompact, AbstractCompactionPipeline pipeline)
+    {
+        return pipeline.openWriterResource(cfs, getDirectories(), transaction, actuallyCompact);
     }
 
     public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,

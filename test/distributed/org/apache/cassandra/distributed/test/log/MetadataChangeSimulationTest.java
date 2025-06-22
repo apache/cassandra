@@ -555,7 +555,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         Assert.assertEquals(replication, sut.rf.asKeyspaceParams().replication);
 
         Assert.assertEquals(modelState.simulatedPlacements.nodes.stream().map(Node::token).collect(Collectors.toSet()),
-                            actualMetadata.tokenMap.tokens().stream().map(t -> ((LongToken) t).token).collect(Collectors.toSet()));
+                            actualMetadata.tokenMap.tokens().stream().map(t -> ((LongToken) t).getLongValue()).collect(Collectors.toSet()));
 
         for (Map.Entry<ReplicationParams, DataPlacement> e : actualMetadata.placements.asMap().entrySet())
         {

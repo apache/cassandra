@@ -36,27 +36,29 @@ import static java.lang.Math.min;
 /**
  * Information on deletion of a storage engine object.
  */
-public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
+public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 {
-    public static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
+    private static final int LOCAL_DELETION_TIME_LIVE = Cell.deletionTimeLongToUnsignedInteger(Long.MAX_VALUE);
+    private static final long MARKED_FOR_DELETE_AT_LIVE = Long.MIN_VALUE;
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new ImmutableDeletionTime(0, 0));
 
     /**
      * A special DeletionTime that signifies that there is no top-level (row) tombstone.
      */
-    public static final DeletionTime LIVE = new DeletionTime(Long.MIN_VALUE, Long.MAX_VALUE);
+    public static final DeletionTime LIVE = new ImmutableDeletionTime(MARKED_FOR_DELETE_AT_LIVE, LOCAL_DELETION_TIME_LIVE);
 
     private static final Serializer serializer = new Serializer();
     private static final Serializer legacySerializer = new LegacySerializer();
 
-    private final long markedForDeleteAt;
-    final int localDeletionTimeUnsignedInteger;
+    protected long markedForDeleteAt;
+    protected int localDeletionTimeUnsignedInteger;
 
     public static DeletionTime build(long markedForDeleteAt, long localDeletionTime)
     {
         // Negative ldts can only be a result of a corruption or when scrubbing legacy sstables with overflown int ldts
         return localDeletionTime < 0 || localDeletionTime > Cell.MAX_DELETION_TIME
                     ? new InvalidDeletionTime(markedForDeleteAt)
-                    : new DeletionTime(markedForDeleteAt, localDeletionTime);
+                    : new ImmutableDeletionTime(markedForDeleteAt, localDeletionTime);
     }
 
     // Do not use. This is a perf optimization where some data structures known to hold valid uints are allowed to use it.
@@ -65,7 +67,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
     {
         return CassandraUInt.compare(Cell.MAX_DELETION_TIME_UNSIGNED_INTEGER, localDeletionTimeUnsignedInteger) < 0
                 ? new InvalidDeletionTime(markedForDeleteAt)
-                : new DeletionTime(markedForDeleteAt, localDeletionTimeUnsignedInteger);
+                : new ImmutableDeletionTime(markedForDeleteAt, localDeletionTimeUnsignedInteger);
     }
 
     private DeletionTime(long markedForDeleteAt, long localDeletionTime)
@@ -96,6 +98,11 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
     public long localDeletionTime()
     {
         return Cell.deletionTimeUnsignedIntegerToLong(localDeletionTimeUnsignedInteger);
+    }
+
+    public int localDeletionTimeUnsignedInteger()
+    {
+        return localDeletionTimeUnsignedInteger;
     }
 
     /**
@@ -143,7 +150,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
     @Override
     public String toString()
     {
-        return String.format("deletedAt=%d, localDeletion=%d", markedForDeleteAt(), localDeletionTime());
+        return isLive() ? "LIVE" : String.format("deletedAt=%d, localDeletion=%d", markedForDeleteAt(), localDeletionTime());
     }
 
     public int compareTo(DeletionTime dt)
@@ -155,6 +162,10 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         else return CassandraUInt.compare(localDeletionTimeUnsignedInteger, dt.localDeletionTimeUnsignedInteger);
     }
 
+    /**
+     * supersedes: supplants, replaces, in this case: "is more recent"
+     * @return true if dt is deleted BEFORE this (markedForDeleteAt > dt.markedForDeleteAt || (markedForDeleteAt == dt.markedForDeleteAt && localDeletionTime > dt.localDeletionTime))
+     */
     public boolean supersedes(DeletionTime dt)
     {
         return markedForDeleteAt() > dt.markedForDeleteAt() || (markedForDeleteAt() == dt.markedForDeleteAt() && localDeletionTime() > dt.localDeletionTime());
@@ -209,7 +220,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
         public void serialize(DeletionTime delTime, DataOutputPlus out) throws IOException
         {
-            if (delTime == LIVE)
+            if (delTime == LIVE || delTime.isLive())
                 out.writeByte(IS_LIVE_DELETION);
             else
             {
@@ -238,7 +249,30 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
                 long mfda = readBytesToMFDA(flags, bytes1, bytes2, bytes4);
                 int localDeletionTimeUnsignedInteger = in.readInt();
 
-                return new DeletionTime(mfda, localDeletionTimeUnsignedInteger);
+                return new ImmutableDeletionTime(mfda, localDeletionTimeUnsignedInteger);
+            }
+        }
+
+        public void deserialize(DataInputPlus in, ReusableDeletionTime reuse) throws IOException
+        {
+            int flags = in.readByte();
+            if ((flags & IS_LIVE_DELETION) != 0)
+            {
+                if ((flags & 0xFF) != IS_LIVE_DELETION)
+                    throw new IOException("Corrupted sstable. Invalid flags found deserializing DeletionTime: " + Integer.toBinaryString(flags & 0xFF));
+                reuse.resetLive();
+            }
+            else
+            {
+                // Read the remaining 7 bytes
+                int bytes1 = in.readByte();
+                int bytes2 = in.readShort();
+                int bytes4 = in.readInt();
+
+                long mfda = readBytesToMFDA(flags, bytes1, bytes2, bytes4);
+                int localDeletionTimeUnsignedInteger = in.readInt();
+
+                reuse.reset(mfda, localDeletionTimeUnsignedInteger);
             }
         }
 
@@ -256,7 +290,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
                 long mfda = buf.getLong(offset);
                 int localDeletionTimeUnsignedInteger = buf.getInt(offset + TypeSizes.LONG_SIZE);
 
-                return new DeletionTime(mfda, localDeletionTimeUnsignedInteger);
+                return new ImmutableDeletionTime(mfda, localDeletionTimeUnsignedInteger);
             }
         }
 
@@ -315,13 +349,26 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
                  : DeletionTime.build(mfda, ldt);
         }
 
+        public void deserialize(DataInputPlus in, ReusableDeletionTime reuse) throws IOException
+        {
+            int ldt = in.readInt();
+            long mfda = in.readLong();
+            if (mfda == Long.MIN_VALUE && ldt == Integer.MAX_VALUE) {
+                reuse.resetLive();
+            }
+            else
+            {
+                reuse.reset(mfda, ldt);
+            }
+        }
+
         public DeletionTime deserialize(ByteBuffer buf, int offset)
         {
             int ldt = buf.getInt(offset);
             long mfda = buf.getLong(offset + 4);
             return mfda == Long.MIN_VALUE && ldt == Integer.MAX_VALUE
                    ? LIVE
-                   : new DeletionTime(mfda, ldt);
+                   : new ImmutableDeletionTime(mfda, ldt);
         }
 
         public void skip(DataInputPlus in) throws IOException
@@ -336,8 +383,22 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         }
     }
 
+
+    private static class ImmutableDeletionTime extends DeletionTime
+    {
+        private ImmutableDeletionTime(long markedForDeleteAt, long localDeletionTime)
+        {
+            super(markedForDeleteAt, localDeletionTime);
+        }
+
+        private ImmutableDeletionTime(long markedForDeleteAt, int localDeletionTimeUnsignedInteger)
+        {
+            super(markedForDeleteAt, localDeletionTimeUnsignedInteger);
+        }
+    }
+
     // When scrubbing legacy sstables (overflown) or upon sstable corruption we could have negative ldts
-    public static class InvalidDeletionTime extends DeletionTime
+    public static class InvalidDeletionTime extends ImmutableDeletionTime
     {
         private InvalidDeletionTime(long markedForDeleteAt)
         {
@@ -356,6 +417,63 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         public boolean validate()
         {
             return false;
+        }
+    }
+
+    public static class ReusableDeletionTime extends DeletionTime
+    {
+        private ReusableDeletionTime(long markedForDeleteAt, int localDeletionTimeUnsignedInteger)
+        {
+            super(markedForDeleteAt, localDeletionTimeUnsignedInteger);
+        }
+
+        public void resetLive()
+        {
+            markedForDeleteAt = MARKED_FOR_DELETE_AT_LIVE;
+            localDeletionTimeUnsignedInteger = LOCAL_DELETION_TIME_LIVE;
+        }
+
+        void reset(long markedForDeleteAt, int localDeletionTimeUnsignedInteger)
+        {
+            this.markedForDeleteAt = markedForDeleteAt;
+            this.localDeletionTimeUnsignedInteger = localDeletionTimeUnsignedInteger;
+        }
+
+        public void reset(long markedForDeleteAt, long localDeletionTime)
+        {
+            this.markedForDeleteAt = markedForDeleteAt;
+            if (localDeletionTime < 0 || localDeletionTime > Cell.MAX_DELETION_TIME) // invalid
+                this.localDeletionTimeUnsignedInteger = Cell.MAX_DELETION_TIME_UNSIGNED_INTEGER + 1;
+            else
+                this.localDeletionTimeUnsignedInteger = Cell.deletionTimeLongToUnsignedInteger(localDeletionTime);
+        }
+
+        public void reset(DeletionTime deletionTime)
+        {
+            if (deletionTime == null)
+                resetLive();
+            else
+                reset(deletionTime.markedForDeleteAt, deletionTime.localDeletionTimeUnsignedInteger);
+        }
+
+        @Override
+        public boolean validate()
+        {
+            return localDeletionTimeUnsignedInteger == LOCAL_DELETION_TIME_LIVE || CassandraUInt.compare(Cell.MAX_DELETION_TIME_UNSIGNED_INTEGER, localDeletionTimeUnsignedInteger) >= 0;
+        }
+
+        public static ReusableDeletionTime copy(DeletionTime original)
+        {
+            if (original == null)
+                return live();
+            // Negative ldts can only be a result of a corruption or when scrubbing legacy sstables with overflown int ldts
+            return new ReusableDeletionTime(original.markedForDeleteAt, original.localDeletionTimeUnsignedInteger);
+        }
+
+        public static ReusableDeletionTime live()
+        {
+            // Negative ldts can only be a result of a corruption or when scrubbing legacy sstables with overflown int ldts
+            return new ReusableDeletionTime(LIVE.markedForDeleteAt, LIVE.localDeletionTimeUnsignedInteger);
         }
     }
 }

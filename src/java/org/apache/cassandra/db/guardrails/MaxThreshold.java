@@ -53,14 +53,14 @@ public class MaxThreshold extends Threshold
     }
 
     @Override
-    protected long failValue(ClientState state)
+    public long failValue(ClientState state)
     {
         long failValue = failThreshold.applyAsLong(state);
         return failValue <= 0 ? Long.MAX_VALUE : failValue;
     }
 
     @Override
-    protected long warnValue(ClientState state)
+    public long warnValue(ClientState state)
     {
         long warnValue = warnThreshold.applyAsLong(state);
         return warnValue <= 0 ? Long.MAX_VALUE : warnValue;

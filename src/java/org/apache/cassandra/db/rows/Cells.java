@@ -36,7 +36,7 @@ public abstract class Cells
     private Cells() {}
 
     /**
-     * Collect statistics ont a given cell.
+     * Collect statistics on a given cell.
      *
      * @param cell the cell for which to collect stats.
      * @param collector the stats collector.

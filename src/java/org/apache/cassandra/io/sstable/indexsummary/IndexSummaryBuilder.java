@@ -145,7 +145,7 @@ public class IndexSummaryBuilder implements AutoCloseable
      */
     private static long getEntrySize(long keySize)
     {
-        return keySize + TypeSizes.sizeof(0L);
+        return keySize + TypeSizes.LONG_SIZE;
     }
 
     // the index file has been flushed to the provided position; stash it and use that to recalculate our max readable boundary
@@ -187,6 +187,34 @@ public class IndexSummaryBuilder implements AutoCloseable
     public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart) throws IOException
     {
         return maybeAddEntry(decoratedKey, indexStart, 0, 0);
+    }
+    /**
+     * @param keyBytes the key data for this record
+     * @param offset key data offset in the keyBytes array
+     * @param length key data length
+     * @param indexStart the position in the index file this record begins
+     */
+    public IndexSummaryBuilder maybeAddEntry(byte[] keyBytes, int offset, int length, long indexStart) throws IOException
+    {
+        if (keysWritten == nextSamplePosition)
+        {
+            if ((entries.length() + getEntrySize(length)) <= Integer.MAX_VALUE)
+            {
+                offsets.writeInt((int) entries.length());
+                entries.write(keyBytes, offset, length);
+                entries.writeLong(indexStart);
+                setNextSamplePosition(keysWritten);
+            }
+            else
+            {
+                // we cannot fully sample this sstable due to too much memory in the index summary, so let's tell the user
+                logger.error("Memory capacity of index summary exceeded (2GiB), index summary will not cover full sstable, " +
+                             "you should increase min_sampling_level");
+            }
+        }
+
+        keysWritten++;
+        return this;
     }
 
     /**

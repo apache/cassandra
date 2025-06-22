@@ -2330,6 +2330,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return partitionKeySetIgnoreGcGrace.contains(dk);
     }
 
+    public boolean shouldIgnoreGcGraceForAnyKey()
+    {
+        return !partitionKeySetIgnoreGcGrace.isEmpty();
+    }
+
     public static Iterable<ColumnFamilyStore> all()
     {
         List<Iterable<ColumnFamilyStore>> stores = new ArrayList<>(Schema.instance.getKeyspaces().size());

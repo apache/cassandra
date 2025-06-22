@@ -436,7 +436,14 @@ public final class JsonTransformer
                 else
                 {
                     AbstractType<?> type = column.cellValueType();
-                    json.writeRawValue(type.toJSONString(clustering.get(i), clustering.accessor(), ProtocolVersion.CURRENT));
+                    try
+                    {
+                        json.writeRawValue(type.toJSONString(clustering.get(i), clustering.accessor(), ProtocolVersion.CURRENT));
+                    }
+                    catch (Exception e)
+                    {
+                        json.writeString("unsupported conversion to JSON");
+                    }
                 }
             }
             json.writeEndArray();
@@ -552,7 +559,13 @@ public final class JsonTransformer
             else
             {
                 json.writeFieldName("value");
-                json.writeRawValue(cellType.toJSONString(cell.value(), cell.accessor(), ProtocolVersion.CURRENT));
+                try
+                {
+                    json.writeRawValue(cellType.toJSONString(cell.value(), cell.accessor(), ProtocolVersion.CURRENT));
+                }
+                catch (Exception e) {
+                    json.writeString("unsupported conversion to JSON");
+                }
             }
             if (liveInfo.isEmpty() || cell.timestamp() != liveInfo.timestamp())
             {

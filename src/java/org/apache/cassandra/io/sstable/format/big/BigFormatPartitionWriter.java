@@ -48,11 +48,11 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
     @VisibleForTesting
     public static final int DEFAULT_GRANULARITY = 64 * 1024;
 
-    // used, if the row-index-entry reaches config column_index_cache_size
-    private DataOutputBuffer buffer;
-    // used to track the size of the serialized size of row-index-entry (unused for buffer)
+    // used, if the row-index-entry reaches config switchIndexInfoToBufferThreshold
+    private DataOutputBuffer rowIndexEntryBuffer;
+    // used to track the total serialized size of indexSamples (unused for buffer)
     private int indexSamplesSerializedSize;
-    // used, until the row-index-entry reaches config column_index_cache_size
+    // used, until the row-index-entry reaches switchIndexInfoToBufferThreshold (from config column_index_cache_size, or default 64k)
     private final List<IndexInfo> indexSamples = new ArrayList<>();
 
     private DataOutputBuffer reusableBuffer;
@@ -62,8 +62,10 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
 
     private final ISerializer<IndexInfo> idxSerializer;
 
-    private final int cacheSizeThreshold;
-    private final int indexSize;
+    /** Beyond this limit we switch from storing IndexInfo in the list to directly serializing them into a buffer */
+    private final int switchIndexInfoToBufferThreshold;
+    /** If a partition grows beyond this size we store inter-partition index data in IndexInfo */
+    private final int indexBlockThreshold;
 
     BigFormatPartitionWriter(SerializationHeader header,
                              SequentialWriter writer,
@@ -82,8 +84,8 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
     {
         super(header, writer, version);
         this.idxSerializer = indexInfoSerializer;
-        this.cacheSizeThreshold = cacheSizeThreshold;
-        this.indexSize = indexSize;
+        this.switchIndexInfoToBufferThreshold = cacheSizeThreshold;
+        this.indexBlockThreshold = indexSize;
     }
 
     public void reset()
@@ -93,9 +95,9 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
         this.indexSamplesSerializedSize = 0;
         this.indexSamples.clear();
 
-        if (this.buffer != null)
-            this.reusableBuffer = this.buffer;
-        this.buffer = null;
+        if (this.rowIndexEntryBuffer != null)
+            this.reusableBuffer = this.rowIndexEntryBuffer;
+        this.rowIndexEntryBuffer = null;
     }
 
     public int getColumnIndexCount()
@@ -105,12 +107,12 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
 
     public ByteBuffer buffer()
     {
-        return buffer != null ? buffer.buffer() : null;
+        return rowIndexEntryBuffer != null ? rowIndexEntryBuffer.buffer() : null;
     }
 
     public List<IndexInfo> indexSamples()
     {
-        if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) <= cacheSizeThreshold)
+        if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) <= switchIndexInfoToBufferThreshold)
         {
             return indexSamples;
         }
@@ -129,8 +131,8 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
     {
         IndexInfo cIndexInfo = new IndexInfo(firstClustering,
                                              lastClustering,
-                                             startPosition,
-                                             currentPosition() - startPosition,
+                                             indexBlockStartOffset,
+                                             currentOffsetInPartition() - indexBlockStartOffset,
                                              !openMarker.isLive() ? openMarker : null);
 
         // indexOffsets is used for both shallow (ShallowIndexedEntry) and non-shallow IndexedEntry.
@@ -156,8 +158,8 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
             else
             {
                 indexOffsets[columnIndexCount] =
-                buffer != null
-                ? Ints.checkedCast(buffer.position())
+                rowIndexEntryBuffer != null
+                ? Ints.checkedCast(rowIndexEntryBuffer.position())
                 : indexSamplesSerializedSize;
             }
         }
@@ -165,16 +167,20 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
 
         // First, we collect the IndexInfo objects until we reach Config.column_index_cache_size in an ArrayList.
         // When column_index_cache_size is reached, we switch to byte-buffer mode.
-        if (buffer == null)
+        if (rowIndexEntryBuffer == null)
         {
             indexSamplesSerializedSize += idxSerializer.serializedSize(cIndexInfo);
-            if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) > cacheSizeThreshold)
+            if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.INT_SIZE > switchIndexInfoToBufferThreshold)
             {
-                buffer = reuseOrAllocateBuffer();
+                rowIndexEntryBuffer = reuseOrAllocateBuffer();
+                // serialize pre-existing samples
                 for (IndexInfo indexSample : indexSamples)
                 {
-                    idxSerializer.serialize(indexSample, buffer);
+                    /** {@link IndexInfo.Serializer#serialize} */
+                    idxSerializer.serialize(indexSample, rowIndexEntryBuffer);
                 }
+                // release pre-existing samples
+                indexSamples.clear();
             }
             else
             {
@@ -182,9 +188,10 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
             }
         }
         // don't put an else here since buffer may be allocated in preceding if block
-        if (buffer != null)
+        if (rowIndexEntryBuffer != null)
         {
-            idxSerializer.serialize(cIndexInfo, buffer);
+            /** {@link IndexInfo.Serializer#serialize} */
+            idxSerializer.serialize(cIndexInfo, rowIndexEntryBuffer);
         }
 
         firstClustering = null;
@@ -201,7 +208,7 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
             return buffer;
         }
         // don't use the standard RECYCLER as that only recycles up to 1MB and requires proper cleanup
-        return new DataOutputBuffer(cacheSizeThreshold * 2);
+        return new DataOutputBuffer(switchIndexInfoToBufferThreshold * 2);
     }
 
     @Override
@@ -210,7 +217,8 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
         super.addUnfiltered(unfiltered);
 
         // if we hit the column index size that we have to index after, go ahead and index it.
-        if (currentPosition() - startPosition >= indexSize)
+        long sizeSinceLastIndexBlock = currentOffsetInPartition() - indexBlockStartOffset;
+        if (sizeSinceLastIndexBlock >= this.indexBlockThreshold)
             addIndexBlock();
     }
 
@@ -231,10 +239,10 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
         // we have to write the offsts to these here. The offsets have already been collected
         // in indexOffsets[]. buffer is != null, if it exceeds Config.column_index_cache_size.
         // In the other case, when buffer==null, the offsets are serialized in RowIndexEntry.IndexedEntry.serialize().
-        if (buffer != null)
+        if (rowIndexEntryBuffer != null)
         {
             for (int i = 0; i < columnIndexCount; i++)
-                buffer.writeInt(indexOffsets[i]);
+                rowIndexEntryBuffer.writeInt(indexOffsets[i]);
         }
 
         // we should always have at least one computed index block, but we only write it out if there is more than that.
@@ -245,8 +253,8 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
 
     public int indexInfoSerializedSize()
     {
-        return buffer != null
-               ? buffer.buffer().limit()
+        return rowIndexEntryBuffer != null
+               ? rowIndexEntryBuffer.buffer().limit()
                : indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0);
     }
 

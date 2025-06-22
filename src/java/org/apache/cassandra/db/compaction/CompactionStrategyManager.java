@@ -820,7 +820,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * lives in matches the list index of the holder that's responsible for it
      */
-    public List<GroupedSSTableContainer> groupSSTables(Iterable<SSTableReader> sstables)
+    public final List<GroupedSSTableContainer> groupSSTables(Iterable<SSTableReader> sstables)
     {
         List<GroupedSSTableContainer> classified = new ArrayList<>(holders.size());
         for (AbstractStrategyHolder holder : holders)
@@ -970,7 +970,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param ranges
      * @return
      */
-    public AbstractCompactionStrategy.ScannerList maybeGetScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
+    public final AbstractCompactionStrategy.ScannerList maybeGetScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
     {
         maybeReloadDiskBoundaries();
         List<ISSTableScanner> scanners = new ArrayList<>(sstables.size());

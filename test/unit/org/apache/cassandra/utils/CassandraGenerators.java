@@ -1408,16 +1408,16 @@ public final class CassandraGenerators
             List<Range<Token>> unwrap = range.unwrap();
             return rs -> {
                 Range<Token> subRange = unwrap.get(Math.toIntExact(rs.next(Constraint.between(0, unwrap.size() - 1))));
-                long end = ((Murmur3Partitioner.LongToken) subRange.right).token;
+                long end = ((Murmur3Partitioner.LongToken) subRange.right).getLongValue();
                 if (end == Long.MIN_VALUE)
                     end = Long.MAX_VALUE;
-                Constraint token = Constraint.between(((Murmur3Partitioner.LongToken) subRange.left).token + 1, end);
+                Constraint token = Constraint.between(((Murmur3Partitioner.LongToken) subRange.left).getLongValue() + 1, end);
                 return new Murmur3Partitioner.LongToken(rs.next(token));
             };
         }
         else
         {
-            Constraint token = Constraint.between(((Murmur3Partitioner.LongToken) range.left).token + 1, ((Murmur3Partitioner.LongToken) range.right).token);
+            Constraint token = Constraint.between(((Murmur3Partitioner.LongToken) range.left).getLongValue() + 1, ((Murmur3Partitioner.LongToken) range.right).getLongValue());
             return rs -> new Murmur3Partitioner.LongToken(rs.next(token));
         }
     }

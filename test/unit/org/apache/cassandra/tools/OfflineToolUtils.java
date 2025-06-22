@@ -79,6 +79,8 @@ public abstract class OfflineToolUtils
     "Attach Listener", // spawned in intellij IDEA
     "JNA Cleaner",     // spawned by JNA
     "ThreadLocalMetrics-Cleaner", // spawned by org.apache.cassandra.metrics.ThreadLocalMetrics
+    "Native reference cleanup thread",
+    "^ForkJoinPool\\.commonPool-worker-\\d+$"
     };
 
     static final String[] NON_DEFAULT_MEMTABLE_THREADS =

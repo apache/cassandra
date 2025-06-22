@@ -304,7 +304,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                                          while (ci.hasNext())
                                              writer.append(ci.next());
 
-                                         ci.setTargetDirectory(writer.getSStableDirectory().path());
+                                         ci.setTargetDirectory(writer.getSStableDirectoryPath());
                                          // point of no return
                                          newSStables = writer.finish();
                                      }

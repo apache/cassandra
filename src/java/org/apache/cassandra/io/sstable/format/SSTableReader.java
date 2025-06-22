@@ -926,7 +926,16 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * Returns a {@link KeyReader} over all keys in the sstable.
      */
-    public abstract KeyReader keyReader() throws IOException;
+    public final KeyReader keyReader() throws IOException {
+        return keyReader(false);
+    }
+
+    /**
+     * Returns a {@link KeyReader} over all keys in the sstable.
+     *
+     * @param detailed should the iterator also provide details per partition entry(e.g. row entry details)
+     */
+    public abstract KeyReader keyReader(boolean detailed) throws IOException;
 
     /**
      * Returns a {@link KeyReader} over all keys in the sstable after a given key.
