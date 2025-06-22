@@ -128,6 +128,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.AbstractTypeGenerators.ValueDomain;
+import org.junit.Assert;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.Generate;
@@ -142,6 +143,7 @@ import static org.apache.cassandra.utils.Generators.SMALL_TIME_SPAN_NANOS;
 import static org.apache.cassandra.utils.Generators.TIMESTAMP_NANOS;
 import static org.apache.cassandra.utils.Generators.TINY_TIME_SPAN_NANOS;
 import static org.apache.cassandra.utils.Generators.directAndHeapBytes;
+import static org.junit.Assert.assertTrue;
 
 public final class CassandraGenerators
 {
@@ -584,11 +586,14 @@ public final class CassandraGenerators
                     try
                     {
                         // see org.apache.cassandra.db.compaction.LeveledGenerations.MAX_LEVEL_COUNT for why 8 is hard coded here
-                        LeveledManifest.maxBytesForLevel(8, value, maxSSTableSizeInBytes);
+                        // LeveledManifest.maxBytesForLevel(8, value, maxSSTableSizeInBytes);
+                        options.put(LeveledCompactionStrategy.LEVEL_FANOUT_SIZE_OPTION, value.toString());
+                        LeveledCompactionStrategy.validateOptions(options);
                         break; // value is good, keep it
                     }
-                    catch (RuntimeException e)
+                    catch (ConfigurationException e)
                     {
+                        assertTrue(e.getMessage().contains("your maxSSTableSize must be absurdly high to compute"));
                         // this value is too large... lets shrink it
                         if (value.intValue() == 1)
                             throw new AssertionError("There is no possible fanout size that works with maxSSTableSizeInMB=" + maxSSTableSizeInMB);
