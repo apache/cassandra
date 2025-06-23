@@ -74,6 +74,7 @@ import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -120,6 +121,12 @@ public class ClusterMetadata
 
     // This isn't serialized as part of ClusterMetadata it's really just a view over the Directory.
     public final Locator locator;
+
+    // This isn't serialized, it's a helper to apply transient (or not yet committed) changes to CMS member addresses.
+    // It is initialized with any address changes detected in Startup::initializeCMSLookup when the node boots. It is
+    // subsequently updated exclusively by CMSLookup.LogListener when enacting a transformation which modifies the
+    // addresses of CMS member(s), making those changes permanent/durable.
+    public volatile CMSLookup cmsLookup = CMSLookup.NO_OP;
 
     // These fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
     private EndpointsForRange fullCMSReplicas;
@@ -189,7 +196,6 @@ public class ClusterMetadata
              cmsMembership);
     }
 
-
     private ClusterMetadata(int metadataIdentifier,
                             Epoch epoch,
                             IPartitioner partitioner,
@@ -224,8 +230,8 @@ public class ClusterMetadata
         this.locator = Locator.usingDirectory(directory);
         this.accordStaleReplicas = accordStaleReplicas;
         this.cmsMembership = cmsMembership;
-        this.cmsDataPlacement = calculateCMSPlacement(placements, cmsMembership);
-
+        // Build CMS placement using no-op CMS lookup, i.e. using only committed node addresses
+        this.cmsDataPlacement = calculateCMSPlacement(placements, cmsMembership, CMSLookup.NO_OP);
         InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
         this.localNodeId = directory.allAddresses().contains(broadcastAddress)
                            ? directory.peerId(broadcastAddress)
@@ -239,7 +245,25 @@ public class ClusterMetadata
 
     public boolean isCMSMember()
     {
-        if (epoch.isEqualOrBefore(Epoch.FIRST))
+        // There are two special cases to consider here:
+        // * Initialization of the CMS for the first time by its first member
+        //   During first initialization, placements are hardcoded to the local address after the PRE_INITIALIZE_CMS is
+        //   committed so that the subsequent INITIALIZE_CMS can be.
+        //
+        // * Some changes to the addresses of the CMS members have been changed and whilst this is known (i.e. has been
+        //   discovered) it has not yet been committed.
+        //   When address changes are in flight, at startup the *current* broadcast address for the local node will not
+        //   yet be associated with its NodeId in the directory, causing the localNodeId to be set to
+        //   NodeId.UNREGISTERED. Updating the address requires a Startup transformation to be committed, but if the
+        //   node itself is a CMS member there is a chicken-and-egg problem as NodeId.UNREGISTERED will not be a CMS
+        //   member.
+        //
+        // Fortunately, in both cases the placements for the metadata keyspace can be used as the source of truth a
+        // about CMS membership. As mentioned, during the PRE_INIT/INIT phase, the placement is hardcoded and during
+        // in-flight address changes a temporary lookup is constructed and the placements derived from that.
+        // See calculateCMSPlacement for details.
+
+        if (epoch.isEqualOrBefore(Epoch.FIRST) || cmsLookup.isActive())
             return isCMSMember(FBUtilities.getBroadcastAddressAndPort());
 
         return fullCMSMemberIds().contains(localNodeId);
@@ -260,9 +284,10 @@ public class ClusterMetadata
 
         if (fullCMSEndpoints == null)
         {
+            EndpointLookup lookup = endpointLookup();
             fullCMSEndpoints = ImmutableSet.copyOf(cmsMembership.fullMembers()
                                                                 .stream()
-                                                                .map(directory::endpoint)
+                                                                .map(lookup::endpoint)
                                                                 .collect(Collectors.toSet()));
         }
         return fullCMSEndpoints;
@@ -275,15 +300,54 @@ public class ClusterMetadata
 
         if (fullCMSReplicas == null)
         {
+            EndpointLookup lookup = endpointLookup();
             EndpointsForRange.Builder builder = EndpointsForRange.builder(MetaStrategy.entireRange);
             for (NodeId nodeId : fullCMSMemberIds())
-                builder.add(MetaStrategy.replica(directory.endpoint(nodeId)));
+                builder.add(MetaStrategy.replica(lookup.endpoint(nodeId)));
             fullCMSReplicas = builder.build();
         }
         return fullCMSReplicas;
     }
 
-    private DataPlacement calculateCMSPlacement(DataPlacements placements, CMSMembership cms)
+    // Synchronization is probably not necessary as this should only be called by a log listener
+    public synchronized void refreshCMSLookup(ClusterMetadata prev, boolean fromSnapshot)
+    {
+        CMSLookup prevLookup = prev.cmsLookup;
+        CMSLookup proposedLookup = prevLookup.rebuild(prev, this, fromSnapshot);
+        // rebuild returns `this` if no changes
+        if (prevLookup != proposedLookup)
+            logger.info("Replacing CMSLookup, Current: {}, Proposed: {}", prevLookup, proposedLookup);
+
+        // recalculate CMS placement using endpoint mappings from lookup
+        cmsDataPlacement = calculateCMSPlacement(placements, cmsMembership, proposedLookup);
+
+        // We shouldn't need to null out the other lazily initialized CMS fields when we refresh the CMSLookup as the
+        // refresh is triggered by a precommit listener, meaning nothing should be accessing the ClusterMetadata
+        // instance yet.
+        cmsLookup = proposedLookup;
+    }
+
+    // Synchronization is probably not necessary as this should only be called once, during startup
+    public synchronized boolean initCMSLookup(CMSLookup lookup)
+    {
+        logger.info("Initializing CMS lookup on ClusterMetadata at epoch {}", epoch.getEpoch());
+        boolean isInitial = cmsLookup.isUninitialized();
+        logger.debug("Current CMS lookup: {}, proposed: {}", cmsLookup, lookup);
+        if (isInitial)
+        {
+            cmsLookup = lookup;
+            cmsDataPlacement = calculateCMSPlacement(placements, cmsMembership, lookup);
+            // We need to null out these fields when we init the CMSLookup because post-commit listeners may have
+            // accessed them during log replay, which happens before this.
+            fullCMSReplicas = null;
+            fullCMSEndpoints = null;
+        }
+        else
+            logger.warn("Invalid CMSLookup state for initialization: {}", cmsLookup);
+        return isInitial;
+    }
+
+    private DataPlacement calculateCMSPlacement(DataPlacements placements, CMSMembership cms, CMSLookup lookup)
     {
         if (epoch.isBefore(Epoch.FIRST) || schema.getKeyspaces().get(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
             return DataPlacement.empty();
@@ -326,9 +390,15 @@ public class ClusterMetadata
         }
         else
         {
-            // Build a placement based on the CMS membership
-            return cms.toPlacement(directory);
+            // Build a placement based on the CMS membership, with any in-flight endpoint changes applied
+            EndpointLookup endpointLookup = lookup.isActive() ? lookup.asNodeLookup(directory) : directory;
+            return cms.toPlacement(endpointLookup);
         }
+    }
+
+    public EndpointLookup endpointLookup()
+    {
+        return cmsLookup.isActive() ? cmsLookup.asNodeLookup(directory) : directory;
     }
 
     public DataPlacement placement(ReplicationParams params)
