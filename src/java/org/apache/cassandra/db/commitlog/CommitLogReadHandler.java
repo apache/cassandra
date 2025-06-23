@@ -63,7 +63,16 @@ public interface CommitLogReadHandler
      * @throws IOException
      */
     void handleUnrecoverableError(CommitLogReadException exception) throws IOException;
-
+    public default void handleError(org.apache.cassandra.io.util.File file, CommitLogReadErrorReason reason, Throwable t) {
+        try {
+            handleUnrecoverableError(new CommitLogReadException(
+                    file.toString(),
+                    reason,
+                    false)); // ← Pass boolean instead of Throwable
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to handle unrecoverable error", e);
+        }
+    }
     /**
      * Process a deserialized mutation
      *

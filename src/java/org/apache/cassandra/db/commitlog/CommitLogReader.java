@@ -120,14 +120,25 @@ public class CommitLogReader
     /**
      * Reads all passed in files with minPosition, no start, and no mutation limit.
      */
-    public void readAllFiles(CommitLogReadHandler handler, File[] files, CommitLogPosition minPosition) throws IOException
-    {
+    public void readAllFiles(CommitLogReadHandler handler, File[] files, CommitLogPosition minPosition) throws IOException {
         List<File> filteredLogs = filterCommitLogFiles(files);
         int i = 0;
-        for (File file: filteredLogs)
-        {
+        for (File file : filteredLogs) {
             i++;
-            readCommitLogSegment(handler, file, minPosition, ALL_MUTATIONS, i == filteredLogs.size());
+            boolean success = false;
+            try {
+                readCommitLogSegment(handler, file, minPosition, ALL_MUTATIONS, i == filteredLogs.size());
+                success = true;
+            } catch (Throwable t) {
+                handler.handleError(file, CommitLogReadErrorReason.UNRECOVERABLE_UNKNOWN_ERROR, t);
+                logger.warn("Skipping commit log file {} due to error: {}", file.name(), t.getMessage(), t);
+            }
+
+            // 🔴 Fix: If unsuccessful, skip to next without retrying
+            if (!success) {
+                logger.info("File {} was not processed successfully. Skipping to next.", file.name());
+                continue;
+            }
         }
     }
 
