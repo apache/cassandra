@@ -35,7 +35,6 @@ import com.google.common.collect.Ordering;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.impl.CommandChange;
 import accord.local.Cleanup;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;

@@ -57,7 +57,7 @@ public class IdenticalTopologyTest extends FuzzTestBase
                     Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL).disableAutoCompaction();
                 });
 
-                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, "bootstrap_fuzz", POPULATION,
+                Generator<SchemaSpec> schemaGen = SchemaGenerators.trivialSchema(KEYSPACE, () -> "bootstrap_fuzz", POPULATION,
                                                                                  SchemaSpec.optionsBuilder()
                                                                                            .addWriteTimestamps(false)
                                                                                            .withTransactionalMode(TransactionalMode.full));
