@@ -54,9 +54,9 @@ public class BinAuditLoggerTest extends CQLTester
         options.logger = new ParameterizedClass("BinAuditLogger", null);
         options.roll_cycle = "TEST_SECONDLY";
         options.audit_logs_dir = tempDir.toString();
+        options.role_filtering = false; // disable audit user cache so audit log for every action
         DatabaseDescriptor.setAuditLoggingOptions(options);
         AuditLogManager.instance.enable(DatabaseDescriptor.getAuditLoggingOptions());
-        DatabaseDescriptor.setAuditUserCacheEnabled(false);  // disable audit user cache so audit log for every action
         requireNetwork();
     }
 

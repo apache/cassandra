@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-44851] [Part 4] Respect audit_logging_options.role_filtering in AuditLogManager
  * Gossip doesn't converge due to race condition when updating EndpointStates multiple fields (CASSANDRA-20659)
  * [SO-46392] Optimize Version Check during hot path (reads/writes)
  * [SO-46391] Validator detect out-of-sync issue between system.peers_v2 table and Gossiper endpointStates

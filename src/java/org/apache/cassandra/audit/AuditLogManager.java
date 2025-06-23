@@ -97,7 +97,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     }
 
     private boolean shouldLog(QueryState state) {
-        if (DatabaseDescriptor.getAuditUserCacheEnabled()) {
+        if (auditLogOptions.role_filtering) {
             ClientState clientState = state.getClientState();
             if (clientState != null && clientState.getUser() != null)  {
                 String user = clientState.getUser().getName();

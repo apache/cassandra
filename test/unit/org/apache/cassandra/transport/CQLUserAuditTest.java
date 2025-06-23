@@ -67,6 +67,7 @@ public class CQLUserAuditTest
             config.authenticator = "PasswordAuthenticator";
             config.role_manager = "CassandraRoleManager";
             config.diagnostic_events_enabled = true;
+            config.audit_logging_options.role_filtering = false;
             config.audit_logging_options.enabled = true;
             config.audit_logging_options.logger = new ParameterizedClass("DiagnosticEventAuditLogger", null);
         });
@@ -75,7 +76,6 @@ public class CQLUserAuditTest
 
         embedded = ServerTestUtils.startEmbeddedCassandraService();
 
-        DatabaseDescriptor.setAuditUserCacheEnabled(false);
         executeAs(Arrays.asList("CREATE ROLE testuser WITH LOGIN = true AND SUPERUSER = false AND PASSWORD = 'foo'",
                                 "CREATE ROLE testuser_nologin WITH LOGIN = false AND SUPERUSER = false AND PASSWORD = 'foo'",
                                 "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",

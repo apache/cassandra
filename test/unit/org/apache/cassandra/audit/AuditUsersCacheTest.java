@@ -263,6 +263,26 @@ public class AuditUsersCacheTest
     }
 
     @Test
+    public void loggingBypassesCacheWhenFilteringDisabled() throws Throwable {
+            auditUserCache.put(TEST_USER, new AuditUsersCacheService.UserProp("EMPLOYEE", 0.0));
+            // toggle the assigned logger to force audit log options reload
+            StorageService.instance.enableAuditLog(false, "NoOpAuditLogger",
+                                                       Map.of(), "", "", "", "", "", "",
+                                                       10, true, "HOURLY",
+                                                       1024L, 1024, null);
+
+            StorageService.instance.enableAuditLog(false, "InMemoryAuditLogger",
+                                                       Map.of(), "", "", "", "", "", "",
+                                                       10, true, "HOURLY",
+                                                       1024L, 1024, null);
+
+            String cql = "SELECT * FROM testks.table1";
+            getInMemAuditLogger().clear();
+            executeWithCredentials(Arrays.asList(cql), TEST_USER, TEST_PW, null);
+            assertFalse(getInMemAuditLogger().isEmpty());
+        }
+
+    @Test
     public void cacheStartedOnlyWhenRoleFilteringEnabled()
     {
         try

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -63,9 +64,9 @@ public class AuditLoggerTest extends CQLTester
     {
         AuditLogOptions options = getBaseAuditLogOptions();
         options.enabled = true;
+        options.role_filtering = false; // disable audit user cache so audit log for every action
         options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         DatabaseDescriptor.setAuditLoggingOptions(options);
-        DatabaseDescriptor.setAuditUserCacheEnabled(false);  // disable audit user cache so audit log for every action
         requireNetwork();
     }
 
@@ -73,6 +74,7 @@ public class AuditLoggerTest extends CQLTester
     public void beforeTestMethod() throws IOException
     {
         AuditLogOptions options = new AuditLogOptions();
+        options.role_filtering = false;
         enableAuditLogOptions(options);
     }
 
@@ -97,7 +99,9 @@ public class AuditLoggerTest extends CQLTester
 
     private void enableAuditLogOptions(AuditLogOptions options) throws IOException
     {
+        Boolean roleFiltering = options.role_filtering;
         String loggerName = "InMemoryAuditLogger";
+        Map<String, String> parameters = Map.of("key1", "value1");
         String includedKeyspaces = options.included_keyspaces;
         String excludedKeyspaces = options.excluded_keyspaces;
         String includedCategories = options.included_categories;
@@ -105,7 +109,8 @@ public class AuditLoggerTest extends CQLTester
         String includedUsers = options.included_users;
         String excludedUsers = options.excluded_users;
 
-        StorageService.instance.enableAuditLog(loggerName, null, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+        StorageService.instance.enableAuditLog(roleFiltering, loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers,
+                                               10, true, "HOURLY", 1L << 30, 1 << 20, null);
     }
 
     private void disableAuditLogOptions()
