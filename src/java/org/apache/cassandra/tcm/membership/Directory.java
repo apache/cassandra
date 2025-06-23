@@ -61,7 +61,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.membership.NodeVersion.CURRENT;
 import static org.apache.cassandra.tcm.membership.NodeVersion.CURRENT_METADATA_VERSION;
 
-public class Directory implements MetadataValue<Directory>
+public class Directory implements MetadataValue<Directory>, EndpointLookup
 {
     public static final Serializer serializer = new Serializer();
 
