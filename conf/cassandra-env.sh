@@ -203,8 +203,8 @@ JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s
 #  N >= 0 - keep N newest files
 # -1 - disable clean up
 # defaults to 2 if not set
-if [ "$CASSANDRA_HEAPDUMP_CLEAN" = "" ]; then
-    CASSANDRA_HEAPDUMP_CLEAN=2
+if [ "$CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES" = "" ]; then
+    CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES=2
 fi
 
 # stop the jvm on OutOfMemoryError as it can result in some data corruption

@@ -176,15 +176,15 @@ esac
 
 clean_heap_dump_files()
 {
-    if [ "$CASSANDRA_HEAPDUMP_CLEAN" != "" ] && \
-        [ "$CASSANDRA_HEAPDUMP_CLEAN" -ge 0 ] && \
+    if [ "$CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES" != "" ] && \
+        [ "$CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES" -ge 0 ] && \
         [ -d "$CASSANDRA_HEAPDUMP_DIR" ]; then
         # find all files under CASSANDRA_HEAPDUMP_DIR,
         # sort by last modification date descending,
         # print those, that need to be removed
         ls -pt1 "$CASSANDRA_HEAPDUMP_DIR" | grep -v / | \
         grep "^cassandra-.*-pid.*[.]hprof$" | \
-        awk "{ if (NR > $CASSANDRA_HEAPDUMP_CLEAN) print \$0}" | \
+        awk "{ if (NR > $CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES) print \$0}" | \
         while IFS= read -r file; do
           rm -f "$CASSANDRA_HEAPDUMP_DIR/$file"
         done
@@ -267,7 +267,7 @@ while true; do
         -H)
             properties="$properties -XX:HeapDumpPath=$2"
             # disable automatic heap dump files management as HeapDumpPath was overridden
-            CASSANDRA_HEAPDUMP_CLEAN=-1
+            CASSANDRA_HEAPDUMP_KEEP_NEWEST_N_FILES=-1
             shift 2
         ;;
         -E)
