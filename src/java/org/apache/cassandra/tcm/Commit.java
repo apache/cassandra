@@ -46,6 +46,7 @@ import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -436,10 +437,12 @@ public class Commit
     public static class DefaultReplicator implements Replicator
     {
         private final Supplier<Directory> directorySupplier;
+        private final Supplier<EndpointLookup> lookupSupplier;
 
-        public DefaultReplicator(Supplier<Directory> directorySupplier)
+        public DefaultReplicator(Supplier<Directory> directorySupplier, Supplier<EndpointLookup> lookupSupplier)
         {
             this.directorySupplier = directorySupplier;
+            this.lookupSupplier = lookupSupplier;
         }
 
         public void send(Result result, InetAddressAndPort source)
@@ -449,21 +452,19 @@ public class Commit
 
             Result.Success success = result.success();
             Directory directory = directorySupplier.get();
+            EndpointLookup lookup = lookupSupplier.get();
 
             // Filter the log entries from the commit result for the purposes of replicating to members of the cluster
             // other than the original submitter. We only need to include the sublist of entries starting at the one
             // which was newly committed. We exclude entries before that one as the submitter may have been lagging and
-            // supplied a last known epoch arbitrarily in the past. We include entries after the first newly committed
-            // one as there may have been a new period automatically triggered and we'd like to push that out to all
-            // peers too. Of course, there may be other entries interspersed with these but it doesn't harm anything to
-            // include those too, it may simply be redundant.
+            // supplied a last known epoch arbitrarily in the past.
             LogState newlyCommitted = success.logState.retainFrom(success.epoch);
             assert !newlyCommitted.isEmpty() : String.format("Nothing to replicate after retaining epochs since %s from %s",
                                                              success.epoch, success.logState);
 
             for (NodeId peerId : directory.peerIds())
             {
-                InetAddressAndPort endpoint = directory.endpoint(peerId);
+                InetAddressAndPort endpoint = lookup.endpoint(peerId);
                 boolean upgraded = directory.version(peerId).isUpgraded();
                 // Do not replicate to self and to the peer that has requested to commit this message
                 if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) ||
