@@ -374,8 +374,8 @@ public class Commit
 
         public void doVerb(Message<Commit> message) throws IOException
         {
-            checkCMSState();
             logger.info("Received commit request {} from {}", message.payload, message.from());
+            checkCMSState();
             // Reduce our local retry deadline by write_rpc_timeout so we exhaust retries and return an
             // explicit failure response to the sender before their per-message callback fires to avoid
             // all the non-CMS nodes being synchronized on their CMS await timeouts expiring at the same time.
