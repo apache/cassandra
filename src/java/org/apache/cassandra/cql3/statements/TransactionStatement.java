@@ -124,7 +124,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
     public static final String UNSUPPORTED_MIGRATION = "Transaction Statement is unsupported when migrating away from Accord or before migration to Accord is complete for a range";
     public static final String NO_PARTITION_IN_CLAUSE_WITH_LIMIT = "Partition key is present in IN clause and there is a LIMIT... this is currently not supported; %s statement %s";
-    private static final String SELECT_WITH_REFERENCES_MUST_BE_A_COLUMN = "SELECT with references must be a column reference, but found a ";
 
     static class NamedSelect
     {
@@ -511,14 +510,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (returningSelect != null && returningSelect.select.getRestrictions().keyIsInRelation())
         {
             checkTrue(returningSelect.select.getLimit(options) == DataLimits.NO_LIMIT, NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", returningSelect.select.source);
-        }
-        if (returningReferences != null)
-        {
-            for (RowDataReference dataRef : returningReferences)
-            {
-                TxnReference ref = dataRef.toTxnReference(options);
-                checkTrue(ref.kind == TxnReference.Kind.COLUMN, SELECT_WITH_REFERENCES_MUST_BE_A_COLUMN + ref.kind);
-            }
         }
 
         Txn txn = createTxn(state.getClientState(), options);
