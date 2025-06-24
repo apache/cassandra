@@ -565,7 +565,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             {
                 RowDataReference reference = returningReferences.get(i);
                 TxnReference txnReference = reference.toTxnReference(options);
-                ByteBuffer buffer = txnReference.toByteBuffer(data, resultType.get(i));
+                ByteBuffer buffer = txnReference.asColumn().toByteBuffer(data, resultType.get(i));
                 result.add(buffer);
             }
 

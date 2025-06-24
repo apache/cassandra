@@ -184,6 +184,30 @@ public final class AbstractTypeGenerators
                                                                                               .add(DynamicCompositeType.class)
                                                                                               .add(CounterColumnType.class)
                                                                                               .build();
+    // NEVER EVER EVER UPDATE THIS LIST!
+    // meaningless emptyness is a legacy thrift concept, so only types from back then apply and all new types will never apply
+    public static final ImmutableUniqueList<AbstractType<?>> MEANINGLESS_EMPTYNESS = ImmutableUniqueList.of(
+    CounterColumnType.instance,
+
+    BooleanType.instance,
+
+    DateType.instance,
+    TimestampType.instance,
+
+    InetAddressType.instance,
+
+    TimeUUIDType.instance,
+    LegacyTimeUUIDType.instance,
+    LexicalUUIDType.instance,
+    UUIDType.instance,
+
+    DecimalType.instance,
+    DoubleType.instance,
+    FloatType.instance,
+    Int32Type.instance,
+    IntegerType.instance,
+    LongType.instance
+    );
 
     private AbstractTypeGenerators()
     {
@@ -413,6 +437,11 @@ public final class AbstractTypeGenerators
                 throw new IllegalArgumentException("Type " + instance + " is not a primitive type, or PRIMITIVE_TYPE_DATA_GENS needs to add support");
             primitiveGen = filter(primitiveGen, t -> t != instance);
             return this;
+        }
+
+        public TypeGenBuilder withoutUnsafeEquality()
+        {
+            return AbstractTypeGenerators.withoutUnsafeEquality(this);
         }
 
         @SuppressWarnings("unused")
@@ -1090,6 +1119,16 @@ public final class AbstractTypeGenerators
         else if (type instanceof CounterColumnType)
         {
             support = (TypeSupport<T>) TypeSupport.of(CounterColumnType.instance, SourceDSL.longs().all());
+        }
+        else if (type == DateType.instance)
+        {
+            // this type isn't supported in most places, but can still be supported here
+            support = (TypeSupport<T>) TypeSupport.of(DateType.instance, Generators.DATE_GEN);
+        }
+        else if (type == LegacyTimeUUIDType.instance)
+        {
+            // this type isn't supported in most places, but can still be supported here
+            support = (TypeSupport<T>) TypeSupport.of(LegacyTimeUUIDType.instance, Generators.UUID_TIME_GEN.mix(Generators.UUID_RANDOM_GEN));
         }
         else
         {

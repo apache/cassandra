@@ -85,7 +85,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY_CONDITION_FAILED);
 
-    public static class Update extends AbstractSerialized<PartitionUpdate, TableMetadatas>
+    public static class Update extends AbstractParameterisedVersionedSerialized<PartitionUpdate, TableMetadatas>
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new Update(null, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         public final PartitionKey key;

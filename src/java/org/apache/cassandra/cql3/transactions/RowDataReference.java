@@ -187,7 +187,7 @@ public class RowDataReference extends Term.NonTerminal
         Preconditions.checkState(elementPath == null || column.isComplex() || column.type.isFrozenCollection());
         Preconditions.checkState(fieldPath == null || column.isComplex() || column.type.isUDT());
 
-        return new TxnReference(txnDataName, table, column, bindCellPath(options));
+        return TxnReference.columnOrRow(txnDataName, table, column, bindCellPath(options));
     }
 
     public ColumnIdentifier getFullyQualifiedName()

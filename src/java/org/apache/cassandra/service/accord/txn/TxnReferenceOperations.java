@@ -100,8 +100,8 @@ public class TxnReferenceOperations
             out.writeBoolean(operations.clustering != null);
             if (operations.clustering != null)
                 Clustering.serializer.serialize(operations.clustering, out, version.messageVersion(), operations.metadata.comparator.subtypes());
-            serializeList(operations.regulars, tables, out, version, TxnReferenceOperation.serializer);
-            serializeList(operations.statics, tables, out, version, TxnReferenceOperation.serializer);
+            serializeList(operations.regulars, tables, out, TxnReferenceOperation.serializer);
+            serializeList(operations.statics, tables, out, TxnReferenceOperation.serializer);
         }
 
         @Override
@@ -112,8 +112,8 @@ public class TxnReferenceOperations
 
             TableMetadata metadata = tables.deserialize(in);
             Clustering<?> clustering = in.readBoolean() ? Clustering.serializer.deserialize(in, version.messageVersion(), metadata.comparator.subtypes()) : null;
-            return new TxnReferenceOperations(metadata, clustering, deserializeList(tables, in, version, TxnReferenceOperation.serializer),
-                                              deserializeList(tables, in, version, TxnReferenceOperation.serializer));
+            return new TxnReferenceOperations(metadata, clustering, deserializeList(tables, in, TxnReferenceOperation.serializer),
+                                              deserializeList(tables, in, TxnReferenceOperation.serializer));
         }
 
         @Override
@@ -126,8 +126,8 @@ public class TxnReferenceOperations
             size += TypeSizes.BOOL_SIZE;
             if (operations.clustering != null)
                 size += Clustering.serializer.serializedSize(operations.clustering, version.messageVersion(), operations.metadata.comparator.subtypes());
-            size += serializedListSize(operations.regulars, tables, version, TxnReferenceOperation.serializer);
-            size +=  serializedListSize(operations.statics, tables, version, TxnReferenceOperation.serializer);
+            size += serializedListSize(operations.regulars, tables, TxnReferenceOperation.serializer);
+            size +=  serializedListSize(operations.statics, tables, TxnReferenceOperation.serializer);
             return size;
         }
 

@@ -25,59 +25,38 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import accord.utils.Invariants;
+import org.apache.cassandra.service.accord.serializers.Version;
 
 /**
  * Item that is serialized by default
  */
 @NotThreadSafe
-public abstract class AbstractSerialized<T>
+public abstract class AbstractParameterisedVersionedSerialized<T, P> extends AbstractSerialized<T>
 {
-    protected @Nullable final ByteBuffer latestVersionBytes;
-    protected transient @Nullable T memoized = null;
-
-    public AbstractSerialized(@Nullable ByteBuffer latestVersionBytes)
+    protected AbstractParameterisedVersionedSerialized(@Nullable ByteBuffer latestVersionBytes)
     {
-        this.latestVersionBytes = latestVersionBytes;
+        super(latestVersionBytes);
     }
 
-    public abstract long estimatedSizeOnHeap();
-
-    protected boolean isNull()
-    {
-        return latestVersionBytes == null;
-    }
-
-    public void unmemoize()
-    {
-        memoized = null;
-    }
+    protected abstract ByteBuffer serialize(T value, P param, Version version);
+    protected abstract ByteBuffer reserialize(ByteBuffer bytes, P param, Version srcVersion, Version trgVersion);
+    protected abstract T deserialize(P param, ByteBuffer bytes, Version version);
 
     @Nullable
-    protected ByteBuffer unsafeBytes()
+    protected T deserialize(P param)
     {
-        return latestVersionBytes;
+        T result = memoized;
+        if (result == null && latestVersionBytes != null)
+            memoized = result = deserialize(param, latestVersionBytes, Version.LATEST);
+        return result;
     }
 
     @Nonnull
-    protected ByteBuffer bytes()
+    protected ByteBuffer bytes(P param, Version target)
     {
         Invariants.nonNull(latestVersionBytes);
-        return latestVersionBytes;
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || (o.getClass() != getClass())) return false;
-
-        AbstractSerialized<?> that = (AbstractSerialized<?>) o;
-        return Objects.equals(latestVersionBytes, that.latestVersionBytes);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return latestVersionBytes != null ? latestVersionBytes.hashCode() : 0;
+        if (Version.LATEST == target)
+            return latestVersionBytes;
+        return reserialize(latestVersionBytes, param, Version.LATEST, target);
     }
 }

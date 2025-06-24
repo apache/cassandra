@@ -106,7 +106,7 @@ public abstract class ReferenceValue
         @Override
         public TxnReferenceValue bindAndGet(QueryOptions options)
         {
-            return new TxnReferenceValue.Substitution(reference.toTxnReference(options));
+            return new TxnReferenceValue.Substitution(reference.toTxnReference(options).asColumn());
         }
 
         public static class Raw extends ReferenceValue.Raw

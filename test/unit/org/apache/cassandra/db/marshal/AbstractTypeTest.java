@@ -21,6 +21,7 @@ package org.apache.cassandra.db.marshal;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -111,6 +112,7 @@ import org.apache.cassandra.utils.asserts.SoftAssertionsWithLimit;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.api.SoftAssertions;
 import org.assertj.core.description.Description;
 import org.quicktheories.core.Gen;
@@ -242,6 +244,79 @@ public class AbstractTypeTest
         }
         if (sb.length() > 0)
             throw new AssertionError("Uncovered types:\n" + sb);
+    }
+
+    @Test
+    @SuppressWarnings("rawtypes")
+    public void meaninglessEmptyness()
+    {
+        // this test just makes sure that all types are covered and no new type is left out
+        Set<Class<? extends AbstractType>> subTypes = reflections.getSubTypesOf(AbstractType.class);
+        for (var klass : subTypes)
+        {
+            if (Modifier.isAbstract(klass.getModifiers()))
+                continue;
+            if (isTestType(klass))
+                continue;
+            if (isPrefixCompositeType(klass))
+                continue;
+            AbstractType<?> type = null;
+            for (var f : klass.getDeclaredFields())
+            {
+                if (!(Modifier.isPublic(f.getModifiers()) && Modifier.isStatic(f.getModifiers())))
+                    continue;
+                if (AbstractType.class.isAssignableFrom(f.getType()))
+                {
+                    try
+                    {
+                        type = (AbstractType<?>) f.get(null);
+                        break;
+                    }
+                    catch (IllegalAccessException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            if (type == null)
+            {
+                for (var c : klass.getDeclaredConstructors())
+                {
+                    if (c.getParameterCount() == 0)
+                    {
+                        try
+                        {
+                            type = (AbstractType<?>) c.newInstance();
+                            break;
+                        }
+                        catch (InstantiationException | IllegalAccessException | InvocationTargetException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
+            if (type == null)
+                continue;
+            if (type.isEmptyValueMeaningless())
+            {
+                AbstractType<?> finalType = type;
+                // some types (such as TimeUUID) have the same equqlas, so equality checks don't work here, need reference checks
+                Assertions.assertThat(AbstractTypeGenerators.MEANINGLESS_EMPTYNESS)
+                          .describedAs("New type %s detected that says its emptyness is meaningless, but it isn't allowed to be!  This is a legacy concept only!", type.getClass())
+                          .anyMatch(t -> t == finalType);
+
+                Assertions.assertThat(type.isNull(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isTrue();
+            }
+        }
+    }
+
+    @Test
+    public void onlyMeaninglessEmptyness()
+    {
+        qt().forAll(Generators.filter(AbstractTypeGenerators.builder().withDefaultSizeGen(1).build(), t -> !AbstractTypeGenerators.MEANINGLESS_EMPTYNESS.contains(t))).checkAssert(type -> {
+            Assertions.assertThat(type.isEmptyValueMeaningless()).isFalse();
+        });
     }
 
     @SuppressWarnings("rawtypes")

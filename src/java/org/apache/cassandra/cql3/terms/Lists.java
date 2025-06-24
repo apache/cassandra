@@ -300,7 +300,7 @@ public abstract class Lists
         @Override
         public boolean requiresTimestamp()
         {
-            return true;
+            return column.type.isMultiCell();
         }
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
@@ -397,7 +397,7 @@ public abstract class Lists
         @Override
         public boolean requiresTimestamp()
         {
-            return true;
+            return column.type.isMultiCell();
         }
 
         static void doAppend(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
@@ -455,7 +455,7 @@ public abstract class Lists
         @Override
         public boolean requiresTimestamp()
         {
-            return true;
+            return column.type.isMultiCell();
         }
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException

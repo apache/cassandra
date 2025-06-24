@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.txn;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -38,19 +39,19 @@ import org.apache.cassandra.cql3.conditions.ColumnCondition.Bound;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.io.ParameterisedVersionedSerializer;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
-import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -67,7 +68,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedListSiz
 
 public abstract class TxnCondition
 {
-    public static class SerializedTxnCondition extends AbstractSerialized<TxnCondition, TableMetadatas>
+    public static class SerializedTxnCondition extends AbstractParameterisedUnversionedSerialized<TxnCondition, TableMetadatas>
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new SerializedTxnCondition(null));
 
@@ -76,9 +77,15 @@ public abstract class TxnCondition
             super(latestVersionBytes);
         }
 
+        @Override
+        protected ParameterisedUnversionedSerializer<TxnCondition, TableMetadatas> serializer()
+        {
+            return serializer;
+        }
+
         protected SerializedTxnCondition(TxnCondition condition, TableMetadatas param)
         {
-            this(serializer.serializeUnchecked(condition, param, Version.LATEST));
+            this(serializer.serializeUnchecked(condition, param));
         }
 
         @Override
@@ -86,31 +93,13 @@ public abstract class TxnCondition
         {
             return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(unsafeBytes());
         }
-
-        @Override
-        protected ByteBuffer serialize(TxnCondition value, TableMetadatas param, Version version)
-        {
-            return serializer.serializeUnchecked(value, param, version);
-        }
-
-        @Override
-        protected ByteBuffer reserialize(ByteBuffer bytes, TableMetadatas param, Version srcVersion, Version trgVersion)
-        {
-            return bytes;
-        }
-
-        @Override
-        protected TxnCondition deserialize(TableMetadatas param, ByteBuffer bytes, Version version)
-        {
-            return serializer.deserializeUnchecked(param, bytes, version);
-        }
     }
 
     private interface ConditionSerializer<T extends TxnCondition>
     {
-        void serialize(T condition, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException;
-        T deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException;
-        long serializedSize(T condition, TableMetadatas tables, Version version);
+        void serialize(T condition, TableMetadatas tables, DataOutputPlus out) throws IOException;
+        T deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException;
+        long serializedSize(T condition, TableMetadatas tables);
     }
 
     public enum Kind
@@ -227,11 +216,11 @@ public abstract class TxnCondition
         private static final ConditionSerializer<None> serializer = new ConditionSerializer<>()
         {
             @Override
-            public void serialize(None condition, TableMetadatas tables, DataOutputPlus out, Version version) {}
+            public void serialize(None condition, TableMetadatas tables, DataOutputPlus out) {}
             @Override
-            public None deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) { return instance; }
+            public None deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) { return instance; }
             @Override
-            public long serializedSize(None condition, TableMetadatas tables, Version version) { return 0; }
+            public long serializedSize(None condition, TableMetadatas tables) { return 0; }
         };
     }
 
@@ -266,9 +255,7 @@ public abstract class TxnCondition
         @Override
         public void collect(TableMetadatas.Collector collector)
         {
-            TableMetadata table = reference.table();
-            if (table != null)
-                collector.add(table);
+            reference.collect(collector);
         }
 
         @Override
@@ -283,12 +270,10 @@ public abstract class TxnCondition
             return reference.toString() + ' ' + kind.toString();
         }
 
-        @Override
-        public boolean applies(TxnData data)
+        private boolean applies(FilteredPartition partition, boolean exists, TxnReference.ColumnReference ref)
         {
-            FilteredPartition partition = reference.getPartition(data);
-            boolean exists = partition != null && !partition.isEmpty();
-
+            ColumnMetadata column = ref.column();
+            if (column.isPartitionKey()) return exists;
             Row row = null;
             if (exists)
             {
@@ -296,9 +281,9 @@ public abstract class TxnCondition
                 exists = row != null && !row.isEmpty();
             }
 
-            if (exists && reference.selectsColumn())
+            if (exists)
             {
-                ColumnData columnData = reference.getColumnData(row);
+                ColumnData columnData = ref.getColumnData(row);
 
                 if (columnData == null)
                 {
@@ -306,10 +291,43 @@ public abstract class TxnCondition
                 }
                 else if (columnData.column().isComplex())
                 {
-                    if (reference.isElementSelection() || reference.isFieldSelection())
+                    if (ref.isElementSelection())
                     {
                         Cell<?> cell = (Cell<?>) columnData;
                         exists = !cell.isTombstone();
+                        // Collections don't support NULL but meangingless null types are supported, so byte[0] is allowed!
+                        // This is NULL when touched, so need to still check each value
+                        if (exists)
+                        {
+                            CollectionType<?> type = (CollectionType<?>) column.type.unwrap();
+                            switch (type.kind)
+                            {
+                                case MAP:
+                                {
+                                    exists = !type.nameComparator().isNull(cell.path().get(0));
+                                    if (exists)
+                                        exists = !type.valueComparator().isNull(cell.buffer());
+                                }
+                                break;
+                                case SET:
+                                {
+                                    exists = !type.nameComparator().isNull(cell.path().get(0));
+                                }
+                                break;
+                                case LIST:
+                                {
+                                    exists = !type.valueComparator().isNull(cell.buffer());
+                                }
+                                break;
+                                default:
+                                    throw new UnsupportedOperationException(type.kind.name());
+                            }
+                        }
+                    }
+                    else if (ref.isFieldSelection())
+                    {
+                        Cell<?> cell = (Cell<?>) columnData;
+                        exists = exists(cell, ref.getFieldSelectionType());
                     }
                     else
                     {
@@ -318,26 +336,45 @@ public abstract class TxnCondition
                             exists = false;
                     }
                 }
-                else if (reference.isElementSelection())
+                else if (ref.isElementSelection())
                 {
                     // This is frozen, so check if the Cell is a tombstone and that the element is present.
                     Cell<?> cell = (Cell<?>) columnData;
-                    ByteBuffer element = reference.getFrozenCollectionElement(cell);
-                    exists = element != null && !cell.isTombstone();
+                    exists = exists(cell, column.type);
+                    if (exists)
+                    {
+                        ByteBuffer element = ref.getFrozenCollectionElement(cell);
+                        exists = !ref.getFrozenCollectionElementType().isNull(element);
+                    }
                 }
-                else if (reference.isFieldSelection())
+                else if (ref.isFieldSelection())
                 {
                     // This is frozen, so check if the Cell is a tombstone and that the field is present.
                     Cell<?> cell = (Cell<?>) columnData;
-                    ByteBuffer fieldValue = reference.getFrozenFieldValue(cell);
-                    exists = fieldValue != null && !cell.isTombstone();
+                    exists = exists(cell, column.type);
+                    if (exists)
+                    {
+                        ByteBuffer fieldValue = ref.getFrozenFieldValue(cell);
+                        exists = !ref.getFieldSelectionType().isNull(fieldValue);
+                    }
                 }
                 else
                 {
                     Cell<?> cell = (Cell<?>) columnData;
-                    exists = !cell.isTombstone();
+                    exists = exists(cell, column.type);
                 }
             }
+            return exists;
+        }
+
+        @Override
+        public boolean applies(TxnData data)
+        {
+            FilteredPartition partition = reference.getPartition(data);
+            boolean exists = partition != null && !partition.isEmpty();
+
+            if (reference.kind == TxnReference.Kind.COLUMN)
+                exists = applies(partition, exists, reference.asColumn());
 
             switch (kind())
             {
@@ -350,24 +387,29 @@ public abstract class TxnCondition
             }
         }
 
-        private static final ConditionSerializer<Exists> serializer = new ConditionSerializer<Exists>()
+        private static boolean exists(Cell<?> cell, AbstractType<?> type)
+        {
+            return !cell.isTombstone() && !type.unwrap().isNull(cell.buffer());
+        }
+
+        private static final ConditionSerializer<Exists> serializer = new ConditionSerializer<>()
         {
             @Override
-            public void serialize(Exists condition, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+            public void serialize(Exists condition, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
-                TxnReference.serializer.serialize(condition.reference, tables, out, version);
+                TxnReference.serializer.serialize(condition.reference, tables, out);
             }
 
             @Override
-            public Exists deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException
+            public Exists deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
             {
-                return new Exists(TxnReference.serializer.deserialize(tables, in, version), kind);
+                return new Exists(TxnReference.serializer.deserialize(tables, in), kind);
             }
 
             @Override
-            public long serializedSize(Exists condition, TableMetadatas tables, Version version)
+            public long serializedSize(Exists condition, TableMetadatas tables)
             {
-                return TxnReference.serializer.serializedSize(condition.reference, tables, version);
+                return TxnReference.serializer.serializedSize(condition.reference, tables);
             }
         };
     }
@@ -417,14 +459,14 @@ public abstract class TxnCondition
         private static final ConditionSerializer<ColumnConditionsAdapter> serializer = new ConditionSerializer<ColumnConditionsAdapter>()
         {
             @Override
-            public void serialize(ColumnConditionsAdapter condition, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+            public void serialize(ColumnConditionsAdapter condition, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
                 clusteringSerializer.serialize(condition.clustering, out);
                 serializeCollection(condition.bounds, tables, out, Bound.serializer);
             }
 
             @Override
-            public ColumnConditionsAdapter deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind ignored) throws IOException
+            public ColumnConditionsAdapter deserialize(TableMetadatas tables, DataInputPlus in, Kind ignored) throws IOException
             {
                 Clustering<?> clustering = clusteringSerializer.deserialize(in);
                 List<Bound> bounds = deserializeList(tables, in, Bound.serializer);
@@ -432,7 +474,7 @@ public abstract class TxnCondition
             }
 
             @Override
-            public long serializedSize(ColumnConditionsAdapter condition, TableMetadatas tables, Version version)
+            public long serializedSize(ColumnConditionsAdapter condition, TableMetadatas tables)
             {
                 return clusteringSerializer.serializedSize(condition.clustering)
                     + serializedCollectionSize(condition.bounds, tables, Bound.serializer);
@@ -442,22 +484,26 @@ public abstract class TxnCondition
 
     public static class Value extends TxnCondition
     {
-        private static final Set<Kind> KINDS = ImmutableSet.of(Kind.EQUAL, Kind.NOT_EQUAL,
-                                                               Kind.GREATER_THAN, Kind.GREATER_THAN_OR_EQUAL,
-                                                               Kind.LESS_THAN, Kind.LESS_THAN_OR_EQUAL);
+        private static final EnumSet<Kind> KINDS = EnumSet.of(Kind.EQUAL, Kind.NOT_EQUAL,
+                                                              Kind.GREATER_THAN, Kind.GREATER_THAN_OR_EQUAL,
+                                                              Kind.LESS_THAN, Kind.LESS_THAN_OR_EQUAL);
 
-        private final TxnReference reference;
+        private final TxnReference.ColumnReference reference;
         private final ByteBuffer value;
         private final ProtocolVersion version;
 
-        public Value(TxnReference reference, Kind kind, ByteBuffer value, ProtocolVersion version)
+        public Value(TxnReference.ColumnReference reference, Kind kind, ByteBuffer value, ProtocolVersion version)
         {
             super(kind);
             Invariants.requireArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with a value condition");
-            Invariants.requireArgument(reference.selectsColumn(), "Reference " + reference + " does not select a column");
             this.reference = reference;
             this.value = value;
             this.version = version;
+        }
+
+        public static EnumSet<Kind> supported()
+        {
+            return EnumSet.copyOf(KINDS);
         }
 
         @Override
@@ -473,9 +519,7 @@ public abstract class TxnCondition
         @Override
         public void collect(TableMetadatas.Collector collector)
         {
-            TableMetadata table = reference.table();
-            if (table != null)
-                collector.add(table);
+            reference.collect(collector);
         }
 
         @Override
@@ -532,33 +576,39 @@ public abstract class TxnCondition
         @Override
         public boolean applies(TxnData data)
         {
-            return getBounds(data).appliesTo(reference.getRow(data));
+            Bound bounds = getBounds(data);
+            if (reference.column().type.unwrap().isNull(bounds.value))
+                return false;
+            Row row = reference.getRow(data);
+            if (bounds.isNull(row))
+                return false;
+            return bounds.appliesTo(row);
         }
 
         private static final ConditionSerializer<Value> serializer = new ConditionSerializer<>()
         {
             @Override
-            public void serialize(Value condition, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+            public void serialize(Value condition, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
-                TxnReference.serializer.serialize(condition.reference, tables, out, version);
+                TxnReference.serializer.serialize(condition.reference, tables, out);
                 ByteBufferUtil.writeWithVIntLength(condition.value, out);
                 out.writeUTF(condition.version.name());
             }
 
             @Override
-            public Value deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException
+            public Value deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
             {
-                TxnReference reference = TxnReference.serializer.deserialize(tables, in, version);
+                TxnReference.ColumnReference reference = TxnReference.serializer.deserialize(tables, in).asColumn();
                 ByteBuffer value = ByteBufferUtil.readWithVIntLength(in);
                 ProtocolVersion protocolVersion = ProtocolVersion.valueOf(in.readUTF());
                 return new Value(reference, kind, value, protocolVersion);
             }
 
             @Override
-            public long serializedSize(Value condition, TableMetadatas tables, Version version)
+            public long serializedSize(Value condition, TableMetadatas tables)
             {
                 long size = 0;
-                size += TxnReference.serializer.serializedSize(condition.reference, tables, version);
+                size += TxnReference.serializer.serializedSize(condition.reference, tables);
                 size += ByteBufferUtil.serializedSizeWithVIntLength(condition.value);
                 size += TypeSizes.sizeof(condition.version.name());
                 return size;
@@ -625,48 +675,48 @@ public abstract class TxnCondition
         private static final ConditionSerializer<BooleanGroup> serializer = new ConditionSerializer<>()
         {
             @Override
-            public void serialize(BooleanGroup condition, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+            public void serialize(BooleanGroup condition, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
-                serializeList(condition.conditions, tables, out, version, TxnCondition.serializer);
+                serializeList(condition.conditions, tables, out, TxnCondition.serializer);
             }
 
             @Override
-            public BooleanGroup deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException
+            public BooleanGroup deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
             {
-                return new BooleanGroup(kind, deserializeList(tables, in, version, TxnCondition.serializer));
+                return new BooleanGroup(kind, deserializeList(tables, in, TxnCondition.serializer));
             }
 
             @Override
-            public long serializedSize(BooleanGroup condition, TableMetadatas tables, Version version)
+            public long serializedSize(BooleanGroup condition, TableMetadatas tables)
             {
-                return serializedListSize(condition.conditions, tables, version, TxnCondition.serializer);
+                return serializedListSize(condition.conditions, tables, TxnCondition.serializer);
             }
         };
     }
 
-    public static final ParameterisedVersionedSerializer<TxnCondition, TableMetadatas, Version> serializer = new ParameterisedVersionedSerializer<>()
+    public static final ParameterisedUnversionedSerializer<TxnCondition, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>()
     {
         @SuppressWarnings("unchecked")
         @Override
-        public void serialize(TxnCondition condition, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+        public void serialize(TxnCondition condition, TableMetadatas tables, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(condition.kind.ordinal());
-            condition.kind.serializer().serialize(condition, tables, out, version);
+            condition.kind.serializer().serialize(condition, tables, out);
         }
 
         @Override
-        public TxnCondition deserialize(TableMetadatas tables, DataInputPlus in, Version version) throws IOException
+        public TxnCondition deserialize(TableMetadatas tables, DataInputPlus in) throws IOException
         {
             Kind kind = Kind.values()[in.readUnsignedVInt32()];
-            return kind.serializer().deserialize(tables, in, version, kind);
+            return kind.serializer().deserialize(tables, in, kind);
         }
 
         @SuppressWarnings("unchecked")
         @Override
-        public long serializedSize(TxnCondition condition, TableMetadatas tables, Version version)
+        public long serializedSize(TxnCondition condition, TableMetadatas tables)
         {
             long size = TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal());
-            size += condition.kind.serializer().serializedSize(condition, tables, version);
+            size += condition.kind.serializer().serializedSize(condition, tables);
             return size;
         }
     };

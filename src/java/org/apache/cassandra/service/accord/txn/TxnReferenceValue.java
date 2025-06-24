@@ -22,22 +22,23 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.ParameterisedVersionedSerializer;
+import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
-import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class TxnReferenceValue
 {
     private interface Serializer<T extends TxnReferenceValue>
     {
-        void serialize(T t, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException;
-        T deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException;
-        long serializedSize(T t, TableMetadatas tables, Version version);
+        void serialize(T t, TableMetadatas tables, DataOutputPlus out) throws IOException;
+        T deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException;
+        long serializedSize(T t, TableMetadatas tables);
     }
 
     enum Kind
@@ -60,9 +61,10 @@ public abstract class TxnReferenceValue
 
     public static class Constant extends TxnReferenceValue
     {
+        @Nullable
         private final ByteBuffer value;
 
-        public Constant(ByteBuffer value)
+        public Constant(@Nullable ByteBuffer value)
         {
             this.value = value;
         }
@@ -78,7 +80,7 @@ public abstract class TxnReferenceValue
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Constant constant = (Constant) o;
-            return value.equals(constant.value);
+            return Objects.equals(value, constant.value);
         }
 
         @Override
@@ -90,7 +92,7 @@ public abstract class TxnReferenceValue
         @Override
         public String toString()
         {
-            return "Constant=" + ByteBufferUtil.bytesToHex(value);
+            return "Constant=" + value == null ? "null" : ByteBufferUtil.bytesToHex(value);
         }
 
         @Override
@@ -113,30 +115,35 @@ public abstract class TxnReferenceValue
         private static final Serializer<Constant> serializer = new Serializer<Constant>()
         {
             @Override
-            public void serialize(Constant constant, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+            public void serialize(Constant constant, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
-                ByteBufferUtil.writeWithVIntLength(constant.value, out);
+                out.writeBoolean(constant.value != null);
+                if (constant.value != null)
+                    ByteBufferUtil.writeWithVIntLength(constant.value, out);
             }
 
             @Override
-            public Constant deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException
+            public Constant deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
             {
-                return new Constant(ByteBufferUtil.readWithVIntLength(in));
+                return new Constant(in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null);
             }
 
             @Override
-            public long serializedSize(Constant constant, TableMetadatas tables, Version version)
+            public long serializedSize(Constant constant, TableMetadatas tables)
             {
-                return ByteBufferUtil.serializedSizeWithVIntLength(constant.value);
+                long size = TypeSizes.sizeof(constant.value != null);
+                if (constant.value != null)
+                    size += ByteBufferUtil.serializedSizeWithVIntLength(constant.value);
+                return size;
             }
         };
     }
 
     public static class Substitution extends TxnReferenceValue
     {
-        private final TxnReference reference;
+        private final TxnReference.ColumnReference reference;
 
-        public Substitution(TxnReference reference)
+        public Substitution(TxnReference.ColumnReference reference)
         {
             this.reference = reference;
         }
@@ -183,47 +190,47 @@ public abstract class TxnReferenceValue
         private static final Serializer<Substitution> serializer = new Serializer<>()
         {
             @Override
-            public void serialize(Substitution substitution, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+            public void serialize(Substitution substitution, TableMetadatas tables, DataOutputPlus out) throws IOException
             {
-                TxnReference.serializer.serialize(substitution.reference, tables, out, version);
+                TxnReference.columnSerializer.serialize(substitution.reference, tables, out);
             }
 
             @Override
-            public Substitution deserialize(TableMetadatas tables, DataInputPlus in, Version version, Kind kind) throws IOException
+            public Substitution deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
             {
-                return new Substitution(TxnReference.serializer.deserialize(tables, in, version));
+                return new Substitution(TxnReference.columnSerializer.deserialize(tables, in));
             }
 
             @Override
-            public long serializedSize(Substitution substitution, TableMetadatas tables, Version version)
+            public long serializedSize(Substitution substitution, TableMetadatas tables)
             {
-                return TxnReference.serializer.serializedSize(substitution.reference, tables, version);
+                return TxnReference.columnSerializer.serializedSize(substitution.reference, tables);
             }
         };
     }
 
-    static final ParameterisedVersionedSerializer<TxnReferenceValue, TableMetadatas, Version> serializer = new ParameterisedVersionedSerializer<>()
+    static final ParameterisedUnversionedSerializer<TxnReferenceValue, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>()
     {
         @SuppressWarnings("unchecked")
         @Override
-        public void serialize(TxnReferenceValue value, TableMetadatas tables, DataOutputPlus out, Version version) throws IOException
+        public void serialize(TxnReferenceValue value, TableMetadatas tables, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(value.kind().ordinal());
-            value.kind().serializer.serialize(value, tables, out, version);
+            value.kind().serializer.serialize(value, tables, out);
         }
 
         @Override
-        public TxnReferenceValue deserialize(TableMetadatas tables, DataInputPlus in, Version version) throws IOException
+        public TxnReferenceValue deserialize(TableMetadatas tables, DataInputPlus in) throws IOException
         {
             Kind kind = Kind.values()[in.readUnsignedVInt32()];
-            return kind.serializer.deserialize(tables, in, version, kind);
+            return kind.serializer.deserialize(tables, in, kind);
         }
 
         @SuppressWarnings("unchecked")
         @Override
-        public long serializedSize(TxnReferenceValue value, TableMetadatas tables, Version version)
+        public long serializedSize(TxnReferenceValue value, TableMetadatas tables)
         {
-            return TypeSizes.sizeofUnsignedVInt(value.kind().ordinal()) + value.kind().serializer.serializedSize(value, tables, version);
+            return TypeSizes.sizeofUnsignedVInt(value.kind().ordinal()) + value.kind().serializer.serializedSize(value, tables);
         }
     };
 }
