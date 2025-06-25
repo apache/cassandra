@@ -35,7 +35,7 @@
 //  - cassandra-amd64-medium : 3 cpu, 5GB ram
 //  - cassandra-medium       : 3 cpu, 5GB ram (alias for above but for any arch)
 //  - cassandra-amd64-large  : 7 cpu, 16GB ram
-//  - cassandra-large  : 7 cpu, 16GB ram
+//  - cassandra-large        : 7 cpu, 16GB ram
 //
 // When running builds parameterised to other architectures the corresponding labels are expected.
 //  For example 'arm64' requires the labels: cassandra-arm64-small, cassandra-arm64-medium, cassandra-arm64-large.
@@ -56,6 +56,12 @@
 // `curl -X POST  -F "jenkinsfile=<.jenkins/Jenkinsfile" https://ci-cassandra.apache.org/pipeline-model-converter/validate`
 //
 
+/** CONSTANTS for both the pipeline and scripting **/
+import groovy.transform.Field
+@Field List<String> archsSupported   = ["amd64", "arm64"]
+@Field List<String> pythonsSupported = ["3.8", "3.11"]
+@Field String       pythonDefault    = "3.8"
+/** CONSTANTS end **********************************/
 
 pipeline {
   agent { label 'cassandra-small' }
@@ -70,13 +76,22 @@ pipeline {
     choice(name: 'profile', choices: pipelineProfileNames(params.profile ?: ''), description: 'Pick a pipeline profile.')
     string(name: 'profile_custom_regexp', defaultValue: params.profile_custom_regexp ?: '', description: 'Regexp for stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: stress.*|jvm-dtest.*')
 
-    choice(name: 'architecture', choices: archsSupported() + "all", description: 'Pick architecture. The ARM64 is disabled by default at the moment.')
+    choice(name: 'architecture', choices: archsSupported + "all", description: 'Pick architecture. The ARM64 is disabled by default at the moment.')
     string(name: 'jdk', defaultValue: params.jdk ?: '', description: 'Restrict JDK versions. (e.g. "11", "17", etc)')
 
     string(name: 'dtest_repository', defaultValue: params.dtest_repository ?: 'https://github.com/apache/cassandra-dtest', description: 'Cassandra DTest Repository')
     string(name: 'dtest_branch', defaultValue: params.dtest_branch ?: 'trunk', description: 'DTest Branch')
   }
   stages {
+    stage('init') {
+      steps {
+        script {
+          // this helps assure folk their parameters are correct and will be used (despite the earlier output about the configured job coordinates)
+          echo "Printing parameters used for this build"
+          ["Repository: ${params.repository}", "Branch: ${params.branch}", "Profile: ${params.profile}", "Custom Profile Regexp: ${params.profile_custom_regexp}", "Architecture: ${params.architecture}", "JDK: ${params.jdk}", "DTest Repository: ${params.dtest_repository}", "DTest Branch: ${params.dtest_branch}"].each { println it }
+        }
+      }
+    }
     stage('jar') {
       // the jar stage executes only the 'jar' build step, via the build(…) function
       // the results of these (per jdk, per arch) are then stashed and used for every other build and test step
@@ -120,10 +135,7 @@ pipeline {
 //// scripting support ////
 ///////////////////////////
 
-def archsSupported() { return ["amd64", "arm64"] }
-def pythonsSupported() { return ["3.8", "3.11"] }
-def pythonDefault() { return "3.8" }
-
+@NonCPS
 def pipelineProfiles() {
   return [
     'packaging': ['artifacts', 'lint', 'debian', 'redhat'],
@@ -135,6 +147,7 @@ def pipelineProfiles() {
   ]
 }
 
+@NonCPS
 def pipelineProfileNames(putFirst) {
     set = pipelineProfiles().keySet() as List
     set = set - putFirst
@@ -142,7 +155,11 @@ def pipelineProfileNames(putFirst) {
     return set
 }
 
+@Field Map cachedTasks = null
+
 def tasks() {
+  if (null != cachedTasks) return cachedTasks
+
   // Steps config
   def buildSteps = [
     'jar': [script: 'build-jars.sh', toCopy: null],
@@ -200,23 +217,30 @@ def tasks() {
 
   def stepsMap = buildSteps + testSteps
 
+  // find the default JDK and the supported JDKs defined in the build.xml
+  def build_xml = readFile(file: 'build.xml')
+  def javaVersionDefaultMatch = (build_xml =~ /property\s*name="java\.default"\s*value="([^"]*)"/)
+  assert javaVersionDefaultMatch, "java.default property not found in build.xml"
+  def javaVersionDefault = javaVersionDefaultMatch[0][1]
+  def javaVersionsSupportedMatch = (build_xml =~ /property\s*name="java\.supported"\s*value="([^"]*)"/)
+  assert javaVersionsSupportedMatch, "java.supported property not found in build.xml"
+  def javaVersionsSupported = javaVersionsSupportedMatch[0][1].split(',') as List
+
   // define matrix axes
   def Map matrix_axes = [
-    arch: archsSupported(),
-    jdk: javaVersionsSupported(),
-    python: pythonsSupported(),
+    arch: archsSupported,
+    jdk: javaVersionsSupported,
+    python: pythonsSupported,
     cython: ['yes', 'no'],
     step: stepsMap.keySet(),
     split: (1..testSteps.values().splits.max()).toList()
   ]
 
-  def javaVersionDefault = javaVersionDefault()
-
   def List _axes = getMatrixAxes(matrix_axes).findAll { axis ->
     (isArchEnabled(axis['arch'])) && // skip disabled archs
     (isJdkEnabled(axis['jdk'])) && // skip disabled jdks
     (isStageEnabled(axis['step'])) && // skip disabled steps
-    !(axis['python'] != pythonDefault() && 'cqlsh-test' != axis['step']) && // Use only python 3.8 for all tests but cqlsh-test
+    !(axis['python'] != pythonDefault && 'cqlsh-test' != axis['step']) && // Use only python 3.8 for all tests but cqlsh-test
     !(axis['cython'] != 'no' && 'cqlsh-test' != axis['step']) && // cython only for cqlsh-test, disable for others
     !(axis['jdk'] != javaVersionDefault && ('cqlsh-test' == axis['step'] || 'simulator-dtest' == axis['step'] || axis['step'].contains('dtest-upgrade'))) && // run cqlsh-test, simulator-dtest, *dtest-upgrade only with jdk11
     // Disable splits for all but proper stages
@@ -238,7 +262,7 @@ def tasks() {
     }
   }
 
-  return tasks
+  return cachedTasks = tasks
 }
 
 @NonCPS
@@ -264,32 +288,12 @@ def getStepName(cell, command) {
 
 def getJarTasks() {
     Map jars = tasks()['jars']
-    assertJarTasks(jars)
+    assert jars.size() > 1, "Nothing to build. Check parameters: jdk ${params.jdk}, arch ${params.architecture}"
     return jars
-}
-
-def assertJarTasks(jars) {
-  if (jars.size() < 2) {
-    error("Nothing to build. Check parameters: jdk ${params.jdk} (${javaVersionsSupported()}), arch ${params.architecture} (${archsSupported()})")
-  }
 }
 
 def hasNonJarTasks() {
   return tasks()['tests'].size() > 1
-}
-
-/**
- * Return the default JDK defined by build.xml
- **/
-def javaVersionDefault() {
-  sh (returnStdout: true, script: 'grep \'property\\s*name=\"java.default\"\' build.xml | sed -ne \'s/.*value=\"\\([^\"]*\\)\".*/\\1/p\'').trim()
-}
-
-/**
- * Return the supported JDKs defined by build.xml
- **/
-def javaVersionsSupported() {
-  sh (returnStdout: true, script: 'grep \'property\\s*name=\"java.supported\"\' build.xml | sed -ne \'s/.*value=\"\\([^\"]*\\)\".*/\\1/p\'').trim().split(',')
 }
 
 /**
@@ -412,12 +416,15 @@ def test(command, cell) {
           dir("build") {
             sh """
                 mkdir -p test/output/${cell.step}
-                find test/output -type f -name TEST*.xml -execdir mkdir -p jdk_${cell.jdk}/${cell.arch} ';' -execdir mv {} jdk_${cell.jdk}/${cell.arch}/{} ';'
+                find test/output -type f -name "TEST*.xml" -execdir mkdir -p jdk_${cell.jdk}/${cell.arch} ';' -execdir mv {} jdk_${cell.jdk}/${cell.arch}/{} ';'
                 find test/output -name cqlshlib.xml -execdir mv cqlshlib.xml ${cell.step}/cqlshlib${cell_suffix}.xml ';'
                 find test/output -name nosetests.xml -execdir mv nosetests.xml ${cell.step}/nosetests${cell_suffix}.xml ';'
               """
             junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml", testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
-            sh "find test/output -type f -name *.xml -exec sh -c 'xz -f {} &' ';' ; wait ; find test/output -type f -name *.xml.xz | wc -l"
+            sh """
+                find test/output -type f -name "*.xml" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f
+                echo "test result files compressed"; find test/output -type f -name "*.xml.xz" | wc -l
+              """
             archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz", fingerprint: true
             copyToNightlies("${logfile}, test/logs/**", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
           }
@@ -557,8 +564,8 @@ def generateTestReports() {
       //   TODO parallelised for loop
       //   TODO results_details.tar.xz needs to include all logs for failed tests
       sh """${script_vars} (
-          find build/test/output -type f -name *.xml.xz | wc -l
-          find build/test/output -name *.xml.xz -exec sh -c 'xz -f --decompress {} &' ';'  ; wait
+          echo "test result files to decompress"; find build/test/output -type f -name "*.xml.xz" | wc -l
+          find build/test/output -type f -name "*.xml.xz" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f --decompress
 
           for target in \$(ls build/test/output/) ; do
             if test -d build/test/output/\${target} ; then
