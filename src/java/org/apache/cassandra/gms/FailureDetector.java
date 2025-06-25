@@ -328,6 +328,11 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             // registration via the metadata log, or a full gossip round). This is perfectly harmless, so no need to log
             // an error in that case.
             ClusterMetadata metadata = ClusterMetadata.current();
+            if (metadata.cmsLookup.isActive() && metadata.fullCMSMembers().contains(ep))
+            {
+                logger.trace("Found endpoint {} in active CMS lookup, assuming it is alive", ep);
+                return true;
+            }
             if (!metadata.directory.allJoinedEndpoints().contains(ep) && !metadata.fullCMSMembers().contains(ep))
                 logger.error("Unknown endpoint: " + ep, new UnknownEndpointException(ep));
         }

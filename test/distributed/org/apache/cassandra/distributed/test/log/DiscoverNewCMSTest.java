@@ -103,12 +103,20 @@ public class DiscoverNewCMSTest extends TestBaseImpl
     private void test(Cluster cluster, int cmsSize) throws IOException, ExecutionException, InterruptedException
     {
         ExecutorService executor = Executors.newFixedThreadPool(cluster.size());
+        // Some fetchCMSLog operations might temporarily fail and be retried during address changes
+        String[] expectedErrors = new String[] {
+            "Cannot achieve consistency level SERIAL.*",
+            "Queried for epoch Epoch\\{epoch=\\d+\\}, but could not catch up.*"
+        };
         cluster.setUncaughtExceptionsFilter((node, t) -> {
             Throwable rootCause = Throwables.getRootCause(t);
-            // Some fetchCMSLog operations might temporarily fail and be retried during address changes
-            return rootCause.getMessage() != null
-                   && rootCause.getMessage().startsWith("Cannot achieve consistency level SERIAL");
-
+            if (rootCause.getMessage() == null)
+                return false;
+            String message = rootCause.getMessage();
+            for (String expected : expectedErrors)
+                if (message.matches(expected))
+                    return true;
+            return false;
         });
         cluster.startup();
         init(cluster);
