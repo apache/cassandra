@@ -225,8 +225,13 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     {
         Builder builder = load(commandStoreId, txnId);
         Cleanup cleanup = builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
-        if (cleanup == Cleanup.EXPUNGE)
-            return null;
+        switch (cleanup)
+        {
+            case ERASE:
+                return Command.Truncated.erased(txnId);
+            case EXPUNGE:
+                return null;
+        }
 
         return builder.construct(redundantBefore);
     }
@@ -583,6 +588,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         ExecuteAtSerializer.serialize(command.executesAtLeast(), out);
                         break;
                     case MIN_UNIQUE_HLC:
+                        Invariants.require(command.waitingOn().minUniqueHlc() != 0);
                         out.writeUnsignedVInt(command.waitingOn().minUniqueHlc());
                         break;
                     case SAVE_STATUS:
@@ -709,8 +715,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         out.writeByte(cleanup.ordinal());
                         break;
                     case EXECUTE_AT:
-                        Invariants.require(txnId != null);
-                        Invariants.require(executeAt != null);
+                        Invariants.require(txnId != null, "%s", this);
+                        Invariants.require(executeAt != null, "%s", this);
                         ExecuteAtSerializer.serialize(txnId, executeAt, out);
                         break;
                     case EXECUTES_AT_LEAST:
@@ -718,47 +724,47 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         ExecuteAtSerializer.serialize(executesAtLeast, out);
                         break;
                     case MIN_UNIQUE_HLC:
-                        Invariants.require(minUniqueHlc != 0);
+                        Invariants.require(minUniqueHlc != 0, "%s", this);
                         out.writeUnsignedVInt(minUniqueHlc);
                         break;
                     case SAVE_STATUS:
-                        Invariants.require(saveStatus != null);
+                        Invariants.require(saveStatus != null, "%s", this);
                         out.writeByte(saveStatus.ordinal());
                         break;
                     case DURABILITY:
-                        Invariants.require(durability != null);
+                        Invariants.require(durability != null, "%s", this);
                         out.writeByte(durability.ordinal());
                         break;
                     case ACCEPTED:
-                        Invariants.require(acceptedOrCommitted != null);
+                        Invariants.require(acceptedOrCommitted != null, "%s", this);
                         CommandSerializers.ballot.serialize(acceptedOrCommitted, out);
                         break;
                     case PROMISED:
-                        Invariants.require(promised != null);
+                        Invariants.require(promised != null, "%s", this);
                         CommandSerializers.ballot.serialize(promised, out);
                         break;
                     case PARTICIPANTS:
-                        Invariants.require(participants != null);
+                        Invariants.require(participants != null, "%s", this);
                         CommandSerializers.participants.serialize(participants, out);
                         break;
                     case PARTIAL_TXN:
-                        Invariants.require(partialTxn != null);
+                        Invariants.require(partialTxn != null, "%s", this);
                         CommandSerializers.partialTxn.serialize(partialTxn, out, userVersion);
                         break;
                     case PARTIAL_DEPS:
-                        Invariants.require(partialDeps != null);
+                        Invariants.require(partialDeps != null, "%s", this);
                         DepsSerializers.partialDeps.serialize(partialDeps, out);
                         break;
                     case WAITING_ON:
-                        Invariants.require(waitingOn != null);
+                        Invariants.require(waitingOn != null, "%s", this);
                         ((WaitingOnSerializer.Provider)waitingOn).reserialize(out);
                         break;
                     case WRITES:
-                        Invariants.require(writes != null);
+                        Invariants.require(writes != null, "%s", this);
                         CommandSerializers.writes.serialize(writes, out, userVersion);
                         break;
                     case RESULT:
-                        Invariants.require(result != null);
+                        Invariants.require(result != null, "%s", this);
                         ResultSerializers.result.serialize(result, out);
                         break;
                 }

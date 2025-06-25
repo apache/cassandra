@@ -129,7 +129,7 @@ public class AccordJournalBurnTest extends BurnTestBase
     public void testOne()
     {
         long seed = System.nanoTime();
-        int operations = 1000;
+        int operations = 5000;
 
         logger.info("Seed: {}", seed);
         Cluster.trace.trace("Seed: {}", seed);
@@ -273,7 +273,6 @@ public class AccordJournalBurnTest extends BurnTestBase
                                  List<ISSTableScanner> scanners = selected.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
 
                                  Collection<SSTableReader> newSStables;
-
                                  try (LifecycleTransaction txn = cfs.getTracker().tryModify(selected, OperationType.COMPACTION);
                                       CompactionController controller = new CompactionController(cfs, selected, 0);
                                       CompactionIterator ci = new CompactionIterator(OperationType.COMPACTION,
