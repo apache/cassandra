@@ -26,6 +26,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -43,6 +45,7 @@ import org.apache.cassandra.utils.KillerForTests;
 
 public class CommitLogReaderTest extends CQLTester
 {
+    private static final Logger logger = LoggerFactory.getLogger(CommitLogReaderTest.class);
     @BeforeClass
     public static void setUpClass()
     {
@@ -274,4 +277,32 @@ public class CommitLogReaderTest extends CQLTester
                 .forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         return result;
     }
+     @Test
+    public void testSkipCorruptCommitLogFile() throws Throwable {
+    // Arrange
+    CommitLogReader reader = new CommitLogReader();
+    TestCLRHandler testHandler = new TestCLRHandler();
+
+   // Create a temp file to simulate a corrupt commit log
+    java.io.File tmp = java.io.File.createTempFile("corrupt", ".log");
+    tmp.deleteOnExit();
+    try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+        out.write(new byte[]{0x00, 0x01, 0x02}); // garbage content
+    }
+
+    // Wrap into Cassandra File object
+    File fakeCorruptFile = new File(tmp.getAbsolutePath());
+
+    // Act: Try reading it
+    try {
+        reader.readAllFiles(testHandler, new File[]{fakeCorruptFile}, new CommitLogPosition(0, 0));
+    } catch (Throwable t) {
+        Assert.fail("Should not throw exception even for corrupt log file: " + t.getMessage());
+    }
+
+    // Assert
+    Assert.assertEquals(0, testHandler.seenMutationCount());
+    logger.info("Test passed: corrupt commit log file was skipped successfully without loop or crash");
+}
+}
 }
