@@ -48,6 +48,8 @@ class ResponseVerbHandler implements IVerbHandler
                                                                  Verb.TCM_REPLICATION,
                                                                  Verb.TCM_NOTIFY_RSP,
                                                                  Verb.TCM_DISCOVER_RSP,
+                                                                 Verb.TCM_DISCOVER_PEERS_RSP,
+                                                                 Verb.TCM_DISCOVER_SURVEY_RSP,
                                                                  Verb.TCM_INIT_MIG_RSP);
 
     // We skip epoch catchup for PaxosV2 verbs, since we are using PaxosV2 to serially read the log.

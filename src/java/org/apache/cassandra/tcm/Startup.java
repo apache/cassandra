@@ -122,17 +122,47 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 break;
             case NORMAL:
                 logger.info("Initializing as non CMS node");
+                // note: if this node was a member of the CMS, log replay will put it back into that state
                 initializeAsNonCmsNode(wrapProcessor);
-                ClusterMetadataService.instance().log().pause();
-                initMessaging.run();
                 UUID localHostId = SystemKeyspace.getLocalHostId();
                 // If null, this node has not yet registered so there will be more nothing to do here
                 if (localHostId != null)
                 {
                     NodeId nodeId = NodeId.fromUUID(localHostId);
-                    initializeCMSLookup(nodeId, ClusterMetadata.current());
+                    ClusterMetadata replayed = ClusterMetadata.current();
+                    InetAddressAndPort oldAddress = replayed.directory.endpoint(nodeId);
+                    InetAddressAndPort newAddress = FBUtilities.getBroadcastAddressAndPort();
+                    if (!newAddress.equals(oldAddress))
+                    {
+                        // Build temporary mappings for addressing CMS nodes who's addresses have been
+                        // changed but not yet committed via the CMS or not yet been enacted locally.
+                        ClusterMetadataService.instance().log().pause();
+                        initMessaging.run();
+                        initializeCMSLookup(nodeId, replayed);
+                        ClusterMetadataService.instance().log().unpause();
+
+                        logger.info("Detected change in local node addresses, committing update to Cluster Metadata Service");
+                        Transformation transform = new org.apache.cassandra.tcm.transformations.Startup(nodeId,
+                                                                                                        NodeAddresses.current(),
+                                                                                                        NodeVersion.CURRENT);
+                        replayed = ClusterMetadataService.instance().commit(transform);
+
+                        // Wait for any CMS members which have uncommitted address changes to commit them and
+                        // us to enact them.
+                        while (replayed.cmsLookup.isActive())
+                        {
+                            logger.info("Waiting for pending CMS address changes to complete {}", replayed.cmsLookup);
+                            TimeUnit.MILLISECONDS.sleep(1000);  // TODO make configurable?
+                            replayed = ClusterMetadata.current();
+                        }
+                    }
+                    logger.info("CMS address changes complete, current epoch is {}", replayed.epoch.getEpoch());
                 }
-                ClusterMetadataService.instance().log().unpause();
+                else
+                {
+                    // nothing to do, so just initialise messaging
+                    initMessaging.run();
+                }
                 break;
             case VOTE:
                 logger.info("Initializing for discovery");
@@ -282,6 +312,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             surveyed.forEach(pair -> {
                 if (previousCMS.containsKey(pair.right))
                     confirmedCMS.put(pair.right, pair.left);
+
             });
 
             logger.info("Confirmed CMS members {}", confirmedCMS);
