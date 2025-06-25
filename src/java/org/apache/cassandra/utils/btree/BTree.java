@@ -32,11 +32,9 @@ import com.google.common.collect.Ordering;
 import accord.utils.Invariants;
 import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.BulkIterator;
-import org.apache.cassandra.utils.IndexedSearchIterator;
 import org.apache.cassandra.utils.LongAccumulator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.PeekingSearchIterator;
-import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.IntervalBTree.IntervalMaxIndex;
 import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
 
