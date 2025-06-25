@@ -119,7 +119,6 @@ import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
-import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.key;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -1103,7 +1102,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     case EXPUNGE:
                         return null;
                     case ERASE:
-                        return erase(partitionKey);
+                        return erase(journalKey, partitionKey);
 
                     case TRUNCATE:
                     case TRUNCATE_WITH_OUTCOME:
@@ -1137,9 +1136,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             return newVersion.build().unfilteredIterator();
         }
 
-        private UnfilteredRowIterator erase(DecoratedKey partitionKey) throws IOException
+        private UnfilteredRowIterator erase(JournalKey journalKey, DecoratedKey partitionKey) throws IOException
         {
             AccordCommandRowEntry entry = entries.get(entries.size() - 1);
+            entry.builder.reset(journalKey);
             entry.builder.addCleanup(false, ERASE);
             return PartitionUpdate.singleRowUpdate(AccordKeyspace.Journal, partitionKey, toRow(entry)).unfilteredIterator();
         }

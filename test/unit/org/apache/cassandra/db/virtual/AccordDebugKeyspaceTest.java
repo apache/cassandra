@@ -53,6 +53,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.awaitility.Awaitility;
 
+import static accord.api.ProtocolModifiers.Toggles.SendStableMessages.TO_ALL;
 import static accord.primitives.TxnId.FastPath.Unoptimised;
 import static org.apache.cassandra.Util.spinUntilSuccess;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
@@ -70,6 +71,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         daemonInitialization();
         DatabaseDescriptor.getAccord().queue_shard_count = new OptionaldPositiveInt(1);
         DatabaseDescriptor.getAccord().command_store_shard_count = new OptionaldPositiveInt(1);
+        ProtocolModifiers.Toggles.setSendStableMessages(TO_ALL);
 
         CQLTester.setUpClass();
 

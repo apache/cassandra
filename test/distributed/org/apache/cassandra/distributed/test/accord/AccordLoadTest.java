@@ -73,7 +73,7 @@ public class AccordLoadTest extends AccordTestBase
                                                                             .set("accord.shard_durability_target_splits", "64")
                                                                             .set("accord.shard_durability_cycle", "5m")
 //                                                                            .set("accord.ephemeral_read_enabled", "true")
-                                                                            .set("accord.gc_delay", "5s")), 3);
+                                                                            .set("accord.gc_delay", "30s")), 3);
     }
 
     @Ignore
@@ -100,13 +100,15 @@ public class AccordLoadTest extends AccordTestBase
             ICoordinator coordinator = cluster.coordinator(1);
             final int repairInterval = Integer.MAX_VALUE;
             final int compactionInterval = 20_000;
-            final int flushInterval = 50_000;
-            final int compactionPeriodSeconds = 1;
-            final int restartInterval = 100_000;
-            final int batchSizeLimit = 1000;
+//            final int flushInterval = 50_000;
+            final int flushInterval = 500;
+            final int compactionPeriodSeconds = 0;
+//            final int restartInterval = 100_000;
+            final int restartInterval = Integer.MAX_VALUE;
+            final int batchSizeLimit = 200;
             final long batchTime = TimeUnit.SECONDS.toNanos(10);
             final int concurrency = 100;
-            final int ratePerSecond = 2000;
+            final int ratePerSecond = 1000;
             final int keyCount = 10_000;
             final float readChance = 0.33f;
             long nextRepairAt = repairInterval;

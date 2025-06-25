@@ -887,7 +887,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                 else
                 {
                     selfTask.queuePosition = task.queuePosition;
-                    waitingToRun.update(task);
+                    waitingToRun.update(selfTask);
                 }
             }
         }
@@ -1173,6 +1173,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                 TaskQueue queue = executor == null ? waitingToRun : executor;
                 if (queue.contains(this))
                 {
+                    --tasks;
                     queue.remove(this);
                     fail(new CancellationException());
                 }
