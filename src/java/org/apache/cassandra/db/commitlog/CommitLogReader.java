@@ -134,10 +134,9 @@ public class CommitLogReader
                 logger.warn("Skipping commit log file {} due to error: {}", file.name(), t.getMessage(), t);
             }
 
-            // 🔴 Fix: If unsuccessful, skip to next without retrying
+            // Fix: If unsuccessful, skip to next without retrying
             if (!success) {
                 logger.info("File {} was not processed successfully. Skipping to next.", file.name());
-                continue;
             }
         }
     }
