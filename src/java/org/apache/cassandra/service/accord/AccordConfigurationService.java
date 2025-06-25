@@ -257,7 +257,8 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
     private void checkIfNodesRemoved(Topology topology, Set<Node.Id> stillLiveNodes)
     {
-        if (epochs.minEpoch() == topology.epoch()) return;
+        long minEpoch = epochs.minEpoch();
+        if (minEpoch == 0 || topology.epoch() <= minEpoch) return;
         Topology previous = getTopologyForEpoch(topology.epoch() - 1);
         // for all nodes removed, or pending removal, mark them as removed so we don't wait on their replies
         Set<Node.Id> removedNodes = Sets.difference(previous.nodes(), topology.nodes());
@@ -265,7 +266,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         // TODO (desired, efficiency): there should be no need to notify every epoch for every removed node
         for (Node.Id removedNode : removedNodes)
         {
-            if (topology.epoch() >= epochs.minEpoch())
+            if (topology.epoch() >= minEpoch)
                 onNodeRemoved(topology.epoch(), previous, removedNode);
         }
     }
