@@ -561,6 +561,55 @@ public class TransactionStatementTest
                 .hasMessageContaining(String.format(TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, "INSERT", "at [2:3]"));
     }
 
+    @Test
+    public void shouldRejectRowReferenceOnLHSExceptIsNullAndIsNotNull()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=1);\n" +
+                       "  IF row1 = 1 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=1;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(IllegalStateException.class)
+                  .hasMessageContaining("Row reference (row1) can only be used with IS NULL/IS NOT NULL conditions");
+    }
+
+    @Test
+    public void shouldRejectRowReferenceOnRHSExceptIsNullAndIsNotNull()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=1);\n" +
+                       "  IF 100 = row1 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=1;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(IllegalStateException.class)
+                  .hasMessageContaining("Row reference (row1) can only be used with IS NULL/IS NOT NULL conditions");
+    }
+
+    @Test
+    public void shouldAcceptRowReferenceWithIsNullAndIsNotNull()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=1);\n" +
+                       "  IF row1 IS NULL THEN\n" +
+                       "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=1;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+        Assertions.assertThat(prepare(query)).isNotNull();
+        query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=1);\n" +
+                       "  IF row1 IS NOT NULL THEN\n" +
+                       "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=1;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+        Assertions.assertThat(prepare(query)).isNotNull();
+    }
+
     private static CQLStatement prepare(String query)
     {
         TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(query);

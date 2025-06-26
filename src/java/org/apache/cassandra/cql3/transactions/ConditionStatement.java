@@ -103,12 +103,16 @@ public class ConditionStatement
             
             if (lhs instanceof RowDataReference.Raw)
             {
+                if (((RowDataReference.Raw) lhs).column() == null)
+                    throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
                 reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
                 ColumnSpecification receiver = reference.getValueReceiver();
                 value = rhs.prepare(keyspace, receiver);
             }
             else if (rhs instanceof RowDataReference.Raw)
             {
+                if (((RowDataReference.Raw) rhs).column() == null)
+                    throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
                 reference = ((RowDataReference.Raw) rhs).prepareAsReceiver();
                 ColumnSpecification receiver = reference.getValueReceiver();
                 value = lhs.prepare(keyspace, receiver);
