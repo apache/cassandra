@@ -176,7 +176,7 @@ public class AccordCommandTest
             Command before = safeStore.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, before.executeAt());
             Assert.assertTrue(before.hasBeen(Status.Committed));
-            Assert.assertEquals(commit.partialDeps, before.partialDeps());
+            Assert.assertEquals(commit.partialDeps(), before.partialDeps());
 
             CommandsForKey cfk = safeStore.get(key(1).toUnseekable()).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);

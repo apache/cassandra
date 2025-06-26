@@ -125,6 +125,6 @@ public class AccordIntegrationTest extends AccordTestBase
     private void pauseSimpleProgressLog()
     {
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop()));
+            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop()));
     }
 }

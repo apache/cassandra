@@ -28,6 +28,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.ConfigurationService.EpochReady;
 import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -362,7 +363,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
 
         StorageService.instance.repairPaxosForTopologyChange("bootstrap");
         Future<StreamState> bootstrapStream = StorageService.instance.startBootstrap(metadata, beingReplaced, movements, strictMovements);
-        Future<?> accordReady = AccordService.instance().epochReadyFor(metadata);
+        Future<?> accordReady = AccordService.instance().epochReadyFor(metadata, EpochReady::reads);
         Future<?> ready = FutureCombiner.allOf(bootstrapStream, accordReady);
 
         try

@@ -150,9 +150,9 @@ public class AccordBounceTest extends FuzzTestBase
                 // Command Stores should not be lost on bounce
                 Map<Integer, Set<String>> before = cluster.get(1).callOnInstance(() -> {
                     Map<Integer, Set<String>> m = new HashMap<>();
-                    AccordService.instance().node().commandStores().forEach((store, ranges) -> {
+                    AccordService.instance().node().commandStores().forAllUnsafe((store) -> {
                         Set<String> set = new HashSet<>();
-                        for (Range range : ranges.all())
+                        for (Range range : store.unsafeGetRangesForEpoch().all())
                             set.add(range.toString());
                         m.put(store.id(), set);
                     });
@@ -169,9 +169,9 @@ public class AccordBounceTest extends FuzzTestBase
 
                     Map<Integer, Set<String>> after = cluster.get(1).callOnInstance(() -> {
                         Map<Integer, Set<String>> m = new HashMap<>();
-                        AccordService.instance().node().commandStores().forEach((store, ranges) -> {
+                        AccordService.instance().node().commandStores().forAllUnsafe(store -> {
                             Set<String> set = new HashSet<>();
-                            for (Range range : ranges.all())
+                            for (Range range : store.unsafeGetRangesForEpoch().all())
                                 set.add(range.toString());
                             m.put(store.id(), set);
                         });

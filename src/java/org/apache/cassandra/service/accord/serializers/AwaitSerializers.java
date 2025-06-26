@@ -122,7 +122,7 @@ public class AwaitSerializers
         public void serialize(AsyncAwaitComplete ok, DataOutputPlus out) throws IOException
         {
             CommandSerializers.txnId.serialize(ok.txnId, out);
-            KeySerializers.route.serialize(ok.route, out);
+            KeySerializers.route.serialize(ok.scope, out);
             out.writeByte(ok.newStatus.ordinal());
             out.writeUnsignedVInt32(ok.callbackId);
         }
@@ -141,7 +141,7 @@ public class AwaitSerializers
         public long serializedSize(AsyncAwaitComplete ok)
         {
             return CommandSerializers.txnId.serializedSize(ok.txnId)
-                   + KeySerializers.route.serializedSize(ok.route)
+                   + KeySerializers.route.serializedSize(ok.scope)
                    + TypeSizes.BYTE_SIZE
                    + VIntCoding.computeVIntSize(ok.callbackId);
         }

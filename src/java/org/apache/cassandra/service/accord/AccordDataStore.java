@@ -30,6 +30,7 @@ import accord.local.cfk.CommandsForKey;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
+import accord.utils.UnhandledEnum;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.Schema;
@@ -39,14 +40,6 @@ public class AccordDataStore implements DataStore
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordDataStore.class);
     enum FlushListenerKey { KEY }
-
-    @Override
-    public FetchResult fetch(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback)
-    {
-        AccordFetchCoordinator coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
-        coordinator.start();
-        return coordinator.result();
-    }
 
     /**
      * Ensures data for the intersecting ranges is flushed to sstable before calling back with reportOnSuccess.
@@ -93,6 +86,25 @@ public class AccordDataStore implements DataStore
             }
 
             prev = cfs;
+        }
+    }
+
+    @Override
+    public FetchResult fetch(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback, FetchKind kind)
+    {
+        switch (kind)
+        {
+            default: throw new UnhandledEnum(kind);
+            case Image:
+            {
+                AccordFetchCoordinator coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
+                coordinator.start();
+                return coordinator.result();
+            }
+            case Sync:
+            {
+                throw new UnsupportedOperationException();
+            }
         }
     }
 }
