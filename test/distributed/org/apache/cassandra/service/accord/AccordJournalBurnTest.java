@@ -349,11 +349,11 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
 
                              @Override
-                             public void replay(CommandStores commandStores)
+                             public boolean replay(CommandStores commandStores)
                              {
                                  // Make sure to replay _only_ static segments
                                  this.closeCurrentSegmentForTestingIfNonEmpty();
-                                 super.replay(commandStores);
+                                 return super.replay(commandStores);
                              }
 
                              @Override
