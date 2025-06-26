@@ -682,6 +682,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         initialized = true;
     }
 
+    @VisibleForTesting
+    public void unsafeSetUninitialized()
+    {
+        initialized = false;
+    }
+
     public boolean isInitialized()
     {
         return initialized;

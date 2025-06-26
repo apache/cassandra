@@ -29,6 +29,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * Tests the virtual table exposing storage-attached column index metadata.
@@ -58,6 +59,8 @@ public class IndexesSystemViewTest extends SAITester
     public static void setup()
     {
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(SchemaConstants.VIRTUAL_VIEWS, ImmutableList.of(new ColumnIndexesSystemView(SchemaConstants.VIRTUAL_VIEWS))));
+
+        StorageService.instance.unsafeSetInitialized();
     }
 
     @Test
