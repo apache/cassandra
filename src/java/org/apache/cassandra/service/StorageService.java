@@ -2029,6 +2029,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setMode(Mode.NORMAL, true);
     }
 
+    @VisibleForTesting
+    public void setStartingModeUnsafe()
+    {
+        setMode(Mode.STARTING, true);
+    }
+
     private void setMode(Mode m, boolean log)
     {
         setMode(m, null, log);

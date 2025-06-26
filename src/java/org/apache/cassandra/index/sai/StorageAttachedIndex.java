@@ -331,9 +331,30 @@ public class StorageAttachedIndex implements Index
     public Callable<?> getInitializationTask()
     {
         // New storage-attached indexes will be available for queries after on disk index data are built.
-        // Memtable data will be indexed via flushing triggered by schema change
-        // We only want to validate the index files if we are starting up
-        IndexValidation validation = StorageService.instance.isStarting() ? IndexValidation.HEADER_FOOTER : IndexValidation.NONE;
+        // Memtable data will be indexed via flushing triggered by schema change.
+        // We only want to validate the index files if we are starting up.
+        boolean isStarting = StorageService.instance.isStarting();
+        IndexValidation validation = isStarting ? IndexValidation.HEADER_FOOTER : IndexValidation.NONE;
+
+        // Only attempt to make the index queryable if we are starting up. Otherwise, if we create a new index on top
+        // of nothing but existing Memtable data (i.e. no SSTables), that data will temporarily be lost until flush.
+        if (isStarting)
+        {
+            StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(baseCfs);
+            assert indexGroup != null : "Index group does not exist for table " + baseCfs.keyspace + '.' + baseCfs.name;
+
+            Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validation);
+
+            if (nonIndexed.isEmpty())
+            {
+                // If the index is complete, mark it queryable and avoid an initial build:
+                baseCfs.indexManager.makeIndexQueryable(this, Status.BUILD_SUCCEEDED);
+                logger.debug(indexIdentifier.logMessage("Skipping initial build, as index is already queryable..."));
+                initBuildStarted = true;
+                return () -> ImmediateFuture.success(null);
+            }
+        }
+
         return () -> startInitialBuild(baseCfs, validation).get();
     }
 
@@ -843,15 +864,12 @@ public class StorageAttachedIndex implements Index
         // Force another flush to make sure on disk index is generated for memtable data before marking it queryable.
         // In the case of offline scrub, there are no live memtables.
         if (!baseCfs.getTracker().getView().liveMemtables.isEmpty())
-        {
             baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_STARTED);
-        }
 
         // It is now safe to flush indexes directly from flushing Memtables.
         initBuildStarted = true;
 
         StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(baseCfs);
-
         assert indexGroup != null : "Index group does not exist for table " + baseCfs.keyspace + '.' + baseCfs.name;
 
         List<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validation);
@@ -888,8 +906,7 @@ public class StorageAttachedIndex implements Index
             }
 
             StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(baseCfs);
-
-            assert indexGroup != null : "Index group does not exist for table";
+            assert indexGroup != null : "Index group does not exist for table " + baseCfs.keyspace + '.' + baseCfs.name;
 
             Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, IndexValidation.HEADER_FOOTER);
 
