@@ -20,6 +20,7 @@
  */
 package org.apache.cassandra.index.sai.functional;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -36,6 +37,13 @@ import static org.junit.Assert.assertEquals;
 
 public class FailureTest extends SAITester
 {
+    @BeforeClass
+    public static void setup()
+    {
+        setUpClass();
+        requireNetwork(); // Ensure the node has advanced out of STARTING mode
+    }
+
     @Test
     public void shouldMakeIndexNonQueryableOnSSTableContextFailureDuringFlush() throws Throwable
     {

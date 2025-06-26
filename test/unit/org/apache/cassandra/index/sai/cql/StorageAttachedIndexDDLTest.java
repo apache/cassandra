@@ -76,6 +76,7 @@ import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Throwables;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
@@ -1309,6 +1310,40 @@ public class StorageAttachedIndexDDLTest extends SAITester
         assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
 
         assertTrue(verifyChecksum(numericIndexTermType, numericIndexIdentifier));
+    }
+
+    @Test
+    public void shouldMarkQueryableInInitializationTask() throws Throwable
+    {
+        createTable(CREATE_TABLE_TEMPLATE);
+        disableCompaction(KEYSPACE);
+        IndexIdentifier idxIdentifier = createIndexIdentifier(createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1")));
+
+        // create 10 SSTables
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (id1, v1, v2) VALUES (?, ?, ?)", String.valueOf(i), i, String.valueOf(i));
+            flush();
+        }
+
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1 >= 5");
+        assertEquals(5, rows.all().size());
+
+        // Make the index artificially non-queryable:
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        Index index = cfs.indexManager.getIndexByName(idxIdentifier.indexName);
+        cfs.indexManager.makeIndexNonQueryable(index, Index.Status.BUILD_FAILED);
+
+        // Query should fail with the index in an artificially non-queryable state:
+        assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1 >= 5")).isInstanceOf(ReadFailureException.class);
+
+        // Node must be in STARTING mode for it to be necessary for the initialization task to pre-emptively validate:
+        StorageService.instance.setStartingModeUnsafe();
+        // Simply getting the initialization task (and not running it) will validate and mark the index queryable again:
+        cfs.indexManager.buildIndex(index);
+        StorageService.instance.setNormalModeUnsafe();
+        rows = executeNet("SELECT id1 FROM %s WHERE v1 >= 5");
+        assertEquals(5, rows.all().size());
     }
 
     @Test
