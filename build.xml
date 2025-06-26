@@ -101,6 +101,7 @@
     <property name="tmp.dir" value="${build.dir}/tmp"/>
 
     <property name="ant.build.src" value="${basedir}/.build" />
+    <property name="ant.gen-doc.skip" value="true" />
 
     <property name="doc.dir" value="${basedir}/doc"/>
 

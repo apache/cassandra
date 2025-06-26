@@ -243,18 +243,23 @@ public class AccordService implements IAccordService, Shutdownable
         }
         instance = as;
 
-        replayJournal(as);
+        // If we hit an error during journal replay, we need to mark ourselves unsafe to read, perform full data repair,
+        // and trigger RX before we can continue serving traffic
+        if (replayJournal(as) && ClusterMetadata.current().directory.allJoinedEndpoints().size() > 1)
+            AsyncChains.awaitUninterruptibly(as.node().commandStores().rebootstrap(as.node()));
     }
 
     @VisibleForTesting
-    public static void replayJournal(AccordService as)
+    public static boolean replayJournal(AccordService as)
     {
+        boolean needsRebootstrap = false;
         logger.info("Starting journal replay.");
         CommandsForKey.disableLinearizabilityViolationsReporting();
         try
         {
             AccordKeyspace.truncateAllCaches();
-            as.journal().replay(as.node().commandStores());
+            if (as.journal().replay(as.node().commandStores()))
+                needsRebootstrap = true;
 
             logger.info("Waiting for command stores to quiesce.");
             ((AccordCommandStores)as.node.commandStores()).waitForQuiescense();
@@ -266,6 +271,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         logger.info("Finished journal replay.");
+        return needsRebootstrap;
     }
 
     public static void shutdownServiceAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
