@@ -41,6 +41,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
@@ -186,7 +187,7 @@ public final class AbstractTypeGenerators
                                                                                               .build();
     // NEVER EVER EVER UPDATE THIS LIST!
     // meaningless emptyness is a legacy thrift concept, so only types from back then apply and all new types will never apply
-    public static final ImmutableUniqueList<AbstractType<?>> MEANINGLESS_EMPTYNESS = ImmutableUniqueList.of(
+    private static final ImmutableList<AbstractType<?>> MEANINGLESS_EMPTYNESS = ImmutableList.of(
     CounterColumnType.instance,
 
     BooleanType.instance,
@@ -208,6 +209,22 @@ public final class AbstractTypeGenerators
     IntegerType.instance,
     LongType.instance
     );
+
+    public static Iterable<AbstractType<?>> meaninglessEmptyness()
+    {
+        return MEANINGLESS_EMPTYNESS;
+    }
+
+    public static boolean supportsMeaninglessEmptyness(AbstractType<?> type)
+    {
+        // Why list iteration rather than contains?  Because equality is hard... and some types like to do things like
+        // public boolean equals(Object obj) { return obj instanceof AbstractTimeUUIDType<?>; }
+        for (var t : meaninglessEmptyness())
+        {
+            if (t == type) return true;
+        }
+        return false;
+    }
 
     private AbstractTypeGenerators()
     {
