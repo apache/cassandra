@@ -66,7 +66,8 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
     {
         Builder<T> builder = builder(values.length);
         for (T v : values)
-            builder.add(v);
+            if (!builder.maybeAdd(v))
+                throw new IllegalArgumentException("Unable to add " + v +  " as its a duplicate");
         return builder.build();
     }
 
@@ -123,12 +124,18 @@ public class ImmutableUniqueList<T> extends AbstractList<T> implements RandomAcc
             this.values = new ArrayList<>(expectedSize);
         }
 
-        public Builder<T> add(T t)
+        public boolean maybeAdd(T t)
         {
-            if (indexLookup.containsKey(t)) return this;
+            if (indexLookup.containsKey(t)) return false;
             int idx = this.idx++;
             indexLookup.put(t, idx);
             values.add(t);
+            return true;
+        }
+
+        public Builder<T> add(T t)
+        {
+            maybeAdd(t);
             return this;
         }
 

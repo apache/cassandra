@@ -300,11 +300,9 @@ public class AbstractTypeTest
                 continue;
             if (type.isEmptyValueMeaningless())
             {
-                AbstractType<?> finalType = type;
-                // some types (such as TimeUUID) have the same equqlas, so equality checks don't work here, need reference checks
-                Assertions.assertThat(AbstractTypeGenerators.MEANINGLESS_EMPTYNESS)
+                Assertions.assertThat(AbstractTypeGenerators.supportsMeaninglessEmptyness(type))
                           .describedAs("New type %s detected that says its emptyness is meaningless, but it isn't allowed to be!  This is a legacy concept only!", type.getClass())
-                          .anyMatch(t -> t == finalType);
+                          .isTrue();
 
                 Assertions.assertThat(type.isNull(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isTrue();
             }
@@ -314,7 +312,7 @@ public class AbstractTypeTest
     @Test
     public void onlyMeaninglessEmptyness()
     {
-        qt().forAll(Generators.filter(AbstractTypeGenerators.builder().withDefaultSizeGen(1).build(), t -> !AbstractTypeGenerators.MEANINGLESS_EMPTYNESS.contains(t))).checkAssert(type -> {
+        qt().forAll(Generators.filter(AbstractTypeGenerators.builder().withDefaultSizeGen(1).build(), t -> !AbstractTypeGenerators.supportsMeaninglessEmptyness(t))).checkAssert(type -> {
             Assertions.assertThat(type.isEmptyValueMeaningless()).isFalse();
         });
     }

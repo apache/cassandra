@@ -313,7 +313,7 @@ public class TxnConditionTest
     @Test
     public void harryPotterAndTheMeaninglessEmptyness()
     {
-        for (var type : AbstractTypeGenerators.MEANINGLESS_EMPTYNESS)
+        for (var type : AbstractTypeGenerators.meaninglessEmptyness())
         {
             if (type == CounterColumnType.instance) continue;
             TableMetadata metadata = TableMetadata.builder("ks", "tbl")
