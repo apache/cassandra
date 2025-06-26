@@ -24,13 +24,16 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import accord.local.PreLoadContext;
+import accord.api.ConfigurationService.EpochReady;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.topology.TopologyManager;
+import accord.utils.async.AsyncResult;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -41,14 +44,15 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableFunction;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordConfigurationService;
-import org.apache.cassandra.service.accord.AccordConfigurationService.EpochSnapshot;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -66,6 +70,8 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
+import static org.apache.cassandra.service.accord.AccordConfigurationService.EpochSnapshot.ResultStatus.SUCCESS;
+import static org.apache.cassandra.service.accord.AccordConfigurationService.SyncStatus.COMPLETED;
 
 public class AccordBootstrapTest extends TestBaseImpl
 {
@@ -81,7 +87,7 @@ public class AccordBootstrapTest extends TestBaseImpl
         return new PartitionKey(tid, dk(key));
     }
 
-    protected void bootstrapAndJoinNode(Cluster cluster)
+    protected IInvokableInstance bootstrapAndJoinNode(Cluster cluster)
     {
         IInstanceConfig config = cluster.newInstanceConfig();
         config.set("auto_bootstrap", true);
@@ -94,6 +100,7 @@ public class AccordBootstrapTest extends TestBaseImpl
 //                     () -> withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster)));
 //        newInstance.nodetoolResult("join").asserts().success();
         newInstance.nodetoolResult("cms", "describe").asserts().success(); // just make sure we're joined, remove later
+        return newInstance;
     }
 
     private static AccordService service()
@@ -101,11 +108,11 @@ public class AccordBootstrapTest extends TestBaseImpl
         return (AccordService) AccordService.instance();
     }
 
-    private static void awaitEpoch(long epoch)
+    private static void awaitEpoch(long epoch, Function<EpochReady, AsyncResult<Void>> await)
     {
         try
         {
-            boolean completed = service().epochReady(Epoch.create(epoch)).await(60, TimeUnit.SECONDS);
+            boolean completed = service().epochReady(Epoch.create(epoch), await).await(60, TimeUnit.SECONDS);
             Assertions.assertThat(completed)
                       .describedAs("Epoch %s did not become ready within timeout on %s -> %s",
                                    epoch, FBUtilities.getBroadcastAddressAndPort(),
@@ -169,6 +176,14 @@ public class AccordBootstrapTest extends TestBaseImpl
     @Test
     public void bootstrapTest() throws Throwable
     {
+        bootstrapTest(Function.identity(), cluster -> {
+            bootstrapAndJoinNode(cluster);
+            awaitMaxEpochReadyToRead(cluster);
+        });
+    }
+
+    public void bootstrapTest(Function<Cluster.Builder, Cluster.Builder> setup, Consumer<Cluster> bootstrapAndJoinNode) throws Throwable
+    {
         int originalNodeCount = 2;
         int expandedNodeCount = originalNodeCount + 1;
 
@@ -188,49 +203,10 @@ public class AccordBootstrapTest extends TestBaseImpl
             cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
             cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
 
-            long initialMax = maxEpoch(cluster);
-
+            awaitMaxEpochReadyToRead(cluster);
             for (IInvokableInstance node : cluster)
-            {
-                node.runOnInstance(() -> {
-                    Assert.assertEquals(initialMax, ClusterMetadata.current().epoch.getEpoch());
-                    awaitEpoch(initialMax);
-                    AccordConfigurationService configService = service().configService();
-                    long minEpoch = configService.minEpoch();
-
-                    Assert.assertEquals(initialMax, configService.maxEpoch());
-
-                    for (long epoch = minEpoch; epoch < initialMax; epoch++)
-                    {
-                        awaitEpoch(epoch);
-                        Assert.assertEquals(EpochSnapshot.completed(epoch), configService.getEpochSnapshot(epoch));
-                    }
-
-                    awaitLocalSyncNotification(initialMax);
-                    Assert.assertEquals(EpochSnapshot.completed(initialMax), configService.getEpochSnapshot(initialMax));
-                });
-            }
-
-            for (IInvokableInstance node : cluster)
-            {
                 node.runOnInstance(StreamListener::register);
-            }
-
-            long schemaChangeMax = maxEpoch(cluster);
-            for (IInvokableInstance node : cluster)
-            {
-                node.runOnInstance(() -> {
-                    ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(schemaChangeMax));
-                    awaitEpoch(schemaChangeMax);
-                    AccordConfigurationService configService = service().configService();
-
-                    for (long epoch = initialMax + 1; epoch <= schemaChangeMax; epoch++)
-                    {
-                        awaitLocalSyncNotification(epoch);
-                        Assert.assertEquals(EpochSnapshot.completed(epoch), configService.getEpochSnapshot(epoch));
-                    }
-                });
-            }
+            awaitMaxEpochReadyToRead(cluster);
 
             for (int key = 0; key < 100; key++)
             {
@@ -251,21 +227,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                 });
             }
 
-            bootstrapAndJoinNode(cluster);
-            long bootstrapMax = maxEpoch(cluster);
-            for (IInvokableInstance node : cluster)
-            {
-                node.runOnInstance(() -> {
-                    ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(bootstrapMax));
-                    Assert.assertEquals(bootstrapMax, ClusterMetadata.current().epoch.getEpoch());
-                    AccordService service = (AccordService) AccordService.instance();
-                    awaitEpoch(bootstrapMax);
-                    AccordConfigurationService configService = service.configService();
-
-                    awaitLocalSyncNotification(bootstrapMax);
-                    Assert.assertEquals(EpochSnapshot.completed(bootstrapMax), configService.getEpochSnapshot(bootstrapMax));
-                });
-            }
+            bootstrapAndJoinNode.accept(cluster);
 
             InetAddress node3Addr = cluster.get(3).broadcastAddress().getAddress();
             for (IInvokableInstance node : cluster.get(1, 2))
@@ -278,15 +240,11 @@ public class AccordBootstrapTest extends TestBaseImpl
                         Assert.assertTrue(session.getNumKeyspaceTransfers() > 0);
                     });
 
-                    getBlocking(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test", safeStore -> {
-                        AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
-                        Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.bootstrapBeganAt().keySet()));
-                        Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.safeToReadAt().keySet()));
-//
-//                        Assert.assertTrue(commandStore.maxBootstrapEpoch() > 0);
-//                        Assert.assertTrue(commandStore.bootstrapBeganAt().isEmpty());
-//                        Assert.assertTrue(commandStore.safeToRead().isEmpty());
-                    }));
+                    service().node().commandStores().forAllUnsafe(unsafeStore -> {
+                        AccordCommandStore ss = (AccordCommandStore) unsafeStore;
+                        Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.unsafeGetBootstrapBeganAt().keySet()));
+                        Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.unsafeGetSafeToRead().keySet()));
+                    });
                 });
             }
 
@@ -321,7 +279,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                         Assert.assertEquals(key, row.getInt("c"));
                         Assert.assertEquals(key, row.getInt("v"));
 
-                        getBlocking(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test", safeStore -> {
+                        getBlocking(service().node().commandStores().forEach("Test", RoutingKeys.of(partitionKey.toUnseekable()), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
                                 AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
@@ -375,44 +333,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                 tokens[i] = cluster.get(i+1).callOnInstance(() -> Long.valueOf(getOnlyElement(StorageService.instance.getTokens())));
             }
 
-            for (IInvokableInstance node : cluster)
-            {
-
-                node.runOnInstance(() -> {
-                    Assert.assertEquals(initialMax, ClusterMetadata.current().epoch.getEpoch());
-                    awaitEpoch(initialMax);
-                    AccordConfigurationService configService = service().configService();
-                    long minEpoch = configService.minEpoch();
-
-                    Assert.assertEquals(initialMax, configService.maxEpoch());
-
-                    for (long epoch = minEpoch; epoch < initialMax; epoch++)
-                    {
-                        awaitEpoch(epoch);
-                        Assert.assertEquals(EpochSnapshot.completed(epoch), configService.getEpochSnapshot(epoch));
-                    }
-
-                    awaitLocalSyncNotification(initialMax);
-                    Assert.assertEquals(EpochSnapshot.completed(initialMax), configService.getEpochSnapshot(initialMax));
-                });
-            }
-
-            long schemaChangeMax = maxEpoch(cluster);
-            for (IInvokableInstance node : cluster)
-            {
-                node.runOnInstance(() -> {
-                    Assert.assertEquals(schemaChangeMax, ClusterMetadata.current().epoch.getEpoch());
-                    AccordService service = (AccordService) AccordService.instance();
-                    awaitEpoch(schemaChangeMax);
-                    AccordConfigurationService configService = service.configService();
-
-                    for (long epoch = initialMax + 1; epoch <= schemaChangeMax; epoch++)
-                    {
-                        awaitLocalSyncNotification(epoch);
-                        Assert.assertEquals(EpochSnapshot.completed(epoch), configService.getEpochSnapshot(epoch));
-                    }
-                });
-            }
+            awaitMaxEpochReadyToRead(cluster);
 
             for (int key = 0; key < 100; key++)
             {
@@ -431,20 +352,7 @@ public class AccordBootstrapTest extends TestBaseImpl
 
             cluster.get(1).runOnInstance(() -> StorageService.instance.move(Long.toString(token)));
 
-            long moveMax = maxEpoch(cluster);
-            for (IInvokableInstance node : cluster)
-            {
-                node.runOnInstance(() -> {
-                    ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(moveMax));
-                    Assert.assertEquals(moveMax, ClusterMetadata.current().epoch.getEpoch());
-                    AccordService service = (AccordService) AccordService.instance();
-                    awaitEpoch(moveMax);
-                    AccordConfigurationService configService = service.configService();
-
-                    awaitLocalSyncNotification(moveMax);
-                    Assert.assertEquals(EpochSnapshot.completed(moveMax), configService.getEpochSnapshot(moveMax));
-                });
-            }
+            long moveMax = awaitMaxEpochReadyToRead(cluster);
 
             for (IInvokableInstance node : cluster)
             {
@@ -464,9 +372,7 @@ public class AccordBootstrapTest extends TestBaseImpl
 
                             PartitionKey partitionKey = new PartitionKey(tableId, dk);
 
-                            getBlocking(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test",
-                                                                                          partitionKey.toUnseekable(), moveMax, moveMax,
-                                                                                          safeStore -> {
+                            getBlocking(service().node().commandStores().forEach("Test", RoutingKeys.of(partitionKey.toUnseekable()), moveMax, moveMax, safeStore -> {
                                 if (!safeStore.ranges().allAt(preMove).contains(partitionKey))
                                 {
                                     AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
@@ -493,4 +399,41 @@ public class AccordBootstrapTest extends TestBaseImpl
             }
         }
     }
+
+    private static long awaitMaxEpochReadyToRead(Cluster cluster)
+    {
+        return awaitMaxEpoch(cluster, EpochReady::reads, true);
+    }
+
+    private static long awaitMaxEpochMetadataReady(Cluster cluster)
+    {
+        return awaitMaxEpoch(cluster, EpochReady::metadata, false);
+    }
+
+    private static long awaitMaxEpoch(Cluster cluster, SerializableFunction<EpochReady, AsyncResult<Void>> await, boolean expectReadyToRead)
+    {
+        long maxEpoch = maxEpoch(cluster);
+        for (IInvokableInstance node : cluster)
+        {
+            node.acceptOnInstance(aw -> {
+                ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(maxEpoch));
+                Assert.assertEquals(maxEpoch, ClusterMetadata.current().epoch.getEpoch());
+                AccordService service = (AccordService) AccordService.instance();
+                awaitEpoch(maxEpoch, aw);
+                AccordConfigurationService configService = service.configService();
+
+                awaitLocalSyncNotification(maxEpoch);
+                for (long epoch = configService.minEpoch(); epoch <= maxEpoch; epoch++)
+                {
+                    Assert.assertEquals(COMPLETED, configService.getEpochSnapshot(maxEpoch).syncStatus);
+                    Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).acknowledged);
+                    Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).received);
+                    if (expectReadyToRead)
+                        Assert.assertEquals(SUCCESS, configService.getEpochSnapshot(maxEpoch).reads);
+                }
+            }, node.transfer(await));
+        }
+        return maxEpoch;
+    }
+
 }

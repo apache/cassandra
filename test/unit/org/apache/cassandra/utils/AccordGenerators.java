@@ -90,7 +90,7 @@ import org.quicktheories.impl.JavaRandom;
 
 import static accord.local.CommandStores.RangesForEpoch;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
-import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
+import static accord.local.RedundantStatus.Property.UNREADY;
 import static accord.local.RedundantStatus.SomeStatus.LOCALLY_APPLIED_ONLY;
 import static accord.local.RedundantStatus.SomeStatus.LOCALLY_WITNESSED_ONLY;
 import static accord.local.RedundantStatus.SomeStatus.SHARD_APPLIED_ONLY;
@@ -276,7 +276,7 @@ public class AccordGenerators
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
                 builder.partialDeps(partialDeps);
 
-            builder.setParticipants(StoreParticipants.all(route));
+            builder.setParticipants(StoreParticipants.all(route, saveStatus));
             builder.durability(NotDurable);
             if (saveStatus.compareTo(SaveStatus.PreAccepted) >= 0)
                 builder.executeAt(executeAt);
@@ -601,9 +601,9 @@ public class AccordGenerators
             if (rs.nextBoolean())
                 bounds.add(Bounds.create(range, txnIdGen.next(rs).addFlag(SHARD_BOUND), oneSlow(GC_BEFORE), null ));
             if (rs.nextBoolean())
-                bounds.add(Bounds.create(range, txnIdGen.next(rs), oneSlow(PRE_BOOTSTRAP), null ));
+                bounds.add(Bounds.create(range, txnIdGen.next(rs), oneSlow(UNREADY), null ));
             if (rs.nextBoolean())
-                bounds.add(new Bounds(range, Long.MIN_VALUE, Long.MAX_VALUE, new TxnId[0], new short[0], txnIdGen.next(rs)));
+                bounds.add(new Bounds(range, Long.MIN_VALUE, Long.MAX_VALUE, new TxnId[0], new int[0], txnIdGen.next(rs)));
 
             Collections.shuffle(bounds);
             long endEpoch = emptyGen.next(rs) ? Long.MAX_VALUE : rs.nextLong(0, Long.MAX_VALUE);
@@ -618,7 +618,7 @@ public class AccordGenerators
             }
 
             long startEpoch = rs.nextLong(Math.min(minEpoch, endEpoch));
-            Bounds epochBounds = new Bounds(range, startEpoch, endEpoch, new TxnId[0], new short[0], null);
+            Bounds epochBounds = new Bounds(range, startEpoch, endEpoch, new TxnId[0], new int[0], null);
             if (result == null)
                 return epochBounds;
             return Bounds.reduce(result, epochBounds);

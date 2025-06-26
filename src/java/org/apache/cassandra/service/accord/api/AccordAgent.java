@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.CoordinatorEventListener;
+import accord.api.OwnershipEventListener;
 import accord.api.ReplicaEventListener;
 import accord.api.ProgressLog.BlockedUntil;
 import accord.api.RoutingKey;
@@ -93,7 +94,7 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowR
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 // TODO (expected): merge with AccordService
-public class AccordAgent implements Agent
+public class AccordAgent implements Agent, OwnershipEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, MINUTES);
@@ -123,6 +124,12 @@ public class AccordAgent implements Agent
     public @Nullable Tracing trace(TxnId txnId, TraceEventType eventType)
     {
         return tracing.trace(txnId, eventType);
+    }
+
+    @Override
+    public OwnershipEventListener ownershipEvents()
+    {
+        return this;
     }
 
     public void setNodeId(Node.Id id)

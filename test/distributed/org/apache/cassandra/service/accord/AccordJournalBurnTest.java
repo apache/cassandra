@@ -354,11 +354,11 @@ public class AccordJournalBurnTest extends BurnTestBase
                              }
 
                              @Override
-                             public void replay(CommandStores commandStores)
+                             public boolean replay(CommandStores commandStores)
                              {
                                  // Make sure to replay _only_ static segments
                                  this.closeCurrentSegmentForTestingIfNonEmpty();
-                                 super.replay(commandStores);
+                                 return super.replay(commandStores);
                              }
 
                              @Override
@@ -388,7 +388,7 @@ public class AccordJournalBurnTest extends BurnTestBase
     public static IAccordService.AccordCompactionInfos getCompactionInfo(Node node, TableId tableId)
     {
         IAccordService.AccordCompactionInfos compactionInfos = new IAccordService.AccordCompactionInfos(node.durableBefore(), node.topology().minEpoch());
-        node.commandStores().forEachCommandStore(commandStore -> {
+        node.commandStores().forAllUnsafe(commandStore -> {
             RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
             if (redundantBefore == null)
                 redundantBefore = RedundantBefore.EMPTY;

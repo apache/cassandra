@@ -41,7 +41,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.api.Agent;
-import accord.impl.AbstractConfigurationService;
+import accord.impl.AbstractTestConfigurationService;
 import accord.impl.TestAgent;
 import accord.impl.basic.Pending;
 import accord.impl.basic.PendingQueue;
@@ -410,7 +410,7 @@ public class AccordSyncPropagatorTest
             }
         }
 
-        private class ConfigService extends AbstractConfigurationService.Minimal implements AccordSyncPropagator.Listener
+        private class ConfigService extends AbstractTestConfigurationService implements AccordSyncPropagator.Listener
         {
             private final Map<Long, Set<Node.Id>> syncCompletes = new HashMap<>();
             private final Map<Long, Set<Node.Id>> endpointAcks = new HashMap<>();
@@ -436,7 +436,7 @@ public class AccordSyncPropagatorTest
             }
 
             @Override
-            protected void localSyncComplete(Topology topology, boolean startSync)
+            protected void onReadyToCoordinate(Topology topology, boolean startSync)
             {
                 Set<Node.Id> notify = topology.nodes().stream().filter(i -> !localId.equals(i)).collect(Collectors.toSet());
                 instances.get(localId).propagator.reportSyncComplete(topology.epoch(), notify, localId);

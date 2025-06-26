@@ -39,6 +39,7 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import accord.api.ConfigurationService.EpochReady;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.utils.Clock;
@@ -327,7 +328,7 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    public static void replayJournal(AccordService as)
+    public static boolean replayJournal(AccordService as)
     {
         logger.info("Starting journal replay.");
         long before = Clock.Global.nanoTime();
@@ -337,12 +338,12 @@ public class AccordService implements IAccordService, Shutdownable
             if (as.journalConfiguration().replayMode() == RESET)
                 AccordKeyspace.truncateCommandsForKey();
 
-            as.node.commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop());
+            as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
             as.journal().replay(as.node().commandStores());
             logger.info("Waiting for command stores to quiesce.");
             ((AccordCommandStores)as.node.commandStores()).waitForQuiescense();
             as.journal.unsafeSetStarted();
-            as.node.commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start());
+            as.node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
         }
         finally
         {
@@ -351,14 +352,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         long after = Clock.Global.nanoTime();
         logger.info("Finished journal replay. {}ms elapsed", NANOSECONDS.toMillis(after - before));
-    }
-
-    public static void shutdownServiceAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
-    {
-        IAccordService i = instance;
-        if (i == null)
-            return;
-        i.shutdownAndWait(timeout, unit);
+        return true;
     }
 
     @Override
@@ -565,7 +559,7 @@ public class AccordService implements IAccordService, Shutdownable
         if (keys.size() != 1)
             return syncInternal(minBound, keys, syncLocal, syncRemote);
 
-        return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote)
+        return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote).chain()
                           .flatMap(found -> KeyBarriers.await(node, node.someSequentialExecutor(), found, syncLocal, syncRemote))
                           .flatMap(success -> {
                               if (success)
@@ -799,8 +793,8 @@ public class AccordService implements IAccordService, Shutdownable
         }
         Ready ready = new Ready();
         AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
-        getBlocking(commandStores.forEach((PreLoadContext.Empty)() -> "Flush Caches", safeStore -> {
-            AccordCommandStore commandStore = (AccordCommandStore)safeStore.commandStore();
+        commandStores.forAllUnsafe(unsafeStore -> {
+            AccordCommandStore commandStore = (AccordCommandStore)unsafeStore;
             try (AccordCommandStore.ExclusiveCaches caches = commandStore.lockCaches())
             {
                 caches.commandsForKeys().forEach(entry -> {
@@ -811,7 +805,7 @@ public class AccordService implements IAccordService, Shutdownable
                     }
                 });
             }
-        }));
+        });
         ready.decrement();
         AsyncPromise<Void> result = new AsyncPromise<>();
         ready.invoke((success, fail) -> {
@@ -1037,18 +1031,18 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public Future<Void> epochReady(Epoch epoch)
+    public Future<Void> epochReady(Epoch epoch, Function<EpochReady, AsyncResult<Void>> get)
     {
-        return toFuture(configService.epochReady(epoch.getEpoch()));
+        return toFuture(configService.epochReady(epoch.getEpoch(), get));
     }
 
     @Override
-    public Future<Void> epochReadyFor(ClusterMetadata metadata)
+    public Future<Void> epochReadyFor(ClusterMetadata metadata, Function<EpochReady, AsyncResult<Void>> get)
     {
         if (!metadata.schema.hasAccordKeyspaces())
             return EPOCH_READY;
 
-        return epochReady(metadata.epoch);
+        return epochReady(metadata.epoch, get);
     }
 
     @Override
@@ -1116,7 +1110,7 @@ public class AccordService implements IAccordService, Shutdownable
     public AccordCompactionInfos getCompactionInfo()
     {
         AccordCompactionInfos compactionInfos = new AccordCompactionInfos(node.durableBefore(), node.topology().minEpoch());
-        node.commandStores().forEachCommandStore(commandStore -> {
+        node.commandStores().forAllUnsafe(commandStore -> {
             compactionInfos.put(commandStore.id(), ((AccordCommandStore)commandStore).getCompactionInfo());
         });
         return compactionInfos;

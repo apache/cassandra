@@ -59,7 +59,7 @@ import accord.local.durability.DurabilityService;
 import accord.messages.BeginRecovery;
 import accord.messages.PreAccept;
 import accord.messages.Reply;
-import accord.messages.TxnRequest;
+import accord.messages.RouteRequest;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Ballot;
 import accord.primitives.EpochSupplier;
@@ -421,9 +421,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         throw error;
     }
 
-    public <T extends Reply> T process(TxnRequest<T> request) throws ExecutionException, InterruptedException
+    public <T extends Reply> T process(RouteRequest<T> request) throws ExecutionException, InterruptedException
     {
-        return process(request, request::apply);
+        return process(request, request);
     }
 
     public <T extends Reply> T process(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
@@ -433,9 +433,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         return getBlocking(result);
     }
 
-    public <T extends Reply> AsyncResult<T> processAsync(TxnRequest<T> request)
+    public <T extends Reply> AsyncResult<T> processAsync(RouteRequest<T> request)
     {
-        return processAsync(request, request::apply);
+        return processAsync(request, request);
     }
 
     public <T extends Reply> AsyncResult<T> processAsync(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)

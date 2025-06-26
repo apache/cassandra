@@ -47,6 +47,7 @@ import accord.coordinate.Coordination;
 import accord.coordinate.Coordinations;
 import accord.coordinate.PrepareRecovery;
 import accord.coordinate.tracking.AbstractTracker;
+import accord.primitives.RoutingKeys;
 import accord.utils.SortedListMap;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.EmptyIterators;
@@ -74,8 +75,6 @@ import accord.local.CommandStores;
 import accord.local.CommandStores.LatentStoreSelector;
 import accord.local.Commands;
 import accord.local.DurableBefore;
-import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.MaxConflicts;
 import accord.local.Node;
 import accord.local.PreLoadContext;
@@ -143,8 +142,9 @@ import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STOR
 import static accord.local.RedundantStatus.Property.LOCALLY_REDUNDANT;
 import static accord.local.RedundantStatus.Property.LOCALLY_SYNCED;
 import static accord.local.RedundantStatus.Property.LOCALLY_WITNESSED;
+import static accord.local.RedundantStatus.Property.LOG_UNAVAILABLE;
 import static accord.local.RedundantStatus.Property.QUORUM_APPLIED;
-import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
+import static accord.local.RedundantStatus.Property.UNREADY;
 import static accord.local.RedundantStatus.Property.SHARD_APPLIED;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
@@ -365,9 +365,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             TokenKey key = TokenKey.parse(keyStr, DatabaseDescriptor.getPartitioner());
 
             List<Entry> cfks = new CopyOnWriteArrayList<>();
-            PreLoadContext context = PreLoadContext.contextFor(key, LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "commands_for_key table query");
             CommandStores commandStores = AccordService.instance().node().commandStores();
-            AccordService.getBlocking(commandStores.forEach(context, key, Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
+            AccordService.getBlocking(commandStores.forEach("commands_for_key table query", RoutingKeys.of(key), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                 SafeCommandsForKey safeCfk = safeStore.get(key);
                 CommandsForKey cfk = safeCfk.current();
                 if (cfk == null)
@@ -475,9 +474,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             TokenKey key = TokenKey.parse(keyStr, DatabaseDescriptor.getPartitioner());
 
             List<Entry> cfks = new CopyOnWriteArrayList<>();
-            PreLoadContext context = PreLoadContext.contextFor(key, LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "commands_for_key_unmanaged table query");
             CommandStores commandStores = AccordService.instance().node().commandStores();
-            AccordService.getBlocking(commandStores.forEach(context, key, Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
+            AccordService.getBlocking(commandStores.forEach("commands_for_key_unmanaged table query", RoutingKeys.of(key), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                 SafeCommandsForKey safeCfk = safeStore.get(key);
                 CommandsForKey cfk = safeCfk.current();
                 if (cfk == null)
@@ -888,8 +886,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  locally_redundant 'TxnIdUtf8Type',\n" +
                         "  locally_synced 'TxnIdUtf8Type',\n" +
                         "  locally_witnessed 'TxnIdUtf8Type',\n" +
-                        "  pre_bootstrap 'TxnIdUtf8Type',\n" +
-                        "  stale_until_at_least 'TxnIdUtf8Type',\n" +
+                        "  log_unavailable 'TxnIdUtf8Type',\n" +
+                        "  unready 'TxnIdUtf8Type',\n" +
+                        "  stale_until 'TxnIdUtf8Type',\n" +
                         "  PRIMARY KEY (keyspace_name, table_name, table_id, command_store_id, token_start)" +
                         ')', UTF8Type.instance));
         }
@@ -923,8 +922,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                           .column("locally_redundant", entry.maxBound(LOCALLY_REDUNDANT).toString())
                           .column("locally_synced", entry.maxBound(LOCALLY_SYNCED).toString())
                           .column("locally_witnessed", entry.maxBound(LOCALLY_WITNESSED).toString())
-                          .column("pre_bootstrap", entry.maxBound(PRE_BOOTSTRAP).toString())
-                          .column("stale_until_at_least", entry.staleUntilAtLeast != null ? entry.staleUntilAtLeast.toString() : null);
+                          .column("log_unavailable", entry.maxBound(LOG_UNAVAILABLE).toString())
+                          .column("unready", entry.maxBound(UNREADY).toString())
+                          .column("stale_until", entry.staleUntilAtLeast != null ? entry.staleUntilAtLeast.toString() : null);
                         return ds;
                     },
                     dataSet,
@@ -1188,7 +1188,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             TxnId txnId = TxnId.parse(txnIdStr);
 
             List<Entry> commands = new CopyOnWriteArrayList<>();
-            AccordService.instance().node().commandStores().forEachCommandStore(store -> {
+            AccordService.instance().node().commandStores().forAllUnsafe(store -> {
                 Command command = ((AccordCommandStore)store).loadCommand(txnId);
                 if (command != null)
                     commands.add(new Entry(store.id(), command));
@@ -1293,7 +1293,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             TxnId txnId = TxnId.parse(txnIdStr);
 
             List<Entry> entries = new ArrayList<>();
-            AccordService.instance().node().commandStores().forEachCommandStore(store -> {
+            AccordService.instance().node().commandStores().forAllUnsafe(store -> {
                 for (AccordJournal.DebugEntry e : ((AccordCommandStore)store).debugCommand(txnId))
                     entries.add(new Entry(store.id(), e.segment, e.position, e.builder));
             });

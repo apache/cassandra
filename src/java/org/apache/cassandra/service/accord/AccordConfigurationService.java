@@ -113,7 +113,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
         @Nullable AsyncResult<Void> reads()
         {
-            return reads;
+            return ready == null ? null : ready.reads;
         }
 
         AsyncResult.Settable<Void> localSyncNotified()
@@ -449,7 +449,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    protected void localSyncComplete(Topology topology, boolean startSync)
+    protected void onReadyToCoordinate(Topology topology, boolean startSync)
     {
         long epoch = topology.epoch();
         EpochState epochState = getOrCreateEpochState(epoch);

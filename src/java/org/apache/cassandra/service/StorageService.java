@@ -71,9 +71,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,6 +131,7 @@ import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -158,7 +156,9 @@ import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -183,6 +183,7 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
@@ -206,9 +207,9 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.SingleNodeSequences;
+import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
-import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
@@ -3143,6 +3144,29 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (options.isTraced())
             return new FutureTaskWithResources<>(() -> ExecutorLocals::clear, task);
         return new FutureTask<>(task);
+    }
+
+    public RepairCoordinator repairAccordKeyspace(String keyspace, Collection<Range<Token>> ranges)
+    {
+        int cmd = nextRepairCommand.incrementAndGet();
+        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, // parallelism
+                                                false,                       // primaryRange
+                                                false,                      // incremental
+                                                false,                      // trace
+                                                5,                          // jobThreads
+                                                ranges,                     // ranges
+                                                true,                       // pullRepair
+                                                true,                       // forceRepair
+                                                PreviewKind.NONE,           // previewKind
+                                                false,                      // optimiseStreams
+                                                true,                       // ignoreUnreplicatedKeyspaces
+                                                true,                       // repairData
+                                                false,                      // repairPaxos
+                                                true,                       // dontPurgeTombstones
+                                                false                       // repairAccord
+        );
+
+        return new RepairCoordinator(this, cmd, options, keyspace);
     }
 
     private void tryRepairPaxosForTopologyChange(String reason)

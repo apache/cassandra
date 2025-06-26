@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import accord.local.Node;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
@@ -32,6 +31,7 @@ import accord.local.cfk.SafeCommandsForKey;
 import accord.local.durability.DurabilityService;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -68,8 +68,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-import static accord.local.LoadKeys.SYNC;
-import static accord.local.LoadKeysFor.READ_WRITE;
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.test.accord.AccordTestBase.executeWithRetry;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
@@ -158,7 +156,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
             {
                 cluster.filters().reset();
                 for (IInvokableInstance instance : cluster)
-                    instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start()));
+                    instance.runOnInstance(() -> AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start()));
             }
         }
     }
@@ -207,7 +205,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
     {
         Node node = accordService().node();
         AtomicReference<TxnId> waitFor = new AtomicReference<>(null);
-        getBlocking(node.commandStores().ifLocal(PreLoadContext.contextFor(key, SYNC, READ_WRITE, "Test"), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
+        getBlocking(node.commandStores().forEach("Test", RoutingKeys.of(key), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
             AccordSafeCommandStore store = (AccordSafeCommandStore) safeStore;
             SafeCommandsForKey safeCfk = store.ifLoadedAndInitialised(key);
             if (safeCfk == null)
@@ -229,7 +227,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
             long now = Clock.Global.currentTimeMillis();
             if (now - start > TimeUnit.MINUTES.toMillis(1))
                 throw new AssertionError("Timeout");
-            AccordService.getBlocking(node.commandStores().ifLocal(PreLoadContext.contextFor(txnId, "Test"), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
+            getBlocking(node.commandStores().forEach("Test", RoutingKeys.of(key), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                 SafeCommand command = safeStore.get(txnId, StoreParticipants.empty(txnId));
                 Assert.assertNotNull(command.current());
                 if (command.current().status().hasBeen(Status.Applied))
@@ -291,7 +289,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         // heal partition and wait for node 1 to see node 3 again
         for (IInvokableInstance instance : cluster)
             instance.runOnInstance(() -> {
-                AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop());
+                AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
                 Assert.assertFalse(barrierRecordingService().executedBarriers);
             });
         cluster.filters().reset();

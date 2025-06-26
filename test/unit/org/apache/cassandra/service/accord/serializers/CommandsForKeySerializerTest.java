@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -49,6 +50,7 @@ import accord.api.AsyncExecutor;
 import accord.api.DataStore;
 import accord.api.Journal;
 import accord.api.Key;
+import accord.api.OwnershipEventListener;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
@@ -657,8 +659,8 @@ public class CommandsForKeySerializerTest
         @Override public Agent agent() { return this; }
         @Override public void execute(Runnable run) {}
         @Override public void shutdown() { }
-        @Override public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure) { throw new UnsupportedOperationException(); }
-        @Override public void onStale(Timestamp staleSince, Ranges ranges) { throw new UnsupportedOperationException(); }
+        @Override public <T> AsyncChain<T> chain(Callable<T> call) { throw new UnsupportedOperationException(); }
+        @Override public OwnershipEventListener ownershipEvents() { return null; }
         @Override public void onUncaughtException(Throwable t) { throw new UnsupportedOperationException(); }
         @Override public void onCaughtException(Throwable t, String context) { throw new UnsupportedOperationException(); }
         @Override public boolean rejectPreAccept(TimeService time, TxnId txnId) { throw new UnsupportedOperationException(); }
