@@ -20,14 +20,14 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.messages.TxnRequest;
+import accord.messages.RouteRequest;
 import accord.primitives.Route;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements IVersionedSerializer<T>
+public abstract class TxnRequestSerializer<T extends RouteRequest<?>> implements IVersionedSerializer<T>
 {
     void serializeHeader(T msg, DataOutputPlus out, Version version) throws IOException
     {
@@ -72,7 +72,7 @@ public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements I
         return serializedHeaderSize(msg, version) + serializedBodySize(msg, version);
     }
 
-    public static abstract class WithUnsyncedSerializer<T extends TxnRequest.WithUnsynced<?>> extends TxnRequestSerializer<T>
+    public static abstract class WithUnsyncedSerializer<T extends RouteRequest.WithUnsynced<?>> extends TxnRequestSerializer<T>
     {
         @Override
         void serializeHeader(T msg, DataOutputPlus out, Version version) throws IOException

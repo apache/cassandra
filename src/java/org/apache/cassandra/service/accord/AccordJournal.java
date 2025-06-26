@@ -585,7 +585,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     @SuppressWarnings("unchecked")
     @Override
-    public void replay(CommandStores commandStores)
+    public boolean replay(CommandStores commandStores)
     {
         // TODO (expected): make the parallelisms configurable
         // Replay is performed in parallel, where at most X commands can be in flight, accross at most Y commands stores.
@@ -716,6 +716,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
                 ++cur;
             }
+            return true;
         }
         catch (Throwable t)
         {

@@ -39,7 +39,7 @@ public class BeginInvalidationSerializers
         public void serialize(BeginInvalidation begin, DataOutputPlus out) throws IOException
         {
             CommandSerializers.txnId.serialize(begin.txnId, out);
-            KeySerializers.participants.serialize(begin.participants, out);
+            KeySerializers.participants.serialize(begin.scope, out);
             CommandSerializers.ballot.serialize(begin.ballot, out);
         }
 
@@ -55,7 +55,7 @@ public class BeginInvalidationSerializers
         public long serializedSize(BeginInvalidation begin)
         {
             return CommandSerializers.txnId.serializedSize(begin.txnId)
-                   + KeySerializers.participants.serializedSize(begin.participants)
+                   + KeySerializers.participants.serializedSize(begin.scope)
                    + CommandSerializers.ballot.serializedSize(begin.ballot);
         }
     };

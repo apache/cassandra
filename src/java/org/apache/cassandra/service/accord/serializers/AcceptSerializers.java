@@ -88,7 +88,7 @@ public class AcceptSerializers
             CommandSerializers.status.serialize(invalidate.status, out);
             CommandSerializers.ballot.serialize(invalidate.ballot, out);
             CommandSerializers.txnId.serialize(invalidate.txnId, out);
-            KeySerializers.participants.serialize(invalidate.participants, out);
+            KeySerializers.participants.serialize(invalidate.scope, out);
         }
 
         @Override
@@ -106,7 +106,7 @@ public class AcceptSerializers
             return CommandSerializers.status.serializedSize(invalidate.status)
                    + CommandSerializers.ballot.serializedSize(invalidate.ballot)
                    + CommandSerializers.txnId.serializedSize(invalidate.txnId)
-                   + KeySerializers.participants.serializedSize(invalidate.participants);
+                   + KeySerializers.participants.serializedSize(invalidate.scope);
         }
     };
 

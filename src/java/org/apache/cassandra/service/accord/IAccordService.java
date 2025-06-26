@@ -25,9 +25,11 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import accord.api.ConfigurationService.EpochReady;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.slf4j.Logger;
@@ -127,9 +129,8 @@ public interface IAccordService
      * Return a future that will complete once the accord has completed it's local bootstrap process
      * for any ranges gained in the given epoch
      */
-    Future<Void> epochReady(Epoch epoch);
-
-    Future<Void> epochReadyFor(ClusterMetadata epoch);
+    Future<Void> epochReady(Epoch epoch, Function<EpochReady, AsyncResult<Void>> f);
+    Future<Void> epochReadyFor(ClusterMetadata epoch, Function<EpochReady, AsyncResult<Void>> f);
 
     void receive(Message<AccordSyncPropagator.Notification> message);
 
@@ -308,13 +309,13 @@ public interface IAccordService
         }
 
         @Override
-        public Future<Void> epochReady(Epoch epoch)
+        public Future<Void> epochReady(Epoch epoch, Function<EpochReady, AsyncResult<Void>> get)
         {
             return BOOTSTRAP_SUCCESS;
         }
 
         @Override
-        public Future<Void> epochReadyFor(ClusterMetadata epoch)
+        public Future<Void> epochReadyFor(ClusterMetadata epoch, Function<EpochReady, AsyncResult<Void>> get)
         {
             return BOOTSTRAP_SUCCESS;
         }
@@ -515,15 +516,15 @@ public interface IAccordService
         }
 
         @Override
-        public Future<Void> epochReady(Epoch epoch)
+        public Future<Void> epochReady(Epoch epoch, Function<EpochReady, AsyncResult<Void>> get)
         {
-            return delegate.epochReady(epoch);
+            return delegate.epochReady(epoch, get);
         }
 
         @Override
-        public Future<Void> epochReadyFor(ClusterMetadata epoch)
+        public Future<Void> epochReadyFor(ClusterMetadata epoch, Function<EpochReady, AsyncResult<Void>> get)
         {
-            return delegate.epochReadyFor(epoch);
+            return delegate.epochReadyFor(epoch, get);
         }
 
         @Override

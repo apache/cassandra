@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import accord.api.ConfigurationService.EpochReady;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.primitives.Ranges;
@@ -399,7 +400,7 @@ public class AccordTopology
         {
             ClusterMetadataService.instance().fetchLogFromCMS(epoch);
             IAccordService service = AccordService.instance();
-            service.epochReady(epoch).get(service.agent().expireEpochWait(MILLISECONDS), MILLISECONDS);
+            service.epochReady(epoch, EpochReady::reads).get(service.agent().expireEpochWait(MILLISECONDS), MILLISECONDS);
         }
         catch (InterruptedException e)
         {

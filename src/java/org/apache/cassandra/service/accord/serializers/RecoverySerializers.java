@@ -56,7 +56,7 @@ public class RecoverySerializers
     static final int HAS_EXECUTE_AT_EPOCH = 0x2;
     static final int IS_FAST_PATH_DECIDED = 0x4;
     static final int SIZE_OF_FLAGS = VIntCoding.computeUnsignedVIntSize(HAS_ROUTE | HAS_EXECUTE_AT_EPOCH | IS_FAST_PATH_DECIDED);
-    public static final IVersionedSerializer<BeginRecovery> request = new WithUnsyncedSerializer<BeginRecovery>()
+    public static final IVersionedSerializer<BeginRecovery> request = new WithUnsyncedSerializer<>()
     {
         @Override
         public void serializeBody(BeginRecovery recover, DataOutputPlus out, Version version) throws IOException
