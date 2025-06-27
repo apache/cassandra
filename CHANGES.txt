@@ -200,6 +200,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Avoid availability gap between UP and queryability marking for already built SAI indexes on bounce (CASSANDRA-20732)
  * Make Commitlog flush data safely in Direct IO mode (CASSANDRA-20692)
  * Get SAI MemtableIndex refs before SSTableIndex refs at query time (CASSANDRA-20709)
  * Fix MAX_SEGMENT_SIZE < chunkSize in MmappedRegions::updateState (CASSANDRA-20636)
