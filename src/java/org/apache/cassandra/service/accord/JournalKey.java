@@ -234,7 +234,8 @@ public final class JournalKey
 
     boolean equals(JournalKey other)
     {
-        return this.id.equals(other.id) &&
+        return other != null &&
+               this.id.equals(other.id) &&
                this.type == other.type &&
                this.commandStoreId == other.commandStoreId;
     }

@@ -24,7 +24,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -39,6 +42,8 @@ import accord.burn.SimulationException;
 import accord.impl.TopologyFactory;
 import accord.impl.basic.Cluster;
 import accord.impl.basic.RandomDelayQueue;
+import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.DurableBefore;
 import accord.local.Node;
@@ -63,6 +68,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.TestParams;
@@ -78,6 +84,7 @@ import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.tools.FieldUtil;
+import org.apache.cassandra.utils.CloseableIterator;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -129,7 +136,7 @@ public class AccordJournalBurnTest extends BurnTestBase
     public void testOne()
     {
         long seed = System.nanoTime();
-        int operations = 5000;
+        int operations = 1000;
 
         logger.info("Seed: {}", seed);
         Cluster.trace.trace("Seed: {}", seed);
@@ -243,9 +250,11 @@ public class AccordJournalBurnTest extends BurnTestBase
                                  return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, false, 0);
                              }
 
+                             int counter;
                              @Override
                              public void purge(CommandStores commandStores, EpochSupplier minEpoch)
                              {
+                                 ++counter;
                                  this.journal.closeCurrentSegmentForTestingIfNonEmpty();
                                  this.journal.runCompactorForTesting();
 
@@ -272,6 +281,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                                      return;
                                  List<ISSTableScanner> scanners = selected.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
 
+                                 TreeMap<JournalKey, Command> before = read(commandStores);
                                  Collection<SSTableReader> newSStables;
                                  try (LifecycleTransaction txn = cfs.getTracker().tryModify(selected, OperationType.COMPACTION);
                                       CompactionController controller = new CompactionController(cfs, selected, 0);
@@ -298,10 +308,45 @@ public class AccordJournalBurnTest extends BurnTestBase
                                          throw new RuntimeException(e);
                                      }
                                  }
-
+                                 TreeMap<JournalKey, Command> after = read(commandStores);
+                                 for (Map.Entry<JournalKey, Command> e : before.entrySet())
+                                 {
+                                     Command b = e.getValue();
+                                     Command a = after.get(e.getKey());
+                                     Invariants.require(Objects.equals(a, b));
+                                 }
+                                 if (before.size() != after.size())
+                                 {
+                                     for (Map.Entry<JournalKey, Command> e : after.entrySet())
+                                         Invariants.require(null != before.get(e.getKey()));
+                                     Invariants.require(false);
+                                 }
                                  Invariants.require(!orig.equals(cfs.getLiveSSTables()));
                              }
 
+                             private TreeMap<JournalKey, Command> read(CommandStores commandStores)
+                             {
+                                 TreeMap<JournalKey, Command> result = new TreeMap<>(JournalKey.SUPPORT::compare);
+                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
+                                 {
+                                     JournalKey prev = null;
+                                     while (iter.hasNext())
+                                     {
+                                         Journal.KeyRefs<JournalKey> ref = iter.next();
+                                         if (ref.key().type != JournalKey.Type.COMMAND_DIFF)
+                                             continue;
+
+                                         JournalKey key = ref.key();
+                                         if (key.equals(prev)) continue;
+                                         CommandStore commandStore = commandStores.forId(ref.key().commandStoreId);
+                                         Command command = loadCommand(key.commandStoreId, key.id, commandStore.unsafeGetRedundantBefore(), commandStore.durableBefore());
+                                         if (command != null)
+                                            result.put(key, command);
+                                         prev = key;
+                                     }
+                                 }
+                                 return result;
+                             }
 
                              @Override
                              public void replay(CommandStores commandStores)

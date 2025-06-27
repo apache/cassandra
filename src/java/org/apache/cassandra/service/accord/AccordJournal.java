@@ -224,15 +224,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         Builder builder = load(commandStoreId, txnId);
-        Cleanup cleanup = builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
-        switch (cleanup)
-        {
-            case ERASE:
-                return Command.Truncated.erased(txnId);
-            case EXPUNGE:
-                return null;
-        }
-
+        builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
         return builder.construct(redundantBefore);
     }
 

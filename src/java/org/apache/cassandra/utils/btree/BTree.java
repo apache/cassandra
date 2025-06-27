@@ -4029,6 +4029,12 @@ public class BTree
                 if (leaf().count == 0 && upos == 0)
                 {
                     int prev = 0;
+                    if (!remove.hasNext() || comparator.compare((K)unode[usz - 1], remove.peek()) < 0)
+                    {
+                        // short-circuit common case of removal not intersecting the current node, by comparing with last key
+                        upos = usz;
+                    }
+
                     while (upos < usz)
                     {
                         // fast path - buffer is empty and input unconsumed, so may be able to propagate original

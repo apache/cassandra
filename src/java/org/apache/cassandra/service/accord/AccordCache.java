@@ -1132,6 +1132,9 @@ public class AccordCache implements CacheSize
             if (value.isEmpty())
                 return null;
 
+            if (value.isLoadingPruned())
+                return value;
+
             return Serialize.toBytesWithoutKey(value.maximalPrune());
         }
 
