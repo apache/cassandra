@@ -391,20 +391,15 @@ public class AccordService implements IAccordService, Shutdownable
 
             if (remote != null)
                 remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
-            else if (images.isEmpty()) // First boot, single-node cluster
-                configService.reportTopology(AccordTopology.createAccordTopology(metadata));
 
+            // Subscribe to TCM events
             ClusterMetadataService.instance().log().addListener(configService.listener);
-            {
-                metadata = ClusterMetadata.current();
-                highestKnown = configService.currentEpoch();
-                if (metadata.epoch.getEpoch() > highestKnown)
-                {
-                    remote = fetchTopologies(highestKnown + 1);
-                    if (remote != null)
-                        remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
-                }
-            }
+
+            // We report current topology _after_ subscribing to TCM events since in a single-node cluster there
+            // will be no notification about the current epoch, since it's already reported. And in a multi-node cluster
+            // we do not want a race between addinga listener and reporting an epoch.
+            if (remote == null && images.isEmpty())
+                configService.reportTopology(AccordTopology.createAccordTopology(metadata));
 
             WatermarkCollector.fetchAndReportWatermarksAsync(configService());
             configService.unsafeMarkTruncated();
@@ -423,6 +418,15 @@ public class AccordService implements IAccordService, Shutdownable
                 catch (TimeoutException e)
                 {
                     logger.warn("Epoch {} is not ready after waiting for {} seconds", metadata.epoch, (++attempt) * waitSeconds);
+                    // In case there are any gaps, fetch unknown topologies.
+                    metadata = ClusterMetadata.current();
+                    highestKnown = configService.currentEpoch();
+                    if (metadata.epoch.getEpoch() > highestKnown)
+                    {
+                        remote = fetchTopologies(highestKnown + 1);
+                        if (remote != null)
+                            remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
+                    }
                 }
 
                 if (Clock.Global.nanoTime() > deadine)
