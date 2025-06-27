@@ -55,6 +55,7 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
  * Receives information about closed, retired ranges, and about sync completion, and
@@ -66,6 +67,7 @@ import org.apache.cassandra.utils.CollectionSerializers;
 public class AccordSyncPropagator
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordSyncPropagator.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
 
     public static final IVerbHandler<Notification> verbHandler = message -> {
         if (!AccordService.isSetup())
@@ -352,7 +354,7 @@ public class AccordSyncPropagator
                 cb.onResponse(msg.responseWith(SimpleReply.Ok));
                 return true;
             }
-            logger.warn("Node{} is not alive, unable to notify of {}", to, notification);
+            noSpamLogger.warn("Node{} is not alive, unable to notify of {}", to, notification);
             scheduler.schedule(() -> notify(to, notification), 1, TimeUnit.MINUTES);
             return false;
         }

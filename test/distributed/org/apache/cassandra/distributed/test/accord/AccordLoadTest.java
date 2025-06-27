@@ -70,8 +70,8 @@ public class AccordLoadTest extends AccordTestBase
 //        AccordTestBase.setupCluster(builder -> builder, 3);
         AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config
                                                                             .with(Feature.NETWORK, Feature.GOSSIP)
-                                                                            .set("accord.shard_durability_target_splits", "64")
-                                                                            .set("accord.shard_durability_cycle", "5m")
+                                                                            .set("accord.shard_durability_target_splits", "32")
+                                                                            .set("accord.shard_durability_cycle", "1m")
 //                                                                            .set("accord.ephemeral_read_enabled", "true")
                                                                             .set("accord.gc_delay", "30s")), 3);
     }
@@ -103,8 +103,9 @@ public class AccordLoadTest extends AccordTestBase
 //            final int flushInterval = 50_000;
             final int flushInterval = 500;
             final int compactionPeriodSeconds = 0;
-//            final int restartInterval = 100_000;
-            final int restartInterval = Integer.MAX_VALUE;
+            int restartInterval = 30_000;
+            final int restartDecay = 2;
+//            final int restartInterval = Integer.MAX_VALUE;
             final int batchSizeLimit = 200;
             final long batchTime = TimeUnit.SECONDS.toNanos(10);
             final int concurrency = 100;
@@ -176,7 +177,8 @@ public class AccordLoadTest extends AccordTestBase
                                 int index = 1 + random.nextInt(cluster.size());
                                 logger.info("Picking new coordinator ... {}", index);
                                 coordinator = cluster.coordinator(index);
-                                break;
+                                if (cluster.get(index).callOnInstance(() -> AccordService.started()))
+                                    break;
                             }
                             catch (Throwable t) { logger.info("Failed to select coordinator", t); }
                         }
@@ -211,7 +213,8 @@ public class AccordLoadTest extends AccordTestBase
                         try
                         {
                             i.runOnInstance(() -> {
-                                ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
+                                if (AccordService.started())
+                                    ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
                             });
                         }
                         catch (Throwable t)
@@ -224,6 +227,7 @@ public class AccordLoadTest extends AccordTestBase
                 if ((nextRestartAt -= batchSize) <= 0)
                 {
                     nextRestartAt += restartInterval;
+                    restartInterval = Math.max(restartInterval, restartInterval * restartDecay);
                     int nodeIdx = 1 + random.nextInt(cluster.size());
                     restartExecutor.submit(() -> {
                         System.out.printf("restarting node %d...\n", nodeIdx);
@@ -231,6 +235,8 @@ public class AccordLoadTest extends AccordTestBase
                         {
                             cluster.get(nodeIdx).shutdown().get();
                             cluster.get(nodeIdx).startup();
+                            while (!cluster.get(nodeIdx).callOnInstance(() -> AccordService.started()))
+                                Thread.sleep(1000);
                             return null;
                         }
                         catch (InterruptedException | ExecutionException e)
