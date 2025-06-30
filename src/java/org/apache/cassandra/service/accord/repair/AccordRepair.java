@@ -54,6 +54,7 @@ import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.local.durability.DurabilityService.SyncRemote.Quorum;
 import static accord.primitives.Timestamp.mergeMax;
 import static accord.primitives.Timestamp.minForEpoch;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordRepairTimeoutNanos;
 
 /*
@@ -149,10 +150,11 @@ public class AccordRepair
             Ranges ranges = AccordService.intersecting(Ranges.of(range));
             waiting = Thread.currentThread();
             RequestBookkeeping bookkeeping = new LatencyRequestBookkeeping(latency);
+            long timeoutNanos = getAccordRepairTimeoutNanos();
             AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
                 conflict = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
-                return service.sync("[repairId #" + repairId + ']', conflict, Ranges.of(range), ids, NoLocal, syncRemote);
-            }), ranges, bookkeeping, start, start + getAccordRepairTimeoutNanos());
+                return service.sync("[repairId #" + repairId + ']', conflict, Ranges.of(range), ids, NoLocal, syncRemote, timeoutNanos, NANOSECONDS);
+            }), ranges, bookkeeping, start, start + timeoutNanos);
             waiting = null;
 
             if (shouldAbort != null)

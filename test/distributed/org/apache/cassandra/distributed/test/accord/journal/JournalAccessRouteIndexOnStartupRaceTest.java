@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.accord.journal;
 
 import java.io.IOException;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
@@ -89,7 +90,7 @@ public class JournalAccessRouteIndexOnStartupRaceTest extends TestBaseImpl
             Ranges ranges = Ranges.single(TokenRange.fullRange(metadata.id, metadata.partitioner));
             for (int i = 0; i < 10; i++)
             {
-                AsyncChains.getBlockingAndRethrow(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum));
+                AsyncChains.getBlockingAndRethrow(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 10L, TimeUnit.MINUTES));
 
                 accord.journal().closeCurrentSegmentForTestingIfNonEmpty();
                 accord.journal().runCompactorForTesting();

@@ -66,6 +66,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.NoRemote;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_MUTATION_REPAIR_ROWS_PER_BATCH;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -260,10 +261,11 @@ public class CassandraStreamReceiver implements StreamReceiver
         {
             Ranges accordRanges = AccordTopology.toAccordRanges(cfs.getTableId(), ranges);
             long startedAtNanos = nanoTime();
-            long deadlineNanos = startedAtNanos + DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
+            long timeoutNanos = DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
+            long deadlineNanos = startedAtNanos + timeoutNanos;
             // TODO (expected): use the source bounds for the streams to avoid waiting unnecessarily long
             AccordService.getBlocking(accordService.maxConflict(accordRanges)
-                                                   .flatMap(min -> accordService.sync("[Stream #" + session.planId() + ']', min, accordRanges, null, Self, NoRemote))
+                                                   .flatMap(min -> accordService.sync("[Stream #" + session.planId() + ']', min, accordRanges, null, Self, NoRemote, timeoutNanos, NANOSECONDS))
                                       , accordRanges, new LatencyRequestBookkeeping(cfs.metric.accordPostStreamRepair), startedAtNanos, deadlineNanos);
         }
 
