@@ -446,8 +446,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     @SuppressWarnings("unchecked")
     @Override
-    public void replay(CommandStores commandStores)
+    public boolean replay(CommandStores commandStores)
     {
+        boolean hadErrors = false;
         try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
         {
             JournalKey prev = null;
@@ -484,8 +485,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 catch (Throwable t)
                 {
                     journal.handleError("Could not replay command " + ref.key().id, t);
+                    hadErrors = true;
                 }
             }
+            return hadErrors;
         }
     }
 

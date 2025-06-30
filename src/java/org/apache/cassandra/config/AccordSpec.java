@@ -38,6 +38,14 @@ public class AccordSpec
     public volatile boolean enable_journal_compaction = true;
 
     /**
+     * A "last resort" hatch in case of a lost journal or data table. Repairs both data and Accord
+     * satate, bringing the node back to a functional state. As things stabilize, we expect this to
+     * _never_ be used by operators, as there shold be nothing except bitrot or criticial bug
+     * that can trigger journal or data file loss, and in both cases replacement is a wiser alternative.
+     */
+    public volatile boolean unsafe_force_rebootstrap = false;
+
+    /**
      * Enables the virtual Accord debug-only keyspace with tables
      * that expose internal state to aid the developers working
      * on Accord implementation.
