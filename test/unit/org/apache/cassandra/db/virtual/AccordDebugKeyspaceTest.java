@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.ProtocolModifiers;
+import accord.local.PreLoadContext;
 import accord.messages.TxnRequest;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
@@ -193,7 +194,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         TxnId syncId2 = new TxnId(101, 300, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range, accord.nodeId());
         Ranges ranges1 = Ranges.of(TokenRange.create(new TokenKey(tableId, new LongToken(1)), new TokenKey(tableId, new LongToken(100))));
         Ranges ranges2 = Ranges.of(TokenRange.create(new TokenKey(tableId, new LongToken(100)), new TokenKey(tableId, new LongToken(200))));
-        AsyncChains.getBlocking(accord.node().commandStores().forEach(safeStore -> {
+        AsyncChains.getBlocking(accord.node().commandStores().forEach((PreLoadContext.Empty)() -> "Test", safeStore -> {
             safeStore.commandStore().markShardDurable(safeStore, syncId1, ranges1, Status.Durability.Universal);
             safeStore.commandStore().markShardDurable(safeStore, syncId2, ranges2, Status.Durability.Majority);
         }));

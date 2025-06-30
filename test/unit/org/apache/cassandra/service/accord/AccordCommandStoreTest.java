@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.api.Result;
 import accord.local.Command;
+import accord.local.PreLoadContext;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ballot;
@@ -168,8 +169,8 @@ public class AccordCommandStoreTest
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
         cfk.initialize();
 
-        cfk.set(cfk.current().update(new TestSafeCommandStore(command1.txnId()), command1).cfk());
-        cfk.set(cfk.current().update(new TestSafeCommandStore(command1.txnId()), command2).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(PreLoadContext.contextFor(command1.txnId(), "Test")), command1).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(PreLoadContext.contextFor(command1.txnId(), "Test")), command2).cfk());
 
         CommandsForKeyAccessor.systemTableUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null, commandStore.nextSystemTimestampMicros()).run();
         logger.info("E: {}", cfk);

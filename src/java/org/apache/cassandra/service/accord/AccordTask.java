@@ -42,6 +42,7 @@ import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandStore;
+import accord.local.LoadKeys;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
@@ -52,6 +53,7 @@ import accord.primitives.Ranges;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
+import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
@@ -69,6 +71,9 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static accord.local.LoadKeysFor.READ_WRITE;
+import static accord.local.LoadKeysFor.RECOVERY;
+import static accord.local.LoadKeysFor.WRITE;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.EphemeralRead;
 import static accord.utils.Invariants.illegalState;
@@ -342,14 +347,13 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
 
         if (parent.commandsForKey == null) return;
         if (preLoadContext.keys().domain() != Key) return;
-        switch (preLoadContext.keyHistory())
+        switch (preLoadContext.loadKeys())
         {
-            default: throw new AssertionError("Unhandled KeyHistory: " + preLoadContext.keyHistory());
+            default: throw new UnhandledEnum(preLoadContext.loadKeys());
             case NONE:
                 break;
 
             case ASYNC:
-            case RECOVER:
             case INCR:
             case SYNC:
                 for (RoutingKey key : (AbstractUnseekableKeys)preLoadContext.keys())
@@ -396,39 +400,31 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
 
     private void setupKeyLoadsExclusive(Caches caches, Iterable<? extends RoutingKey> keys, boolean isToCompleteRangeScan)
     {
-        switch (preLoadContext.keyHistory())
+        if (preLoadContext.loadKeys() == LoadKeys.NONE)
+            return;
+
+        if (!isToCompleteRangeScan && preLoadContext.loadKeysFor() == RECOVERY)
         {
-            default: throw new AssertionError("Unhandled KeyHistory: " + preLoadContext.keyHistory());
-            case NONE:
-                break;
+            Invariants.require(rangeScanner == null);
+            rangeScanner = new RangeTxnScanner();
+        }
 
-            case RECOVER:
-                if (!isToCompleteRangeScan)
-                {
-                    Invariants.require(rangeScanner == null);
-                    rangeScanner = new RangeTxnScanner();
-                }
-
-            case ASYNC:
-            case INCR:
-            case SYNC:
-            {
-                boolean hasPreSetup = commandsForKey != null;
-                for (RoutingKey key : keys)
-                {
-                    if (hasPreSetup && completePresetupExclusive(key, commandsForKey, caches.commandsForKeys())) continue;
-                    setupExclusive(key, AccordTask::ensureCommandsForKey, caches.commandsForKeys());
-                }
-                break;
-            }
+        boolean hasPreSetup = commandsForKey != null;
+        for (RoutingKey key : keys)
+        {
+            if (hasPreSetup && completePresetupExclusive(key, commandsForKey, caches.commandsForKeys())) continue;
+            setupExclusive(key, AccordTask::ensureCommandsForKey, caches.commandsForKeys());
         }
     }
 
     private void setupRangeLoadsExclusive(Caches caches)
     {
-        switch (preLoadContext.keyHistory())
+        if (preLoadContext.loadKeysFor() == WRITE)
+            return;
+
+        switch (preLoadContext.loadKeys())
         {
-            default: throw new AssertionError("Unhandled KeyHistory: " + preLoadContext.keyHistory());
+            default: throw new UnhandledEnum(preLoadContext.loadKeys());
             case NONE:
             case ASYNC:
                 break;
@@ -436,7 +432,6 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
             case INCR:
                 throw new AssertionError("Incremental mode should only be used with an explicit list of keys");
 
-            case RECOVER:
             case SYNC:
                 hasRanges = true;
                 rangeScanner = new RangeTxnAndKeyScanner(caches.commandsForKeys());
@@ -1091,7 +1086,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
 
         void startInternal(Caches caches)
         {
-            summaryLoader = commandStore.commandsForRanges().loader(preLoadContext.primaryTxnId(), preLoadContext.keyHistory(), keysOrRanges);
+            summaryLoader = commandStore.commandsForRanges().loader(preLoadContext.primaryTxnId(), preLoadContext.loadKeysFor(), keysOrRanges);
             summaryLoader.forEachInCache(keysOrRanges, summary -> summaries.put(summary.txnId, summary), caches);
             caches.commands().register(commandWatcher);
         }
@@ -1149,6 +1144,6 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
     @Override
     public String description()
     {
-        return toString();
+        return preLoadContext.describe();
     }
 }

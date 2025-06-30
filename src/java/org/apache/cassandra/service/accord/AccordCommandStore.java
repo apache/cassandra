@@ -507,7 +507,7 @@ public class AccordCommandStore extends CommandStore
         @Override
         public AsyncChain<Route> load(TxnId txnId)
         {
-            return store.submit(txnId, safeStore -> {
+            return store.submit(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
                 initialiseState(safeStore, txnId);
                 return safeStore.unsafeGet(txnId).current().route();
             });

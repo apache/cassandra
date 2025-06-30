@@ -106,7 +106,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
                 {
                     case Task:
                     {
-                        PreLoadContext ctx = PreLoadContext.contextFor(unseekablesGen.next(rs));
+                        PreLoadContext ctx = (PreLoadContext.Empty)()->"Test";
                         instance.maybeCacheEvict(ctx.keys());
                         operation(instance, ctx, actionGen.next(rs), rs::nextBoolean).chain().begin(counter);
                     }

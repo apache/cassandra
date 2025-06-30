@@ -521,7 +521,7 @@ public class CommandsForKeySerializerTest
             {
                 int next = source.nextInt(commands.size());
                 Command command = commands.get(next);
-                cfk = cfk.update(new TestSafeCommandStore(command.txnId()), command).cfk();
+                cfk = cfk.update(new TestSafeCommandStore(PreLoadContext.contextFor(command.txnId(), "Test")), command).cfk();
                 commands.set(next, commands.get(commands.size() - 1));
                 commands.remove(commands.size() - 1);
             }

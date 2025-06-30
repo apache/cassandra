@@ -216,7 +216,7 @@ public class AccordTestUtils
     public static AsyncChain<Pair<Writes, Result>> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
         AtomicReference<AsyncChain<Pair<Writes, Result>>> result = new AtomicReference<>();
-        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txn.keys().toParticipants()),
+        getUninterruptibly(commandStore.execute((PreLoadContext.Empty)() -> "Test",
                            safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
         return result.get();
     }
@@ -394,7 +394,7 @@ public class AccordTestUtils
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, Shard.create(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node), Collections.emptySet()));
         AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);
-        store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().cacheUnsafe().setCapacity(1 << 20));
+        store.execute((PreLoadContext.Empty)()->"Test", safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().cacheUnsafe().setCapacity(1 << 20));
         return store;
     }
 

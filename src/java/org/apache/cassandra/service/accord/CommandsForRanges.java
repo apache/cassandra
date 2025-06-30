@@ -39,7 +39,8 @@ import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandSummaries;
 import accord.local.CommandSummaries.Summary;
-import accord.local.KeyHistory;
+import accord.local.LoadKeys;
+import accord.local.LoadKeysFor;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
 import accord.primitives.AbstractRanges;
@@ -320,10 +321,10 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             }
         }
 
-        public CommandsForRanges.Loader loader(@Nullable TxnId primaryTxnId, KeyHistory keyHistory, Unseekables<?> keysOrRanges)
+        public CommandsForRanges.Loader loader(@Nullable TxnId primaryTxnId, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
         {
             RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
-            return Loader.loader(redundantBefore, primaryTxnId, keyHistory, keysOrRanges, this::newLoader);
+            return Loader.loader(redundantBefore, primaryTxnId, loadKeysFor, keysOrRanges, this::newLoader);
         }
 
         private Loader newLoader(@Nullable TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, RedundantBefore redundantBefore, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId findAsDep)

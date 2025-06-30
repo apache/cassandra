@@ -87,7 +87,8 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static accord.local.KeyHistory.SYNC;
+import static accord.local.LoadKeys.SYNC;
+import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.local.RedundantStatus.SomeStatus.GC_BEFORE_AND_LOCALLY_APPLIED;
 import static accord.primitives.Routable.Domain.Range;
@@ -313,28 +314,28 @@ public class CompactionAccordIteratorsTest
             PartialDeps partialDeps = Deps.NONE.intersecting(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeGetRangesForEpoch().currentRanges(), true);
             Route<?> partialRoute = route.slice(commandStore.unsafeGetRangesForEpoch().currentRanges());
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, (a, b) -> {});
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, txnId, partialDeps, (a, b) -> {});
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, txnId, partialDeps, (a, b) -> {});
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC), safe -> {
+            getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 return AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
-            }).flatMap(i -> i).flatMap(result -> commandStore.execute(contextFor(txnId, route, SYNC), safe -> {
+            }).flatMap(i -> i).flatMap(result -> commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.apply(safe, txnId, route, txnId, partialDeps, partialTxn, result.left, result.right, (a, b) -> {});
             })));
             flush(commandStore);
             // The apply chain is asychronous, so it is easiest to just spin until it is applied
             // in order to have the updated state in the system table
             spinAssertEquals(true, 5, () -> {
-                return getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC), safe -> {
+                return getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                     StoreParticipants participants = StoreParticipants.all(route);
                     Command command = safe.get(txnId, participants).current();
                     return command.hasBeen(Status.Applied);

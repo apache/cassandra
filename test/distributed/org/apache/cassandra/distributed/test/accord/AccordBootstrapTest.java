@@ -278,7 +278,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                         Assert.assertTrue(session.getNumKeyspaceTransfers() > 0);
                     });
 
-                    awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
+                    awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test", safeStore -> {
                         AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
                         Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.bootstrapBeganAt().keySet()));
                         Assert.assertEquals(Timestamp.NONE, getOnlyElement(ss.safeToReadAt().keySet()));
@@ -321,7 +321,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                         Assert.assertEquals(key, row.getInt("c"));
                         Assert.assertEquals(key, row.getInt("v"));
 
-                        awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
+                        awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test", safeStore -> {
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
                                 AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
@@ -464,7 +464,7 @@ public class AccordBootstrapTest extends TestBaseImpl
 
                             PartitionKey partitionKey = new PartitionKey(tableId, dk);
 
-                            awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(PreLoadContext.contextFor(partitionKey.toUnseekable()),
+                            awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach((PreLoadContext.Empty)()->"Test",
                                                                                           partitionKey.toUnseekable(), moveMax, moveMax,
                                                                                           safeStore -> {
                                 if (!safeStore.ranges().allAt(preMove).contains(partitionKey))

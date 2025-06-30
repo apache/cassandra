@@ -22,7 +22,7 @@ import com.google.common.base.Throwables;
 
 import accord.api.RoutingKey;
 import accord.local.CommandStores;
-import accord.local.KeyHistory;
+import accord.local.LoadKeys;
 import accord.local.PreLoadContext;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ranges;
@@ -43,6 +43,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.assertj.core.api.Assertions;
 
+import static accord.local.LoadKeysFor.READ_WRITE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
 public class AccordDropTableBase extends TestBaseImpl
@@ -128,7 +129,7 @@ public class AccordDropTableBase extends TestBaseImpl
             inst.runOnInstance(() -> {
                 TableId tableId = TableId.fromString(s);
                 AccordService accord = (AccordService) AccordService.instance();
-                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), KeyHistory.SYNC);
+                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), LoadKeys.SYNC, READ_WRITE, "Test");
                 CommandStores stores = accord.node().commandStores();
                 for (int storeId : stores.ids())
                 {
