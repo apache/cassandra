@@ -86,7 +86,8 @@ import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.mockito.Mockito;
 
-import static accord.local.KeyHistory.SYNC;
+import static accord.local.LoadKeys.SYNC;
+import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.utils.Property.qt;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
@@ -127,7 +128,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        getUninterruptibly(commandStore.execute(txnId, instance -> {
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, "Test"), instance -> {
             // TODO review: This change to `ifInitialized` was done in a lot of places and it doesn't preserve this property
             // I fixed this reference to point to `ifLoadedAndInitialised` and but didn't update other places
             Assert.assertNull(instance.ifInitialised(txnId));
@@ -141,7 +142,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        getUninterruptibly(commandStore.execute(txnId, safe -> {
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, "Test"), safe -> {
             StoreParticipants participants = StoreParticipants.empty(txnId);
             SafeCommand command = safe.get(txnId, participants);
             Assert.assertNotNull(command);
@@ -155,7 +156,7 @@ public class AccordTaskTest
         Txn txn = AccordTestUtils.createWriteTxn((int)clock.incrementAndGet());
         TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
-        getUninterruptibly(commandStore.execute(contextFor(key), instance -> {
+        getUninterruptibly(commandStore.execute((PreLoadContext.Empty)() -> "Test", instance -> {
             SafeCommandsForKey cfk = instance.ifLoadedAndInitialised(key);
             Assert.assertNull(cfk);
         }));
@@ -200,7 +201,7 @@ public class AccordTaskTest
 
         try
         {
-            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToLog(commandStore));
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
                 return safe.ifInitialised(txnId).current();
@@ -250,7 +251,7 @@ public class AccordTaskTest
 
         try
         {
-            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToLog(commandStore));
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, executeAt, deps, appendDiffToLog(commandStore));
                 CheckedCommands.commit(safe, SaveStatus.Committed, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
@@ -302,7 +303,7 @@ public class AccordTaskTest
             awaitDone(commandStore, ids, participants);
             assertNoReferences(commandStore, ids, participants);
 
-            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC);
+            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
             Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
@@ -367,7 +368,7 @@ public class AccordTaskTest
             assertNoReferences(commandStore, ids, participants);
             createCommand(commandStore, rs, ids);
 
-            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC);
+            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
             String errorMsg = "txn_ids " + ids;

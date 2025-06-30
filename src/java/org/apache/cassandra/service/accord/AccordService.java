@@ -56,7 +56,6 @@ import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
-import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.PreLoadContext;
@@ -134,6 +133,8 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
+import static accord.local.LoadKeys.SYNC;
+import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
@@ -791,7 +792,7 @@ public class AccordService implements IAccordService, Shutdownable
     private static void populateAsync(CommandStoreTxnBlockedGraph.Builder state, CommandStore store, TxnId txnId)
     {
         state.asyncTxns.incrementAndGet();
-        store.execute(txnId, in -> {
+        store.execute(PreLoadContext.contextFor(txnId, "Populate txn_blocked_by"), in -> {
             populateSync(state, (AccordSafeCommandStore) in, txnId);
             if (0 == state.asyncTxns.decrementAndGet() && 0 == state.asyncKeys.get())
                 state.complete();
@@ -841,7 +842,7 @@ public class AccordService implements IAccordService, Shutdownable
     private static void populateAsync(CommandStoreTxnBlockedGraph.Builder state, CommandStore commandStore, TokenKey blockedBy, TxnId txnId, Timestamp executeAt)
     {
         state.asyncKeys.incrementAndGet();
-        commandStore.execute(PreLoadContext.contextFor(txnId, RoutingKeys.of(blockedBy.toUnseekable()), KeyHistory.SYNC), in -> {
+        commandStore.execute(PreLoadContext.contextFor(txnId, RoutingKeys.of(blockedBy.toUnseekable()), SYNC, READ_WRITE, "Populate txn_blocked_by"), in -> {
             populateSync(state, (AccordSafeCommandStore) in, blockedBy, txnId, executeAt);
             if (0 == state.asyncKeys.decrementAndGet() && 0 == state.asyncTxns.get())
                 state.complete();
