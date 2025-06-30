@@ -516,9 +516,9 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public AsyncChain<Void> sync(Object requestedBy, Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+    public AsyncChain<Void> sync(Object requestedBy, Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
     {
-        return node.durability().sync(requestedBy, minBound, ranges, include, syncLocal, syncRemote);
+        return node.durability().sync(requestedBy, minBound, ranges, include, syncLocal, syncRemote, timeout, timeoutUnits);
     }
 
     @Override
@@ -998,10 +998,11 @@ public class AccordService implements IAccordService, Shutdownable
         if (rangeList.isEmpty()) return; // nothing to see here
 
         Ranges ranges = Ranges.of(rangeList.toArray(accord.primitives.Range[]::new));
+        long timeout = DatabaseDescriptor.getAccordRepairTimeoutNanos();
         long startedAt = nanoTime();
-        long deadline = startedAt + DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
+        long deadline = startedAt + timeout;
         // TODO (required): relax this requirement - too expensive
-        getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', TxnId.minForEpoch(epoch), ranges, Self, All), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
+        getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', TxnId.minForEpoch(epoch), ranges, Self, All, DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), NANOSECONDS), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
     }
 
     public Params journalConfiguration()
