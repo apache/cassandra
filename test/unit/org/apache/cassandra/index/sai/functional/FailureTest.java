@@ -20,6 +20,7 @@
  */
 package org.apache.cassandra.index.sai.functional;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,7 +32,7 @@ import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
-import org.assertj.core.api.Assertions;
+import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -40,8 +41,7 @@ public class FailureTest extends SAITester
     @BeforeClass
     public static void setup()
     {
-        setUpClass();
-        requireNetwork(); // Ensure the node has advanced out of STARTING mode
+        StorageService.instance.initServer(); // Ensure the node has advanced out of STARTING mode
     }
 
     @Test
