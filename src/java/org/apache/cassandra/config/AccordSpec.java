@@ -196,10 +196,11 @@ public class AccordSpec
         private volatile long flushCombinedBlockPeriod = Long.MIN_VALUE;
         public Version version = Version.DOWNGRADE_SAFE_VERSION;
 
-        public void setFlushPeriod(DurationSpec newFlushPeriod)
+        public JournalSpec setFlushPeriod(DurationSpec newFlushPeriod)
         {
             flushPeriod = newFlushPeriod;
             flushCombinedBlockPeriod = Long.MIN_VALUE;
+            return this;
         }
 
         public void setPeriodicFlushLagBlock(DurationSpec newPeriodicFlushLagBlock)

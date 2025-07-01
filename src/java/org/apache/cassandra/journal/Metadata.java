@@ -154,4 +154,13 @@ final class Metadata
         metadata.persist(descriptor);
         return metadata;
     }
+
+    @Override
+    public String toString()
+    {
+        return "Metadata{" +
+               "fsyncLimit=" + fsyncLimit +
+               ", recordsCount=" + recordsCount +
+               '}';
+    }
 }

@@ -289,7 +289,7 @@ public final class StaticSegment<K, V> extends Segment<K, V>
     /**
      * Iterate over and invoke the supplied callback on every record.
      */
-    void forEachRecord(RecordConsumer<K> consumer)
+    public void forEachRecord(RecordConsumer<K> consumer)
     {
         try (SequentialReader<K> reader = sequentialReader(descriptor, keySupport, fsyncLimit))
         {

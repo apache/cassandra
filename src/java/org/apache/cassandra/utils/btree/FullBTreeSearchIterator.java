@@ -22,8 +22,6 @@ import static org.apache.cassandra.utils.btree.BTree.size;
 import java.util.Comparator;
 import java.util.NoSuchElementException;
 
-import accord.utils.Invariants;
-
 public class FullBTreeSearchIterator<K, V> extends TreeCursor<K> implements BTreeSearchIterator<K, V>
 {
     private final boolean forwards;

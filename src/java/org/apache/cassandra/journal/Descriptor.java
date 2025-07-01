@@ -109,7 +109,7 @@ public final class Descriptor implements Comparable<Descriptor>
         return new Descriptor(directory, timestamp, generation, journalVersion, userVersion);
     }
 
-    static Descriptor fromFile(File file)
+    public static Descriptor fromFile(File file)
     {
         return fromName(file.parent(), file.name());
     }

@@ -415,7 +415,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return loadDiffs(commandStoreId, txnId, Load.ALL);
     }
 
-    private <BUILDER extends FlyweightImage> BUILDER readAll(JournalKey key)
+    public <BUILDER extends FlyweightImage> BUILDER readAll(JournalKey key)
     {
         BUILDER builder = (BUILDER) key.type.serializer.mergerFor();
         // TODO (expected): this can be further improved to avoid allocating lambdas
@@ -423,6 +423,11 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
         journalTable.readAll(key, (in, userVersion) -> serializer.deserialize(key, builder, in, userVersion));
         return builder;
+    }
+
+    public void forEachEntry(JournalKey key, AccordJournalTable.Reader reader)
+    {
+        journalTable.readAll(key, reader);
     }
 
     private <T> RecordPointer appendInternal(JournalKey key, T write)
