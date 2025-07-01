@@ -55,6 +55,13 @@ public class AccordJournalValueSerializers
         void reserialize(JournalKey key, IMAGE from, DataOutputPlus out, Version userVersion) throws IOException;
 
         void deserialize(JournalKey key, IMAGE into, DataInputPlus in, Version userVersion) throws IOException;
+
+        default IMAGE deserialize(JournalKey key, DataInputPlus in, Version userVersion) throws IOException
+        {
+            IMAGE image = mergerFor();
+            deserialize(key, image, in, userVersion);
+            return image;
+        }
     }
 
     public static class CommandDiffSerializer
@@ -141,6 +148,14 @@ public class AccordJournalValueSerializers
                 return oldValue;
             hasRead = true;
             return newValue;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "IdentityAccumulator{" +
+                   initial +
+                   '}';
         }
     }
 

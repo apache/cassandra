@@ -2234,7 +2234,7 @@ public class DatabaseDescriptor
         }
         catch (FSWriteError e)
         {
-            throw new IllegalStateException(e.getCause().getMessage() + "; unable to start server");
+            throw new IllegalStateException(e.getCause().getMessage() + "; unable to start server", e);
         }
     }
 
