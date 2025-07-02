@@ -1003,8 +1003,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             VersionedValue value = forceShutdown ? StorageService.instance.valueFactory.forceShutdown() : StorageService.instance.valueFactory.shutdown(true);
             epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, value);
             epState.updateTimestamp(); // make sure we don't evict it too soon
-            epState.getHeartBeatState().forceNewerGenerationUnsafe();
-            epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
+            epState.forceNewerGenerationUnsafe();
+            epState.forceHighestPossibleVersionUnsafe();
 
             handleMajorStateChange(endpoint, epState);
             Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);

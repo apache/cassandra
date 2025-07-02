@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Function;
 
 import com.google.common.base.Function;
 import org.slf4j.Logger;
