@@ -1969,6 +1969,15 @@ public class DatabaseDescriptor
         DatabaseDescriptor.authenticator = authenticator;
     }
 
+    /**
+     * Indicates if this node uses an authenticator that requires authentication.
+     */
+    public static boolean isAuthenticationRequired()
+    {
+        return DatabaseDescriptor.getAuthenticator().requireAuthentication();
+    }
+
+
     public static IAuthorizer getAuthorizer()
     {
         return authorizer;

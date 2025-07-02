@@ -194,7 +194,7 @@ public class ClientState
     {
         this.isInternal = false;
         this.remoteAddress = remoteAddress;
-        if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
+        if (!DatabaseDescriptor.isAuthenticationRequired())
             this.user = AuthenticatedUser.ANONYMOUS_USER;
     }
 
@@ -623,7 +623,7 @@ public class ClientState
      */
     public boolean isSuper()
     {
-        return !DatabaseDescriptor.getAuthenticator().requireAuthentication() || (user != null && user.isSuper());
+        return !DatabaseDescriptor.isAuthenticationRequired() || (user != null && user.isSuper());
     }
 
     /**
