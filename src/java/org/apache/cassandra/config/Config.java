@@ -789,6 +789,8 @@ public class Config
      */
     public volatile Boolean should_compare_gossip_and_storage_service_cache = true;
 
+    public volatile DurationSpec.IntMinutesBound system_peers_sync_validator_interval = new DurationSpec.IntMinutesBound("0m");
+
     // This flag control if local node should send back the full gossip information regardless of heartbeat version asked for itself
     public volatile Boolean gossip_should_broadcast_full_local_states = true;
 

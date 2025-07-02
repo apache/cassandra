@@ -1240,4 +1240,9 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public Set<String> getAllowedClientLibDrivers();
     public void setAllowedClientLibDrivers(Set<String> drivers);
+
+    public void enableSystemPeersSyncValidator();
+
+    public void disableSystemPeersSyncValidator();
+
 }

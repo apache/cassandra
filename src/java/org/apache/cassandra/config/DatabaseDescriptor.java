@@ -5215,6 +5215,16 @@ public class DatabaseDescriptor
         conf.should_compare_gossip_and_storage_service_cache = compareGossipAndStorageServiceCache;
     }
 
+    public static int getSystemPeersSyncValidatorIntervalInMin()
+    {
+        return conf.system_peers_sync_validator_interval.toMinutes();
+    }
+
+    public static void setSystemPeersSyncValidatorIntervalInMin(int interval)
+    {
+        conf.system_peers_sync_validator_interval = new DurationSpec.IntMinutesBound(interval);
+    }
+
     public static boolean getGossipShouldBroadcastFullLocalStates()
     {
         return conf.gossip_should_broadcast_full_local_states;

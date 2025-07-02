@@ -30,4 +30,6 @@ public class GossipMetrics
     public static final Counter gossipAndStorageServiceCacheMismatch = Metrics.counter(factory.createMetricName("GossipAndStorageServiceCacheMismatch"));
     public static final Counter gossipAndStorageServiceCacheRepair = Metrics.counter(factory.createMetricName("GossipAndStorageServiceCacheRepair"));
     public static final Counter gossipAndStorageServiceCacheError = Metrics.counter(factory.createMetricName("GossipAndStorageServiceCacheError"));
+    public static final Counter orphanPeerInSystemTable = Metrics.counter(factory.createMetricName("OrphanPeerInSystemTable"));
+    public static final Counter missingPeerInGossip = Metrics.counter(factory.createMetricName("MissingPeerInGossip"));
 }

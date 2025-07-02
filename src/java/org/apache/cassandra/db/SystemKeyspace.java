@@ -992,6 +992,25 @@ public final class SystemKeyspace
     }
 
     /**
+     * Return a set of stored peers' IP addresses
+     *
+     */
+    public static Set<InetAddressAndPort> loadPeers()
+    {
+        Set<InetAddressAndPort> peers = new HashSet<>();
+        for (UntypedResultSet.Row row : executeInternal(String.format("SELECT peer, peer_port FROM %s.%s",
+                                                                      SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                                                      PEERS_V2)))
+        {
+            InetAddress address = row.getInetAddress("peer");
+            Integer port = row.getInt("peer_port");
+            InetAddressAndPort peer = InetAddressAndPort.getByAddressOverrideDefaults(address, port);
+            peers.add(peer);
+        }
+        return peers;
+    }
+
+    /**
      * Get preferred IP for given endpoint if it is known. Otherwise this returns given endpoint itself.
      *
      * @param ep endpoint address to check

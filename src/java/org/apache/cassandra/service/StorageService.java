@@ -95,6 +95,7 @@ import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
+import org.apache.cassandra.gms.SystemPeersSyncValidator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
@@ -7913,6 +7914,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setAllowedClientLibDrivers(Set<String> drivers)
     {
         DatabaseDescriptor.setAllowedClientLibDrivers(drivers);
+    }
+
+    public void enableSystemPeersSyncValidator()
+    {
+        SystemPeersSyncValidator.instance.setup();
+    }
+
+    public void disableSystemPeersSyncValidator()
+    {
+        SystemPeersSyncValidator.instance.stop();
     }
 
     public void shouldRunBootstrapRepair()
