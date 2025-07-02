@@ -158,10 +158,11 @@ public class Rebuild
                 streamer.addKeyspaceToFetch(keyspace);
             }
 
-            StreamResultFuture resultFuture = streamer.fetchAsync();
-            // wait for result
-            Future<Void> accordReady = AccordService.instance().epochReady(metadata.epoch);
-            Future<?> ready = FutureCombiner.allOf(resultFuture, accordReady);
+            StreamResultFuture streamResult = streamer.fetchAsync();
+
+            Future<?> accordReady = AccordService.instance().epochReadyFor(metadata);
+            Future<?> ready = FutureCombiner.allOf(streamResult, accordReady);
+
             // wait for result
             ready.get();
         }

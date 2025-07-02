@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.BiMap;
@@ -53,6 +55,11 @@ class EndpointMapping implements AccordEndpointMapper
     public boolean containsId(Node.Id id)
     {
         return mapping.containsKey(id);
+    }
+
+    public List<Node.Id> nodes()
+    {
+        return new ArrayList<>(mapping.keySet());
     }
 
     public Map<Node.Id, Long> removedNodes()

@@ -28,6 +28,7 @@ import java.util.function.BiConsumer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -126,6 +127,8 @@ public interface IAccordService
      */
     Future<Void> epochReady(Epoch epoch);
 
+    Future<Void> epochReadyFor(ClusterMetadata epoch);
+
     void receive(Message<AccordSyncPropagator.Notification> message);
 
     class AccordCompactionInfo
@@ -173,8 +176,8 @@ public interface IAccordService
     Id nodeId();
 
     List<CommandStoreTxnBlockedGraph> debugTxnBlockedGraph(TxnId txnId);
-    @Nullable
-    Long minEpoch();
+
+    long minEpoch();
 
     void awaitDone(TableId id, long epoch);
 
@@ -303,6 +306,12 @@ public interface IAccordService
         }
 
         @Override
+        public Future<Void> epochReadyFor(ClusterMetadata epoch)
+        {
+            return BOOTSTRAP_SUCCESS;
+        }
+
+        @Override
         public void receive(Message<AccordSyncPropagator.Notification> message) {}
 
         @Override
@@ -329,11 +338,10 @@ public interface IAccordService
             return Collections.emptyList();
         }
 
-        @Nullable
         @Override
-        public Long minEpoch()
+        public long minEpoch()
         {
-            return null;
+            return -1;
         }
 
         @Override
@@ -499,6 +507,12 @@ public interface IAccordService
         }
 
         @Override
+        public Future<Void> epochReadyFor(ClusterMetadata epoch)
+        {
+            return delegate.epochReadyFor(epoch);
+        }
+
+        @Override
         public void receive(Message<Notification> message)
         {
             delegate.receive(message);
@@ -528,9 +542,8 @@ public interface IAccordService
             return delegate.debugTxnBlockedGraph(txnId);
         }
 
-        @Nullable
         @Override
-        public Long minEpoch()
+        public long minEpoch()
         {
             return delegate.minEpoch();
         }

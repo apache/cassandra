@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.service.accord.AccordService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -507,7 +508,7 @@ public abstract class LocalLog implements Closeable
                     }
                     catch (Throwable t)
                     {
-                        logger.error(String.format("Caught an exception while processing entry %s. This can mean that this node is configured differently from CMS.", prev), t);
+                        logger.error("Caught an exception while processing entry {}. This can mean that this node is configured differently from CMS.", prev, t);
                         throw new StopProcessingException(t);
                     }
 
@@ -564,8 +565,8 @@ public abstract class LocalLog implements Closeable
             }
             else if (!pendingEntry.epoch.isAfter(metadata().epoch))
             {
-                logger.debug(String.format("An already appended entry %s discovered in the pending buffer, ignoring. Max consecutive: %s",
-                                           pendingEntry.epoch, prev.epoch));
+                logger.debug("An already appended entry {} discovered in the pending buffer, ignoring. Max consecutive: {}",
+                             pendingEntry.epoch, prev.epoch);
                 pending.remove(pendingEntry);
             }
             else
@@ -937,6 +938,8 @@ public abstract class LocalLog implements Closeable
         addListener(new MetadataSnapshotListener());
         addListener(new ClientNotificationListener());
         addListener(new UpgradeMigrationListener());
+        if (DatabaseDescriptor.getAccord().enabled)
+            addListener(AccordService.MetadataChangeListener.instance);
     }
 
     private LogListener snapshotListener()

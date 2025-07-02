@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.FutureCallback;
 
 import org.apache.cassandra.auth.PasswordSaltSupplier;
 import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
@@ -96,6 +97,7 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
@@ -119,6 +121,11 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @SuppressWarnings("RedundantCast")
 public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 {
+    static
+    {
+        CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.setEnum(StorageCompatibilityMode.NONE);
+    }
+
     public static final Class<?>[] SHARE = new Class[]
                                         {
                                             AsyncFunction.class,

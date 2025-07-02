@@ -38,6 +38,8 @@ import javax.management.remote.JMXConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -370,6 +372,7 @@ public class CassandraDaemon
 
         // start server internals
         StorageService.instance.registerDaemon(this);
+        AccordService.startup(Register.maybeRegister());
         try
         {
             StorageService.instance.initServer();
@@ -824,7 +827,7 @@ public class CassandraDaemon
         {
             // Bootstrap with same address is an edge-case here, since we rely on HIBERNATE to prevent writes
             // toward the bootstrapping replacement, so there's no startup sequence involved.
-            if (StorageService.instance.isReplacingSameAddress() && StorageService.instance.isSurveyMode())
+            if (StorageService.isReplacingSameAddress() && StorageService.instance.isSurveyMode())
                 return;
 
             // This node has not joined the ring (i.e. it was started with -Dcassandra.join_ring=false)
