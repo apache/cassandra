@@ -51,6 +51,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Condition;
+import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 
 import static accord.api.ProtocolModifiers.Toggles.SendStableMessages.TO_ALL;
@@ -64,6 +65,39 @@ public class AccordDebugKeyspaceTest extends CQLTester
 
     private static final String QUERY_TXN_BLOCKED_BY =
         String.format("SELECT * FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_BLOCKED_BY);
+
+    private static final String QUERY_TXN =
+        String.format("SELECT txn_id, save_status FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
+
+    private static final String QUERY_JOURNAL =
+        String.format("SELECT txn_id, save_status FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.JOURNAL);
+
+    private static final String SET_TRACE =
+        String.format("UPDATE %s.%s SET permits = ? WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACE);
+
+    private static final String QUERY_TRACE =
+        String.format("SELECT * FROM %s.%s WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACE);
+
+    private static final String UNSET_TRACE1 =
+        String.format("DELETE FROM %s.%s WHERE txn_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACE);
+
+    private static final String UNSET_TRACE2 =
+        String.format("DELETE FROM %s.%s WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACE);
+
+    private static final String QUERY_TRACES =
+        String.format("SELECT * FROM %s.%s WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACES);
+
+    private static final String ERASE_TRACES1 =
+        String.format("DELETE FROM %s.%s WHERE txn_id = ? AND event_type = ? AND id_micros < ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACES);
+
+    private static final String ERASE_TRACES2 =
+        String.format("DELETE FROM %s.%s WHERE txn_id = ? AND event_type = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACES);
+
+    private static final String ERASE_TRACES3 =
+        String.format("DELETE FROM %s.%s WHERE txn_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_TRACES);
+
+    private static final String QUERY_REDUNDANT_BEFORE =
+        String.format("SELECT * FROM %s.%s", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
     @BeforeClass
     public static void setUpClass()
@@ -85,6 +119,63 @@ public class AccordDebugKeyspaceTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
         assertRows(execute(QUERY_TXN_BLOCKED_BY, TxnId.NONE.toString()));
+        assertRows(execute(QUERY_TXN, TxnId.NONE.toString()));
+        assertRows(execute(QUERY_JOURNAL, TxnId.NONE.toString()));
+    }
+
+    @Test
+    public void tracing()
+    {
+        // simple test to confirm basic tracing functionality works, doesn't validate specific behaviours only requesting/querying/erasing
+        AccordMsgFilter filter = new AccordMsgFilter();
+        MessagingService.instance().outboundSink.add(filter);
+        try
+        {
+            String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
+            var accord = accord();
+            DatabaseDescriptor.getAccord().fetch_txn = "1s";
+            TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
+            Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
+
+            execute(SET_TRACE, 1, id.toString(), "PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"), row(id.toString(), "PROGRESS", 1));
+            execute(SET_TRACE, 0, id.toString(), "PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"));
+            execute(SET_TRACE, 1, id.toString(), "PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"), row(id.toString(), "PROGRESS", 1));
+            execute(UNSET_TRACE1, id.toString());
+            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"));
+            execute(SET_TRACE, 1, id.toString(), "PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"), row(id.toString(), "PROGRESS", 1));
+            execute(UNSET_TRACE2, id.toString(), "PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"));
+            execute(SET_TRACE, 1, id.toString(), "PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"), row(id.toString(), "PROGRESS", 1));
+            accord.node().coordinate(id, txn);
+            filter.preAccept.awaitThrowUncheckedOnInterrupt();
+
+            filter.apply.awaitThrowUncheckedOnInterrupt();
+            spinUntilSuccess(() -> Assertions.assertThat(execute(QUERY_TRACES, id.toString(), "PROGRESS").size()).isGreaterThan(0));
+            execute(ERASE_TRACES1, id.toString(), "FETCH", Long.MAX_VALUE);
+            execute(ERASE_TRACES2, id.toString(), "FETCH");
+            execute(ERASE_TRACES1, id.toString(), "PROGRESS", Long.MAX_VALUE);
+            Assertions.assertThat(execute(QUERY_TRACES, id.toString(), "PROGRESS").size()).isEqualTo(0);
+            // just check other variants don't fail
+            execute(ERASE_TRACES2, id.toString(), "PROGRESS");
+            execute(ERASE_TRACES3, id.toString());
+        }
+        finally
+        {
+            MessagingService.instance().outboundSink.remove(filter);
+        }
+    }
+
+    @Test
+    public void redundantBefore()
+    {
+        String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
+        var accord = accord();
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE).size()).isGreaterThan(0);
     }
 
     @Test
@@ -98,6 +189,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
 
         spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
                                           row(id.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name()))));
+        assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), "Applied"));
+        assertRows(execute(QUERY_JOURNAL, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), "null"));
     }
 
     @Test

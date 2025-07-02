@@ -192,7 +192,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         void read(DataInputPlus input, Version userVersion) throws IOException;
     }
 
-    private static class RecordConsumerAdapter<K> implements RecordConsumer<K>
+    static class RecordConsumerAdapter<K> implements RecordConsumer<K>
     {
         protected final Reader reader;
 

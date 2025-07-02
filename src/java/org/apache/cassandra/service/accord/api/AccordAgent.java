@@ -22,6 +22,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,8 @@ import accord.api.EventListener;
 import accord.api.ProgressLog.BlockedUntil;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Tracing;
+import accord.api.TraceEventType;
 import accord.local.Command;
 import accord.local.Node;
 import accord.local.SafeCommand;
@@ -61,6 +65,7 @@ import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTracing;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -98,12 +103,23 @@ public class AccordAgent implements Agent
         if (invoke != null) invoke.accept(txnId, cause);
     }
 
-
+    private final AccordTracing tracing = new AccordTracing();
     private final RandomSource random = new DefaultRandom();
     protected Node.Id self;
 
     public AccordAgent()
     {
+    }
+
+    public AccordTracing tracing()
+    {
+        return tracing;
+    }
+
+    @Override
+    public @Nullable Tracing trace(TxnId txnId, TraceEventType eventType)
+    {
+        return tracing.trace(txnId, eventType);
     }
 
     public void setNodeId(Node.Id id)

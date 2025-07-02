@@ -443,6 +443,12 @@ public class AccordCommandStore extends CommandStore
         return journal.loadCommand(id, txnId, unsafeGetRedundantBefore(), durableBefore());
     }
 
+    @VisibleForTesting
+    public List<AccordJournal.DebugEntry> debugCommand(TxnId txnId)
+    {
+        return (List<AccordJournal.DebugEntry>) journal.debugCommand(id, txnId);
+    }
+
     public static Command prepareToCache(Command command)
     {
         // TODO (required): validate we don't have duplicate objects
