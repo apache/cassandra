@@ -2662,6 +2662,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public boolean isUpgradingFromVersionLowerThan(CassandraVersion referenceVersion)
     {
+        CassandraVersion minVersion = DatabaseDescriptor.getMinimumCassandraVersionForAnyClusterNode();
+        if(minVersion != null && referenceVersion.compareTo(minVersion) <= 0) {
+            return false;
+        }
+
         return isUpgradingFromVersionLowerThanC17653(referenceVersion).left;
     }
 

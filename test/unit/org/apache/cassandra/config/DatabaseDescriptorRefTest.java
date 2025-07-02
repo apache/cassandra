@@ -218,6 +218,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.service.throttler.IRequestThrottler",
     "org.apache.cassandra.sqel.SampledQueryEventLoggerOptions",
     "org.apache.cassandra.utils.binlog.BinLogOptions",
+    "org.apache.cassandra.utils.CassandraVersion",
     "org.apache.cassandra.utils.FBUtilities",
     "org.apache.cassandra.utils.FBUtilities$1",
     "org.apache.cassandra.utils.CloseableIterator",

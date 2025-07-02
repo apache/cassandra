@@ -54,6 +54,7 @@ import org.apache.cassandra.metrics.GossipMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -61,6 +62,11 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class GossiperTest
 {
@@ -688,6 +694,44 @@ public class GossiperTest
         assertEquals(getTokenMetadataCacheTokens(1), getGossipCacheTokens(1));
         assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(0)));
         assertNull(Gossiper.instance.gossipAndServiceCacheMismatchOccurredTracker.get(hosts.get(1)));
+    }
+
+    @Test
+    public void testIsUpgradingFromVersionLowerThanWithConfiguredMinimimumVersion() throws UnknownHostException
+    {
+        Gossiper gossiper = spy(Gossiper.instance);
+        doReturn(Pair.create(true, new CassandraVersion("3.0"))).when(gossiper).isUpgradingFromVersionLowerThanC17653(any());
+
+        CassandraVersion minVersion = new CassandraVersion("3.5.6");
+        DatabaseDescriptor.setMinimumCassandraVersionForAnyClusterNode(minVersion);
+
+        assertFalse(gossiper.isUpgradingFromVersionLowerThan(new CassandraVersion("3.0")));
+        verify(gossiper, times(0)).isUpgradingFromVersionLowerThanC17653(any());
+
+        assertFalse(gossiper.isUpgradingFromVersionLowerThan(new CassandraVersion("3.5.5")));
+        verify(gossiper, times(0)).isUpgradingFromVersionLowerThanC17653(any());
+
+        assertFalse(gossiper.isUpgradingFromVersionLowerThan(new CassandraVersion("3.5.6")));
+        verify(gossiper, times(0)).isUpgradingFromVersionLowerThanC17653(any());
+
+        assertTrue(gossiper.isUpgradingFromVersionLowerThan(new CassandraVersion("3.5.7")));
+        verify(gossiper, times(1)).isUpgradingFromVersionLowerThanC17653(any());
+    }
+
+    @Test
+    public void testIsUpgradingFromVersionLowerThanWithNoConfiguredMinimimumVersion() throws UnknownHostException
+    {
+        Gossiper gossiper = spy(Gossiper.instance);
+        doReturn(Pair.create(true, new CassandraVersion("3.0"))).when(gossiper).isUpgradingFromVersionLowerThanC17653(any());
+
+        DatabaseDescriptor.setMinimumCassandraVersionForAnyClusterNode(null);
+
+        assertTrue(gossiper.isUpgradingFromVersionLowerThan(new CassandraVersion("3.0")));
+        assertTrue(gossiper.isUpgradingFromVersionLowerThan(new CassandraVersion("3.5.5")));
+        assertTrue(gossiper.isUpgradingFromVersionLowerThan(new CassandraVersion("3.5.6")));
+        assertTrue(gossiper.isUpgradingFromVersionLowerThan(new CassandraVersion("3.5.7")));
+
+        verify(gossiper, times(4)).isUpgradingFromVersionLowerThanC17653(any());
     }
 
     private Collection<Token> getTokenMetadataCacheTokens(int hostIndex)

@@ -35,6 +35,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
@@ -42,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -853,5 +855,32 @@ public class DatabaseDescriptorTest
         conf.read_request_iterator_merge_timeout_enabled = true;
         DatabaseDescriptor.setReadRequestIteratorMergeTimeoutEnabled(false);
         assertFalse(conf.read_request_iterator_merge_timeout_enabled);
+    }
+
+    @Test
+    public void testGetMinimumCassandraVersionForAnyClusterNode()
+    {
+        CassandraVersion version = new CassandraVersion("2.0.0");
+        Config conf = DatabaseDescriptor.getRawConfig();
+        conf.minimum_cassandra_version_for_any_cluster_node = version;
+        assertEquals(version, DatabaseDescriptor.getMinimumCassandraVersionForAnyClusterNode());
+
+        conf.minimum_cassandra_version_for_any_cluster_node = null;
+        assertNull(DatabaseDescriptor.getMinimumCassandraVersionForAnyClusterNode());
+    }
+
+    @Test
+    public void testSetMinimumCassandraVersionForAnyClusterNode()
+    {
+        CassandraVersion version = new CassandraVersion("3.1.2");
+        Config conf = DatabaseDescriptor.getRawConfig();
+        conf.minimum_cassandra_version_for_any_cluster_node = null;
+        DatabaseDescriptor.setMinimumCassandraVersionForAnyClusterNode(version);
+        assertEquals(version, conf.minimum_cassandra_version_for_any_cluster_node);
+
+        version = new CassandraVersion("4.5.5");
+        conf.minimum_cassandra_version_for_any_cluster_node = version;
+        DatabaseDescriptor.setMinimumCassandraVersionForAnyClusterNode(null);
+        assertNull(conf.minimum_cassandra_version_for_any_cluster_node);
     }
 }

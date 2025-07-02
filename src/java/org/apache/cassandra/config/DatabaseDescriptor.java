@@ -103,6 +103,7 @@ import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.throttler.IRequestThrottler;
 import org.apache.cassandra.service.throttler.NoOpRequestThrottler;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
@@ -5416,5 +5417,14 @@ public class DatabaseDescriptor
     public static void setShadowRowsTrackingEnabled(boolean enabled)
     {
         conf.shadow_rows_tracking_enabled = enabled;
+    }
+
+    @Nullable
+    public static CassandraVersion getMinimumCassandraVersionForAnyClusterNode() {
+        return conf.minimum_cassandra_version_for_any_cluster_node;
+    }
+
+    public static void setMinimumCassandraVersionForAnyClusterNode(@Nullable CassandraVersion minimumCassandraVersionForAnyClusterNode) {
+        conf.minimum_cassandra_version_for_any_cluster_node = minimumCassandraVersionForAnyClusterNode;
     }
 }

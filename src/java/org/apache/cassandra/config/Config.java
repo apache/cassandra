@@ -45,6 +45,7 @@ import org.apache.cassandra.service.QueryAnalyticsConfig;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
+import org.apache.cassandra.utils.CassandraVersion;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -1574,4 +1575,9 @@ public class Config
     public boolean enable_custom_payload_logging = false;
 
     public volatile boolean enable_get_natural_endpoints_for_all_token_ranges = true;
+
+    // statically specifies the minimum version of Cassandra that any node in this cluster runs (e.g. 4.0.0)
+    // this is used to remove Gossip dependency for some version checks in the hot path
+    // a null value means that the minimum version is not specified (old behavior remains the same)
+    public CassandraVersion minimum_cassandra_version_for_any_cluster_node = null;
 }
