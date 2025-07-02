@@ -40,6 +40,11 @@ import picocli.CommandLine.Command;
                          AccordSimulationRunner.Reconcile.class})
 public class AccordSimulationRunner extends SimulationRunner
 {
+    static
+    {
+        CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.setString(StorageCompatibilityMode.NONE.toString());
+    }
+
     @BeforeClass
     public static void beforeAll()
     {

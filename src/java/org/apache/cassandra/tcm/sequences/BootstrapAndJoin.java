@@ -25,7 +25,6 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -363,14 +362,16 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
 
         StorageService.instance.repairPaxosForTopologyChange("bootstrap");
         Future<StreamState> bootstrapStream = StorageService.instance.startBootstrap(metadata, beingReplaced, movements, strictMovements);
-        Future<Void> accordReady = AccordService.instance().epochReady(metadata.epoch);
-        Future<?> ready = FutureCombiner.allOf(Lists.newArrayList(bootstrapStream, accordReady));
+        Future<?> accordReady = AccordService.instance().epochReadyFor(metadata);
+        Future<?> ready = FutureCombiner.allOf(bootstrapStream, accordReady);
+
         try
         {
             if (bootstrapTimeoutMillis > 0)
                 ready.get(bootstrapTimeoutMillis, MILLISECONDS);
             else
                 ready.get();
+
             StorageService.instance.markViewsAsBuilt();
             StorageService.instance.clearOngoingBootstrap();
             logger.info("Bootstrap completed for tokens {}", tokens);

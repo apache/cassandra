@@ -218,11 +218,11 @@ public class CassandraStreamReceiver implements StreamReceiver
     {
         CassandraVersion minVersion = ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion;
         checkNotNull(minVersion, "Unable to determine minimum cluster version");
-        IAccordService accordService = AccordService.instance();
         if (session.streamOperation().requiresBarrierTransaction()
             && cfs.metadata().requiresAccordSupport()
             && CassandraVersion.CASSANDRA_5_0.compareTo(minVersion) >= 0)
         {
+            IAccordService accordService = AccordService.instance();
             Ranges accordRanges = AccordTopology.toAccordRanges(cfs.getTableId(), ranges);
             long startedAtNanos = nanoTime();
             long timeoutNanos = DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();

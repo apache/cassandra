@@ -18,6 +18,7 @@
 package org.apache.cassandra.dht;
 
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
@@ -31,6 +32,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,7 +49,6 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -107,16 +108,16 @@ public class BootStrapperTest
     @Test
     public void testSourceTargetComputation() throws UnknownHostException
     {
-        final int[] clusterSizes = new int[] { 1, 3, 5, 10, 100 };
+        final int[] clusterSizes = new int[]{1, 3, 5, 10, 100};
+        List<String> keyspaces = new ArrayList<>();
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
         {
-            if (keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-                continue;
-            int replicationFactor = Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor().allReplicas;
-            for (int clusterSize : clusterSizes)
-                if (clusterSize >= replicationFactor)
-                    testSourceTargetComputation(keyspaceName, clusterSize, replicationFactor);
+            if (keyspaceName.startsWith("BootStrapperTest"))
+                keyspaces.add(keyspaceName);
         }
+
+        for (int clusterSize : clusterSizes)
+            testSourceTargetComputation(keyspaces, clusterSize);
     }
 
     @Test
@@ -155,39 +156,47 @@ public class BootStrapperTest
         }
     }
 
-    private RangeStreamer testSourceTargetComputation(String keyspaceName, int numOldNodes, int replicationFactor) throws UnknownHostException
+    private void testSourceTargetComputation(List<String> keyspaces, int clusterSize) throws UnknownHostException
     {
         ServerTestUtils.resetCMS();
-        generateFakeEndpoints(numOldNodes);
+        generateFakeEndpoints(clusterSize);
         ClusterMetadata metadata = ClusterMetadata.current();
-        assertEquals(numOldNodes, metadata.tokenMap.tokens().size());
+        assertEquals(clusterSize, metadata.tokenMap.tokens().size());
+
+        InetAddressAndPort myEndpoint = InetAddressAndPort.getByName("127.0.0.1");
         RangeStreamer s = getRangeStreamer();
+        for (String keyspace : keyspaces)
+        {
+            assertNotNull(Keyspace.open(keyspace));
+            int replicationFactor = Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor().allReplicas;
+            if (clusterSize < replicationFactor)
+                continue;
 
-        assertNotNull(Keyspace.open(keyspaceName));
-        s.addKeyspaceToFetch(keyspaceName);
-        Multimap<InetAddressAndPort, RangeStreamer.FetchReplica> toFetch = s.toFetch().get(keyspaceName);
 
-        // Pre-TCM this test would always run with RangeStreamer::useStrictSourcesForRanges returning false because
-        // the RangeStreamer instance was constructed with a null Collection<Token>, relying on pending ranges being
-        // calculated in the test code, and then cloning TokenMetadata with pending tokens added to pass to
-        // calculateRangesToFetchWithPreferredEndpoints. Post-TCM, we calculate both relaxed and strict movements
-        // together and TokenMetadata is no more, so the equivalent operation now ends up using strict movements. For
-        // that reason, when RF includes transient replicas, toFetch will include both a transient and full source,
-        // hence we dedupe the ranges here.
-        Set<Range<Token>> fetchRanges = toFetch.values()
-                                               .stream()
-                                               .map(fr -> fr.remote.range())
-                                               .collect(Collectors.toSet());
-        // Post CEP-21 wrapping ranges are also unwrapped at this point, so account for that when setting expectation
-        int expectedRangeCount = replicationFactor + (includesWraparound(fetchRanges) ? 1 : 0);
-        assertEquals(expectedRangeCount, fetchRanges.size());
+            s.addKeyspaceToFetch(keyspace);
+            Multimap<InetAddressAndPort, RangeStreamer.FetchReplica> toFetch = s.toFetch().get(keyspace);
 
-        // there isn't any point in testing the size of these collections for any specific size.  When a random partitioner
-        // is used, they will vary.
-        assert toFetch.values().size() > 0;
+            // Pre-TCM this test would always run with RangeStreamer::useStrictSourcesForRanges returning false because
+            // the RangeStreamer instance was constructed with a null Collection<Token>, relying on pending ranges being
+            // calculated in the test code, and then cloning TokenMetadata with pending tokens added to pass to
+            // calculateRangesToFetchWithPreferredEndpoints. Post-TCM, we calculate both relaxed and strict movements
+            // together and TokenMetadata is no more, so the equivalent operation now ends up using strict movements. For
+            // that reason, when RF includes transient replicas, toFetch will include both a transient and full source,
+            // hence we dedupe the ranges here.
+            Set<Range<Token>> fetchRanges = toFetch.values()
+                                                   .stream()
+                                                   .map(fr -> fr.remote.range())
+                                                   .collect(Collectors.toSet());
+            // Post CEP-21 wrapping ranges are also unwrapped at this point, so account for that when setting expectation
+            int expectedRangeCount = replicationFactor + (includesWraparound(fetchRanges) ? 1 : 0);
+            assertEquals(expectedRangeCount, fetchRanges.size());
 
-        assert toFetch.keys().stream().noneMatch(InetAddressAndPort.getByName("127.0.0.1")::equals);
-        return s;
+            // there isn't any point in testing the size of these collections for any specific size.  When a random partitioner
+            // is used, they will vary.
+            Assert.assertTrue(toFetch.values().size() > 0);
+
+            Assert.assertTrue(toFetch.keys().stream().noneMatch(myEndpoint::equals));
+        }
     }
 
     private RangeStreamer getRangeStreamer() throws UnknownHostException

@@ -844,18 +844,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         Gossiper.waitToSettle();
 
-        NodeId self;
-        if (isReplacingSameAddress())
-        {
-            self = ClusterMetadata.current().myNodeId();
-            if (self == null)
-                throw new IllegalStateException("Tried to replace same address, but node does not seem to be registered");
-        }
-        else
-        {
-            self = Register.maybeRegister();
-        }
-
+        NodeId self = Register.maybeRegister();
+        AccordService.startup(self);
         RegistrationStatus.instance.onRegistration();
         Startup.maybeExecuteStartupTransformation(self);
 

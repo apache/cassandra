@@ -29,18 +29,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
-
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import accord.api.Journal;
 import accord.api.RoutingKey;
-import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
@@ -58,13 +49,13 @@ import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.topology.Shard;
-import accord.topology.Topology;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property.Command;
 import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.ObjectHashSet;
@@ -83,12 +74,10 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.TokenRange;
@@ -103,12 +92,14 @@ import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.assertj.core.api.Assertions;
-import org.mockito.Mockito;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 
 import static accord.local.RedundantStatus.SomeStatus.NONE;
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
-import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.index.accord.AccordIndexUtil.normalize;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
@@ -512,7 +503,6 @@ public class RouteIndexTest extends CQLTester
                 storeRangesForEpochs.put(i, new RangesForEpoch(1, Ranges.of(TokenRange.fullRange(tableId, getPartitioner()))));
 
             accordService = startAccord();
-            accordService.configService().listener.notifyPostCommit(null, ClusterMetadata.current(), false);
             accordService.epochReady(ClusterMetadata.current().epoch).awaitUninterruptibly();
 
             minDecidedIdNull = rs.nextFloat();
@@ -525,19 +515,11 @@ public class RouteIndexTest extends CQLTester
 
         AccordService startAccord()
         {
-            NodeId tcmNodeId = ClusterMetadata.current().myNodeId();
-            AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmNodeId));
-            Topology topology = new Topology(1, Shard.create(TokenRange.fullRange(tableId, getPartitioner()), ofSorted(new Node.Id(1)), ofSorted(new Node.Id(1))));
-            as.unsafeStartupWithOverrides(new Journal.TopologyUpdate(storeRangesForEpochs, topology));
-            for (CommandStore commandStore : as.node().commandStores().all())
-                ((AccordCommandStore)commandStore).unsafeUpsertRedundantBefore(emptyRedundantBefore);
-            // the reason for the mocking is to speed up compaction.  Collecting the info from the stores has been slow and its always empty in this test... so stub it out to speed up the test
-            AccordService mock = Mockito.spy(as);
-            Mockito.doReturn(emptyCompactionInfo(tableId, emptyRedundantBefore, storeRangesForEpochs)).when(mock).getCompactionInfo();
-            AccordService.unsafeSetNewAccordService(mock);
-
-            AccordService.replayJournal(as);
-            return as;
+            ClusterMetadata metadata = ClusterMetadata.current();
+            AccordService.MetadataChangeListener.instance.resetForTesting(metadata);
+            NodeId tcmNodeId = metadata.myNodeId();
+            AccordService.unsafeSetNewAccordService(null);
+            return AccordService.startup(tcmNodeId);
         }
 
         TxnId nextTxnId(Domain domain)
@@ -626,6 +608,7 @@ public class RouteIndexTest extends CQLTester
 
         private void restartAccord()
         {
+            accordService.journal().closeCurrentSegmentForTestingIfNonEmpty();
             accordService.shutdown();
             accordService = startAccord();
         }

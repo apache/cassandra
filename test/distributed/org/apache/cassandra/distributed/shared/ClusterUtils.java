@@ -699,7 +699,7 @@ public class ClusterUtils
         return maxEpoch(cluster, up.toIntArray());
     }
 
-    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int[] nodes)
+    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int... nodes)
     {
         Epoch max = null;
         for (int id : nodes)

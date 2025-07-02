@@ -56,7 +56,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 {
     public static final Serializer serializer = new Serializer();
 
-    public static final DistributedSchema empty()
+    public static DistributedSchema empty()
     {
         return new DistributedSchema(Keyspaces.none(), Epoch.EMPTY);
     }
@@ -144,6 +144,11 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
     {
         KeyspaceMetadata ks = keyspaces.getNullable(keyspace);
         return ks == null ? null : ks.tables.getNullable(cf);
+    }
+
+    public boolean hasAccordKeyspaces()
+    {
+        return keyspaces.stream().anyMatch(ksm -> ksm.tables.stream().anyMatch(TableMetadata::requiresAccordSupport));
     }
 
     public static DistributedSchema fromSystemTables(Keyspaces keyspaces, Set<String> knownDatacenters)

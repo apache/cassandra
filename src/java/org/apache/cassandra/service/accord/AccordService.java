@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
@@ -39,6 +40,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,7 +104,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -125,6 +126,7 @@ import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -160,7 +162,59 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordService implements IAccordService, Shutdownable
 {
+    public static class MetadataChangeListener implements ChangeListener.Async
+    {
+        // Listener is initialized before Accord is initialized
+        public static MetadataChangeListener instance = new MetadataChangeListener();
+
+        private MetadataChangeListener() {}
+
+        private final AtomicReference<ChangeListener> collector = new AtomicReference<>(new PreInitStateCollector());
+
+        @Override
+        public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+        {
+            collector.get().notifyPreCommit(prev, next, fromSnapshot);
+        }
+
+        @Override
+        public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+        {
+            collector.get().notifyPostCommit(prev, next, fromSnapshot);
+        }
+
+        @VisibleForTesting
+        public void resetForTesting(ClusterMetadata metadata)
+        {
+            PreInitStateCollector stateCollector = new PreInitStateCollector();
+            stateCollector.items.add(metadata);
+            collector.set(stateCollector);
+        }
+
+        /**
+         * Collects TCM events from startup util full Accord initialization to avoid races with TCM and creating gaps between
+         * epochs restored from journal and reported by TCM.
+         **/
+
+        static class PreInitStateCollector implements ChangeListener
+        {
+            private final List<ClusterMetadata> items = new ArrayList<>(4);
+
+            @Override
+            public synchronized void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+            {
+                items.add(next);
+            }
+
+            public synchronized List<ClusterMetadata> getItems()
+            {
+                return new ArrayList<>(items);
+            }
+        }
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
+    private static final Future<Void> EPOCH_READY = ImmediateFuture.success(null);
     static
     {
         ProtocolModifiers.Toggles.setPermitLocalExecution(true);
@@ -227,34 +281,42 @@ public class AccordService implements IAccordService, Shutdownable
         return instance().responseHandler();
     }
 
-    public synchronized static void startup(NodeId tcmId)
+    @VisibleForTesting
+    public synchronized static AccordService startup(NodeId tcmId)
     {
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
         {
             instance = NOOP_SERVICE;
-            return;
+            return null;
         }
 
         if (instance != null)
-            return;
+            return (AccordService) instance;
 
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
         as.startup();
-        if (StorageService.instance.isReplacingSameAddress())
-        {
-            // when replacing another node but using the same ip the hostId will also match, this causes no TCM transactions
-            // to be committed...
-            // In order to bootup correctly, need to pull in the current epoch
-            ClusterMetadata current = ClusterMetadata.current();
-            as.configService().listener.notifyPostCommit(current, current, false);
-        }
         instance = as;
 
         replayJournal(as);
 
+        as.finishInitialization();
+
+        as.configService.start();
+        as.configService.unsafeMarkTruncated();
+        as.fastPathCoordinator.start();
+
+        ClusterMetadataService.instance().log().addListener(as.fastPathCoordinator);
+        as.node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
+                                                  Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
+                                                  Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
+        as.node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
+        as.state = State.STARTED;
         // Only enable durability scheduling _after_ we have fully replayed journal
         as.configService.registerListener(as.node.durability());
         as.node.durability().start();
+
+        WatermarkCollector.fetchAndReportWatermarksAsync(as.configService);
+        return as;
     }
 
     @VisibleForTesting
@@ -356,12 +418,6 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public synchronized void startup()
     {
-        unsafeStartupWithOverrides(null);
-    }
-
-    @VisibleForTesting
-    public synchronized void unsafeStartupWithOverrides(@Nullable Journal.TopologyUpdate overrideNullTopologyUpdate)
-    {
         if (state != State.INIT)
             return;
         journal.start(node);
@@ -370,7 +426,6 @@ public class AccordService implements IAccordService, Shutdownable
         ClusterMetadata metadata = ClusterMetadata.current();
         configService.updateMapping(metadata);
 
-        long highestKnown = -1;
         List<ImmutableTopoloyImage> images = new ArrayList<>();
 
         // Collect locally known topologies
@@ -387,66 +442,55 @@ public class AccordService implements IAccordService, Shutdownable
             prev = next;
         }
 
-        if (prev == null)
-            prev = overrideNullTopologyUpdate;
-
         // Instantiate latest topology from the log, if known
         if (prev != null)
         {
             node.commandStores().initializeTopologyUnsafe(prev);
-            highestKnown = prev.global.epoch();
         }
 
+        // Replay local epochs
+        for (ImmutableTopoloyImage image : images)
+            configService.reportTopology(image.global);
+    }
+
+    /**
+     * Startup is broken up in two phases: local and distributed startup. During local startup, we replay up to
+     *  the latest epoch known to the node prior to restart. After that, we replay journal itself, and only after
+     *  that we finish initializaiton and replay the rest of epochs.
+     */
+    @VisibleForTesting
+    public void finishInitialization()
+    {
+        configService.updateMapping(ClusterMetadata.current());
+        long highestKnown = -1;
+        if (configService.currentTopology() != null)
+            highestKnown = configService.currentEpoch();
         try
         {
             TopologyRange remote = fetchTopologies(highestKnown + 1);
-
-            // Replay local epochs
-            for (ImmutableTopoloyImage image : images)
-                configService.reportTopology(image.global);
 
             if (remote != null)
                 remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
 
             // Subscribe to TCM events
-            ClusterMetadataService.instance().log().addListener(configService.listener);
-
-            // We report current topology _after_ subscribing to TCM events since in a single-node cluster there
-            // will be no notification about the current epoch, since it's already reported. And in a multi-node cluster
-            // we do not want a race between addinga listener and reporting an epoch.
-            if (remote == null && images.isEmpty())
-                configService.reportTopology(AccordTopology.createAccordTopology(metadata));
-
-            WatermarkCollector.fetchAndReportWatermarksAsync(configService());
-            configService.unsafeMarkTruncated();
-
-            int attempt = 0;
-            int waitSeconds = 5;
-            long deadine = Clock.Global.nanoTime() + SECONDS.toNanos(60);
-            while (true)
+            ChangeListener prevListener = MetadataChangeListener.instance.collector.getAndSet(new ChangeListener()
             {
-                Epoch await = Epoch.max(Epoch.create(configService.currentEpoch()), metadata.epoch);
-                try
+                @Override
+                public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
                 {
-                    epochReady(await).get(waitSeconds, SECONDS);
-                    break;
+                    if (state != State.SHUTDOWN)
+                        configService.maybeReportMetadata(next);
                 }
-                catch (TimeoutException e)
-                {
-                    logger.warn("Epoch {} is not ready after waiting for {} seconds", metadata.epoch, (++attempt) * waitSeconds);
-                    // In case there are any gaps, fetch unknown topologies.
-                    metadata = ClusterMetadata.current();
-                    highestKnown = configService.currentEpoch();
-                    if (metadata.epoch.getEpoch() > highestKnown)
-                    {
-                        remote = fetchTopologies(highestKnown + 1);
-                        if (remote != null)
-                            remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
-                    }
-                }
+            });
 
-                if (Clock.Global.nanoTime() > deadine)
-                    throw new IllegalStateException(String.format("Could not initialize epoch %s. Config service state:\n%s", await, configService.getDebugStr()));
+            Invariants.require((prevListener instanceof MetadataChangeListener.PreInitStateCollector),
+                               "Listener should have been initialized with Accord pre-init state collector, but was " + prevListener.getClass());
+
+            MetadataChangeListener.PreInitStateCollector preinit = (MetadataChangeListener.PreInitStateCollector) prevListener;
+            for (ClusterMetadata item : preinit.getItems())
+            {
+                if (item.epoch.getEpoch() > minEpoch())
+                    configService.maybeReportMetadata(item);
             }
         }
         catch (InterruptedException e)
@@ -458,17 +502,7 @@ public class AccordService implements IAccordService, Shutdownable
         {
             throw new RuntimeException(e);
         }
-
-        configService.start();
-        fastPathCoordinator.start();
-        ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
-        node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
-                                               Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
-                                               Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
-        node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
-        state = State.STARTED;
     }
-
     /**
      * Queries peers to discover min epoch, and then fetches all topologies between min and current epochs
      */
@@ -938,9 +972,8 @@ public class AccordService implements IAccordService, Shutdownable
         return cmdTxnState.build();
     }
 
-    @Nullable
     @Override
-    public Long minEpoch()
+    public long minEpoch()
     {
         return node.topology().minEpoch();
     }
@@ -971,6 +1004,15 @@ public class AccordService implements IAccordService, Shutdownable
             else promise.tryFailure(failure);
         });
         return promise;
+    }
+
+    @Override
+    public Future<Void> epochReadyFor(ClusterMetadata metadata)
+    {
+        if (!metadata.schema.hasAccordKeyspaces())
+            return EPOCH_READY;
+
+        return epochReady(metadata.epoch);
     }
 
     @Override

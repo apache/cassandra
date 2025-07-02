@@ -111,6 +111,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.db.SystemKeyspace.PAXOS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.maxEpoch;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.junit.Assert.assertArrayEquals;
 
@@ -163,17 +164,22 @@ public abstract class AccordTestBase extends TestBaseImpl
     @After
     public void tearDown() throws Exception
     {
+        SHARED_CLUSTER.filters().reset();
         for (IInvokableInstance instance : SHARED_CLUSTER)
             instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start()));
 
         truncateSystemTables();
 
-        ClusterUtils.waitForCMSToQuiesce(SHARED_CLUSTER, 1);
-        SHARED_CLUSTER.forEach(() -> Util.spinUntilTrue(() -> ClusterMetadata.current().epoch.getEpoch() ==
-                                                              ((AccordService) AccordService.instance()).configService().currentEpoch() &&
-                                                              AccordService.instance().topology().current().epoch() ==
-                                                              ((AccordService) AccordService.instance()).configService().currentEpoch(),
-                                                        60));
+        ClusterUtils.waitForCMSToQuiesce(SHARED_CLUSTER, maxEpoch(SHARED_CLUSTER, 1), true);
+        SHARED_CLUSTER.forEach(() -> Util.spinUntilTrue(() -> {
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (!metadata.schema.hasAccordKeyspaces())
+                return true;
+
+            AccordService accord = ((AccordService) AccordService.instance());
+            return metadata.epoch.getEpoch() == accord.configService().currentEpoch() &&
+                   metadata.epoch.getEpoch() == accord.topology().current().epoch();
+            }, 60));
     }
 
     protected static void assertRowSerial(Cluster cluster, String query, int k, int c, int v, int s)
@@ -370,7 +376,7 @@ public abstract class AccordTestBase extends TestBaseImpl
             instance.runOnInstance(runnable);
     }
 
-    private static Cluster createCluster(int nodes, Function<Builder, Builder> options) throws IOException
+    public static Cluster createCluster(int nodes, Function<Builder, Builder> options) throws IOException
     {
         // need to up the timeout else tests get flaky
         // disable vnode for now, but should enable before trunk

@@ -844,7 +844,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
 
         StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
-
         if (config.has(GOSSIP))
         {
             try
