@@ -19,13 +19,16 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -226,6 +229,39 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         Builder builder = load(commandStoreId, txnId);
         builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
         return builder.construct(redundantBefore);
+    }
+
+    public static class DebugEntry implements Supplier<CommandChange.Builder>
+    {
+        public final long segment;
+        public final int position;
+        public final Builder builder;
+
+        public DebugEntry(long segment, int position, Builder builder)
+        {
+            this.segment = segment;
+            this.position = position;
+            this.builder = builder;
+        }
+
+        @Override
+        public CommandChange.Builder get()
+        {
+            return builder;
+        }
+    }
+
+    @Override
+    public List<DebugEntry> debugCommand(int commandStoreId, TxnId txnId)
+    {
+        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
+        List<DebugEntry> result = new ArrayList<>();
+        journalTable.readAll(key, (long segment, int position, JournalKey k, ByteBuffer buffer, int userVersion) -> {
+            Builder builder = new Builder(txnId);
+            new AccordJournalTable.RecordConsumerAdapter<>(builder::deserializeNext).accept(segment, position, k, buffer, userVersion);
+            result.add(new DebugEntry(segment, position, builder));
+        });
+        return result;
     }
 
     @Override
