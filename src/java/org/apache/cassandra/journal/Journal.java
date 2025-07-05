@@ -123,6 +123,8 @@ public class Journal<K, V> implements Shutdownable
 
     final OpOrder readOrder = new OpOrder();
 
+    private static boolean closeAllJournalSegments = true;
+
     private class FlusherCallbacks implements Flusher.Callbacks
     {
         private final MpscUnboundedArrayQueue<WaitingFor> waitingFor = new MpscUnboundedArrayQueue<>(256);
@@ -250,6 +252,12 @@ public class Journal<K, V> implements Shutdownable
         return state.get() == State.TERMINATED;
     }
 
+    @VisibleForTesting
+    public static boolean closeAllJournalSegmentsEnabled()
+    {
+        return closeAllJournalSegments;
+    }
+
     public void shutdown()
     {
         try
@@ -264,7 +272,9 @@ public class Journal<K, V> implements Shutdownable
             compactor.shutdown();
             compactor.awaitTermination(1, TimeUnit.MINUTES);
             flusher.shutdown();
-            closeAllSegments();
+            if (closeAllJournalSegmentsEnabled()) {
+                closeAllSegments();
+            }
             releaser.shutdown();
             closer.shutdown();
             closer.awaitTermination(1, TimeUnit.MINUTES);
