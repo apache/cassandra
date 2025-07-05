@@ -29,16 +29,20 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.SyntaxError;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.serializers.BooleanSerializer;
 import org.apache.cassandra.serializers.Int32Serializer;
+import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -194,6 +198,46 @@ public class PreparedStatementsTest extends CQLTester
                       row(3, 4, 5));
         assertEquals(rs.getColumnDefinitions().size(), 3);
 
+        session.execute(dropKsStatement);
+    }
+
+    @Test
+    public void testInvalidatePreparedStatementOnAlterTableParamsV4()
+    {
+        testInvalidPreparedStatementsOnTableParamsChange(ProtocolVersion.V4);
+    }
+
+    @Test
+    public void testInvalidatePreparedStatementOnAlterTableParamsV5()
+    {
+        testInvalidPreparedStatementsOnTableParamsChange(ProtocolVersion.V5);
+    }
+
+    private void testInvalidPreparedStatementsOnTableParamsChange(ProtocolVersion version)
+    {
+        Paxos.setPaxosVariant(Config.PaxosVariant.v2);
+        DatabaseDescriptor.setMaterializedViewStrictConsistencyEnabled(true);
+        DatabaseDescriptor.getGuardrailsConfig().setMaterializedViewsPerTableThreshold(2, 2);
+        reinitializeNetwork();
+        Session session = sessionNet(version);
+
+        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int);";
+        String alterTableStatement1 = "ALTER TABLE " + KEYSPACE + ".qp_cleanup WITH strict_mv_consistency = true";
+        String alterTableStatement2 = "ALTER TABLE " + KEYSPACE + ".qp_cleanup WITH strict_mv_consistency = false";
+
+        session.execute(dropKsStatement);
+        session.execute(createKsStatement);
+        session.execute(createTableStatement);
+
+        String selectString = "SELECT a, b, c FROM " + KEYSPACE + ".qp_cleanup";
+        session.prepare(selectString);
+        assertEquals(1, QueryProcessor.preparedStatementsCount());
+        session.execute(alterTableStatement1);
+        assertEquals(0, QueryProcessor.preparedStatementsCount());
+        session.prepare(selectString);
+        assertEquals(1, QueryProcessor.preparedStatementsCount());
+        session.execute(alterTableStatement2);
+        assertEquals(0, QueryProcessor.preparedStatementsCount());
         session.execute(dropKsStatement);
     }
 

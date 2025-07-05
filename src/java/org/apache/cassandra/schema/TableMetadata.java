@@ -560,6 +560,7 @@ public class TableMetadata implements SchemaElement
             || !indexes.equals(updated.indexes)
             || params.defaultTimeToLive != updated.params.defaultTimeToLive
             || params.gcGraceSeconds != updated.params.gcGraceSeconds
+            || params.strictMVConsistency != updated.params.strictMVConsistency
             || ( !Flag.isCQLTable(flags) && Flag.isCQLTable(updated.flags) );
     }
 
