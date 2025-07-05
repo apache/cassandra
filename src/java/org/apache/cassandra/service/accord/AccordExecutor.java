@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
@@ -62,6 +64,7 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.service.accord.AccordCache.CommandAdapter.COMMAND_ADAPTER;
@@ -137,6 +140,8 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     private final AccordCacheEntry.OnLoaded onRangeLoaded = this::onRangeLoaded;
     private final ExclusiveGlobalCaches caches;
+
+    private List<Condition> waitingForQuiescence;
 
     /**
      * The maximum total number of loads we can queue at once - this includes loads for range transactions,
@@ -222,6 +227,36 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     public Stream<? extends DebuggableTaskRunner> active()
     {
         return Stream.of();
+    }
+
+    public void waitForQuiescence()
+    {
+        Condition condition;
+        lock.lock();
+        try
+        {
+            if (tasks == 0 && running == 0)
+                return;
+
+            if (waitingForQuiescence == null)
+                waitingForQuiescence = new ArrayList<>();
+            condition = Condition.newOneTimeCondition();
+            waitingForQuiescence.add(condition);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+        condition.awaitThrowUncheckedOnInterrupt();
+    }
+
+    protected void signalQuiescentExclusive()
+    {
+        if (waitingForQuiescence != null)
+        {
+            waitingForQuiescence.forEach(Condition::signalAll);
+            waitingForQuiescence = null;
+        }
     }
 
     void maybeUnpauseLoading()

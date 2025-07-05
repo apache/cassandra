@@ -17,11 +17,8 @@
  */
 package org.apache.cassandra.service.accord;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import accord.api.Agent;
@@ -46,7 +43,6 @@ import org.apache.cassandra.metrics.CacheSizeMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_PER_SHARD;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueShardCount;
@@ -229,38 +225,8 @@ public class AccordCommandStores extends CommandStores implements CacheSize
 
     public void waitForQuiescense()
     {
-        boolean runAgain = true;
-        try
-        {
-            while (true)
-            {
-                boolean hasTasks = false;
-                List<Future<?>> futures = new ArrayList<>();
-                for (AccordExecutor executor : this.executors)
-                {
-                    hasTasks |= executor.hasTasks();
-                    hasTasks |= Stage.MUTATION.executor().getPendingTaskCount() > 0;
-                    hasTasks |= Stage.MUTATION.executor().getActiveTaskCount() > 0;
-                    futures.add(executor.submit(() -> {}));
-                }
-                for (Future<?> future : futures)
-                    future.get();
-                futures.clear();
-
-                if (!runAgain)
-                    return;
-                
-                runAgain = hasTasks;
-            }
-        }
-        catch (ExecutionException e)
-        {
-            throw new IllegalStateException("Should have never been thrown", e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException(e);
-        }
+        for (AccordExecutor executor : this.executors)
+            executor.waitForQuiescence();
     }
 
     @Override

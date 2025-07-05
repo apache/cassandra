@@ -70,7 +70,6 @@ class AccordExecutorSimple extends AccordExecutor
         Invariants.requireArgument(threads == 1);
         this.lock = lock;
         this.executor = executorFactory().sequential(name.apply(0));
-
     }
 
     @Override
@@ -89,7 +88,11 @@ class AccordExecutorSimple extends AccordExecutor
             {
                 Task task = pollWaitingToRunExclusive();
                 if (task == null)
+                {
+                    running = 0;
+                    signalQuiescentExclusive();
                     return;
+                }
 
                 --tasks;
                 try { task.preRunExclusive(null); task.run(); }

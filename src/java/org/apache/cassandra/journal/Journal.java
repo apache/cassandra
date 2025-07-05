@@ -946,7 +946,7 @@ public class Journal<K, V> implements Shutdownable
      */
     public static class KeyRefs<K>
     {
-        long segments[];
+        long[] segments;
         K key;
         int size;
 
@@ -964,6 +964,11 @@ public class Journal<K, V> implements Shutdownable
         {
             for (int i = 0; i < size; i++)
                 consumer.accept(segments[i]);
+        }
+
+        public long[] copyOfSegments()
+        {
+            return segments == null ? new long[0] : Arrays.copyOf(segments, size);
         }
 
         public K key()
