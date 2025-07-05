@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
@@ -52,7 +53,6 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.PersistentField;
 import accord.utils.UnhandledEnum;
-import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -70,6 +70,7 @@ import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
+import org.apache.cassandra.service.accord.AccordCommandStore.AccordCommandStoreLoader;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
@@ -82,6 +83,8 @@ import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static accord.impl.CommandChange.Field.CLEANUP;
 import static accord.impl.CommandChange.anyFieldChanged;
@@ -484,6 +487,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public void replay(CommandStores commandStores)
     {
+        final Semaphore concurrency = Semaphore.newSemaphore(FBUtilities.getAvailableProcessors());
+        final ConcurrentLinkedQueue<Throwable> failures = new ConcurrentLinkedQueue<>();
+
         try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
         {
             JournalKey prev = null;
@@ -493,8 +499,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
                 if (ref.key().type != JournalKey.Type.COMMAND_DIFF)
                     continue;
+
                 CommandStore commandStore = commandStores.forId(ref.key().commandStoreId);
-                Loader loader = commandStore.loader();
+                AccordCommandStoreLoader loader = (AccordCommandStoreLoader) commandStore.loader();
                 TxnId txnId = ref.key().id;
                 try
                 {
@@ -503,19 +510,29 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                        ref.key().id.compareTo(prev.id) != 0,
                                        "duplicate key detected %s == %s", ref.key(), prev);
                     prev = ref.key();
-                    AsyncChains.getUnchecked(loader.load(txnId)
-                                                   .map(command -> {
-                                                       if (journalTable.shouldIndex(ref.key())
-                                                           && command.participants() != null
-                                                           && command.participants().route() != null)
-                                                       {
-                                                           ref.segments(segment -> {
-                                                               journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, txnId, command.participants().route()));
-                                                           });
-                                                       }
-                                                       return command;
-                                                   })
-                                                   .beginAsResult());
+
+                    Throwable rethrow = failures.poll();
+                    if (rethrow != null)
+                        throw rethrow;
+
+                    concurrency.acquireThrowUncheckedOnInterrupt(1);
+                    loader.load(txnId)
+                          .map(route -> {
+                              if (journalTable.shouldIndex(ref.key()))
+                              {
+                                  ref.segments(segment -> {
+                                      journalTable.safeNotify(index -> index.update(segment, ref.key().commandStoreId, txnId, route));
+                                  });
+                              }
+                              return null;
+                          }).begin((success, fail) -> {
+                              concurrency.release(1);
+                              if (fail != null)
+                              {
+                                  try { journal.handleError("Could not replay command " + ref.key().id, fail); }
+                                  catch (Throwable fail2) { failures.add(fail2); }
+                              }
+                          });
                 }
                 catch (Throwable t)
                 {

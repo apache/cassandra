@@ -125,7 +125,8 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     private void pauseExclusive()
     {
         isHeldByExecutor = false;
-        --running;
+        if (--running == 0 && tasks == 0)
+            signalQuiescentExclusive();
     }
 
     private void resumeExclusive()
@@ -234,6 +235,8 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                                 break;
                             }
 
+                            pauseExclusive();
+
                             if (shutdown)
                             {
                                 exitLockExclusive();
@@ -241,7 +244,6 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                                 return;
                             }
 
-                            pauseExclusive();
                             awaitExclusive();
                             resumeExclusive();
                         }

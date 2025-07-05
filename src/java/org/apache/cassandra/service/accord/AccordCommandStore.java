@@ -45,7 +45,6 @@ import accord.impl.AbstractSafeCommandStore.CommandStoreCaches;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
-import accord.local.Commands;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
@@ -55,6 +54,7 @@ import accord.primitives.PartialTxn;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
+import accord.primitives.Route;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -71,7 +71,6 @@ import org.apache.cassandra.utils.Clock;
 import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
 import static accord.api.Journal.Load.MINIMAL;
-import static accord.api.Journal.Loader;
 import static accord.utils.Invariants.require;
 
 public class AccordCommandStore extends CommandStore
@@ -153,7 +152,7 @@ public class AccordCommandStore extends CommandStore
 
     private AccordSafeCommandStore current;
 
-    private final CommandStoreLoader loader;
+    private final AccordCommandStoreLoader loader;
 
     public AccordCommandStore(int id,
                               NodeCommandStoreService node,
@@ -182,7 +181,7 @@ public class AccordCommandStore extends CommandStore
 
         this.exclusiveExecutor = sharedExecutor.executor();
         this.commandsForRanges = new CommandsForRanges.Manager(this);
-        this.loader = new CommandStoreLoader(this);
+        this.loader = new AccordCommandStoreLoader(this);
 
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
@@ -485,7 +484,7 @@ public class AccordCommandStore extends CommandStore
         return rangeSearcher;
     }
 
-    public Loader loader()
+    public AccordCommandStoreLoader loader()
     {
         return loader;
     }
@@ -496,23 +495,21 @@ public class AccordCommandStore extends CommandStore
         super.unsafeUpsertRedundantBefore(addRedundantBefore);
     }
 
-    private static class CommandStoreLoader extends AbstractLoader
+    public static class AccordCommandStoreLoader extends AbstractLoader
     {
         private final AccordCommandStore store;
 
-        private CommandStoreLoader(AccordCommandStore store)
+        private AccordCommandStoreLoader(AccordCommandStore store)
         {
             this.store = store;
         }
 
         @Override
-        public AsyncChain<Command> load(TxnId txnId)
+        public AsyncChain<Route> load(TxnId txnId)
         {
             return store.submit(txnId, safeStore -> {
-                maybeApplyWrites(txnId, safeStore, (safeCommand, cmd) -> {
-                    Commands.applyWrites(safeStore, txnId, cmd).begin(store.agent);
-                });
-                return safeStore.unsafeGet(txnId).current();
+                maybeApplyWrites(safeStore, txnId);
+                return safeStore.unsafeGet(txnId).current().route();
             });
         }
     }
