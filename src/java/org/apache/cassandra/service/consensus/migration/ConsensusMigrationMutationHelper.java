@@ -307,9 +307,9 @@ public class ConsensusMigrationMutationHelper
         for (PartitionUpdate pu : mutation.getPartitionUpdates())
         {
             TableId tableId = pu.metadata().id;
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
             if (tokenShouldBeWrittenThroughAccord(cm, tableId, dk.getToken(), TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord))
             {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
                 throwRetryOnDifferentSystem = true;
                 if (markedColumnFamilies == null)
                     markedColumnFamilies = new HashSet<>();

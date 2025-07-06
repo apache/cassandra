@@ -33,6 +33,7 @@ import org.apache.cassandra.io.sstable.format.SortedTableScrubber;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -105,6 +106,7 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
 
         DecoratedKey prevKey = null;
 
+        TableMetadata tableMetadata = cfs.metadata.getLocal();
         while (!dataFile.isEOF())
         {
             if (scrubInfo.isStopRequested())
@@ -117,8 +119,8 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
             try
             {
                 ByteBuffer raw = ByteBufferUtil.readWithShortLength(dataFile);
-                if (!cfs.metadata.getLocal().isIndex())
-                    cfs.metadata.getLocal().partitionKeyType.validate(raw);
+                if (!tableMetadata.isIndex())
+                    tableMetadata.partitionKeyType.validate(raw);
                 key = sstable.decorateKey(raw);
             }
             catch (Throwable th)
@@ -181,8 +183,8 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
                     key = sstable.decorateKey(currentIndexKey);
                     try
                     {
-                        if (!cfs.metadata.getLocal().isIndex())
-                            cfs.metadata.getLocal().partitionKeyType.validate(key.getKey());
+                        if (!tableMetadata.isIndex())
+                            tableMetadata.partitionKeyType.validate(key.getKey());
                         dataFile.seek(dataStartFromIndex);
 
                         if (tryAppend(prevKey, key, writer))

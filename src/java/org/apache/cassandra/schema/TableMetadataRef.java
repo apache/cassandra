@@ -19,6 +19,7 @@
 package org.apache.cassandra.schema;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
@@ -32,6 +33,20 @@ public class TableMetadataRef
     public final String name;
 
     private volatile TableMetadata localTableMetadata;
+
+    private volatile TableMetadataCache cachedTableMetadata;
+
+    private static class TableMetadataCache
+    {
+        private final UUID lastSeenSchemaVersion;
+        private final TableMetadata tableMetadata;
+
+        private TableMetadataCache(UUID lastSeenSchemaVersion, TableMetadata tableMetadata)
+        {
+            this.lastSeenSchemaVersion = lastSeenSchemaVersion;
+            this.tableMetadata = tableMetadata;
+        }
+    }
 
     public static TableMetadataRef forIndex(SchemaProvider schema, TableMetadata initial, String keyspace, String name, TableId id)
     {
@@ -118,7 +133,7 @@ public class TableMetadataRef
 
     public TableMetadata get()
     {
-        TableMetadata metadata = schema.getTableMetadata(keyspace, name);
+        TableMetadata metadata = getWithCaching();
         if (metadata == null)
             throw new IllegalStateException(format("Can't deref metadata for %s.%s.", keyspace, name));
         return metadata;
@@ -126,12 +141,35 @@ public class TableMetadataRef
 
     public TableMetadata getOrDefault(TableMetadata dflt)
     {
-        TableMetadata tableMetadata = schema.getTableMetadata(keyspace, name);
+        TableMetadata tableMetadata = getWithCaching();
 
         if (tableMetadata == null)
             return dflt;
 
         return tableMetadata;
+    }
+
+    private TableMetadata getWithCaching()
+    {
+        UUID schemaVersion = schema.getVersion();
+        if (schemaVersion == null)
+            return schema.getTableMetadata(keyspace, name);
+
+        TableMetadataCache cache = cachedTableMetadata;
+        // we assume that local keyspaces and virtual keyspaces are immutable, so we need to track only a distributed schema version
+        TableMetadata metadata;
+        if (cache != null && schemaVersion.equals(cache.lastSeenSchemaVersion) && cache.tableMetadata != null)
+            metadata = cache.tableMetadata;
+        else
+        {
+            // we always retrieve metadata after schema version and assume they are changed coherently
+            // we may put new metadata + old schema version to the cache but not vice versa
+            // it we put non-latest schema version + latest metadata then it will be just updated on the next get() invocation
+            metadata = schema.getTableMetadata(keyspace, name);
+            if (metadata != null)
+                cachedTableMetadata = new TableMetadataCache(schemaVersion, metadata);
+        }
+        return metadata;
     }
 
     /**
