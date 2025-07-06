@@ -448,6 +448,8 @@ public class TrieMemtable extends AbstractShardedMemtable
 
         return new AbstractFlushablePartitionSet<MemtablePartition>()
         {
+            private final TableMetadata tableMetadata = TrieMemtable.this.metadata();
+
             public Memtable memtable()
             {
                 return TrieMemtable.this;
@@ -479,6 +481,12 @@ public class TrieMemtable extends AbstractShardedMemtable
             public long partitionKeysSize()
             {
                 return partitionKeySize;
+            }
+
+            @Override
+            public TableMetadata metadata()
+            {
+                return tableMetadata;
             }
         };
     }

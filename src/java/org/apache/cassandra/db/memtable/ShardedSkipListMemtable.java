@@ -284,6 +284,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
     {
         long keySize = 0;
         int keyCount = 0;
+        TableMetadata currentTableMetadata = metadata();
 
         for (Iterator<AtomicBTreePartition> it = getPartitionIterator(from, true, to,false); it.hasNext();)
         {
@@ -297,6 +298,8 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
 
         return new AbstractFlushablePartitionSet<AtomicBTreePartition>()
         {
+            private final TableMetadata tableMetadata = currentTableMetadata;
+
             public Memtable memtable()
             {
                 return ShardedSkipListMemtable.this;
@@ -325,6 +328,12 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             public long partitionKeysSize()
             {
                 return partitionKeySize;
+            }
+
+            @Override
+            public TableMetadata metadata()
+            {
+                return tableMetadata;
             }
         };
     }

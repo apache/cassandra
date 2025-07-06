@@ -41,6 +41,7 @@ import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Throwables;
@@ -163,11 +164,12 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
 
         try (KeyReader keyReader = createKeyReader(statsMetadata))
         {
-            bf = FilterFactory.getFilter(statsMetadata.totalRows, tableMetadataRef.getLocal().params.bloomFilterFpChance);
+            TableMetadata tableMetadata = tableMetadataRef.getLocal();
+            bf = FilterFactory.getFilter(statsMetadata.totalRows, tableMetadata.params.bloomFilterFpChance);
 
             while (!keyReader.isExhausted())
             {
-                DecoratedKey key = tableMetadataRef.getLocal().partitioner.decorateKey(keyReader.key());
+                DecoratedKey key = tableMetadata.partitioner.decorateKey(keyReader.key());
                 bf.add(key);
 
                 keyReader.advance();

@@ -51,7 +51,10 @@ public interface SchemaProvider
 
     default UUID getVersion()
     {
-        return ClusterMetadata.current().schema.getVersion();
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
+        if (metadata == null)
+            return null;
+        return metadata.schema.getVersion();
     }
 
     Keyspaces localKeyspaces();
