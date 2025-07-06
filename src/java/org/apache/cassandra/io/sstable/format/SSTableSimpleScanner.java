@@ -48,6 +48,8 @@ implements ISSTableScanner
     private final RandomAccessReader dfile;
     private final SSTableReader sstable;
 
+    private final TableMetadata tableMetadata;
+
     private final Iterator<PartitionPositionBounds> rangeIterator;
 
     private long bytesScannedInPreviousRanges;
@@ -75,6 +77,7 @@ implements ISSTableScanner
 
         this.dfile = sstable.openDataReaderForScan();
         this.sstable = sstable;
+        this.tableMetadata = sstable.metadata();
         this.sizeInBytes = boundsList.stream().mapToLong(ppb -> ppb.upperPosition - ppb.lowerPosition).sum();
         this.compressedSizeInBytes = sstable.compression ? sstable.onDiskSizeForPartitionPositions(boundsList) : sizeInBytes;
         this.rangeIterator = boundsList.iterator();
@@ -190,7 +193,7 @@ implements ISSTableScanner
         if (!hasNext())
             throw new NoSuchElementException();
 
-        currentIterator = SSTableIdentityIterator.create(sstable, dfile, false);
+        currentIterator = SSTableIdentityIterator.create(sstable, tableMetadata, dfile, false);
         DecoratedKey currentKey = currentIterator.partitionKey();
         if (lastKey != null && lastKey.compareTo(currentKey) >= 0)
         {

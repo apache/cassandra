@@ -62,13 +62,18 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public static SSTableIdentityIterator create(SSTableReader sstable, RandomAccessReader file, DecoratedKey key)
     {
+        return create(sstable, sstable.metadata(), file, key);
+    }
+
+    public static SSTableIdentityIterator create(SSTableReader sstable, TableMetadata tableMetadata, RandomAccessReader file, DecoratedKey key)
+    {
         try
         {
             DeletionTime partitionLevelDeletion = DeletionTime.getSerializer(sstable.descriptor.version).deserialize(file);
             if (!partitionLevelDeletion.validate())
-                UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
-            DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
-            SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata(), file, sstable.header, helper, partitionLevelDeletion);
+                UnfilteredValidation.handleInvalid(tableMetadata, key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
+            DeserializationHelper helper = new DeserializationHelper(tableMetadata, sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
+            SSTableSimpleIterator iterator = SSTableSimpleIterator.create(tableMetadata, file, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, file.getPath(), iterator);
         }
         catch (IOException e)
@@ -85,18 +90,23 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, long dataPosition, DecoratedKey key, boolean tombstoneOnly)
     {
+        return create(sstable, sstable.metadata(), dfile, dataPosition, key, tombstoneOnly);
+    }
+
+    public static SSTableIdentityIterator create(SSTableReader sstable, TableMetadata tableMetadata, FileDataInput dfile, long dataPosition, DecoratedKey key, boolean tombstoneOnly)
+    {
         try
         {
             dfile.seek(dataPosition);
             ByteBufferUtil.skipShortLength(dfile); // Skip partition key
             DeletionTime partitionLevelDeletion = DeletionTime.getSerializer(sstable.descriptor.version).deserialize(dfile);
             if (!partitionLevelDeletion.validate())
-                UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
+                UnfilteredValidation.handleInvalid(tableMetadata, key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
 
-            DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
+            DeserializationHelper helper = new DeserializationHelper(tableMetadata, sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = tombstoneOnly
-                    ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)
-                    : SSTableSimpleIterator.create(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion);
+                    ? SSTableSimpleIterator.createTombstoneOnly(tableMetadata, dfile, sstable.header, helper, partitionLevelDeletion)
+                    : SSTableSimpleIterator.create(tableMetadata, dfile, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, dfile.getPath(), iterator);
         }
         catch (IOException e)
@@ -113,17 +123,22 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, boolean tombstoneOnly)
     {
+        return create(sstable, sstable.metadata(), dfile, tombstoneOnly);
+    }
+
+    public static SSTableIdentityIterator create(SSTableReader sstable, TableMetadata tableMetadata, FileDataInput dfile, boolean tombstoneOnly)
+    {
         try
         {
             DecoratedKey key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dfile));
             DeletionTime partitionLevelDeletion = DeletionTime.getSerializer(sstable.descriptor.version).deserialize(dfile);
             if (!partitionLevelDeletion.validate())
-                UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
+                UnfilteredValidation.handleInvalid(tableMetadata, key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
 
-            DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
+            DeserializationHelper helper = new DeserializationHelper(tableMetadata, sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = tombstoneOnly
-                                             ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)
-                                             : SSTableSimpleIterator.create(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion);
+                                             ? SSTableSimpleIterator.createTombstoneOnly(tableMetadata, dfile, sstable.header, helper, partitionLevelDeletion)
+                                             : SSTableSimpleIterator.create(tableMetadata, dfile, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, dfile.getPath(), iterator);
         }
         catch (IOException e)
