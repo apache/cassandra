@@ -20,13 +20,13 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.BitSet;
 import java.util.List;
 
 import accord.local.Node;
 import accord.primitives.Range;
 import accord.topology.Shard;
 import accord.topology.Topology;
+import accord.utils.SimpleBitSet;
 import accord.utils.SortedArrays;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
@@ -37,12 +37,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.utils.ArraySerializers;
-import org.apache.cassandra.utils.BitSetSerializer;
-import org.apache.cassandra.utils.CollectionSerializers;
-import org.apache.cassandra.utils.ImmutableUniqueList;
+import org.apache.cassandra.utils.*;
 
-import static accord.utils.SortedArrays.fromBitSet;
+import static accord.utils.SortedArrays.fromSimpleBitSet;
 
 public class TopologySerializers
 {
@@ -207,10 +204,10 @@ public class TopologySerializers
                 out.writeUnsignedVInt32(rangeIdx);
 
                 CollectionSerializers.serializeList(shard.nodes, out, TopologySerializers.nodeId);
-                BitSet notInFastPath = SortedArrays.toBitSet(shard.nodes, shard.notInFastPath);
-                BitSetSerializer.instance.serialize(notInFastPath, out);
-                BitSet joining = SortedArrays.toBitSet(shard.nodes, shard.joining);
-                BitSetSerializer.instance.serialize(joining, out);
+                SimpleBitSet notInFastPath = SortedArrays.toSimpleBitSet(shard.nodes, shard.notInFastPath);
+                SimpleBitSetSerializer.instance.serialize(notInFastPath, out);
+                SimpleBitSet joining = SortedArrays.toSimpleBitSet(shard.nodes, shard.joining);
+                SimpleBitSetSerializer.instance.serialize(joining, out);
                 out.writeUnsignedVInt32(shard.flags().bitset());
             }
         }
@@ -253,10 +250,10 @@ public class TopologySerializers
                 size += TypeSizes.sizeofUnsignedVInt(rangeIdx);
 
                 size += CollectionSerializers.serializedListSize(shard.nodes, TopologySerializers.nodeId);
-                BitSet notInFastPath = SortedArrays.toBitSet(shard.nodes, shard.notInFastPath);
-                size += BitSetSerializer.instance.serializedSize(notInFastPath);
-                BitSet joining = SortedArrays.toBitSet(shard.nodes, shard.joining);
-                size += BitSetSerializer.instance.serializedSize(joining);
+                SimpleBitSet notInFastPath = SortedArrays.toSimpleBitSet(shard.nodes, shard.notInFastPath);
+                size += SimpleBitSetSerializer.instance.serializedSize(notInFastPath);
+                SimpleBitSet joining = SortedArrays.toSimpleBitSet(shard.nodes, shard.joining);
+                size += SimpleBitSetSerializer.instance.serializedSize(joining);
                 size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
             }
             return size;
@@ -282,10 +279,10 @@ public class TopologySerializers
                 TokenRange range = ranges.get(rangeIndex).withTable(tableId);
 
                 SortedArrays.SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
-                BitSet notInFastPath = BitSetSerializer.instance.deserialize(in);
-                BitSet joining = BitSetSerializer.instance.deserialize(in);
+                SimpleBitSet notInFastPath = SimpleBitSetSerializer.instance.deserialize(in);
+                SimpleBitSet joining = SimpleBitSetSerializer.instance.deserialize(in);
                 int flags = in.readUnsignedVInt32();
-                shards[i] = Shard.SerializerSupport.create(range, nodes, fromBitSet(nodes, notInFastPath, Node.Id[]::new), fromBitSet(nodes, joining, Node.Id[]::new), new TinyEnumSet<>(flags));
+                shards[i] = Shard.SerializerSupport.create(range, nodes, fromSimpleBitSet(nodes, notInFastPath, Node.Id[]::new), fromSimpleBitSet(nodes, joining, Node.Id[]::new), new TinyEnumSet<>(flags));
             }
             return new Topology(epoch, staleNodes, shards);
         }
