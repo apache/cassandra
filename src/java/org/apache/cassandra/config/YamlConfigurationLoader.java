@@ -41,6 +41,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.JsonUtils;
+import org.apache.cassandra.utils.LocalizeString;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
@@ -58,9 +60,11 @@ import org.yaml.snakeyaml.parser.ParserImpl;
 import org.yaml.snakeyaml.representer.Representer;
 import org.yaml.snakeyaml.resolver.Resolver;
 
+import static org.apache.cassandra.config.CassandraRelevantEnv.CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_OLD_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.Replacements.getNameReplacements;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
@@ -72,6 +76,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * system properties do not conflict with other system properties; the name "settings" matches system_views.settings.
      */
     static final String SYSTEM_PROPERTY_PREFIX = "cassandra.settings.";
+    static final String ENVIRONMENT_VARIABLE_PREFIX = "CASSANDRA_SETTINGS_";
+    public static final String NESTED_CONFIG_SEPARATOR = ".";
+    public static final String NESTED_CONFIG_SEPARATOR_ENVIRONMENT = "__";
 
     /**
      * Inspect the classpath to find storage configuration file
@@ -154,6 +161,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         Yaml yaml = new Yaml(constructor);
         Config result = loadConfig(yaml, configBytes);
         propertiesChecker.check();
+        maybeAddEnvironmentVariables(result);
         maybeAddSystemProperties(result);
         return result;
     }
@@ -163,18 +171,62 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         if (CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES.getBoolean())
         {
             java.util.Properties props = System.getProperties();
-            Map<String, String> map = new HashMap<>();
-            for (String name : props.stringPropertyNames())
+            Map<String, Object> map = new HashMap<>();
+            for (String originalKey : props.stringPropertyNames())
             {
-                if (name.startsWith(SYSTEM_PROPERTY_PREFIX))
+                if (originalKey.startsWith(SYSTEM_PROPERTY_PREFIX))
                 {
-                    String value = props.getProperty(name);
-                    if (value != null)
-                        map.put(name.replace(SYSTEM_PROPERTY_PREFIX, ""), value);
+                    String value = props.getProperty(originalKey);
+                    String configKey = originalKey.replace(SYSTEM_PROPERTY_PREFIX, "");
+                    if (value != null && !map.containsKey(configKey))
+                    {
+                        if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
+                            logger.warn("Detected JVM property {}={} override for cassandra configuration '{}' (ignored if setting does not exist).", originalKey, value, configKey);
+                        map.put(configKey, getScalarValueOrJsonObject(value));
+                    }
                 }
             }
             if (!map.isEmpty())
                 updateFromMap(map, false, obj);
+        }
+    }
+
+    private static void maybeAddEnvironmentVariables(Object obj)
+    {
+        if (CONFIG_ALLOW_ENVIRONMENT_VARIABLES.getBoolean(CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getBooleanOrDefault(false)))
+        {
+            Map<String, String> environment = System.getenv(); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+            Map<String, Object> configOverrides = new HashMap<>();
+            for (Map.Entry<String, String> env : environment.entrySet())
+            {
+                String originalKey = env.getKey();
+                if (env.getKey().startsWith(ENVIRONMENT_VARIABLE_PREFIX))
+                {
+                    String configKey = LocalizeString.toLowerCaseLocalized(originalKey.replace(ENVIRONMENT_VARIABLE_PREFIX, "")
+                                                                                      .replace(NESTED_CONFIG_SEPARATOR_ENVIRONMENT, NESTED_CONFIG_SEPARATOR));
+                    String configValue = env.getValue();
+                    // TODO: do not include config if it is not a valid config key
+                    if (configValue != null && !configOverrides.containsKey(configKey))
+                    {
+                        if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
+                            logger.warn("Detected environment variable {}={} override for cassandra configuration '{}' (ignored if setting does not exist).", originalKey, configValue, configKey);
+                        configOverrides.put(configKey, getScalarValueOrJsonObject(configValue));
+                    }
+                }
+            }
+            if (!configOverrides.isEmpty())
+                updateFromMap(configOverrides, false, obj);
+        }
+    }
+
+    private static Object getScalarValueOrJsonObject(String value)
+    {
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.readValue(value, Object.class);
+        } catch (Exception e)
+        {
+            return value;
         }
     }
 
@@ -237,6 +289,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         T value = (T) constructor.getSingleData(klass);
         if (shouldCheck)
             propertiesChecker.check();
+        maybeAddEnvironmentVariables(value);
         maybeAddSystemProperties(value);
         return value;
     }
@@ -413,7 +466,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private Property getProperty0(Class<? extends Object> type, String name)
         {
-            if (name.contains("."))
+            if (name.contains(NESTED_CONFIG_SEPARATOR))
                 return getNestedProperty(type, name);
             return getFlatProperty(type, name);
         }

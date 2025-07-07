@@ -184,6 +184,7 @@ public enum CassandraRelevantProperties
      * Default is set to false.
      */
     COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH("com.sun.management.jmxremote.ssl.need.client.auth"),
+    CONFIG_ALLOW_ENVIRONMENT_VARIABLES("cassandra.config.allow_environment_variables"),
     /** Defaults to false for 4.1 but plan to switch to true in a later release the thinking is that environments
      * may not work right off the bat so safer to add this feature disabled by default */
     CONFIG_ALLOW_SYSTEM_PROPERTIES("cassandra.config.allow_system_properties"),
