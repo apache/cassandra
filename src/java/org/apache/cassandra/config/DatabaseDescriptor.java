@@ -476,6 +476,11 @@ public class DatabaseDescriptor
         return conf;
     }
 
+    public static boolean hasLoggedConfig()
+    {
+        return hasLoggedConfig;
+    }
+
     @VisibleForTesting
     public static Config loadConfig() throws ConfigurationException
     {

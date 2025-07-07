@@ -43,6 +43,22 @@
 # The directory location of the cassandra.yaml file.
 #-Dcassandra.config=directory
 
+# Allow cassandra.yaml settings to be overriden via JVM properties
+# When this setting is enabled, cassandra.yaml settings can be overriden via JVM properties in the format -Dcassandra.settings.<cassandra_yaml_property_name>
+# For example, override cassandra.yaml property 'cdc_enabled' via JVM property -Dcassandra.settings.cdc_enabled
+# Nested properties can be specified using '.' as separator, for example: -Dcassandra.settings.replica_filtering_protection.cached_rows_warn_threshold
+# Complex property values should be specified as a JSON string, for example: -Dcassandra.settings.table_properties_warned="[\"sstable_preemptive_open_interval_in_mb\", \"index_summary_resize_interval_in_minutes\"]"
+#-Dcassandra.config.allow_system_properties=true
+
+# Allow cassandra.yaml settings to be overriden via environment variables
+# When this setting is enabled, cassandra.yaml settings can be overriden via environment variables in the format 'CASSANDRA_SETTINGS_<CASSANDRA_YAML_PROPERTY_NAME>'
+# For example, override cassandra.yaml property 'cdc_enabled' via env var: export CASSANDRA_SETTINGS_CDC_ENABLED=true
+# Nested properties can be specified using '__' as separator, for example: export CASSANDRA_SETTINGS_REPLICA_FILTERING_PROTECTION__CACHED_ROWS_WARN_THRESHOLD=1000
+# Complex property values should be specified as a JSON string, for example: export CASSANDRA_SETTINGS_TABLE_PROPERTIES_WARNED='["bloom_filter_fp_chance", "default_time_to_live"]'
+# This feature can also be enabled via the CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES environment variable via export CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES=true'
+# The system property has precedence over the environment variable when both are specified.
+#-Dcassandra.config.allow_environment_variables=true
+
 # Sets the initial partitioner token for a node the first time the node is started.
 #-Dcassandra.initial_token=token
 

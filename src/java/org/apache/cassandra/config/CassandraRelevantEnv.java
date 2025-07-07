@@ -21,6 +21,7 @@ package org.apache.cassandra.config;
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 
 import java.util.Arrays;
+import java.util.Optional;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -38,6 +39,10 @@ public enum CassandraRelevantEnv
     /** By default, the standard Cassandra CLI layout is used for backward compatibility, however,
      * the new Picocli layout can be enabled by setting this property to the {@code "picocli"}. */
     CASSANDRA_CLI_LAYOUT("CASSANDRA_CLI_LAYOUT"),
+    /**
+     * Allow overriding
+     */
+    CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES("CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES")
     ;
 
     CassandraRelevantEnv(String key)
@@ -59,6 +64,11 @@ public enum CassandraRelevantEnv
     public boolean getBoolean()
     {
         return Boolean.parseBoolean(System.getenv(key));
+    }
+
+    public boolean getBooleanOrDefault(boolean defaultValue)
+    {
+        return Optional.ofNullable(System.getenv(key)).map(Boolean::parseBoolean).orElse(defaultValue);
     }
 
     public String getKey() {
