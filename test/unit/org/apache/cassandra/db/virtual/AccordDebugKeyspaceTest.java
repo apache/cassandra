@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -146,7 +147,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         try
         {
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
-            var accord = accord();
+            AccordService accord = accord();
             DatabaseDescriptor.getAccord().fetch_txn = "1s";
             TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
             Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
@@ -210,7 +211,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
     public void completedTxn() throws ExecutionException, InterruptedException
     {
         String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
-        var accord = accord();
+        AccordService accord = accord();
         TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
         Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
         AsyncChains.getBlocking(accord.node().coordinate(id, txn));
@@ -218,18 +219,19 @@ public class AccordDebugKeyspaceTest extends CQLTester
         spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
                                           row(id.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name()))));
         assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), "Applied"));
-        assertRows(execute(QUERY_JOURNAL, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), "null"));
+        assertRows(execute(QUERY_JOURNAL, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), null));
     }
 
     @Test
     public void inflight() throws ExecutionException, InterruptedException
     {
+        ProtocolModifiers.Toggles.setPermitLocalExecution(false);
         AccordMsgFilter filter = new AccordMsgFilter();
         MessagingService.instance().outboundSink.add(filter);
         try
         {
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
-            var accord = accord();
+            AccordService accord = accord();
             TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
             String insertTxn = String.format("BEGIN TRANSACTION\n" +
                                              "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
@@ -241,7 +243,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
             accord.node().coordinate(id, txn);
 
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
-
             assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
                        row(id.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.PreAccepted.name(), SaveStatus.ReadyToExecute.name())));
 
@@ -251,6 +252,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         }
         finally
         {
+            filter.reset();
             MessagingService.instance().outboundSink.remove(filter);
         }
     }
@@ -265,7 +267,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         try
         {
             String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
-            var accord = accord();
+            AccordService accord = accord();
             TxnId first = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
             String insertTxn = String.format("BEGIN TRANSACTION\n" +
                                              "    LET r = (SELECT * FROM %s.%s WHERE k = ? AND c = ?);\n" +
@@ -301,6 +303,73 @@ public class AccordDebugKeyspaceTest extends CQLTester
         }
         finally
         {
+            filter.reset();
+            MessagingService.instance().outboundSink.remove(filter);
+        }
+    }
+
+    @Test
+    public void patchJournalVestigialTest()
+    {
+        testPatchJournal("ERASE_VESTIGIAL", "Vestigial");
+    }
+
+    @Test
+    public void patchJournalInvalidateTest()
+    {
+        testPatchJournal("INVALIDATE", "Invalidated");
+    }
+
+    @Test
+    public void patchJournalTruncateTest()
+    {
+        try
+        {
+            testPatchJournal("ERASE", "Erased");
+            Assert.fail("Should have thrown");
+        }
+        catch (Throwable t)
+        {
+            Assert.assertTrue(t.getMessage().contains("Unknown"));
+        }
+    }
+
+    private void testPatchJournal(String cleanupAction, String expectedStatus)
+    {
+        AccordMsgFilter filter = new AccordMsgFilter();
+        MessagingService.instance().outboundSink.add(filter);
+        try
+        {
+            String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode = 'full'");
+            String insertTxn = String.format("BEGIN TRANSACTION\n" +
+                                             "  INSERT INTO %s.%s (k, c, v) VALUES (?, ?, ?);\n" +
+                                             "COMMIT TRANSACTION",
+                                             KEYSPACE,
+                                             tableName);
+            AccordService accord = accord();
+            TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
+            accord.node().coordinate(id, createTxn(insertTxn, 0, 0, 0));
+
+            filter.preAccept.awaitThrowUncheckedOnInterrupt();
+            String QUERY_JOURNAL = String.format("SELECT txn_id, save_status, command_store_id FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.JOURNAL);
+            String QUERY_TXN = String.format("SELECT txn_id, save_status FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
+
+            UntypedResultSet rs = execute(QUERY_JOURNAL, id.toString());
+            assertRows(rs, row(id.toString(), "PreAccepted", anyNonNull()));
+
+            int commandStoreId = rs.one().getInt("command_store_id");
+            String PATCH_JOURNAL = String.format("UPDATE %s.%s SET cleanup = ? WHERE txn_id=? AND command_store_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_UPDATE);
+            execute(PATCH_JOURNAL, cleanupAction, id.toString(), commandStoreId);
+
+            assertRows(execute(QUERY_TXN, id.toString()),
+                       row(id.toString(), expectedStatus));
+            assertRows(execute(QUERY_JOURNAL, id.toString()),
+                       row(id.toString(), "PreAccepted", commandStoreId),
+                       row(id.toString(), expectedStatus, commandStoreId));
+        }
+        finally
+        {
+            filter.reset();
             MessagingService.instance().outboundSink.remove(filter);
         }
     }

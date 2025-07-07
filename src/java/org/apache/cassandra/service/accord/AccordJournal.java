@@ -349,6 +349,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             journal.onDurable(pointer, onFlush);
     }
 
+    public void patchCommand(int commandStoreId, TxnId txnId, Cleanup cleanup, @Nullable Runnable onFlush)
+    {
+        Builder change = new Builder(txnId);
+        change.maybeCleanup(false, cleanup);
+
+        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
+        RecordPointer pointer = journal.asyncWrite(key, (out, userVersion) -> change.serialize(out, Version.fromVersion(configuration().userVersion())));
+        if (onFlush != null)
+            journal.onDurable(pointer, onFlush);
+    }
+
     @Override
     public Iterator<AccordTopologyUpdate.ImmutableTopoloyImage> replayTopologies()
     {

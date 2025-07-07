@@ -19,6 +19,7 @@ package org.apache.cassandra.db.virtual;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
@@ -44,18 +45,24 @@ import accord.api.TraceEventType;
 import accord.impl.CommandChange;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.TxnStateKind;
+import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
+import accord.local.Commands;
 import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
+import accord.local.PreLoadContext;
 import accord.local.RejectBefore;
+import accord.local.SafeCommand;
+import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
 import accord.local.durability.ShardDurability;
 import accord.primitives.Participants;
 import accord.primitives.Status;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
@@ -96,8 +103,8 @@ import static accord.local.RedundantStatus.Property.LOCALLY_WITNESSED;
 import static accord.local.RedundantStatus.Property.MAJORITY_APPLIED;
 import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
 import static accord.local.RedundantStatus.Property.SHARD_APPLIED;
-import static java.lang.String.format;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
@@ -114,8 +121,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final String REDUNDANT_BEFORE   = "redundant_before";
     public static final String REJECT_BEFORE      = "reject_before";
     public static final String TXN_BLOCKED_BY     = "txn_blocked_by";
-    public static final String TXN                = "txn";
     public static final String JOURNAL            = "journal";
+    public static final String TXN                = "txn";
+    public static final String TXN_UPDATE         = "txn_update";
     public static final String TXN_TRACE          = "txn_trace";
     public static final String TXN_TRACES         = "txn_traces";
 
@@ -135,6 +143,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             new TxnBlockedByTable(),
             new TxnTable(),
             new JournalTable(),
+            new TxnUpdateTable(),
             new TxnTraceTable(),
             new TxnTracesTable()
         ));
@@ -820,21 +829,21 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             {
                 Command command = e.command;
                 ds.row(txnIdStr, e.commandStoreId)
-                  .column("save_status", Objects.toString(command.saveStatus()))
-                  .column("route", Objects.toString(command.route()))
+                  .column("save_status", toStringOrNull(command.saveStatus()))
+                  .column("route", toStringOrNull(command.route()))
                   .column("participants_owns", toStr(command, StoreParticipants::owns, StoreParticipants::stillOwns))
                   .column("participants_touches", toStr(command, StoreParticipants::touches, StoreParticipants::stillTouches))
-                  .column("participants_has_touched", Objects.toString(command.participants().hasTouched()))
+                  .column("participants_has_touched", toStringOrNull(command.participants().hasTouched()))
                   .column("participants_executes", toStr(command, StoreParticipants::executes, StoreParticipants::stillExecutes))
                   .column("participants_waits_on", toStr(command, StoreParticipants::waitsOn, StoreParticipants::stillWaitsOn))
-                  .column("durability", Objects.toString(command.durability()))
-                  .column("execute_at", Objects.toString(command.executeAt()))
-                  .column("executes_at_least", Objects.toString(command.executesAtLeast()))
-                  .column("txn", Objects.toString(command.partialTxn()))
-                  .column("deps", Objects.toString(command.partialDeps()))
-                  .column("waiting_on", Objects.toString(command.waitingOn()))
-                  .column("writes", Objects.toString(command.writes()))
-                  .column("result", Objects.toString(command.result()));
+                  .column("durability", toStringOrNull(command.durability()))
+                  .column("execute_at", toStringOrNull(command.executeAt()))
+                  .column("executes_at_least", toStringOrNull(command.executesAtLeast()))
+                  .column("txn", toStringOrNull(command.partialTxn()))
+                  .column("deps", toStringOrNull(command.partialDeps()))
+                  .column("waiting_on", toStringOrNull(command.waitingOn()))
+                  .column("writes", toStringOrNull(command.writes()))
+                  .column("result", toStringOrNull(command.result()));
             }
 
             return ds.getPartition(partitionKey);
@@ -926,20 +935,20 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 StoreParticipants participants = b.participants();
                 if (participants == null) participants = StoreParticipants.empty(txnId);
                 ds.row(txnIdStr, e.commandStoreId, e.segment, e.position)
-                  .column("save_status", Objects.toString(b.saveStatus()))
-                  .column("route", Objects.toString(participants.route()))
+                  .column("save_status", toStringOrNull(b.saveStatus()))
+                  .column("route", toStringOrNull(participants.route()))
                   .column("participants_owns", toStr(participants, StoreParticipants::owns, StoreParticipants::stillOwns))
                   .column("participants_touches", toStr(participants, StoreParticipants::touches, StoreParticipants::stillTouches))
-                  .column("participants_has_touched", Objects.toString(participants.hasTouched()))
+                  .column("participants_has_touched", toStringOrNull(participants.hasTouched()))
                   .column("participants_executes", toStr(participants, StoreParticipants::executes, StoreParticipants::stillExecutes))
                   .column("participants_waits_on", toStr(participants, StoreParticipants::waitsOn, StoreParticipants::stillWaitsOn))
-                  .column("durability", Objects.toString(b.durability()))
-                  .column("execute_at", Objects.toString(b.executeAt()))
-                  .column("executes_at_least", Objects.toString(b.executesAtLeast()))
-                  .column("txn", Objects.toString(b.partialTxn()))
-                  .column("deps", Objects.toString(b.partialDeps()))
-                  .column("writes", Objects.toString(b.writes()))
-                  .column("result", Objects.toString(b.result()));
+                  .column("durability", toStringOrNull(b.durability()))
+                  .column("execute_at", toStringOrNull(b.executeAt()))
+                  .column("executes_at_least", toStringOrNull(b.executesAtLeast()))
+                  .column("txn", toStringOrNull(b.partialTxn()))
+                  .column("deps", toStringOrNull(b.partialDeps()))
+                  .column("writes", toStringOrNull(b.writes()))
+                  .column("result", toStringOrNull(b.result()));
             }
 
             return ds.getPartition(partitionKey);
@@ -949,6 +958,98 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         public Iterator<Partition> getPartitions(DataRange range)
         {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Write-only virtual table for updating Accord command cleanup states, both in CommandStore and persist the change in Journal.
+     *
+     * Use nonnegative command_store_id to update a command on a specific store.
+     *
+     * Example queries:
+     *
+     *    UPDATE system_virtual_schema.accord_debug_txn_update SET cleanup = 'TRUNCATE' WHERE txn_id = '[11,1751902116570000,146(KW),1]' AND command_store_id = 5;
+     *
+     */
+    // Had to be separate from the "regular" journal table since it does not have segment and position, and command store id is inferred
+    // TODO (required): add access control
+    public static final class TxnUpdateTable extends AbstractMutableVirtualTable implements AbstractVirtualTable.DataSet
+    {
+        private static Set<String> ALLOWED = new HashSet<>(Arrays.asList("ERASE_VESTIGIAL", "INVALIDATE"));
+        private TxnUpdateTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, TXN_UPDATE,
+                        "Update Accord Command State",
+                        "CREATE TABLE %s (\n" +
+                        "  txn_id text,\n" +
+                        "  command_store_id int,\n" +
+                        "  cleanup text,\n" +
+                        "  PRIMARY KEY (txn_id, command_store_id)" +
+                        ')', UTF8Type.instance));
+        }
+
+        @Override
+        public DataSet data()
+        {
+            throw new UnsupportedOperationException(TXN_UPDATE + " is a write-only table");
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return true;
+        }
+
+        @Override
+        public Partition getPartition(DecoratedKey partitionKey)
+        {
+            throw new UnsupportedOperationException(TXN_UPDATE + " is a write-only table");
+        }
+
+        @Override
+        public Iterator<Partition> getPartitions(DataRange range)
+        {
+            throw new UnsupportedOperationException(TXN_UPDATE + " is a write-only table");
+        }
+
+
+        @Override
+        protected void applyColumnUpdate(ColumnValues partitionKey, ColumnValues clusteringColumns, Optional<ColumnValue> columnValue)
+        {
+            TxnId txnId = TxnId.parse(partitionKey.value(0));
+            Invariants.require(columnValue.isPresent());
+            Cleanup cleanup;
+            switch ((String) columnValue.get().value())
+            {
+                default: throw new IllegalStateException(String.format("Unknown Cleanup %s. Allowed: %s", columnValue.get().value(), ALLOWED));
+                case "ERASE_VESTIGIAL": cleanup = Cleanup.VESTIGIAL; break;
+                case "INVALIDATE": cleanup = Cleanup.INVALIDATE; break;
+            }
+
+            int commandStoreId = clusteringColumns.value(0);
+            Invariants.require(commandStoreId >= 0);
+
+            AccordService accord = (AccordService) AccordService.instance();
+            AsyncChains.awaitUninterruptibly(accord.node()
+                                                   .commandStores()
+                                                   .forId(commandStoreId)
+                                                   .submit(PreLoadContext.contextFor(txnId, "txn_update"), new Function<SafeCommandStore, Void>()
+                                                   {
+                                                       @Override
+                                                       public Void apply(SafeCommandStore safeStore)
+                                                       {
+                                                           SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                                                           Command command = safeCommand.current();
+                                                           Command updated = Commands.purge(safeStore,
+                                                                                            command,
+                                                                                            command.participants(),
+                                                                                            cleanup,
+                                                                                            true);
+                                                           safeCommand.update(safeStore, updated);
+                                                           return null;
+                                                       }
+                                                   })
+                                                   .beginAsResult());
         }
     }
 
@@ -1110,5 +1211,12 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     {
         try { return TraceEventType.valueOf(LocalizeString.toUpperCaseLocalized(input, Locale.ENGLISH)); }
         catch (Throwable t) { throw invalidRequest("event_type must be one of %s; received %s", TraceEventType.values(), input); }
+    }
+
+    private static String toStringOrNull(Object o)
+    {
+        if (o == null)
+            return null;
+        return Objects.toString(o);
     }
 }
