@@ -41,10 +41,12 @@ import accord.api.RoutingKey;
 import accord.impl.IntKey;
 import accord.impl.IntKey.Routing;
 import accord.primitives.Range;
+import accord.utils.AsymmetricComparator;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.SearchableRangeList;
+import accord.utils.SymmetricComparator;
 import accord.utils.btree.BTree;
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.LongArrayList;
@@ -52,14 +54,12 @@ import org.apache.cassandra.utils.btree.IntervalBTree;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalEndWithKeyEnd;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalEndWithKeyStart;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalStartWithKeyEnd;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalStartWithKeyStart;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyEndWithIntervalEnd;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyEndWithIntervalStart;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyStartWithIntervalEnd;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyStartWithIntervalStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.endWithStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.keyEndWithStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.keyStartWithEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.keyStartWithStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.startWithEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.startWithStart;
 
 @RunWith(Parameterized.class)
 public class RangeTreeTest
@@ -655,67 +655,20 @@ public class RangeTreeTest
                 };
             }
 
-            @Override
-            public Comparator<Item> startWithStartComparator()
-            {
-                return (a, b) -> a.start.compareTo(b.start);
-            }
+            @Override public SymmetricComparator<Item> endWithEndSorter() { return (a, b) -> a.end.compareTo(b.end); }
 
-            @Override
-            public Comparator<Item> startWithEndComparator()
-            {
-                return (a, b) -> a.start.compareTo(b.end);
-            }
-
-            @Override
-            public Comparator<Item> endWithStartComparator()
-            {
-                return (a, b) -> a.end.compareTo(b.start);
-            }
-
-            @Override
-            public Comparator<Item> endWithEndComparator()
-            {
-                return (a, b) -> a.end.compareTo(b.end);
-            }
+            @Override public SymmetricComparator<Item> startWithStartSeeker() { return (a, b) -> startWithStart(a.start.compareTo(b.start)); }
+            @Override public SymmetricComparator<Item> startWithEndSeeker() { return (a, b) -> startWithEnd(a.start.compareTo(b.end)); }
+            @Override public SymmetricComparator<Item> endWithStartSeeker() { return (a, b) -> endWithStart(a.end.compareTo(b.start)); }
         }
 
-        static class ItemKeyComparators implements IntervalBTree.IntervalComparators<Object>
+        static class ItemKeyComparators implements IntervalBTree.WithIntervalComparators<RoutingKey, Item>
         {
             private static final ItemKeyComparators INSTANCE = new ItemKeyComparators();
-            @Override public Comparator<Object> totalOrder() { throw new UnsupportedOperationException(); }
 
-            @Override
-            public Comparator<Object> startWithStartComparator()
-            {
-                return (a, b) -> a.getClass() == Item.class
-                                 ? intervalStartWithKeyStart(((Item) a).start.compareTo((RoutingKey)b))
-                                 : keyStartWithIntervalStart(((RoutingKey)a).compareTo(((Item)b).start));
-            }
-
-            @Override
-            public Comparator<Object> startWithEndComparator()
-            {
-                return (a, b) -> a.getClass() == Item.class
-                                 ? intervalStartWithKeyEnd(((Item)a).start.compareTo((RoutingKey)b))
-                                 : keyStartWithIntervalEnd(((RoutingKey)a).compareTo(((Item)b).end));
-            }
-
-            @Override
-            public Comparator<Object> endWithStartComparator()
-            {
-                return (a, b) -> a.getClass() == Item.class
-                                 ? intervalEndWithKeyStart(((Item)a).end.compareTo((RoutingKey)b))
-                                 : keyEndWithIntervalStart(((RoutingKey)a).compareTo(((Item)b).start));
-            }
-
-            @Override
-            public Comparator<Object> endWithEndComparator()
-            {
-                return (a, b) -> a.getClass() == Item.class
-                                 ? intervalEndWithKeyEnd(((Item)a).end.compareTo((RoutingKey)b))
-                                 : keyEndWithIntervalEnd(((RoutingKey)a).compareTo(((Item)b).end));
-            }
+            @Override public AsymmetricComparator<RoutingKey, Item> startWithStartSeeker() { return (a, b) -> keyStartWithStart(a.compareTo(b.start)); }
+            @Override public AsymmetricComparator<RoutingKey, Item> startWithEndSeeker() { return (a, b) -> keyStartWithEnd(a.compareTo(b.end)); }
+            @Override public AsymmetricComparator<RoutingKey, Item> endWithStartSeeker() { return (a, b) -> keyEndWithStart(a.compareTo(b.start)); }
         }
 
         static class Item extends Entry
@@ -754,13 +707,13 @@ public class RangeTreeTest
         @Override
         public List<Map.Entry<Range, Integer>> intersectsToken(Routing key)
         {
-            return IntervalBTree.<Object, Object, Object, List<Map.Entry<Range, Integer>>>accumulate(btree, ItemKeyComparators.INSTANCE, key, (i1, i2, item, list) -> { list.add((Item)item); return list; }, null, null, new ArrayList<>());
+            return IntervalBTree.<RoutingKey, Item, Object, Object, List<Map.Entry<Range, Integer>>>accumulate(btree, ItemKeyComparators.INSTANCE, key, (i1, i2, item, list) -> { list.add((Item)item); return list; }, null, null, new ArrayList<>());
         }
 
         @Override
         public List<Map.Entry<Range, Integer>> intersects(Range range)
         {
-            return IntervalBTree.<Item, Object, Object, List<Map.Entry<Range, Integer>>>accumulate(btree, ItemComparators.INSTANCE, new Item(range.start(), range.end(), range, 0, 0), (i1, i2, item, list) -> { list.add(item); return list; }, null, null, new ArrayList<>());
+            return IntervalBTree.<Item, Item, Object, Object, List<Map.Entry<Range, Integer>>>accumulate(btree, ItemComparators.INSTANCE, new Item(range.start(), range.end(), range, 0, 0), (i1, i2, item, list) -> { list.add(item); return list; }, null, null, new ArrayList<>());
         }
 
         @Override

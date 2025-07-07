@@ -48,21 +48,21 @@ import accord.primitives.Txn.Kind.Kinds;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekable;
 import accord.primitives.Unseekables;
+import accord.utils.AsymmetricComparator;
 import accord.utils.Invariants;
+import accord.utils.SymmetricComparator;
 import accord.utils.UnhandledEnum;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.btree.IntervalBTree;
 
 import static accord.local.CommandSummaries.SummaryStatus.NOT_DIRECTLY_WITNESSED;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalEndWithKeyEnd;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalEndWithKeyStart;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalStartWithKeyEnd;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.intervalStartWithKeyStart;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyEndWithIntervalEnd;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyEndWithIntervalStart;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyStartWithIntervalEnd;
-import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndKeyComparatorHelper.keyStartWithIntervalStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.endWithStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.keyEndWithStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.keyStartWithEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.keyStartWithStart;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.startWithEnd;
+import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.startWithStart;
 
 // TODO (expected): move to accord-core, merge with existing logic there
 public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements CommandSummaries.ByTxnIdSnapshot
@@ -101,47 +101,18 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
     static class IntervalComparators implements IntervalBTree.IntervalComparators<TxnIdInterval>
     {
         @Override public Comparator<TxnIdInterval> totalOrder() { return TxnIdInterval::compareTo; }
-        @Override public Comparator<TxnIdInterval> startWithStartComparator() { return (a, b) -> a.start.compareTo(b.start); }
-        @Override public Comparator<TxnIdInterval> startWithEndComparator() { return (a, b) -> a.start.compareTo(b.end); }
-        @Override public Comparator<TxnIdInterval> endWithStartComparator() { return (a, b) -> a.end.compareTo(b.start); }
-        @Override public Comparator<TxnIdInterval> endWithEndComparator() { return (a, b) -> a.end.compareTo(b.end); }
+        @Override public Comparator<TxnIdInterval> endWithEndSorter() { return (a, b) -> a.end.compareTo(b.end); }
+
+        @Override public SymmetricComparator<TxnIdInterval> startWithStartSeeker() { return (a, b) -> startWithStart(a.start.compareTo(b.start)); }
+        @Override public SymmetricComparator<TxnIdInterval> startWithEndSeeker() { return (a, b) -> startWithEnd(a.start.compareTo(b.end)); }
+        @Override public SymmetricComparator<TxnIdInterval> endWithStartSeeker() { return (a, b) -> endWithStart(a.end.compareTo(b.start)); }
     }
 
-    static class IntervalKeyComparators implements IntervalBTree.IntervalComparators<Object>
+    static class IntervalKeyComparators implements IntervalBTree.WithIntervalComparators<RoutingKey, TxnIdInterval>
     {
-        @Override public Comparator<Object> totalOrder() { throw new UnsupportedOperationException(); }
-
-        @Override
-        public Comparator<Object> startWithStartComparator()
-        {
-            return (a, b) -> a.getClass() == TxnIdInterval.class
-                             ? intervalStartWithKeyStart(((TxnIdInterval) a).start.compareTo((RoutingKey)b))
-                             : keyStartWithIntervalStart(((RoutingKey)a).compareTo(((TxnIdInterval)b).start));
-        }
-
-        @Override
-        public Comparator<Object> startWithEndComparator()
-        {
-            return (a, b) -> a.getClass() == TxnIdInterval.class
-                             ? intervalStartWithKeyEnd(((TxnIdInterval)a).start.compareTo((RoutingKey)b))
-                             : keyStartWithIntervalEnd(((RoutingKey)a).compareTo(((TxnIdInterval)b).end));
-        }
-
-        @Override
-        public Comparator<Object> endWithStartComparator()
-        {
-            return (a, b) -> a.getClass() == TxnIdInterval.class
-                             ? intervalEndWithKeyStart(((TxnIdInterval)a).end.compareTo((RoutingKey)b))
-                             : keyEndWithIntervalStart(((RoutingKey)a).compareTo(((TxnIdInterval)b).start));
-        }
-
-        @Override
-        public Comparator<Object> endWithEndComparator()
-        {
-            return (a, b) -> a.getClass() == TxnIdInterval.class
-                             ? intervalEndWithKeyEnd(((TxnIdInterval)a).end.compareTo((RoutingKey)b))
-                             : keyEndWithIntervalEnd(((RoutingKey)a).compareTo(((TxnIdInterval)b).end));
-        }
+        @Override public AsymmetricComparator<RoutingKey, TxnIdInterval> startWithStartSeeker() { return (a, b) -> keyStartWithStart(a.compareTo(b.start));}
+        @Override public AsymmetricComparator<RoutingKey, TxnIdInterval> startWithEndSeeker() { return (a, b) -> keyStartWithEnd(a.compareTo(b.end)); }
+        @Override public AsymmetricComparator<RoutingKey, TxnIdInterval> endWithStartSeeker() { return (a, b) -> keyEndWithStart(a.compareTo(b.start)); }
     }
 
     public CommandsForRanges(Map<? extends Timestamp, ? extends Summary> m)
@@ -224,7 +195,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                 case 1: return IntervalBTree.singleton(new TxnIdInterval(route.get(0), txnId));
                 default:
                 {
-                    try (IntervalBTree.FastInteralTreeBuilder<TxnIdInterval> builder = IntervalBTree.fastBuilder(COMPARATORS.endWithEndComparator()))
+                    try (IntervalBTree.FastIntervalTreeBuilder<TxnIdInterval> builder = IntervalBTree.fastBuilder(COMPARATORS))
                     {
                         for (int i = 0 ; i < size ; ++i)
                             builder.add(new TxnIdInterval(route.get(i), txnId));

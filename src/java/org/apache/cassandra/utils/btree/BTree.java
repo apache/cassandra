@@ -24,6 +24,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
@@ -41,6 +43,7 @@ import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_BRANCH_SHIFT;
+import static org.apache.cassandra.utils.btree.BTree.Dir.ASC;
 
 public class BTree
 {
@@ -576,7 +579,7 @@ public class BTree
 
     public static <V> Iterator<V> iterator(Object[] btree)
     {
-        return iterator(btree, Dir.ASC);
+        return iterator(btree, ASC);
     }
 
     public static <V> Iterator<V> iterator(Object[] btree, Dir dir)
@@ -593,7 +596,7 @@ public class BTree
 
     public static <V> Iterable<V> iterable(Object[] btree)
     {
-        return iterable(btree, Dir.ASC);
+        return iterable(btree, ASC);
     }
 
     public static <V> Iterable<V> iterable(Object[] btree, Dir dir)
@@ -2339,6 +2342,8 @@ public class BTree
         final LeafOrBranchBuilder child;
         BranchBuilder parent;
 
+        @Nullable Object[] sourceNode;
+
         /**
          * The current buffer contents (if any) of the leaf or branch - always sized to contain a complete
          * node of the form being constructed.  Always non-null, except briefly during overflow.
@@ -2367,6 +2372,16 @@ public class BTree
         {
             this.height = child == null ? 1 : 1 + child.height;
             this.child = child;
+        }
+
+        void setSourceNode(Object[] sourceNode)
+        {
+            this.sourceNode = sourceNode;
+        }
+
+        void clearSourceNode()
+        {
+            this.sourceNode = null;
         }
 
         /**
@@ -2405,6 +2420,8 @@ public class BTree
             return count == 0 && savedNextKey == null;
         }
 
+        abstract void initialiseCopy(Object[] unode);
+
         /**
          * Drain the contents of this builder and build up to two nodes, as necessary.
          * If {@code unode != null} and we are building a single node that is identical to it, use {@code unode} instead.
@@ -2412,7 +2429,9 @@ public class BTree
          *
          * @return the last node we construct
          */
-        abstract Object[] drainAndPropagate(Object[] unode, BranchBuilder propagateTo);
+        abstract Object[] drainAndPropagate(BranchBuilder propagateTo);
+
+        abstract void addKey(Object key);
 
         /**
          * Drain the contents of this builder and build at most one node.
@@ -2437,7 +2456,7 @@ public class BTree
                     return level.drain();
 
                 BranchBuilder parent = level.ensureParent();
-                level.drainAndPropagate(null, parent);
+                level.drainAndPropagate(parent);
                 if (level.savedBuffer != null)
                     Arrays.fill(level.savedBuffer, null);
                 level = parent;
@@ -2541,12 +2560,23 @@ public class BTree
         /**
          * Add {@code nextKey} to the buffer, overflowing if necessary
          */
-        public void addKey(Object nextKey)
+        @Override
+        final void addKey(Object nextKey)
         {
             if (count == MAX_KEYS)
                 overflow(nextKey);
             else
                 buffer[count++] = nextKey;
+        }
+
+        final void setSourceNode(Object[] sourceNode)
+        {
+            super.setSourceNode(sourceNode);
+        }
+
+        final void clearSourceNode()
+        {
+            super.clearSourceNode();
         }
 
         /**
@@ -2581,6 +2611,14 @@ public class BTree
                 buffer[count] = nextKey;
                 count += nextKey != null ? 1 : 0;
             }
+        }
+
+        void initialiseCopy(Object[] copy)
+        {
+            Invariants.require(isEmpty());
+            setSourceNode(copy);
+            count = sizeOfLeaf(copy);
+            System.arraycopy(copy, 0, buffer, 0, count);
         }
 
         /**
@@ -2762,7 +2800,7 @@ public class BTree
          * This is only called when we have enough data to complete the node, i.e. we have MIN_KEYS or more items added
          * or the node is the BTree's root.
          */
-        Object[] drainAndPropagate(Object[] unode, BranchBuilder propagateTo)
+        Object[] drainAndPropagate(BranchBuilder propagateTo)
         {
             Object[] leaf;
             int sizeOfLeaf;
@@ -2772,10 +2810,11 @@ public class BTree
                 leaf = redistributeOverflowAndDrain();
                 sizeOfLeaf = MIN_KEYS;
             }
-            else if (!hasOverflow() && unode != null && count == sizeOfLeaf(unode) && areIdentical(buffer, 0, unode, 0, count))
+            else if (!hasOverflow() && sourceNode != null && count == sizeOfLeaf(sourceNode) && areIdentical(buffer, 0, sourceNode, 0, count))
             {
                 // we have exactly the same contents as the original node, so reuse it
-                leaf = unode;
+                Invariants.require(sourceNode != null);
+                leaf = sourceNode;
                 sizeOfLeaf = count;
             }
             else
@@ -2787,10 +2826,11 @@ public class BTree
                 sizeOfLeaf = count;
                 leaf = drain();
                 if (allocated >= 0 && sizeOfLeaf > 0)
-                    allocated += ObjectSizes.sizeOfReferenceArray(sizeOfLeaf | 1) - (unode == null ? 0 : sizeOnHeapOfLeaf(unode));
+                    allocated += ObjectSizes.sizeOfReferenceArray(sizeOfLeaf | 1) - (sourceNode == null ? 0 : sizeOnHeapOfLeaf(sourceNode));
             }
 
             count = 0;
+            clearSourceNode();
             if (propagateTo != null)
                 propagateTo.addChild(leaf, sizeOfLeaf);
             return leaf;
@@ -2806,9 +2846,20 @@ public class BTree
             if (count == 0)
                 return empty();
 
-            Object[] newLeaf = new Object[count | 1];
-            System.arraycopy(buffer, 0, newLeaf, 0, count);
+            Object[] newLeaf;
+            if (sourceNode != null
+                && count == sizeOfLeaf(sourceNode)
+                && areIdentical(buffer, 0, sourceNode, 0, count))
+            {
+                newLeaf = sourceNode;
+            }
+            else
+            {
+                newLeaf = new Object[count | 1];
+                System.arraycopy(buffer, 0, newLeaf, 0, count);
+            }
             count = 0;
+            clearSourceNode();
             return newLeaf;
         }
     }
@@ -2816,6 +2867,7 @@ public class BTree
     static class BranchBuilder extends LeafOrBranchBuilder
     {
         final LeafBuilder leaf;
+        boolean hasRightChild;
 
         /**
          * sizes of the children in {@link #buffer}. If null, we only produce dense nodes.
@@ -2843,8 +2895,11 @@ public class BTree
          * Ensure there is room to add another key to {@code branchBuffers[branchIndex]}, and add it;
          * invoke {@link #overflow} if necessary
          */
-        void addKey(Object key)
+        @Override
+        final void addKey(Object key)
         {
+            Invariants.require(hasRightChild);
+            hasRightChild = false;
             if (count == MAX_KEYS)
                 overflow(key);
             else
@@ -2855,9 +2910,12 @@ public class BTree
          * To be invoked when there's a key already inserted to the buffer that requires a corresponding
          * right-hand child, for which the buffers are sized to ensure there is always room.
          */
-        void addChild(Object[] child, int sizeOfChild)
+        final void addChild(Object[] child, int sizeOfChild)
         {
+            Invariants.require(child != null);
+            Invariants.require(!hasRightChild);
             buffer[MAX_KEYS + count] = child;
+            hasRightChild = true;
             recordSizeOfChild(sizeOfChild);
         }
 
@@ -2867,10 +2925,20 @@ public class BTree
                 sizes[count] = sizeOfChild;
         }
 
+        final void initialiseCopy(Object[] copy)
+        {
+            Invariants.require(isEmpty());
+            setSourceNode(copy);
+            count = shallowSizeOfBranch(copy);
+            hasRightChild = true;
+            System.arraycopy(copy, 0, buffer, 0, count);
+            System.arraycopy(copy, count, buffer, MAX_KEYS, count + 1);
+        }
+
         /**
          * See {@link BranchBuilder#addChild(Object[], int)}
          */
-        void addChild(Object[] child)
+        final void addChild(Object[] child)
         {
             addChild(child, sizes == null ? 0 : size(child));
         }
@@ -2878,19 +2946,16 @@ public class BTree
         /**
          * Insert a new child into a parent branch, when triggered by {@code overflowLeaf} or {@code overflowBranch}
          */
-        void addChildAndNextKey(Object[] newChild, int newChildSize, Object nextKey)
+        final void addChildAndNextKey(Object[] newChild, int newChildSize, Object nextKey)
         {
-            // we should always have room for a child to the right of any key we have previously inserted
-            buffer[MAX_KEYS + count] = newChild;
-            recordSizeOfChild(newChildSize);
-            // but there may not be room for another key
+            addChild(newChild, newChildSize);
             addKey(nextKey);
         }
 
         /**
          * Invoked when we want to add a key to the leaf buffer, but it is full
          */
-        void propagateOverflow()
+        final void propagateOverflow()
         {
             // propagate the leaf we have saved in leaf().savedBuffer
             if (leaf.allocated >= 0)
@@ -2908,6 +2973,8 @@ public class BTree
          */
         void overflow(Object nextKey)
         {
+            Invariants.require(!hasRightChild);
+
             if (hasOverflow())
                 propagateOverflow();
 
@@ -3027,8 +3094,9 @@ public class BTree
          * This is only called when we have enough data to complete the node, i.e. we have MIN_KEYS or more items added
          * or the node is the BTree's root.
          */
-        Object[] drainAndPropagate(Object[] unode, BranchBuilder propagateTo)
+        Object[] drainAndPropagate(BranchBuilder propagateTo)
         {
+            Invariants.require(hasRightChild);
             int sizeOfBranch;
             Object[] branch;
             if (mustRedistribute())
@@ -3038,6 +3106,7 @@ public class BTree
             }
             else
             {
+                Object[] unode = sourceNode;
                 int usz = unode != null ? shallowSizeOfBranch(unode) : -1;
                 if (!hasOverflow() && usz == count
                     && areIdentical(buffer, 0, unode, 0, usz)
@@ -3053,7 +3122,7 @@ public class BTree
 
                     // the number of children here may be smaller than MIN_KEYS if this is the root node, but there must
                     // be at least one key / two children.
-                    assert count > 0;
+                    Invariants.require(count > 0);
                     branch = new Object[2 * (count + 1)];
                     System.arraycopy(buffer, 0, branch, 0, count);
                     System.arraycopy(buffer, MAX_KEYS, branch, count, count + 1);
@@ -3062,6 +3131,8 @@ public class BTree
             }
 
             count = 0;
+            hasRightChild = false;
+            clearSourceNode();
             if (propagateTo != null)
                 propagateTo.addChild(branch, sizeOfBranch);
 
@@ -3073,23 +3144,43 @@ public class BTree
          */
         Object[] drain()
         {
+            Invariants.require(hasRightChild);
             assert !hasOverflow();
-            int keys = count;
-            count = 0;
-
-            Object[] branch = new Object[2 * (keys + 1)];
-            if (keys == MAX_KEYS)
+            if (count == 0)
             {
-                Object[] tmp = buffer;
-                buffer = branch;
-                branch = tmp;
+                clearSourceNode();
+                hasRightChild = false;
+                return (Object[]) buffer[MAX_KEYS];
+            }
+
+            Object[] branch;
+            if (sourceNode != null
+                && count == shallowSizeOfBranch(sourceNode)
+                && areIdentical(buffer, 0, sourceNode, 0, count)
+                && areIdentical(buffer, MAX_KEYS, sourceNode, count, count + 1))
+            {
+                branch = sourceNode;
             }
             else
             {
-                System.arraycopy(buffer, 0, branch, 0, keys);
-                System.arraycopy(buffer, MAX_KEYS, branch, keys, keys + 1);
+                branch = new Object[2 * (count + 1)];
+                if (count == MAX_KEYS)
+                {
+                    Object[] tmp = buffer;
+                    buffer = branch;
+                    branch = tmp;
+                }
+                else
+                {
+                    System.arraycopy(buffer, 0, branch, 0, count);
+                    System.arraycopy(buffer, MAX_KEYS, branch, count, count + 1);
+                }
+                setDrainSizeMap(null, -1, branch, count);
             }
-            setDrainSizeMap(null, -1, branch, keys);
+
+            count = 0;
+            hasRightChild = false;
+            clearSourceNode();
             return branch;
         }
 
@@ -3198,6 +3289,7 @@ public class BTree
          */
         void copyPreceding(Object[] unode, int usz, int offset, int length)
         {
+            Invariants.require(!hasRightChild);
             int[] uszmap = sizeMap(unode);
             if (count + length > MAX_KEYS)
             {
@@ -3227,6 +3319,7 @@ public class BTree
          */
         private void copyPrecedingNoOverflow(Object[] unode, int usz, int[] uszmap, int offset, int length)
         {
+            Invariants.require(!hasRightChild);
             if (length <= 1)
             {
                 if (length == 0)
@@ -3266,7 +3359,9 @@ public class BTree
         {
             Arrays.fill(buffer, null);
             count = 0;
+            hasRightChild = false;
             inUse = false;
+            clearSourceNode();
         }
     }
 
@@ -3400,7 +3495,7 @@ public class BTree
             BranchBuilder branch = leaf().parent;
             while (branch != null && branch.inUse)
             {
-                assert branch.count == 0;
+                branch.count = 0;
                 clearBranchBuffer(branch.buffer);
                 if (branch.savedBuffer != null && branch.savedBuffer[0] != null)
                     Arrays.fill(branch.savedBuffer, null); // by definition full, if non-empty
@@ -3546,8 +3641,9 @@ public class BTree
                 {
                     // ik fall inside it -- recursively merge the child with the update, using next key as an upper bound
                     LeafOrBranchBuilder childBuilder = builder.child;
+                    childBuilder.setSourceNode(childUNode);
                     ik = updateRecursive(ik, childUNode, nextUKey, childBuilder);
-                    childBuilder.drainAndPropagate(childUNode, builder);
+                    childBuilder.drainAndPropagate(builder);
                     if (find == usz)    // this was the right-most child, branch is complete and we can return immediately
                         return ik;
                     c = ik != null ? comparator.compare(nextUKey, ik) : -1;
@@ -3633,7 +3729,6 @@ public class BTree
             return ik;
         }
 
-
         public void close()
         {
             reset();
@@ -3669,184 +3764,176 @@ public class BTree
      * <p>
      * The approach taken here hopefully balances simplicity, garbage generation and execution time.
      */
-    static abstract class AbstractTransformer<I, O> extends AbstractUpdater implements AutoCloseable
+    static abstract class AbstractSeekingTransformer<I, O> extends AbstractUpdater implements AutoCloseable
     {
         /**
          * An iterator over the tree we are updating
          */
         final SimpleTreeIterator update = new SimpleTreeIterator();
 
-        /**
-         * A queue of nodes from update that we are ready to "finish" if we have buffered enough data from them
-         * The stack pointer is maintained inside of {@link #apply()}
-         */
-        Object[][] queuedToFinish = new Object[1][];
-
-        AbstractTransformer()
+        AbstractSeekingTransformer()
         {
             allocated = -1;
             ensureParent();
             parent.inUse = false;
         }
 
-        abstract O apply(I v);
+        abstract O apply(I in);
 
-        Object[] apply(Object[] update)
+        LeafOrBranchBuilder initRoot(Object[] root)
         {
-            int height = this.update.init(update);
-            if (queuedToFinish.length < height - 1)
-                queuedToFinish = new Object[height - 1][];
-            return apply();
+            int height = this.update.initToRoot(root);
+            LeafOrBranchBuilder level = leaf();
+            for (int d = 1; d < height; ++d)
+                level = level.ensureParent();
+            level.setSourceNode(root);
+            return level;
         }
+
+        // for branch nodes, can seek to usz+1 indicating we should ascend
+        abstract int seekInBranch(Object[] unode, int upos, int usz);
+        // transform the leaf - false means we should directly propagate the leaf to its parent
+        protected abstract boolean transformLeaf(Object[] unode, int upos, int usz);
 
         /**
          * We base our operation on the shape of {@code update}, trying to steal as much of the original tree as
          * possible for our new tree
          */
-        private Object[] apply()
+        Object[] apply(Object[] root)
         {
+            LeafOrBranchBuilder level = initRoot(root);
             Object[] unode = update.node();
-            int upos = update.position(), usz = sizeOfLeaf(unode);
+            int upos = update.position(), usz = shallowSize(unode);
 
-            while (true)
+            descend: while (true)
             {
-                // we always start the loop on a leaf node, for both input and output
-                boolean propagatedOriginalLeaf = false;
-                if (leaf().count == 0)
+                // navigate to the highest level that may need transforming
+                if (level == leaf())
                 {
-                    if (upos == 0)
-                    {   // fast path - buffer is empty and input unconsumed, so may be able to propagate original
-                        I in;
-                        O out;
-                        do
-                        {   // optimistic loop - find first point the transformation modified our input
-                            in = (I) unode[upos];
-                            out = apply(in);
-                        } while (in == out && ++upos < usz);
-
-                        if ((propagatedOriginalLeaf = (upos == usz)))
-                        {
-                            // if input is unmodified by transformation, propagate the input node
-                            markUsed(parent).addChild(unode, usz);
-                        }
-                        else
-                        {
-                            // otherwise copy up to the first modified portion,
-                            // and fall-through to our below condition for transforming the remainder
-                            leaf().copyNoOverflow(unode, 0, upos++);
-                            if (out != null)
-                                leaf().addKeyNoOverflow(out);
-                        }
-                    }
-
-                    if (!propagatedOriginalLeaf)
-                        transformLeafNoOverflow(unode, upos, usz);
-                }
-                else
-                {
-                    transformLeaf(unode, upos, usz);
-                }
-
-                // we've finished a leaf, and have to hand it to a parent alongside its right-hand key
-                // so now we try to do two things:
-                //    1) find the next unfiltered key from our unfinished parent
-                //    2) determine how many parents are "finished" and whose buffers we should also attempt to propagate
-                // we do (1) unconditionally, because:
-                //    a) we need to handle the branch keys somewhere, and it may as well happen in one place
-                //    b) we either need more keys for our incomplete leaf; or
-                //    c) we need a key to go after our last propagated node in any unfinished parent
-
-                int finishToHeight = 0;
-                O nextKey;
-                do
-                {
-                    update.ascendToParent(); // always have a node above leaf level, else we'd invoke transformLeaf
-                    BranchBuilder level = parent;
-                    unode = update.node();
-                    upos = update.position();
-                    usz = shallowSizeOfBranch(unode);
-
-                    while (upos == usz)
+                    Invariants.require(level.sourceNode == unode);
+                    if (transformLeaf(unode, upos, usz)) upos = usz;
+                    else
                     {
-                        queuedToFinish[level.height - 2] = unode;
-                        finishToHeight = max(finishToHeight, level.height);
-
                         if (!update.ascendToParent())
-                            return finishAndDrain(propagatedOriginalLeaf);
+                            return unode;
 
-                        level = level.ensureParent();
+                        markUsed(parent).addChild(unode, usz);
+                        level.clearSourceNode();
+                        level = level.parent;
                         unode = update.node();
                         upos = update.position();
                         usz = shallowSizeOfBranch(unode);
                     }
-
-                    nextKey = apply((I) unode[upos]);
-                    if (nextKey == null && leaf().count > MIN_KEYS) // if we don't have a key, try to steal from leaf().buffer
-                        nextKey = (O) leaf().buffer[--leaf().count];
-
-                    update.descendIntoNextLeaf(unode, upos, usz);
-                    unode = update.node();
-                    upos = update.position();
-                    usz = sizeOfLeaf(unode);
-
-                    // nextKey might have been filtered, so we may need to look in this next leaf for it
-                    while (nextKey == null && upos < usz)
-                        nextKey = apply((I) unode[upos++]);
-
-                    // if we still found no key loop and try again on the next parent, leaf, parent... ad infinitum
-                } while (nextKey == null);
-
-                // we always end with unode a leaf, though it may be that upos == usz and that we will do nothing with it
-
-                // we've found a non-null key, now decide what to do with it:
-                //   1) if we have insufficient keys in our leaf, simply append to the leaf and continue;
-                //   2) otherwise, walk our parent branches finishing those *before* {@code finishTo}
-                //   2a) if any cannot be finished, append our new key to it and stop finishing further parents; they
-                //   will be finished the next time we ascend to their level with a complete chain of finishable branches
-                //   2b) otherwise, add our new key to {@code finishTo}
-
-                if (!propagatedOriginalLeaf && !finish(leaf(), null))
-                {
-                    leaf().addKeyNoOverflow(nextKey);
-                    continue;
                 }
-
-                BranchBuilder finish = parent;
-                while (true)
+                else
                 {
-                    if (finish.height <= finishToHeight)
+                    BranchBuilder branch = (BranchBuilder) level;
+                    int pos = seekInBranch(unode, upos, usz);
+                    if (pos < 0)
                     {
-                        Object[] originalNode = queuedToFinish[finish.height - 2];
-                        if (finish(finish, originalNode))
+                        pos = -1 -pos;
+                        boolean done = pos > usz;
+                        if (done)
+                            pos = usz;
+
+                        if (pos > upos)
                         {
-                            finish = finish.parent;
-                            continue;
+                            branch.copyPreceding(unode, usz, upos, pos - upos);
+                            upos = pos;
+                        }
+
+                        update.descend(unode, upos, usz);
+                        unode = update.node();
+                        upos = update.position();
+                        usz = shallowSize(unode);
+                        level = level.child;
+                        level.setSourceNode(unode);
+                        continue;
+                    }
+                    else
+                    {
+                        if (pos > upos)
+                        {
+                            branch.copyPreceding(unode, usz, upos, pos - upos);
+                            upos = pos;
                         }
                     }
+                    Invariants.require(branch.child.isEmpty());
+                    branch.addChild((Object[]) unode[usz + upos]);
+                }
 
-                    // add our key to the last unpropagated parent branch buffer
-                    finish.addKey(nextKey);
-                    break;
+                LeafOrBranchBuilder incomplete = level;
+                while (upos >= usz)
+                {
+                    if (!update.ascendToParent())
+                        return finishAndDrain(level);
+
+                    unode = update.node();
+                    upos = update.position();
+                    usz = shallowSizeOfBranch(unode);
+
+                    if (incomplete == level && finish(level))
+                        incomplete = level.parent;
+                    level = level.parent;
+                }
+
+                O next = apply((I) unode[upos++]);
+                if (next == null)
+                {
+                    // next has been filtered, so look for the (unfiltered) successor node
+                    successor: while (true)
+                    {
+                        level = descend(level, leaf(), unode, upos, usz);
+                        unode = update.node();
+                        upos = update.position();
+                        usz = sizeOfLeaf(unode);
+
+                        while (upos < usz)
+                        {
+                            if (null != (next = apply((I)unode[upos++])))
+                                break successor;
+                        }
+
+                        do
+                        {
+                            if (!update.ascendToParent())
+                                return finishAndDrain(level);
+
+                            unode = update.node();
+                            upos = update.position();
+                            usz = shallowSizeOfBranch(unode);
+                            level = level.parent;
+                        } while (upos >= usz);
+
+                        next = apply((I) unode[upos++]);
+                        if (next != null)
+                            break;
+                    }
+                }
+
+                incomplete.addKey(next);
+                if (level.height > incomplete.height)
+                {
+                    level = descend(level, incomplete, unode, upos, usz);
+                    unode = update.node();
+                    upos = update.position();
+                    usz = shallowSize(unode);
                 }
             }
         }
 
-        private void transformLeafNoOverflow(Object[] unode, int upos, int usz)
+        LeafOrBranchBuilder descend(LeafOrBranchBuilder from, LeafOrBranchBuilder to, Object[] unode, int upos, int usz)
         {
-            while (upos < usz)
+            while (update.height() > to.height)
             {
-                O v = apply((I) unode[upos++]);
-                leaf().maybeAddKeyNoOverflow(v);
+                update.descend(unode, upos, usz);
+                unode = update.node();
+                upos = update.position();
+                usz = shallowSize(unode);
+                from = from.child;
+                from.setSourceNode(unode);
             }
-        }
-
-        private void transformLeaf(Object[] unode, int upos, int usz)
-        {
-            while (upos < usz)
-            {
-                O v = apply((I) unode[upos++]);
-                leaf().maybeAddKey(v);
-            }
+            return to;
         }
 
         /**
@@ -3854,12 +3941,12 @@ public class BTree
          * we refuse to construct a leaf and return null.  Otherwise we propagate the branch to its parent's buffer
          * and return the branch we have constructed.
          */
-        final boolean finish(LeafOrBranchBuilder level, Object[] unode)
+        final boolean finish(LeafOrBranchBuilder level)
         {
             if (!level.isSufficient())
                 return false;
 
-            level.drainAndPropagate(unode, level.ensureParent());
+            level.drainAndPropagate(level.ensureParent());
             return true;
         }
 
@@ -3871,16 +3958,56 @@ public class BTree
          * does not, we recursively apply the stealing procedure to obtain a non-empty parent. If this process manages
          * to reach the root and still find no preceding branch, this will result in making this branch the new root.
          */
-        final Object[] finishAndDrain(boolean skipLeaf)
+        final Object[] finishAndDrain(LeafOrBranchBuilder root)
         {
-            LeafOrBranchBuilder level = leaf();
-            if (skipLeaf)
+            if (root == leaf())
+                return root.completeBuild();
+
+            BranchBuilder branch = (BranchBuilder) root;
+            // the logic after this loop expects that all builders are populated and have the same number of keys as children
+            // so this loop simply checks to see if we can build without any rebalancing,
+            // stopping at the first balanced (hasRightChild) and sufficient for building branch.
+            // Otherwise it un
+            while (true)
             {
-                level = nonEmptyParentMaybeSteal(level);
-                // handle an edge case, where we have propagated a single complete leaf but have no other contents in any parent
-                if (level == null)
-                    return (Object[]) leaf().parent.buffer[MAX_KEYS];
+                if (branch.hasRightChild)
+                {
+                    for (LeafOrBranchBuilder child = branch.child ; child != null ; child = child.child)
+                        Invariants.require(child.isEmpty());
+
+                    boolean isSufficient = true;
+                    for (BranchBuilder b = branch ; b != root && isSufficient ; b = b.parent)
+                        isSufficient = b.isSufficient();
+
+                    if (isSufficient)
+                    {
+                        for (BranchBuilder b = branch ; b != root ; b = b.parent)
+                            b.drainAndPropagate(b.parent);
+                        return root.completeBuild();
+                    }
+                    else
+                    {
+                        while (true)
+                        {
+                            Object[] rightChild = (Object[]) branch.buffer[MAX_KEYS + branch.count];
+                            branch.hasRightChild = false;
+                            branch.child.initialiseCopy(rightChild);
+
+                            if (branch.child == leaf())
+                                break;
+                            branch = (BranchBuilder) branch.child;
+                        }
+                    }
+                    break;
+                }
+
+                if (branch.child == leaf())
+                    break;
+
+                branch = (BranchBuilder) branch.child;
             }
+
+            LeafOrBranchBuilder level = leaf();
             while (true)
             {
                 BranchBuilder parent = nonEmptyParentMaybeSteal(level);
@@ -3892,9 +4019,7 @@ public class BTree
                 }
                 else
                 {
-
-                    Object[] originalNode = level == leaf() ? null : queuedToFinish[level.height - 2];
-                    Object[] result = level.drainAndPropagate(originalNode, parent);
+                    Object[] result = level.drainAndPropagate(parent);
                     if (parent == null)
                         return result;
                 }
@@ -3934,7 +4059,7 @@ public class BTree
             if (exhausted)
                 return fill.drain();
 
-            fill.drainAndPropagate(null, parent);
+            fill.drainAndPropagate(parent);
             return null;
         }
 
@@ -3982,7 +4107,6 @@ public class BTree
 
         void reset()
         {
-            Arrays.fill(queuedToFinish, 0, update.leafDepth, null);
             update.reset();
             super.reset();
         }
@@ -3990,8 +4114,10 @@ public class BTree
 
     /**
      * Implement set subtraction/difference using a modified version of the Transformer logic
+     *
+     * TODO (desired): merge with Transformer
      */
-    static abstract class Subtraction<K, T extends K> extends AbstractTransformer<T, T> implements AutoCloseable
+    static abstract class AbstractSubtraction<K, T extends K> extends AbstractSeekingTransformer<T, T> implements AutoCloseable
     {
         /**
          * An iterator over the tree we are updating
@@ -3999,186 +4125,118 @@ public class BTree
         PeekingSearchIterator<K, ? extends K> remove;
         Comparator<K> comparator;
 
-        Object[] apply(Object[] update, PeekingSearchIterator<K, ? extends K> remove)
+        Object[] subtract(Object[] update, PeekingSearchIterator<K, ? extends K> remove)
         {
-            int height = this.update.init(update);
             this.remove = remove;
-            if (queuedToFinish.length < height - 1)
-                queuedToFinish = new Object[height - 1][];
-            return apply();
+            return apply(update);
+        }
+
+        Object[] subtract(Object[] update, Object[] remove)
+        {
+            return subtract(update, slice(remove, comparator, ASC));
         }
 
         @Override
         T apply(T v)
         {
-            throw new UnsupportedOperationException();
+            return remove.next(v) == null ? v : null;
         }
 
-        /**
-         * We base our operation on the shape of {@code update}, trying to steal as much of the original tree as
-         * possible for our new tree
-         */
-        private Object[] apply()
+        @Override
+        int seekInBranch(Object[] unode, int upos, int usz)
         {
-            Object[] unode = update.node();
-            int upos = update.position(), usz = sizeOfLeaf(unode);
-            while (true)
+            if (!remove.hasNext())
+                return -1 - (1 + usz);
+
+            int i = exponentialSearch(comparator, unode, upos, usz, remove.peek());
+            if (i == -1 - usz)
             {
-                // we always start the loop on a leaf node, for both input and output
-                boolean propagatedOriginalLeaf = false;
-                if (leaf().count == 0 && upos == 0)
+                // if we sort after the last key in the branch, we may need to descend into the right-most child
+                // but, for all branches besides the root we can try to look at a parent node to decide this.
+                // we only look at the direct parent, and if we are its right-most child already, we just assume we must descend
+                int pdepth = update.depth - 1;
+                if (pdepth >= 0)
                 {
-                    int prev = 0;
-                    if (!remove.hasNext() || comparator.compare((K)unode[usz - 1], remove.peek()) < 0)
+                    Object[] pnode = update.nodes[pdepth];
+                    int ppos = update.positions[pdepth];
+                    if (ppos < shallowSizeOfBranch(pnode) && comparator.compare(remove.peek(), (K)pnode[ppos]) >= 0)
                     {
-                        // short-circuit common case of removal not intersecting the current node, by comparing with last key
-                        upos = usz;
+                        // increase our result index to point to *after* the last child;
+                        // (it's an inequality binary search semantic answer, so will be negated)
+                        --i;
                     }
-
-                    while (upos < usz)
-                    {
-                        // fast path - buffer is empty and input unconsumed, so may be able to propagate original
-                        if (null == remove.next((T)unode[upos]))
-                        {
-                            if (!remove.hasNext())
-                                break;
-                            upos = exponentialSearch(comparator, unode, upos + 1, usz, remove.peek());
-                            if (upos < 0)
-                            {
-                                upos = -1 - upos;
-                                continue;
-                            }
-                        }
-
-                        leaf().copyNoOverflow(unode, prev, upos - prev);
-                        ++upos;
-                        prev = upos;
-                    }
-                    if (propagatedOriginalLeaf = (prev == 0))
-                    {
-                        // if input is unmodified by transformation, propagate the input node
-                        markUsed(parent).addChild(unode, usz);
-                    }
-                    else
-                    {
-                        leaf().copyNoOverflow(unode, prev, usz - prev);
-                    }
-                }
-                else
-                {
-                    int prev = upos;
-                    while (upos < usz)
-                    {
-                        if (null == remove.next((T)unode[upos]))
-                        {
-                            if (!remove.hasNext())
-                                break;
-                            upos = exponentialSearch(comparator, unode, upos + 1, usz, remove.peek());
-                            if (upos < 0)
-                            {
-                                upos = -1 - upos;
-                                continue;
-                            }
-                        }
-
-                        leaf().copy(unode, prev, upos - prev);
-                        ++upos;
-                        prev = upos;
-                    }
-                    leaf().copy(unode, prev, usz - prev);
-                }
-
-                // we've finished a leaf, and have to hand it to a parent alongside its right-hand key
-                // so now we try to do two things:
-                //    1) find the next unfiltered key from our unfinished parent
-                //    2) determine how many parents are "finished" and whose buffers we should also attempt to propagate
-                // we do (1) unconditionally, because:
-                //    a) we need to handle the branch keys somewhere, and it may as well happen in one place
-                //    b) we either need more keys for our incomplete leaf; or
-                //    c) we need a key to go after our last propagated node in any unfinished parent
-
-                int finishToHeight = 0;
-                T next;
-                do
-                {
-                    if (!update.ascendToParent())
-                        return finishAndDrain(propagatedOriginalLeaf);
-
-                    BranchBuilder level = parent;
-                    unode = update.node();
-                    upos = update.position();
-                    usz = shallowSizeOfBranch(unode);
-
-                    while (upos == usz)
-                    {
-                        queuedToFinish[level.height - 2] = unode;
-                        finishToHeight = max(finishToHeight, level.height);
-
-                        if (!update.ascendToParent())
-                            return finishAndDrain(propagatedOriginalLeaf);
-
-                        level = level.ensureParent();
-                        unode = update.node();
-                        upos = update.position();
-                        usz = shallowSizeOfBranch(unode);
-                    }
-
-                    next = (T) unode[upos];
-                    if (null != remove.next(next))
-                        next = null;
-
-                    update.descendIntoNextLeaf(unode, upos, usz);
-                    unode = update.node();
-                    upos = update.position();
-                    usz = sizeOfLeaf(unode);
-
-                    // nextKey might have been filtered, so we may need to look in this next leaf for it
-                    while (next == null && upos < usz)
-                    {
-                        next = (T)unode[upos++];
-                        if (null != remove.next(next))
-                            next = null;
-                    }
-
-                    // if we still found no key loop and try again on the next parent, leaf, parent... ad infinitum
-                } while (next == null);
-
-                // we always end with unode a leaf, though it may be that upos == usz and that we will do nothing with it
-
-                // we've found a non-null key, now decide what to do with it:
-                //   1) if we have insufficient keys in our leaf, simply append to the leaf and continue;
-                //   2) otherwise, walk our parent branches finishing those *before* {@code finishTo}
-                //   2a) if any cannot be finished, append our new key to it and stop finishing further parents; they
-                //   will be finished the next time we ascend to their level with a complete chain of finishable branches
-                //   2b) otherwise, add our new key to {@code finishTo}
-
-                if (!propagatedOriginalLeaf && !finish(leaf(), null))
-                {
-                    leaf().addKeyNoOverflow(next);
-                    continue;
-                }
-
-                BranchBuilder finish = parent;
-                while (true)
-                {
-                    if (finish.height <= finishToHeight)
-                    {
-                        Object[] originalNode = queuedToFinish[finish.height - 2];
-                        if (finish(finish, originalNode))
-                        {
-                            finish = finish.parent;
-                            continue;
-                        }
-                    }
-
-                    // add our key to the last unpropagated parent branch buffer
-                    finish.addKey(next);
-                    break;
                 }
             }
+            return i;
+        }
+
+        @Override
+        protected boolean transformLeaf(Object[] unode, int upos, int usz)
+        {
+            int prev = upos;
+            if (remove.hasNext())
+            {
+                while (true)
+                {
+                    // fast path - buffer is empty and input unconsumed, so may be able to propagate original
+                    upos = exponentialSearch(comparator, unode, upos, usz, remove.peek());
+                    if (upos < 0)
+                    {
+                        upos = -1 - upos;
+                        if (upos == usz)
+                            break;
+                        remove.next();
+                        if (remove.hasNext()) continue;
+                        else break;
+                    }
+
+                    leaf().copy(unode, prev, upos - prev);
+                    ++upos;
+                    prev = upos;
+                    remove.next();
+                    if (!remove.hasNext())
+                        break;
+                }
+            }
+
+            if (prev == 0 && leaf().isEmpty())
+                // if input is unmodified by transformation, propagate the input node
+                return false;
+
+            leaf().copy(unode, prev, usz - prev);
+            return true;
         }
     }
 
+    private static abstract class AbstractTransformer<I, O> extends AbstractSeekingTransformer<I, O>
+    {
+        @Override
+        final int seekInBranch(Object[] unode, int upos, int usz)
+        {
+            return -1 - upos;
+        }
+
+        protected final boolean transformLeaf(Object[] unode, int upos, int usz)
+        {
+            if (leaf().count == 0)
+            {
+                while (upos < usz)
+                {
+                    O v = apply((I) unode[upos++]);
+                    leaf().maybeAddKeyNoOverflow(v);
+                }
+            }
+            else
+            {
+                while (upos < usz)
+                {
+                    O v = apply((I) unode[upos++]);
+                    leaf().maybeAddKey(v);
+                }
+            }
+            return true;
+        }
+    }
 
     private static class Transformer<I, O> extends AbstractTransformer<I, O>
     {
@@ -4284,15 +4342,9 @@ public class BTree
     // Begins by immediately descending to first leaf; if empty terminates immediately.
     private static class SimpleTreeIterator extends SimpleTreeStack
     {
-        int init(Object[] tree)
+        int initToLeaf(Object[] tree)
         {
-            int maxHeight = maxRootHeight(size(tree));
-            if (positions == null || maxHeight >= positions.length)
-            {
-                positions = new int[maxHeight + 1];
-                nodes = new Object[maxHeight + 1][];
-            }
-            nodes[0] = tree;
+            init(tree);
             if (isEmpty(tree))
             {
                 // already done
@@ -4314,6 +4366,35 @@ public class BTree
             return leafDepth + 1;
         }
 
+        int initToRoot(Object[] tree)
+        {
+            init(tree);
+            positions[0] = 0;
+            leafDepth = depth = 0;
+            while (!isLeaf(tree))
+            {
+                tree = (Object[]) tree[shallowSizeOfBranch(tree)];
+                ++leafDepth;
+            }
+            return leafDepth + 1;
+        }
+
+        int height()
+        {
+            return 1 + leafDepth - depth;
+        }
+
+        void init(Object[] tree)
+        {
+            int maxHeight = maxRootHeight(size(tree));
+            if (positions == null || maxHeight >= positions.length)
+            {
+                positions = new int[maxHeight + 1];
+                nodes = new Object[maxHeight + 1][];
+            }
+            nodes[0] = tree;
+        }
+
         void descendIntoNextLeaf(Object[] node, int pos, int sz)
         {
             positions[depth] = ++pos;
@@ -4326,6 +4407,16 @@ public class BTree
                 nodes[depth] = node = (Object[]) node[shallowSizeOfBranch(node)];
                 positions[depth] = 0;
             }
+        }
+
+        // return true iff entered leaf depth
+        boolean descend(Object[] node, int pos, int sz)
+        {
+            positions[depth] = pos;
+            ++depth;
+            nodes[depth] = (Object[]) node[sz + pos];
+            positions[depth] = 0;
+            return depth == leafDepth;
         }
 
         boolean ascendToParent()

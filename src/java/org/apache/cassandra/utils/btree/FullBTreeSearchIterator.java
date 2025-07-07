@@ -22,6 +22,8 @@ import static org.apache.cassandra.utils.btree.BTree.size;
 import java.util.Comparator;
 import java.util.NoSuchElementException;
 
+import accord.utils.Invariants;
+
 public class FullBTreeSearchIterator<K, V> extends TreeCursor<K> implements BTreeSearchIterator<K, V>
 {
     private final boolean forwards;
@@ -109,7 +111,8 @@ public class FullBTreeSearchIterator<K, V> extends TreeCursor<K> implements BTre
         if ((state & ON_ITEM) == 1)
         {
             state &= ~ON_ITEM;
-            index = moveOne(forwards);
+            if (compareToLast(index = moveOne(forwards)) >= 0)
+                state = LAST;
         }
         return (V) currentValue();
     }
