@@ -268,8 +268,8 @@ public class TopologySerializers
             long epoch = in.readLong();
             SortedArrays.SortedArrayList<Node.Id> staleNodes = SortedArrays.SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, TopologySerializers.nodeId), Node.Id[]::new);
 
-            ImmutableUniqueList<TableId> tables = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, TableId.compactComparableSerializer));
-            ImmutableUniqueList<TokenRange> ranges = ImmutableUniqueList.copyOf(CollectionSerializers.deserializeList(in, TokenRange.noTableSerializer));
+            List<TableId> tables = CollectionSerializers.deserializeList(in, TableId.compactComparableSerializer);
+            List<TokenRange> ranges = CollectionSerializers.deserializeList(in, TokenRange.noTableSerializer);
 
             int size = in.readUnsignedVInt32();
             Shard[] shards = new Shard[size];
