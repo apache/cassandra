@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 
 import accord.local.Node;
 import accord.primitives.Range;
@@ -30,6 +31,7 @@ import accord.utils.SimpleBitSet;
 import accord.utils.SortedArrays;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
+import org.agrona.collections.Object2IntHashMap;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -39,7 +41,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
-import org.apache.cassandra.utils.ImmutableUniqueList;
 import org.apache.cassandra.utils.SimpleBitSetSerializer;
 
 import static accord.utils.SortedArrays.fromSimpleBitSet;
@@ -179,30 +180,37 @@ public class TopologySerializers
             List<Shard> shards = topology.shards();
 
             // need to loop twice; once to collect tables/ranges, and another to save shards
-            ImmutableUniqueList<TableId> tables;
-            ImmutableUniqueList<TokenRange> ranges;
+            Object2IntHashMap<TableId> tables;
+            Object2IntHashMap<TokenRange> ranges;
             {
-                ImmutableUniqueList.Builder<TableId> tablesBuilder = ImmutableUniqueList.builder();
-                ImmutableUniqueList.Builder<TokenRange> rangesBuilder = ImmutableUniqueList.builder();
+                Object2IntHashMap<TableId> tablesBuilder = new Object2IntHashMap<>(-2);
+                Object2IntHashMap<TokenRange> rangesBuilder = new Object2IntHashMap<>(-2);
                 for (Shard shard : shards)
                 {
                     TokenRange range = (TokenRange) shard.range;
-                    tablesBuilder.add(range.table());
-                    rangesBuilder.add(range.withTable(TableId.UNDEFINED));
+                    tablesBuilder.putIfAbsent(range.table(), -1);
+                    rangesBuilder.putIfAbsent(range.withTable(TableId.UNDEFINED), -1);
                 }
-                tables = tablesBuilder.buildAndClear();
-                ranges = rangesBuilder.buildAndClear();
+                int count = 0;
+                for (Map.Entry<TableId, Integer> e : tablesBuilder.entrySet())
+                    e.setValue(count++);
+                count = 0;
+                for (Map.Entry<TokenRange, Integer> e : rangesBuilder.entrySet())
+                    e.setValue(count++);
+
+                tables = tablesBuilder;
+                ranges = rangesBuilder;
             }
 
-            CollectionSerializers.serializeList(tables, out, TableId.compactComparableSerializer);
-            CollectionSerializers.serializeList(ranges, out, TokenRange.noTableSerializer);
+            CollectionSerializers.serializeCollection(tables.keySet(), out, TableId.compactComparableSerializer);
+            CollectionSerializers.serializeCollection(ranges.keySet(), out, TokenRange.noTableSerializer);
 
             out.writeUnsignedVInt32(shards.size());
             for (Shard shard : shards)
             {
                 TokenRange range = (TokenRange) shard.range;
-                int tableIdx = tables.indexOf(range.table());
-                int rangeIdx = ranges.indexOf(range.withTable(TableId.UNDEFINED));
+                int tableIdx = tables.getValue(range.table());
+                int rangeIdx = ranges.getValue(range.withTable(TableId.UNDEFINED));
                 out.writeUnsignedVInt32(tableIdx);
                 out.writeUnsignedVInt32(rangeIdx);
 
@@ -224,30 +232,37 @@ public class TopologySerializers
             List<Shard> shards = topology.shards();
 
             // need to loop twice; once to collect tables/ranges, and another to save shards
-            ImmutableUniqueList<TableId> tables;
-            ImmutableUniqueList<TokenRange> ranges;
+            Object2IntHashMap<TableId> tables;
+            Object2IntHashMap<TokenRange> ranges;
             {
-                ImmutableUniqueList.Builder<TableId> tablesBuilder = ImmutableUniqueList.builder();
-                ImmutableUniqueList.Builder<TokenRange> rangesBuilder = ImmutableUniqueList.builder();
+                Object2IntHashMap<TableId> tablesBuilder = new Object2IntHashMap<>(-2);
+                Object2IntHashMap<TokenRange> rangesBuilder = new Object2IntHashMap<>(-2);
                 for (Shard shard : shards)
                 {
                     TokenRange range = (TokenRange) shard.range;
-                    tablesBuilder.add(range.table());
-                    rangesBuilder.add(range.withTable(TableId.UNDEFINED));
+                    tablesBuilder.putIfAbsent(range.table(), -1);
+                    rangesBuilder.putIfAbsent(range.withTable(TableId.UNDEFINED), -1);
                 }
-                tables = tablesBuilder.buildAndClear();
-                ranges = rangesBuilder.buildAndClear();
+                int count = 0;
+                for (Map.Entry<TableId, Integer> e : tablesBuilder.entrySet())
+                    e.setValue(count++);
+                count = 0;
+                for (Map.Entry<TokenRange, Integer> e : rangesBuilder.entrySet())
+                    e.setValue(count++);
+
+                tables = tablesBuilder;
+                ranges = rangesBuilder;
             }
 
-            size += CollectionSerializers.serializedListSize(tables, TableId.compactComparableSerializer);
-            size += CollectionSerializers.serializedListSize(ranges, TokenRange.noTableSerializer);
+            size += CollectionSerializers.serializedCollectionSize(tables.keySet(), TableId.compactComparableSerializer);
+            size += CollectionSerializers.serializedCollectionSize(ranges.keySet(), TokenRange.noTableSerializer);
 
             size += TypeSizes.sizeofUnsignedVInt(shards.size());
             for (Shard shard : shards)
             {
                 TokenRange range = (TokenRange) shard.range;
-                int tableIdx = tables.indexOf(range.table());
-                int rangeIdx = ranges.indexOf(range.withTable(TableId.UNDEFINED));
+                int tableIdx = tables.getValue(range.table());
+                int rangeIdx = ranges.getValue(range.withTable(TableId.UNDEFINED));
 
                 size += TypeSizes.sizeofUnsignedVInt(tableIdx);
                 size += TypeSizes.sizeofUnsignedVInt(rangeIdx);
