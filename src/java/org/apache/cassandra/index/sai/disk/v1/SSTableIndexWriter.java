@@ -152,7 +152,12 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     {
         aborted = true;
 
-        logger.warn(index.identifier().logMessage("Aborting SSTable index flush for {}..."), indexDescriptor.sstableDescriptor, cause);
+        String message = index.identifier().logMessage("Aborting SSTable index flush for {}...");
+
+        if (cause == null)
+            logger.debug(message, indexDescriptor.sstableDescriptor);
+        else 
+            logger.warn(message, indexDescriptor.sstableDescriptor, cause);
 
         // It's possible for the current builder to be unassigned after we flush a final segment.
         if (currentBuilder != null)
