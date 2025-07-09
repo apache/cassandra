@@ -65,6 +65,7 @@ public enum Version
      *  - Added ConsensusMigrationState
      *  - Added AccordStaleReplicas
      *  - TableParam now has pendingDrop (accord table drop is multistep)
+     *  - TableParam now has noDeletes
      */
     V7(7),
 
