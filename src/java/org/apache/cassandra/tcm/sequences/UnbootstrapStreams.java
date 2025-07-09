@@ -103,7 +103,7 @@ public class UnbootstrapStreams implements LeaveStreams
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    if (startWriteRemovals.get(newReplica.endpoint()).contains(newReplica.range(), false))
-                                       logger.debug("Streaming transient -> full conversion to {} from {}", newReplica, oldReplicas.get(newReplica.range()));
+                                       logger.debug("Streaming witness -> full conversion to {} from {}", newReplica, oldReplicas.get(newReplica.range()));
                                    movements.put(oldReplicas.get(newReplica.range()), newReplica);
                                });
             allMovements.put(params, movements.build());

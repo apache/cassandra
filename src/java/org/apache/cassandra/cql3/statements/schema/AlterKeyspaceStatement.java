@@ -50,14 +50,14 @@ import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_TRANSIENT_CHANGES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_WITNESS_CHANGES;
 
 public final class AlterKeyspaceStatement extends AlterSchemaStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(AlterKeyspaceStatement.class);
 
     private static final boolean allow_alter_rf_during_range_movement = ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT.getBoolean();
-    private static final boolean allow_unsafe_transient_changes = ALLOW_UNSAFE_TRANSIENT_CHANGES.getBoolean();
+    private static final boolean allow_unsafe_witness_changes = ALLOW_UNSAFE_WITNESS_CHANGES.getBoolean();
 
     private final KeyspaceAttributes attrs;
     private final boolean ifExists;
@@ -97,7 +97,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         newKeyspace.replicationStrategy.validate(metadata);
 
         validateNoRangeMovements();
-        validateTransientReplication(keyspace, newKeyspace);
+        validateWitnessReplication(keyspace, newKeyspace);
 
         // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
         try
@@ -166,49 +166,49 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         }
     }
 
-    private void validateTransientReplication(KeyspaceMetadata current, KeyspaceMetadata proposed)
+    private void validateWitnessReplication(KeyspaceMetadata current, KeyspaceMetadata proposed)
     {
         //If there is no read traffic there are some extra alterations you can safely make, but this is so atypical
         //that a good default is to not allow unsafe changes
-        if (allow_unsafe_transient_changes)
+        if (allow_unsafe_witness_changes)
             return;
 
         ReplicationFactor oldRF = current.replicationStrategy.getReplicationFactor();
         ReplicationFactor newRF = proposed.replicationStrategy.getReplicationFactor();
 
-        int oldTrans = oldRF.transientReplicas();
+        int oldTrans = oldRF.witnessReplicas();
         int oldFull = oldRF.fullReplicas;
-        int newTrans = newRF.transientReplicas();
+        int newTrans = newRF.witnessReplicas();
         int newFull = newRF.fullReplicas;
 
         if (newTrans > 0)
         {
             if (DatabaseDescriptor.getNumTokens() > 1)
-                throw new ConfigurationException(String.format("Transient replication is not supported with vnodes yet"));
+                throw new ConfigurationException(String.format("Witness replication is not supported with vnodes yet"));
 
 
             if (!current.views.isEmpty())
-                throw new ConfigurationException("Cannot use transient replication on keyspaces using materialized views");
+                throw new ConfigurationException("Cannot use witness replication on keyspaces using materialized views");
 
             for (TableMetadata table : current.tables)
                 if (!table.indexes.isEmpty())
-                    throw new ConfigurationException("Cannot use transient replication on keyspaces using secondary indexes");
+                    throw new ConfigurationException("Cannot use witness replication on keyspaces using secondary indexes");
         }
 
-        //This is true right now because the transition from transient -> full lacks the pending state
+        //This is true right now because the transition from witness -> full lacks the pending state
         //necessary for correctness. What would happen if we allowed this is that we would attempt
-        //to read from a transient replica as if it were a full replica.
+        //to read from a witness replica as if it were a full replica.
         if (oldFull > newFull && oldTrans > 0)
-            throw new ConfigurationException("Can't add full replicas if there are any transient replicas. You must first remove all transient replicas, then change the # of full replicas, then add back the transient replicas");
+            throw new ConfigurationException("Can't add full replicas if there are any witness replicas. You must first remove all witness replicas, then change the # of full replicas, then add back the witness replicas");
 
-        //Don't increase transient replication factor by more than one at a time if changing number of replicas
+        //Don't increase witness replication factor by more than one at a time if changing number of replicas
         //Just like with changing full replicas it's not safe to do this as you could read from too many replicas
-        //that don't have the necessary data. W/O transient replication this alteration was allowed and it's not clear
+        //that don't have the necessary data. W/O witness replication this alteration was allowed and it's not clear
         //if it should be.
-        //This is structured so you can convert as many full replicas to transient replicas as you want.
+        //This is structured so you can convert as many full replicas to witness replicas as you want.
         boolean numReplicasChanged = oldTrans + oldFull != newTrans + newFull;
         if (numReplicasChanged && (newTrans > oldTrans && newTrans != oldTrans + 1))
-            throw new ConfigurationException("Can only safely increase number of transients one at a time with incremental repair run in between each time");
+            throw new ConfigurationException("Can only safely increase number of witnesss one at a time with incremental repair run in between each time");
     }
 
     @Override

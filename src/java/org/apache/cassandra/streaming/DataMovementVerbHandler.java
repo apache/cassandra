@@ -55,7 +55,7 @@ public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
 
             message.payload.movements.get(ksm.params.replication).asMap().forEach((local, endpoints) -> {
                 assert local.isSelf();
-                boolean transientAdded = false;
+                boolean witnessAdded = false;
                 boolean fullAdded = false;
                 for (Replica remote : DatabaseDescriptor.getNodeProximity()
                                                         .sortedByProximity(local.endpoint(), endpoints)
@@ -67,18 +67,18 @@ public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
                         streamPlan.requestRanges(remote.endpoint(), ksm.name, RangesAtEndpoint.of(local), RangesAtEndpoint.empty(local.endpoint()));
                         fullAdded = true;
                     }
-                    else if (remote.isTransient() && !transientAdded)
+                    else if (remote.isWitness() && !witnessAdded)
                     {
                         streamPlan.requestRanges(remote.endpoint(), ksm.name, RangesAtEndpoint.empty(local.endpoint()), RangesAtEndpoint.of(local));
-                        transientAdded = true;
+                        witnessAdded = true;
                     }
 
-                    if (fullAdded && transientAdded)
+                    if (fullAdded && witnessAdded)
                         break;
                 }
                 if (!fullAdded)
                 {
-                    if (local.isFull() || !transientAdded)
+                    if (local.isFull() || !witnessAdded)
                     {
                         logger.error("Found no sources to stream from for {}", local);
                         send(false, message.from(), message.payload.streamOperation, message.payload.operationId);

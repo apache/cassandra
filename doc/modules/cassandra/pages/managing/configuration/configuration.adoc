@@ -134,7 +134,7 @@ our parameters (incrementally, post https://issues.apache.org/jira/browse/CASSAN
 |enable_user_defined_functions |user_defined_functions_enabled |-
 |enable_scripted_user_defined_functions |scripted_user_defined_functions_enabled |-
 |enable_materialized_views |materialized_views_enabled |-
-|enable_transient_replication |transient_replication_enabled |-
+|enable_witness_replication |witness_replication_enabled |-
 |enable_sasi_indexes |sasi_indexes_enabled |-
 |enable_drop_compact_storage |drop_compact_storage_enabled |-
 |enable_user_defined_functions_threads |user_defined_functions_threads_enabled |-

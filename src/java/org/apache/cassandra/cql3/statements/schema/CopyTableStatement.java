@@ -182,10 +182,10 @@ public final class CopyTableStatement extends AlterSchemaStatement
         if (sourceTableMeta.isCompactTable())
             Guardrails.compactTablesEnabled.ensureEnabled(state);
 
-        if (sourceKeyspaceMeta.replicationStrategy.hasTransientReplicas()
+        if (sourceKeyspaceMeta.replicationStrategy.hasWitnessReplicas()
             && sourceTableMeta.params.readRepair != ReadRepairStrategy.NONE)
         {
-            throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
+            throw ire("read_repair must be set to 'NONE' for witness replicated keyspaces");
         }
 
         if (!sourceTableMeta.params.compression.isEnabled())

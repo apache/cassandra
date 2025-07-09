@@ -660,7 +660,7 @@ New features
       cassandra.yaml can be used to configure how long to wait (or whether to wait at all)
       and block_for_peers_in_remote_dcs can be used to also block on all but one node in
       each remote DC as well. See CASSANDRA-14297 and CASSANDRA-13993 for more information.
-    - *Experimental* support for Transient Replication and Cheap Quorums introduced by CASSANDRA-14404
+    - *Experimental* support for Witness Replication and Cheap Quorums introduced by CASSANDRA-14404
       The intended audience for this functionality is expert users of Cassandra who are prepared
       to validate every aspect of the database for their application and deployment practices. Future
       releases of Cassandra will make this feature suitable for a wider audience.

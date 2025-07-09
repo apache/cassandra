@@ -122,15 +122,15 @@ public abstract class AbstractReadExecutor
         makeRequests(command, replicas);
     }
 
-    protected void makeTransientDataRequests(Iterable<Replica> replicas)
+    protected void makeWitnessDataRequests(Iterable<Replica> replicas)
     {
-        makeRequests(command.copyAsTransientQuery(replicas), replicas);
+        makeRequests(command.copyAsWitnessQuery(replicas), replicas);
     }
 
     protected void makeDigestRequests(Iterable<Replica> replicas)
     {
         assert all(replicas, Replica::isFull);
-        // only send digest requests to full replicas, send data requests instead to the transient replicas
+        // only send digest requests to full replicas, send data requests instead to the witness replicas
         makeRequests(command.copyAsDigestQuery(replicas), replicas);
     }
 
@@ -142,7 +142,7 @@ public abstract class AbstractReadExecutor
 
         for (Replica replica: replicas)
         {
-            assert replica.isFull() || readCommand.acceptsTransient();
+            assert replica.isFull() || readCommand.acceptsWitness();
 
             InetAddressAndPort endpoint = replica.endpoint();
             if (replica.isSelf() && coordinator.localReadSupported())
@@ -182,11 +182,11 @@ public abstract class AbstractReadExecutor
         EndpointsForToken selected = replicaPlan().contacts();
         EndpointsForToken fullDataRequests = selected.filter(Replica::isFull, initialDataRequestCount);
         makeFullDataRequests(fullDataRequests);
-        EndpointsForToken transientRequests = selected.filter(Replica::isTransient);
-        makeTransientDataRequests(transientRequests);
+        EndpointsForToken witnessRequests = selected.filter(Replica::isWitness);
+        makeWitnessDataRequests(witnessRequests);
         EndpointsForToken digestRequests = selected.filter(r -> r.isFull() && !fullDataRequests.contains(r));
         makeDigestRequests(digestRequests);
-        coordinator.notifyOfInitialContacts(fullDataRequests, transientRequests, digestRequests);
+        coordinator.notifyOfInitialContacts(fullDataRequests, witnessRequests, digestRequests);
     }
 
     /**
@@ -335,8 +335,8 @@ public abstract class AbstractReadExecutor
                     // we should only use a SpeculatingReadExecutor if we have an extra replica to speculate against
                     assert extraReplica != null;
 
-                    retryCommand = extraReplica.isTransient()
-                            ? command.copyAsTransientQuery(extraReplica)
+                    retryCommand = extraReplica.isWitness()
+                            ? command.copyAsWitnessQuery(extraReplica)
                             : command.copyAsDigestQuery(extraReplica);
                 }
                 else

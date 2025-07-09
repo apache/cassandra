@@ -51,7 +51,7 @@ public class StorageServiceDrainTest
     public void before() throws UnknownHostException
     {
         ServerTestUtils.prepareServerNoRegister();
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
 
         CommitLog.instance.start();
 

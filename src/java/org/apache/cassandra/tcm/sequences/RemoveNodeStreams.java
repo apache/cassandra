@@ -130,9 +130,9 @@ public class RemoveNodeStreams implements LeaveStreams
                                            candidateBuilder.add(replica, ReplicaCollection.Builder.Conflict.NONE);
                                    });
                                    EndpointsForRange sources = candidateBuilder.build();
-                                   // log if newReplica is an existing transient replica moving to a full replica
+                                   // log if newReplica is an existing witness replica moving to a full replica
                                    if (startWriteRemovals.get(newReplica.endpoint()).contains(newReplica.range(), false))
-                                       logger.debug("Streaming transient -> full conversion to {} from {}", newReplica.endpoint(), sources);
+                                       logger.debug("Streaming witness -> full conversion to {} from {}", newReplica.endpoint(), sources);
                                    movements.putAll(newReplica, sources, ReplicaCollection.Builder.Conflict.NONE);
                                });
             allMovements.put(params, movements.build());

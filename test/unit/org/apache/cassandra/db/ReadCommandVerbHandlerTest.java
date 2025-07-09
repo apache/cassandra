@@ -60,12 +60,12 @@ public class ReadCommandVerbHandlerTest
 
     private static ReadCommandVerbHandler handler;
     private static TableMetadata metadata;
-    private static TableMetadata metadata_with_transient;
+    private static TableMetadata metadata_with_witness;
     private static DecoratedKey KEY;
 
     private static final String TEST_NAME = "read_command_vh_test_";
     private static final String KEYSPACE = TEST_NAME + "cql_keyspace_replicated";
-    private static final String KEYSPACE_WITH_TRANSIENT = TEST_NAME + "ks_with_transient";
+    private static final String KEYSPACE_WITH_WITNESS = TEST_NAME + "ks_with_witness";
     private static final String TABLE = "table1";
 
     @BeforeClass
@@ -74,7 +74,7 @@ public class ReadCommandVerbHandlerTest
         ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.schemaDefinition(TEST_NAME);
         metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-        metadata_with_transient = Schema.instance.getTableMetadata(KEYSPACE_WITH_TRANSIENT, TABLE);
+        metadata_with_witness = Schema.instance.getTableMetadata(KEYSPACE_WITH_WITNESS, TABLE);
         KEY = key(metadata, 1);
         InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.3");
@@ -137,9 +137,9 @@ public class ReadCommandVerbHandlerTest
     }
 
     @Test (expected = InvalidRequestException.class)
-    public void rejectsRequestWithNonMatchingTransientness()
+    public void rejectsRequestWithNonMatchingWitnessness()
     {
-        ReadCommand command = new TrackingSinglePartitionReadCommand(metadata_with_transient);
+        ReadCommand command = new TrackingSinglePartitionReadCommand(metadata_with_witness);
         handler.doVerb(Message.builder(READ_REQ, command)
                               .from(peer())
                               .withId(messageId())

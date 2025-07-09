@@ -42,14 +42,14 @@ import static org.apache.cassandra.dht.AbstractBounds.tokenSerializer;
  *  - the logical token range that is being replicated (i.e. for the first logical replica only, this will be equal
  *      to one of its owned portions of the token ring; all other replicas will have this token range also)
  *  - an endpoint (IP and port)
- *  - whether the range is replicated in full, or transiently (CASSANDRA-14404)
+ *  - whether the range is replicated in full, or witnessed (CASSANDRA-14404)
  *
  * In general, it is preferred to use a Replica to a Range&lt;Token&gt;, particularly when users of the concept depend on
- * knowledge of the full/transient status of the copy.
+ * knowledge of the full/witness status of the copy.
  *
  * That means you should avoid unwrapping and rewrapping these things and think hard about subtraction
- * and such and what the result is WRT to transientness. Definitely avoid creating fake Replicas with misinformation
- * about endpoints, ranges, or transientness.
+ * and such and what the result is WRT to witnessness. Definitely avoid creating fake Replicas with misinformation
+ * about endpoints, ranges, or witnessness.
  */
 public final class Replica implements Comparable<Replica>, Endpoint
 {
@@ -102,7 +102,7 @@ public final class Replica implements Comparable<Replica>, Endpoint
     @Override
     public String toString()
     {
-        return (full ? "Full" : "Transient") + '(' + endpoint() + ',' + range + ')';
+        return (full ? "Full" : "Witness") + '(' + endpoint() + ',' + range + ')';
     }
 
     @Override
@@ -126,18 +126,18 @@ public final class Replica implements Comparable<Replica>, Endpoint
         return full;
     }
 
-    public final boolean isTransient()
+    public final boolean isWitness()
     {
         return !isFull();
     }
 
     /**
      * This is used exclusively in TokenMetadata to check if a portion of a range is already replicated
-     * by an endpoint so that we only mark as pending the portion that is either not replicated sufficiently (transient
+     * by an endpoint so that we only mark as pending the portion that is either not replicated sufficiently (witness
      * when we need full) or at all.
      *
      * If it's not replicated at all it needs to be pending because there is no data.
-     * If it's replicated but only transiently and we need to replicate it fully it must be marked as pending until it
+     * If it's replicated but only witnessed and we need to replicate it fully it must be marked as pending until it
      * is available fully otherwise a read might treat this replica as full and not read from a full replica that has
      * the data.
      */
@@ -153,12 +153,12 @@ public final class Replica implements Comparable<Replica>, Endpoint
     }
 
     /**
-     * Don't use this method and ignore transient status unless you are explicitly handling it outside this method.
+     * Don't use this method and ignore witness status unless you are explicitly handling it outside this method.
      *
      * This helper method is used by StorageService.calculateStreamAndFetchRanges to perform subtraction.
-     * It ignores transient status because it's already being handled in calculateStreamAndFetchRanges.
+     * It ignores witness status because it's already being handled in calculateStreamAndFetchRanges.
      */
-    public RangesAtEndpoint subtractIgnoreTransientStatus(Range<Token> subtract)
+    public RangesAtEndpoint subtractIgnoreWitnessStatus(Range<Token> subtract)
     {
         Set<Range<Token>> ranges = this.range.subtract(subtract);
         RangesAtEndpoint.Builder result = RangesAtEndpoint.builder(endpoint, ranges.size());
@@ -193,14 +193,14 @@ public final class Replica implements Comparable<Replica>, Endpoint
         return fullReplica(endpoint, new Range<>(start, end));
     }
 
-    public static Replica transientReplica(InetAddressAndPort endpoint, Range<Token> range)
+    public static Replica witnessReplica(InetAddressAndPort endpoint, Range<Token> range)
     {
         return new Replica(endpoint, range, false);
     }
 
-    public static Replica transientReplica(InetAddressAndPort endpoint, Token start, Token end)
+    public static Replica witnessReplica(InetAddressAndPort endpoint, Token start, Token end)
     {
-        return transientReplica(endpoint, new Range<>(start, end));
+        return witnessReplica(endpoint, new Range<>(start, end));
     }
 
     public static class Serializer implements IPartitionerDependentSerializer<Replica>

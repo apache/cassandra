@@ -58,7 +58,7 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
+import static org.apache.cassandra.locator.Replica.witnessReplica;
 import static org.apache.cassandra.service.StorageServiceTest.assertMultimapEqualsIgnoreOrder;
 
 /**
@@ -68,7 +68,7 @@ import static org.apache.cassandra.service.StorageServiceTest.assertMultimapEqua
  */
 @DDDaemonInitialization
 @UseOrderPreservingPartitioner
-public class BootstrapTransientTest extends CassandraTestBase
+public class BootstrapWitnessTest extends CassandraTestBase
 {
     static final String KEYSPACE = "TestKeyspace";
     static InetAddressAndPort address02;
@@ -95,7 +95,7 @@ public class BootstrapTransientTest extends CassandraTestBase
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
         address02 = InetAddressAndPort.getByName("127.0.0.2");
         address03 = InetAddressAndPort.getByName("127.0.0.3");
         address04 = InetAddressAndPort.getByName("127.0.0.4");
@@ -176,16 +176,16 @@ public class BootstrapTransientTest extends CassandraTestBase
     public void testRangeStreamerRangesToFetch()
     {
         EndpointsByReplica expectedResult = new EndpointsByReplica(ImmutableMap.of(
-            transientReplica(address05, range10_20), endpoints(transientReplica(address02, range10_20)),
-            fullReplica(address05, range20_30), endpoints(transientReplica(address03, range20_30), fullReplica(address02, range20_30)),
-            fullReplica(address05, range30_40), endpoints(transientReplica(address04, range30_40), fullReplica(address03, range30_40))));
+            witnessReplica(address05, range10_20), endpoints(witnessReplica(address02, range10_20)),
+            fullReplica(address05, range20_30), endpoints(witnessReplica(address03, range20_30), fullReplica(address02, range20_30)),
+            fullReplica(address05, range30_40), endpoints(witnessReplica(address04, range30_40), fullReplica(address03, range30_40))));
 
         /*
          * Pre-TCM expected result, there are a couple of differences worth explaining...
          *
-         * transientReplica(address05, range10_20), endpoints(transientReplica(address02, range10_20)),
-         * fullReplica(address05, range20_30), endpoints(transientReplica(address03, range20_30), fullReplica(address04, range20_30)),
-         * fullReplica(address05, range30_40), endpoints(transientReplica(address04, range30_10), fullReplica(address02, range30_10))));
+         * witnessReplica(address05, range10_20), endpoints(witnessReplica(address02, range10_20)),
+         * fullReplica(address05, range20_30), endpoints(witnessReplica(address03, range20_30), fullReplica(address04, range20_30)),
+         * fullReplica(address05, range30_40), endpoints(witnessReplica(address04, range30_10), fullReplica(address02, range30_10))));
 
          * First, the ranges of the source replicas now exactly match the dest replicas. This is because we split
          * existing ranges without modifying ownership at the prepare stage.
@@ -196,15 +196,15 @@ public class BootstrapTransientTest extends CassandraTestBase
          * strict sources slightly differently, but with semantically equivalent outcomes.
          *
          * We have 3/1 replicas for a given range with a new node is bootstrapping as a Full replica. This causes an
-         * existing Full to become Transient and the existing Transient to give up the range entirely. The old and new
+         * existing Full to become Witness and the existing Witness to give up the range entirely. The old and new
          * implementations work slightly differently in this case:
          *
-         * Post CEP-21, the new node will pick the replica going from Full to Transient as the stream source.
-         * In earlier versions, the Transient replica giving up the range will be chosen initially, but this doesn't
-         * satisfy the `isSufficient` predicate (i.e. a Transient replica can't be the source for a Full one), so we
+         * Post CEP-21, the new node will pick the replica going from Full to Witness as the stream source.
+         * In earlier versions, the Witness replica giving up the range will be chosen initially, but this doesn't
+         * satisfy the `isSufficient` predicate (i.e. a Witness replica can't be the source for a Full one), so we
          * pick the first existing Full replica for the range, which might not be the same one TCM picked.
          *
-         * In the end, neither implementation can pick the replica giving up the range entirely (because it is Transient
+         * In the end, neither implementation can pick the replica giving up the range entirely (because it is Witness
          * and the new replica is Full), despite strict consistency and so both pick an existing Full replica as the
          * source.
          */
@@ -222,7 +222,7 @@ public class BootstrapTransientTest extends CassandraTestBase
                                                                     BootstrapAndJoin joinPlan,
                                                                     EndpointsByReplica expectedResult)
     {
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
         Pair<MovementMap, MovementMap> movements = joinPlan.getMovementMaps(metadata);
         EndpointsByReplica result = RangeStreamer.calculateRangesToFetchWithPreferredEndpoints((address, replicas) -> replicas,
                                                                                                simpleStrategy(metadata),

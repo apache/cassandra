@@ -31,7 +31,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.emptyReplicas;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
-import static org.apache.cassandra.tcm.ownership.OwnershipUtils.transientReplicas;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.witnessReplicas;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.fullReplicas;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -204,14 +204,14 @@ public class DeltaMapTest
     @Test
     public void testMerge()
     {
-        // delta to remove transient replica and add trivial replica
-        Delta toFinal = new Delta(transientReplicas(P1, R1), fullReplicas(P1, R1));
+        // delta to remove witness replica and add trivial replica
+        Delta toFinal = new Delta(witnessReplicas(P1, R1), fullReplicas(P1, R1));
         // delta to remove trivial replica
         Delta toMerge = new Delta(fullReplicas(P1, R1), RangesByEndpoint.EMPTY);
-        // merged should contain only the transient replica removal
+        // merged should contain only the witness replica removal
         Delta merged = toMerge.merge(toFinal);
         assertEquals(0, merged.additions.get(P1).size());
         assertEquals(1, merged.removals.get(P1).size());
-        assertTrue(merged.removals.get(P1).contains(Replica.transientReplica(P1, R1)));
+        assertTrue(merged.removals.get(P1).contains(Replica.witnessReplica(P1, R1)));
     }
 }

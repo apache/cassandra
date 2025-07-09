@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.apache.cassandra.locator.ReplicaUtils.trans;
 
-public class WriteResponseHandlerTransientTest
+public class WriteResponseHandlerWitnessTest
 {
     static Keyspace ks;
     static ColumnFamilyStore cfs;
@@ -88,7 +88,7 @@ public class WriteResponseHandlerTransientTest
     public static void setupClass() throws Throwable
     {
         SchemaLoader.loadSchema();
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         // Register peers with expected DC for NetworkTopologyStrategy.
@@ -157,7 +157,7 @@ public class WriteResponseHandlerTransientTest
     public void checkSpeculationContext()
     {
         EndpointsForToken all = replicas(full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
-        // in happy path, transient replica should be classified as a backup
+        // in happy path, witness replica should be classified as a backup
         assertSpeculationReplicas(expected(all, replicas(full(EP1), full(EP2), full(EP4), full(EP5))),
                                   all,
                                   dead());
@@ -167,7 +167,7 @@ public class WriteResponseHandlerTransientTest
                                   all,
                                   dead(EP2, EP5));
 
-        // only one transient used as backup
+        // only one witness used as backup
         assertSpeculationReplicas(expected(replicas(full(EP1), trans(EP3), full(EP4), full(EP5), trans(EP6)), replicas(full(EP1), full(EP2), full(EP4), full(EP5), trans(EP3))),
                 all,
                 dead(EP2));
@@ -180,7 +180,7 @@ public class WriteResponseHandlerTransientTest
     }
 
     @Test (expected = UnavailableException.class)
-    public void notEnoughTransientReplicas()
+    public void notEnoughWitnessReplicas()
     {
         getSpeculationContext(replicas(full(EP1), trans(EP2), trans(EP3)), dead(EP2, EP3));
     }

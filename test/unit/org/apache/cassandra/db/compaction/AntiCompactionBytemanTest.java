@@ -86,7 +86,7 @@ public class AntiCompactionBytemanTest extends CQLTester
         Range<Token> pending = new Range<>(new Murmur3Partitioner.LongToken(first), new Murmur3Partitioner.LongToken(last));
 
         RangesAtEndpoint ranges = new RangesAtEndpoint.Builder(FBUtilities.getBroadcastAddressAndPort()).add(Replica.fullReplica(FBUtilities.getBroadcastAddressAndPort(), toRepair))
-                                                                                                        .add(Replica.transientReplica(InetAddressAndPort.getByName("127.0.0.1"), pending)).build();
+                                                                                                        .add(Replica.witnessReplica(InetAddressAndPort.getByName("127.0.0.1"), pending)).build();
 
         AtomicBoolean failed = new AtomicBoolean(false);
         AtomicBoolean finished = new AtomicBoolean(false);

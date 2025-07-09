@@ -79,7 +79,7 @@ public class StatsMetadata extends MetadataComponent
     public final long totalRows;
     public final UUID originatingHostId;
     public final TimeUUID pendingRepair;
-    public final boolean isTransient;
+    public final boolean isWitness;
     // just holds the current encoding stats to avoid allocating - it is not serialized
     public final EncodingStats encodingStats;
 
@@ -121,7 +121,7 @@ public class StatsMetadata extends MetadataComponent
                          double tokenSpaceCoverage,
                          UUID originatingHostId,
                          TimeUUID pendingRepair,
-                         boolean isTransient,
+                         boolean isWitness,
                          boolean hasPartitionLevelDeletions,
                          ByteBuffer firstKey,
                          ByteBuffer lastKey)
@@ -147,7 +147,7 @@ public class StatsMetadata extends MetadataComponent
         this.tokenSpaceCoverage = tokenSpaceCoverage;
         this.originatingHostId = originatingHostId;
         this.pendingRepair = pendingRepair;
-        this.isTransient = isTransient;
+        this.isWitness = isWitness;
         this.encodingStats = new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
         this.hasPartitionLevelDeletions = hasPartitionLevelDeletions;
         this.firstKey = firstKey;
@@ -206,13 +206,13 @@ public class StatsMetadata extends MetadataComponent
                                  tokenSpaceCoverage,
                                  originatingHostId,
                                  pendingRepair,
-                                 isTransient,
+                                 isWitness,
                                  hasPartitionLevelDeletions,
                                  firstKey,
                                  lastKey);
     }
 
-    public StatsMetadata mutateRepairedMetadata(long newRepairedAt, TimeUUID newPendingRepair, boolean newIsTransient)
+    public StatsMetadata mutateRepairedMetadata(long newRepairedAt, TimeUUID newPendingRepair, boolean newIsWitness)
     {
         return new StatsMetadata(estimatedPartitionSize,
                                  estimatedCellPerPartitionCount,
@@ -235,7 +235,7 @@ public class StatsMetadata extends MetadataComponent
                                  tokenSpaceCoverage,
                                  originatingHostId,
                                  newPendingRepair,
-                                 newIsTransient,
+                                 newIsWitness,
                                  hasPartitionLevelDeletions,
                                  firstKey,
                                  lastKey);
@@ -354,9 +354,9 @@ public class StatsMetadata extends MetadataComponent
                     size += TimeUUID.sizeInBytes();
             }
 
-            if (version.hasIsTransient())
+            if (version.hasIsWitness())
             {
-                size += TypeSizes.sizeof(component.isTransient);
+                size += TypeSizes.sizeof(component.isWitness);
             }
 
             if (version.hasOriginatingHostId())
@@ -472,9 +472,9 @@ public class StatsMetadata extends MetadataComponent
                 }
             }
 
-            if (version.hasIsTransient())
+            if (version.hasIsWitness())
             {
-                out.writeBoolean(component.isTransient);
+                out.writeBoolean(component.isWitness);
             }
 
             if (version.hasOriginatingHostId())
@@ -620,7 +620,7 @@ public class StatsMetadata extends MetadataComponent
                 pendingRepair = TimeUUID.deserialize(in);
             }
 
-            boolean isTransient = version.hasIsTransient() && in.readBoolean();
+            boolean isWitness = version.hasIsWitness() && in.readBoolean();
 
             UUID originatingHostId = null;
             if (version.hasOriginatingHostId() && in.readByte() != 0)
@@ -676,7 +676,7 @@ public class StatsMetadata extends MetadataComponent
                                      tokenSpaceCoverage,
                                      originatingHostId,
                                      pendingRepair,
-                                     isTransient,
+                                     isWitness,
                                      hasPartitionLevelDeletions,
                                      firstKey,
                                      lastKey);

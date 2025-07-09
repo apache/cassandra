@@ -1555,15 +1555,15 @@ public class ReadCommandTest
     }
 
     @Test (expected = IllegalArgumentException.class)
-    public void copyFullAsTransientTest()
+    public void copyFullAsWitnessTest()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
-        readCommand.copyAsTransientQuery(ReplicaUtils.full(FBUtilities.getBroadcastAddressAndPort()));
+        readCommand.copyAsWitnessQuery(ReplicaUtils.full(FBUtilities.getBroadcastAddressAndPort()));
     }
 
     @Test (expected = IllegalArgumentException.class)
-    public void copyTransientAsDigestQuery()
+    public void copyWitnessAsDigestQuery()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         ReadCommand readCommand = Util.cmd(cfs, Util.dk("key")).build();
@@ -1571,7 +1571,7 @@ public class ReadCommandTest
     }
 
     @Test (expected = IllegalArgumentException.class)
-    public void copyMultipleFullAsTransientTest()
+    public void copyMultipleFullAsWitnessTest()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         DecoratedKey key = Util.dk("key");
@@ -1579,13 +1579,13 @@ public class ReadCommandTest
         // Address is unimportant for this test
         InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
         ReadCommand readCommand = Util.cmd(cfs, key).build();
-        readCommand.copyAsTransientQuery(EndpointsForToken.of(token,
+        readCommand.copyAsWitnessQuery(EndpointsForToken.of(token,
                                                               ReplicaUtils.trans(addr, token),
                                                               ReplicaUtils.full(addr, token)));
     }
 
     @Test (expected = IllegalArgumentException.class)
-    public void copyMultipleTransientAsDigestQuery()
+    public void copyMultipleWitnessAsDigestQuery()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF6);
         DecoratedKey key = Util.dk("key");

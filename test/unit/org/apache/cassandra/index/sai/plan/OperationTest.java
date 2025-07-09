@@ -97,7 +97,7 @@ public class OperationTest
         SchemaLoader.loadSchema();
 
         SchemaLoader.createKeyspace(KS_NAME,
-                                    KeyspaceParams.simpleTransient(1),
+                                    KeyspaceParams.simpleWitness(1),
                                     skinnySAITableMetadata(KS_NAME, CF_NAME),
                                     clusteringSAITableMetadata(KS_NAME, CLUSTERING_CF_NAME),
                                     staticSAITableMetadata(KS_NAME, STATIC_CF_NAME));

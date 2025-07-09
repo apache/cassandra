@@ -49,7 +49,7 @@ import static org.junit.Assert.assertEquals;
 
 @PrepareServerNoRegister
 @UseRandomPartitioner
-public class CleanupTransientTest extends CassandraTestBase
+public class CleanupWitnessTest extends CassandraTestBase
 {
     private static final IPartitioner partitioner = RandomPartitioner.instance;
 
@@ -73,7 +73,7 @@ public class CleanupTransientTest extends CassandraTestBase
     @BeforeClass
     public static void setup() throws Exception
     {
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple("2/1"),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
@@ -135,13 +135,13 @@ public class CleanupTransientTest extends CassandraTestBase
         sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, null, false);
         sstable.reloadSSTableMetadata();
 
-        // This should remove approximately 50% of the data, specifically whatever was transiently replicated
+        // This should remove approximately 50% of the data, specifically whatever was witness replicated
         CompactionManager.instance.performCleanup(cfs, 2);
 
         // ensure max timestamp of the sstables are retained post-cleanup
         assert expectedMaxTimestamps.equals(getMaxTimestampList(cfs));
 
-        // check less data is there, all transient data should be gone since the table was repaired
+        // check less data is there, all witness data should be gone since the table was repaired
         assertEquals(fullCount, Util.getAll(Util.cmd(cfs).build()).size());
     }
 

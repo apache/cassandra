@@ -63,7 +63,7 @@ public class OperationTest extends SchemaLoader
         CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
         ServerTestUtils.prepareServer();
         SchemaLoader.createKeyspace(KS_NAME,
-                                    KeyspaceParams.simpleTransient(1),
+                                    KeyspaceParams.simpleWitness(1),
                                     SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
                                     SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME),
                                     SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME));

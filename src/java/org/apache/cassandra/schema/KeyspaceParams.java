@@ -107,7 +107,7 @@ public final class KeyspaceParams
         return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple());
     }
 
-    public static KeyspaceParams simpleTransient(int replicationFactor)
+    public static KeyspaceParams simpleWitness(int replicationFactor)
     {
         return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple());
     }

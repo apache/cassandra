@@ -384,7 +384,7 @@ public class Move extends MultiStepOperation<Epoch>
                         if (fd.isAlive(source.endpoint()) && !source.endpoint().equals(destination.endpoint()))
                         {
                             if ((sources.fullSource == null && source.isFull()) ||
-                                (sources.transientSource == null && source.isTransient()))
+                                (sources.witnessSource == null && source.isWitness()))
                                 sources.addSource(source);
                         }
                     }
@@ -406,7 +406,7 @@ public class Move extends MultiStepOperation<Epoch>
         private final PlacementDeltas.PlacementDelta splitDelta;
         private final boolean strict;
         private Replica fullSource;
-        private Replica transientSource;
+        private Replica witnessSource;
         private final Replica destination;
 
         public SourceHolder(IFailureDetector fd, Replica destination, PlacementDeltas.PlacementDelta splitDelta, boolean strict)
@@ -428,10 +428,10 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 else
                 {
-                    assert transientSource == null;
+                    assert witnessSource == null;
                     if (!destination.isSelf() && !source.isSelf())
                     {
-                        // a transient replica is being removed, now, to be able to safely skip streaming from this
+                        // a witness replica is being removed, now, to be able to safely skip streaming from this
                         // replica we need to make sure it remains a replica for the range after the move has finished:
                         if (splitDelta.writes.additions.get(source.endpoint()).byRange().get(destination.range()) == null)
                         {
@@ -444,7 +444,7 @@ public class Move extends MultiStepOperation<Epoch>
                     }
                     else
                     {
-                        transientSource = source;
+                        witnessSource = source;
                     }
                 }
                 return true;
@@ -458,8 +458,8 @@ public class Move extends MultiStepOperation<Epoch>
         {
             if (fullSource != null)
                 movements.put(destination, fullSource);
-            if (transientSource != null)
-                movements.put(destination, transientSource);
+            if (witnessSource != null)
+                movements.put(destination, witnessSource);
         }
     }
 

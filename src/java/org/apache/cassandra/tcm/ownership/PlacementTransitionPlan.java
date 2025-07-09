@@ -151,7 +151,7 @@ public class PlacementTransitionPlan
      *
      * We should never add both read & write replicas for the same range at the same time (or read replica before write)
      *
-     * Also makes sure that we don't add a full read replica while the same write replica is only transient - we should
+     * Also makes sure that we don't add a full read replica while the same write replica is only witness - we should
      * always make the write replica full before adding the read replica.
      *
      * We split and merge ranges, so in the previous placements we could have full write replicas (a, b], (b, c], but then
@@ -189,7 +189,7 @@ public class PlacementTransitionPlan
                         Set<Range<Token>> intersectingRanges = new HashSet<>();
                         for (Replica writeReplica : existingWriteReplicas)
                         {
-                            if (writeReplica.isFull() == newReadReplica.isFull() || (writeReplica.isFull() && newReadReplica.isTransient()))
+                            if (writeReplica.isFull() == newReadReplica.isFull() || (writeReplica.isFull() && newReadReplica.isWitness()))
                             {
                                 if (writeReplica.range().contains(newReadReplica.range()))
                                 {

@@ -203,7 +203,7 @@ public interface SingleNodeSequences
             logger.info(msg);
             throw new IllegalStateException(msg);
         }
-        StorageService.instance.clearTransientMode();
+        StorageService.instance.clearWitnessMode();
         InProgressSequences.finishInProgressSequences(self);
     }
 
@@ -240,7 +240,7 @@ public interface SingleNodeSequences
                 logger.info(msg);
                 throw new IllegalStateException(msg);
             }
-            StorageService.instance.clearTransientMode();
+            StorageService.instance.clearWitnessMode();
         }
         else if (Gossiper.instance.isAlive(metadata.directory.endpoint(toAbort)))
         {

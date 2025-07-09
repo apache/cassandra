@@ -101,11 +101,11 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         return sstable;
     }
 
-    public static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    public static void mutateRepaired(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair, boolean isWitness)
     {
         try
         {
-            sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingRepair, isTransient);
+            sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingRepair, isWitness);
             sstable.reloadSSTableMetadata();
         }
         catch (IOException e)
@@ -119,14 +119,14 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         mutateRepaired(sstable, repairedAt, ActiveRepairService.NO_PENDING_REPAIR, false);
     }
 
-    public static void mutateRepaired(SSTableReader sstable, TimeUUID pendingRepair, boolean isTransient)
+    public static void mutateRepaired(SSTableReader sstable, TimeUUID pendingRepair, boolean isWitness)
     {
-        mutateRepaired(sstable, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, isTransient);
+        mutateRepaired(sstable, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, isWitness);
     }
 
-    public static void mutateRepaired(List<SSTableReader> sstables, TimeUUID pendingRepair, boolean isTransient)
+    public static void mutateRepaired(List<SSTableReader> sstables, TimeUUID pendingRepair, boolean isWitness)
     {
         for (SSTableReader sstable : sstables)
-            mutateRepaired(sstable, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, isTransient);
+            mutateRepaired(sstable, ActiveRepairService.UNREPAIRED_SSTABLE, pendingRepair, isWitness);
     }
 }

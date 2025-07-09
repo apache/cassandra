@@ -127,7 +127,7 @@ public class StorageProxyTest
      * and disables the way we'd expect.
      */
     @Test
-    public void testTransientLoggingTimer()
+    public void testWitnessLoggingTimer()
     {
         StorageProxy.instance.logBlockingReadRepairAttemptsForNSeconds(2);
         Assert.assertTrue(StorageProxy.instance.isLoggingReadRepairs());

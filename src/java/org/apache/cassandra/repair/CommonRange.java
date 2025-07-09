@@ -32,29 +32,29 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
- * Groups ranges with identical endpoints/transient endpoints
+ * Groups ranges with identical endpoints/witness endpoints
  */
 public class CommonRange
 {
     public final ImmutableSet<InetAddressAndPort> endpoints;
-    public final ImmutableSet<InetAddressAndPort> transEndpoints;
+    public final ImmutableSet<InetAddressAndPort> witnessEndpoints;
     public final Collection<Range<Token>> ranges;
     public final boolean hasSkippedReplicas;
 
-    public CommonRange(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints, Collection<Range<Token>> ranges)
+    public CommonRange(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> witnessEndpoints, Collection<Range<Token>> ranges)
     {
-        this(endpoints, transEndpoints, ranges, false);
+        this(endpoints, witnessEndpoints, ranges, false);
     }
 
-    public CommonRange(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints, Collection<Range<Token>> ranges, boolean hasSkippedReplicas)
+    public CommonRange(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> witnessEndpoints, Collection<Range<Token>> ranges, boolean hasSkippedReplicas)
     {
         Preconditions.checkArgument(endpoints != null && !endpoints.isEmpty(), "Endpoints can not be empty");
-        Preconditions.checkArgument(transEndpoints != null, "Transient endpoints can not be null");
-        Preconditions.checkArgument(endpoints.containsAll(transEndpoints), "transEndpoints must be a subset of endpoints");
+        Preconditions.checkArgument(witnessEndpoints != null, "Witness endpoints can not be null");
+        Preconditions.checkArgument(endpoints.containsAll(witnessEndpoints), "witnessEndpoints must be a subset of endpoints");
         Preconditions.checkArgument(ranges != null && !ranges.isEmpty(), "Ranges can not be empty");
 
         this.endpoints = ImmutableSet.copyOf(endpoints);
-        this.transEndpoints = ImmutableSet.copyOf(transEndpoints);
+        this.witnessEndpoints = ImmutableSet.copyOf(witnessEndpoints);
         this.ranges = new ArrayList<>(ranges);
         this.hasSkippedReplicas = hasSkippedReplicas;
     }
@@ -62,7 +62,7 @@ public class CommonRange
     public boolean matchesEndpoints(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints)
     {
         // Use strict equality here, as worst thing that can happen is we generate one more stream
-        return this.endpoints.equals(endpoints) && this.transEndpoints.equals(transEndpoints);
+        return this.endpoints.equals(endpoints) && this.witnessEndpoints.equals(transEndpoints);
     }
 
     public boolean equals(Object o)
@@ -73,21 +73,21 @@ public class CommonRange
         CommonRange that = (CommonRange) o;
 
         return Objects.equals(endpoints, that.endpoints)
-               && Objects.equals(transEndpoints, that.transEndpoints)
+               && Objects.equals(witnessEndpoints, that.witnessEndpoints)
                && Objects.equals(ranges, that.ranges)
                && hasSkippedReplicas == that.hasSkippedReplicas;
     }
 
     public int hashCode()
     {
-        return Objects.hash(endpoints, transEndpoints, ranges, hasSkippedReplicas);
+        return Objects.hash(endpoints, witnessEndpoints, ranges, hasSkippedReplicas);
     }
 
     public String toString()
     {
         return "CommonRange{" +
                "endpoints=" + endpoints +
-               ", transEndpoints=" + transEndpoints +
+               ", transEndpoints=" + witnessEndpoints +
                ", ranges=" + ranges +
                ", hasSkippedReplicas=" + hasSkippedReplicas +
                '}';

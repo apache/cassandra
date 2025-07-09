@@ -164,13 +164,13 @@ will result in:
 include::cassandra:example$RESULTS/autoexpand_exclude_dc.result[]
 ----
 
-If xref:new/transientreplication.adoc[transient replication] has been enabled, transient replicas can be
+If xref:new/witnessreplication.adoc[witness replication] has been enabled, witness replicas can be
 configured for both `SimpleStrategy` and `NetworkTopologyStrategy` by
 defining replication factors in the format
-`'<total_replicas>/<transient_replicas>'`
+`'<total_replicas>/<witness_replicas>'`
 
 For instance, this keyspace will have 3 replicas in DC1, 1 of which is
-transient, and 5 replicas in DC2, 2 of which are transient:
+a witness, and 5 replicas in DC2, 2 of which are witnesses:
 
 [source,cql]
 ----
@@ -592,7 +592,7 @@ include::cassandra:example$CQL/spec_retry_values.cql[]
 ----
 
 The `additional_write_policy` setting specifies the threshold at which a cheap
-quorum write will be upgraded to include transient replicas.
+quorum write will be upgraded to include witness replicas.
 
 [[cql-compaction-options]]
 ===== Compaction options

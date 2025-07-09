@@ -76,7 +76,7 @@ public class StreamRequestTest
 
                 Assert.assertEquals(orig.keyspace, decoded.keyspace);
                 Util.assertRCEquals(orig.full, decoded.full);
-                Util.assertRCEquals(orig.transientReplicas, decoded.transientReplicas);
+                Util.assertRCEquals(orig.witnessReplicas, decoded.witnessReplicas);
                 Assert.assertEquals(orig.columnFamilies, decoded.columnFamilies);
             }
         }

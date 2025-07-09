@@ -243,14 +243,14 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         }
     }
 
-    private static void assertValidRepairMetadata(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    private static void assertValidRepairMetadata(long repairedAt, TimeUUID pendingRepair, boolean isWitness)
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_SMALL_MAX_VALUE);
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 
-        try (SSTableWriter writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isTransient))
+        try (SSTableWriter writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isWitness))
         {
             // expected
         }
@@ -263,14 +263,14 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         LifecycleTransaction.waitForDeletions();
     }
 
-    private static void assertInvalidRepairMetadata(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
+    private static void assertInvalidRepairMetadata(long repairedAt, TimeUUID pendingRepair, boolean isWitness)
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_SMALL_MAX_VALUE);
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 
-        try (SSTableWriter writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isTransient))
+        try (SSTableWriter writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isWitness))
         {
             fail("Expected IllegalArgumentException");
         }
@@ -284,7 +284,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
     }
 
     /**
-     * It should only be possible to create sstables marked transient that also have a pending repair
+     * It should only be possible to create sstables marked witness that also have a pending repair
      */
     @Test
     public void testRepairMetadataValidation()

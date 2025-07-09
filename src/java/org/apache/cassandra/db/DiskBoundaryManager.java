@@ -182,7 +182,7 @@ public class DiskBoundaryManager
         for (Range<Token> r : Range.sort(replicas.onlyFull().ranges()))
             weightedRanges.add(new Splitter.WeightedRange(1.0, r));
 
-        for (Range<Token> r : Range.sort(replicas.onlyTransient().ranges()))
+        for (Range<Token> r : Range.sort(replicas.onlyWitness().ranges()))
             weightedRanges.add(new Splitter.WeightedRange(0.1, r));
 
         weightedRanges.sort(Comparator.comparing(Splitter.WeightedRange::left));

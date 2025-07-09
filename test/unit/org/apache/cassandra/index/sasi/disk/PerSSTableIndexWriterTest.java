@@ -77,7 +77,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
         ServerTestUtils.prepareServer();
         SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
-                                                                   KeyspaceParams.simpleTransient(1),
+                                                                   KeyspaceParams.simpleWitness(1),
                                                                    Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME).build())));
     }
 

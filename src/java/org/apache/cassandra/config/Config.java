@@ -635,7 +635,8 @@ public class Config
     public volatile boolean materialized_views_on_repair_enabled = true;
 
     @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)
-    public boolean transient_replication_enabled = false;
+    @Replaces(oldName = "transient_replication_enabled", converter = Converters.IDENTITY, deprecated = true)
+    public boolean witness_replication_enabled = false;
 
     @Replaces(oldName = "enable_sasi_indexes", converter = Converters.IDENTITY, deprecated = true)
     public boolean sasi_indexes_enabled = false;

@@ -53,7 +53,7 @@ import static org.apache.cassandra.harry.model.TokenPlacementModel.nodeFactory;
 /**
  * Compare different operations, and make sure that executing operations such as move, bootstrap, etc.,
  * is consistent with bootstrapping nodes with equivalent token ownership. Useful for testing operations
- * that are not yet a part of simulator, like transient replication.
+ * that are not yet a part of simulator, like witness replication.
  */
 public class OperationalEquivalenceTest extends CMSTestBase
 {
@@ -61,7 +61,7 @@ public class OperationalEquivalenceTest extends CMSTestBase
 
     static
     {
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
     }
 
     @Test

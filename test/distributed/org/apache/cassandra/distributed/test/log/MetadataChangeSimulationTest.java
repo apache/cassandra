@@ -86,7 +86,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     static
     {
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
     }
 
     @Test
@@ -767,15 +767,15 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         assertRanges(expectedRanges, actualPlacements.writes.ranges());
         assertRanges(expectedRanges, actualPlacements.reads.ranges());
 
-        validateTransientStatus(actualPlacements.reads, actualPlacements.writes);
+        validateWitnessStatus(actualPlacements.reads, actualPlacements.writes);
 
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.reads, false);
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.writes, true);
     }
 
-    public static void validateTransientStatus(ReplicaGroups reads, ReplicaGroups writes)
+    public static void validateWitnessStatus(ReplicaGroups reads, ReplicaGroups writes)
     {
-        // No node should ever be a FULL read replica but a TRANSIENT write replica for the same range
+        // No node should ever be a FULL read replica but a WITNESS write replica for the same range
         Map<Range<Token>, List<Replica>> invalid = new HashMap<>();
         for (int i = 0; i < reads.ranges.size(); i++)
         {
@@ -787,7 +787,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 if (r.isFull())
                 {
                     Replica w = writeGroup.get(r.endpoint());
-                    if (w != null && w.isTransient())
+                    if (w != null && w.isWitness())
                     {
                         List<Replica> replicas = invalid.computeIfAbsent(range, ignore -> new ArrayList<>());
                         replicas.add(w);
@@ -795,8 +795,8 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 }
             });
         }
-        assertTrue(() -> String.format("Found replicas with invalid transient/full status within a given range. " +
-                         "The following were found with the same instance having TRANSIENT status for writes, but " +
+        assertTrue(() -> String.format("Found replicas with invalid witness/full status within a given range. " +
+                         "The following were found with the same instance having WITNESS status for writes, but " +
                          "FULL status for reads, which can cause consistency violations. %n%s", invalid),
                    invalid.isEmpty());
     }

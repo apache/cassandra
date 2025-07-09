@@ -78,8 +78,8 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         // i.e., for:
         //  - reads, only live natural replicas
         //      ==> live.natural().subList(0, blockFor + initial speculate)
-        //  - writes, includes all full, and any pending replicas, (and only any necessary transient ones to make up the difference)
-        //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ live.natural.filter(isTransient, req)
+        //  - writes, includes all full, and any pending replicas, (and only any necessary witness ones to make up the difference)
+        //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ live.natural.filter(isWitness, req)
         //  - paxos, includes all live replicas (natural+pending), for this DC if SERIAL_LOCAL
         //      ==> live.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
         protected final E contacts;

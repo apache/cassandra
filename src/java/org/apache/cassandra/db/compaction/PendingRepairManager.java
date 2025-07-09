@@ -62,7 +62,7 @@ class PendingRepairManager
 
     private final ColumnFamilyStore cfs;
     private final CompactionParams params;
-    private final boolean isTransient;
+    private final boolean isWitness;
     private volatile ImmutableMap<TimeUUID, AbstractCompactionStrategy> strategies = ImmutableMap.of();
 
     /**
@@ -76,11 +76,11 @@ class PendingRepairManager
         }
     }
 
-    PendingRepairManager(ColumnFamilyStore cfs, CompactionParams params, boolean isTransient)
+    PendingRepairManager(ColumnFamilyStore cfs, CompactionParams params, boolean isWitness)
     {
         this.cfs = cfs;
         this.params = params;
-        this.isTransient = isTransient;
+        this.isWitness = isWitness;
     }
 
     private ImmutableMap.Builder<TimeUUID, AbstractCompactionStrategy> mapBuilder()
@@ -161,7 +161,7 @@ class PendingRepairManager
 
     synchronized void addSSTable(SSTableReader sstable)
     {
-        Preconditions.checkArgument(sstable.isTransient() == isTransient);
+        Preconditions.checkArgument(sstable.isWitness() == isWitness);
         getOrCreate(sstable).addSSTable(sstable);
     }
 
@@ -516,13 +516,13 @@ class PendingRepairManager
         protected void runMayThrow() throws Exception
         {
             boolean completed = false;
-            boolean obsoleteSSTables = isTransient && repairedAt > 0;
+            boolean obsoleteSSTables = isWitness && repairedAt > 0;
             try
             {
                 if (obsoleteSSTables)
                 {
-                    logger.info("Obsoleting transient repaired sstables for {}", sessionID);
-                    Preconditions.checkState(Iterables.all(transaction.originals(), SSTableReader::isTransient));
+                    logger.info("Obsoleting witness repaired sstables for {}", sessionID);
+                    Preconditions.checkState(Iterables.all(transaction.originals(), SSTableReader::isWitness));
                     transaction.obsoleteOriginals();
                 }
                 else

@@ -112,7 +112,7 @@ public class MockSchema
 
     private static final AtomicInteger id = new AtomicInteger();
     private static final String ksname = "mockks";
-    private static KeyspaceMetadata mockKS = KeyspaceMetadata.create(ksname, KeyspaceParams.simpleTransient(1));
+    private static KeyspaceMetadata mockKS = KeyspaceMetadata.create(ksname, KeyspaceParams.simpleWitness(1));
 
     public static final IndexSummary indexSummary;
 

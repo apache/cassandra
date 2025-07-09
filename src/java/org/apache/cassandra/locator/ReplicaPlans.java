@@ -617,10 +617,10 @@ public class ReplicaPlans
     }
 
     /**
-     * Select all nodes, transient or otherwise, as targets for the operation.
+     * Select all nodes, witness or otherwise, as targets for the operation.
      *
-     * This is may no longer be useful once we finish implementing transient replication support, however
-     * it can be of value to stipulate that a location writes to all nodes without regard to transient status.
+     * This is may no longer be useful once we finish implementing witness replication support, however
+     * it can be of value to stipulate that a location writes to all nodes without regard to witness status.
      */
     public static final Selector writeAll = new Selector()
     {
@@ -634,11 +634,11 @@ public class ReplicaPlans
 
     /**
      * Select all full nodes, live or down, as write targets.  If there are insufficient nodes to complete the write,
-     * but there are live transient nodes, select a sufficient number of these to reach our consistency level.
+     * but there are live witness nodes, select a sufficient number of these to reach our consistency level.
      *
-     * Pending nodes are always contacted, whether or not they are full.  When a transient replica is undergoing
-     * a pending move to a new node, if we write (transiently) to it, this write would not be replicated to the
-     * pending transient node, and so when completing the move, the write could effectively have not reached the
+     * Pending nodes are always contacted, whether or not they are full.  When a witness replica is undergoing
+     * a pending move to a new node, if we write (witness) to it, this write would not be replicated to the
+     * pending witness node, and so when completing the move, the write could effectively have not reached the
      * promised consistency level.
      */
     public static final Selector writeNormal = new Selector()
@@ -647,7 +647,7 @@ public class ReplicaPlans
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
         E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
-            if (!any(liveAndDown.all(), Replica::isTransient))
+            if (!any(liveAndDown.all(), Replica::isWitness))
                 return liveAndDown.all();
 
             ReplicaCollection.Builder<E> contacts = liveAndDown.all().newBuilder(liveAndDown.all().size());
@@ -657,7 +657,7 @@ public class ReplicaPlans
             /**
              * Per CASSANDRA-14768, we ensure we write to at least a QUORUM of nodes in every DC,
              * regardless of how many responses we need to wait for and our requested consistencyLevel.
-             * This is to minimally surprise users with transient replication; with normal writes, we
+             * This is to minimally surprise users with witness replication; with normal writes, we
              * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
              * even if we don't wait for ACK, we have in both cases sent sufficient messages.
               */
@@ -666,7 +666,7 @@ public class ReplicaPlans
             addToCountPerDc(locator, requiredPerDc, live.natural().filter(Replica::isFull), -1);
             addToCountPerDc(locator, requiredPerDc, live.pending(), -1);
 
-            for (Replica replica : filter(live.natural(), Replica::isTransient))
+            for (Replica replica : filter(live.natural(), Replica::isWitness))
             {
 
                 String dc = locator.location(replica.endpoint()).datacenter;
@@ -678,7 +678,7 @@ public class ReplicaPlans
     };
 
     /**
-     * TODO: Transient Replication C-14404/C-14665
+     * TODO: Witness Replication C-14404/C-14665
      * TODO: We employ this even when there is no monotonicity to guarantee,
      *          e.g. in case of CL.TWO, CL.ONE with speculation, etc.
      *
@@ -697,7 +697,7 @@ public class ReplicaPlans
             public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
             E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
             {
-                assert !any(liveAndDown.all(), Replica::isTransient);
+                assert !any(liveAndDown.all(), Replica::isWitness);
 
                 ReplicaCollection.Builder<E> contacts = live.all().newBuilder(live.all().size());
                 // add all live nodes we might write to that we have already contacted on read

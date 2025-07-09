@@ -177,11 +177,11 @@ public class StreamSessionOwnedRangesTest
     }
 
     private static Collection<StreamRequest> streamRequests(RangesAtEndpoint fullRanges,
-                                                            RangesAtEndpoint transientRanges)
+                                                            RangesAtEndpoint witnessRanges)
     {
         return Collections.singleton(new StreamRequest(KEYSPACE,
                                                        fullRanges,
-                                                       transientRanges,
+                                                       witnessRanges,
                                                        Collections.singleton(TABLE)));
 
     }

@@ -88,7 +88,7 @@ public class ReadMessageTest
                                     cfForCommitMetadata1);
 
         SchemaLoader.createKeyspace(KEYSPACENOCOMMIT,
-                                    KeyspaceParams.simpleTransient(1),
+                                    KeyspaceParams.simpleWitness(1),
                                     SchemaLoader.standardCFMD(KEYSPACENOCOMMIT, CF),
                                     cfForCommitMetadata2);
     }

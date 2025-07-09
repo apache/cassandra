@@ -79,7 +79,7 @@ public class Upgrader
                          .setKeyCount(estimatedRows)
                          .setRepairedAt(metadata.repairedAt)
                          .setPendingRepair(metadata.pendingRepair)
-                         .setTransientSSTable(metadata.isTransient)
+                         .setWitnessSSTable(metadata.isWitness)
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(sstableMetadataCollector)
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)))

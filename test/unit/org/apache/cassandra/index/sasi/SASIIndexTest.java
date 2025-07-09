@@ -161,7 +161,7 @@ public class SASIIndexTest
     {
         SchemaLoader.loadSchema();
         SchemaLoader.createKeyspace(KS_NAME,
-                                    KeyspaceParams.simpleTransient(1),
+                                    KeyspaceParams.simpleWitness(1),
                                     SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
                                     SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_1),
                                     SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_2, "location"),

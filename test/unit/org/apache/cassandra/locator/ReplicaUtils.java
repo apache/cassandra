@@ -31,7 +31,7 @@ import java.net.UnknownHostException;
 import java.util.List;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
+import static org.apache.cassandra.locator.Replica.witnessReplica;
 
 public class ReplicaUtils
 {
@@ -45,7 +45,7 @@ public class ReplicaUtils
 
     public static Replica trans(InetAddressAndPort endpoint)
     {
-        return transientReplica(endpoint, FULL_RANGE);
+        return witnessReplica(endpoint, FULL_RANGE);
     }
 
     public static Replica full(InetAddressAndPort endpoint, Token token)
@@ -55,7 +55,7 @@ public class ReplicaUtils
 
     public static Replica trans(InetAddressAndPort endpoint, Token token)
     {
-        return transientReplica(endpoint, new Range<>(token, token));
+        return witnessReplica(endpoint, new Range<>(token, token));
     }
 
     static final InetAddressAndPort EP1, EP2, EP3, EP4, EP5, EP6, EP7, EP8, EP9, BROADCAST_EP, NULL_EP;

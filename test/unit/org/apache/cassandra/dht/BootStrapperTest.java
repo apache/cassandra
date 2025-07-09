@@ -172,7 +172,7 @@ public class BootStrapperTest
         // calculated in the test code, and then cloning TokenMetadata with pending tokens added to pass to
         // calculateRangesToFetchWithPreferredEndpoints. Post-TCM, we calculate both relaxed and strict movements
         // together and TokenMetadata is no more, so the equivalent operation now ends up using strict movements. For
-        // that reason, when RF includes transient replicas, toFetch will include both a transient and full source,
+        // that reason, when RF includes witness replicas, toFetch will include both a witness and full source,
         // hence we dedupe the ranges here.
         Set<Range<Token>> fetchRanges = toFetch.values()
                                                .stream()

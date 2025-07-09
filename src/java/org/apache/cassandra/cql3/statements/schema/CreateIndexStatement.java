@@ -55,7 +55,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     public static final String TABLE_DOES_NOT_EXIST = "Table '%s' doesn't exist";
     public static final String COUNTER_TABLES_NOT_SUPPORTED = "Secondary indexes on counter tables aren't supported";
     public static final String MATERIALIZED_VIEWS_NOT_SUPPORTED = "Secondary indexes on materialized views aren't supported";
-    public static final String TRANSIENTLY_REPLICATED_KEYSPACE_NOT_SUPPORTED = "Secondary indexes are not supported on transiently replicated keyspaces";
+    public static final String WITNESS_REPLICATED_KEYSPACE_NOT_SUPPORTED = "Secondary indexes are not supported on witness replicated keyspaces";
     public static final String CUSTOM_CREATE_WITHOUT_COLUMN = "Only CUSTOM indexes can be created without specifying a target column";
     public static final String CUSTOM_MULTIPLE_COLUMNS = "Only CUSTOM indexes support multiple columns";
     public static final String DUPLICATE_TARGET_COLUMN = "Duplicate column '%s' in index target list";
@@ -155,8 +155,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire(MATERIALIZED_VIEWS_NOT_SUPPORTED);
 
-        if (keyspace.replicationStrategy.hasTransientReplicas())
-            throw new InvalidRequestException(TRANSIENTLY_REPLICATED_KEYSPACE_NOT_SUPPORTED);
+        if (keyspace.replicationStrategy.hasWitnessReplicas())
+            throw new InvalidRequestException(WITNESS_REPLICATED_KEYSPACE_NOT_SUPPORTED);
 
         // guardrails to limit number of secondary indexes per table.
         Guardrails.secondaryIndexesPerTable.guard(table.indexes.size() + 1,

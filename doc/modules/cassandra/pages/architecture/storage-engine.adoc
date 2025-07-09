@@ -228,7 +228,7 @@ persisted
 
 === Version 4
 
-* na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed SSTable metadata file, new Bloom filter format
+* na (4.0-rc1): uncompressed chunks, pending repair session, isWitness, checksummed SSTable metadata file, new Bloom filter format
 * nb (4.0.0): originating host id
 
 === Version 5

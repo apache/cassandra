@@ -422,8 +422,6 @@ public class SSTableMetadataViewer
             field("ClusteringTypes", clusteringTypes.toString());
             field("StaticColumns", FBUtilities.toString(statics));
             field("RegularColumns", FBUtilities.toString(regulars));
-            if (stats != null)
-                field("IsTransient", stats.isTransient);
         }
     }
 

@@ -156,7 +156,7 @@ public final class ServerTestUtils
         if (isServerPrepared)
             return;
 
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
 
         // Cleanup first
         try

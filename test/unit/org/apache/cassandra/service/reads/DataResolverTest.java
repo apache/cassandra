@@ -1207,12 +1207,12 @@ public class DataResolverTest extends AbstractReadResponseTest
     }
 
     @Test
-    public void responsesFromTransientReplicasAreNotTracked()
+    public void responsesFromWitnessReplicasAreNotTracked()
     {
         EndpointsForRange replicas = makeReplicas(2);
         EndpointsForRange.Builder mutable = replicas.newBuilder(2);
         mutable.add(replicas.get(0));
-        mutable.add(Replica.transientReplica(replicas.get(1).endpoint(), replicas.range()));
+        mutable.add(Replica.witnessReplica(replicas.get(1).endpoint(), replicas.range()));
         replicas = mutable.build();
 
         TestRepairedDataVerifier verifier = new TestRepairedDataVerifier();

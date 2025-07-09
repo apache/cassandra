@@ -39,7 +39,7 @@ public class SimpleStrategySimulationTest extends CMSTestBase
     static
     {
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
     }
 
     @Before
@@ -67,14 +67,14 @@ public class SimpleStrategySimulationTest extends CMSTestBase
     }
 
     @Test
-    public void simulateSimpleOneTransient() throws Throwable
+    public void simulateSimpleOneWitness() throws Throwable
     {
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
         simulate(seed, rng, 50, 0, new SimpleReplicationFactor(5, 2), 1);
     }
 
     @Test
-    public void simulateSimpleOneNonTransient() throws Throwable
+    public void simulateSimpleOneNonWitness() throws Throwable
     {
         simulate(seed, rng, 50, 0, new SimpleReplicationFactor(3), 1);
     }

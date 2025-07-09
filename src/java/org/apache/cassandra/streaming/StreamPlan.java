@@ -74,25 +74,25 @@ public class StreamPlan
     /**
      * Request data in {@code keyspace} and {@code ranges} from specific node.
      *
-     * Here, we have to encode both _local_ range transientness (encoded in Replica itself, in RangesAtEndpoint)
-     * and _remote_ (source) range transientmess, which is encoded by splitting ranges into full and transient.
+     * Here, we have to encode both _local_ range witnessness (encoded in Replica itself, in RangesAtEndpoint)
+     * and _remote_ (source) range witnessness, which is encoded by splitting ranges into full and witness.
      *
-     * At the other end the distinction between full and transient is ignored it just used the transient status
+     * At the other end the distinction between full and witness is ignored it just used the witness status
      * of the Replica objects we send to determine what to send. The real reason we have this split down to
      * StreamRequest is that on completion StreamRequest is used to write to the system table tracking
      * what has already been streamed. At that point since we only have the local Replica instances so we don't
-     * know what we got from the remote. We preserve that here by splitting based on the remotes transient
+     * know what we got from the remote. We preserve that here by splitting based on the remotes witness
      * status.
      * 
      * @param from endpoint address to fetch data from.
      * @param keyspace name of keyspace
      * @param fullRanges ranges to fetch that from provides the full version of
-     * @param transientRanges ranges to fetch that from provides only transient data of
+     * @param witnessRanges ranges to fetch that from provides only witness data of
      * @return this object for chaining
      */
-    public StreamPlan requestRanges(InetAddressAndPort from, String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint transientRanges)
+    public StreamPlan requestRanges(InetAddressAndPort from, String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint witnessRanges)
     {
-        return requestRanges(from, keyspace, fullRanges, transientRanges, EMPTY_COLUMN_FAMILIES);
+        return requestRanges(from, keyspace, fullRanges, witnessRanges, EMPTY_COLUMN_FAMILIES);
     }
 
     /**
@@ -101,18 +101,18 @@ public class StreamPlan
      * @param from endpoint address to fetch data from.
      * @param keyspace name of keyspace
      * @param fullRanges ranges to fetch that from provides the full data for
-     * @param transientRanges ranges to fetch that from provides only transient data for
+     * @param witnessRanges ranges to fetch that from provides only witness data for
      * @param columnFamilies specific column families
      * @return this object for chaining
      */
-    public StreamPlan requestRanges(InetAddressAndPort from, String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint transientRanges, String... columnFamilies)
+    public StreamPlan requestRanges(InetAddressAndPort from, String keyspace, RangesAtEndpoint fullRanges, RangesAtEndpoint witnessRanges, String... columnFamilies)
     {
         //It should either be a dummy address for repair or if it's a bootstrap/move/rebuild it should be this node
         assert all(fullRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(fullRanges) : fullRanges.toString();
-        assert all(transientRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(transientRanges) : transientRanges.toString();
+        assert all(witnessRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(witnessRanges) : witnessRanges.toString();
 
         StreamSession session = coordinator.getOrCreateOutboundSession(from);
-        session.addStreamRequest(keyspace, fullRanges, transientRanges, Arrays.asList(columnFamilies));
+        session.addStreamRequest(keyspace, fullRanges, witnessRanges, Arrays.asList(columnFamilies));
         return this;
     }
 

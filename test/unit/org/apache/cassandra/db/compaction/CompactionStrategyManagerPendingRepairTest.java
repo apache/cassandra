@@ -47,9 +47,9 @@ import org.apache.cassandra.utils.TimeUUID;
 public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingRepairTest
 {
 
-    private boolean transientContains(SSTableReader sstable)
+    private boolean witnessContains(SSTableReader sstable)
     {
-        return csm.getTransientRepairsUnsafe().containsSSTable(sstable);
+        return csm.getWitnessRepairsUnsafe().containsSSTable(sstable);
     }
 
     private boolean pendingContains(SSTableReader sstable)
@@ -72,9 +72,9 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         return !Iterables.isEmpty(csm.getPendingRepairsUnsafe().getStrategiesFor(sessionID));
     }
 
-    private boolean hasTransientStrategiesFor(TimeUUID sessionID)
+    private boolean hasWitnessStrategiesFor(TimeUUID sessionID)
     {
-        return !Iterables.isEmpty(csm.getTransientRepairsUnsafe().getStrategiesFor(sessionID));
+        return !Iterables.isEmpty(csm.getWitnessRepairsUnsafe().getStrategiesFor(sessionID));
     }
 
     /**
@@ -95,7 +95,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(sstable.isRepaired());
         Assert.assertTrue(sstable.isPendingRepair());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
 
         // add the sstable
         csm.handleNotification(new SSTableAddedNotification(Collections.singleton(sstable), null), cfs.getTracker());
@@ -103,7 +103,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(unrepairedContains(sstable));
         Assert.assertTrue(pendingContains(sstable));
         Assert.assertTrue(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
     }
 
     @Test
@@ -123,7 +123,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(repairedContains(sstable2));
         Assert.assertFalse(unrepairedContains(sstable2));
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
 
         // add only
         SSTableListChangedNotification notification;
@@ -139,7 +139,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(unrepairedContains(sstable2));
         Assert.assertFalse(pendingContains(sstable2));
         Assert.assertTrue(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
 
         // remove and add
         notification = new SSTableListChangedNotification(Collections.singleton(sstable2),
@@ -166,7 +166,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertTrue(unrepairedContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
 
         SSTableRepairStatusChanged notification;
 
@@ -177,7 +177,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(unrepairedContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertTrue(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
         Assert.assertTrue(pendingContains(sstable));
 
         // change to repaired
@@ -247,7 +247,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         csm.handleNotification(new SSTableAddedNotification(Collections.singleton(sstable), null), cfs.getTracker());
         LocalSessionAccessor.finalizeUnsafe(repairID);
         Assert.assertTrue(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
         Assert.assertTrue(pendingContains(sstable));
         Assert.assertTrue(sstable.isPendingRepair());
         Assert.assertFalse(sstable.isRepaired());
@@ -264,7 +264,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(unrepairedContains(sstable));
         Assert.assertFalse(pendingContains(sstable));
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
 
         // sstable should have pendingRepair cleared, and repairedAt set correctly
         long expectedRepairedAt = ActiveRepairService.instance().getParentRepairSession(repairID).repairedAt;
@@ -288,7 +288,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         LocalSessionAccessor.failUnsafe(repairID);
 
         Assert.assertTrue(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
         Assert.assertTrue(pendingContains(sstable));
         Assert.assertTrue(sstable.isPendingRepair());
         Assert.assertFalse(sstable.isRepaired());
@@ -304,7 +304,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertTrue(unrepairedContains(sstable));
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
 
         // sstable should have pendingRepair cleared, and repairedAt set correctly
         Assert.assertFalse(sstable.isPendingRepair());
@@ -404,7 +404,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         System.out.println("*********************************************************************************************");
 
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
         Assert.assertTrue(repairedContains(compactedSSTable));
         Assert.assertFalse(unrepairedContains(compactedSSTable));
         Assert.assertFalse(pendingContains(compactedSSTable));
@@ -416,7 +416,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
     }
 
     @Test
-    public void finalizedSessionTransientCleanup()
+    public void finalizedSessionWitnessCleanup()
     {
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
         TimeUUID repairID = registerSession(cfs, true, true);
@@ -427,8 +427,8 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         LocalSessionAccessor.finalizeUnsafe(repairID);
 
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertTrue(hasTransientStrategiesFor(repairID));
-        Assert.assertTrue(transientContains(sstable));
+        Assert.assertTrue(hasWitnessStrategiesFor(repairID));
+        Assert.assertTrue(witnessContains(sstable));
         Assert.assertFalse(pendingContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertFalse(unrepairedContains(sstable));
@@ -443,11 +443,11 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
 
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
     }
 
     @Test
-    public void failedSessionTransientCleanup()
+    public void failedSessionWitnessCleanup()
     {
         Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
         TimeUUID repairID = registerSession(cfs, true, true);
@@ -458,8 +458,8 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         LocalSessionAccessor.failUnsafe(repairID);
 
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertTrue(hasTransientStrategiesFor(repairID));
-        Assert.assertTrue(transientContains(sstable));
+        Assert.assertTrue(hasWitnessStrategiesFor(repairID));
+        Assert.assertTrue(witnessContains(sstable));
         Assert.assertFalse(pendingContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertFalse(unrepairedContains(sstable));
@@ -474,8 +474,8 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
 
         Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
         Assert.assertFalse(hasPendingStrategiesFor(repairID));
-        Assert.assertFalse(hasTransientStrategiesFor(repairID));
-        Assert.assertFalse(transientContains(sstable));
+        Assert.assertFalse(hasWitnessStrategiesFor(repairID));
+        Assert.assertFalse(witnessContains(sstable));
         Assert.assertFalse(pendingContains(sstable));
         Assert.assertFalse(repairedContains(sstable));
         Assert.assertTrue(unrepairedContains(sstable));

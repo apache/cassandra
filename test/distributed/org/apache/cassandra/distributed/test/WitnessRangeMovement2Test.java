@@ -39,13 +39,13 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeEn
 import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactment;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
-import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.OPPTokens;
-import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.assertAllContained;
-import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.localStrs;
-import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.populate;
+import static org.apache.cassandra.distributed.test.WitnessRangeMovementTest.OPPTokens;
+import static org.apache.cassandra.distributed.test.WitnessRangeMovementTest.assertAllContained;
+import static org.apache.cassandra.distributed.test.WitnessRangeMovementTest.localStrs;
+import static org.apache.cassandra.distributed.test.WitnessRangeMovementTest.populate;
 
 @SuppressWarnings("unchecked")
-public class TransientRangeMovement2Test extends TestBaseImpl
+public class WitnessRangeMovement2Test extends TestBaseImpl
 {
     @Test
     public void testMoveBackward() throws Exception
@@ -53,14 +53,14 @@ public class TransientRangeMovement2Test extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(4)
                                            .withTokenSupplier(new OPPTokens())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                           .withConfig(conf -> conf.set("witness_replication_enabled","true")
                                                                    .set("partitioner", "OrderPreservingPartitioner") // just makes it easier to read the tokens in the log
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))
                                            .start()))
         {
             populate(cluster);
-            // At the start, node1 is a TRANSIENT replica for (20,30] and FULL for (30, 40], (40,] & (,10]. When moving
-            // node3 to token 25, node1 becomes a FULL replica for (25, 40], effectively going from TRANSIENT to FULL
+            // At the start, node1 is a WITNESS replica for (20,30] and FULL for (30, 40], (40,] & (,10]. When moving
+            // node3 to token 25, node1 becomes a FULL replica for (25, 40], effectively going from WITNESS to FULL
             // for (25,30]. A T->F transition will always cause data for that range to be streamed to the transitioning
             // node, which happens after StartMove and before MidMove. Running cleanup before node1 considers itself a
             // FULL replica would remove any of the newly streamed data which is marked repaired. To avoid this, we
@@ -107,7 +107,7 @@ public class TransientRangeMovement2Test extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(4)
                                            .withTokenSupplier(new OPPTokens())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                           .withConfig(conf -> conf.set("witness_replication_enabled","true")
                                                                    .set("partitioner", "OrderPreservingPartitioner") // just makes it easier to read the tokens in the log
                                                                    .set("hinted_handoff_enabled", "false")
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))
@@ -156,7 +156,7 @@ public class TransientRangeMovement2Test extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(3)
                                            .withTokenSupplier(new OPPTokens())
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                           .withConfig(conf -> conf.set("witness_replication_enabled","true")
                                                                    .set("partitioner", "OrderPreservingPartitioner")
                                                                    .set("hinted_handoff_enabled", "false")
                                                                    .with(Feature.NETWORK, Feature.GOSSIP))

@@ -65,7 +65,7 @@ public class AutoRepairConfig implements Serializable
 
     public static final Class<? extends IAutoRepairTokenRangeSplitter> DEFAULT_SPLITTER = RepairTokenRangeSplitter.class;
 
-    // make transient so gets consturcted in the implementation.
+    // make witness so gets consturcted in the implementation.
     private final transient Map<RepairType, IAutoRepairTokenRangeSplitter> tokenRangeSplitters = new EnumMap<>(RepairType.class);
 
     public enum RepairType implements Serializable

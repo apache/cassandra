@@ -68,10 +68,10 @@ public class OwnershipUtils
         return b.build();
     }
 
-    public static RangesByEndpoint transientReplicas(InetAddressAndPort endpoint, Range<Token> range)
+    public static RangesByEndpoint witnessReplicas(InetAddressAndPort endpoint, Range<Token> range)
     {
         RangesByEndpoint.Builder b = new RangesByEndpoint.Builder();
-        b.put(endpoint, Replica.transientReplica(endpoint, range));
+        b.put(endpoint, Replica.witnessReplica(endpoint, range));
         return b.build();
     }
 

@@ -72,7 +72,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected long repairedAt;
     protected TimeUUID pendingRepair;
-    protected boolean isTransient;
+    protected boolean isWitness;
     protected long maxDataAge = -1;
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
@@ -100,7 +100,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.keyCount = builder.getKeyCount();
         this.repairedAt = builder.getRepairedAt();
         this.pendingRepair = builder.getPendingRepair();
-        this.isTransient = builder.isTransientSSTable();
+        this.isWitness = builder.isWitnessSSTable();
         this.metadataCollector = builder.getMetadataCollector();
         this.header = builder.getSerializationHeader();
         this.mmappedRegionsCache = builder.getMmappedRegionsCache();
@@ -332,7 +332,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
                                                   pendingRepair,
-                                                  isTransient,
+                                                  isWitness,
                                                   header,
                                                   first.retainable().getKey(),
                                                   last.retainable().getKey());
@@ -434,7 +434,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         private long keyCount;
         private long repairedAt;
         private TimeUUID pendingRepair;
-        private boolean transientSSTable;
+        private boolean witnessSSTable;
         private SerializationHeader serializationHeader;
         private List<Index.Group> indexGroups;
 
@@ -462,9 +462,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return (B) this;
         }
 
-        public B setTransientSSTable(boolean transientSSTable)
+        public B setWitnessSSTable(boolean witnessSSTable)
         {
-            this.transientSSTable = transientSSTable;
+            this.witnessSSTable = witnessSSTable;
             return (B) this;
         }
 
@@ -535,9 +535,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return pendingRepair;
         }
 
-        public boolean isTransientSSTable()
+        public boolean isWitnessSSTable()
         {
-            return transientSSTable;
+            return witnessSSTable;
         }
 
         public SerializationHeader getSerializationHeader()
@@ -561,7 +561,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         {
             checkNotNull(getComponents());
 
-            validateRepairedMetadata(getRepairedAt(), getPendingRepair(), isTransientSSTable());
+            validateRepairedMetadata(getRepairedAt(), getPendingRepair(), isWitnessSSTable());
 
             return buildInternal(lifecycleNewTracker, owner);
         }

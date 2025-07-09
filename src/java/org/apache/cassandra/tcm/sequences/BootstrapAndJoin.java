@@ -273,7 +273,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                 {
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
                     metadata = ClusterMetadataService.instance().commit(finishJoin);
-                    StorageService.instance.clearTransientMode();
+                    StorageService.instance.clearWitnessMode();
                 }
                 catch (Throwable e)
                 {

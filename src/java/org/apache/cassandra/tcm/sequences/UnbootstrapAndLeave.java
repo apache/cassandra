@@ -199,7 +199,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 try
                 {
                     ClusterMetadataService.instance().commit(finishLeave);
-                    StorageService.instance.clearTransientMode();
+                    StorageService.instance.clearWitnessMode();
                 }
                 catch (Throwable t)
                 {

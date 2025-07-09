@@ -443,7 +443,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         // md (3.0.18, 3.11.4): corrected sstable min/max clustering
         // me (3.0.25, 3.11.11): added hostId of the node from which the sstable originated
 
-        // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
+        // na (4.0-rc1): uncompressed chunks, pending repair session, isWitness, checksummed sstable metadata file, new Bloomfilter format
         // nb (4.0-rc2): originating host id
         // oa (5.0): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
         //           Long deletionTime to prevent TTL overflow
@@ -463,7 +463,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasMaxCompressedLength;
         private final boolean hasPendingRepair;
         private final boolean hasMetadataChecksum;
-        private final boolean hasIsTransient;
+        private final boolean hasIsWitness;
         private final boolean hasImprovedMinMax;
         private final boolean hasPartitionLevelDeletionPresenceMarker;
         private final boolean hasKeyRange;
@@ -493,7 +493,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasOriginatingHostId = version.compareTo("nb") >= 0 || version.matches("(m[e-z])");
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
-            hasIsTransient = version.compareTo("na") >= 0;
+            hasIsWitness = version.compareTo("na") >= 0;
             hasMetadataChecksum = version.compareTo("na") >= 0;
             hasOldBfFormat = version.compareTo("na") < 0;
             hasImprovedMinMax = version.compareTo("oa") >= 0;
@@ -540,9 +540,9 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         }
 
         @Override
-        public boolean hasIsTransient()
+        public boolean hasIsWitness()
         {
-            return hasIsTransient;
+            return hasIsWitness;
         }
 
         @Override

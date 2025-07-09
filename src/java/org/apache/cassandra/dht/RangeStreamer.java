@@ -390,12 +390,12 @@ public class RangeStreamer
 
         Multimap<InetAddressAndPort, FetchReplica> workMap;
         //Only use the optimized strategy if we don't care about strict sources, have a replication factor > 1, and no
-        //transient replicas or it is intentionally skipped.
+        //witness replicas or it is intentionally skipped.
         if (CassandraRelevantProperties.SKIP_OPTIMAL_STREAMING_CANDIDATES_CALCULATION.getBoolean() ||
             useStrictSource ||
             strat == null ||
             strat.getReplicationFactor().allReplicas == 1 ||
-            strat.getReplicationFactor().hasTransientReplicas())
+            strat.getReplicationFactor().hasWitnessReplicas())
         {
             workMap = convertPreferredEndpointsToWorkMap(fetchMap);
         }
@@ -492,16 +492,16 @@ public class RangeStreamer
          for (Replica toFetch : movements.get(params).keySet())
          {
              //Replica that is sufficient to provide the data we need
-             //With strict consistency and transient replication we may end up with multiple types
+             //With strict consistency and witness replication we may end up with multiple types
              //so this isn't used with strict consistency
-             Predicate<Replica> isSufficient = r -> toFetch.isTransient() || r.isFull();
+             Predicate<Replica> isSufficient = r -> toFetch.isWitness() || r.isFull();
 
              logger.debug("To fetch {}", toFetch);
 
              //Ultimately we populate this with whatever is going to be fetched from to satisfy toFetch
              //It could be multiple endpoints and we must fetch from all of them if they are there
-             //With transient replication and strict consistency this is to get the full data from a full replica and
-             //transient data from the transient replica losing data
+             //With witness replication and strict consistency this is to get the full data from a full replica and
+             //witness data from the witness replica losing data
              EndpointsForRange sources;
              //Due to CASSANDRA-5953 we can have a higher RF than we have endpoints.
              //So we need to be careful to only be strict when endpoints == RF
@@ -518,13 +518,13 @@ public class RangeStreamer
                  if (!all(strictEndpoints, testSourceFilters))
                      throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, strictEndpoints));
 
-                 //If we are transitioning from transient to full and and the set of replicas for the range is not changing
+                 //If we are transitioning from witness to full and and the set of replicas for the range is not changing
                  //we might end up with no endpoints to fetch from by address. In that case we can pick any full replica safely
-                 //since we are already a transient replica and the existing replica remains.
+                 //since we are already a witness replica and the existing replica remains.
                  //The old behavior where we might be asked to fetch ranges we don't need shouldn't occur anymore.
                  //So it's an error if we don't find what we need.
-                 if (strictEndpoints.isEmpty() && toFetch.isTransient())
-                     throw new AssertionError("If there are no endpoints to fetch from then we must be transitioning from transient to full for range " + toFetch);
+                 if (strictEndpoints.isEmpty() && toFetch.isWitness())
+                     throw new AssertionError("If there are no endpoints to fetch from then we must be transitioning from witness to full for range " + toFetch);
 
                  // we now add all potential strict endpoints when building the strictMovements, if we still have no full replicas for toFetch we should fail
                  if (!any(strictEndpoints, isSufficient))
@@ -535,7 +535,7 @@ public class RangeStreamer
              else
              {
                  //Without strict consistency we have given up on correctness so no point in fetching from
-                 //a random full + transient replica since it's also likely to lose data
+                 //a random full + witness replica since it's also likely to lose data
                  //Also apply testSourceFilters that were given to us so we can safely select a single source
                  sources = sorted.apply(movements.get(params).get(toFetch).filter(and(isSufficient, testSourceFilters)));
                  //Limit it to just the first possible source, we don't need more than one and downstream
@@ -554,10 +554,10 @@ public class RangeStreamer
              /*
               * When we move forwards (shrink our bucket) we are the one losing a range and no one else loses
               * from that action (we also don't gain). When we move backwards there are two people losing a range. One is a full replica
-              * and the other is a transient replica. So we must need fetch from two places in that case for the full range we gain.
-              * For a transient range we only need to fetch from one.
+              * and the other is a witness replica. So we must need fetch from two places in that case for the full range we gain.
+              * For a witness range we only need to fetch from one.
               */
-             if (useStrictConsistency && addressList.size() > 1 && (addressList.filter(Replica::isFull).size() > 1 || addressList.filter(Replica::isTransient).size() > 1))
+             if (useStrictConsistency && addressList.size() > 1 && (addressList.filter(Replica::isFull).size() > 1 || addressList.filter(Replica::isWitness).size() > 1))
                  throw new IllegalStateException(String.format("Multiple strict sources found for %s, sources: %s", toFetch, addressList));
 
              //We must have enough stuff to fetch from
@@ -614,10 +614,10 @@ public class RangeStreamer
                                                                                   String keyspace,
                                                                                   Locator locator)
     {
-        //For now we just aren't going to use the optimized range fetch map with transient replication to shrink
+        //For now we just aren't going to use the optimized range fetch map with witness replication to shrink
         //the surface area to test and introduce bugs.
         //In the future it's possible we could run it twice once for full ranges with only full replicas
-        //and once with transient ranges and all replicas. Then merge the result.
+        //and once with witness ranges and all replicas. Then merge the result.
         EndpointsByRange.Builder unwrapped = new EndpointsByRange.Builder();
         for (Map.Entry<Replica, Replica> entry : rangesWithSources.flattenEntries())
         {
@@ -648,7 +648,7 @@ public class RangeStreamer
             if (toFetch == null)
                 throw new AssertionError("Shouldn't be possible for the Replica we fetch to be null here");
             //Committing the cardinal sin of synthesizing a Replica, but it's ok because we assert earlier all of them
-            //are full and optimized range fetch map doesn't support transient replication yet.
+            //are full and optimized range fetch map doesn't support witness replication yet.
             wrapped.put(entry.getKey(), new FetchReplica(toFetch, fullReplica(entry.getKey(), entry.getValue())));
         }
 
@@ -716,10 +716,10 @@ public class RangeStreamer
                             return false;
 
                         if (fetch.local.isFull())
-                            // For full, pick only replicas with matching transientness
+                            // For full, pick only replicas with matching witnessness
                             return isInFull == fetch.remote.isFull();
 
-                        // Any transient or full will do
+                        // Any witness or full will do
                         return true;
                     };
 
@@ -735,7 +735,7 @@ public class RangeStreamer
                             String msg = String.format("Discovered existing bootstrap data and %s " +
                                                        "is not configured; aborting bootstrap. Please clean up local files manually " +
                                                        "and try again or set cassandra.reset_bootstrap_progress=true to ignore. " +
-                                                       "Found: %s. Fully available: %s. Transiently available: %s",
+                                                       "Found: %s. Fully available: %s. Witness available: %s",
                                                        RESET_BOOTSTRAP_PROGRESS.getKey(), skipped, available.full, available.trans);
                             logger.error(msg);
                             throw new IllegalStateException(msg);
@@ -744,7 +744,7 @@ public class RangeStreamer
                         if (!RESET_BOOTSTRAP_PROGRESS.getBoolean())
                         {
                             List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
-                            logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
+                            logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Witness available {}",
                                         fetchReplicas, skipped, available.full, available.trans);
                         }
                     }
@@ -758,24 +758,24 @@ public class RangeStreamer
                                                  .filter(pair -> pair.remote.isFull())
                                                  .map(pair -> pair.local)
                                                  .collect(RangesAtEndpoint.collector(self));
-                RangesAtEndpoint transientReplicas = remaining.stream()
-                                                              .filter(pair -> pair.remote.isTransient())
+                RangesAtEndpoint witnessReplicas = remaining.stream()
+                                                              .filter(pair -> pair.remote.isWitness())
                                                               .map(pair -> pair.local)
                                                               .collect(RangesAtEndpoint.collector(self));
 
                 logger.debug("Source and our replicas {}", fetchReplicas);
-                logger.debug("Source {} Keyspace {}  streaming full {} transient {}", source, keyspace, full, transientReplicas);
+                logger.debug("Source {} Keyspace {}  streaming full {} witness {}", source, keyspace, full, witnessReplicas);
 
                 KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
                 if (excludeAccordTables && StreamPlan.hasAccordTables(ksm))
                 {
                     String[] cfNames = StreamPlan.nonAccordTablesForKeyspace(ksm);
                     if (cfNames != null)
-                        streamPlan.requestRanges(source, keyspace, full, transientReplicas, cfNames);
+                        streamPlan.requestRanges(source, keyspace, full, witnessReplicas, cfNames);
                 }
                 else
                 {
-                    streamPlan.requestRanges(source, keyspace, full, transientReplicas);
+                    streamPlan.requestRanges(source, keyspace, full, witnessReplicas);
                 }
             });
         });

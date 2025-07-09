@@ -1396,8 +1396,8 @@ public class StorageProxy implements StorageProxyMBean
         boolean attributeNonAccordLatency = true;
         long nonAccordEndTime = -1;
 
-        if (mutations.stream().anyMatch(mutation -> Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasTransientReplicas()))
-            throw new AssertionError("Logged batches are unsupported with transient replication");
+        if (mutations.stream().anyMatch(mutation -> Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasWitnessReplicas()))
+            throw new AssertionError("Logged batches are unsupported with witness replication");
 
         try
         {
@@ -2913,7 +2913,7 @@ public class StorageProxy implements StorageProxyMBean
      * Determines whether a hint should be stored or not.
      * It rejects early if any of the condition is met:
      * - Hints disabled entirely or for the belonging datacetner of the replica
-     * - The replica is transient or is the self node
+     * - The replica is witness or is the self node
      * - The replica is no longer part of the ring
      * - The hint window has expired
      * - The hints have reached to the size limit for the node
@@ -2926,7 +2926,7 @@ public class StorageProxy implements StorageProxyMBean
     public static boolean shouldHint(Replica replica, boolean tryEnablePersistentWindow)
     {
         if (!DatabaseDescriptor.hintedHandoffEnabled()
-            || replica.isTransient()
+            || replica.isWitness()
             || replica.isSelf())
             return false;
 
@@ -3126,8 +3126,8 @@ public class StorageProxy implements StorageProxyMBean
                 long timeTakenNanos = now - startTimeNanos();
                 MessagingService.instance().metrics.recordSelfDroppedMessage(Verb.MUTATION_REQ, timeTakenNanos, NANOSECONDS);
 
-                // Don't submit a hint if this replica is transient
-                if (localReplica.isTransient())
+                // Don't submit a hint if this replica is witness
+                if (localReplica.isWitness())
                     return;
 
                 HintRunnable runnable = new HintRunnable(ImmutableSet.of(localReplica.endpoint()))
@@ -3272,10 +3272,10 @@ public class StorageProxy implements StorageProxyMBean
                                            EndpointsForToken targets,
                                            AbstractWriteResponseHandler<IMutation> responseHandler)
     {
-        // hints should not be written for transient replicas because there is no point if they didn't contribute
+        // hints should not be written for witness replicas because there is no point if they didn't contribute
         // to quorum, they would eventually be removed anyways after running incremental repair.
-        // This logic assumes we don't always write to transient replicas to minimize incremental repair mismatches
-        // so we may want to walk this back when revisiting transient replication
+        // This logic assumes we don't always write to witness replicas to minimize incremental repair mismatches
+        // so we may want to walk this back when revisiting witness replication
         Replicas.assertFull(targets);
         return submitHint(mutation, targets.endpoints(), responseHandler);
     }

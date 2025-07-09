@@ -78,16 +78,16 @@ public class TokenPlacementModel
     public static class DCReplicas
     {
         public final int totalCount;
-        public final int transientCount;
-        public DCReplicas(int totalCount, int transientCount)
+        public final int witnessCount;
+        public DCReplicas(int totalCount, int witnessCount)
         {
             this.totalCount = totalCount;
-            this.transientCount = transientCount;
+            this.witnessCount = witnessCount;
         }
 
         public String toString()
         {
-            return totalCount + ((transientCount > 0) ? "/" + transientCount : "");
+            return totalCount + ((witnessCount > 0) ? "/" + witnessCount : "");
         }
     }
 
@@ -270,11 +270,11 @@ public class TokenPlacementModel
             this(dcs, nodesPerDc, 0);
         }
 
-        public NtsReplicationFactor(int dcs, int nodesPerDc, int transientPerDc)
+        public NtsReplicationFactor(int dcs, int nodesPerDc, int witnessPerDc)
         {
-            super(mapFunction(dcs, nodesPerDc, transientPerDc));
-            if (transientPerDc >= nodesPerDc)
-                throw new IllegalArgumentException("Transient replicas must be zero, or less than total replication factor per dc");
+            super(mapFunction(dcs, nodesPerDc, witnessPerDc));
+            if (witnessPerDc >= nodesPerDc)
+                throw new IllegalArgumentException("Witness replicas must be zero, or less than total replication factor per dc");
         }
 
         public NtsReplicationFactor(Map<String, Integer> m)
@@ -397,31 +397,31 @@ public class TokenPlacementModel
             return KeyspaceParams.nts(args);
         }
 
-        private static Function<Lookup, Map<String, DCReplicas>> mapFunction(int dcs, int nodesPerDc, int transientsPerDc)
+        private static Function<Lookup, Map<String, DCReplicas>> mapFunction(int dcs, int nodesPerDc, int witnesssPerDc)
         {
             return (lookup) -> {
                 int[] totals = new int[dcs];
                 Arrays.fill(totals, nodesPerDc);
-                int[] transients = new int[dcs];
-                Arrays.fill(transients, transientsPerDc);
-                return toMap(totals, transients, lookup);
+                int[] witnesss = new int[dcs];
+                Arrays.fill(witnesss, witnesssPerDc);
+                return toMap(totals, witnesss, lookup);
             };
         }
 
         private static Function<Lookup, Map<String, DCReplicas>> mapFunction(final int[] totalPerDc)
         {
             return (lookup) -> {
-                int[] transients = new int[totalPerDc.length];
-                Arrays.fill(transients, 0);
-                return toMap(totalPerDc, transients, lookup);
+                int[] witnesss = new int[totalPerDc.length];
+                Arrays.fill(witnesss, 0);
+                return toMap(totalPerDc, witnesss, lookup);
             };
         }
 
-        private static Map<String, DCReplicas> toMap(int[] totalPerDc, int[] transientPerDc, Lookup lookup)
+        private static Map<String, DCReplicas> toMap(int[] totalPerDc, int[] witnessPerDc, Lookup lookup)
         {
             Map<String, DCReplicas> map = new TreeMap<>();
             for (int i = 0; i < totalPerDc.length; i++) {
-                map.put(lookup.dc(i + 1), new DCReplicas(totalPerDc[i], transientPerDc[i]));
+                map.put(lookup.dc(i + 1), new DCReplicas(totalPerDc[i], witnessPerDc[i]));
             }
             return map;
         }
@@ -503,7 +503,7 @@ public class TokenPlacementModel
             List<Replica> replicas = new ArrayList<>(nodes.size());
             for (Node node : nodes)
             {
-                boolean full = replicas.size() < rf.totalCount - rf.transientCount;
+                boolean full = replicas.size() < rf.totalCount - rf.witnessCount;
                 replicas.add(new Replica(node, full));
             }
             return replicas;
@@ -581,16 +581,16 @@ public class TokenPlacementModel
             this(total, 0);
         }
 
-        public SimpleReplicationFactor(int total, int transientReplicas)
+        public SimpleReplicationFactor(int total, int witnessReplicas)
         {
-            super(mapFunction(total, transientReplicas));
-            if (transientReplicas >= total)
-                throw new IllegalArgumentException("Transient replicas must be zero, or less than total replication factor");
+            super(mapFunction(total, witnessReplicas));
+            if (witnessReplicas >= total)
+                throw new IllegalArgumentException("Witness replicas must be zero, or less than total replication factor");
         }
 
-        public static Function<Lookup, Map<String, DCReplicas>> mapFunction(int totalReplicas, int transientReplicas)
+        public static Function<Lookup, Map<String, DCReplicas>> mapFunction(int totalReplicas, int witnessReplicas)
         {
-            return (lookup) -> Collections.singletonMap(lookup.dc(1), new DCReplicas(totalReplicas, transientReplicas));
+            return (lookup) -> Collections.singletonMap(lookup.dc(1), new DCReplicas(totalReplicas, witnessReplicas));
         }
 
         private DCReplicas dcReplicas()
@@ -626,7 +626,7 @@ public class TokenPlacementModel
                 {
                     for (int i = 0; i < nodes.size() && replicas.size() < dcReplicas.totalCount; i++)
                     {
-                        boolean full = replicas.size() < dcReplicas.totalCount - dcReplicas.transientCount;
+                        boolean full = replicas.size() < dcReplicas.totalCount - dcReplicas.witnessCount;
                         addIfUnique(replicas, names, new Replica(nodes.get((idx + i) % nodes.size()), full));
                     }
                     if (!minTokenOwned && range.start == Long.MIN_VALUE)
@@ -896,7 +896,7 @@ public class TokenPlacementModel
             return full;
         }
 
-        public boolean isTransient()
+        public boolean isWitness()
         {
             return !full;
         }
@@ -918,7 +918,7 @@ public class TokenPlacementModel
 
         public String toString()
         {
-            return String.format("%s(%s)", (full ? "Full" : "Transient"), node.toString());
+            return String.format("%s(%s)", (full ? "Full" : "Witness"), node.toString());
         }
 
         @Override

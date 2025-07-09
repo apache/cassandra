@@ -45,11 +45,11 @@ public class Replicas
     public static class ReplicaCount
     {
         int fullReplicas;
-        int transientReplicas;
+        int witnessReplicas;
 
         public int allReplicas()
         {
-            return fullReplicas + transientReplicas;
+            return fullReplicas + witnessReplicas;
         }
 
         public int fullReplicas()
@@ -57,15 +57,15 @@ public class Replicas
             return fullReplicas;
         }
 
-        public int transientReplicas()
+        public int witnessReplicas()
         {
-            return transientReplicas;
+            return witnessReplicas;
         }
 
         public void increment(Replica replica)
         {
             if (replica.isFull()) ++fullReplicas;
-            else ++transientReplicas;
+            else ++witnessReplicas;
         }
 
         public boolean hasAtleast(int allReplicas, int fullReplicas)
@@ -86,7 +86,7 @@ public class Replicas
     }
 
     /**
-     * count the number of full and transient replicas, separately, for each DC
+     * count the number of full and witness replicas, separately, for each DC
      */
     public static ObjectObjectHashMap<String, ReplicaCount> countPerDc(Locator locator, Collection<String> dataCenters, Iterable<Replica> replicas)
     {
@@ -115,35 +115,35 @@ public class Replicas
     }
 
     /**
-     * A placeholder for areas of the code that cannot yet handle transient replicas, but should do so in future
+     * A placeholder for areas of the code that cannot yet handle witness replicas, but should do so in future
      */
     public static void temporaryAssertFull(Replica replica)
     {
         if (!replica.isFull())
         {
-            throw new UnsupportedOperationException("transient replicas are currently unsupported: " + replica);
+            throw new UnsupportedOperationException("witness replicas are currently unsupported: " + replica);
         }
     }
 
     /**
-     * A placeholder for areas of the code that cannot yet handle transient replicas, but should do so in future
+     * A placeholder for areas of the code that cannot yet handle witness replicas, but should do so in future
      */
     public static void temporaryAssertFull(Iterable<Replica> replicas)
     {
         if (!all(replicas, Replica::isFull))
         {
-            throw new UnsupportedOperationException("transient replicas are currently unsupported: " + Iterables.toString(replicas));
+            throw new UnsupportedOperationException("witness replicas are currently unsupported: " + Iterables.toString(replicas));
         }
     }
 
     /**
-     * For areas of the code that should never see a transient replica
+     * For areas of the code that should never see a witness replica
      */
     public static void assertFull(Iterable<Replica> replicas)
     {
         if (!all(replicas, Replica::isFull))
         {
-            throw new UnsupportedOperationException("transient replicas are currently unsupported: " + Iterables.toString(replicas));
+            throw new UnsupportedOperationException("witness replicas are currently unsupported: " + Iterables.toString(replicas));
         }
     }
 

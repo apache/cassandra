@@ -39,7 +39,7 @@ public class NTSSimulationTest extends CMSTestBase
     static
     {
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        DatabaseDescriptor.setWitnessReplicationEnabledUnsafe(true);
     }
 
     @Before

@@ -438,7 +438,7 @@ public class StorageServiceServerTest
         ClusterMetadataTestHelper.join(id3, new StringToken("C"));
 
         SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
-        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleTransient(2));
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleWitness(2));
         SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
@@ -466,7 +466,7 @@ public class StorageServiceServerTest
         configOptions.put("replication_factor", "2");
 
         SchemaTestUtil.dropKeyspaceIfExist("Keyspace1", false);
-        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleTransient(2));
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleWitness(2));
         SchemaTestUtil.addOrUpdateKeyspace(meta, false);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));

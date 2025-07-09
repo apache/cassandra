@@ -216,19 +216,19 @@ public class LegacySSTableTest
                         assertEquals(NO_PENDING_REPAIR, sstable.getPendingRepair());
                 }
 
-                boolean isTransient = false;
+                boolean isWitness = false;
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
                     TimeUUID random = nextTimeUUID();
-                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, UNREPAIRED_SSTABLE, random, isTransient);
+                    sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, UNREPAIRED_SSTABLE, random, isWitness);
                     sstable.reloadSSTableMetadata();
                     assertEquals(UNREPAIRED_SSTABLE, sstable.getRepairedAt());
                     if (sstable.descriptor.version.hasPendingRepair())
                         assertEquals(random, sstable.getPendingRepair());
-                    if (sstable.descriptor.version.hasIsTransient())
-                        assertEquals(isTransient, sstable.isTransient());
+                    if (sstable.descriptor.version.hasIsWitness())
+                        assertEquals(isWitness, sstable.isWitness());
 
-                    isTransient = !isTransient;
+                    isWitness = !isWitness;
                 }
             }
         }
@@ -264,18 +264,18 @@ public class LegacySSTableTest
                             fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
                     }
                 }
-                // set transient
+                // set witness
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
                     try
                     {
                         cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, nextTimeUUID(), true);
-                        if (!sstable.descriptor.version.hasIsTransient())
+                        if (!sstable.descriptor.version.hasIsWitness())
                             fail("We should fail setting pending repair on unsupported sstables "+sstable);
                     }
                     catch (IllegalStateException e)
                     {
-                        if (sstable.descriptor.version.hasIsTransient())
+                        if (sstable.descriptor.version.hasIsWitness())
                             fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
                     }
                 }
