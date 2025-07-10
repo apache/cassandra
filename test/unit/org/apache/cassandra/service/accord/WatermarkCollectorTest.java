@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import accord.local.Node;
@@ -31,6 +31,7 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Invariants;
 import org.agrona.collections.Int2ObjectHashMap;
+import org.agrona.collections.Long2LongHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.Serializers;
@@ -58,34 +59,30 @@ public class WatermarkCollectorTest
 
     private static void maybeUpdatePartitioner(WatermarkCollector.Snapshot snapshot)
     {
-        for (Range range : Sets.union(snapshot.closed.keySet(), snapshot.retired.keySet()))
-        {
-            TokenRange tr = (TokenRange) range;
-            DatabaseDescriptor.setPartitionerUnsafe(tr.start().token().getPartitioner());
-            break;
-        }
+        if (!snapshot.closed.isEmpty()) DatabaseDescriptor.setPartitionerUnsafe(((TokenRange)snapshot.closed.get(0).getKey()).start().token().getPartitioner());
+        else if (!snapshot.retired.isEmpty()) DatabaseDescriptor.setPartitionerUnsafe(((TokenRange)snapshot.retired.get(0).getKey()).start().token().getPartitioner());
     }
 
     private Gen<WatermarkCollector.Snapshot> snapshotGen()
     {
         Gen<IPartitioner> partitionerGen = AccordGenerators.partitioner();
         Gen.LongGen epochGen = AccordGens.epochs();
-        Gen<Int2ObjectHashMap<Long>> syncedGen = syncedGen();
+        Gen<Long2LongHashMap> syncedGen = syncedGen();
         return rs -> {
             IPartitioner partitioner = partitionerGen.next(rs);
             Gen<Range> rangeGen = AccordGenerators.range(partitioner);
             Gen<Map<Range, Long>> mapGen = mapGen(Gens.ints().between(0, 10), rangeGen, epochGen);
-            return new WatermarkCollector.Snapshot(mapGen.next(rs), mapGen.next(rs), syncedGen.next(rs));
+            return new WatermarkCollector.Snapshot(new ArrayList<>(mapGen.next(rs).entrySet()), new ArrayList<>(mapGen.next(rs).entrySet()), syncedGen.next(rs));
         };
     }
 
-    private static Gen<Int2ObjectHashMap<Long>> syncedGen()
+    private static Gen<Long2LongHashMap> syncedGen()
     {
         Gen.IntGen sizeGen = Gens.ints().between(0, 10);
         Gen<Node.Id> idGen = AccordGens.nodes();
         Gen.LongGen epochGen = AccordGens.epochs();
         return rs -> {
-            Int2ObjectHashMap<Long> map = new Int2ObjectHashMap<>();
+            Long2LongHashMap map = new Long2LongHashMap(-1);
             Gen<Node.Id> uniqueIdGen = idGen.filter(id -> !map.containsKey(id.id));
             for (int i = 0, size = sizeGen.nextInt(rs); i < size; i++)
                 map.put(uniqueIdGen.next(rs).id, epochGen.next(rs));
