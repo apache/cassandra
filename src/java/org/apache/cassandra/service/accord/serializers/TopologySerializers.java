@@ -174,7 +174,7 @@ public class TopologySerializers
         @Override
         public void serialize(Topology topology, DataOutputPlus out) throws IOException
         {
-            out.writeLong(topology.epoch());
+            out.writeUnsignedVInt(topology.epoch());
             CollectionSerializers.serializeList(topology.staleIds(), out, TopologySerializers.nodeId);
 
             List<Shard> shards = topology.shards();
@@ -226,7 +226,7 @@ public class TopologySerializers
         @Override
         public long serializedSize(Topology topology)
         {
-            long size = Long.BYTES;
+            long size = TypeSizes.sizeofUnsignedVInt(topology.epoch());
             size += CollectionSerializers.serializedListSize(topology.staleIds(), TopologySerializers.nodeId);
 
             List<Shard> shards = topology.shards();
@@ -280,7 +280,7 @@ public class TopologySerializers
         @Override
         public Topology deserialize(DataInputPlus in) throws IOException
         {
-            long epoch = in.readLong();
+            long epoch = in.readUnsignedVInt();
             SortedArrays.SortedArrayList<Node.Id> staleNodes = SortedArrays.SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, TopologySerializers.nodeId), Node.Id[]::new);
 
             List<TableId> tables = CollectionSerializers.deserializeList(in, TableId.compactComparableSerializer);
