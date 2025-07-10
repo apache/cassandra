@@ -59,8 +59,8 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
         long[] raw = SimpleBitSet.SerializationSupport.getArray(t);
         // find the first word written
         int wordsInUse = wordsInUse(raw);
-        long size = TypeSizes.sizeofVInt(wordsInUse);
-        size += TypeSizes.sizeofUnsignedVInt(raw.length);
+        long size = TypeSizes.sizeofUnsignedVInt(raw.length);
+        size += TypeSizes.sizeofVInt(wordsInUse);
         for (int i = 0; i < wordsInUse; i++)
             size += TypeSizes.sizeofUnsignedVInt(raw[i]);
         return size;
