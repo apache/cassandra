@@ -34,8 +34,11 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
     public void serialize(SimpleBitSet t, DataOutputPlus out) throws IOException
     {
         long[] raw = SimpleBitSet.SerializationSupport.getArray(t);
+        // find the first word written
+        int wordsInUse = wordsInUse(raw);
         out.writeUnsignedVInt32(raw.length);
-        for (int i = 0; i < raw.length; i++)
+        out.writeUnsignedVInt32(wordsInUse);
+        for (int i = 0; i < wordsInUse; i++)
             out.writeUnsignedVInt(raw[i]);
     }
 
@@ -44,7 +47,8 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
     {
         int size = in.readUnsignedVInt32();
         long[] raw = new long[size];
-        for (int i = 0; i < size; i++)
+        int wordsInUse = in.readUnsignedVInt32();
+        for (int i = 0; i < wordsInUse; i++)
             raw[i] = in.readUnsignedVInt();
         return SimpleBitSet.SerializationSupport.construct(raw);
     }
@@ -53,9 +57,24 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
     public long serializedSize(SimpleBitSet t)
     {
         long[] raw = SimpleBitSet.SerializationSupport.getArray(t);
-        long size = TypeSizes.sizeofVInt(raw.length);
-        for (int i = 0; i < raw.length; i++)
+        // find the first word written
+        int wordsInUse = wordsInUse(raw);
+        long size = TypeSizes.sizeofVInt(wordsInUse);
+        size += TypeSizes.sizeofUnsignedVInt(raw.length);
+        for (int i = 0; i < wordsInUse; i++)
             size += TypeSizes.sizeofUnsignedVInt(raw[i]);
         return size;
+    }
+
+    private static int wordsInUse(long[] raw)
+    {
+        int wordsInUse = raw.length;
+        for (int i = raw.length - 1; i >= 0; i--)
+        {
+            if (raw[i] != 0)
+                return wordsInUse;
+            wordsInUse--;
+        }
+        return wordsInUse;
     }
 }
