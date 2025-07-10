@@ -57,7 +57,7 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
     public long serializedSize(SimpleBitSet t)
     {
         long[] raw = SimpleBitSet.SerializationSupport.getArray(t);
-        // find the first word written
+        // find the last word written
         int wordsInUse = wordsInUse(raw);
         long size = TypeSizes.sizeofUnsignedVInt(raw.length);
         size += TypeSizes.sizeofVInt(wordsInUse);
