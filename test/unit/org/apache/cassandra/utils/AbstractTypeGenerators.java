@@ -88,7 +88,9 @@ import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.TimeType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TokenUtf8Type;
 import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.TxnIdUtf8Type;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -120,6 +122,8 @@ public final class AbstractTypeGenerators
                                                                                                 .put((Class<? extends AbstractType<?>>) (Class<? extends AbstractType>) ReversedType.class, "Implementation detail for cluster ordering... its expected the caller will unwrap the clustering type to always get access to the real type")
                                                                                                 .put(DynamicCompositeType.FixedValueComparator.class, "Hack type used for special ordering case, not a real/valid type")
                                                                                                 .put(FrozenType.class, "Fake class only used during parsing... the parsing creates this and the real type under it, then this gets swapped for the real type")
+                                                                                                .put(TxnIdUtf8Type.class, "Used only internally by accord debug virtual tables - could be tested, but class initialisation order prevents easy reuse of the relevant type generators")
+                                                                                                .put(TokenUtf8Type.class, "Used only internally by accord debug virtual tables - could be tested, but class initialisation order prevents easy reuse of the relevant type generators")
                                                                                                 .build();
 
     /**
@@ -135,7 +139,6 @@ public final class AbstractTypeGenerators
     {
         return (String a, String b) -> FastByteOperations.compareUnsigned(st.decompose(a), st.decompose(b));
     }
-
 
     private static final Map<AbstractType<?>, TypeSupport<?>> PRIMITIVE_TYPE_DATA_GENS =
     Stream.of(TypeSupport.of(BooleanType.instance, BOOLEAN_GEN),

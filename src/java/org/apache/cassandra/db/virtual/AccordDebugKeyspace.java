@@ -149,9 +149,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  keyspace_name text,\n" +
                         "  table_name text,\n" +
-                        "  token_sort blob,\n" +
-                        "  token_start text,\n" +
-                        "  token_end text,\n" +
+                        "  token_start 'TokenUtf8Type',\n" +
+                        "  token_end 'TokenUtf8Type',\n" +
                         "  last_started_at bigint,\n" +
                         "  cycle_started_at bigint,\n" +
                         "  retries int,\n" +
@@ -161,10 +160,10 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  waiting text,\n" +
                         "  node_offset int,\n" +
                         "  cycle_offset int,\n" +
-                        "  activeIndex int,\n" +
-                        "  nextIndex int,\n" +
-                        "  nextToIndex int,\n" +
-                        "  endIndex int,\n" +
+                        "  active_index int,\n" +
+                        "  next_index int,\n" +
+                        "  next_to_index int,\n" +
+                        "  end_index int,\n" +
                         "  current_splits int,\n" +
                         "  stopping boolean,\n" +
                         "  stopped boolean,\n" +
@@ -182,8 +181,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             {
                 TableId tableId = (TableId) view.shard().range.start().prefix();
                 TableMetadata tableMetadata = tableMetadata(tableId);
-                ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(view.shard().range.start()))
-                  .column("token_start", printToken(view.shard().range.start()))
+                ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), printToken(view.shard().range.start()))
                   .column("token_end", printToken(view.shard().range.end()))
                   .column("last_started_at", approxTime.translate().toMillisSinceEpoch(view.lastStartedAtMicros() * 1000))
                   .column("cycle_started_at", approxTime.translate().toMillisSinceEpoch(view.cycleStartedAtMicros() * 1000))
@@ -194,10 +192,10 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                   .column("waiting", Objects.toString(view.waiting()))
                   .column("node_offset", view.nodeOffset())
                   .column("cycle_offset", view.cycleOffset())
-                  .column("activeIndex", view.activeIndex())
-                  .column("nextIndex", view.nextIndex())
-                  .column("nextToIndex", view.toIndex())
-                  .column("endIndex", view.cycleLength())
+                  .column("active_index", view.activeIndex())
+                  .column("next_index", view.nextIndex())
+                  .column("next_to_index", view.toIndex())
+                  .column("end_index", view.cycleLength())
                   .column("current_splits", view.currentSplits())
                   .column("stopping", view.stopping())
                   .column("stopped", view.stopped())
@@ -216,12 +214,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  keyspace_name text,\n" +
                         "  table_name text,\n" +
-                        "  token_sort blob,\n" +
-                        "  token_start text,\n" +
-                        "  token_end text,\n" +
+                        "  token_start 'TokenUtf8Type',\n" +
+                        "  token_end 'TokenUtf8Type',\n" +
                         "  majority_before text,\n" +
                         "  universal_before text,\n" +
-                        "  PRIMARY KEY (keyspace_name, table_name, token_sort)" +
+                        "  PRIMARY KEY (keyspace_name, table_name, token_start)" +
                         ')', UTF8Type.instance));
         }
 
@@ -233,8 +230,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 (entry, ds, start, end) -> {
                     TableId tableId = (TableId) start.prefix();
                     TableMetadata tableMetadata = tableMetadata(tableId);
-                    ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(start))
-                      .column("token_start", printToken(start))
+                    ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), printToken(start))
                       .column("token_end", printToken(end))
                       .column("majority_before", entry.majorityBefore.toString())
                       .column("universal_before", entry.universalBefore.toString());
@@ -297,12 +293,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  keyspace_name text,\n" +
                         "  table_name text,\n" +
-                        "  token_sort blob,\n" +
-                        "  token_start text,\n" +
-                        "  token_end text,\n" +
                         "  command_store_id bigint,\n" +
+                        "  token_start 'TokenUtf8Type',\n" +
+                        "  token_end 'TokenUtf8Type',\n" +
                         "  timestamp text,\n" +
-                        "  PRIMARY KEY (keyspace_name, table_name, token_sort, command_store_id)" +
+                        "  PRIMARY KEY (keyspace_name, table_name, command_store_id, token_start)" +
                         ')', UTF8Type.instance));
         }
 
@@ -321,8 +316,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
 
                 maxConflicts.foldlWithBounds(
                     (timestamp, ds, start, end) -> {
-                        return ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), sortToken(start), commandStoreId)
-                                 .column("token_start", printToken(start))
+                        return ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), commandStoreId, printToken(start))
                                  .column("token_end", printToken(end))
                                  .column("timestamp", timestamp.toString())
                         ;
@@ -434,7 +428,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  keyspace_name text,\n" +
                         "  table_name text,\n" +
                         "  command_store_id int,\n" +
-                        "  txn_id text,\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
                         // Timer + BaseTxnState
                         "  contact_everyone boolean,\n" +
                         // WaitingState
@@ -504,22 +498,21 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  keyspace_name text,\n" +
                         "  table_name text,\n" +
-                        "  token_sort blob,\n" +
-                        "  token_start text,\n" +
-                        "  token_end text,\n" +
+                        "  token_start 'TokenUtf8Type',\n" +
+                        "  token_end 'TokenUtf8Type',\n" +
                         "  command_store_id int,\n" +
                         "  start_epoch bigint,\n" +
                         "  end_epoch bigint,\n" +
-                        "  gc_before text,\n" +
-                        "  shard_applied text,\n" +
-                        "  majority_applied text,\n" +
-                        "  locally_applied text,\n" +
-                        "  locally_synced text,\n" +
-                        "  locally_redundant text,\n" +
-                        "  locally_witnessed text,\n" +
-                        "  pre_bootstrap text,\n" +
-                        "  stale_until_at_least text,\n" +
-                        "  PRIMARY KEY (keyspace_name, table_name, token_sort, command_store_id)" +
+                        "  gc_before 'TxnIdUtf8Type',\n" +
+                        "  shard_applied 'TxnIdUtf8Type',\n" +
+                        "  majority_applied 'TxnIdUtf8Type',\n" +
+                        "  locally_applied 'TxnIdUtf8Type',\n" +
+                        "  locally_synced 'TxnIdUtf8Type',\n" +
+                        "  locally_redundant 'TxnIdUtf8Type',\n" +
+                        "  locally_witnessed 'TxnIdUtf8Type',\n" +
+                        "  pre_bootstrap 'TxnIdUtf8Type',\n" +
+                        "  stale_until_at_least 'TxnIdUtf8Type',\n" +
+                        "  PRIMARY KEY (keyspace_name, table_name, command_store_id, token_start)" +
                         ')', UTF8Type.instance));
         }
 
@@ -538,8 +531,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 String table = table(tableId, tableMetadata);
                 commandStore.unsafeGetRedundantBefore().foldl(
                     (entry, ds) -> {
-                        ds.row(keyspace, table, sortToken(entry.range.start()), commandStoreId)
-                          .column("token_start", printToken(entry.range.start()))
+                        ds.row(keyspace, table, commandStoreId, printToken(entry.range.start()))
                           .column("token_end", printToken(entry.range.end()))
                           .column("start_epoch", entry.startEpoch)
                           .column("end_epoch", entry.endEpoch)
@@ -571,12 +563,11 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  keyspace_name text,\n" +
                         "  table_name text,\n" +
-                        "  token_sort blob,\n" +
-                        "  token_start text,\n" +
-                        "  token_end text,\n" +
                         "  command_store_id int,\n" +
-                        "  txn_id text,\n" +
-                        "  PRIMARY KEY (keyspace_name, table_name, token_sort, command_store_id)" +
+                        "  token_start 'TokenUtf8Type',\n" +
+                        "  token_end 'TokenUtf8Type',\n" +
+                        "  timestamp text,\n" +
+                        "  PRIMARY KEY (keyspace_name, table_name, command_store_id, token_start)" +
                         ')', UTF8Type.instance));
         }
 
@@ -596,10 +587,10 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 String keyspace = keyspace(tableMetadata);
                 String table = table(tableId, tableMetadata);
                 rejectBefore.foldlWithBounds(
-                    (txnId, ds, start, end) -> ds.row(keyspace, table, sortToken(start), commandStore.id())
+                    (timestamp, ds, start, end) -> ds.row(keyspace, table, sortToken(start), commandStore.id())
                                                  .column("token_start", printToken(start))
                                                  .column("token_end", printToken(end))
-                                                 .column("txn_id", txnId.toString())
+                                                 .column("timestamp", timestamp.toString())
                 ,
                     dataSet,
                     ignore -> false
