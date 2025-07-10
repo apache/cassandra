@@ -998,7 +998,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 process(ds, commandStores, shard, processed, id, 0, id, Reason.Self, null);
                 // everything was processed right?
                 if (!shard.txns.isEmpty() && !shard.txns.keySet().containsAll(processed))
-                    throw new IllegalStateException("Skipped txns: " + Sets.difference(shard.txns.keySet(), processed));
+                    Invariants.expect(false, "Skipped txns: " + Sets.difference(shard.txns.keySet(), processed));
             }
 
             return ds;

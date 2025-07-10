@@ -84,7 +84,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         return false;
     }
 
-    abstract void initializeWriter();
+    abstract void initializeWriter(int estimatedKeyCount);
     abstract SSTableTxnWriter writer();
     abstract void finishAndAddWriter();
     abstract Throwable cleanupWriter(Throwable t);
@@ -99,9 +99,12 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         Invariants.require(segments.size() >= 2, () -> String.format("Can only compact 2 or more segments, but got %d", segments.size()));
         logger.info("Compacting {} static segments: {}", segments.size(), segments);
 
+        // TODO (expected): this will be a large over-estimate. should make segments an sstable format and include cardinality estimation
+        int estimatedKeyCount = 0;
         PriorityQueue<KeyOrderReader<JournalKey>> readers = new PriorityQueue<>();
         for (StaticSegment<JournalKey, V> segment : segments)
         {
+            estimatedKeyCount += segment.entryCount();
             KeyOrderReader<JournalKey> reader = segment.keyOrderReader();
             if (reader.advance())
                 readers.add(reader);
@@ -114,7 +117,7 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
         if (readers.isEmpty())
             return Collections.emptyList();
 
-        initializeWriter();
+        initializeWriter(estimatedKeyCount);
 
         JournalKey key = null;
         FlyweightImage builder = null;

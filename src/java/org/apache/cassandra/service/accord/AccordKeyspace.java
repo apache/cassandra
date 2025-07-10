@@ -91,6 +91,7 @@ import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -144,8 +145,8 @@ public class AccordKeyspace
                                                      + "user_version int,"
                                                      + "record blob,"
                                                      + "PRIMARY KEY((key), descriptor, offset)"
-                                                     + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC)" +
-                                                     " WITH compression = {'class':'NoopCompressor'};")
+                                                     + ") WITH CLUSTERING ORDER BY (descriptor DESC, offset DESC);")
+                                               .compression(CompressionParams.NOOP)
                                                .compaction(CompactionParams.lcs(emptyMap()))
                                                .bloomFilterFpChance(0.01)
                                                .partitioner(new LocalPartitioner(BytesType.instance));

@@ -135,22 +135,19 @@ public class WatermarkCollector implements ConfigurationService.Listener
                                                                  MessageDelivery.RetryErrorMessage.EMPTY)
                .addCallback((m, fail) -> {
                    if (fail != null)
-                   {
                        return;
-                   }
+
                    Snapshot snapshot = m.payload;
                    long minEpoch = configService.minEpoch();
                    for (Map.Entry<Range, Long> e : snapshot.closed.entrySet())
                    {
                        Ranges r = Ranges.of(e.getKey());
-                       for (long epoch = minEpoch; epoch <= e.getValue(); epoch++)
-                           configService.receiveClosed(r, e.getValue());
+                       configService.receiveClosed(r, e.getValue());
                    }
                    for (Map.Entry<Range, Long> e : snapshot.retired.entrySet())
                    {
                        Ranges r = Ranges.of(e.getKey());
-                       for (long epoch = minEpoch; epoch <= e.getValue(); epoch++)
-                           configService.receiveRetired(r, e.getValue());
+                       configService.receiveRetired(r, e.getValue());
                    }
                    for (Map.Entry<Integer, Long> e : snapshot.synced.entrySet())
                    {

@@ -37,12 +37,12 @@ public class AccordSegmentCompactor<V> extends AbstractAccordSegmentCompactor<V>
     }
 
     @Override
-    void initializeWriter()
+    void initializeWriter(int estimatedKeyCount)
     {
         Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
         SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
 
-        this.writer = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, header);
+        this.writer = SSTableTxnWriter.create(cfs, descriptor, estimatedKeyCount, 0, null, false, header);
     }
 
     @Override
