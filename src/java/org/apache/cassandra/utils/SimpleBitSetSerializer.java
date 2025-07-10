@@ -36,7 +36,7 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
         long[] raw = SimpleBitSet.SerializationSupport.getArray(t);
         out.writeUnsignedVInt32(raw.length);
         for (int i = 0; i < raw.length; i++)
-            out.writeVInt(raw[i]);
+            out.writeUnsignedVInt(raw[i]);
     }
 
     @Override
@@ -45,7 +45,7 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
         int size = in.readUnsignedVInt32();
         long[] raw = new long[size];
         for (int i = 0; i < size; i++)
-            raw[i] = in.readVInt();
+            raw[i] = in.readUnsignedVInt();
         return SimpleBitSet.SerializationSupport.construct(raw);
     }
 
@@ -55,7 +55,7 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
         long[] raw = SimpleBitSet.SerializationSupport.getArray(t);
         long size = TypeSizes.sizeofVInt(raw.length);
         for (int i = 0; i < raw.length; i++)
-            size += TypeSizes.sizeofVInt(raw[i]);
+            size += TypeSizes.sizeofUnsignedVInt(raw[i]);
         return size;
     }
 }
