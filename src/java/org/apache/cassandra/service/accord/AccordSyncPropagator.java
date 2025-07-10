@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
@@ -193,6 +194,7 @@ public class AccordSyncPropagator
     private final IFailureDetector failureDetector;
     private final ScheduledExecutorPlus scheduler;
     private final Listener listener;
+    private final ConcurrentHashMap<RetryKey, Notification> retryingNotifications = new ConcurrentHashMap<>();
 
     public AccordSyncPropagator(Node.Id localId, AccordEndpointMapper endpointMapper,
                                 MessageDelivery messagingService, IFailureDetector failureDetector, ScheduledExecutorPlus scheduler,
@@ -304,6 +306,27 @@ public class AccordSyncPropagator
         });
     }
 
+    private void scheduleRetry(Node.Id to, Notification notification)
+    {
+        Notification retry = new Notification(notification.epoch, notification.syncComplete, notification.closed, notification.retired, notification.attempts + 1);
+        RetryKey key = new RetryKey(to, notification.epoch);
+        retryingNotifications.compute(key, (k, cur) -> {
+            if (cur == null)
+            {
+                scheduler.schedule(() -> retry(k), Math.max(1, Math.min(15, retry.attempts)), TimeUnit.MINUTES);
+                return retry;
+            }
+            return cur.merge(retry);
+        });
+    }
+
+    private void retry(RetryKey key)
+    {
+        Notification retry = retryingNotifications.remove(key);
+        if (retry != null)
+            notify(key.to, retry);
+    }
+
     private boolean notify(Node.Id to, Notification notification)
     {
         InetAddressAndPort toEp = endpointMapper.mappedEndpoint(to);
@@ -335,7 +358,7 @@ public class AccordSyncPropagator
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                scheduler.schedule(() -> AccordSyncPropagator.this.notify(to, notification), 1, TimeUnit.SECONDS);
+                scheduleRetry(to, notification);
             }
 
             @Override
@@ -355,7 +378,7 @@ public class AccordSyncPropagator
                 return true;
             }
             noSpamLogger.warn("Node{} is not alive, unable to notify of {}", to, notification);
-            scheduler.schedule(() -> notify(to, notification), 1, TimeUnit.MINUTES);
+            scheduleRetry(to, notification);
             return false;
         }
         messagingService.sendWithCallback(msg, toEp, cb);
@@ -397,13 +420,30 @@ public class AccordSyncPropagator
         final long epoch;
         final Collection<Node.Id> syncComplete;
         final Ranges closed, retired;
+        final int attempts;
 
         public Notification(long epoch, Collection<Node.Id> syncComplete, Ranges closed, Ranges retired)
+        {
+            this(epoch, syncComplete, closed, retired, 0);
+        }
+
+        public Notification(long epoch, Collection<Node.Id> syncComplete, Ranges closed, Ranges retired, int attempts)
         {
             this.epoch = epoch;
             this.syncComplete = syncComplete;
             this.closed = closed;
             this.retired = retired;
+            this.attempts = attempts;
+        }
+
+        Notification merge(Notification add)
+        {
+            Invariants.require(add.epoch == this.epoch);
+            Collection<Node.Id> syncComplete = ImmutableSet.<Node.Id>builder()
+                                                           .addAll(this.syncComplete)
+                                                           .addAll(add.syncComplete)
+                                                           .build();
+            return new Notification(epoch, syncComplete, closed.with(add.closed), retired.with(add.retired), Math.max(add.attempts, this.attempts));
         }
 
         @Override
@@ -415,6 +455,34 @@ public class AccordSyncPropagator
                    ", closed=" + closed +
                    ", retired=" + retired +
                    '}';
+        }
+    }
+
+    static class RetryKey
+    {
+        final Node.Id to;
+        final long epoch;
+
+        RetryKey(Node.Id id, long epoch)
+        {
+            to = id;
+            this.epoch = epoch;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return to.id * 31 + (int)epoch;
+        }
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            if (!(obj instanceof RetryKey))
+                return false;
+
+            RetryKey that = (RetryKey) obj;
+            return that.epoch == this.epoch && that.to.equals(this.to);
         }
     }
 }

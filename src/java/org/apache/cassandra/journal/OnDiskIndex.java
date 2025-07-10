@@ -199,6 +199,11 @@ final class OnDiskIndex<K> extends Index<K>
         return lastId;
     }
 
+    public int entryCount()
+    {
+        return entryCount;
+    }
+
     @Override
     public long[] lookUp(K id)
     {

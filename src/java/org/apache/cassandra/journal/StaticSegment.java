@@ -239,6 +239,11 @@ public final class StaticSegment<K, V> extends Segment<K, V>
         return index;
     }
 
+    public int entryCount()
+    {
+        return index.entryCount();
+    }
+
     @Override
     boolean isActive()
     {
