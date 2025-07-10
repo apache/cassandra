@@ -166,8 +166,13 @@ public interface CQL3Type
         @Override
         public String toCQLLiteral(ByteBuffer buffer)
         {
-            // *always* use the 'blob' syntax to express custom types in CQL
-            return Native.BLOB.toCQLLiteral(buffer);
+            CQL3Type asCql3 = type.asCQL3Type();
+            if (asCql3 instanceof Custom)
+            {
+                // use the 'blob' syntax to express custom types in CQL if not overridden
+                return Native.BLOB.toCQLLiteral(buffer);
+            }
+            return asCql3.toCQLLiteral(buffer);
         }
 
         @Override
