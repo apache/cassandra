@@ -40,6 +40,14 @@ public class SimpleBitSetSerializerTest
         return rs -> {
             int size = rs.nextInt(0, 1 << 10);
             SimpleBitSet bitSet = new SimpleBitSet(size);
+            if (rs.decide(0.2))
+                return bitSet; // empty
+            if (rs.decide(0.2))
+            {
+                // set 1 bit randomly
+                bitSet.set(rs.nextInt(0, size));
+                return bitSet;
+            }
             for (int i = 0; i < size; i++)
             {
                 if (rs.nextBoolean())
