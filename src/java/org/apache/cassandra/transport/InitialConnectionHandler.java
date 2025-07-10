@@ -28,8 +28,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.Set;
 
-import org.apache.cassandra.metrics.ClientMetricsManager;
 import org.apache.cassandra.db.monitoring.BadQuery;
+import org.apache.cassandra.metrics.ClientSessionMetricsManager;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
@@ -266,7 +266,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
         // Logging the client context data with NoSpamLogger
         NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 5, TimeUnit.MINUTES, "Client context data: {}", optionsWithClientPrefix);
         // Send the client session metric
-        ClientMetricsManager.getSessionMetrics(
+        ClientSessionMetricsManager.getSessionMetrics(
             service,
             options.getOrDefault(REQUEST_TENANCY, ""),
             options.getOrDefault(TIER, "empty"),

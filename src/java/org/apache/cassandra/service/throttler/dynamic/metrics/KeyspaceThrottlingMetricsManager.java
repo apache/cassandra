@@ -18,19 +18,28 @@
 
 package org.apache.cassandra.service.throttler.dynamic.metrics;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import org.apache.cassandra.metrics.AbstractMetricsManager;
 
-public class KeyspaceThrottlingMetricsManager
+public class KeyspaceThrottlingMetricsManager extends AbstractMetricsManager<String, KeyspaceThrottlingMetrics>
 {
-    public static Map<String, KeyspaceThrottlingMetrics> throttlingMetrics = new ConcurrentHashMap<>();
+    private final static KeyspaceThrottlingMetricsManager instance = new KeyspaceThrottlingMetricsManager();
 
-    private KeyspaceThrottlingMetricsManager()
+    @Override
+    protected KeyspaceThrottlingMetrics createMetric(String ksName)
     {
+        return new KeyspaceThrottlingMetrics(ksName);
+    }
+
+    @Override
+    protected String buildKey(Object... parts)
+    {
+        if (parts.length != 1)
+            throw new IllegalArgumentException("Expected 1 argument: keyspace name");
+        return (String) parts[0];
     }
 
     public static KeyspaceThrottlingMetrics getMetrics(String ksName)
     {
-        return throttlingMetrics.computeIfAbsent(ksName, k -> new KeyspaceThrottlingMetrics(ksName));
+        return instance.getMetricsSync(ksName);
     }
 }

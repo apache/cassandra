@@ -18,19 +18,32 @@
 
 package org.apache.cassandra.metrics;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-public class AuthMetricsManager
+public class AuthMetricsManager extends AbstractMetricsManager<String, AuthMetrics>
 {
-    private static final Map<String, AuthMetrics> authMetrics = new ConcurrentHashMap<>();
+    public final static AuthMetricsManager instance = new AuthMetricsManager();
 
-    private AuthMetricsManager()
+    @Override
+    protected AuthMetrics createMetric(String key) throws IllegalArgumentException
     {
+        String[] parts = key.split(",", -1);
+        if (parts.length != 3)
+            throw new IllegalArgumentException("Invalid key for AuthMetrics: expected 3 parts but got " + parts.length);
+        String userName = parts[0];
+        boolean authEnabled = Boolean.parseBoolean(parts[1]);
+        String authEnforcementFlag = parts[2];
+        return new AuthMetrics(userName, authEnabled, authEnforcementFlag);
+    }
+
+    @Override
+    protected String buildKey(Object... objects) throws IllegalArgumentException
+    {
+        if (objects.length != 3)
+            throw new IllegalArgumentException("Expected 3 arguments: userName (String), authEnabled (Boolean), and authEnforcementFlag (String)");
+        return objects[0] + "," + objects[1] + "," + objects[2];
     }
 
     public static AuthMetrics getMetrics(String userName, boolean authEnabled, String authEnforcementFlag)
     {
-        return authMetrics.computeIfAbsent(userName, k -> new AuthMetrics(userName, authEnabled, authEnforcementFlag));
+        return instance.getMetricsSync(userName, authEnabled, authEnforcementFlag);
     }
 }

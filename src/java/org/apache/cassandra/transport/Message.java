@@ -34,7 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.metrics.ClientMetricsManager;
+import org.apache.cassandra.metrics.ClientQueryMetricsManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
@@ -197,7 +197,7 @@ public abstract class Message
                 res.put((String) entry.getKey(), new String(((ByteBuffer) entry.getValue()).array()));
             }
             // Send the client query metric based on the context data in the custom payload
-            ClientMetricsManager.getQueryMetrics(
+            ClientQueryMetricsManager.getQueryMetrics(
                 res.getOrDefault("SERVICE", ""),
                 res.getOrDefault("REQUEST_TENANCY", "")).query.inc();
 

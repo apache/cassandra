@@ -18,29 +18,31 @@
 
 package org.apache.cassandra.metrics;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.Pair;
 
-public class StorageProxyMetricsManager extends AbstractMetricsManager<Pair<String, ConsistencyLevel>, StorageProxyMetrics>
+public class ClientQueryMetricsManager extends AbstractMetricsManager<Pair<String, String>, ClientQueryMetrics>
 {
-    public final static StorageProxyMetricsManager instance = new StorageProxyMetricsManager();
+    public static final ClientQueryMetricsManager instance = new ClientQueryMetricsManager();
 
     @Override
-    protected StorageProxyMetrics createMetric(Pair<String, ConsistencyLevel> key)
+    protected ClientQueryMetrics createMetric(Pair<String, String> key)
     {
-        return new StorageProxyMetrics(key.left(), key.right().name());
+        String clientService = key.left;
+        String tenancy = key.right;
+        return new ClientQueryMetrics(clientService, tenancy);
     }
 
     @Override
-    protected Pair<String, ConsistencyLevel> buildKey(Object... parts) throws IllegalArgumentException
+    protected Pair<String, String> buildKey(Object... objects) throws IllegalArgumentException
     {
-        if (parts.length != 2)
-            throw new IllegalArgumentException("Expected 2 arguments: keyspace name and ConsistencyLevel");
-        return Pair.create((String) parts[0], (ConsistencyLevel) parts[1]);
+        if (objects.length != 2)
+            throw new IllegalArgumentException("Expected 2 arguments: clientService (String) and tenancy (String)");
+
+        return Pair.create((String) objects[0], (String) objects[1]);
     }
 
-    public static StorageProxyMetrics getMetrics(String ksName, ConsistencyLevel consistencyLevel)
+    public static ClientQueryMetrics getQueryMetrics(String clientService, String tenancy)
     {
-        return instance.getMetricsSync(ksName, consistencyLevel);
+        return instance.getMetricsSync(clientService, tenancy);
     }
 }

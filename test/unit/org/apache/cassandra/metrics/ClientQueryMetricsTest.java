@@ -18,29 +18,20 @@
 
 package org.apache.cassandra.metrics;
 
-import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.junit.Test;
 
-public class AutoRepairMetricsManager extends AbstractMetricsManager<RepairType, AutoRepairMetricsV2>
+import static org.junit.Assert.assertEquals;
+
+public class ClientQueryMetricsTest
 {
-    public final static AutoRepairMetricsManager instance = new AutoRepairMetricsManager();
+    @Test
+    public void testClientQueryMetrics() {
+        String serviceName = "service";
+        String tenancy = "staging";
+        long beforeCount = ClientQueryMetricsManager.getQueryMetrics(serviceName, tenancy).query.getCount();
 
-    @Override
-    protected AutoRepairMetricsV2 createMetric(RepairType repairType)
-    {
-        return new AutoRepairMetricsV2(repairType);
-    }
-
-    @Override
-    protected RepairType buildKey(Object... objects) throws IllegalArgumentException
-    {
-        if (objects.length != 1 || !(objects[0] instanceof RepairType))
-            throw new IllegalArgumentException("Expected a single RepairType argument");
-
-        return ((RepairType) objects[0]);
-    }
-
-    public static AutoRepairMetricsV2 getMetrics(RepairType repairType)
-    {
-        return instance.getMetricsSync(repairType);
+        ClientQueryMetricsManager.getQueryMetrics(serviceName, tenancy).query.inc();
+        long curCount = ClientQueryMetricsManager.getQueryMetrics(serviceName, tenancy).query.getCount();
+        assertEquals(beforeCount+1, curCount);
     }
 }
