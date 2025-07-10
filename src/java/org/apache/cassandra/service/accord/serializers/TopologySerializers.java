@@ -179,7 +179,7 @@ public class TopologySerializers
 
             List<Shard> shards = topology.shards();
 
-            // need to loop twice; once to collect tables/ranges, and another to save shards
+            // need to loop twice; once to collect ranges, and another to save shards
             Object2IntHashMap<TokenRange> ranges;
             {
                 Object2IntHashMap<TokenRange> rangesBuilder = new Object2IntHashMap<>(-2);
@@ -232,7 +232,7 @@ public class TopologySerializers
 
             List<Shard> shards = topology.shards();
 
-            // need to loop twice; once to collect tables/ranges, and another to save shards
+            // need to loop twice; once to collect ranges, and another to save shards
             Object2IntHashMap<TokenRange> ranges;
             {
                 Object2IntHashMap<TokenRange> rangesBuilder = new Object2IntHashMap<>(-2);
