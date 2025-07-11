@@ -19,16 +19,21 @@
 package org.apache.cassandra.utils.btree;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
+import accord.utils.QuadFunction;
 import accord.utils.RandomSource;
 import accord.utils.SymmetricComparator;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -46,7 +51,7 @@ public class IntervalBTreeTest
     static
     {
         // build deeper trees to explore more behaviours
-        CassandraRelevantProperties.BTREE_BRANCH_SHIFT.setInt(3);
+        CassandraRelevantProperties.BTREE_BRANCH_SHIFT.setInt(2);
     }
 
     static class TestInterval implements Comparable<TestInterval>
@@ -87,11 +92,11 @@ public class IntervalBTreeTest
         @Override public SymmetricComparator<TestInterval> startWithEndSeeker() { return (a, b) -> startWithEnd(Integer.compare(a.start, b.end)); }
         @Override public SymmetricComparator<TestInterval> endWithStartSeeker() { return (a, b) -> endWithStart(Integer.compare(a.end, b.start)); }
     }
-    
+
     @Test
     public void testN()
     {
-        testOne(7817231705170378212L);
+        testOne(-415085593308080411L);
         Random seeds = new Random();
         for (int i = 0 ; i < 200 ; ++i)
             testOne(seeds.nextLong());
@@ -236,6 +241,192 @@ public class IntervalBTreeTest
         }
     }
 
+    @Test
+    public void printTest()
+    {
+        Random rng = new Random(0);
+        List<TestInterval> intervals = new ArrayList<>();
+        for (int i = 0; i < 20; i++)
+        {
+            intervals.add(interval(i, i + 1, i));
+        }
+        Collections.shuffle(intervals, rng);
+        Object[] tree = IntervalBTree.empty();
+        for (TestInterval v : intervals)
+            tree = IntervalBTree.update(tree, IntervalBTree.singleton(v), TestComparators.INSTANCE);
+
+        String printed = BTreePrinter.print(tree);
+        for (TestInterval interval : intervals)
+            Invariants.require(printed.contains(interval.toString()));
+    }
+
+    @Test
+    public void simpleTest()
+    {
+        Random rng = new Random(0);
+        List<TestInterval> intervals = Arrays.asList(interval(10, 40, 100), interval(20, 50, 200), interval(30, 60, 300));
+        Collections.shuffle(intervals, rng);
+        Object[] tree = IntervalBTree.empty();
+        for (TestInterval v : intervals)
+        {
+            tree = IntervalBTree.update(tree, IntervalBTree.singleton(v), TestComparators.INSTANCE);
+        }
+
+        {
+            Set<TestInterval> actual = new TreeSet<>();
+            IntervalBTree.accumulate(tree, TestComparators.INSTANCE, interval(20, 55, 400), new QuadFunction<Object, Object, TestInterval, Object, Object>()
+            {
+                @Override
+                public Object apply(Object o, Object o2, TestInterval match, Object o3)
+                {
+                    actual.add(match);
+                    return null;
+                }
+            }, null, null, null);
+            Assert.assertEquals(actual, new TreeSet<>(intervals));
+        }
+
+        {
+            Set<TestInterval> actual = new TreeSet<>();
+            IntervalBTree.accumulate(tree, TestComparators.INSTANCE, interval(10, 15, 400), new QuadFunction<Object, Object, TestInterval, Object, Object>()
+            {
+                @Override
+                public Object apply(Object o, Object o2, TestInterval match, Object o3)
+                {
+                    actual.add(match);
+                    return null;
+                }
+            }, null, null, null);
+            Assert.assertEquals(actual, new TreeSet<>(Arrays.asList(interval(10, 40, 100))));
+        }
+    }
+
+    @Test
+    public void midSizeTest()
+    {
+        for (int i = 0; i < 10_000; i++)
+        {
+            midSizeTestIteration(i);
+        }
+    }
+
+    public void midSizeTestIteration(int iteration)
+    {
+        RandomSource rng = new DefaultRandom(iteration);
+        List<TestInterval> intervals = new ArrayList<>();
+        TreeSet<TestInterval> unique = new TreeSet<>();
+        for (int i = 0; i < rng.nextInt(10_000) + 1; i++)
+        {
+            TestInterval interval = newInterval(rng, 2, 10000);
+            if (unique.add(interval))
+                intervals.add(interval);
+        }
+
+        Collections.shuffle(intervals, rng.asJdkRandom());
+
+        Object[] tree = IntervalBTree.empty();
+        for (TestInterval v : intervals)
+            tree = IntervalBTree.update(tree, IntervalBTree.singleton(v), TestComparators.INSTANCE);
+
+        for (int i = 0; i < 100; i++)
+        {
+            TestInterval searched = newInterval(rng, 2, 10000);
+            Set<TestInterval> actual = new TreeSet<>();
+            IntervalBTree.accumulate(tree, TestComparators.INSTANCE, searched, (o, o2, match, o3) -> {
+                actual.add(match);
+                return null;
+            }, null, null, null);
+            Assert.assertEquals(String.format("Searching for %s", searched),
+                                actual, new TreeSet<>(intervals.stream().filter(match -> {
+                if ((match.start <= searched.start && searched.start < match.end) ||
+                    (searched.start <= match.start && match.start < searched.end))
+                    return true;
+                return false;
+            }).collect(Collectors.toList())));
+        }
+    }
+
+    @Test
+    public void subtractTest()
+    {
+        for (int j = 0; j < 10_000; j++)
+            subtractTestIteration(j);
+    }
+
+    public void subtractTestIteration(int iteration)
+    {
+        RandomSource rng = new DefaultRandom(iteration);
+        List<TestInterval> intervals = new ArrayList<>();
+        TreeSet<TestInterval> unique = new TreeSet<>();
+        for (int i = 0; i < rng.nextInt(10_000) + 1; i++)
+        {
+            TestInterval interval = newInterval(rng, 2, 10000);
+            if (unique.add(interval))
+                intervals.add(interval);
+        }
+
+        Collections.shuffle(intervals, rng.asJdkRandom());
+
+        Object[] tree = IntervalBTree.empty();
+        for (TestInterval v : intervals)
+            tree = IntervalBTree.update(tree, IntervalBTree.singleton(v), TestComparators.INSTANCE);
+
+        for (int i = 0; i < 100 && BTree.size(tree) > 0; i++)
+        {
+            int subtractCount = Math.max(1, rng.nextInt(intervals.size() / 10 + 1));
+            List<TestInterval> toSubtract = new ArrayList<>();
+            TreeSet<TestInterval> subtractSet = new TreeSet<>();
+
+            for (int j = 0; j < subtractCount; j++)
+            {
+                TestInterval interval;
+                // pick an existing or a new interval
+                if (rng.nextBoolean() && !intervals.isEmpty())
+                    interval = intervals.get(rng.nextInt(intervals.size()));
+                else
+                    interval = newInterval(rng, 2, 10000);
+
+                if (subtractSet.add(interval))
+                    toSubtract.add(interval);
+            }
+
+            Object[] resultTree;
+            {
+                Object[] subtractTree = IntervalBTree.empty();
+                for (TestInterval v : toSubtract)
+                    subtractTree = IntervalBTree.update(subtractTree, IntervalBTree.singleton(v), TestComparators.INSTANCE);
+
+                resultTree = IntervalBTree.subtract(tree, subtractTree, TestComparators.INSTANCE);
+            }
+            // Collect all intervals remaining in the result tree
+            Set<TestInterval> remaining = new TreeSet<>();
+            IntervalBTree.accumulate(resultTree, (o1, o2, interval, o3) -> {
+                remaining.add((TestInterval)interval);
+                return null;
+            }, null, null, null);
+
+            Set<TestInterval> expectedRemaining = new TreeSet<>();
+            for (TestInterval original : intervals)
+            {
+                boolean shouldBeSubtracted = subtractSet.contains(original);
+                if (!shouldBeSubtracted)
+                    expectedRemaining.add(original);
+            }
+
+            Assert.assertEquals(String.format("Subtraction iteration %d: expected %d remaining, got %d. Subtracted: %s",
+                                              i, expectedRemaining.size(), remaining.size(), subtractSet),
+                                expectedRemaining, remaining);
+
+            intervals.retainAll(expectedRemaining);
+            tree = resultTree;
+        }
+    }
+
+    public static TestInterval interval(int start, int end, int value)
+    {
+        return new TestInterval(start, end, value);
+    }
+
     private static int log2uniform(RandomSource random, int max)
     {
         int logn = 31 - Integer.numberOfLeadingZeros(max);
@@ -268,7 +459,7 @@ public class IntervalBTreeTest
 
     private static TestInterval newInterval(RandomSource random, int keyDomain, int valueDomain)
     {
-        int end = 1 + random.nextInt(keyDomain - 1);
+        int end = keyDomain == 1 ? 1 : 1 + random.nextInt(Math.max(1, keyDomain - 1));
         int start = random.nextInt(end);
         return new TestInterval(start, end, random.nextInt(valueDomain));
     }

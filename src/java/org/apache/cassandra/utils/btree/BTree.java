@@ -71,6 +71,10 @@ public class BTree
      */
     public static final int BRANCH_SHIFT = BTREE_BRANCH_SHIFT.getInt();
 
+    /**
+     * _DO NOT_ attempt to modify this field directly. Instead, use BRANCH_SHIFT above instead, as branch factor
+     * should _always_ be a power of 2.
+     */
     static final int BRANCH_FACTOR = 1 << BRANCH_SHIFT;
     public static final int MIN_KEYS = BRANCH_FACTOR / 2 - 1;
     public static final int MAX_KEYS = BRANCH_FACTOR - 1;
@@ -4045,7 +4049,7 @@ public class BTree
          * 2) If we exhaust all of our ancestors, and are not now ourselves overflowing, drain and return
          * 3) Otherwise propagate the redistributed contents to our parent and return null, indicating we can continue to parent
          *
-         * @return {@code null} if {@code parent} is still logicallly in use after we execute;
+         * @return {@code null} if {@code parent} is still logically in use after we execute;
          * otherwise the return value is the final result
          */
         private Object[] stealAndMaybeRepropagate(LeafOrBranchBuilder fill, BranchBuilder parent)
@@ -4148,7 +4152,8 @@ public class BTree
             if (!remove.hasNext())
                 return -1 - (1 + usz);
 
-            int i = exponentialSearch(comparator, unode, upos, usz, remove.peek());
+            K next = remove.peek();
+            int i = exponentialSearch(comparator, unode, upos, usz, next);
             if (i == -1 - usz)
             {
                 // if we sort after the last key in the branch, we may need to descend into the right-most child
@@ -4159,7 +4164,7 @@ public class BTree
                 {
                     Object[] pnode = update.nodes[pdepth];
                     int ppos = update.positions[pdepth];
-                    if (ppos < shallowSizeOfBranch(pnode) && comparator.compare(remove.peek(), (K)pnode[ppos]) >= 0)
+                    if (ppos < shallowSizeOfBranch(pnode) && comparator.compare(next, (K)pnode[ppos]) >= 0)
                     {
                         // increase our result index to point to *after* the last child;
                         // (it's an inequality binary search semantic answer, so will be negated)
