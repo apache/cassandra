@@ -506,7 +506,7 @@ public class BytesPartitionState
         private List<Symbol> validateSelect(List<Symbol> selection)
         {
             LinkedHashSet<Symbol> uniqueSelection = new LinkedHashSet<>(selection);
-            var unknown = Sets.difference(uniqueSelection, columnNames.asSet());
+            var unknown = Sets.difference(uniqueSelection, columnNames);
             if (!unknown.isEmpty())
                 throw new AssertionError("Unable to select columns " + selection + "; has unknown columns " + unknown);
             return uniqueSelection.size() == selection.size() ? selection : new ArrayList<>(uniqueSelection);

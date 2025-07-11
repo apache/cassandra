@@ -179,6 +179,16 @@ public class TokenKeyTest
             });
     }
 
+    @Test
+    public void serdeNoTable()
+    {
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(tokenKeyGen()).check(key -> {
+            AccordGenerators.maybeUpdatePartitioner(key);
+            Serializers.testSerde(output, TokenKey.noTableSerializer, key, key.table());
+        });
+    }
+
     private static Gen<TokenKey> simpleTokenKey()
     {
         return AccordGenerators.partitioner().flatMap(p -> AccordGenerators.routingKeysGen(p));

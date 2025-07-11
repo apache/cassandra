@@ -20,21 +20,30 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
 
 import accord.local.Node;
 import accord.primitives.Range;
 import accord.topology.Shard;
 import accord.topology.Topology;
+import accord.utils.SimpleBitSet;
+import accord.utils.SortedArrays;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
+import org.agrona.collections.Object2IntHashMap;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.SimpleBitSetSerializer;
+
+import static accord.utils.SortedArrays.fromSimpleBitSet;
 
 public class TopologySerializers
 {
@@ -157,6 +166,141 @@ public class TopologySerializers
             size += CollectionSerializers.serializedListSize(topology.shards(), shard);
             size += CollectionSerializers.serializedCollectionSize(topology.staleIds(), TopologySerializers.nodeId);
             return size;
+        }
+    };
+
+    public static final UnversionedSerializer<Topology> compactTopology = new UnversionedSerializer<>()
+    {
+        @Override
+        public void serialize(Topology topology, DataOutputPlus out) throws IOException
+        {
+            out.writeUnsignedVInt(topology.epoch());
+            CollectionSerializers.serializeList(topology.staleIds(), out, TopologySerializers.nodeId);
+
+            List<Shard> shards = topology.shards();
+
+            // need to loop twice; once to collect ranges, and another to save shards
+            Object2IntHashMap<TokenRange> ranges;
+            {
+                Object2IntHashMap<TokenRange> rangesBuilder = new Object2IntHashMap<>(-2);
+                for (Shard shard : shards)
+                {
+                    TokenRange range = (TokenRange) shard.range;
+                    rangesBuilder.putIfAbsent(range.withTable(TableId.UNDEFINED), -1);
+                }
+                int count = 0;
+                for (Map.Entry<TokenRange, Integer> e : rangesBuilder.entrySet())
+                    e.setValue(count++);
+
+                ranges = rangesBuilder;
+            }
+
+            CollectionSerializers.serializeCollection(ranges.keySet(), out, TokenRange.noTableSerializer);
+
+            out.writeUnsignedVInt32(shards.size());
+            TableId activeTableId = null;
+            for (Shard shard : shards)
+            {
+                TokenRange range = (TokenRange) shard.range;
+                if (activeTableId == null || !activeTableId.equals(range.table()))
+                {
+                    activeTableId = range.table();
+                    out.writeBoolean(false);
+                    TableId.compactComparableSerializer.serialize(activeTableId, out);
+                }
+                else
+                {
+                    out.writeBoolean(true);
+                }
+                int rangeIdx = ranges.getValue(range.withTable(TableId.UNDEFINED));
+                out.writeUnsignedVInt32(rangeIdx);
+
+                CollectionSerializers.serializeList(shard.nodes, out, TopologySerializers.nodeId);
+                SimpleBitSet notInFastPath = SortedArrays.toSimpleBitSet(shard.nodes, shard.notInFastPath);
+                SimpleBitSetSerializer.instance.serialize(notInFastPath, out);
+                SimpleBitSet joining = SortedArrays.toSimpleBitSet(shard.nodes, shard.joining);
+                SimpleBitSetSerializer.instance.serialize(joining, out);
+                out.writeUnsignedVInt32(shard.flags().bitset());
+            }
+        }
+
+        @Override
+        public long serializedSize(Topology topology)
+        {
+            long size = TypeSizes.sizeofUnsignedVInt(topology.epoch());
+            size += CollectionSerializers.serializedListSize(topology.staleIds(), TopologySerializers.nodeId);
+
+            List<Shard> shards = topology.shards();
+
+            // need to loop twice; once to collect ranges, and another to save shards
+            Object2IntHashMap<TokenRange> ranges;
+            {
+                Object2IntHashMap<TokenRange> rangesBuilder = new Object2IntHashMap<>(-2);
+                for (Shard shard : shards)
+                {
+                    TokenRange range = (TokenRange) shard.range;
+                    rangesBuilder.putIfAbsent(range.withTable(TableId.UNDEFINED), -1);
+                }
+                int count = 0;
+                for (Map.Entry<TokenRange, Integer> e : rangesBuilder.entrySet())
+                    e.setValue(count++);
+
+                ranges = rangesBuilder;
+            }
+
+            size += CollectionSerializers.serializedCollectionSize(ranges.keySet(), TokenRange.noTableSerializer);
+
+            size += TypeSizes.sizeofUnsignedVInt(shards.size());
+            TableId activeTableId = null;
+            for (Shard shard : shards)
+            {
+                TokenRange range = (TokenRange) shard.range;
+                size += TypeSizes.sizeof(true);
+                if (activeTableId == null || !activeTableId.equals(range.table()))
+                {
+                    activeTableId = range.table();
+                    size += TableId.compactComparableSerializer.serializedSize(activeTableId);
+                }
+                int rangeIdx = ranges.getValue(range.withTable(TableId.UNDEFINED));
+
+                size += TypeSizes.sizeofUnsignedVInt(rangeIdx);
+
+                size += CollectionSerializers.serializedListSize(shard.nodes, TopologySerializers.nodeId);
+                SimpleBitSet notInFastPath = SortedArrays.toSimpleBitSet(shard.nodes, shard.notInFastPath);
+                size += SimpleBitSetSerializer.instance.serializedSize(notInFastPath);
+                SimpleBitSet joining = SortedArrays.toSimpleBitSet(shard.nodes, shard.joining);
+                size += SimpleBitSetSerializer.instance.serializedSize(joining);
+                size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
+            }
+            return size;
+        }
+
+        @Override
+        public Topology deserialize(DataInputPlus in) throws IOException
+        {
+            long epoch = in.readUnsignedVInt();
+            SortedArrays.SortedArrayList<Node.Id> staleNodes = SortedArrays.SortedArrayList.copySorted(CollectionSerializers.deserializeList(in, TopologySerializers.nodeId), Node.Id[]::new);
+
+            List<TokenRange> ranges = CollectionSerializers.deserializeList(in, TokenRange.noTableSerializer);
+
+            int size = in.readUnsignedVInt32();
+            Shard[] shards = new Shard[size];
+            TableId activeTableId = null;
+            for (int i = 0; i < size; i++)
+            {
+                if (!in.readBoolean())
+                    activeTableId = TableId.compactComparableSerializer.deserialize(in);
+                int rangeIndex = in.readUnsignedVInt32();
+
+                TokenRange range = ranges.get(rangeIndex).withTable(activeTableId);
+
+                SortedArrays.SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
+                SimpleBitSet notInFastPath = SimpleBitSetSerializer.instance.deserialize(in);
+                SimpleBitSet joining = SimpleBitSetSerializer.instance.deserialize(in);
+                int flags = in.readUnsignedVInt32();
+                shards[i] = Shard.SerializerSupport.create(range, nodes, fromSimpleBitSet(nodes, notInFastPath, Node.Id[]::new), fromSimpleBitSet(nodes, joining, Node.Id[]::new), new TinyEnumSet<>(flags));
+            }
+            return new Topology(epoch, staleNodes, shards);
         }
     };
 }

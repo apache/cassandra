@@ -445,19 +445,19 @@ public class ASTSingleTableModel
             partitions.put(partition.ref(), partition);
         }
         Map<Symbol, Expression> values = insert.values;
-        if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns.asSet(), values.keySet()).isEmpty())
+        if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns, values.keySet()).isEmpty())
         {
-            maybeUpdateColumns(Sets.intersection(factory.staticColumns.asSet(), values.keySet()),
+            maybeUpdateColumns(Sets.intersection(factory.staticColumns, values.keySet()),
                                partition.staticRow(),
                                nowTs, values,
                                partition::setStaticColumns);
         }
         // table has clustering but non are in the write, so only pk/static can be updated
-        if (!factory.clusteringColumns.isEmpty() && Sets.intersection(factory.clusteringColumns.asSet(), values.keySet()).isEmpty())
+        if (!factory.clusteringColumns.isEmpty() && Sets.intersection(factory.clusteringColumns, values.keySet()).isEmpty())
             return;
         BytesPartitionState finalPartition = partition;
         var cd = key(insert.values, factory.clusteringColumns);
-        maybeUpdateColumns(Sets.intersection(factory.regularColumns.asSet(), values.keySet()),
+        maybeUpdateColumns(Sets.intersection(factory.regularColumns, values.keySet()),
                            partition.get(cd),
                            nowTs, values,
                            (ts, write) -> finalPartition.setColumns(cd, ts, write, true));
@@ -478,9 +478,9 @@ public class ASTSingleTableModel
                 partitions.put(partition.ref(), partition);
             }
             Map<Symbol, Expression> set = update.set;
-            if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns.asSet(), set.keySet()).isEmpty())
+            if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns, set.keySet()).isEmpty())
             {
-                maybeUpdateColumns(Sets.intersection(factory.staticColumns.asSet(), set.keySet()),
+                maybeUpdateColumns(Sets.intersection(factory.staticColumns, set.keySet()),
                                    partition.staticRow(),
                                    nowTs, set,
                                    partition::setStaticColumns);
@@ -491,7 +491,7 @@ public class ASTSingleTableModel
             BytesPartitionState finalPartition = partition;
             for (Clustering<ByteBuffer> cd : clustering(remaining))
             {
-                maybeUpdateColumns(Sets.intersection(factory.regularColumns.asSet(), set.keySet()),
+                maybeUpdateColumns(Sets.intersection(factory.regularColumns, set.keySet()),
                                    partition.get(cd),
                                    nowTs, set,
                                    (ts, write) -> finalPartition.setColumns(cd, ts, write, false));
@@ -759,15 +759,15 @@ public class ASTSingleTableModel
 
     private Pair<List<Clustering<ByteBuffer>>, List<Conditional>> splitOnPartition(List<Conditional> conditionals)
     {
-        return splitOn(factory.partitionColumns.asSet(), conditionals);
+        return splitOn(factory.partitionColumns, conditionals);
     }
 
     private Pair<List<Clustering<ByteBuffer>>, List<Conditional>> splitOnClustering(List<Conditional> conditionals)
     {
-        return splitOn(factory.clusteringColumns.asSet(), conditionals);
+        return splitOn(factory.clusteringColumns, conditionals);
     }
 
-    private Pair<List<Clustering<ByteBuffer>>, List<Conditional>> splitOn(ImmutableUniqueList<Symbol>.AsSet columns, List<Conditional> conditionals)
+    private Pair<List<Clustering<ByteBuffer>>, List<Conditional>> splitOn(ImmutableUniqueList<Symbol> columns, List<Conditional> conditionals)
     {
         // pk requires equality
         Map<Symbol, List<ByteBuffer>> pks = new HashMap<>();
@@ -1539,9 +1539,10 @@ public class ASTSingleTableModel
 
     private Clustering<ByteBuffer> key(Map<Symbol, Expression> values, ImmutableUniqueList<Symbol> columns)
     {
+        if (columns.isEmpty()) return Clustering.EMPTY;
         // same as keys, but only one possible value can happen
         List<Clustering<ByteBuffer>> keys = keys(Maps.transformValues(values, Collections::singletonList), columns);
-        Preconditions.checkState(keys.size() == 1, "Expected 1 key, but found %d", keys.size());
+        Preconditions.checkState(keys.size() == 1, "Expected 1 key, but found %s", keys.size());
         return keys.get(0);
     }
 

@@ -30,6 +30,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
@@ -62,6 +63,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
+import accord.topology.TopologyManager;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
@@ -77,6 +79,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.FetchTopologies;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -107,16 +110,36 @@ public class AccordGenerators
     {
     }
 
+    public static boolean maybeUpdatePartitioner(List<Topology> topologies)
+    {
+        for (var t : topologies)
+        {
+            if (maybeUpdatePartitioner(t))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean maybeUpdatePartitioner(Topology topology)
+    {
+        return maybeUpdatePartitioner(topology.ranges());
+    }
+
     public static boolean maybeUpdatePartitioner(Ranges ranges)
     {
         if (ranges.isEmpty()) return false;
         for (Range range : ranges)
         {
             TokenRange tr = (TokenRange) range;
-            DatabaseDescriptor.setPartitionerUnsafe(tr.start().token().getPartitioner());
+            maybeUpdatePartitioner(tr.start());
             return true;
         }
         return false;
+    }
+
+    public static void maybeUpdatePartitioner(TokenKey key)
+    {
+        DatabaseDescriptor.setPartitionerUnsafe(key.token().getPartitioner());
     }
 
     public static Gen<IPartitioner> partitioner()
@@ -754,6 +777,67 @@ public class AccordGenerators
                 shards.add(shardGen(range).next(rs));
             //TODO (coverage): staleNodes
             return new Topology(epoch, shards.toArray(Shard[]::new));
+        };
+    }
+
+    public static Gen<FetchTopologies> fetchTopologiesGen()
+    {
+        Gen.LongGen epochGen = AccordGens.epochs();
+        Gen.LongGen maxEpochGen = rs -> {
+            if (rs.decide(0.3))
+                return Long.MAX_VALUE;
+            return epochGen.nextLong(rs);
+        };
+        return rs -> {
+            long a = epochGen.nextLong(rs);
+            long b = maxEpochGen.nextLong(rs);
+            while (a == b)
+                b = maxEpochGen.nextLong(rs);
+            if (a > b)
+            {
+                long tmp = a;
+                a = b;
+                b = tmp;
+            }
+            return new FetchTopologies(a, b);
+        };
+    }
+
+    public static Gen<TopologyManager.TopologyRange> topologyRangeGen()
+    {
+        Gen.LongGen epochGen = AccordGens.epochs();
+        return rs -> {
+            // settle on 1 partitioner
+            IPartitioner partitioner = partitioner().next(rs);
+            Supplier<Topology> topologyGen = () -> {
+                if (rs.decide(.3)) return Topology.EMPTY;
+                return topologyGen(partitioner).next(rs);
+            };
+
+            // first figure out the min epoch, then generate a list of topologies
+            long minEpoch = epochGen.nextLong(rs);
+            if (minEpoch == Timestamp.MAX_EPOCH)
+            {
+                // not possible to have a list of values, so to simplfiy just return empty
+                return new TopologyManager.TopologyRange(Timestamp.MAX_EPOCH, Timestamp.MAX_EPOCH, -1, Collections.emptyList());
+            }
+            long epochsRemaining = Timestamp.MAX_EPOCH - minEpoch;
+            int size = rs.nextInt(1, Math.toIntExact(Math.min(100, epochsRemaining)));
+            int numEmpty = rs.nextInt(0, size);
+
+            List<Topology> topologies = new ArrayList<>(size);
+            int offset = 0;
+            for (int i = 0; i < numEmpty; i++)
+                topologies.add(Topology.EMPTY.withEpoch(minEpoch + offset++));
+            long firstNonEmpty = -1;
+            for (int i = offset; i < size; i++)
+            {
+                Topology t = topologyGen.get().withEpoch(minEpoch + offset++);
+                if (firstNonEmpty == -1 && !t.isEmpty())
+                    firstNonEmpty = t.epoch();
+                topologies.add(t);
+            }
+            return new TopologyManager.TopologyRange(topologies.get(0).epoch(), topologies.get(topologies.size() - 1).epoch(), firstNonEmpty, topologies);
         };
     }
 

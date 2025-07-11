@@ -22,6 +22,7 @@ import org.junit.Test;
 
 import accord.utils.LazyToString;
 import accord.utils.ReflectionUtils;
+import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -35,7 +36,7 @@ public class TableIdTest
     @Test
     public void serialize()
     {
-        DataOutputBuffer output = new DataOutputBuffer();
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(Generators.toGen(CassandraGenerators.TABLE_ID_GEN)).check(input -> {
             output.clear();
             input.serialize(output);
@@ -50,7 +51,7 @@ public class TableIdTest
     @Test
     public void serializeCompact()
     {
-        DataOutputBuffer output = new DataOutputBuffer();
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(Generators.toGen(CassandraGenerators.TABLE_ID_GEN)).check(input -> {
             output.clear();
             input.serializeCompact(output);
@@ -65,9 +66,8 @@ public class TableIdTest
     @Test
     public void serializeCompactComparable()
     {
-        DataOutputBuffer output = new DataOutputBuffer();
-        // Seed = 3447758086368915686
-        qt().withSeed(3848293537190683248L).forAll(Generators.toGen(CassandraGenerators.TABLE_ID_GEN)).check(input -> {
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(Generators.toGen(CassandraGenerators.TABLE_ID_GEN)).check(input -> {
             output.clear();
             input.serializeCompactComparable(output);
             Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(input.serializedCompactComparableSize());
@@ -76,5 +76,13 @@ public class TableIdTest
             TableId read = TableId.deserializeCompactComparable(in);
             Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read, input).toString())).isEqualTo(input);
         });
+    }
+
+    @Test
+    public void serializeCompactComparableV2()
+    {
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().forAll(Generators.toGen(CassandraGenerators.TABLE_ID_GEN))
+            .check(input -> Serializers.testSerde(output, TableId.compactComparableSerializer, input));
     }
  }
