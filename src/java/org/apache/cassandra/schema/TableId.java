@@ -38,6 +38,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
@@ -92,6 +93,8 @@ public final class TableId implements Comparable<TableId>
 
     public static TableId fromString(String idString)
     {
+        if (idString.startsWith("tid:"))
+            return new TableId(MAGIC, Hex.parseLong(idString, 4, idString.length()));
         return new TableId(UUID.fromString(idString));
     }
 
@@ -185,6 +188,13 @@ public final class TableId implements Comparable<TableId>
 
     @Override
     public String toString()
+    {
+        if (msb == MAGIC)
+            return "tid:" + Long.toHexString(lsb);
+        return asUUID().toString();
+    }
+
+    public String toLongString()
     {
         return asUUID().toString();
     }

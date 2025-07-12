@@ -487,6 +487,7 @@ public class CommandSerializers
         static
         {
             Invariants.require(EPOCH_MASK << EPOCH_SHIFT >= 0);
+            Invariants.require(EPOCH_SHIFT + Integer.bitCount(EPOCH_MASK) < 8);
         }
 
         interface Factory<T extends Timestamp>
@@ -537,6 +538,7 @@ public class CommandSerializers
                               | encodeLength(hlcLength,   HLC_SHIFT,   HLC_MIN_LENGTH,   HLC_MASK)
                               | encodeLength(flagsLength, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK)
                               | encodeLength(nodeLength,  NODE_SHIFT,  NODE_MIN_LENGTH,  NODE_MASK);
+            Invariants.require(((byte)encodingFlags) >= 0);
             out.writeByte(encodingFlags);
             out.writeLeastSignificantBytes(epoch, epochLength);
             out.writeLeastSignificantBytes(hlc, hlcLength);
@@ -602,6 +604,7 @@ public class CommandSerializers
                               | encodeLength(hlcLength,   HLC_SHIFT,   HLC_MIN_LENGTH,   HLC_MASK)
                               | encodeLength(flagsLength, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK)
                               | encodeLength(nodeLength,  NODE_SHIFT,  NODE_MIN_LENGTH,  NODE_MASK);
+            Invariants.require(((byte)encodingFlags) >= 0);
 
             int position = offset;
             position += accessor.putByte(dst, position, (byte)encodingFlags);

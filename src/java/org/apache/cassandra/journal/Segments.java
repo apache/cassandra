@@ -220,6 +220,12 @@ class Segments<K, V>
         }
     }
 
+    @Override
+    public String toString()
+    {
+        return sorted.toString();
+    }
+
     private static final Long2ObjectHashMap<?> EMPTY_MAP = new Long2ObjectHashMap<>();
 
     @SuppressWarnings("unchecked")

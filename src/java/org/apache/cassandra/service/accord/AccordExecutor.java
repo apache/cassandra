@@ -848,6 +848,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         final SequentialQueueTask selfTask;
         private Task task;
         private volatile Thread owner, waiting;
+        private boolean running;
 
         SequentialExecutor()
         {
@@ -859,12 +860,13 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         {
             Invariants.require(task != null);
             task.preRunExclusive(runner);
+            running = true;
         }
 
         void runTask()
         {
             Thread self = Thread.currentThread();
-            if (!ownerUpdater.compareAndSet(this, null, self))
+            while (!ownerUpdater.compareAndSet(this, null, self))
             {
                 waiting = self;
                 while (owner != null)
@@ -882,6 +884,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         void cleanupTask(@Nullable TaskRunner runner)
         {
             task.cleanupExclusive(runner);
+            running = false;
             owner = null;
             task = super.poll();
             if (task != null)
@@ -910,19 +913,34 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         @Override
         protected void remove(Task remove)
         {
+            Invariants.require(remove != null);
             if (remove != task)
             {
                 super.remove(remove);
             }
-            else
+            else if (!running)
             {
-                Invariants.require(waitingToRun.contains(selfTask));
+                // cannot overwrite task while it is being executed - this cannot happen for AccordTask
+                // but can for other tasks that don't track their own state
+
                 task = super.poll();
-                if (task == null) waitingToRun.remove(selfTask);
+                if (waitingToRun.contains(selfTask))
+                {
+                    if (task == null) waitingToRun.remove(selfTask);
+                    else
+                    {
+                        selfTask.queuePosition = task.queuePosition;
+                        waitingToRun.update(selfTask);
+                    }
+                }
                 else
                 {
-                    selfTask.queuePosition = task.queuePosition;
-                    waitingToRun.update(selfTask);
+                    Invariants.expect(false, "%s should have been queued to run as it had the task %s pending, that has now been cancelled", this, remove);
+                    if (task != null)
+                    {
+                        selfTask.queuePosition = task.queuePosition;
+                        waitingToRun.append(selfTask);
+                    }
                 }
             }
         }

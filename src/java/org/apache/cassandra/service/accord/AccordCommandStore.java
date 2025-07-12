@@ -508,7 +508,7 @@ public class AccordCommandStore extends CommandStore
         public AsyncChain<Route> load(TxnId txnId)
         {
             return store.submit(txnId, safeStore -> {
-                maybeApplyWrites(safeStore, txnId);
+                initialiseState(safeStore, txnId);
                 return safeStore.unsafeGet(txnId).current().route();
             });
         }

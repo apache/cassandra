@@ -508,7 +508,7 @@ public class DescribeStatementTest extends CQLTester
                                       "    v2 int,\n" +
                                       "    v3 int,\n" +
                                       "    PRIMARY KEY ((pk1, pk2), c)\n" +
-                                      ") WITH ID = " + id + "\n" +
+                                      ") WITH ID = " + id.toLongString() + "\n" +
                                       "    AND CLUSTERING ORDER BY (c ASC)\n" +
                                       "    AND " + tableParametersCql();
 
@@ -597,7 +597,7 @@ public class DescribeStatementTest extends CQLTester
                                       "    v1 text,\n" +
                                       "    v2 int,\n" +
                                       "    v3 int\n" +
-                                      ") WITH ID = " + id + "\n" +
+                                      ") WITH ID = " + id.toLongString() + "\n" +
                                       "    AND " + tableParametersCql();
 
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table + " WITH INTERNALS"),
@@ -873,7 +873,7 @@ public class DescribeStatementTest extends CQLTester
                                             "    v1 int,\n" +
                                             "    v2 int,\n" +
                                             "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
-                                            ") WITH ID = " + source.id + "\n" +
+                                            ") WITH ID = " + source.id.toLongString() + "\n" +
                                             "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                             "    AND " + tableParametersCql();
         String targetTableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + targetTable + " (\n" +
@@ -885,7 +885,7 @@ public class DescribeStatementTest extends CQLTester
                                             "    v1 int,\n" +
                                             "    v2 int,\n" +
                                             "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
-                                            ") WITH ID = " + target.id + "\n" +
+                                            ") WITH ID = " + target.id.toLongString() + "\n" +
                                             "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                             "    AND " + tableParametersCql();
 
@@ -932,7 +932,7 @@ public class DescribeStatementTest extends CQLTester
                                       "    v1 text,\n" +
                                       "    v2 text MASKED WITH system.mask_inner(1, null),\n" +
                                       "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
-                                      ") WITH ID = " + tableMetadata.id + "\n" +
+                                      ") WITH ID = " + tableMetadata.id.toLongString() + "\n" +
                                       "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
                                       "    AND " + tableParametersCql();
 

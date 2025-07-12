@@ -24,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -32,6 +33,7 @@ import com.google.common.collect.ImmutableSet;
 import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.service.accord.api.TokenKey;
 
 public class CommandStoreTxnBlockedGraph
@@ -75,8 +77,9 @@ public class CommandStoreTxnBlockedGraph
         }
     }
 
-    public static class Builder
+    public static class Builder extends AsyncResults.SettableResult<CommandStoreTxnBlockedGraph>
     {
+        final AtomicInteger asyncTxns = new AtomicInteger(), asyncKeys = new AtomicInteger();
         final int storeId;
         final Map<TxnId, TxnState> txns = new LinkedHashMap<>();
         final Map<TokenKey, TxnId> keys = new LinkedHashMap<>();
@@ -89,6 +92,11 @@ public class CommandStoreTxnBlockedGraph
         boolean knows(TxnId id)
         {
             return txns.containsKey(id);
+        }
+
+        public void complete()
+        {
+            trySuccess(build());
         }
 
         public CommandStoreTxnBlockedGraph build()

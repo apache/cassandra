@@ -19,12 +19,15 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,6 +36,9 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.impl.CommandChange;
 import accord.impl.CommandChange.Field;
@@ -46,6 +52,7 @@ import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.primitives.EpochSupplier;
 import accord.primitives.Ranges;
+import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status.Durability;
 import accord.primitives.Timestamp;
@@ -55,6 +62,8 @@ import accord.utils.PersistentField;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
+import org.agrona.collections.Int2ObjectHashMap;
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -63,6 +72,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.journal.Compactor;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.Params;
@@ -70,7 +80,6 @@ import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
-import org.apache.cassandra.service.accord.AccordCommandStore.AccordCommandStoreLoader;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
@@ -81,9 +90,9 @@ import org.apache.cassandra.service.accord.serializers.DepsSerializers;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static accord.impl.CommandChange.Field.CLEANUP;
@@ -99,9 +108,12 @@ import static accord.impl.CommandChange.unsetIterable;
 import static accord.impl.CommandChange.validateFlags;
 import static accord.local.Cleanup.Input.FULL;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
+import static org.apache.cassandra.service.accord.JournalKey.Type.COMMAND_DIFF;
+import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 
 public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier, Shutdownable
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
     static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[JournalKeySupport.TOTAL_SIZE]);
 
     @VisibleForTesting
@@ -257,7 +269,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public List<DebugEntry> debugCommand(int commandStoreId, TxnId txnId)
     {
-        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
+        JournalKey key = new JournalKey(txnId, COMMAND_DIFF, commandStoreId);
         List<DebugEntry> result = new ArrayList<>();
         journalTable.readAll(key, (long segment, int position, JournalKey k, ByteBuffer buffer, int userVersion) -> {
             Builder builder = new Builder(txnId);
@@ -325,7 +337,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             return;
         }
 
-        JournalKey key = new JournalKey(update.txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
+        JournalKey key = new JournalKey(update.txnId, COMMAND_DIFF, commandStoreId);
         RecordPointer pointer = journal.asyncWrite(key, diff);
         if (journalTable.shouldIndex(key)
             && diff.hasParticipants()
@@ -403,7 +415,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     private Builder loadDiffs(int commandStoreId, TxnId txnId, Load load)
     {
-        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
+        JournalKey key = new JournalKey(txnId, COMMAND_DIFF, commandStoreId);
         Builder builder = new Builder(txnId, load);
         journalTable.readAll(key, builder::deserializeNext);
         return builder;
@@ -478,7 +490,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     public void forEach(Consumer<JournalKey> consumer)
     {
-        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
+        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(null, null))
         {
             while (iter.hasNext())
             {
@@ -492,30 +504,52 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public void replay(CommandStores commandStores)
     {
-        final Semaphore concurrency = Semaphore.newSemaphore(FBUtilities.getAvailableProcessors());
+        // TODO (expected): make the parallelisms configurable
+        // Replay is performed in parallel, where at most X commands can be in flight, accross at most Y commands stores.
+        // That is, you can limit replay parallelism to 1 command store at a time, but load multiple commands within that data store,
+        // _or_ have multiple commands being loaded accross multiple data stores.
+        final Semaphore commandParallelism = Semaphore.newSemaphore(getAvailableProcessors());
+        final int commandStoreParallelism = Math.max(Math.max(1, Math.min(getAvailableProcessors(), 4)), getAvailableProcessors() / 4);
         final AtomicBoolean abort = new AtomicBoolean();
+        // TODO (expected): balance work submission by AccordExecutor
+        final IntArrayList activeCommandStoreIds = new IntArrayList();
+        final ReplayQueue pendingCommandStores = new ReplayQueue(commandStores.all());
 
-        try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator())
+        class ReplayStream implements Closeable
         {
-            JournalKey prev = null;
-            while (iter.hasNext())
-            {
-                if (abort.get())
-                    break;
+            final CommandStore commandStore;
+            final Loader loader;
+            final CloseableIterator<Journal.KeyRefs<JournalKey>> iter;
+            JournalKey prev;
 
+            public ReplayStream(CommandStore commandStore)
+            {
+                this.commandStore = commandStore;
+                this.loader = commandStore.loader();
+                // Keys in the index are sorted by command store id, so index iteration will be sequential
+                this.iter = journalTable.keyIterator(new JournalKey(TxnId.NONE, COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()));
+            }
+
+            boolean replay()
+            {
                 JournalKey key;
                 long[] segments;
+                while (true)
                 {
+                    if (!iter.hasNext())
+                    {
+                        logger.info("Completed replay of {}", commandStore);
+                        return false;
+                    }
+
                     Journal.KeyRefs<JournalKey> ref = iter.next();
-                    key = ref.key();
-                    if (key.type != JournalKey.Type.COMMAND_DIFF)
+                    if (ref.key().type != COMMAND_DIFF)
                         continue;
 
+                    key = ref.key();
                     segments = journalTable.shouldIndex(key) ? ref.copyOfSegments() : null;
+                    break;
                 }
-
-                CommandStore commandStore = commandStores.forId(key.commandStoreId);
-                AccordCommandStoreLoader loader = (AccordCommandStoreLoader) commandStore.loader();
 
                 TxnId txnId = key.id;
                 Invariants.require(prev == null ||
@@ -523,23 +557,154 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                    key.id.compareTo(prev.id) != 0,
                                    "duplicate key detected %s == %s", key, prev);
                 prev = key;
-
-                concurrency.acquireThrowUncheckedOnInterrupt(1);
+                commandParallelism.acquireThrowUncheckedOnInterrupt(1);
                 loader.load(txnId)
                       .map(route -> {
-                          if (segments != null)
+                          if (segments != null && route != null)
                           {
                               for (long segment : segments)
-                                  journalTable.safeNotify(index -> index.update(segment, key.commandStoreId, txnId, route));
+                                  journalTable.safeNotify(index -> index.update(segment, key.commandStoreId, txnId, (Route)route));
                           }
                           return null;
                       }).begin((success, fail) -> {
-                          concurrency.release(1);
+                          commandParallelism.release(1);
                           if (fail != null && !journal.handleError("Could not replay command " + txnId, fail))
                               abort.set(true);
                       });
+
+                return true;
+            }
+
+            @Override
+            public void close()
+            {
+                iter.close();
             }
         }
+
+        // Replay streams by command store id, can hold at most commandStoreParallelism items
+        final Int2ObjectHashMap<ReplayStream> replayStreams = new Int2ObjectHashMap<>();
+        try
+        {
+            // index of the store we're currently pulling from in the activeCommandStoreIds collection
+            int cur = 0;
+            while (!abort.get())
+            {
+                if (cur == activeCommandStoreIds.size())
+                {
+                    if (activeCommandStoreIds.size() < commandStoreParallelism && !pendingCommandStores.isEmpty())
+                    {
+                        CommandStore next = pendingCommandStores.next();
+                        int id = next.id();
+                        activeCommandStoreIds.add(id);
+                        replayStreams.put(id, new ReplayStream(next));
+                    }
+                    else if (activeCommandStoreIds.isEmpty()) break;
+                    else cur = 0;
+                }
+
+                int id = activeCommandStoreIds.get(cur);
+                ReplayStream replayStream = replayStreams.get(id);
+                while (!replayStream.replay())
+                {
+                    // Replay complete for this command store; close and replace
+                    replayStreams.remove(id).close();
+                    if (pendingCommandStores.isEmpty())
+                    {
+                        // no more pending to submit; remove and continue with the next remaining (if any)
+                        activeCommandStoreIds.removeAt(cur);
+                        if (cur == activeCommandStoreIds.size())
+                            --cur;
+                        if (cur < 0)
+                            break;
+                        id = activeCommandStoreIds.get(cur);
+                    }
+                    else
+                    {
+                        // replace it with a pending command store, and continue processing
+                        CommandStore next = pendingCommandStores.next(streamId(replayStream.commandStore));
+                        id = next.id();
+                        activeCommandStoreIds.set(cur, id);
+                        replayStreams.put(id, new ReplayStream(next));
+                    }
+
+                    replayStream = replayStreams.get(id);
+                }
+
+                ++cur;
+            }
+        }
+        catch (Throwable t)
+        {
+            try { FileUtils.close(replayStreams.values()); }
+            catch (Throwable t2) { t.addSuppressed(t2); }
+            throw t;
+        }
+    }
+
+    static class ReplayQueue
+    {
+        final Int2ObjectHashMap<Queue<CommandStore>> byExecutor = new Int2ObjectHashMap<>();
+        final Deque<Integer> nextId = new ArrayDeque<>();
+
+        ReplayQueue(CommandStore[] commandStores)
+        {
+            for (CommandStore commandStore : commandStores)
+            {
+                byExecutor.computeIfAbsent(streamId(commandStore), ignore -> new ArrayDeque<>())
+                          .add(commandStore);
+            }
+            nextId.addAll(byExecutor.keySet());
+        }
+
+        boolean isEmpty()
+        {
+            return byExecutor.isEmpty();
+        }
+
+        CommandStore next()
+        {
+            while (true)
+            {
+                if (byExecutor.isEmpty())
+                    return null;
+
+                Integer id = nextId.poll();
+                if (id == null)
+                {
+                    nextId.addAll(byExecutor.keySet());
+                    id = nextId.poll();
+                }
+
+                Queue<CommandStore> queue = byExecutor.get(id);
+                if (queue != null)
+                {
+                    CommandStore next = queue.poll();
+                    if (queue.isEmpty())
+                        byExecutor.remove(id);
+                    if (next != null)
+                        return next;
+                }
+            }
+        }
+
+        CommandStore next(int streamId)
+        {
+            Queue<CommandStore> queue = byExecutor.get(streamId);
+            if (queue == null)
+                return next();
+
+            CommandStore next = queue.poll();
+            if (queue.isEmpty())
+                byExecutor.remove(streamId);
+
+            return next;
+        }
+    }
+
+    private static int streamId(CommandStore commandStore)
+    {
+        return commandStore instanceof AccordCommandStore ? ((AccordCommandStore) commandStore).executor().executorId() : 1;
     }
 
     public static @Nullable ByteBuffer asSerializedChange(Command before, Command after, Version userVersion) throws IOException
@@ -831,7 +996,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             for (Field field = nextSetField(iterable) ; field != null; field = nextSetField(iterable = unsetIterable(field, iterable)))
             {
                 // Since we are iterating in reverse order, we skip the fields that were
-                // set by entries writter later (i.e. already read ones).
+                // set by entries written later (i.e. already read ones).
                 if (isChanged(field, flags) && field != CLEANUP)
                     skip(txnId, field, in, userVersion);
                 else
