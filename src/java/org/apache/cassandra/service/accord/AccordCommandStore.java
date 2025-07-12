@@ -116,7 +116,6 @@ public class AccordCommandStore extends CommandStore
             this.lock = lock;
         }
 
-
         @Override
         public AccordSafeCommand acquireIfLoaded(TxnId txnId)
         {

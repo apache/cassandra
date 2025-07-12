@@ -18,12 +18,18 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
@@ -54,7 +60,9 @@ import accord.utils.SymmetricComparator;
 import accord.utils.UnhandledEnum;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.IntervalBTree;
+import org.apache.cassandra.utils.concurrent.IntrusiveStack;
 
 import static accord.local.CommandSummaries.SummaryStatus.NOT_DIRECTLY_WITNESSED;
 import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.endWithStart;
@@ -122,14 +130,53 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
         return this;
     }
 
-    public static class Manager implements AccordCache.Listener<TxnId, Command>
+    public static class Manager implements AccordCache.Listener<TxnId, Command>, Runnable
     {
+        static class IntervalTreeEdit extends IntrusiveStack<IntervalTreeEdit>
+        {
+            final TxnId txnId;
+            final @Nullable Object[] update, remove;
+
+            IntervalTreeEdit(TxnId txnId, Object[] update, Object[] remove)
+            {
+                this.txnId = txnId;
+                this.update = update;
+                this.remove = remove;
+            }
+
+            public static boolean push(IntervalTreeEdit edit, Manager manager)
+            {
+                return null == IntrusiveStack.getAndPush(pendingEditsUpdater, manager, edit);
+            }
+
+            public IntervalTreeEdit reverse()
+            {
+                return reverse(this);
+            }
+
+            boolean isSize(int size)
+            {
+                return IntrusiveStack.isSize(size, this);
+            }
+
+            IntervalTreeEdit merge(IntervalTreeEdit next)
+            {
+                Invariants.require(this.txnId.equals(next.txnId));
+                Object[] remove = this.remove == null ? next.remove : next.remove == null ? this.remove : IntervalBTree.update(this.remove, next.remove, COMPARATORS);
+                return new IntervalTreeEdit(txnId, next.update, remove);
+            }
+        }
+
         private final AccordCommandStore commandStore;
         private final RangeSearcher searcher;
         private final AtomicReference<NavigableMap<TxnId, Ranges>> transitive = new AtomicReference<>(new TreeMap<>());
         // TODO (desired): manage memory consumed by this auxillary information
         private final Object2ObjectHashMap<TxnId, RangeRoute> cachedRangeTxnsById = new Object2ObjectHashMap<>();
         private Object[] cachedRangeTxnsByRange = IntervalBTree.empty();
+
+        private volatile IntervalTreeEdit pendingEdits;
+        private final Lock drainPendingEditsLock = new ReentrantLock();
+        private static final AtomicReferenceFieldUpdater<Manager, IntervalTreeEdit> pendingEditsUpdater = AtomicReferenceFieldUpdater.newUpdater(Manager.class, IntervalTreeEdit.class, "pendingEdits");
 
         public Manager(AccordCommandStore commandStore)
         {
@@ -155,14 +202,91 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                     {
                         RangeRoute cur = cachedRangeTxnsById.put(cmd.txnId(), upd);
                         if (!upd.equals(cur))
-                        {
-                            if (cur != null)
-                                remove(txnId, cur);
-                            cachedRangeTxnsByRange = IntervalBTree.update(cachedRangeTxnsByRange, toMap(txnId, upd), COMPARATORS);
-                        }
+                            pushEdit(new IntervalTreeEdit(txnId, toMap(txnId, upd), cur == null ? null : toMap(txnId, cur)));
                     }
                 }
             }
+        }
+
+        private void pushEdit(IntervalTreeEdit edit)
+        {
+            if (IntervalTreeEdit.push(edit, this))
+                commandStore.executor().submitExclusive(this);
+        }
+
+        @Override
+        public void run()
+        {
+            if (drainPendingEditsLock.tryLock())
+            {
+                try
+                {
+                    drainPendingEditsInternal();
+                }
+                finally
+                {
+                    drainPendingEditsLock.unlock();
+                    postUnlock();
+                }
+            }
+        }
+
+        Object[] cachedRangeTxnsByRange()
+        {
+            drainPendingEditsLock.lock();
+            try
+            {
+                drainPendingEditsInternal();
+                return cachedRangeTxnsByRange;
+            }
+            finally
+            {
+                drainPendingEditsLock.unlock();
+                postUnlock();
+            }
+        }
+
+        void drainPendingEditsInternal()
+        {
+            IntervalTreeEdit edits = pendingEditsUpdater.getAndSet(this, null);
+            if (edits == null)
+                return;
+
+            if (edits.isSize(1))
+            {
+                if (edits.remove != null) cachedRangeTxnsByRange = IntervalBTree.subtract(cachedRangeTxnsByRange, edits.remove, COMPARATORS);
+                if (edits.update != null) cachedRangeTxnsByRange = IntervalBTree.update(cachedRangeTxnsByRange, edits.update, COMPARATORS);
+                return;
+            }
+
+            edits = edits.reverse();
+            Map<TxnId, IntervalTreeEdit> editMap = new HashMap<>();
+            for (IntervalTreeEdit edit : edits)
+                editMap.merge(edit.txnId, edit, IntervalTreeEdit::merge);
+
+            List<TxnIdInterval> update = new ArrayList<>(), remove = new ArrayList<>();
+            for (IntervalTreeEdit edit : editMap.values())
+            {
+                if (edit.update != null) update.addAll(BTreeSet.wrap(edit.update, COMPARATORS.totalOrder()));
+                if (edit.remove != null) remove.addAll(BTreeSet.wrap(edit.remove, COMPARATORS.totalOrder()));
+            }
+
+            if (!remove.isEmpty())
+            {
+                remove.sort(COMPARATORS.totalOrder());
+                cachedRangeTxnsByRange = IntervalBTree.subtract(cachedRangeTxnsByRange, IntervalBTree.build(remove, COMPARATORS), COMPARATORS);
+            }
+            if (!update.isEmpty())
+            {
+                update.sort(COMPARATORS.totalOrder());
+                cachedRangeTxnsByRange = IntervalBTree.update(cachedRangeTxnsByRange, IntervalBTree.build(update, COMPARATORS), COMPARATORS);
+            }
+        }
+
+        private void postUnlock()
+        {
+            if (pendingEdits != null)
+                commandStore.executor().submit(this);
         }
 
         @Override
@@ -173,13 +297,8 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             {
                 RangeRoute cur = cachedRangeTxnsById.remove(txnId);
                 if (cur != null)
-                    remove(txnId, cur);
+                    pushEdit(new IntervalTreeEdit(txnId, null, toMap(txnId, cur)));
             }
-        }
-
-        private void remove(TxnId txnId, RangeRoute route)
-        {
-            cachedRangeTxnsByRange = IntervalBTree.subtract(cachedRangeTxnsByRange, toMap(txnId, route), COMPARATORS);
         }
 
         static Object[] toMap(TxnId txnId, RangeRoute route)
@@ -199,7 +318,6 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                     }
                 }
             }
-
         }
 
         public CommandsForRanges.Loader loader(@Nullable TxnId primaryTxnId, KeyHistory keyHistory, Unseekables<?> keysOrRanges)
@@ -331,7 +449,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                 {
                     for (RoutingKey key : (AbstractUnseekableKeys)keysOrRanges)
                     {
-                        IntervalBTree.accumulate(manager.cachedRangeTxnsByRange, KEY_COMPARATORS, key, (f, s, i, c) -> {
+                        IntervalBTree.accumulate(manager.cachedRangeTxnsByRange(), KEY_COMPARATORS, key, (f, s, i, c) -> {
                             TxnIdInterval interval = (TxnIdInterval)i;
                             if (isRelevant(interval))
                             {
@@ -349,7 +467,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                 {
                     for (Range range : (AbstractRanges)keysOrRanges)
                     {
-                        IntervalBTree.accumulate(manager.cachedRangeTxnsByRange, COMPARATORS, new TxnIdInterval(range.start(), range.end(), TxnId.NONE), (f, s, i, c) -> {
+                        IntervalBTree.accumulate(manager.cachedRangeTxnsByRange(), COMPARATORS, new TxnIdInterval(range.start(), range.end(), TxnId.NONE), (f, s, i, c) -> {
                             if (isRelevant(i))
                             {
                                 TxnId txnId = i.txnId;

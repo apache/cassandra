@@ -163,6 +163,13 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
         return size;
     }
 
+    protected static boolean isSize(int size, IntrusiveStack<?> list)
+    {
+        while (list != null && --size >= 0)
+            list = list.next;
+        return list == null && size == 0;
+    }
+
     protected static <T extends IntrusiveStack<T>> long accumulate(T list, LongAccumulator<T> accumulator, long initialValue)
     {
         long value = initialValue;
