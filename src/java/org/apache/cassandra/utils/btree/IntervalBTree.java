@@ -20,6 +20,7 @@ package org.apache.cassandra.utils.btree;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -592,6 +593,16 @@ public class IntervalBTree
         try (IntervalUpdater<Compare, Existing, Insert> updater = IntervalUpdater.get(comparators))
         {
             return updater.update(existing, insert, comparators.totalOrder(), (UpdateFunction) UpdateFunction.noOp);
+        }
+    }
+
+    public static <V> Object[] build(Collection<V> build, IntervalComparators<V> comparators)
+    {
+        try (FastIntervalTreeBuilder<V> builder = IntervalBTree.fastBuilder(comparators))
+        {
+            for (V v : build)
+                builder.add(v);
+            return builder.build();
         }
     }
 

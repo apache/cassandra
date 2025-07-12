@@ -543,6 +543,11 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         waitingToRun(task, task.executor());
     }
 
+    void submitExclusive(Runnable run)
+    {
+        submitExclusive(new PlainRunnable(run));
+    }
+
     void submitExclusive(AccordTask<?> task)
     {
         ++tasks;
@@ -1245,6 +1250,11 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         final @Nullable AsyncPromise<Void> result;
         final Runnable run;
         final @Nullable SequentialExecutor executor;
+
+        PlainRunnable(Runnable run)
+        {
+            this(null, run, null);
+        }
 
         PlainRunnable(AsyncPromise<Void> result, Runnable run, @Nullable SequentialExecutor executor)
         {
