@@ -30,6 +30,9 @@ import java.util.function.Consumer;
 import accord.utils.Invariants;
 import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -42,6 +45,8 @@ import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 @Simulate(with=MONITORS)
 public final class ActiveSegment<K, V> extends Segment<K, V>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ActiveSegment.class);
+
     final FileChannel channel;
 
     // OpOrder used to order appends wrt flush
@@ -197,6 +202,7 @@ public final class ActiveSegment<K, V> extends Segment<K, V>
 
     private void discard()
     {
+        logger.debug("Discarding {}", this);
         selfRef.ensureReleased();
 
         descriptor.fileFor(Component.DATA).deleteIfExists();

@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -1676,7 +1675,7 @@ public class ClusterUtils
     public static TableId tableId(Cluster cluster, String ks, String table)
     {
         String str = cluster.getFirstRunningInstance().callOnInstance(() -> Schema.instance.getKeyspaceInstance(ks).getColumnFamilyStore(table).getTableId().toString());
-        return TableId.fromUUID(UUID.fromString(str));
+        return TableId.fromString(str);
     }
 
     public static void awaitAccordEpochReady(Cluster cluster, long epoch)

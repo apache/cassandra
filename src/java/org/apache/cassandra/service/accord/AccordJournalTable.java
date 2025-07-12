@@ -64,6 +64,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.accord.OrderedRouteSerializer;
 import org.apache.cassandra.index.accord.RouteJournalIndex;
@@ -78,6 +79,7 @@ import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -86,6 +88,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MergeIterator;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
+import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
 
 public class AccordJournalTable<K extends JournalKey, V> implements RangeSearcher.Supplier
 {
@@ -375,7 +378,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                     public TxnId next()
                     {
                         UnfilteredRowIterator next = partitionIterator.next();
-                        JournalKey partitionKeyComponents = AccordKeyspace.JournalColumns.getJournalKey(next.partitionKey());
+                        JournalKey partitionKeyComponents = getJournalKey(next.partitionKey());
                         Invariants.require(partitionKeyComponents.commandStoreId == storeId,
                                               () -> String.format("table index returned a command store other than the exepcted one; expected %d != %d", storeId, partitionKeyComponents.commandStoreId));
                         return partitionKeyComponents.id;
@@ -404,7 +407,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
 
     private void readAllFromTable(K key, TableRecordConsumer onEntry)
     {
-        DecoratedKey pk = AccordKeyspace.JournalColumns.decorate(key);
+        DecoratedKey pk = JournalColumns.decorate(key);
         try (RefViewFragment view = cfs.selectAndReference(View.select(SSTableSet.LIVE, pk)))
         {
             if (view.sstables.isEmpty())
@@ -460,9 +463,9 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     }
 
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
-    public CloseableIterator<Journal.KeyRefs<K>> keyIterator()
+    public CloseableIterator<Journal.KeyRefs<K>> keyIterator(@Nullable K min, @Nullable K max)
     {
-        return new JournalAndTableKeyIterator();
+        return new JournalAndTableKeyIterator(min, max);
     }
 
     private class TableIterator extends AbstractIterator<K> implements CloseableIterator<K>
@@ -470,12 +473,17 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         private final UnfilteredPartitionIterator mergeIterator;
         private final RefViewFragment view;
 
-        private TableIterator()
+        private TableIterator(JournalKey min, JournalKey max)
         {
-            view = cfs.selectAndReference(v -> v.select(SSTableSet.LIVE));
+            Invariants.require((min != null && max != null) || min == max);
+            view = cfs.selectAndReference(View.select(SSTableSet.LIVE, r -> (max == null || JournalKey.SUPPORT.compare(getJournalKey(r.getFirst()), max) <= 0)
+                                                                         && (min == null || JournalKey.SUPPORT.compare(getJournalKey(r.getLast()), min) >= 0)));
             List<ISSTableScanner> scanners = new ArrayList<>();
             for (SSTableReader sstable : view.sstables)
-                scanners.add(sstable.getScanner());
+            {
+                if (min == null) scanners.add(sstable.getScanner());
+                else scanners.add(sstable.getScanner(new Bounds(JournalColumns.decorate(min), JournalColumns.decorate(max))));
+            }
 
             mergeIterator = view.sstables.isEmpty()
                             ? EmptyIterators.unfilteredPartition(cfs.metadata())
@@ -490,7 +498,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             {
                 try (UnfilteredRowIterator partition = mergeIterator.next())
                 {
-                    ret = (K) AccordKeyspace.JournalColumns.getJournalKey(partition.partitionKey());
+                    ret = (K) getJournalKey(partition.partitionKey());
                     while (partition.hasNext())
                         partition.next();
                 }
@@ -515,10 +523,10 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         final TableIterator tableIterator;
         final Journal<K, V>.StaticSegmentKeyIterator journalIterator;
 
-        private JournalAndTableKeyIterator()
+        private JournalAndTableKeyIterator(K min, K max)
         {
-            this.tableIterator = new TableIterator();
-            this.journalIterator = journal.staticSegmentKeyIterator();
+            this.tableIterator = new TableIterator(min, max);
+            this.journalIterator = journal.staticSegmentKeyIterator(min, max);
         }
 
         K prevFromTable = null;

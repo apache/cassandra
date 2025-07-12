@@ -1693,7 +1693,7 @@ public class TableMetadata implements SchemaElement
     {
         if (withInternals)
             builder.append("ID = ")
-                   .append(id.toString())
+                   .append(id.toLongString())
                    .newLine()
                    .append("AND ");
 

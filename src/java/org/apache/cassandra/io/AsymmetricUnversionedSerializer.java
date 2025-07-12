@@ -30,6 +30,11 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 public interface AsymmetricUnversionedSerializer<In, Out>
 {
     void serialize(In t, DataOutputPlus out) throws IOException;
+
+    /**
+     * Note: it is not guaranteed that this output is compatible with the DataInput/OutputPlus variations,
+     * as the ByteBuffer has an implied length.
+     */
     default ByteBuffer serialize(In t) throws IOException
     {
         int size = Math.toIntExact(serializedSize(t));
@@ -59,6 +64,11 @@ public interface AsymmetricUnversionedSerializer<In, Out>
         }
     }
     Out deserialize(DataInputPlus in) throws IOException;
+
+    /**
+     * Note: it is not guaranteed to be safe to provide an input created by the DataOutputPlus serializer varation
+     * as the ByteBuffer has an implied length.
+     */
     default Out deserialize(ByteBuffer buffer) throws IOException
     {
         try (DataInputBuffer in = new DataInputBuffer(buffer, true))
@@ -78,5 +88,6 @@ public interface AsymmetricUnversionedSerializer<In, Out>
             throw new UncheckedIOException(e);
         }
     }
+
     long serializedSize(In t);
 }

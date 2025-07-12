@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
-import java.util.UUID;
-
 import com.google.common.base.Throwables;
 
 import accord.api.RoutingKey;
@@ -128,7 +126,7 @@ public class AccordDropTableBase extends TestBaseImpl
         for (IInvokableInstance inst : cluster)
         {
             inst.runOnInstance(() -> {
-                TableId tableId = TableId.fromUUID(UUID.fromString(s));
+                TableId tableId = TableId.fromString(s);
                 AccordService accord = (AccordService) AccordService.instance();
                 PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), KeyHistory.SYNC);
                 CommandStores stores = accord.node().commandStores();

@@ -103,8 +103,8 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialT
 
 public class AccordGenerators
 {
-    private static final Gen<IPartitioner> PARTITIONER_GEN = fromQT(CassandraGenerators.nonLocalPartitioners());
-    private static final Gen<TableId> TABLE_ID_GEN = fromQT(CassandraGenerators.TABLE_ID_GEN);
+    public static final Gen<IPartitioner> PARTITIONER_GEN = fromQT(CassandraGenerators.nonLocalPartitioners());
+    public static final Gen<TableId> TABLE_ID_GEN = fromQT(CassandraGenerators.TABLE_ID_GEN);
 
     private AccordGenerators()
     {

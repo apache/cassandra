@@ -201,12 +201,14 @@ public class AccordMetrics
 
         private AccordMetrics forTransaction(TxnId txnId)
         {
-            if (txnId.isWrite())
-                return writeMetrics;
-            else if (txnId.isSomeRead())
-                return readMetrics;
-            else
-                return null;
+            if (txnId != null)
+            {
+                if (txnId.isWrite())
+                    return writeMetrics;
+                else if (txnId.isSomeRead())
+                    return readMetrics;
+            }
+            return null;
         }
 
         @Override

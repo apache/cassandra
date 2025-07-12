@@ -252,6 +252,7 @@ final class OnDiskIndex<K> extends Index<K>
 
     public class IndexReader extends AbstractIterator<K>
     {
+        int lastIdx = entryCount - 1;
         int idx;
         K key;
         int offset;
@@ -260,6 +261,20 @@ final class OnDiskIndex<K> extends Index<K>
         IndexReader()
         {
             idx = -1;
+        }
+
+        public void seek(K key)
+        {
+            int i = binarySearch(key);
+            if (i < 0) i = -1 - i;
+            idx = i - 1;
+        }
+
+        public void seekEnd(K key)
+        {
+            int i = binarySearch(key);
+            if (i < 0) i = -2 - i;
+            lastIdx = i;
         }
 
         protected K computeNext()
@@ -284,7 +299,7 @@ final class OnDiskIndex<K> extends Index<K>
 
         public boolean advance()
         {
-            if (idx >= entryCount - 1)
+            if (idx >= lastIdx)
                 return false;
 
             idx++;

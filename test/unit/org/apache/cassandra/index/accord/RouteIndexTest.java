@@ -121,7 +121,6 @@ public class RouteIndexTest extends CQLTester
     private static final Gen.IntGen NUM_STORES_GEN = Gens.ints().between(1, MAX_STORES);
     private static final Gen<Gen.IntGen> TOKEN_DISTRIBUTION = Gens.mixedDistribution(MIN_TOKEN, MAX_TOKEN + 1);
     private static final Gen<Gen.IntGen> RANGE_SIZE_DISTRIBUTION = Gens.mixedDistribution(10, (int) (TOKEN_RANGE_SIZE * .01));
-    private static final Gen<Gen<Domain>> DOMAIN_DISTRIBUTION = Gens.mixedDistribution(Domain.values());
 
     @BeforeClass
     public static void setUpClass()
@@ -475,7 +474,7 @@ public class RouteIndexTest extends CQLTester
             tables = Collections.singletonList(tableId);
             tokenGen = TOKEN_DISTRIBUTION.next(rs);
             rangeGen = rangeGen(rs, tables);
-            domainGen = DOMAIN_DISTRIBUTION.next(rs);
+            domainGen = ignore -> Domain.Range; // we shouldn't be saving/searching key transactions against ranges
             journalTable = Keyspace.open(ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL);
 
             for (int i = 0 ; i < numStores ; ++i)

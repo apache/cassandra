@@ -473,7 +473,7 @@ public class SchemaCQLHelperTest extends CQLTester
                           "    reg1 " + typeC+ ",\n" +
                           "    reg3 int,\n" +
                           "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
-                          ") WITH ID = " + cfs.metadata.id + "\n" +
+                          ") WITH ID = " + cfs.metadata.id.toLongString() + "\n" +
                           "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 DESC)";
 
         assertThat(schema,
@@ -529,7 +529,7 @@ public class SchemaCQLHelperTest extends CQLTester
                           "    reg3 int,\n" +
                           "    reg2 int,\n" +
                           "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
-                          ") WITH ID = " + cfs.metadata.id + "\n" +
+                          ") WITH ID = " + cfs.metadata.id.toLongString() + "\n" +
                           "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 DESC)";
 
         assertThat(schema,
@@ -568,7 +568,7 @@ public class SchemaCQLHelperTest extends CQLTester
                           "    reg1 int,\n" +
                           "    reg3 int,\n" +
                           "    reg2 int\n" +
-                          ") WITH ID = " + cfs.metadata.id + "\n";
+                          ") WITH ID = " + cfs.metadata.id.toLongString() + "\n";
 
         assertThat(schema,
                    allOf(startsWith(expected),

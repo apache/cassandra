@@ -164,6 +164,8 @@ public final class StaticSegment<K, V> extends Segment<K, V>
      */
     void discard(Journal<K, V> journal)
     {
+        logger.debug("Discarding {}", this);
+
         ((Tidier)selfRef.tidier()).discard = true;
         close(journal);
     }
