@@ -68,7 +68,7 @@ public class ShardBoundaries
     {
         for (int i = 0; i < boundaries.length; i++)
         {
-            if (tk.compareTo(boundaries[i]) < 0)
+            if (tk.compareTo(boundaries[i]) <= 0) // boundaries are end-inclusive
                 return i;
         }
         return boundaries.length;
@@ -85,6 +85,20 @@ public class ShardBoundaries
 
         assert (key.getPartitioner() == boundaries[0].getPartitioner());
         return getShardForToken(key.getToken());
+    }
+
+    public Token getShardStartBoundary(int shardId)
+    {
+        if (shardId <= 0 || shardId >= boundaries.length)
+            return null;
+        return boundaries[shardId - 1];
+    }
+
+    public Token getShardEndBoundary(int shardId)
+    {
+        if (shardId < 0 || shardId >= boundaries.length)
+            return null;
+        return boundaries[shardId];
     }
 
     /**

@@ -153,6 +153,13 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
         return false;
     }
 
+    public boolean isMaximum()
+    {
+        // A DecoratedKey can never be the maximum position on the ring
+        return false;
+    }
+
+
     public PartitionPosition.Kind kind()
     {
         return PartitionPosition.Kind.ROW_KEY;
@@ -244,11 +251,28 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
         assert version != Version.LEGACY;   // reverse translation is not supported for LEGACY version.
         // Decode the token from the first component of the multi-component sequence representing the whole decorated key.
         // We won't use it, but the decoding also positions the byte source after it.
-        partitioner.getTokenFactory().fromComparableBytes(ByteSourceInverse.nextComponentSource(peekableByteSource), version);
+        partitioner.getTokenFactory().skipComparableBytes(ByteSourceInverse.nextComponentSource(peekableByteSource), version, partitioner);
         // Decode the key bytes from the second component.
         byte[] keyBytes = ByteSourceInverse.getUnescapedBytes(ByteSourceInverse.nextComponentSource(peekableByteSource));
         int terminator = peekableByteSource.next();
         assert terminator == ByteSource.TERMINATOR : "Decorated key encoding must end in terminator.";
         return keyBytes;
     }
+
+    public static int keySizeFromByteSource(ByteSource.Peekable peekableByteSource,
+                                           Version version,
+                                           IPartitioner partitioner)
+    {
+        assert version != Version.LEGACY;   // reverse translation is not supported for LEGACY version.
+        // Decode the token from the first component of the multi-component sequence representing the whole decorated key.
+        // We won't use it, but the decoding also positions the byte source after it.
+        partitioner.getTokenFactory().skipComparableBytes(ByteSourceInverse.nextComponentSource(peekableByteSource), version, partitioner);
+        // Decode the key bytes from the second component.
+        int keyBytesCount = ByteSourceInverse.getUnescapedBytesCount(ByteSourceInverse.nextComponentSource(peekableByteSource));
+        int terminator = peekableByteSource.next();
+        assert terminator == ByteSource.TERMINATOR : "Decorated key encoding must end in terminator.";
+        return keyBytesCount;
+    }
+
+
 }

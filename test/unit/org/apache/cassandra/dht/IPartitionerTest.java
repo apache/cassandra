@@ -102,4 +102,17 @@ public class IPartitionerTest
                       .isEqualTo(token);
         });
     }
+
+    @Test
+    public void skipTokenInComparableBytes()
+    {
+        qt().forAll(AccordGenerators.fromQT(CassandraGenerators.token())).check(token -> {
+            var p = token.getPartitioner();
+            var comparable = Objects.requireNonNull(ByteSource.peekable(p.getTokenFactory().asComparableBytes(token, ByteComparable.Version.OSS50)));
+            p.getTokenFactory().skipComparableBytes(comparable, ByteComparable.Version.OSS50, p);
+            Assertions.assertThat(comparable.next())
+                      .describedAs("skipComparableBytes should skip the whole encoded token value but %s is not ended, partitioner: %s", comparable, p)
+                      .isEqualTo(ByteSource.END_OF_STREAM);
+        });
+    }
 }

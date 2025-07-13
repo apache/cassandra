@@ -100,6 +100,12 @@ public class LocalPartitioner implements IPartitioner
             return new LocalToken(tokenData);
         }
 
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            // read and ingore the result
+            comparator.fromComparableBytes(ByteBufferAccessor.instance, comparableBytes, version);
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             return ((LocalToken)token).token;

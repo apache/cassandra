@@ -75,6 +75,8 @@ public abstract class Token implements RingPosition<Token>, Serializable
          */
         public abstract Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version);
 
+        public abstract void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner);
+
         public abstract String toString(Token token); // serialize as string, not necessarily human-readable
         public abstract Token fromString(String string); // deserialize
 
@@ -330,6 +332,11 @@ public abstract class Token implements RingPosition<Token>, Serializable
         return this.equals(minValue());
     }
 
+    public boolean isMaximum()
+    {
+        return getPartitioner().supportsSplitting() && this.equals(getPartitioner().getMaximumTokenForSplitting());
+    }
+
     /*
      * A token corresponds to the range of all the keys having this token.
      * A token is thus not comparable directly to a key. But to be able to select
@@ -420,7 +427,13 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
         public boolean isMinimum()
         {
+            // minimum token is reserved for boundaries, so there is no need for isMinimumBound check
             return getToken().isMinimum();
+        }
+
+        public boolean isMaximum()
+        {
+            return getToken().isMaximum() && !isMinimumBound;
         }
 
         public PartitionPosition.Kind kind()

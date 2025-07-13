@@ -841,6 +841,15 @@ public interface ByteSource
                 peeked = wrapped.next();
             return peeked;
         }
+
+        @Override
+        public String toString()
+        {
+            return "Peekable{" +
+                   "wrapped=" + wrapped +
+                   ", peeked=" + peeked +
+                   '}';
+        }
     }
 
     public static Peekable peekable(ByteSource p)
