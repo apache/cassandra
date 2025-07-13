@@ -196,6 +196,12 @@ public class RandomPartitioner implements IPartitioner
             return fromByteArray(IntegerType.instance.fromComparableBytes(ByteBufferAccessor.instance, comparableBytes, version));
         }
 
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            // read and ignore the result
+            IntegerType.instance.fromComparableBytes(ByteBufferAccessor.instance, comparableBytes, version);
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             BigIntegerToken bigIntegerToken = (BigIntegerToken) token;

@@ -59,8 +59,10 @@ import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.db.tries.Trie;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
@@ -235,6 +237,14 @@ public class TrieMemtable extends AbstractShardedMemtable
         return total;
     }
 
+    public long partitionKeysTotalSize()
+    {
+        long total = 0;
+        for (MemtableShard shard : shards)
+            total += shard.partitionKeysSize();
+        return total;
+    }
+
     /**
      * Returns the minTS if one available, otherwise NO_MIN_TIMESTAMP.
      *
@@ -348,21 +358,93 @@ public class TrieMemtable extends AbstractShardedMemtable
     @Override
     public FlushablePartitionSet<MemtablePartition> getFlushSet(PartitionPosition from, PartitionPosition to)
     {
-        Trie<BTreePartitionData> toFlush = mergedTrie.subtrie(from, true, to, false);
+        boolean allPositionsToFlush = from == null && to == null
+                                      || from != null && to != null
+                                         && from.isMinimum()
+                                         && to.isMaximum();
+
+        // to avoid an unnessesary wrapping of mergedTrie into SlicedTrie
+        Trie<BTreePartitionData> toFlush = allPositionsToFlush ? mergedTrie.subtrie(null, true, null, false) :
+                                           mergedTrie.subtrie(from, true, to, false);
+
+        long partitionKeySize;
+        long partitionCount;
+
+        /*
+         In total, we have boundaries.shardCount() shards, with indexes from 0 to boundaries.shardCount() - 1
+         We start with 0 or 1 partial shards, then we may have several full shards, and we finish with 0 or 1 partial shards
+         (token_m .......... token_m+1](token_m+1 ...  ... ...  ... token_n-1](token_n ........... token_n+1]
+                   ↑                  ↑                                      ↑                   ↑
+                   [---partial shard--|---full shard---  ... ---full shard---|---partial shard---)
+
+         */
+        int fromShardFull;
+        int fromShardPartial;
+        int toShardFull;
+        int toShardPartial;
+
+        if (from == null || from.isMinimum())
+            fromShardFull = fromShardPartial = 0;
+        else
+        {
+            fromShardPartial = boundaries.getShardForToken(from.getToken());
+            // not symmetric to "to" logic because the start part of shard ranges is exclusive
+            Token fromEndBoundaryToken = boundaries.getShardEndBoundary(fromShardPartial);
+            if (fromEndBoundaryToken != null && from.equals(fromEndBoundaryToken.maxKeyBound()))
+            {
+                fromShardPartial++;
+                fromShardFull = fromShardPartial;
+            }
+            else
+                fromShardFull = fromShardPartial + 1;
+        }
+
+        if  (to == null || to.isMaximum())
+            toShardFull = toShardPartial = boundaries.shardCount() - 1;
+        else
+        {
+            toShardPartial = boundaries.getShardForToken(to.getToken());
+            Token toEndBoundaryToken = boundaries.getShardEndBoundary(toShardPartial);
+            if (toEndBoundaryToken != null && to.equals(toEndBoundaryToken.maxKeyBound()))
+                toShardFull = toShardPartial;
+            else
+                toShardFull = toShardPartial - 1;
+        }
+
+        List<Trie<BTreePartitionData>> partialShardTries = new ArrayList<>(2);
+        boolean fromShardAdded = false;
+        if (fromShardPartial != fromShardFull)
+        {
+            partialShardTries.add(shards[fromShardPartial].data);
+            fromShardAdded = true;
+        }
+        if (toShardPartial != toShardFull && (toShardPartial != fromShardPartial || !fromShardAdded) )
+        {
+            partialShardTries.add(shards[toShardPartial].data);
+        }
+
         long keySize = 0;
         int keyCount = 0;
-
-        for (Iterator<Map.Entry<ByteComparable, BTreePartitionData>> it = toFlush.entryIterator(); it.hasNext(); )
+        Trie<BTreePartitionData> partialShardsTrie = Trie.mergeDistinct(partialShardTries).subtrie(from, true, to, false);
+        IPartitioner partitioner = metadata().partitioner;
+        for (Iterator<Map.Entry<ByteComparable, BTreePartitionData>> it = partialShardsTrie.entryIterator(); it.hasNext(); )
         {
             Map.Entry<ByteComparable, BTreePartitionData> en = it.next();
-            byte[] keyBytes = DecoratedKey.keyFromByteSource(ByteSource.peekable(en.getKey().asComparableBytes(BYTE_COMPARABLE_VERSION)),
-                                                             BYTE_COMPARABLE_VERSION,
-                                                             metadata().partitioner);
-            keySize += keyBytes.length;
+            int keyByteSize = DecoratedKey.keySizeFromByteSource(ByteSource.peekable(en.getKey().asComparableBytes(BYTE_COMPARABLE_VERSION)),
+                                                                 BYTE_COMPARABLE_VERSION,
+                                                                 partitioner);
+            keySize += keyByteSize;
             keyCount++;
         }
-        long partitionKeySize = keySize;
-        int partitionCount = keyCount;
+
+        for (int i = fromShardFull; i <= toShardFull; i++)
+        {
+            keySize += shards[i].partitionKeysSize();
+            keyCount += shards[i].size();
+        }
+
+        partitionKeySize = keySize;
+        partitionCount = keyCount;
 
         return new AbstractFlushablePartitionSet<MemtablePartition>()
         {
@@ -415,6 +497,8 @@ public class TrieMemtable extends AbstractShardedMemtable
         private volatile long liveDataSize = 0;
 
         private volatile long currentOperations = 0;
+
+        private volatile long partitionKeysSize = 0;
 
         @Unmetered
         private final ReentrantLock writeLock = new ReentrantLock();
@@ -489,6 +573,7 @@ public class TrieMemtable extends AbstractShardedMemtable
                     minLocalDeletionTime = Math.min(minLocalDeletionTime, update.stats().minLocalDeletionTime);
                     liveDataSize += updater.dataSize;
                     currentOperations += update.operationCount();
+                    partitionKeysSize += updater.keySize;
 
                     columnsCollector.update(update.columns());
                     statsCollector.update(update.stats());
@@ -524,6 +609,11 @@ public class TrieMemtable extends AbstractShardedMemtable
         long currentOperations()
         {
             return currentOperations;
+        }
+
+        long partitionKeysSize()
+        {
+            return partitionKeysSize;
         }
 
         long minLocalDeletionTime()

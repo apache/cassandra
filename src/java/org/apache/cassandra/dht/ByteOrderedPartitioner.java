@@ -303,6 +303,11 @@ public class ByteOrderedPartitioner implements IPartitioner
             return new BytesToken(ByteSourceInverse.getUnescapedBytes(comparableBytes));
         }
 
+        public void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner)
+        {
+            ByteSourceInverse.skipUnescapedBytes(comparableBytes);
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             BytesToken bytesToken = (BytesToken) token;
