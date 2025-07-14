@@ -70,6 +70,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.Truncations;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
@@ -302,7 +303,8 @@ public class GossipHelper
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    Collections.emptyMap(),
-                                   AccordStaleReplicas.EMPTY);
+                                   AccordStaleReplicas.EMPTY,
+                                   Truncations.EMPTY);
     }
 
     public static ClusterMetadata fromEndpointStates(DistributedSchema schema, Map<InetAddressAndPort, EndpointState> epStates)
@@ -392,7 +394,8 @@ public class GossipHelper
                                                                       InProgressSequences.EMPTY,
                                                                       ConsensusMigrationState.EMPTY,
                                                                       extensions,
-                                                                      AccordStaleReplicas.EMPTY);
+                                                                      AccordStaleReplicas.EMPTY,
+                                                                      Truncations.EMPTY);
         DataPlacements placements = new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP,
                                                                                     forPlacementCalculation,
                                                                                     schema.getKeyspaces());
@@ -407,7 +410,8 @@ public class GossipHelper
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    extensions,
-                                   AccordStaleReplicas.EMPTY);
+                                   AccordStaleReplicas.EMPTY,
+                                   Truncations.EMPTY);
     }
 
     public static boolean isValidForClusterMetadata(Map<InetAddressAndPort, EndpointState> epstates)

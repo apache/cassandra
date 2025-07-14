@@ -39,6 +39,7 @@ public class MetadataKeys
     public static final MetadataKey SCHEMA                  = make(CORE_NS, "schema", "dist_schema");
     public static final MetadataKey NODE_DIRECTORY          = make(CORE_NS, "membership", "node_directory");
     public static final MetadataKey TOKEN_MAP               = make(CORE_NS, "ownership", "token_map");
+    public static final MetadataKey TRUNCATIONS             = make(CORE_NS, "truncation", "truncations");
     public static final MetadataKey DATA_PLACEMENTS         = make(CORE_NS, "ownership", "data_placements");
     public static final MetadataKey ACCORD_FAST_PATH        = make(CORE_NS, "ownership", "accord_fast_path");
     public static final MetadataKey ACCORD_STALE_REPLICAS   = make(CORE_NS, "ownership", "accord_stale_replicas");
@@ -57,6 +58,7 @@ public class MetadataKeys
                   .put(ACCORD_FAST_PATH, cm -> cm.accordFastPath)
                   .put(ACCORD_STALE_REPLICAS, cm -> cm.accordStaleReplicas)
                   .put(CONSENSUS_MIGRATION_STATE, cm -> cm.consensusMigrationState)
+                  .put(TRUNCATIONS, cm -> cm.truncations)
                   .build();
 
     public static MetadataKey make(String...parts)
