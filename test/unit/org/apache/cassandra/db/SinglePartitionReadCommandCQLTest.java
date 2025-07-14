@@ -20,14 +20,14 @@ package org.apache.cassandra.db;
 
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+
 import static org.junit.Assert.assertTrue;
 
-public class SinglePartitionReadCommandCQLTest extends CQLTester
+public class SinglePartitionReadCommandCQLTest extends ReadCommandCQLTester<SinglePartitionReadCommand>
 {
     @Test
-    public void partitionLevelDeletionTest() throws Throwable
+    public void partitionLevelDeletionTest()
     {
         createTable("CREATE TABLE %s (bucket_id TEXT,name TEXT,data TEXT,PRIMARY KEY (bucket_id, name))");
         execute("insert into %s (bucket_id, name, data) values ('8772618c9009cf8f5a5e0c18', 'test', 'hello')");
@@ -37,5 +37,33 @@ public class SinglePartitionReadCommandCQLTest extends CQLTester
         flush();
         UntypedResultSet res = execute("select * from %s where bucket_id = '8772618c9009cf8f5a5e0c18' and name = 'test'");
         assertTrue(res.isEmpty());
+    }
+
+    @Test
+    public void testToCQLString()
+    {
+        createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+
+        assertToCQLString("SELECT * FROM %s WHERE k = 0", "SELECT * FROM %s WHERE k = 0 ALLOW FILTERING");
+
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c = 0", "SELECT * FROM %s WHERE k = 0 AND c = 0 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND (c) = (0)", "SELECT * FROM %s WHERE k = 0 AND c = 0 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c > 0", "SELECT * FROM %s WHERE k = 0 AND c > 0 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c < 0", "SELECT * FROM %s WHERE k = 0 AND c < 0 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c >= 0", "SELECT * FROM %s WHERE k = 0 AND c >= 0 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c <= 0", "SELECT * FROM %s WHERE k = 0 AND c <= 0 ALLOW FILTERING");
+
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND v = 1 ALLOW FILTERING", "SELECT * FROM %s WHERE k = 0 AND v = 1 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c = 0 AND v = 1 ALLOW FILTERING", "SELECT * FROM %s WHERE k = 0 AND c = 0 AND v = 1 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c > 0 AND v = 1 ALLOW FILTERING", "SELECT * FROM %s WHERE k = 0 AND c > 0 AND v = 1 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c < 0 AND v = 1 ALLOW FILTERING", "SELECT * FROM %s WHERE k = 0 AND c < 0 AND v = 1 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c >= 0 AND v = 1 ALLOW FILTERING", "SELECT * FROM %s WHERE k = 0 AND c >= 0 AND v = 1 ALLOW FILTERING");
+        assertToCQLString("SELECT * FROM %s WHERE k = 0 AND c <= 0 AND v = 1 ALLOW FILTERING", "SELECT * FROM %s WHERE k = 0 AND c <= 0 AND v = 1 ALLOW FILTERING");
+    }
+
+    @Override
+    protected SinglePartitionReadCommand parseCommand(String query)
+    {
+        return parseReadCommandGroupQueries(query).get(0);
     }
 }

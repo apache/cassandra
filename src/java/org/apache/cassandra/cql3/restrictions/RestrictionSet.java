@@ -34,6 +34,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
@@ -106,10 +107,10 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     @Override
-    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options) throws InvalidRequestException
+    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options, IndexHints indexHints) throws InvalidRequestException
     {
         for (Restriction restriction : this)
-            restriction.addToRowFilter(filter, indexRegistry, options);
+            restriction.addToRowFilter(filter, indexRegistry, options, indexHints);
     }
 
     @Override
@@ -246,11 +247,11 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     @Override
-    public Index findSupportingIndex(Iterable<Index> indexes)
+    public Index findSupportingIndex(Iterable<Index> indexes, IndexHints indexHints)
     {
         for (SingleRestriction restriction : restrictions.values())
         {
-            Index index = restriction.findSupportingIndex(indexes);
+            Index index = restriction.findSupportingIndex(indexes, indexHints);
             if (index != null)
                 return index;
         }
@@ -258,11 +259,11 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     @Override
-    public boolean needsFiltering(Index.Group indexGroup)
+    public boolean needsFiltering(Index.Group indexGroup, IndexHints indexHints)
     {
         for (SingleRestriction restriction : this)
         {
-            if (restriction.needsFiltering(indexGroup))
+            if (restriction.needsFiltering(indexGroup, indexHints))
                 return true;
         }
         return false;

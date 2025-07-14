@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.RangeSet;
 
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -70,12 +71,12 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         this.partitioner = partitioner;
     }
 
-    public ClusteringColumnRestrictions mergeWith(Restriction restriction, @Nullable IndexRegistry indexRegistry) throws InvalidRequestException
+    public ClusteringColumnRestrictions mergeWith(Restriction restriction, @Nullable IndexRegistry indexRegistry, IndexHints indexHints) throws InvalidRequestException
     {
         SingleRestriction newRestriction = (SingleRestriction) restriction;
         RestrictionSet newRestrictionSet = restrictions.addRestriction(newRestriction);
 
-        if (!isEmpty() && !allowFiltering && (indexRegistry == null || !newRestriction.hasSupportingIndex(indexRegistry)))
+        if (!isEmpty() && !allowFiltering && (indexRegistry == null || !newRestriction.hasSupportingIndex(indexRegistry, indexHints)))
         {
             SingleRestriction lastRestriction = restrictions.lastRestriction();
             assert lastRestriction != null;
@@ -184,16 +185,17 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     @Override
     public void addToRowFilter(RowFilter filter,
                                IndexRegistry indexRegistry,
-                               QueryOptions options) throws InvalidRequestException
+                               QueryOptions options,
+                               IndexHints indexHints) throws InvalidRequestException
     {
         int position = 0;
 
         for (SingleRestriction restriction : restrictions)
         {
             // We ignore all the clustering columns that can be handled by slices.
-            if (handleInFilter(restriction, position) || restriction.hasSupportingIndex(indexRegistry))
+            if (handleInFilter(restriction, position) || restriction.hasSupportingIndex(indexRegistry, indexHints))
             {
-                restriction.addToRowFilter(filter, indexRegistry, options);
+                restriction.addToRowFilter(filter, indexRegistry, options, indexHints);
                 continue;
             }
 

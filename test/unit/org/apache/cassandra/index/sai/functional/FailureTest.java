@@ -68,7 +68,7 @@ public class FailureTest extends SAITester
         flush();
 
         // Verify that, while the node is still operational, the index is not.
-        Assertions.assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v1 > 1"))
+        Assertions.assertThatThrownBy(() -> executeInternal("SELECT * FROM %s WHERE v1 > 1"))
                   .isInstanceOf(IndexNotAvailableException.class);
 
         ssTableContextCreationFailure.disable();
@@ -106,7 +106,7 @@ public class FailureTest extends SAITester
         compact();
 
         // Verify that the index is not available.
-        Assertions.assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v1 > 1"))
+        Assertions.assertThatThrownBy(() -> executeInternal("SELECT * FROM %s WHERE v1 > 1"))
                   .isInstanceOf(IndexNotAvailableException.class);
     }
 
@@ -134,7 +134,7 @@ public class FailureTest extends SAITester
         verifySSTableIndexes(indexIdentifier, 0);
 
         // ...and then verify that, while the node is still operational, the index is not.
-        Assertions.assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE v2 = '1'"))
+        Assertions.assertThatThrownBy(() -> executeInternal("SELECT * FROM %s WHERE v2 = '1'"))
                   .isInstanceOf(IndexNotAvailableException.class);
     }
 }

@@ -29,9 +29,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 
@@ -64,6 +66,12 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
     public Mode mode;
 
     private int numRows;
+
+    @BeforeClass
+    public static void disableCoordinatorExecution()
+    {
+        CQLTester.disableCoordinatorExecution();
+    }
 
     @Before
     public void createTableAndIndexes()

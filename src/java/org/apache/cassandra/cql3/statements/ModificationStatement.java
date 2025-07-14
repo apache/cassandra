@@ -46,7 +46,6 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.Operations;
-import org.apache.cassandra.cql3.Ordering;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -85,6 +84,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -1234,14 +1234,13 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                         VariableSpecifications boundNames,
                                                         Operations operations,
                                                         WhereClause where,
-                                                        Conditions conditions,
-                                                        List<Ordering> orderings)
+                                                        Conditions conditions)
         {
             if (where.containsCustomExpressions())
                 throw new InvalidRequestException(CUSTOM_EXPRESSIONS_NOT_ALLOWED);
 
             boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions);
-            return new StatementRestrictions(state, type, metadata, where, boundNames, orderings, applyOnlyToStaticColumns, false, false);
+            return new StatementRestrictions(state, type, metadata, IndexHints.NONE, where, boundNames, Collections.emptyList(), applyOnlyToStaticColumns, false, false);
         }
 
         public List<ColumnCondition.Raw> getConditions()
@@ -1267,6 +1266,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                    null,
                                    ONE,
                                    null,
-                                   StatementSource.INTERNAL);
+                                   StatementSource.INTERNAL,
+                                   SelectOptions.EMPTY);
     }
 }

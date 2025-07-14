@@ -20,18 +20,29 @@ package org.apache.cassandra.index.sai.cql;
 import java.net.InetAddress;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.cql.types.InetTest;
 
 /**
  * This is testing that we can query ipv4 addresses using ipv6 equivalent addresses.
- *
+ * <p>
  * The remaining InetAddressType tests are now handled by {@link InetTest}
  */
 public class InetAddressTypeEquivalencyTest extends SAITester
 {
+    // TODO: Disable coordinator execution because we know SAI indexing for inet works differently than RowFilter,
+    // which can wrongly discard rows in the coordinator. This is reported in CASSANDRA-19492, and we should enable
+    // distributed execution again once we have a fix.
+    @BeforeClass
+    public static void disableCoordinatorExecution()
+    {
+        CQLTester.disableCoordinatorExecution();
+    }
+
     @Before
     public void createTableAndIndex()
     {

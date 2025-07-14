@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.List;
 
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -76,28 +77,34 @@ public interface Restriction
      * Find the first index supporting this restriction.
      *
      * @param indexGroup an index group
+     * @param indexHints the user-provided index hints, which might exclude some indexes or explicitly expect some
+     *                   indexes requested by the user
      * @return {@code true} if this would need filtering if {@code indexGroup} were used, {@code false} otherwise
      */
-    boolean needsFiltering(Index.Group indexGroup);
+    boolean needsFiltering(Index.Group indexGroup, IndexHints indexHints);
 
     /**
      * Check if the restriction is on indexed columns.
      *
      * @param indexes the available indexes
+     * @param indexHints the user-provided index hints, which might exclude some indexes or explicitly expect some
+     *                   indexes requested by the user
      * @return <code>true</code> if the restriction is on indexed columns, <code>false</code> otherwise
      */
-    default boolean hasSupportingIndex(Iterable<Index> indexes)
+    default boolean hasSupportingIndex(Iterable<Index> indexes, IndexHints indexHints)
     {
-        return findSupportingIndex(indexes) != null;
+        return findSupportingIndex(indexes, indexHints) != null;
     }
 
     /**
      * Find the first index supporting this restriction.
      *
      * @param indexes the available indexes
+     * @param indexHints the user-provided index hints, which might exclude some indexes or explicitly expect some
+     *                   indexes requested by the user
      * @return an {@code Index} if the restriction is on indexed columns, {@code null} otherwise.
      */
-    Index findSupportingIndex(Iterable<Index> indexes);
+    Index findSupportingIndex(Iterable<Index> indexes, IndexHints indexHints);
 
     /**
      * Adds to the specified row filter the expressions corresponding to this <code>Restriction</code>.
@@ -108,5 +115,6 @@ public interface Restriction
      */
     void addToRowFilter(RowFilter filter,
                         IndexRegistry indexRegistry,
-                        QueryOptions options);
+                        QueryOptions options,
+                        IndexHints indexHints);
 }

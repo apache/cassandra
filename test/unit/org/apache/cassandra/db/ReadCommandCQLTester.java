@@ -15,29 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.cql.types;
-
-import java.util.Collection;
-
-import org.junit.BeforeClass;
-import org.junit.runners.Parameterized;
+package org.apache.cassandra.db;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.assertj.core.api.Assertions;
 
-public class InetTest extends IndexingTypeSupport
+public abstract class ReadCommandCQLTester<T extends ReadCommand> extends CQLTester
 {
-    // TODO: Disable coordinator execution because we know SAI indexing for inet works differently than RowFilter,
-    // which can wrongly discard rows in the coordinator. This is reported in CASSANDRA-19492, and we should enable
-    // distributed execution again once we have a fix.
-    @BeforeClass
-    public static void disableCoordinatorExecution()
-    {
-        CQLTester.disableCoordinatorExecution();
-    }
+    protected abstract T parseCommand(String query);
 
-    @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
-    public static Collection<Object[]> generateParameters()
+    protected void assertToCQLString(String query, String expected)
     {
-        return generateParameters(new DataSet.InetDataSet());
+        T command = parseCommand(query);
+        Assertions.assertThat(command.toCQLString())
+                  .isEqualTo(formatQuery(expected));
     }
 }
+

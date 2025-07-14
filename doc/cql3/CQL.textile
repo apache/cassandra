@@ -537,7 +537,7 @@ h3(#createIndexStmt). CREATE INDEX
 __Syntax:__
 
 bc(syntax).. 
-<create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( <indexname> )?
+<create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( <index-name> )?
                             ON <tablename> '(' <index-identifier> ')'
                             ( USING <string> ( WITH OPTIONS = <map-literal> )? )?
 
@@ -1138,6 +1138,7 @@ bc(syntax)..
                   ( PER PARTITION LIMIT <integer> )?
                   ( LIMIT <integer> )?
                   ( ALLOW FILTERING )?
+                  ( WITH <select-options> )?
 
 <select-clause> ::= DISTINCT? <selection-list>
 
@@ -1171,6 +1172,11 @@ bc(syntax)..
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
 <term-tuple> ::= '(' <term> (',' <term>)* ')'
+
+<select-options> ::= <select-option> ( AND <select-option> )*
+<select-option> ::= included_indexes  '=' <index-names>
+                  | excluded_indexes  '=' <index-names>
+<index-names> ::= '{' <identifier> ( ',' <identifier> )* '}'
 p. 
 __Sample:__
 

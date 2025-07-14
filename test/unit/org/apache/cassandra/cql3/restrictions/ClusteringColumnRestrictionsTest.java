@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -1768,7 +1769,7 @@ public class ClusteringColumnRestrictionsTest
     {
         ClusteringColumnRestrictions clusteringColumnRestrictions = new ClusteringColumnRestrictions(table, false);
         for (Restriction restriction : restrictions)
-            clusteringColumnRestrictions = clusteringColumnRestrictions.mergeWith(restriction, null);
+            clusteringColumnRestrictions = clusteringColumnRestrictions.mergeWith(restriction, null, IndexHints.NONE);
         return clusteringColumnRestrictions;
     }
 

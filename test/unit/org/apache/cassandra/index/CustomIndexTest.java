@@ -22,6 +22,7 @@ package org.apache.cassandra.index;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1506,7 +1507,7 @@ public class CustomIndexTest extends CQLTester
      * {@link StubIndex} implementation that uses the same {@link Index.Group} for all its instances.
      * That group keeps count of the calls and passes them to its members.
      */
-    public static final class IndexWithSharedGroup extends StubIndex
+    public static class IndexWithSharedGroup extends StubIndex
     {
         public IndexWithSharedGroup(ColumnFamilyStore baseCfs, IndexMetadata metadata)
         {
@@ -1666,9 +1667,18 @@ public class CustomIndexTest extends CQLTester
             }
 
             @Override
-            public QueryPlan queryPlanFor(RowFilter rowFilter)
+            public IndexWithSharedGroupQueryPlan queryPlanFor(RowFilter rowFilter)
             {
-                throw new UnsupportedOperationException();
+                for (RowFilter.Expression e : rowFilter.getExpressions())
+                {
+                    for (Index index : indexes.values())
+                    {
+                        if (index.supportsExpression(e))
+                            return new IndexWithSharedGroupQueryPlan(index, index.getPostIndexQueryFilter(rowFilter), indexes.values());
+                    }
+                }
+
+                return null;
             }
 
             @Override
@@ -1724,6 +1734,23 @@ public class CustomIndexTest extends CQLTester
             {
                 return Collections.emptySet();
             }
+        }
+    }
+
+    private static class IndexWithSharedGroupQueryPlan extends SingletonIndexQueryPlan
+    {
+        private final Set<Index> indexes;
+
+        public <T extends Index> IndexWithSharedGroupQueryPlan(Index index, RowFilter postIndexFilter, Collection<T> indexes)
+        {
+            super(index, postIndexFilter);
+            this.indexes = ImmutableSet.copyOf(indexes);
+        }
+
+        @Override
+        public Set<Index> getIndexes()
+        {
+            return indexes;
         }
     }
 }

@@ -22,6 +22,7 @@ import java.util.Collections;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.ResultSet;
@@ -48,9 +49,9 @@ import static org.junit.Assert.assertNull;
 public class VectorInvalidQueryTest extends SAITester
 {
     @BeforeClass
-    public static void setupClass()
+    public static void disableCoordinatorExecution()
     {
-        requireNetwork();
+        CQLTester.disableCoordinatorExecution();
     }
 
     @Test
@@ -107,7 +108,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void testMultiVectorOrderingsNotAllowed() throws Throwable
+    public void testMultiVectorOrderingsNotAllowed()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val1 vector<float, 3>, val2 vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
@@ -119,7 +120,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void testDescendingVectorOrderingIsNotAllowed() throws Throwable
+    public void testDescendingVectorOrderingIsNotAllowed()
     {
         createTable("CREATE TABLE %s (pk int, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -129,7 +130,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void testVectorOrderingIsNotAllowedWithClusteringOrdering() throws Throwable
+    public void testVectorOrderingIsNotAllowedWithClusteringOrdering()
     {
         createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -139,7 +140,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void testVectorOrderingIsNotAllowedWithoutIndex() throws Throwable
+    public void testVectorOrderingIsNotAllowedWithoutIndex()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
 
@@ -151,7 +152,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void testInvalidColumnNameWithAnn() throws Throwable
+    public void testInvalidColumnNameWithAnn()
     {
         String table = createTable(KEYSPACE, "CREATE TABLE %s (k int, c int, v int, primary key (k, c))");
         assertInvalidMessage(String.format("Undefined column name bad_col in table %s", KEYSPACE + '.' + table),
@@ -159,7 +160,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void cannotPerformNonANNQueryOnVectorIndex() throws Throwable
+    public void cannotPerformNonANNQueryOnVectorIndex()
     {
         createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -169,7 +170,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void cannotOrderWithAnnOnNonVectorColumn() throws Throwable
+    public void cannotOrderWithAnnOnNonVectorColumn()
     {
         createTable("CREATE TABLE %s (k int, v int, primary key(k))");
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
@@ -243,7 +244,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void multipleVectorColumnsInQueryFailCorrectlyTest() throws Throwable
+    public void multipleVectorColumnsInQueryFailCorrectlyTest()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 vector<float, 1>, v2 vector<float, 1>)");
         createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
@@ -255,7 +256,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void annOrderingIsNotAllowedWithoutIndexWhereIndexedColumnExistsInQueryTest() throws Throwable
+    public void annOrderingIsNotAllowedWithoutIndexWhereIndexedColumnExistsInQueryTest()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>, c int)");
         createIndex("CREATE CUSTOM INDEX ON %s(c) USING 'StorageAttachedIndex'");
@@ -270,7 +271,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void cannotPostFilterOnNonIndexedColumnWithAnnOrdering() throws Throwable
+    public void cannotPostFilterOnNonIndexedColumnWithAnnOrdering()
     {
         createTable("CREATE TABLE %s (pk1 int, pk2 int, ck1 int, ck2 int, v vector<float, 1>, c int, primary key ((pk1, pk2), ck1, ck2))");
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");

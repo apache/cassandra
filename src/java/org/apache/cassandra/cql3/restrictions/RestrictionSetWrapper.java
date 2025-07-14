@@ -24,6 +24,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
@@ -47,9 +48,10 @@ class RestrictionSetWrapper implements Restrictions
 
     public void addToRowFilter(RowFilter filter,
                                IndexRegistry indexRegistry,
-                               QueryOptions options)
+                               QueryOptions options,
+                               IndexHints indexHints)
     {
-        restrictions.addToRowFilter(filter, indexRegistry, options);
+        restrictions.addToRowFilter(filter, indexRegistry, options, indexHints);
     }
 
     public List<ColumnMetadata> columns()
@@ -84,21 +86,21 @@ class RestrictionSetWrapper implements Restrictions
         return restrictions.size();
     }
 
-    public boolean hasSupportingIndex(IndexRegistry indexRegistry)
+    public boolean hasSupportingIndex(Iterable<Index> indexes, IndexHints indexHints)
     {
-        return restrictions.hasSupportingIndex(indexRegistry.listIndexes());
+        return restrictions.hasSupportingIndex(indexes, indexHints);
     }
 
     @Override
-    public Index findSupportingIndex(Iterable<Index> indexes)
+    public Index findSupportingIndex(Iterable<Index> indexes, IndexHints indexHints)
     {
-        return restrictions.findSupportingIndex(indexes);
+        return restrictions.findSupportingIndex(indexes, indexHints);
     }
 
     @Override
-    public boolean needsFiltering(Index.Group indexGroup)
+    public boolean needsFiltering(Index.Group indexGroup, IndexHints indexHints)
     {
-        return restrictions.needsFiltering(indexGroup);
+        return restrictions.needsFiltering(indexGroup, indexHints);
     }
 
     @Override

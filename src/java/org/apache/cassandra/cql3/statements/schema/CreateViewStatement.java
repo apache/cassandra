@@ -41,6 +41,7 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.statements.StatementType;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
@@ -298,6 +299,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
             new StatementRestrictions(state,
                                       StatementType.SELECT,
                                       table,
+                                      IndexHints.NONE,
                                       whereClause,
                                       VariableSpecifications.empty(),
                                       Collections.emptyList(),

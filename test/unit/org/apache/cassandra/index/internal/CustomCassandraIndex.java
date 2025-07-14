@@ -216,11 +216,6 @@ public class CustomCassandraIndex implements Index
         return null;
     }
 
-    private boolean supportsExpression(RowFilter.Expression expression)
-    {
-        return supportsExpression(expression.column(), expression.operator());
-    }
-
     public long getEstimatedResultRows()
     {
         return indexCfs.getMeanEstimatedCellPerPartitionCount();

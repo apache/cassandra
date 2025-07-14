@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -94,7 +95,13 @@ public interface IndexRegistry extends Iterable<Index>
         }
 
         @Override
-        public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
+        public Index getIndexByName(String indexName)
+        {
+            return null;
+        }
+
+        @Override
+        public Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints indexHints)
         {
             return Optional.empty();
         }
@@ -279,6 +286,12 @@ public interface IndexRegistry extends Iterable<Index>
         }
 
         @Override
+        public Index getIndexByName(String indexName)
+        {
+            return index;
+        }
+
+        @Override
         public Collection<Index> listIndexes()
         {
             return Collections.singletonList(index);
@@ -291,7 +304,7 @@ public interface IndexRegistry extends Iterable<Index>
         }
 
         @Override
-        public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
+        public Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints indexHints)
         {
             return Optional.empty();
         }
@@ -314,6 +327,10 @@ public interface IndexRegistry extends Iterable<Index>
     Collection<Index.Group> listIndexGroups();
 
     Index getIndex(IndexMetadata indexMetadata);
+
+    @Nullable
+    Index getIndexByName(String indexName);
+
     Collection<Index> listIndexes();
 
     @Override
@@ -322,7 +339,7 @@ public interface IndexRegistry extends Iterable<Index>
         return listIndexes().iterator();
     }
 
-    Optional<Index> getBestIndexFor(RowFilter.Expression expression);
+    Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints hints);
 
     /**
      * Called at write time to ensure that values present in the update

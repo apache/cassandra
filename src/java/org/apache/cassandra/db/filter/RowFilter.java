@@ -89,27 +89,34 @@ public class RowFilter implements Iterable<RowFilter.Expression>
     private static final Logger logger = LoggerFactory.getLogger(RowFilter.class);
 
     public static final Serializer serializer = new Serializer();
-    public static final RowFilter NONE = new RowFilter(Collections.emptyList(), false);
+    public static final RowFilter NONE = new RowFilter(Collections.emptyList(), false, IndexHints.NONE);
 
     protected final List<Expression> expressions;
-
     private final boolean needsReconciliation;
+    public final IndexHints indexHints;
 
-    protected RowFilter(List<Expression> expressions, boolean needsReconciliation)
+    protected RowFilter(List<Expression> expressions, boolean needsReconciliation, IndexHints indexHints)
     {
         this.expressions = expressions;
         this.needsReconciliation = needsReconciliation;
+        this.indexHints = indexHints;
     }
 
     /**
      * 
      * @param needsReconciliation whether or not this filter belongs to a read that requires coordinator reconciliation 
+     * @param indexHints instructions on what indexes to use (and not use) during queries
      * 
      * @return a new {@link RowFilter} with an empty {@link Expression} list
      */
+    public static RowFilter create(boolean needsReconciliation, IndexHints indexHints)
+    {
+        return new RowFilter(new ArrayList<>(), needsReconciliation, indexHints);
+    }
+
     public static RowFilter create(boolean needsReconciliation)
     {
-        return new RowFilter(new ArrayList<>(), needsReconciliation);
+        return create(needsReconciliation, IndexHints.NONE);
     }
 
     public static RowFilter none()
@@ -407,7 +414,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
     public RowFilter withoutReconciliation()
     {
         if (needsReconciliation)
-            return new RowFilter(expressions, false);
+            return new RowFilter(expressions, false, indexHints);
         return this;
     }
 
@@ -436,7 +443,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
 
     protected RowFilter withNewExpressions(List<Expression> expressions)
     {
-        return new RowFilter(expressions, needsReconciliation);
+        return new RowFilter(expressions, needsReconciliation, indexHints);
     }
 
     public boolean isEmpty()
@@ -1078,6 +1085,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         public void serialize(RowFilter filter, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(false); // Old "is for thrift" boolean
+            IndexHints.serializer.serialize(filter.indexHints, out, version);
             out.writeUnsignedVInt32(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 Expression.serializer.serialize(expr, out, version);
@@ -1087,12 +1095,13 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         public RowFilter deserialize(DataInputPlus in, int version, TableMetadata metadata, boolean needsReconciliation) throws IOException
         {
             in.readBoolean(); // Unused
+            IndexHints indexHints = IndexHints.serializer.deserialize(in, version, metadata);
             int size = in.readUnsignedVInt32();
             List<Expression> expressions = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 expressions.add(Expression.serializer.deserialize(in, version, metadata));
 
-            return new RowFilter(expressions, needsReconciliation);
+            return new RowFilter(expressions, needsReconciliation, indexHints);
         }
 
         public long serializedSize(RowFilter filter, int version)
@@ -1101,6 +1110,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                       + TypeSizes.sizeofUnsignedVInt(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 size += Expression.serializer.serializedSize(expr, version);
+            
+            size += IndexHints.serializer.serializedSize(filter.indexHints, version);
             return size;
         }
     }

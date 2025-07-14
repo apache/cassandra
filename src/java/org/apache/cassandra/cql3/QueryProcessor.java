@@ -589,19 +589,29 @@ public class QueryProcessor implements QueryHandler
     public static UntypedResultSet execute(String query, ConsistencyLevel cl, QueryState state, Object... values)
     throws RequestExecutionException
     {
-        try
-        {
-            Prepared prepared = prepareInternal(query);
-            ResultMessage result = prepared.statement.execute(state, makeInternalOptionsWithNowInSec(prepared.statement, state.getNowInSeconds(), values, cl), Dispatcher.RequestTime.forImmediateExecution());
-            if (result instanceof ResultMessage.Rows)
-                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
-            else
-                return null;
-        }
-        catch (RequestValidationException e)
-        {
-            throw new RuntimeException("Error validating " + query, e);
-        }
+        Prepared prepared = prepareInternal(query);
+        ResultMessage result = prepared.statement.execute(state, makeInternalOptionsWithNowInSec(prepared.statement, state.getNowInSeconds(), values, cl), Dispatcher.RequestTime.forImmediateExecution());
+        if (result instanceof ResultMessage.Rows)
+            return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+        else
+            return null;
+    }
+
+    /**
+     * Same than {@link #execute(String, ConsistencyLevel, Object...)}, but to use for queries we know are only executed
+     * once so that the created statement object is not cached.
+     */
+    @VisibleForTesting
+    static UntypedResultSet executeOnce(String query, ConsistencyLevel cl, Object... values)
+    {
+        QueryState queryState = internalQueryState();
+        CQLStatement statement = parseStatement(query, queryState.getClientState());
+        statement.validate(queryState.getClientState());
+        ResultMessage result = statement.execute(queryState, makeInternalOptionsWithNowInSec(statement, queryState.getNowInSeconds(), values, cl), Dispatcher.RequestTime.forImmediateExecution());
+        if (result instanceof ResultMessage.Rows)
+            return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+        else
+            return null;
     }
 
     public static UntypedResultSet executeInternalWithPaging(String query, int pageSize, Object... values)

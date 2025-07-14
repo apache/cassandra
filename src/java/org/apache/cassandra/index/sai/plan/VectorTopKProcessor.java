@@ -33,6 +33,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.BasePartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -185,6 +186,7 @@ public class VectorTopKProcessor
         if (e.operator() != Operator.ANN)
             return null;
 
-        return sim.getBestIndexFor(e, StorageAttachedIndex.class).orElse(null);
+        IndexHints hints = command.rowFilter().indexHints;
+        return sim.getBestIndexFor(e, StorageAttachedIndex.class, hints).orElse(null);
     }
 }
