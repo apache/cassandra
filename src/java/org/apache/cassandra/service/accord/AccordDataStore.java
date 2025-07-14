@@ -69,6 +69,13 @@ public class AccordDataStore implements DataStore
             while (true)
             {
                 Memtable memtable = cfs.getCurrentMemtable();
+                // If RX came when after a quiet period or if it raced with a previous memtable flush
+                if (memtable.isClean())
+                {
+                    AccordDurableOnFlush.notify(cfs.metadata(), commandStore, reportOnSuccess);
+                    break;
+                }
+
                 AccordDurableOnFlush onFlush = memtable.ensureFlushListener(FlushListenerKey.KEY, AccordDurableOnFlush::new);
                 if (onFlush != null && onFlush.add(commandStore.id(), reportOnSuccess))
                     break;

@@ -70,7 +70,7 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     {
         Set<StaticSegment<K, V>> toCompact = new HashSet<>();
         journal.segments().selectStatic(toCompact);
-        if (toCompact.size() < 2)
+        if (toCompact.isEmpty())
             return;
 
         try
