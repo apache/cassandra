@@ -52,6 +52,7 @@ import accord.local.CommandStores;
 import accord.local.Commands;
 import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
+import accord.local.PreLoadContext;
 import accord.local.RejectBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
@@ -1032,22 +1033,18 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             AsyncChains.awaitUninterruptibly(accord.node()
                                                    .commandStores()
                                                    .forId(commandStoreId)
-                                                   .submit(txnId, new Function<SafeCommandStore, Void>()
-                                                   {
-                                                       @Override
-                                                       public Void apply(SafeCommandStore safeStore)
-                                                       {
-                                                           SafeCommand safeCommand = safeStore.unsafeGet(txnId);
-                                                           Command command = safeCommand.current();
-                                                           Command updated = Commands.purge(safeStore,
-                                                                                            command,
-                                                                                            command.participants(),
-                                                                                            cleanup,
-                                                                                            true);
-                                                           safeCommand.update(safeStore, updated);
-                                                           return null;
-                                                       }
-                                                   })
+                                                   .submit(PreLoadContext.contextFor(txnId, "User driven command update"),
+                                                           (Function<SafeCommandStore, Void>) safeStore -> {
+                                                               SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                                                               Command command = safeCommand.current();
+                                                               Command updated = Commands.purge(safeStore,
+                                                                                                command,
+                                                                                                command.participants(),
+                                                                                                cleanup,
+                                                                                                true);
+                                                               safeCommand.update(safeStore, updated);
+                                                               return null;
+                                                           })
                                                    .beginAsResult());
         }
     }

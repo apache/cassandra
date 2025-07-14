@@ -247,6 +247,10 @@ public class AccordService implements IAccordService, Shutdownable
         instance = as;
 
         replayJournal(as);
+
+        // Only enable durability scheduling _after_ we have fully replayed journal
+        as.configService.registerListener(as.node.durability());
+        as.node.durability().start();
     }
 
     @VisibleForTesting
@@ -451,10 +455,9 @@ public class AccordService implements IAccordService, Shutdownable
         configService.start();
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
-        node.durability().shards().setTargetShardSplits(Ints.checkedCast(getAccordShardDurabilityTargetSplits()));
-        node.durability().shards().setShardCycleTime(Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
+        node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
+                                               Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
         node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
-        node.durability().start();
         state = State.STARTED;
     }
 
