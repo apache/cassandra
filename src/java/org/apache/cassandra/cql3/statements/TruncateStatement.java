@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
+
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -27,6 +31,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -38,6 +43,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+
+import static java.util.stream.Collectors.joining;
 
 public class TruncateStatement extends QualifiedStatement implements CQLStatement
 {
@@ -53,38 +60,74 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
 
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        state.ensureTablePermission(keyspace(), name(), Permission.MODIFY);
+        if (name() == null)
+            state.ensureKeyspacePermission(keyspace(), Permission.DROP);
+        else
+            state.ensureTablePermission(keyspace(), name(), Permission.MODIFY);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
     {
-        Schema.instance.validateTable(keyspace(), name());
+        if (name() == null)
+            Schema.instance.validateKeyspace(keyspace());
+        else
+            Schema.instance.validateTable(keyspace(), name());
+
         Guardrails.dropTruncateTableEnabled.ensureEnabled(state);
     }
 
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime) throws InvalidRequestException, TruncateException
     {
+        if (name() == null)
+        {
+            Iterable<TableMetadata> tablesIterable = Iterables.filter(Schema.instance.getTablesAndViews(keyspace()), tmd -> !tmd.isView());
+            List<TableMetadata> tablesToTruncate = new ArrayList<>();
+            for (TableMetadata t : tablesIterable)
+                tablesToTruncate.add(t);
+
+            for (TableMetadata tmd : tablesIterable)
+            {
+                try
+                {
+                    truncateOne(tmd.keyspace, tmd.name);
+                    tablesToTruncate.remove(tmd);
+                }
+                catch (TruncateException ex)
+                {
+                    throw new TruncateException(ex, "Tables not truncated: " + tablesToTruncate.stream()
+                                                                                               .map(TableMetadata::toString)
+                                                                                               .collect(joining(",")));
+                }
+            }
+        }
+        else
+            truncateOne(keyspace(), name());
+
+        return null;
+    }
+
+    private void truncateOne(String keyspace, String table)
+    {
         try
         {
-            TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
+            TableMetadata metaData = Schema.instance.getTableMetadata(keyspace, table);
+
+            if (metaData == null)
+                throw new InvalidRequestException(String.format("Cannot TRUNCATE %s.%s as it does not exist.", keyspace(), name()));
+
             if (metaData.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 
             if (metaData.isVirtual())
-            {
                 executeForVirtualTable(metaData.id);
-            }
             else
-            {
-                StorageProxy.truncateBlocking(keyspace(), name());
-            }
+                StorageProxy.truncateBlocking(keyspace, table);
         }
         catch (UnavailableException | TimeoutException e)
         {
             throw new TruncateException(e);
         }
-        return null;
     }
 
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
@@ -92,6 +135,10 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
         try
         {
             TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
+
+            if (metaData == null)
+                throw new InvalidRequestException(String.format("Cannot TRUNCATE %s.%s as it does not exist.", keyspace(), name()));
+
             if (metaData.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 
@@ -114,7 +161,9 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
 
     private void executeForVirtualTable(TableId id)
     {
-        VirtualKeyspaceRegistry.instance.getTableNullable(id).truncate();
+        VirtualTable maybeVTable = VirtualKeyspaceRegistry.instance.getTableNullable(id);
+        if (maybeVTable != null)
+            maybeVTable.truncate();
     }
 
     @Override
@@ -126,6 +175,9 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
     @Override
     public AuditLogContext getAuditLogContext()
     {
-        return new AuditLogContext(AuditLogEntryType.TRUNCATE, keyspace(), name());
+        if (name() == null)
+            return new AuditLogContext(AuditLogEntryType.TRUNCATE, keyspace());
+        else
+            return new AuditLogContext(AuditLogEntryType.TRUNCATE, keyspace(), name());
     }
 }
