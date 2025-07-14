@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.tuple.Pair;
 
+import org.apache.cassandra.cql3.statements.SelectOptions;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.pager.MultiPartitionPager;
 import org.apache.cassandra.service.pager.PagingState;
@@ -178,10 +180,13 @@ public interface SinglePartitionReadQuery extends ReadQuery
         }
 
         @Override
-        public void maybeValidateIndex()
+        public void maybeValidateIndex(SelectOptions selectOptions)
         {
             for (ReadQuery query : queries)
-                query.maybeValidateIndex();
+            {
+                query.maybeValidateIndex(selectOptions);
+                selectOptions.validate(metadata(), IndexRegistry.obtain(metadata()), query.indexQueryPlan());
+            }
         }
 
         public long nowInSec()

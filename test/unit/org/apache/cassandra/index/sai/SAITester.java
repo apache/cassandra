@@ -166,6 +166,12 @@ public abstract class SAITester extends CQLTester.Fuzzed
                      .build();
         CQLTester.Fuzzed.setUpClass();
 
+        /*
+         * Enable external execution of all queries because we want to use reconciliation in SELECT queries so that we can
+         * simulate the application of the entire row filter in the coordinator node, even if unit tests are not multinode.
+         */
+        CQLTester.enableCoordinatorExecution();
+
         // Ensure that the on-disk format statics are loaded before the test run
         Version.LATEST.onDiskFormat();
     }

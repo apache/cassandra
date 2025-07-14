@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
@@ -69,16 +70,18 @@ public class IndexRestrictions
      * Returns whether these restrictions would need filtering if the specified index registry were used.
      *
      * @param indexRegistry an index registry
+     * @param indexHints the user-provided index hints, which might exclude some indexes or explicitly expect some
+     *                   indexes requested by the user
      * @return {@code true} if this would need filtering if {@code indexRegistry} were used, {@code false} otherwise
      */
-    public boolean needsFiltering(IndexRegistry indexRegistry)
+    public boolean needsFiltering(IndexRegistry indexRegistry, IndexHints indexHints)
     {
         if (isEmpty())
             return false;
 
         for (Index.Group group : indexRegistry.listIndexGroups())
         {
-            if (!needsFiltering(group))
+            if (!needsFiltering(group, indexHints))
                 return false;
         }
 
@@ -89,13 +92,14 @@ public class IndexRestrictions
      * Returns whether these restrictions would need filtering if the specified index group were used.
      *
      * @param indexGroup an index group
+     * @param indexHints the user-provided index hints, which might exclude some indexes
      * @return {@code true} if this would need filtering if {@code indexGroup} were used, {@code false} otherwise
      */
-    private boolean needsFiltering(Index.Group indexGroup)
+    private boolean needsFiltering(Index.Group indexGroup, IndexHints indexHints)
     {
         for (Restrictions restrictions : regularRestrictions)
         {
-            if (restrictions.needsFiltering(indexGroup))
+            if (restrictions.needsFiltering(indexGroup, indexHints))
                 return true;
         }
 

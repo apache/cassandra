@@ -70,7 +70,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     {
         ImmutableSet.Builder<Index> selectedIndexesBuilder = ImmutableSet.builder();
 
-        RowFilter preIndexFilter = filter;
+        RowFilter indexFilter = filter;
         RowFilter postIndexFilter = filter;
 
         for (RowFilter.Expression expression : filter)
@@ -88,8 +88,8 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
                 if (!filter.isStrict())
                     throw new InvalidRequestException(String.format(UNSUPPORTED_NON_STRICT_OPERATOR, expression.operator()));
 
-                if (preIndexFilter.getExpressions().contains(expression))
-                    preIndexFilter = preIndexFilter.without(expression);
+                if (indexFilter.getExpressions().contains(expression))
+                    indexFilter = indexFilter.without(expression);
                 continue;
             }
 
@@ -98,7 +98,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
 
             for (StorageAttachedIndex index : indexes)
             {
-                if (index.supportsExpression(expression.column(), expression.operator()))
+                if (index.supportsExpression(expression) && !filter.indexHints.excludes(index))
                 {
                     selectedIndexesBuilder.add(index);
                 }
@@ -109,7 +109,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         if (selectedIndexes.isEmpty())
             return null;
 
-        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, preIndexFilter, selectedIndexes);
+        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, indexFilter, selectedIndexes);
     }
 
     @Override

@@ -307,6 +307,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
         List<Selectable.Raw> groups = new ArrayList<>();
         boolean allowFiltering = false;
         boolean isJson = false;
+        SelectOptions options = new SelectOptions();
         stmtBegins();
     }
     : K_SELECT
@@ -319,6 +320,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
       ( K_PER K_PARTITION K_LIMIT rows=intValue { perPartitionLimit = rows; } )?
       ( K_LIMIT rows=intValue { limit = rows; } )?
       ( K_ALLOW K_FILTERING  { allowFiltering = true; } )?
+      ( K_WITH properties[options] )?
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(orderings,
                                                                              groups,
@@ -327,7 +329,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
                                                                              isJson,
                                                                              null);
           WhereClause where = wclause == null ? WhereClause.empty() : wclause.build();
-          $expr = new SelectStatement.RawStatement(cf, params, $sclause.selectors, where, limit, perPartitionLimit, stmtSrc());
+          $expr = new SelectStatement.RawStatement(cf, params, $sclause.selectors, where, limit, perPartitionLimit, stmtSrc(), options);
       }
     ;
     
@@ -345,7 +347,7 @@ letStatement returns [SelectStatement.RawStatement expr]
           SelectStatement.Parameters params = new SelectStatement.Parameters(Collections.emptyList(), Collections.emptyList(), false, false, false, $txnVar.text);
           WhereClause where = wclause == null ? WhereClause.empty() : wclause.build();
 
-          $expr = new SelectStatement.RawStatement(cf, params, assignments, where, limit, null, stmtSrc());
+          $expr = new SelectStatement.RawStatement(cf, params, assignments, where, limit, null, stmtSrc(), SelectOptions.EMPTY);
       }
     ;
     
@@ -1765,6 +1767,11 @@ indexName returns [QualifiedName name]
     : (ksName[name] '.')? idxName[name]
     ;
 
+indexNames returns [Set<QualifiedName> names]
+    @init { $names = new HashSet<QualifiedName>(); }
+    : '{' ( t1=indexName { names.add(t1); } ( ',' tn=indexName { names.add(tn); } )* )? '}'
+    ;
+
 columnFamilyName returns [QualifiedName name]
     @init { $name = new QualifiedName(); }
     : (ksName[name] '.')? cfName[name]
@@ -2053,9 +2060,15 @@ properties[PropertyDefinitions props]
     : property[props] (K_AND property[props])*
     ;
 
+indexProperty returns [String s]
+    : 'included_indexes' { s = "included_indexes"; }
+    | 'excluded_indexes' { s = "excluded_indexes"; }
+    ;
+
 property[PropertyDefinitions props]
     : k=noncol_ident '=' simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     | k=noncol_ident '=' map=fullMapLiteral { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+    | s=indexProperty '=' names=indexNames { try { $props.addProperty(s, names); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 propertyValue returns [String str]

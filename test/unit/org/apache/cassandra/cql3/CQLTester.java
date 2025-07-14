@@ -122,10 +122,14 @@ import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.types.ParseUtils;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadQuery;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -178,6 +182,7 @@ import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCache;
@@ -252,6 +257,16 @@ public abstract class CQLTester
     public static final String RACK1 = ServerTestUtils.RACK1;
     protected static final int ASSERTION_TIMEOUT_SECONDS = 15;
 
+    /**
+     * Whether to use coordinator execution in {@link #execute(String, Object...)}, so queries get full validation and
+     * go through reconciliation. When enabled, calls to {@link #execute(String, Object...)} will behave as calls to
+     * {@link #executeWithCoordinator(String, Object...)}. Otherwise, they will behave as calls to
+     * {@link #executeInternal(String, Object...)}.
+     *
+     * @see #execute
+     */
+    private static boolean coordinatorExecution = false;
+
     private static org.apache.cassandra.transport.Server server;
     private static JMXConnectorServer jmxServer;
     protected static String jmxHost;
@@ -263,7 +278,7 @@ public abstract class CQLTester
     private static final Map<ClusterSettings, Cluster> clusters = new HashMap<>();
     private static final Map<ClusterSettings, Session> sessions = new HashMap<>();
 
-    private static Consumer<Cluster.Builder> clusterBuilderConfigurator;
+    private static Consumer<Cluster.Builder> clusterBuilderConfigurator = builder -> {};
 
     public static final List<ProtocolVersion> PROTOCOL_VERSIONS = new ArrayList<>(ProtocolVersion.SUPPORTED.size());
 
@@ -699,6 +714,15 @@ public abstract class CQLTester
         startServer(serverConfigurator);
     }
 
+    protected static void requireNetworkWithoutDriver()
+    {
+        if (server != null)
+            return;
+
+        startServices();
+        startServer(server -> {});
+    }
+
     private static void startServices()
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
@@ -971,6 +995,11 @@ public abstract class CQLTester
         if (keyspaces.isEmpty())
             return null;
         return keyspaces.get(keyspaces.size() - 1);
+    }
+
+    protected Index getIndex(String indexName)
+    {
+        return getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
     }
 
     protected ByteBuffer unset()
@@ -1721,14 +1750,112 @@ public abstract class CQLTester
         return currentView == null ? query : String.format(query, keyspace + "." + currentView);
     }
 
+    protected CQLStatement parseStatement(String query)
+    {
+        String formattedQuery = formatQuery(query);
+        return QueryProcessor.parseStatement(formattedQuery, ClientState.forInternalCalls());
+    }
+
+    protected ReadCommand parseReadCommand(String query)
+    {
+        SelectStatement select = (SelectStatement) parseStatement(query);
+        ReadQuery readQuery = select.getQuery(QueryOptions.DEFAULT, QueryState.forInternalCalls().getNowInSeconds());
+        Assertions.assertThat(readQuery).isInstanceOf(ReadCommand.class);
+        return  (ReadCommand) readQuery;
+    }
+
+    protected SinglePartitionReadCommand.Group parseReadCommandGroup(String query)
+    {
+        SelectStatement select = (SelectStatement) parseStatement(query);
+        ReadQuery readQuery = select.getQuery(QueryOptions.DEFAULT, QueryState.forInternalCalls().getNowInSeconds());
+        Assertions.assertThat(readQuery).isInstanceOf(SinglePartitionReadCommand.Group.class);
+        return (SinglePartitionReadCommand.Group) readQuery;
+    }
+
+    protected List<SinglePartitionReadCommand> parseReadCommandGroupQueries(String query)
+    {
+        SelectStatement select = (SelectStatement) parseStatement(query);
+        ReadQuery readQuery = select.getQuery(QueryOptions.DEFAULT, QueryState.forInternalCalls().getNowInSeconds());
+        Assertions.assertThat(readQuery).isInstanceOf(SinglePartitionReadCommand.Group.class);
+        SinglePartitionReadCommand.Group commands = (SinglePartitionReadCommand.Group) readQuery;
+        return commands.queries;
+    }
+
     protected ResultMessage.Prepared prepare(String query) throws Throwable
     {
         return QueryProcessor.instance.prepare(formatQuery(query), ClientState.forInternalCalls());
     }
 
+    /**
+     * Enables coordinator execution in {@link #execute(String, Object...)}, so queries get full validation and go
+     * through reconciliation. This makes calling {@link #execute(String, Object...)} equivalent to calling
+     * {@link #executeWithCoordinator(String, Object...)}.
+     */
+    protected static void enableCoordinatorExecution()
+    {
+        requireNetworkWithoutDriver();
+        coordinatorExecution = true;
+    }
+
+    /**
+     * Disables coordinator execution in {@link #execute(String, Object...)}, so queries won't get full validation nor
+     * go through reconciliation.This makes calling {@link #execute(String, Object...)} equivalent to calling
+     * {@link #executeInternal(String, Object...)}.
+     */
+    protected static void disableCoordinatorExecution()
+    {
+        coordinatorExecution = false;
+    }
+
+    /**
+     * Execute the specified query as either an internal query or a coordinator query depending on the value of
+     * {@link #coordinatorExecution}.
+     *
+     * @param query a CQL query
+     * @param values the values to bind to the query
+     * @return the query results
+     * @see #execute
+     * @see #executeInternal
+     */
     protected UntypedResultSet execute(String query, Object... values)
     {
-        return executeFormattedQuery(formatQuery(query), values);
+        return coordinatorExecution
+               ? executeWithCoordinator(query, values)
+               : executeInternal(query, values);
+    }
+
+    /**
+     * Execute the specified query as an internal query only for the local node. This will skip reconciliation and some
+     * validation.
+     * </p>
+     * For the particular case of {@code SELECT} queries using secondary indexes, the skipping of reconciliation means
+     * that the query {@link org.apache.cassandra.db.filter.RowFilter} might not be fully applied to the index results.
+     *
+     * @param query a CQL query
+     * @param values the values to bind to the query
+     * @return the query results
+     * @see CQLStatement#executeLocally
+     */
+    public UntypedResultSet executeInternal(String query, Object... values)
+    {
+        return executeFormattedQuery(formatQuery(query), false, values);
+    }
+
+    /**
+     * Execute the specified query as an coordinator-side query meant for all the relevant nodes in the cluster, even if
+     * {@link CQLTester} tests are single-node. This won't skip reconciliation and will do full validation.
+     * </p>
+     * For the particular case of {@code SELECT} queries using secondary indexes, applying reconciliation means that the
+     * query {@link org.apache.cassandra.db.filter.RowFilter} will be fully applied to the index results.
+     *
+     * @param query a CQL query
+     * @param values the values to bind to the query
+     * @return the query results
+     * @see CQLStatement#execute
+     */
+    public UntypedResultSet executeWithCoordinator(String query, Object... values)
+    {
+        return executeFormattedQuery(formatQuery(query), true, values);
     }
 
     public UntypedResultSet executeView(String query, Object... values) throws Throwable
@@ -1742,14 +1869,27 @@ public abstract class CQLTester
      */
     public UntypedResultSet executeFormattedQuery(String query, Object... values)
     {
+        return executeFormattedQuery(query, coordinatorExecution, values);
+    }
+
+    private UntypedResultSet executeFormattedQuery(String query, boolean useCoordinator, Object... values)
+    {        
+        if (useCoordinator)
+            requireNetworkWithoutDriver();
+        
         UntypedResultSet rs;
         if (usePrepared)
         {
             if (logger.isTraceEnabled())
                 logger.trace("Executing: {} with values {}", query, formatAllValues(values));
+
+            Object[] transformedValues = transformValues(values);
+
             if (reusePrepared)
             {
-                rs = QueryProcessor.executeInternal(query, transformValues(values));
+                rs = useCoordinator
+                     ? QueryProcessor.execute(query, ConsistencyLevel.ONE, transformedValues)
+                     : QueryProcessor.executeInternal(query, transformedValues);
 
                 // If a test uses a "USE ...", then presumably its statements use relative table. In that case, a USE
                 // change the meaning of the current keyspace, so we don't want a following statement to reuse a previously
@@ -1760,15 +1900,21 @@ public abstract class CQLTester
             }
             else
             {
-                rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
+                rs = useCoordinator
+                     ? QueryProcessor.executeOnce(query, ConsistencyLevel.ONE, transformedValues)
+                     : QueryProcessor.executeOnceInternal(query, transformedValues);
             }
         }
         else
         {
             query = replaceValues(query, values);
+
             if (logger.isTraceEnabled())
                 logger.trace("Executing: {}", query);
-            rs = QueryProcessor.executeOnceInternal(query);
+
+            rs = useCoordinator
+                 ? QueryProcessor.executeOnce(query, ConsistencyLevel.ONE)
+                 : QueryProcessor.executeOnceInternal(query);
         }
         if (rs != null)
         {
@@ -2551,12 +2697,12 @@ public abstract class CQLTester
         assertInvalidMessage(null, query, values);
     }
 
-    protected void assertInvalidMessage(String errorMessage, String query, Object... values) throws Throwable
+    protected void assertInvalidMessage(String errorMessage, String query, Object... values)
     {
         assertInvalidThrowMessage(errorMessage, null, query, values);
     }
 
-    protected void assertInvalidMessageNet(String errorMessage, String query, Object... values) throws Throwable
+    protected void assertInvalidMessageNet(String errorMessage, String query, Object... values)
     {
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT), errorMessage, null, query, values);
     }
@@ -2566,7 +2712,7 @@ public abstract class CQLTester
         assertInvalidThrowMessage(null, exception, query, values);
     }
 
-    protected void assertInvalidThrowMessage(String errorMessage, Class<? extends Throwable> exception, String query, Object... values) throws Throwable
+    protected void assertInvalidThrowMessage(String errorMessage, Class<? extends Throwable> exception, String query, Object... values)
     {
         assertInvalidThrowMessage(Optional.empty(), errorMessage, exception, query, values);
     }
@@ -2584,7 +2730,7 @@ public abstract class CQLTester
                                              String errorMessage,
                                              Class<? extends Throwable> exception,
                                              String query,
-                                             Object... values) throws Throwable
+                                             Object... values)
     {
         try
         {
@@ -3622,6 +3768,63 @@ public abstract class CQLTester
         public int hashCode()
         {
             return java.util.Objects.hash(user, protocolVersion, shouldUseEncryption, shouldUseCertificate);
+        }
+    }
+
+    protected PlanSelectionAssertion assertThatIndexQueryPlanFor(String query, Object[]... expectedRows)
+    {
+        // First execute the query capturing warnings and check the query results
+        disablePreparedReuseForTest();
+        ClientWarn.instance.captureWarnings();
+        assertRowsIgnoringOrder(execute(query), expectedRows);
+        List<String> warnings = ClientWarn.instance.getWarnings();
+        ClientWarn.instance.resetWarnings();
+
+        ReadCommand command = parseReadCommand(query);
+        Index.QueryPlan queryPlan = command.indexQueryPlan();
+        if (queryPlan == null)
+            return new PlanSelectionAssertion(null);
+
+        Set<String> indexes = queryPlan.getIndexes().stream().map(i -> i.getIndexMetadata().name).collect(Collectors.toSet());
+        return new PlanSelectionAssertion(indexes);
+    }
+
+    protected static class PlanSelectionAssertion
+    {
+        private final Set<String> selectedIndexes;
+
+        protected PlanSelectionAssertion(@Nullable Set<String> selectedIndexes)
+        {
+            this.selectedIndexes = selectedIndexes;
+        }
+
+        public PlanSelectionAssertion selects(String... indexes)
+        {
+            Assertions.assertThat(selectedIndexes)
+                      .isNotNull()
+                      .as("Expected to select only %s, but got: %s", indexes, selectedIndexes)
+                      .isEqualTo(Set.of(indexes));
+            return this;
+        }
+
+        public PlanSelectionAssertion selectsAnyOf(String index1, String index2, String... otherIndexes)
+        {
+            Set<String> expectedIndexes = new HashSet<>(otherIndexes.length + 1);
+            expectedIndexes.add(index1);
+            expectedIndexes.add(index2);
+            expectedIndexes.addAll(Arrays.asList(otherIndexes));
+
+            Assertions.assertThat(selectedIndexes)
+                      .isNotNull()
+                      .as("Expected to select any of %s, but got: %s", otherIndexes, selectedIndexes)
+                      .containsAnyElementsOf(expectedIndexes);
+            return this;
+        }
+
+        public PlanSelectionAssertion selectsNone()
+        {
+            Assertions.assertThat(selectedIndexes).isNull();
+            return this;
         }
     }
 }

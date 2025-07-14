@@ -250,6 +250,28 @@ execute:
 include::cassandra:example$CQL/query_nofail_allow_filtering.cql[]
 ----
 
+[[index-hints]]
+=== Index hints
+
+`SELECT` statements allow to provide sets of included and excluded indexes:
+
+[source,cql]
+----
+include::example$CQL/query_with_index_hints.cql[]
+----
+The included indexes are indexes that should be used by the query.
+Queries will fail if it's not possible to use the included indexes.
+That might happen because the query doesn't have a restriction for those indexes,
+or because there is a restriction that can use the index,
+but it is not compatible with other restrictions,
+or because the underlying index implementation isn't able to use the index for whatever reason.
+
+The excluded indexes are indexes that should not be used by the query.
+Excluded indexes will never fail the query unless they reference a non-existent index,
+since it's always possible to exclude indexes that are not used by the query.
+
+The indexes mentioned in included or excluded sets must exist, otherwise the query will fail.
+
 [[insert-statement]]
 == INSERT
 

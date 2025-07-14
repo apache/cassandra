@@ -53,6 +53,12 @@ public abstract class MultiNodeSAITestBase extends SingleNodeSAITestBase
     }
 
     @Override
+    protected int iterations()
+    {
+        return 3;
+    }
+
+    @Override
     protected int rf()
     {
         return 2;

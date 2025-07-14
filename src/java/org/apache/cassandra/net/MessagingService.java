@@ -22,8 +22,10 @@ import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -45,6 +47,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -222,6 +225,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         VERSION_40(12),
         // c14227 TTL overflow, 'uint' timestamps
         VERSION_50(13),
+        // TCM, index hints
         VERSION_51(14);
 
         public static final Version MIN_ACCORD_VERSION = Version.VERSION_51;
@@ -272,13 +276,13 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
-    public static final int VERSION_51 = 14; // TCM
+    public static final int VERSION_51 = 14; // TCM, index hints
     public static final int minimum_version = VERSION_40;
     public static final int maximum_version = VERSION_51;
     // we want to use a modified behavior for the tools and clients - that is, since they are not running a server, they
     // should not need to run in a compatibility mode. They should be able to connect to the server regardless whether
     // it uses messaving version 4 or 5
-    public static final Version current = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? Version.VERSION_40 : Version.VERSION_51;
+    public static final Version current = currentVersion();
     public static final int current_version = current.value;
     static AcceptVersions accept_messaging;
     static AcceptVersions accept_streaming;
@@ -311,6 +315,11 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
             throw new IllegalStateException("Unkown serialization version: " + version);
 
         return ordinal;
+    }
+
+    private static Version currentVersion()
+    {
+        return DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? Version.VERSION_40 : Version.VERSION_51;
     }
 
     private static class MSHandle
@@ -532,7 +541,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         // expire the callback if the message failed to enqueue (failed to establish a connection or exceeded queue capacity)
         while (true)
         {
-            OutboundConnections connections = getOutbound(to);
+            OutboundConnections connections = getOutbound(to, true);
             try
             {
                 connections.enqueue(message, specifyConnection);
@@ -724,10 +733,10 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         socketFactory.awaitTerminationUntil(deadlineNanos);
     }
 
-    private OutboundConnections getOutbound(InetAddressAndPort to)
+    private OutboundConnections getOutbound(InetAddressAndPort to, boolean tryRegister)
     {
         OutboundConnections connections = channelManagers.get(to);
-        if (connections == null)
+        if (connections == null && tryRegister)
             connections = OutboundConnections.tryRegister(channelManagers, to, new OutboundConnectionSettings(to).withDefaults(ConnectionCategory.MESSAGING));
         return connections;
     }
@@ -776,5 +785,28 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Returns the endpoints for the given keyspace that are known to be alive and have a connection whose
+     * messaging version is older than the given version. To be used for example when we want to be sure a message
+     * can be serialized to all endpoints, according to their negotiated version at connection time.
+     *
+     * @param version a messaging version
+     * @return a set of alive endpoints in the given keyspace with messaging version below the given version
+     */
+    public Set<InetAddressAndPort> endpointsWithConnectionsOnVersionBelow(int version)
+    {
+        Set<InetAddressAndPort> nodes = new HashSet<>();
+        for (InetAddressAndPort node : ClusterMetadata.current().directory.allAddresses())
+        {
+            ConnectionType.MESSAGING_TYPES.forEach(type -> {
+                OutboundConnections connections = getOutbound(node, false);
+                OutboundConnection connection = connections != null ? connections.connectionFor(type) : null;
+                if (connection != null && connection.messagingVersion() < version)
+                    nodes.add(node);
+            });
+        }
+        return nodes;
     }
 }

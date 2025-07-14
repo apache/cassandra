@@ -51,6 +51,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Ordering;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -93,6 +94,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -174,6 +176,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     private final Selection selection;
     private final Term limit;
     private final Term perPartitionLimit;
+    private final SelectOptions selectOptions;
 
     private final StatementRestrictions restrictions;
 
@@ -208,7 +211,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                            ColumnComparator<List<ByteBuffer>> orderingComparator,
                            Term limit,
                            Term perPartitionLimit,
-                           StatementSource source)
+                           StatementSource source,
+                           SelectOptions selectOptions)
     {
         this.table = table;
         this.bindVariables = bindVariables;
@@ -221,6 +225,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         this.limit = limit;
         this.perPartitionLimit = perPartitionLimit;
         this.source = source;
+        this.selectOptions = selectOptions;
     }
 
     @Override
@@ -288,7 +293,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                    null,
                                    null,
                                    null,
-                                   StatementSource.INTERNAL);
+                                   StatementSource.INTERNAL,
+                                   SelectOptions.EMPTY);
     }
 
     @Override
@@ -335,6 +341,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             Guardrails.allowFilteringEnabled.ensureEnabled(state);
     }
 
+    @Override
     public ResultMessage.Rows execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
         ConsistencyLevel cl = options.getConsistency();
@@ -637,6 +644,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         return new ResultMessage.Rows(rset);
     }
 
+    @Override
     public ResultMessage.Rows executeLocally(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
         return executeInternal(state, options, options.getNowInSeconds(state), Dispatcher.RequestTime.forImmediateExecution());
@@ -809,7 +817,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             SinglePartitionReadQuery.createGroup(table, nowInSec, columnFilter, rowFilter, limit, decoratedKeys, filter, potentialTxnConflicts);
 
         // If there's a secondary index that the commands can use, have it validate the request parameters.
-        group.maybeValidateIndex();
+        group.maybeValidateIndex(selectOptions);
 
         return group;
     }
@@ -876,7 +884,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             PartitionRangeReadQuery.create(table, nowInSec, columnFilter, rowFilter, limit, new DataRange(keyBounds, clusteringIndexFilter), potentialTxnConflicts);
 
         // If there's a secondary index that the command can use, have it validate the request parameters.
-        command.maybeValidateIndex();
+        command.maybeValidateIndex(selectOptions);
 
         return command;
     }
@@ -1240,6 +1248,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         public final Term.Raw perPartitionLimit;
         private ClientState state;
         public final StatementSource source;
+        public final SelectOptions options;
 
         public RawStatement(QualifiedName cfName,
                             Parameters parameters,
@@ -1247,7 +1256,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                             WhereClause whereClause,
                             Term.Raw limit,
                             Term.Raw perPartitionLimit,
-                            StatementSource source)
+                            StatementSource source,
+                            SelectOptions options)
         {
             super(cfName);
             this.parameters = parameters;
@@ -1256,6 +1266,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             this.limit = limit;
             this.perPartitionLimit = perPartitionLimit;
             this.source = source;
+            this.options = options;
         }
 
         public SelectStatement prepare(ClientState state)
@@ -1287,11 +1298,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         {
             TableMetadata table = Schema.instance.validateTable(keyspace(), name());
 
+            // Besides actual restrictions (where clauses), prepareRestrictions will include the user-provided index hints,
+            // which are needed to determine what indexes to use for the query and to validate whether filtering is needed.
+            IndexHints indexHints = options.parseIndexHints(table, IndexRegistry.obtain(table));
+
             List<Selectable> selectables = RawSelector.toSelectables(selectClause, table);
             boolean containsOnlyStaticColumns = selectOnlyStaticColumns(table, selectables);
 
             List<Ordering> orderings = getOrderings(table);
-            StatementRestrictions restrictions = prepareRestrictions(state, table, variableSpecifications, orderings, containsOnlyStaticColumns, forView);
+            StatementRestrictions restrictions = prepareRestrictions(state, table, variableSpecifications, orderings, indexHints, containsOnlyStaticColumns, forView);
 
             // If we order post-query, the sorted column needs to be in the ResultSet for sorting,
             // even if we don't ultimately ship them to the client (CASSANDRA-4911).
@@ -1345,7 +1360,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                        orderingComparator,
                                        prepareLimit(variableSpecifications, limit, keyspace(), limitReceiver()),
                                        prepareLimit(variableSpecifications, perPartitionLimit, keyspace(), perPartitionLimitReceiver()),
-                                       source);
+                                       source,
+                                       options);
         }
 
         private Set<ColumnMetadata> getResultSetOrdering(StatementRestrictions restrictions, Map<ColumnMetadata, Ordering> orderingColumns)
@@ -1436,6 +1452,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
          *
          * @param metadata the column family meta data
          * @param boundNames the variable specifications
+         * @param orderings the orderings
+         * @param indexHints the index hints
          * @param selectsOnlyStaticColumns {@code true} if the query select only static columns, {@code false} otherwise.
          * @return the restrictions
          * @throws InvalidRequestException if a problem occurs while building the restrictions
@@ -1444,12 +1462,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                                           TableMetadata metadata,
                                                           VariableSpecifications boundNames,
                                                           List<Ordering> orderings,
+                                                          IndexHints indexHints,
                                                           boolean selectsOnlyStaticColumns,
                                                           boolean forView) throws InvalidRequestException
         {
             return new StatementRestrictions(state,
                                              StatementType.SELECT,
                                              metadata,
+                                             indexHints,
                                              whereClause,
                                              boundNames,
                                              orderings,
@@ -1835,7 +1855,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
 
             Index.QueryPlan indexQueryPlan = Keyspace.openAndGetStore(table).indexManager.getBestIndexQueryPlanFor(rowFilter);
 
-            Index index = restriction.findSupportingIndex(indexQueryPlan.getIndexes());
+            // TODO: Do we care about indexing hints here?
+            Index index = restriction.findSupportingIndex(indexQueryPlan.getIndexes(), IndexHints.NONE);
             assert index != null;
             Comparator<ByteBuffer> comparator = index.getPostQueryOrdering(restriction, options);
             return (a, b) -> compare(comparator, a.get(columnIndex), b.get(columnIndex));
@@ -1920,10 +1941,10 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     public String asCQL(QueryOptions options, ClientState state)
     {
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
-        StringBuilder sb = new StringBuilder();
+        CqlBuilder builder = new CqlBuilder();
 
-        sb.append("SELECT ").append(queriedColumns().toCQLString());
-        sb.append(" FROM ").append(table.keyspace).append('.').append(table.name);
+        builder.append("SELECT ").append(queriedColumns().toCQLString());
+        builder.append(" FROM ").append(table.keyspace).append('.').append(table.name);
         if (isPartitionRangeQuery())
         {
             // partition range
@@ -1943,16 +1964,16 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
 
             if (!dataRange.isUnrestricted(table) || !rowFilter.isEmpty())
             {
-                sb.append(" WHERE ");
+                builder.append(" WHERE ");
                 // We put the row filter first because the data range can end by "ORDER BY"
                 if (!rowFilter.isEmpty())
                 {
-                    sb.append(rowFilter);
+                    builder.append(rowFilter);
                     if (!dataRange.isUnrestricted(table))
-                        sb.append(" AND ");
+                        builder.append(" AND ");
                 }
                 if (!dataRange.isUnrestricted(table))
-                    sb.append(dataRange.toCQLString(table, rowFilter));
+                    builder.append(dataRange.toCQLString(table, rowFilter));
             }
         }
         else
@@ -1965,50 +1986,50 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             if (filter == null)
                 return "EMPTY";
 
-            sb.append(" WHERE ");
+            builder.append(" WHERE ");
 
 
             boolean compoundPk = table.partitionKeyColumns().size() > 1;
-            if (compoundPk) sb.append('(');
-            sb.append(ColumnMetadata.toCQLString(table.partitionKeyColumns()));
-            if (compoundPk) sb.append(')');
+            if (compoundPk) builder.append('(');
+            builder.append(ColumnMetadata.toCQLString(table.partitionKeyColumns()));
+            if (compoundPk) builder.append(')');
             if (keys.size() == 1)
             {
-                sb.append(" = ");
-                if (compoundPk) sb.append('(');
-                DataRange.appendKeyString(sb, table.partitionKeyType, Iterables.getOnlyElement(keys));
-                if (compoundPk) sb.append(')');
+                builder.append(" = ");
+                if (compoundPk) builder.append('(');
+                DataRange.appendKeyString(builder, table.partitionKeyType, Iterables.getOnlyElement(keys));
+                if (compoundPk) builder.append(')');
             }
             else
             {
-                sb.append(" IN (");
+                builder.append(" IN (");
                 boolean first = true;
                 for (ByteBuffer key : keys)
                 {
                     if (!first)
-                        sb.append(", ");
+                        builder.append(", ");
 
-                    if (compoundPk) sb.append('(');
-                    DataRange.appendKeyString(sb, table.partitionKeyType, key);
-                    if (compoundPk) sb.append(')');
+                    if (compoundPk) builder.append('(');
+                    DataRange.appendKeyString(builder, table.partitionKeyType, key);
+                    if (compoundPk) builder.append(')');
                     first = false;
                 }
 
-                sb.append(')');
+                builder.append(')');
             }
 
             RowFilter rowFilter = getRowFilter(options, state);
             if (!rowFilter.isEmpty())
-                sb.append(" AND ").append(rowFilter);
+                builder.append(" AND ").append(rowFilter);
 
             String filterString = filter.toCQLString(table, rowFilter);
             if (!filterString.isEmpty())
-                sb.append(" AND ").append(filterString);
+                builder.append(" AND ").append(filterString);
         }
 
         DataLimits limits = getDataLimits(getLimit(options), getPerPartitionLimit(options), options.getPageSize(), getAggregationSpec(options));
         if (limits != DataLimits.NONE)
-            sb.append(' ').append(limits);
-        return sb.toString();
+            builder.append(' ').append(limits);
+        return builder.toString();
     }
 }

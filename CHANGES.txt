@@ -1,4 +1,5 @@
 5.1
+ * Support manual secondary index selection at the CQL level (CASSANDRA-18112)
  * When regulars CQL mutations run on Accord use the txn timestamp rather than server timestamp (CASSANDRA-20744)
  * When using BEGIN TRANSACTION if a complex mutation exists in the same statement as one that uses a reference, then the complex delete is dropped (CASSANDRA-20788)
  * Migrate all nodetool commands from airline to picocli (CASSANDRA-17445)

@@ -1236,3 +1236,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_tracing(self):
         self.trycompletions('TRACING ', choices=[';', '<enter>', 'OFF', 'ON'])
+
+    def test_complete_in_select_include_exclude_index(self):
+        self.trycompletions('SELECT * FROM system.peers WHERE native_port = 8100 WITH i', immediate='ncluded_indexes = { ',)
+        self.trycompletions('SELECT * FROM system.peers WHERE native_port = 8100 WITH e', immediate='xcluded_indexes = { ',)

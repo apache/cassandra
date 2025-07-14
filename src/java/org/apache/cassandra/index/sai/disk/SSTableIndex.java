@@ -71,7 +71,8 @@ public abstract class SSTableIndex implements SegmentOrdering, Comparable<SSTabl
 
     public SSTableIndex(SSTableContext sstableContext, StorageAttachedIndex index)
     {
-        this.sstableContext = sstableContext.sharedCopy(); // this line must not be before any code that may throw
+        // This shared copy must be closed if a subclass constructor fails.
+        this.sstableContext = sstableContext.sharedCopy(); 
         this.indexTermType = index.termType();
         this.indexIdentifier = index.identifier();
     }

@@ -59,8 +59,6 @@ import static org.apache.cassandra.harry.dsl.SingleOperationBuilder.IdxRelation;
 // TODO: "WITH OPTIONS = {'case_sensitive': 'false', 'normalize': 'true', 'ascii': 'true'};",
 public abstract class SingleNodeSAITestBase extends TestBaseImpl
 {
-    private static final int ITERATIONS = 5;
-
     private static final int VALIDATION_SKIP = 739;
     private static final int QUERIES_PER_VALIDATION = 8;
 
@@ -84,6 +82,11 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     protected SingleNodeSAITestBase(TransactionalMode transactionalMode)
     {
         this.transactionalMode = transactionalMode;
+    }
+
+    protected int iterations()
+    {
+        return 5;
     }
 
     @BeforeClass
@@ -139,7 +142,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     @Test
     public void indexOnlySaiTest()
     {
-        for (int i = 0; i < ITERATIONS; i++)
+        for (int i = 0; i < iterations(); i++)
         {
             logger.info("Starting iteration {}...", i);
             withRandom(rng -> saiTest(rng,
@@ -152,7 +155,7 @@ public abstract class SingleNodeSAITestBase extends TestBaseImpl
     @Test
     public void mixedFilteringSaiTest()
     {
-        for (int i = 0; i < ITERATIONS; i++)
+        for (int i = 0; i < iterations(); i++)
         {
             logger.info("Starting iteration {}...", i);
             withRandom(rng -> saiTest(rng,
