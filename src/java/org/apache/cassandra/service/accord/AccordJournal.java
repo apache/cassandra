@@ -36,7 +36,6 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -376,17 +375,18 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             journal.onDurable(pointer, onFlush);
     }
 
+    private static final JournalKey DURABLE_BEFORE_KEY = new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0);
+
     @Override
     public PersistentField.Persister<DurableBefore, DurableBefore> durableBeforePersister()
     {
         return new PersistentField.Persister<>()
         {
             @Override
-            public AsyncResult<?> persist(DurableBefore addDurableBefore, DurableBefore newDurableBefore)
+            public AsyncResult<?> persist(DurableBefore addValue, DurableBefore newValue)
             {
                 AsyncResult.Settable<Void> result = AsyncResults.settable();
-                JournalKey key = new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0);
-                RecordPointer pointer = appendInternal(key, addDurableBefore);
+                RecordPointer pointer = appendInternal(DURABLE_BEFORE_KEY, addValue);
                 // TODO (required): what happens on failure?
                 journal.onDurable(pointer, () -> result.setSuccess(null));
                 return result;
@@ -395,7 +395,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             @Override
             public DurableBefore load()
             {
-                DurableBeforeAccumulator accumulator = readAll(new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0));
+                DurableBeforeAccumulator accumulator = readAll(DURABLE_BEFORE_KEY);
                 return accumulator.get();
             }
         };

@@ -96,7 +96,6 @@ public abstract class AbstractAccordSegmentCompactor<V> implements SegmentCompac
     @Override
     public Collection<StaticSegment<JournalKey, V>> compact(Collection<StaticSegment<JournalKey, V>> segments)
     {
-        Invariants.require(segments.size() >= 2, () -> String.format("Can only compact 2 or more segments, but got %d", segments.size()));
         logger.info("Compacting {} static segments: {}", segments.size(), segments);
 
         // TODO (expected): this will be a large over-estimate. should make segments an sstable format and include cardinality estimation
