@@ -84,8 +84,7 @@ public class RouteSSTableManager implements SSTableManager
 
     @Override
     public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId,
-                                                        byte[] start, boolean startInclusive,
-                                                        byte[] end, boolean endInclusive)
+                                                        byte[] start, byte[] end)
     {
         Key group = new Key(storeId, tableId);
         TreeSet<ByteBuffer> matches = new TreeSet<>();
@@ -93,12 +92,12 @@ public class RouteSSTableManager implements SSTableManager
         {
             try
             {
-                matches.addAll(index.search(group, start, startInclusive, end, endInclusive));
+                matches.addAll(index.search(group, start, end));
             }
             catch (Throwable t)
             {
                 File file = index.id.fileFor(CINTIA_SORTED_LIST);
-                throw new FSReadError("Failed to search range index " + file + " for " + (startInclusive ? "[" : "(") + ByteArrayUtil.bytesToHex(start) + "..." + ByteArrayUtil.bytesToHex(end) + (endInclusive ? "]" : ")"), t, file);
+                throw new FSReadError("Failed to search range index " + file + " for (" + ByteArrayUtil.bytesToHex(start) + "..." + ByteArrayUtil.bytesToHex(end) + "]", t, file);
             }
         }
         return matches;

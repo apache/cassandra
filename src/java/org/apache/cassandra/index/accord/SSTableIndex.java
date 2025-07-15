@@ -115,7 +115,7 @@ public class SSTableIndex extends SharedCloseableImpl
         return matches;
     }
 
-    public Collection<? extends ByteBuffer> search(Key group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    public Collection<? extends ByteBuffer> search(Key group, byte[] start, byte[] end)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
@@ -128,14 +128,14 @@ public class SSTableIndex extends SharedCloseableImpl
                                         })
                                         .collect(Collectors.toList());
         if (matches.isEmpty()) return Collections.emptyList();
-        if (matches.size() == 1) return search(matches.get(0), group, start, startInclusive, end, endInclusive);
+        if (matches.size() == 1) return search(matches.get(0), group, start, end);
         Set<ByteBuffer> found =  new HashSet<>();
         for (Segment s : matches)
-            found.addAll(search(s, group, start, startInclusive, end, endInclusive));
+            found.addAll(search(s, group, start, end));
         return found;
     }
 
-    private Collection<? extends ByteBuffer> search(Segment segment, Key group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    private Collection<? extends ByteBuffer> search(Segment segment, Key group, byte[] start, byte[] end)
     {
         Set<ByteBuffer> matches = new HashSet<>();
         Segment.Metadata metadata = Objects.requireNonNull(segment.groups.get(group), () -> "Unknown group: " + group);

@@ -529,7 +529,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                     start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
                 byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
-                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start, true, end, true);
+                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start, end);
                 matches.addAll(memtableIndexManager.search(storeId, tableId,
                                                            start, end,
                                                            minTimestamp, maxTimestamp));

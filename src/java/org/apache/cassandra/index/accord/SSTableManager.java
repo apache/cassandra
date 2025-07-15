@@ -30,6 +30,6 @@ public interface SSTableManager
     void onSSTableChanged(Collection<SSTableReader> removed, Iterable<SSTableReader> added);
     boolean isIndexComplete(SSTableReader reader);
 
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive);
+    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, byte[] end);
     NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key);
 }
