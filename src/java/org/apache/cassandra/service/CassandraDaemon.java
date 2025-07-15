@@ -263,6 +263,8 @@ public class CassandraDaemon
 
         NativeLibrary.tryMlockall();
 
+        AsyncProfilerService.instance();
+
         Keyspace.setInitialized();
         CommitLog.instance.start();
 

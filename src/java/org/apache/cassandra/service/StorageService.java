@@ -3980,6 +3980,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             try
             {
+                // stop async profiler on shutdown in case a user
+                // did not stop it beforehand on their own
+                AsyncProfilerService.instance().stop(Map.of());
+            }
+            catch (Throwable t)
+            {
+                logger.error("Failed to stop async profiler.", t);
+            }
+
+            try
+            {
                 // we are not shutting down ScheduledExecutors#scheduledFastTasks to be still able to progress time
                 // fast-tasks executor is shut down in StorageService's shutdown hook added to Runtime
                 ExecutorUtils.shutdownNowAndWait(1, MINUTES,
