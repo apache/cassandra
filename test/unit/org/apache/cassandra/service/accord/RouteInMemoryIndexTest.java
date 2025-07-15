@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -57,12 +58,13 @@ public class RouteInMemoryIndexTest
     @Test
     public void minMaxFilter()
     {
-        stateful().check(commands(() -> State::new)
+        stateful().withSeed(-7811026954173094984L).check(commands(() -> State::new)
                          .add(State::update)
                          .add(State::bumpSegment)
                          .add(State::remove)
-                         .add(State::unfilteredSearch)
-                         .add(State::search)
+                         .add(State::unfilteredRangeSearch)
+                         .add(State::rangeSearch)
+                         .add(State::keySearch)
                          .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
                          .build());
     }
@@ -92,10 +94,30 @@ public class RouteInMemoryIndexTest
             TokenRange range = nextRange(rs);
 
             FullRangeRoute route = new FullRangeRoute(range.start(), new Range[] {range});
-            return new Property.SimpleCommand<>("update(" + segment + ", " + txnId + ", " + range + ')', s2 -> {
+            return new Property.SimpleCommand<>("update(" + segment + ", " + normalize(txnId) + ", " + normalize(range) + ')', s2 -> {
                 s2.index.update(segment, 0, txnId, route);
                 s2.model.update(segment, range, txnId);
             });
+        }
+
+        private static String normalize(TokenRange range)
+        {
+            return "R:" + range.toString().replace(range.prefix()  + ":", "");
+        }
+
+        private static String normalize(TokenKey key)
+        {
+            return "K:" + key.toString().replace(key.prefix()  + ":", "");
+        }
+
+        private static String normalize(TxnId txnId)
+        {
+            return "T:" + txnId.hlc();
+        }
+
+        private static TokenKey tokenKey(long token)
+        {
+            return new TokenKey(TABLE_ID, new LongToken(token));
         }
 
         private static TokenRange nextRange(RandomSource rs)
@@ -112,7 +134,7 @@ public class RouteInMemoryIndexTest
                 a = token;
                 b = token + 10;
             }
-            return TokenRange.createUnsafe(new TokenKey(TABLE_ID, new LongToken(a)), new TokenKey(TABLE_ID, new LongToken(b)));
+            return TokenRange.createUnsafe(tokenKey(a), tokenKey(b));
         }
 
         public static Property.Command<State, Void, ?> remove(RandomSource rs, State state)
@@ -163,17 +185,48 @@ public class RouteInMemoryIndexTest
             }
         }
 
-        public static Property.Command<State, Void, ?> unfilteredSearch(RandomSource rs, State state)
+        private void assertSearchMatch(TokenKey key, TxnId minTxnId, TxnId maxTxnId)
+        {
+            try (var actual = index.search(0, key, minTxnId, maxTxnId).results();
+                 var expected = model.search(key, minTxnId, maxTxnId).results())
+            {
+                while (actual.hasNext() && expected.hasNext())
+                {
+                    Assertions.assertThat(actual.next()).isEqualTo(expected.next());
+                }
+                Assertions.assertThat(actual).describedAs("Actual iterator has more data than expected!").isExhausted();
+                Assertions.assertThat(expected).describedAs("Actual iterator has less data than expected!").isExhausted();
+            }
+        }
+
+        public static Property.Command<State, Void, ?> unfilteredRangeSearch(RandomSource rs, State state)
         {
             var range = nextRange(rs);
             TxnId minTxnId = TxnId.NONE;
             TxnId maxTxnId = TxnId.MAX;
-            return new Property.SimpleCommand<>("Search " + range, s2 -> s2.assertSearchMatch(range, minTxnId, maxTxnId));
+            return new Property.SimpleCommand<>("Search " + normalize(range), s2 -> s2.assertSearchMatch(range, minTxnId, maxTxnId));
         }
 
-        public static Property.Command<State, Void, ?> search(RandomSource rs, State state)
+        private static class TxnRange
         {
-            var range = nextRange(rs);
+            final TxnId minTxnId;
+            final TxnId maxTxnId;
+
+            private TxnRange(TxnId minTxnId, TxnId maxTxnId)
+            {
+                this.minTxnId = minTxnId;
+                this.maxTxnId = maxTxnId;
+            }
+
+            @Override
+            public String toString()
+            {
+                return normalize(minTxnId) + ',' + normalize(maxTxnId);
+            }
+        }
+
+        private static TxnRange nextTxnRange(RandomSource rs, State state)
+        {
             TxnId minTxnId;
             TxnId maxTxnId;
             if (state.model.isEmpty())
@@ -211,7 +264,21 @@ public class RouteInMemoryIndexTest
                         throw new UnsupportedOperationException();
                 }
             }
-            return new Property.SimpleCommand<>("Search " + range + ", txn_id range " + minTxnId + ',' + maxTxnId, s2 -> s2.assertSearchMatch(range, minTxnId, maxTxnId));
+            return new TxnRange(minTxnId, maxTxnId);
+        }
+
+        public static Property.Command<State, Void, ?> rangeSearch(RandomSource rs, State state)
+        {
+            var range = nextRange(rs);
+            var txnRange = nextTxnRange(rs, state);
+            return new Property.SimpleCommand<>("Search " + normalize(range) + ", txn_id range " + txnRange, s2 -> s2.assertSearchMatch(range, txnRange.minTxnId, txnRange.maxTxnId));
+        }
+
+        public static Property.Command<State, Void, ?> keySearch(RandomSource rs, State state)
+        {
+            TokenKey key = tokenKey(rs.nextLong(MIN_TOKEN, MAX_TOKEN + 1));
+            var txnRange = nextTxnRange(rs, state);
+            return new Property.SimpleCommand<>("Search " + normalize(key) + ", txn_id range " + txnRange, s2 -> s2.assertSearchMatch(key, txnRange.minTxnId, txnRange.maxTxnId));
         }
     }
 
@@ -257,13 +324,23 @@ public class RouteInMemoryIndexTest
 
         public RangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId)
         {
+            return search(vrange -> range.compareIntersecting(vrange) == 0, minTxnId, maxTxnId);
+        }
+
+        public RangeSearcher.Result search(TokenKey key, TxnId minTxnId, TxnId maxTxnId)
+        {
+            return search(range -> range.contains(key), minTxnId, maxTxnId);
+        }
+
+        public RangeSearcher.Result search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId)
+        {
             TreeSet<TxnId> result = new TreeSet<>();
             for (var segment: segments.values())
             {
                 for (var value : segment.values)
                 {
                     if (value.txnId.compareTo(minTxnId) < 0 || value.txnId.compareTo(maxTxnId) > 0) continue;
-                    if (range.compareIntersecting(value.range) == 0)
+                    if (test.test(value.range))
                         result.add(value.txnId);
                 }
             }

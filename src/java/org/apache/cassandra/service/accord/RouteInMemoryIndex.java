@@ -94,14 +94,14 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
     @Override
     public RangeSearcher.Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId)
     {
-        NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeTokenOnly(key));
+        NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeTokenOnly(key), minTxnId, maxTxnId);
         return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
     }
 
-    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] key)
+    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId)
     {
         TreeSet<TxnId> matches = new TreeSet<>();
-        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, e -> matches.add(e.getValue())));
+        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, minTxnId, maxTxnId, e -> matches.add(e.getValue())));
         return matches.isEmpty() ? Collections.emptyNavigableSet() : matches;
     }
 
@@ -133,11 +133,14 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
             idx.search(tableId, start, end, minTxnId, maxTxnId, fn);
         }
 
-        private void search(int storeId, TableId tableId, byte[] key, Consumer<Map.Entry<IndexRange, TxnId>> fn)
+        private void search(int storeId, TableId tableId,
+                            byte[] key,
+                            TxnId minTxnId, Timestamp maxTxnId,
+                            Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
             StoreIndex idx = storeIndexes.get(storeId);
             if (idx == null) return;
-            idx.search(tableId, key, fn);
+            idx.search(tableId, key, minTxnId, maxTxnId, fn);
         }
     }
 
@@ -173,11 +176,14 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
             index.search(start, end, minTxnId, maxTxnId, fn);
         }
 
-        public void search(TableId tableId, byte[] key, Consumer<Map.Entry<IndexRange, TxnId>> fn)
+        public void search(TableId tableId,
+                           byte[] key,
+                           TxnId minTxnId, Timestamp maxTxnId,
+                           Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
             TableIndex index = tableIndex.get(tableId);
             if (index == null) return;
-            index.search(key, fn);
+            index.search(key, minTxnId, maxTxnId, fn);
         }
     }
 
@@ -217,9 +223,17 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
             });
         }
 
-        private void search(byte[] key, Consumer<Map.Entry<IndexRange, TxnId>> fn)
+        private void search(byte[] key,
+                            TxnId minTxnId, Timestamp maxTxnId,
+                            Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
-            index.searchToken(key, fn);
+            if (minTxnId.compareTo(max) > 0) return;
+            if (maxTxnId.compareTo(min) < 0) return;
+            index.searchToken(key, e -> {
+                if (minTxnId.compareTo(e.getValue()) > 0) return;
+                if (maxTxnId.compareTo(e.getValue()) < 0) return;
+                fn.accept(e);
+            });
         }
     }
 
