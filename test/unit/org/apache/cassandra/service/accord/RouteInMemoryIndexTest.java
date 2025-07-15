@@ -30,6 +30,7 @@ import accord.local.Node;
 import accord.primitives.FullRangeRoute;
 import accord.primitives.Range;
 import accord.primitives.Routable;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Property;
@@ -57,7 +58,7 @@ public class RouteInMemoryIndexTest
     @Test
     public void minMaxFilter()
     {
-        stateful().withSeed(3447509300353036719L).check(commands(() -> State::new)
+        stateful().check(commands(() -> State::new)
                          .add(State::update)
                          .add(State::bumpSegment)
                          .add(State::remove)
@@ -114,6 +115,7 @@ public class RouteInMemoryIndexTest
             {
                 for (var value : segment.values)
                 {
+                    if (value.txnId.compareTo(minTxnId) < 0 || value.txnId.compareTo(maxTxnId) > 0) continue;
                     if (range.compareIntersecting(value.range) == 0)
                         result.add(value.txnId);
                 }
