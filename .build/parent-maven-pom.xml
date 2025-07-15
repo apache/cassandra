@@ -40,6 +40,7 @@
     <byteman.version>4.0.20</byteman.version>
     <netty.version>4.1.130.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
+    <async-profiler.version>4.2</async-profiler.version>
 
     <!-- These are referenced in build.xml, so need to be propagated from there -->
     <asm.version>@asm.version@</asm.version>
@@ -464,6 +465,11 @@
         <groupId>com.github.jbellis</groupId>
         <artifactId>jamm</artifactId>
         <version>${jamm.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>tools.profiler</groupId>
+        <artifactId>async-profiler</artifactId>
+        <version>${async-profiler.version}</version>
       </dependency>
       <dependency>
         <!-- Test scoped jackson-dataformat-yaml also depends on snakeyaml. For now, these versions are aligned

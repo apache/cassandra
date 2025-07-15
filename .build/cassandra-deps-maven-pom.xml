@@ -162,6 +162,10 @@
       <artifactId>jamm</artifactId>
     </dependency>
     <dependency>
+      <groupId>tools.profiler</groupId>
+      <artifactId>async-profiler</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-all</artifactId>
     </dependency>

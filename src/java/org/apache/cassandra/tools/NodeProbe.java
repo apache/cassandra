@@ -118,7 +118,9 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.profiler.AsyncProfilerMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
+import org.apache.cassandra.service.AsyncProfilerService;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
@@ -188,6 +190,7 @@ public class NodeProbe implements AutoCloseable
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
     protected AutoRepairServiceMBean autoRepairProxy;
+    protected AsyncProfilerMBean asyncProfilerProxy;
     protected GuardrailsMBean grProxy;
     protected volatile Output output;
 
@@ -335,6 +338,9 @@ public class NodeProbe implements AutoCloseable
 
             name = new ObjectName(AutoRepairService.MBEAN_NAME);
             autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
+
+            name = new ObjectName(AsyncProfilerService.MBEAN_NAME);
+            asyncProfilerProxy = JMX.newMBeanProxy(mbeanServerConn, name, AsyncProfilerMBean.class);
 
             name = new ObjectName(Guardrails.MBEAN_NAME);
             grProxy = JMX.newMBeanProxy(mbeanServerConn, name, GuardrailsMBean.class);
@@ -1328,6 +1334,11 @@ public class NodeProbe implements AutoCloseable
     public AccordOperationsMBean getAccordOperationsProxy()
     {
         return accordProxy;
+    }
+
+    public AsyncProfilerMBean getAsyncProfilerProxy()
+    {
+        return asyncProfilerProxy;
     }
 
     public GossiperMBean getGossProxy()

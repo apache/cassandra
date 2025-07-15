@@ -147,6 +147,7 @@ public class StartupChecks
                                                                       checkSSTablesFormat,
                                                                       checkSystemKeyspaceState,
                                                                       checkLegacyAuthTables,
+                                                                      checkKernelParamsForAsyncProfiler,
                                                                       new DataResurrectionCheck());
 
     public StartupChecks withDefaultTests()
@@ -756,6 +757,68 @@ public class StartupChecks
                 throw new StartupException(StartupException.ERR_WRONG_CONFIG, errMsg.get());
         }
     };
+
+    public static final StartupCheck checkKernelParamsForAsyncProfiler = new AsyncProfilerKernelParamsCheck();
+
+    public static class AsyncProfilerKernelParamsCheck implements StartupCheck
+    {
+        private static final String MESSAGE = "Async-profiler experience likely affected. Kernel symbols are unavailable due to restrictions. " +
+                                              "Try 'sysctl kernel.perf_event_paranoid=1' and 'sysctl kernel.kptr_restrict=0' or its " +
+                                              "variation on your system to resolve the issue.";
+
+        protected int readPerfEventParanoid()
+        {
+            List<String> lines = FileUtils.readLines(new File("/proc/sys/kernel/perf_event_paranoid"));
+            if (!lines.isEmpty())
+                return Integer.parseInt(lines.get(0));
+            return Integer.MIN_VALUE;
+        }
+
+        protected int readKptrRestrict()
+        {
+            List<String> lines = FileUtils.readLines(new File("/proc/sys/kernel/kptr_restrict"));
+            if (!lines.isEmpty())
+                return Integer.parseInt(lines.get(0));
+            return Integer.MIN_VALUE;
+        }
+
+        public void execute(StartupChecksOptions startupChecksOptions, boolean shouldThrow)
+        {
+            try
+            {
+                if (!CassandraRelevantProperties.ASYNC_PROFILER_ENABLED.getBoolean())
+                    return;
+
+                int perfEventParanoid = readPerfEventParanoid();
+                int kptrRestrict = readKptrRestrict();
+
+                if (perfEventParanoid == Integer.MIN_VALUE || kptrRestrict == Integer.MIN_VALUE)
+                {
+                    logger.debug("Unable to determine values for kernel parameter of " +
+                                 "'kernel.perf_event_paranoid' and 'kernel.kptr_restrict' for Async-profiler. " +
+                                 "Its usability might be limited.");
+                }
+                else if (perfEventParanoid > 1 || kptrRestrict != 0)
+                {
+                    if (shouldThrow)
+                        throw new IllegalStateException(MESSAGE);
+                    else
+                        logger.warn(MESSAGE);
+                }
+            }
+            catch (Throwable t)
+            {
+                if (shouldThrow)
+                    throw t;
+            }
+        }
+
+        @Override
+        public void execute(StartupChecksOptions startupChecksOptions)
+        {
+            execute(startupChecksOptions, false);
+        }
+    }
 
     @VisibleForTesting
     public static Path getReadAheadKBPath(String blockDirectoryPath)
