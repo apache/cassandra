@@ -49,32 +49,41 @@ public class ConsoleAppender<E> extends OutputStreamAppender<E>
     @Override
     public void start()
     {
-        final PrintStream targetStream = target.equals("System.out") ? LogbackStatusListener.originalOut : LogbackStatusListener.originalErr;
         setOutputStream(new OutputStream() {
             @Override
             public void write(int b)
             {
-                targetStream.write(b);
+                resolveTargetStream(target).write(b);
             }
 
             @Override
             public void write(byte[] b) throws IOException
             {
-                targetStream.write(b);
+                resolveTargetStream(target).write(b);
             }
 
             @Override
             public void write(byte[] b, int off, int len)
             {
-                targetStream.write(b, off, len);
+                resolveTargetStream(target).write(b, off, len);
             }
 
             @Override
             public void flush()
             {
-                targetStream.flush();
+                resolveTargetStream(target).flush();
             }
         });
         super.start();
+    }
+
+    private static PrintStream resolveTargetStream(String target)
+    {
+        if (target.equals("System.out"))
+            return System.out;
+        else if (target.equals("System.err"))
+            return System.err;
+        else
+            throw new IllegalArgumentException("Target must be either 'System.out' or 'System.err'");
     }
 }
