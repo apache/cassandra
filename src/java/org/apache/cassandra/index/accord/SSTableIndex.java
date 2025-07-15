@@ -81,7 +81,7 @@ public class SSTableIndex extends SharedCloseableImpl
         return new SSTableIndex(id, files, segments, cleanup);
     }
 
-    public Collection<? extends ByteBuffer> search(Group group, byte[] key)
+    public Collection<? extends ByteBuffer> search(Key group, byte[] key)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
@@ -98,7 +98,7 @@ public class SSTableIndex extends SharedCloseableImpl
         return found;
     }
 
-    private Collection<? extends ByteBuffer> search(Segment segment, Group group, byte[] key)
+    private Collection<? extends ByteBuffer> search(Segment segment, Key group, byte[] key)
     {
         Set<ByteBuffer> matches = new HashSet<>();
         Segment.Metadata metadata = Objects.requireNonNull(segment.groups.get(group), () -> "Unknown group: " + group);
@@ -115,7 +115,7 @@ public class SSTableIndex extends SharedCloseableImpl
         return matches;
     }
 
-    public Collection<? extends ByteBuffer> search(Group group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    public Collection<? extends ByteBuffer> search(Key group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
@@ -135,7 +135,7 @@ public class SSTableIndex extends SharedCloseableImpl
         return found;
     }
 
-    private Collection<? extends ByteBuffer> search(Segment segment, Group group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    private Collection<? extends ByteBuffer> search(Segment segment, Key group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
     {
         Set<ByteBuffer> matches = new HashSet<>();
         Segment.Metadata metadata = Objects.requireNonNull(segment.groups.get(group), () -> "Unknown group: " + group);

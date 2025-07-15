@@ -87,7 +87,7 @@ public class RouteSSTableManager implements SSTableManager
                                                         byte[] start, boolean startInclusive,
                                                         byte[] end, boolean endInclusive)
     {
-        Group group = new Group(storeId, tableId);
+        Key group = new Key(storeId, tableId);
         TreeSet<ByteBuffer> matches = new TreeSet<>();
         for (SSTableIndex index : sstables.values())
         {
@@ -107,7 +107,7 @@ public class RouteSSTableManager implements SSTableManager
     @Override
     public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
     {
-        Group group = new Group(storeId, tableId);
+        Key group = new Key(storeId, tableId);
         TreeSet<ByteBuffer> matches = new TreeSet<>();
         for (SSTableIndex index : sstables.values())
             matches.addAll(index.search(group, key));

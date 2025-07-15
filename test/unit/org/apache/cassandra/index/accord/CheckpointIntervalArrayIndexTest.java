@@ -390,7 +390,7 @@ public class CheckpointIntervalArrayIndexTest
         var metas = writer.write(sortedIntervals.toArray(Interval[]::new));
 
         // going through the RouteIndexFormat isn't required for this test, but it helps improve coverage there...
-        Segment segment = new Segment(ImmutableMap.of(new Group(0, TableId.fromUUID(new UUID(0, 0))), new Segment.Metadata(metas, ByteArrayUtil.EMPTY_BYTE_ARRAY, ByteArrayUtil.EMPTY_BYTE_ARRAY)));
+        Segment segment = new Segment(ImmutableMap.of(new Key(0, TableId.fromUUID(new UUID(0, 0))), new Segment.Metadata(metas, ByteArrayUtil.EMPTY_BYTE_ARRAY, ByteArrayUtil.EMPTY_BYTE_ARRAY)));
         RouteIndexFormat.appendSegment(descriptor, segment);
 
         Map<IndexComponent, FileHandle> files = new EnumMap<>(IndexComponent.class);

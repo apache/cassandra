@@ -22,12 +22,12 @@ import java.util.Objects;
 
 import org.apache.cassandra.schema.TableId;
 
-public class Group implements Comparable<Group>
+public class Key implements Comparable<Key>
 {
     public final int storeId;
     public final TableId tableId;
 
-    public Group(int storeId, TableId tableId)
+    public Key(int storeId, TableId tableId)
     {
         this.storeId = storeId;
         this.tableId = tableId;
@@ -38,8 +38,8 @@ public class Group implements Comparable<Group>
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Group group = (Group) o;
-        return storeId == group.storeId && Objects.equals(tableId, group.tableId);
+        Key key = (Key) o;
+        return storeId == key.storeId && Objects.equals(tableId, key.tableId);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class Group implements Comparable<Group>
     }
 
     @Override
-    public int compareTo(Group o)
+    public int compareTo(Key o)
     {
         int rc = Integer.compare(storeId, o.storeId);
         if (rc == 0)

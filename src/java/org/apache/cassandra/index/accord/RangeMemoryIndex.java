@@ -61,9 +61,9 @@ public class RangeMemoryIndex
 {
 
     @GuardedBy("this")
-    private final Map<Group, RangeTree<byte[], Range, DecoratedKey>> map = new HashMap<>();
+    private final Map<Key, RangeTree<byte[], Range, DecoratedKey>> map = new HashMap<>();
     @GuardedBy("this")
-    private final Map<Group, Metadata> groupMetadata = new HashMap<>();
+    private final Map<Key, Metadata> groupMetadata = new HashMap<>();
 
     private static class Metadata
     {
@@ -142,7 +142,7 @@ public class RangeMemoryIndex
 
         int storeId = AccordKeyspace.JournalColumns.getStoreId(key);
         TableId tableId = ts.table();
-        Group group = new Group(storeId, tableId);
+        Key group = new Key(storeId, tableId);
         byte[] start = OrderedRouteSerializer.serializeTokenOnly(ts.start());
         byte[] end = OrderedRouteSerializer.serializeTokenOnly(ts.end());
         Range range = new Range(start, end);
@@ -159,7 +159,7 @@ public class RangeMemoryIndex
                                                         Timestamp minTimestamp, boolean minTimestampInclusive,
                                                         Timestamp maxTimestamp, boolean maxTimestampInclusive)
     {
-        RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Group(storeId, tableId));
+        RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Key(storeId, tableId));
         if (rangesToPks == null || rangesToPks.isEmpty())
             return Collections.emptyNavigableSet();
         TreeMap<Range, Set<DecoratedKey>> matches = search(rangesToPks, start, end);
@@ -182,7 +182,7 @@ public class RangeMemoryIndex
                                                         Timestamp minTimestamp, boolean minTimestampInclusive,
                                                         Timestamp maxTimestamp, boolean maxTimestampInclusive)
     {
-        RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Group(storeId, tableId));
+        RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Key(storeId, tableId));
         if (rangesToPks == null || rangesToPks.isEmpty())
             return Collections.emptyNavigableSet();
 
@@ -203,12 +203,12 @@ public class RangeMemoryIndex
     {
         if (map.isEmpty())
             throw new AssertionError("Unable to write empty index");
-        Map<Group, Segment.Metadata> output = new HashMap<>();
+        Map<Key, Segment.Metadata> output = new HashMap<>();
 
-        List<Group> groups = new ArrayList<>(map.keySet());
+        List<Key> groups = new ArrayList<>(map.keySet());
         groups.sort(Comparator.naturalOrder());
 
-        for (Group group : groups)
+        for (Key group : groups)
         {
             RangeTree<byte[], Range, DecoratedKey> submap = map.get(group);
             if (submap.isEmpty()) // is this possible?  put here for safty so list is never empty

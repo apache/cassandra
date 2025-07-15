@@ -269,12 +269,12 @@ public class RouteIndexFormat
 
                 segmentReader.resetChecksum();
                 segmentReader.seek(startPointer);
-                Map<Group, Segment.Metadata> groups = Maps.newHashMapWithExpectedSize(groupSize);
+                Map<Key, Segment.Metadata> groups = Maps.newHashMapWithExpectedSize(groupSize);
                 for (int i = 0; i < groupSize; i++)
                 {
                     int storeId = segmentReader.readVInt32();
                     TableId tableId = TableId.fromUUID(new UUID(segmentReader.readLong(), segmentReader.readLong()));
-                    Group group = new Group(storeId, tableId);
+                    Key group = new Key(storeId, tableId);
                     int metaSize = segmentReader.readUnsignedVInt32();
                     EnumMap<IndexComponent, Segment.ComponentMetadata> metas = new EnumMap<>(IndexComponent.class);
                     for (int j = 0; j < metaSize; j++)
@@ -298,14 +298,14 @@ public class RouteIndexFormat
 
     static void appendSegment(IndexDescriptor id, Segment segment) throws IOException
     {
-        List<Group> groups = new ArrayList<>(segment.groups.keySet());
+        List<Key> groups = new ArrayList<>(segment.groups.keySet());
         groups.sort(Comparator.naturalOrder());
 
         try (ChecksumedSequentialWriter segmentWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.SEGMENT), true, CHECKSUM_SUPPLIER);
              ChecksumedSequentialWriter metadataWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.METADATA), true, CHECKSUM_SUPPLIER))
         {
             long startPointer = segmentWriter.getFilePointer();
-            for (Group group : groups)
+            for (Key group : groups)
             {
                 Segment.Metadata metadata = segment.groups.get(group);
                 writeGroup(segmentWriter, group, metadata);
@@ -321,7 +321,7 @@ public class RouteIndexFormat
         }
     }
 
-    private static void writeGroup(ChecksumedSequentialWriter seq, Group group, Segment.Metadata metadata) throws IOException
+    private static void writeGroup(ChecksumedSequentialWriter seq, Key group, Segment.Metadata metadata) throws IOException
     {
         seq.writeVInt32(group.storeId);
         seq.write(UUIDSerializer.instance.serialize(group.tableId.asUUID()));

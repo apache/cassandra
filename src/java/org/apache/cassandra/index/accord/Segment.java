@@ -26,9 +26,9 @@ public class Segment
 {
     public static final Segment EMPTY = new Segment(Collections.emptyMap());
 
-    public final Map<Group, Metadata> groups;
+    public final Map<Key, Metadata> groups;
 
-    public Segment(Map<Group, Metadata> groups)
+    public Segment(Map<Key, Metadata> groups)
     {
         this.groups = groups;
     }
