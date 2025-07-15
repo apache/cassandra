@@ -33,6 +33,7 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 
@@ -41,6 +42,7 @@ import com.google.common.annotations.VisibleForTesting;
 import accord.primitives.Participants;
 import accord.primitives.Routable;
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.primitives.Unseekable;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.Clustering;
@@ -67,12 +69,46 @@ public class RangeMemoryIndex
     {
         private RangeTree<byte[], Range, DecoratedKey> tree = createRangeTree();
         public byte[] minTerm, maxTerm;
+        public TxnId minTimestamp = TxnId.MAX;
+        public TxnId maxTimestamp = TxnId.NONE;
 
-        void add(Range range, DecoratedKey key, byte[] start, byte[] end)
+        void add(Range range, DecoratedKey key, TxnId txnId, byte[] start, byte[] end)
         {
             tree.add(range, key);
             minTerm = minTerm == null ? start : ByteArrayUtil.compareUnsigned(minTerm, 0, start, 0, minTerm.length) > 0 ? start : minTerm;
             maxTerm = maxTerm == null ? end : ByteArrayUtil.compareUnsigned(maxTerm, 0, end, 0, maxTerm.length) < 0 ? end : maxTerm;
+            if (minTimestamp.compareTo(txnId) > 0)
+                minTimestamp = txnId;
+            if (maxTimestamp.compareTo(txnId) < 0)
+                maxTimestamp = txnId;
+        }
+
+        void search(byte[] start, byte[] end,
+                    Timestamp minTimestamp, boolean minTimestampInclusive,
+                    Timestamp maxTimestamp, boolean maxTimestampInclusive,
+                    Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
+        {
+            if (this.minTimestamp.compareTo(maxTimestamp) > 0 || this.maxTimestamp.compareTo(minTimestamp) < 0)
+                return;
+            tree.search(new Range(start, end), e -> {
+                TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
+                if (minTimestamp.compareTo(id) > 0 || maxTimestamp.compareTo(id) < 0) return;
+                fn.accept(e);
+            });
+        }
+
+        void searchToken(byte[] key,
+                         Timestamp minTimestamp, boolean minTimestampInclusive,
+                         Timestamp maxTimestamp, boolean maxTimestampInclusive,
+                         Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
+        {
+            if (this.minTimestamp.compareTo(maxTimestamp) > 0 || this.maxTimestamp.compareTo(minTimestamp) < 0)
+                return;
+            tree.searchToken(key, e -> {
+                TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
+                if (minTimestamp.compareTo(id) > 0 || maxTimestamp.compareTo(id) < 0) return;
+                fn.accept(e);
+            });
         }
     }
 
@@ -126,21 +162,22 @@ public class RangeMemoryIndex
             throw new UncheckedIOException(e);
         }
 
-        return add(key, route);
+        TxnId txnId = AccordKeyspace.JournalColumns.getJournalKey(key).id;
+        return add(key, txnId, route);
     }
 
-    public synchronized long add(DecoratedKey key, Participants<?> route)
+    public synchronized long add(DecoratedKey key, TxnId txnId, Participants<?> route)
     {
         if (route == null || route.domain() != Routable.Domain.Range)
             return 0;
         long sum = 0;
         for (Unseekable keyOrRange : route)
-            sum += add(key, keyOrRange);
+            sum += add(key, txnId, keyOrRange);
         return sum;
     }
 
     @VisibleForTesting
-    protected long add(DecoratedKey key, Unseekable keyOrRange)
+    protected long add(DecoratedKey key, TxnId txnId, Unseekable keyOrRange)
     {
         if (keyOrRange.domain() != Routable.Domain.Range)
             throw new IllegalArgumentException("Unexpected domain: " + keyOrRange.domain());
@@ -151,7 +188,7 @@ public class RangeMemoryIndex
         byte[] start = OrderedRouteSerializer.serializeTokenOnly(ts.start());
         byte[] end = OrderedRouteSerializer.serializeTokenOnly(ts.end());
         Range range = new Range(start, end);
-        map.computeIfAbsent(new Key(storeId, tableId), ignore -> new Group()).add(range, key, start, end);
+        map.computeIfAbsent(new Key(storeId, tableId), ignore -> new Group()).add(range, key, txnId, start, end);
         return TableId.EMPTY_SIZE + range.unsharedHeapSize();
     }
 
@@ -165,20 +202,13 @@ public class RangeMemoryIndex
         RangeTree<byte[], Range, DecoratedKey> rangesToPks = group.tree;
         if (rangesToPks.isEmpty())
             return Collections.emptyNavigableSet();
-        TreeMap<Range, Set<DecoratedKey>> matches = search(rangesToPks, start, end);
+        TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
+        group.search(start, end, minTimestamp, minTimestampInclusive, maxTimestamp, maxTimestampInclusive, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
         if (matches.isEmpty())
             return Collections.emptyNavigableSet();
         TreeSet<ByteBuffer> pks = new TreeSet<>();
         matches.values().forEach(s -> s.forEach(d -> pks.add(d.getKey())));
         return pks;
-    }
-
-    public TreeMap<Range, Set<DecoratedKey>> search(RangeTree<byte[], Range, DecoratedKey> tokensToPks, byte[] start, byte[] end)
-    {
-
-        TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
-        tokensToPks.search(new Range(start, end), e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
-        return matches;
     }
 
     public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
@@ -187,12 +217,11 @@ public class RangeMemoryIndex
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return Collections.emptyNavigableSet();
-        RangeTree<byte[], Range, DecoratedKey> rangesToPks = group.tree;
-        if (rangesToPks.isEmpty())
+        if (group.tree.isEmpty())
             return Collections.emptyNavigableSet();
 
         TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
-        rangesToPks.searchToken(key, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
+        group.searchToken(key, minTimestamp, minTimestampInclusive, maxTimestamp, maxTimestampInclusive, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
 
         TreeSet<ByteBuffer> pks = new TreeSet<>();
         matches.values().forEach(s -> s.forEach(d -> pks.add(d.getKey())));

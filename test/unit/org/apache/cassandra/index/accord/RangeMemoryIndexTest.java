@@ -180,7 +180,7 @@ public class RangeMemoryIndexTest
             TokenRange range = nextRange(rs);
             DecoratedKey key = pk(txnId);
             return new Property.SimpleCommand<>("update(" + normalize(txnId) + ", " + normalize(range) + ')', s2 -> {
-                s2.index.add(key, range);
+                s2.index.add(key, txnId, range);
                 s2.model.add(txnId, range);
             });
         }
