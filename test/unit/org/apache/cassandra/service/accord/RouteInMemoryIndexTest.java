@@ -67,67 +67,6 @@ public class RouteInMemoryIndexTest
                          .build());
     }
 
-    private static class Model
-    {
-        public long minTime()
-        {
-            long min = Long.MAX_VALUE;
-            for (var segment : segments.values())
-            {
-                for (var value : segment.values)
-                    min = Math.min(min, value.txnId.hlc());
-            }
-            return min;
-        }
-
-        public boolean isEmpty()
-        {
-            return segments.isEmpty();
-        }
-
-        private static class Value
-        {
-            final TokenRange range;
-            final TxnId txnId;
-
-            private Value(TokenRange range, TxnId txnId)
-            {
-                this.range = range;
-                this.txnId = txnId;
-            }
-        }
-        private static class Segment
-        {
-            private final List<Value> values = new ArrayList<>();
-        }
-        private final Long2ObjectHashMap<Segment> segments = new Long2ObjectHashMap<>();
-
-        void update(long segment, TokenRange range, TxnId txnId)
-        {
-            segments.computeIfAbsent(segment, i -> new Segment()).values.add(new Value(range, txnId));
-        }
-
-        public RangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId)
-        {
-            TreeSet<TxnId> result = new TreeSet<>();
-            for (var segment: segments.values())
-            {
-                for (var value : segment.values)
-                {
-                    if (value.txnId.compareTo(minTxnId) < 0 || value.txnId.compareTo(maxTxnId) > 0) continue;
-                    if (range.compareIntersecting(value.range) == 0)
-                        result.add(value.txnId);
-                }
-            }
-            return new RangeSearcher.DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
-        }
-
-        void remove(long segment)
-        {
-            segments.remove(segment);
-        }
-    }
-
     private static class State
     {
         private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
@@ -273,6 +212,67 @@ public class RouteInMemoryIndexTest
                 }
             }
             return new Property.SimpleCommand<>("Search " + range + ", txn_id range " + minTxnId + ',' + maxTxnId, s2 -> s2.assertSearchMatch(range, minTxnId, maxTxnId));
+        }
+    }
+
+    private static class Model
+    {
+        public long minTime()
+        {
+            long min = Long.MAX_VALUE;
+            for (var segment : segments.values())
+            {
+                for (var value : segment.values)
+                    min = Math.min(min, value.txnId.hlc());
+            }
+            return min;
+        }
+
+        public boolean isEmpty()
+        {
+            return segments.isEmpty();
+        }
+
+        private static class Value
+        {
+            final TokenRange range;
+            final TxnId txnId;
+
+            private Value(TokenRange range, TxnId txnId)
+            {
+                this.range = range;
+                this.txnId = txnId;
+            }
+        }
+        private static class Segment
+        {
+            private final List<Value> values = new ArrayList<>();
+        }
+        private final Long2ObjectHashMap<Segment> segments = new Long2ObjectHashMap<>();
+
+        void update(long segment, TokenRange range, TxnId txnId)
+        {
+            segments.computeIfAbsent(segment, i -> new Segment()).values.add(new Value(range, txnId));
+        }
+
+        public RangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId)
+        {
+            TreeSet<TxnId> result = new TreeSet<>();
+            for (var segment: segments.values())
+            {
+                for (var value : segment.values)
+                {
+                    if (value.txnId.compareTo(minTxnId) < 0 || value.txnId.compareTo(maxTxnId) > 0) continue;
+                    if (range.compareIntersecting(value.range) == 0)
+                        result.add(value.txnId);
+                }
+            }
+            return new RangeSearcher.DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
+        }
+
+        void remove(long segment)
+        {
+            segments.remove(segment);
         }
     }
 }
