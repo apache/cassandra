@@ -30,7 +30,6 @@ import accord.local.Node;
 import accord.primitives.FullRangeRoute;
 import accord.primitives.Range;
 import accord.primitives.Routable;
-import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Property;
