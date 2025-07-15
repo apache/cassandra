@@ -567,7 +567,11 @@ public class AccordKeyspace
 
         public static JournalKey getJournalKey(DecoratedKey key)
         {
-            ByteBuffer bb = key.getKey();
+            return getJournalKey(key.getKey());
+        }
+
+        public static JournalKey getJournalKey(ByteBuffer bb)
+        {
             int storeId = ByteBufferAccessor.instance.getUnsignedVInt32(bb, 0);
             int offset = VIntCoding.readLengthOfVInt(bb, 0);
             JournalKey.Type type = JournalKey.Type.fromId(bb.get(offset));

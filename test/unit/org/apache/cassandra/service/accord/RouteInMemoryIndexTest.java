@@ -58,21 +58,108 @@ public class RouteInMemoryIndexTest
     @Test
     public void minMaxFilter()
     {
-        stateful().withSeed(-7811026954173094984L).check(commands(() -> State::new)
+        stateful().check(commands(() -> State::new)
                          .add(State::update)
                          .add(State::bumpSegment)
                          .add(State::remove)
-                         .add(State::unfilteredRangeSearch)
                          .add(State::rangeSearch)
                          .add(State::keySearch)
                          .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
                          .build());
     }
 
+    private static String normalize(TokenRange range)
+    {
+        return "R:" + range.toString().replace(range.prefix()  + ":", "");
+    }
+
+    private static String normalize(TokenKey key)
+    {
+        return "K:" + key.toString().replace(key.prefix()  + ":", "");
+    }
+
+    private static String normalize(TxnId txnId)
+    {
+        return "T:" + txnId.hlc();
+    }
+
+    private static TokenKey tokenKey(long token)
+    {
+        return new TokenKey(TABLE_ID, new LongToken(token));
+    }
+
+    private static TokenRange nextRange(RandomSource rs)
+    {
+        long token = rs.nextLong(MIN_TOKEN, MAX_TOKEN + 1);
+        long a, b;
+        if (token + 10 > MAX_TOKEN)
+        {
+            a = token - 10;
+            b = token;
+        }
+        else
+        {
+            a = token;
+            b = token + 10;
+        }
+        return TokenRange.createUnsafe(tokenKey(a), tokenKey(b));
+    }
+
+    static TxnId idFor(long operation)
+    {
+        return new TxnId(1, operation, Txn.Kind.Write, Routable.Domain.Range, N1);
+    }
+
+    private static TxnRange nextTxnRange(RandomSource rs, State state)
+    {
+        if (rs.decide(state.unfiltered))
+            return new TxnRange(TxnId.NONE, TxnId.MAX);
+
+        TxnId minTxnId;
+        TxnId maxTxnId;
+        if (state.model.isEmpty())
+        {
+            // just do random
+            minTxnId = idFor(rs.nextLong(1, 1 << 16));
+            maxTxnId = idFor(rs.nextLong(1, 1 << 16));
+        }
+        else
+        {
+            long minKnown = state.model.minTime();
+            long maxKnown = state.operations;
+            switch (rs.nextInt(0, 3))
+            {
+                case 0: // future
+                {
+                    minTxnId = idFor(state.operations + 10);
+                    maxTxnId = idFor(state.operations + 100);
+                }
+                break;
+                case 1: // past
+                {
+                    minTxnId = idFor(Math.max(1, minKnown - 100));
+                    maxTxnId = idFor(Math.max(1, minKnown - 10));
+                }
+                break;
+                case 2: // present-ish
+                {
+                    // this can cause min/max to be reversed!
+                    minTxnId = idFor(Math.max(1, minKnown + 10));
+                    maxTxnId = idFor(Math.max(1, maxKnown - 10));
+                }
+                break;
+                default:
+                    throw new UnsupportedOperationException();
+            }
+        }
+        return new TxnRange(minTxnId, maxTxnId);
+    }
+
     private static class State
     {
         private final RouteInMemoryIndex<?> index = new RouteInMemoryIndex<>();
         private final Model model = new Model();
+        private final float unfiltered;
         private long currentSegment = 0;
         private LongArrayList activeSegments = new LongArrayList();
         private long operations = 0;
@@ -80,61 +167,21 @@ public class RouteInMemoryIndexTest
         State(RandomSource rs)
         {
             activeSegments.add(currentSegment);
-        }
 
-        TxnId idFor(long operation)
-        {
-            return new TxnId(1, operation, Txn.Kind.Write, Routable.Domain.Range, N1);
+            unfiltered = rs.nextFloat();
         }
 
         public static Property.Command<State, Void, ?> update(RandomSource rs, State state)
         {
             long segment = state.currentSegment;
-            TxnId txnId = state.idFor(++state.operations);
+            TxnId txnId = idFor(++state.operations);
             TokenRange range = nextRange(rs);
 
             FullRangeRoute route = new FullRangeRoute(range.start(), new Range[] {range});
             return new Property.SimpleCommand<>("update(" + segment + ", " + normalize(txnId) + ", " + normalize(range) + ')', s2 -> {
                 s2.index.update(segment, 0, txnId, route);
-                s2.model.update(segment, range, txnId);
+                s2.model.update(segment, txnId, range);
             });
-        }
-
-        private static String normalize(TokenRange range)
-        {
-            return "R:" + range.toString().replace(range.prefix()  + ":", "");
-        }
-
-        private static String normalize(TokenKey key)
-        {
-            return "K:" + key.toString().replace(key.prefix()  + ":", "");
-        }
-
-        private static String normalize(TxnId txnId)
-        {
-            return "T:" + txnId.hlc();
-        }
-
-        private static TokenKey tokenKey(long token)
-        {
-            return new TokenKey(TABLE_ID, new LongToken(token));
-        }
-
-        private static TokenRange nextRange(RandomSource rs)
-        {
-            long token = rs.nextLong(MIN_TOKEN, MAX_TOKEN + 1);
-            long a, b;
-            if (token + 10 > MAX_TOKEN)
-            {
-                a = token - 10;
-                b = token;
-            }
-            else
-            {
-                a = token;
-                b = token + 10;
-            }
-            return TokenRange.createUnsafe(tokenKey(a), tokenKey(b));
         }
 
         public static Property.Command<State, Void, ?> remove(RandomSource rs, State state)
@@ -171,6 +218,28 @@ public class RouteInMemoryIndexTest
             });
         }
 
+        public static Property.Command<State, Void, ?> unfilteredRangeSearch(RandomSource rs, State state)
+        {
+            var range = nextRange(rs);
+            TxnId minTxnId = TxnId.NONE;
+            TxnId maxTxnId = TxnId.MAX;
+            return new Property.SimpleCommand<>("Search " + normalize(range), s2 -> s2.assertSearchMatch(range, minTxnId, maxTxnId));
+        }
+
+        public static Property.Command<State, Void, ?> rangeSearch(RandomSource rs, State state)
+        {
+            var range = nextRange(rs);
+            var txnRange = nextTxnRange(rs, state);
+            return new Property.SimpleCommand<>("Search " + normalize(range) + ", txn_id range " + txnRange, s2 -> s2.assertSearchMatch(range, txnRange.minTxnId, txnRange.maxTxnId));
+        }
+
+        public static Property.Command<State, Void, ?> keySearch(RandomSource rs, State state)
+        {
+            TokenKey key = tokenKey(rs.nextLong(MIN_TOKEN, MAX_TOKEN + 1));
+            var txnRange = nextTxnRange(rs, state);
+            return new Property.SimpleCommand<>("Search " + normalize(key) + ", txn_id range " + txnRange, s2 -> s2.assertSearchMatch(key, txnRange.minTxnId, txnRange.maxTxnId));
+        }
+
         private void assertSearchMatch(TokenRange range, TxnId minTxnId, TxnId maxTxnId)
         {
             try (var actual = index.search(0, range, minTxnId, maxTxnId).results();
@@ -198,108 +267,28 @@ public class RouteInMemoryIndexTest
                 Assertions.assertThat(expected).describedAs("Actual iterator has less data than expected!").isExhausted();
             }
         }
+    }
 
-        public static Property.Command<State, Void, ?> unfilteredRangeSearch(RandomSource rs, State state)
+    private static class TxnRange
+    {
+        final TxnId minTxnId;
+        final TxnId maxTxnId;
+
+        private TxnRange(TxnId minTxnId, TxnId maxTxnId)
         {
-            var range = nextRange(rs);
-            TxnId minTxnId = TxnId.NONE;
-            TxnId maxTxnId = TxnId.MAX;
-            return new Property.SimpleCommand<>("Search " + normalize(range), s2 -> s2.assertSearchMatch(range, minTxnId, maxTxnId));
+            this.minTxnId = minTxnId;
+            this.maxTxnId = maxTxnId;
         }
 
-        private static class TxnRange
+        @Override
+        public String toString()
         {
-            final TxnId minTxnId;
-            final TxnId maxTxnId;
-
-            private TxnRange(TxnId minTxnId, TxnId maxTxnId)
-            {
-                this.minTxnId = minTxnId;
-                this.maxTxnId = maxTxnId;
-            }
-
-            @Override
-            public String toString()
-            {
-                return normalize(minTxnId) + ',' + normalize(maxTxnId);
-            }
-        }
-
-        private static TxnRange nextTxnRange(RandomSource rs, State state)
-        {
-            TxnId minTxnId;
-            TxnId maxTxnId;
-            if (state.model.isEmpty())
-            {
-                // just do random
-                minTxnId = state.idFor(rs.nextLong(1, 1 << 16));
-                maxTxnId = state.idFor(rs.nextLong(1, 1 << 16));
-            }
-            else
-            {
-                long minKnown = state.model.minTime();
-                long maxKnown = state.operations;
-                switch (rs.nextInt(0, 3))
-                {
-                    case 0: // future
-                    {
-                        minTxnId = state.idFor(state.operations + 10);
-                        maxTxnId = state.idFor(state.operations + 100);
-                    }
-                    break;
-                    case 1: // past
-                    {
-                        minTxnId = state.idFor(Math.max(1, minKnown - 100));
-                        maxTxnId = state.idFor(Math.max(1, minKnown - 10));
-                    }
-                    break;
-                    case 2: // present-ish
-                    {
-                        // this can cause min/max to be reversed!
-                        minTxnId = state.idFor(Math.max(1, minKnown + 10));
-                        maxTxnId = state.idFor(Math.max(1, maxKnown - 10));
-                    }
-                    break;
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-            }
-            return new TxnRange(minTxnId, maxTxnId);
-        }
-
-        public static Property.Command<State, Void, ?> rangeSearch(RandomSource rs, State state)
-        {
-            var range = nextRange(rs);
-            var txnRange = nextTxnRange(rs, state);
-            return new Property.SimpleCommand<>("Search " + normalize(range) + ", txn_id range " + txnRange, s2 -> s2.assertSearchMatch(range, txnRange.minTxnId, txnRange.maxTxnId));
-        }
-
-        public static Property.Command<State, Void, ?> keySearch(RandomSource rs, State state)
-        {
-            TokenKey key = tokenKey(rs.nextLong(MIN_TOKEN, MAX_TOKEN + 1));
-            var txnRange = nextTxnRange(rs, state);
-            return new Property.SimpleCommand<>("Search " + normalize(key) + ", txn_id range " + txnRange, s2 -> s2.assertSearchMatch(key, txnRange.minTxnId, txnRange.maxTxnId));
+            return normalize(minTxnId) + ',' + normalize(maxTxnId);
         }
     }
 
     private static class Model
     {
-        public long minTime()
-        {
-            long min = Long.MAX_VALUE;
-            for (var segment : segments.values())
-            {
-                for (var value : segment.values)
-                    min = Math.min(min, value.txnId.hlc());
-            }
-            return min;
-        }
-
-        public boolean isEmpty()
-        {
-            return segments.isEmpty();
-        }
-
         private static class Value
         {
             final TokenRange range;
@@ -315,9 +304,25 @@ public class RouteInMemoryIndexTest
         {
             private final List<Value> values = new ArrayList<>();
         }
+
+        public long minTime()
+        {
+            long min = Long.MAX_VALUE;
+            for (var segment : segments.values())
+            {
+                for (var value : segment.values)
+                    min = Math.min(min, value.txnId.hlc());
+            }
+            return min;
+        }
+
+        public boolean isEmpty()
+        {
+            return segments.isEmpty();
+        }
         private final Long2ObjectHashMap<Segment> segments = new Long2ObjectHashMap<>();
 
-        void update(long segment, TokenRange range, TxnId txnId)
+        void update(long segment, TxnId txnId, TokenRange range)
         {
             segments.computeIfAbsent(segment, i -> new Segment()).values.add(new Value(range, txnId));
         }

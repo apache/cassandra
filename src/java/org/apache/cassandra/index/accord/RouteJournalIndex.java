@@ -416,7 +416,16 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             }
             else
             {
-                throw new IllegalArgumentException("Unexpected expression: " + e.toCQLString());
+                String cqlString;
+                try
+                {
+                    cqlString = e.toCQLString();
+                }
+                catch (Exception ex)
+                {
+                    cqlString = "Unable to convert RowFilter to CQL; " + e.column() + ' ' + e.operator();
+                }
+                throw new IllegalArgumentException("Unexpected expression: " + cqlString);
             }
         }
         if (start == null || end == null || storeId == null)

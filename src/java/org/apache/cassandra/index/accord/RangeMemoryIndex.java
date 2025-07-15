@@ -36,6 +36,8 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import accord.primitives.Participants;
 import accord.primitives.Routable;
 import accord.primitives.Unseekable;
@@ -129,7 +131,8 @@ public class RangeMemoryIndex
             sum += add(key, keyOrRange);
         return sum;
     }
-    
+
+    @VisibleForTesting
     protected long add(DecoratedKey key, Unseekable keyOrRange)
     {
         if (keyOrRange.domain() != Routable.Domain.Range)
