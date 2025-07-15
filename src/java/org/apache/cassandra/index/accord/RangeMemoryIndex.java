@@ -84,8 +84,7 @@ public class RangeMemoryIndex
         }
 
         void search(byte[] start, byte[] end,
-                    Timestamp minTimestamp, boolean minTimestampInclusive,
-                    Timestamp maxTimestamp, boolean maxTimestampInclusive,
+                    Timestamp minTimestamp, Timestamp maxTimestamp,
                     Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
         {
             if (this.minTimestamp.compareTo(maxTimestamp) > 0 || this.maxTimestamp.compareTo(minTimestamp) < 0)
@@ -98,8 +97,7 @@ public class RangeMemoryIndex
         }
 
         void searchToken(byte[] key,
-                         Timestamp minTimestamp, boolean minTimestampInclusive,
-                         Timestamp maxTimestamp, boolean maxTimestampInclusive,
+                         Timestamp minTimestamp, Timestamp maxTimestamp,
                          Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
         {
             if (this.minTimestamp.compareTo(maxTimestamp) > 0 || this.maxTimestamp.compareTo(minTimestamp) < 0)
@@ -193,9 +191,8 @@ public class RangeMemoryIndex
     }
 
     public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId,
-                                                        byte[] start, boolean startInclusive, byte[] end, boolean endInclusive,
-                                                        Timestamp minTimestamp, boolean minTimestampInclusive,
-                                                        Timestamp maxTimestamp, boolean maxTimestampInclusive)
+                                                        byte[] start, byte[] end,
+                                                        Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return Collections.emptyNavigableSet();
@@ -203,7 +200,7 @@ public class RangeMemoryIndex
         if (rangesToPks.isEmpty())
             return Collections.emptyNavigableSet();
         TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
-        group.search(start, end, minTimestamp, minTimestampInclusive, maxTimestamp, maxTimestampInclusive, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
+        group.search(start, end, minTimestamp, maxTimestamp, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
         if (matches.isEmpty())
             return Collections.emptyNavigableSet();
         TreeSet<ByteBuffer> pks = new TreeSet<>();
@@ -212,8 +209,7 @@ public class RangeMemoryIndex
     }
 
     public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
-                                                        Timestamp minTimestamp, boolean minTimestampInclusive,
-                                                        Timestamp maxTimestamp, boolean maxTimestampInclusive)
+                                                        Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return Collections.emptyNavigableSet();
@@ -221,7 +217,7 @@ public class RangeMemoryIndex
             return Collections.emptyNavigableSet();
 
         TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
-        group.searchToken(key, minTimestamp, minTimestampInclusive, maxTimestamp, maxTimestampInclusive, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
+        group.searchToken(key, minTimestamp, maxTimestamp, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
 
         TreeSet<ByteBuffer> pks = new TreeSet<>();
         matches.values().forEach(s -> s.forEach(d -> pks.add(d.getKey())));

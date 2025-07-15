@@ -382,14 +382,10 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         if (expressions.isEmpty())
             return null;
         ByteBuffer start = null;
-        boolean startInclusive = true;
         ByteBuffer end = null;
-        boolean endInclusive = true;
         Integer storeId = null;
         Timestamp minTimestamp = TxnId.NONE;
-        boolean minTimestampInclusive = true;
         Timestamp maxTimestamp = TxnId.MAX;
-        boolean maxTimestampInclusive = true;
         for (RowFilter.Expression e : expressions)
         {
             if (e.column() == AccordJournalTable.SyntheticColumn.participants.metadata)
@@ -398,19 +394,15 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 {
                     case GT:
                         start = e.getIndexValue();
-                        startInclusive = false;
                         break;
                     case GTE:
                         start = e.getIndexValue();
-                        startInclusive = true;
                         break;
                     case LT:
                         end = e.getIndexValue();
-                        endInclusive = false;
                         break;
                     case LTE:
                         end = e.getIndexValue();
-                        endInclusive = true;
                         break;
                     default:
                         return null;
@@ -426,19 +418,15 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 {
                     case GT:
                         minTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
-                        minTimestampInclusive = false;
                         break;
                     case GTE:
                         minTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
-                        minTimestampInclusive = true;
                         break;
                     case LT:
                         maxTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
-                        maxTimestampInclusive = false;
                         break;
                     case LTE:
                         maxTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
-                        maxTimestampInclusive = true;
                         break;
                     default:
                         return null;
@@ -461,13 +449,12 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         if (start == null || end == null || storeId == null)
             return null;
         if (start.equals(end))
-            return keySearcher(command, storeId, start, minTimestamp, minTimestampInclusive, maxTimestamp, maxTimestampInclusive);
-        return rangeSearcher(command, storeId, start, startInclusive, end, endInclusive, minTimestamp, minTimestampInclusive, maxTimestamp, maxTimestampInclusive);
+            return keySearcher(command, storeId, start, minTimestamp, maxTimestamp);
+        return rangeSearcher(command, storeId, start, end, minTimestamp, maxTimestamp);
     }
 
     private Searcher keySearcher(ReadCommand command, Integer storeId, ByteBuffer key,
-                                 Timestamp minTimestamp, boolean minTimestampInclusive,
-                                 Timestamp maxTimestamp, boolean maxTimestampInclusive)
+                                 Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         return new Searcher()
         {
@@ -482,15 +469,13 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             {
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId, key,
-                                                             minTimestamp, minTimestampInclusive,
-                                                             maxTimestamp, maxTimestampInclusive);
+                                                             minTimestamp, maxTimestamp);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId, ByteBuffer key,
-                                            Timestamp minTimestamp, boolean minTimestampInclusive,
-                                            Timestamp maxTimestamp, boolean maxTimestampInclusive)
+                                            Timestamp minTimestamp, Timestamp maxTimestamp)
             {
                 TableId tableId;
                 byte[] start;
@@ -501,17 +486,15 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 }
                 NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start);
                 matches.addAll(memtableIndexManager.search(storeId, tableId, start,
-                                                           minTimestamp, minTimestampInclusive,
-                                                           maxTimestamp, maxTimestampInclusive));
+                                                           minTimestamp, maxTimestamp));
                 return matches;
             }
         };
     }
 
     private Searcher rangeSearcher(ReadCommand command, int storeId,
-                                   ByteBuffer start, boolean startInclusive, ByteBuffer end, boolean endInclusive,
-                                   Timestamp minTimestamp, boolean minTimestampInclusive,
-                                   Timestamp maxTimestamp, boolean maxTimestampInclusive)
+                                   ByteBuffer start, ByteBuffer end,
+                                   Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         return new Searcher()
         {
@@ -526,18 +509,16 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             {
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId,
-                                                             start, startInclusive, end, endInclusive,
-                                                             minTimestamp, minTimestampInclusive,
-                                                             maxTimestamp, maxTimestampInclusive);
+                                                             start, end,
+                                                             minTimestamp,
+                                                             maxTimestamp);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId,
-                                            ByteBuffer startTableWithToken, boolean startInclusive,
-                                            ByteBuffer endTableWithToken, boolean endInclusive,
-                                            Timestamp minTimestamp, boolean minTimestampInclusive,
-                                            Timestamp maxTimestamp, boolean maxTimestampInclusive)
+                                            ByteBuffer startTableWithToken, ByteBuffer endTableWithToken,
+                                            Timestamp minTimestamp, Timestamp maxTimestamp)
             {
                 TableId tableId;
                 byte[] start;
@@ -548,11 +529,10 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                     start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
                 byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
-                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start, startInclusive, end, endInclusive);
+                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start, true, end, true);
                 matches.addAll(memtableIndexManager.search(storeId, tableId,
-                                                           start, startInclusive, end, endInclusive,
-                                                           minTimestamp, minTimestampInclusive,
-                                                           maxTimestamp, maxTimestampInclusive));
+                                                           start, end,
+                                                           minTimestamp, maxTimestamp));
                 return matches;
             }
         };

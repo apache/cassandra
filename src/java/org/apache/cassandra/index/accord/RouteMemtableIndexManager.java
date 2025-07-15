@@ -103,27 +103,23 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
     }
 
     @Override
-    public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive,
-                                           Timestamp minTimestamp, boolean minTimestampInclusive,
-                                           Timestamp maxTimestamp, boolean maxTimestampInclusive)
+    public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, byte[] end,
+                                           Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         TreeSet<ByteBuffer> matches = new TreeSet<>();
         liveMemtableIndexMap.values().forEach(m -> matches.addAll(m.search(storeId, tableId,
-                                                                           start, startInclusive, end, endInclusive,
-                                                                           minTimestamp, minTimestampInclusive,
-                                                                           maxTimestamp, maxTimestampInclusive)));
+                                                                           start, end,
+                                                                           minTimestamp, maxTimestamp)));
         return matches;
     }
 
     @Override
     public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
-                                           Timestamp minTimestamp, boolean minTimestampInclusive,
-                                           Timestamp maxTimestamp, boolean maxTimestampInclusive)
+                                           Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         TreeSet<ByteBuffer> matches = new TreeSet<>();
         liveMemtableIndexMap.values().forEach(m -> matches.addAll(m.search(storeId, tableId, key,
-                                                                           minTimestamp, minTimestampInclusive,
-                                                                           maxTimestamp, maxTimestampInclusive)));
+                                                                           minTimestamp, maxTimestamp)));
         return matches;
     }
 }

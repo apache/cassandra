@@ -38,10 +38,8 @@ public interface MemtableIndexManager
 
     void renewMemtable(Memtable renewed);
 
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive,
-                                    Timestamp minTimestamp, boolean minTimestampInclusive,
-                                    Timestamp maxTimestamp, boolean maxTimestampInclusive);
+    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, byte[] end,
+                                    Timestamp minTimestamp, Timestamp maxTimestamp);
     NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
-                                    Timestamp minTimestamp, boolean minTimestampInclusive,
-                                    Timestamp maxTimestamp, boolean maxTimestampInclusive);
+                                    Timestamp minTimestamp, Timestamp maxTimestamp);
 }
