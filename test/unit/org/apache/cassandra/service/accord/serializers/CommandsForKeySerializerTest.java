@@ -51,7 +51,6 @@ import accord.api.DataStore;
 import accord.api.Journal;
 import accord.api.Key;
 import accord.api.ProgressLog;
-import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
 import accord.impl.AbstractSafeCommandStore;
@@ -659,7 +658,6 @@ public class CommandsForKeySerializerTest
         @Override public void shutdown() { }
         @Override protected void registerTransitive(SafeCommandStore safeStore, RangeDeps deps){ }
         @Override public <T> AsyncChain<T> build(Callable<T> task) { throw new UnsupportedOperationException(); }
-        @Override public void onRecover(Node node, Result success, Throwable fail) { throw new UnsupportedOperationException(); }
         @Override public void onInconsistentTimestamp(Command command, Timestamp prev, Timestamp next) { throw new UnsupportedOperationException(); }
         @Override public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure) { throw new UnsupportedOperationException(); }
         @Override public void onStale(Timestamp staleSince, Ranges ranges) { throw new UnsupportedOperationException(); }

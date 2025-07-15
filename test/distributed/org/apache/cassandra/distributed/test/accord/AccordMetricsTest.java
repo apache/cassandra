@@ -266,7 +266,7 @@ public class AccordMetricsTest extends AccordTestBase
         assertThat(metric.apply(AccordMetrics.TIMEOUTS)).isEqualTo(timeouts);
         assertThat(metric.apply(AccordMetrics.RECOVERY_DELAY)).isEqualTo(recoveries);
         assertThat(metric.apply(AccordMetrics.RECOVERY_TIME)).isEqualTo(recoveries);
-        assertThat(metric.apply(AccordMetrics.DEPENDENCIES)).isEqualTo(fastPaths + slowPaths);
+        assertThat(metric.apply(AccordMetrics.COORDINATOR_DEPENDENCIES)).isEqualTo(fastPaths + slowPaths);
 
         // Verify that coordinator metrics are published to the appropriate virtual table:
         SimpleQueryResult res = SHARED_CLUSTER.get(node + 1)
@@ -290,11 +290,11 @@ public class AccordMetricsTest extends AccordTestBase
         DefaultNameFactory nameFactory = new DefaultNameFactory(AccordMetrics.ACCORD_REPLICA, scope);
         Map<String, Long> metrics = diff(countingMetrics0).get(node);
         Function<String, Long> metric = n -> metrics.get(nameFactory.createMetricName(n).getMetricName());
-        assertThat(metric.apply(AccordMetrics.STABLE_LATENCY)).isLessThanOrEqualTo(stable);
-        assertThat(metric.apply(AccordMetrics.PREAPPLY_LATENCY)).isEqualTo(executions);
-        assertThat(metric.apply(AccordMetrics.APPLY_LATENCY)).isEqualTo(applications);
-        assertThat(metric.apply(AccordMetrics.APPLY_DURATION)).isEqualTo(scope.equals("rw") ? applications : 0);
-        assertThat(metric.apply(AccordMetrics.PARTIAL_DEPENDENCIES)).isEqualTo(executions);
+        assertThat(metric.apply(AccordMetrics.REPLICA_STABLE_LATENCY)).isLessThanOrEqualTo(stable);
+        assertThat(metric.apply(AccordMetrics.REPLICA_PREAPPLY_LATENCY)).isEqualTo(executions);
+        assertThat(metric.apply(AccordMetrics.REPLICA_APPLY_LATENCY)).isEqualTo(applications);
+        assertThat(metric.apply(AccordMetrics.REPLICA_APPLY_DURATION)).isEqualTo(scope.equals("rw") ? applications : 0);
+        assertThat(metric.apply(AccordMetrics.REPLICA_DEPENDENCIES)).isEqualTo(executions);
 
         // Verify that replica metrics are published to the appropriate virtual table:
         SimpleQueryResult vtableResults = SHARED_CLUSTER.get(node + 1)

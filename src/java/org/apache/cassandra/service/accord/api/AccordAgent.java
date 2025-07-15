@@ -29,9 +29,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
-import accord.api.EventListener;
+import accord.api.CoordinatorEventListener;
+import accord.api.LocalEventListener;
 import accord.api.ProgressLog.BlockedUntil;
-import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.api.TraceEventType;
@@ -125,11 +125,6 @@ public class AccordAgent implements Agent
     public void setNodeId(Node.Id id)
     {
         self = id;
-    }
-
-    @Override
-    public void onRecover(Node node, Result success, Throwable fail)
-    {
     }
 
     @Override
@@ -227,7 +222,13 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public EventListener eventListener()
+    public CoordinatorEventListener coordinatorEvents()
+    {
+        return AccordMetrics.Listener.instance;
+    }
+
+    @Override
+    public LocalEventListener localEvents()
     {
         return AccordMetrics.Listener.instance;
     }
