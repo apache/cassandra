@@ -38,6 +38,8 @@ import javax.management.remote.JMXConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import org.apache.cassandra.profiler.AsyncProfiler;
+import org.apache.cassandra.profiler.AsyncProfilerMBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -740,6 +742,7 @@ public class CassandraDaemon
             applyConfig();
 
             registerNativeAccess();
+            registerAsyncProfiler();
 
             setup();
 
@@ -790,6 +793,12 @@ public class CassandraDaemon
     public static void registerNativeAccess() throws javax.management.NotCompliantMBeanException
     {
         MBeanWrapper.instance.registerMBean(new StandardMBean(new NativeAccess(), NativeAccessMBean.class), MBEAN_NAME, MBeanWrapper.OnException.LOG);
+    }
+
+    @VisibleForTesting
+    public static void registerAsyncProfiler() throws javax.management.NotCompliantMBeanException
+    {
+        MBeanWrapper.instance.registerMBean(new StandardMBean(new AsyncProfiler(), AsyncProfilerMBean.class), AsyncProfiler.MBEAN_NAME, MBeanWrapper.OnException.LOG);
     }
 
     public void applyConfig()
