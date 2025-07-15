@@ -61,13 +61,19 @@ public class RangeMemoryIndex
 {
 
     @GuardedBy("this")
-    private final Map<Key, RangeTree<byte[], Range, DecoratedKey>> map = new HashMap<>();
-    @GuardedBy("this")
-    private final Map<Key, Metadata> groupMetadata = new HashMap<>();
+    private final Map<Key, Group> map = new HashMap<>();
 
-    private static class Metadata
+    private static class Group
     {
+        private RangeTree<byte[], Range, DecoratedKey> tree = createRangeTree();
         public byte[] minTerm, maxTerm;
+
+        void add(Range range, DecoratedKey key, byte[] start, byte[] end)
+        {
+            tree.add(range, key);
+            minTerm = minTerm == null ? start : ByteArrayUtil.compareUnsigned(minTerm, 0, start, 0, minTerm.length) > 0 ? start : minTerm;
+            maxTerm = maxTerm == null ? end : ByteArrayUtil.compareUnsigned(maxTerm, 0, end, 0, maxTerm.length) < 0 ? end : maxTerm;
+        }
     }
 
     private static RangeTree<byte[], Range, DecoratedKey> createRangeTree()
@@ -142,15 +148,10 @@ public class RangeMemoryIndex
 
         int storeId = AccordKeyspace.JournalColumns.getStoreId(key);
         TableId tableId = ts.table();
-        Key group = new Key(storeId, tableId);
         byte[] start = OrderedRouteSerializer.serializeTokenOnly(ts.start());
         byte[] end = OrderedRouteSerializer.serializeTokenOnly(ts.end());
         Range range = new Range(start, end);
-        map.computeIfAbsent(group, ignore -> createRangeTree()).add(range, key);
-        Metadata metadata = groupMetadata.computeIfAbsent(group, ignore -> new Metadata());
-
-        metadata.minTerm = metadata.minTerm == null ? start : ByteArrayUtil.compareUnsigned(metadata.minTerm, 0, start, 0, metadata.minTerm.length) > 0 ? start : metadata.minTerm;
-        metadata.maxTerm = metadata.maxTerm == null ? end : ByteArrayUtil.compareUnsigned(metadata.maxTerm, 0, end, 0, metadata.maxTerm.length) < 0 ? end : metadata.maxTerm;
+        map.computeIfAbsent(new Key(storeId, tableId), ignore -> new Group()).add(range, key, start, end);
         return TableId.EMPTY_SIZE + range.unsharedHeapSize();
     }
 
@@ -159,8 +160,10 @@ public class RangeMemoryIndex
                                                         Timestamp minTimestamp, boolean minTimestampInclusive,
                                                         Timestamp maxTimestamp, boolean maxTimestampInclusive)
     {
-        RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Key(storeId, tableId));
-        if (rangesToPks == null || rangesToPks.isEmpty())
+        Group group = map.get(new Key(storeId, tableId));
+        if (group == null) return Collections.emptyNavigableSet();
+        RangeTree<byte[], Range, DecoratedKey> rangesToPks = group.tree;
+        if (rangesToPks.isEmpty())
             return Collections.emptyNavigableSet();
         TreeMap<Range, Set<DecoratedKey>> matches = search(rangesToPks, start, end);
         if (matches.isEmpty())
@@ -182,8 +185,10 @@ public class RangeMemoryIndex
                                                         Timestamp minTimestamp, boolean minTimestampInclusive,
                                                         Timestamp maxTimestamp, boolean maxTimestampInclusive)
     {
-        RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Key(storeId, tableId));
-        if (rangesToPks == null || rangesToPks.isEmpty())
+        Group group = map.get(new Key(storeId, tableId));
+        if (group == null) return Collections.emptyNavigableSet();
+        RangeTree<byte[], Range, DecoratedKey> rangesToPks = group.tree;
+        if (rangesToPks.isEmpty())
             return Collections.emptyNavigableSet();
 
         TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
@@ -208,12 +213,12 @@ public class RangeMemoryIndex
         List<Key> groups = new ArrayList<>(map.keySet());
         groups.sort(Comparator.naturalOrder());
 
-        for (Key group : groups)
+        for (Key key : groups)
         {
-            RangeTree<byte[], Range, DecoratedKey> submap = map.get(group);
+            Group group = map.get(key);
+            RangeTree<byte[], Range, DecoratedKey> submap = group.tree;
             if (submap.isEmpty()) // is this possible?  put here for safty so list is never empty
                 continue;
-            Metadata metadata = groupMetadata.get(group);
 
             //TODO (performance): if the RangeTree can return the data in sorted order, then this local can become faster
             // Right now the code is based off RTree, which is undefined order, so we must iterate then sort; in testing this is a good chunk of the time of this method
@@ -226,7 +231,7 @@ public class RangeMemoryIndex
             EnumMap<IndexDescriptor.IndexComponent, Segment.ComponentMetadata> meta = writer.write(list.toArray(CheckpointIntervalArrayIndex.Interval[]::new));
             if (meta.isEmpty()) // don't include empty segments
                 continue;
-            output.put(group, new Segment.Metadata(meta, metadata.minTerm, metadata.maxTerm));
+            output.put(key, new Segment.Metadata(meta, group.minTerm, group.maxTerm));
         }
 
         return new Segment(output);
