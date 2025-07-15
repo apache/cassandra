@@ -192,7 +192,7 @@ public class RangeMemoryIndexTest
             byte[] start = OrderedRouteSerializer.serializeTokenOnly(range.start());
             byte[] end = OrderedRouteSerializer.serializeTokenOnly(range.end());
             return new Property.SimpleCommand<>("search(" + normalize(range) + ", " + txnRange + ')', s2 -> {
-                var actual = normalize(state.index.search(STORE, TABLE_ID, start, range.startInclusive(), end, range.endInclusive()));
+                var actual = normalize(state.index.search(STORE, TABLE_ID, start, range.startInclusive(), end, range.endInclusive(), txnRange.minTxnId, true, txnRange.maxTxnId, true));
                 var expected = state.model.search(range, txnRange.minTxnId, txnRange.maxTxnId);
                 Assertions.assertThat(actual).isEqualTo(expected);
             });
@@ -204,7 +204,7 @@ public class RangeMemoryIndexTest
             var txnRange = nextTxnRange(rs, state);
             var start = OrderedRouteSerializer.serializeTokenOnly(key);
             return new Property.SimpleCommand<>("search(" + normalize(key) + ", " + txnRange + ')', s2 -> {
-                var actual = normalize(state.index.search(STORE, TABLE_ID, start));
+                var actual = normalize(state.index.search(STORE, TABLE_ID, start, txnRange.minTxnId, true, txnRange.maxTxnId, true));
                 var expected = state.model.search(key, txnRange.minTxnId, txnRange.maxTxnId);
                 Assertions.assertThat(actual).isEqualTo(expected);
             });

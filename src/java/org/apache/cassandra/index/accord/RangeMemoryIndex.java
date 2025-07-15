@@ -40,6 +40,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.primitives.Participants;
 import accord.primitives.Routable;
+import accord.primitives.Timestamp;
 import accord.primitives.Unseekable;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.Clustering;
@@ -153,7 +154,10 @@ public class RangeMemoryIndex
         return TableId.EMPTY_SIZE + range.unsharedHeapSize();
     }
 
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId,
+                                                        byte[] start, boolean startInclusive, byte[] end, boolean endInclusive,
+                                                        Timestamp minTimestamp, boolean minTimestampInclusive,
+                                                        Timestamp maxTimestamp, boolean maxTimestampInclusive)
     {
         RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Group(storeId, tableId));
         if (rangesToPks == null || rangesToPks.isEmpty())
@@ -174,7 +178,9 @@ public class RangeMemoryIndex
         return matches;
     }
 
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
+                                                        Timestamp minTimestamp, boolean minTimestampInclusive,
+                                                        Timestamp maxTimestamp, boolean maxTimestampInclusive)
     {
         RangeTree<byte[], Range, DecoratedKey> rangesToPks = map.get(new Group(storeId, tableId));
         if (rangesToPks == null || rangesToPks.isEmpty())

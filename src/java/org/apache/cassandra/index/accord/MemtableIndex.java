@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.atomic.LongAdder;
 
+import accord.primitives.Timestamp;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.schema.TableId;
@@ -63,13 +64,22 @@ public class MemtableIndex
         return memoryIndex.write(id);
     }
 
-    public Collection<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    public Collection<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive,
+                                         Timestamp minTimestamp, boolean minTimestampInclusive,
+                                         Timestamp maxTimestamp, boolean maxTimestampInclusive)
     {
-        return memoryIndex.search(storeId, tableId, start, startInclusive, end, endInclusive);
+        return memoryIndex.search(storeId, tableId,
+                                  start, startInclusive, end, endInclusive,
+                                  minTimestamp, minTimestampInclusive,
+                                  maxTimestamp, maxTimestampInclusive);
     }
 
-    public Collection<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    public Collection<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
+                                         Timestamp minTimestamp, boolean minTimestampInclusive,
+                                         Timestamp maxTimestamp, boolean maxTimestampInclusive)
     {
-        return memoryIndex.search(storeId, tableId, key);
+        return memoryIndex.search(storeId, tableId, key,
+                                  minTimestamp, minTimestampInclusive,
+                                  maxTimestamp, maxTimestampInclusive);
     }
 }

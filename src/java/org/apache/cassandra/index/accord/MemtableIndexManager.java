@@ -21,6 +21,7 @@ package org.apache.cassandra.index.accord;
 import java.nio.ByteBuffer;
 import java.util.NavigableSet;
 
+import accord.primitives.Timestamp;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -37,6 +38,10 @@ public interface MemtableIndexManager
 
     void renewMemtable(Memtable renewed);
 
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive);
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key);
+    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive,
+                                    Timestamp minTimestamp, boolean minTimestampInclusive,
+                                    Timestamp maxTimestamp, boolean maxTimestampInclusive);
+    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
+                                    Timestamp minTimestamp, boolean minTimestampInclusive,
+                                    Timestamp maxTimestamp, boolean maxTimestampInclusive);
 }
