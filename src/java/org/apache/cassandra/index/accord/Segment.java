@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
+import accord.primitives.Timestamp;
+
 public class Segment
 {
     public static final Segment EMPTY = new Segment(Collections.emptyMap());
@@ -48,12 +50,17 @@ public class Segment
     {
         public final EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas;
         public final byte[] minTerm, maxTerm;
+        public final Timestamp minTimestamp, maxTimestamp;
 
-        public Metadata(EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas, byte[] minTerm, byte[] maxTerm)
+        public Metadata(EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas,
+                        byte[] minTerm, byte[] maxTerm,
+                        Timestamp minTimestamp, Timestamp maxTimestamp)
         {
             this.metas = metas;
             this.minTerm = minTerm;
             this.maxTerm = maxTerm;
+            this.minTimestamp = minTimestamp;
+            this.maxTimestamp = maxTimestamp;
         }
     }
 }

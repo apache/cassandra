@@ -35,6 +35,7 @@ import com.google.common.collect.Maps;
 
 import accord.local.StoreParticipants;
 import accord.primitives.Participants;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -56,6 +57,7 @@ import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteArrayUtil;
@@ -284,7 +286,9 @@ public class RouteIndexFormat
                     }
                     byte[] minTerm = ByteArrayUtil.readWithVIntLength(segmentReader);
                     byte[] maxTerm = ByteArrayUtil.readWithVIntLength(segmentReader);
-                    Segment.Metadata existing = groups.put(group, new Segment.Metadata(metas, minTerm, maxTerm));
+                    Timestamp minTimestamp = CommandSerializers.timestamp.deserialize(segmentReader);
+                    Timestamp maxTimestamp = CommandSerializers.timestamp.deserialize(segmentReader);
+                    Segment.Metadata existing = groups.put(group, new Segment.Metadata(metas, minTerm, maxTerm, minTimestamp, maxTimestamp));
                     assert existing == null;
                 }
                 int actualSegmentChecksum = segmentReader.getValue32AndResetChecksum();
@@ -334,5 +338,7 @@ public class RouteIndexFormat
         }
         ByteArrayUtil.writeWithVIntLength(metadata.minTerm, seq);
         ByteArrayUtil.writeWithVIntLength(metadata.maxTerm, seq);
+        CommandSerializers.timestamp.serialize(metadata.minTimestamp, seq);
+        CommandSerializers.timestamp.serialize(metadata.maxTimestamp, seq);
     }
 }

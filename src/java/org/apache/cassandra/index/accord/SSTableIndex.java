@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import accord.primitives.Timestamp;
 import org.apache.cassandra.index.accord.CheckpointIntervalArrayIndex.SegmentSearcher;
 import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
 import org.apache.cassandra.io.FSReadError;
@@ -81,11 +82,13 @@ public class SSTableIndex extends SharedCloseableImpl
         return new SSTableIndex(id, files, segments, cleanup);
     }
 
-    public Collection<? extends ByteBuffer> search(Key group, byte[] key)
+    public Collection<? extends ByteBuffer> search(Key group, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
                                             if (metadata == null) return false;
+                                            if (metadata.maxTimestamp.compareTo(minTimestamp) < 0 || metadata.minTimestamp.compareTo(maxTimestamp) > 0)
+                                                return false;
                                             return ByteArrayUtil.compareUnsigned(metadata.minTerm, key) < 0
                                                    && ByteArrayUtil.compareUnsigned(metadata.maxTerm, key) >= 0;
                                         })
@@ -115,11 +118,13 @@ public class SSTableIndex extends SharedCloseableImpl
         return matches;
     }
 
-    public Collection<? extends ByteBuffer> search(Key group, byte[] start, byte[] end)
+    public Collection<? extends ByteBuffer> search(Key group, byte[] start, byte[] end, Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
                                             if (metadata == null) return false;
+                                            if (metadata.maxTimestamp.compareTo(minTimestamp) < 0 || metadata.minTimestamp.compareTo(maxTimestamp) > 0)
+                                                return false;
                                             if (ByteArrayUtil.compareUnsigned(metadata.minTerm, end) >= 0)
                                                 return false;
                                             if (ByteArrayUtil.compareUnsigned(metadata.maxTerm, start) <= 0)

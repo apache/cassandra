@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 
+import accord.primitives.Timestamp;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
@@ -84,7 +85,8 @@ public class RouteSSTableManager implements SSTableManager
 
     @Override
     public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId,
-                                                        byte[] start, byte[] end)
+                                                        byte[] start, byte[] end,
+                                                        Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         Key group = new Key(storeId, tableId);
         TreeSet<ByteBuffer> matches = new TreeSet<>();
@@ -92,7 +94,7 @@ public class RouteSSTableManager implements SSTableManager
         {
             try
             {
-                matches.addAll(index.search(group, start, end));
+                matches.addAll(index.search(group, start, end, minTimestamp, maxTimestamp));
             }
             catch (Throwable t)
             {
@@ -104,12 +106,12 @@ public class RouteSSTableManager implements SSTableManager
     }
 
     @Override
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         Key group = new Key(storeId, tableId);
         TreeSet<ByteBuffer> matches = new TreeSet<>();
         for (SSTableIndex index : sstables.values())
-            matches.addAll(index.search(group, key));
+            matches.addAll(index.search(group, key, minTimestamp, maxTimestamp));
         return matches;
     }
 }

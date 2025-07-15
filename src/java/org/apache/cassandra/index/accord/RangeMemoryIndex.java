@@ -256,7 +256,7 @@ public class RangeMemoryIndex
             EnumMap<IndexDescriptor.IndexComponent, Segment.ComponentMetadata> meta = writer.write(list.toArray(CheckpointIntervalArrayIndex.Interval[]::new));
             if (meta.isEmpty()) // don't include empty segments
                 continue;
-            output.put(key, new Segment.Metadata(meta, group.minTerm, group.maxTerm));
+            output.put(key, new Segment.Metadata(meta, group.minTerm, group.maxTerm, group.minTimestamp, group.maxTimestamp));
         }
 
         return new Segment(output);

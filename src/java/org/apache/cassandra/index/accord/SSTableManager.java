@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.NavigableSet;
 
+import accord.primitives.Timestamp;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 
@@ -30,6 +31,6 @@ public interface SSTableManager
     void onSSTableChanged(Collection<SSTableReader> removed, Iterable<SSTableReader> added);
     boolean isIndexComplete(SSTableReader reader);
 
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, byte[] end);
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key);
+    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, byte[] end, Timestamp minTimestamp, Timestamp maxTimestamp);
+    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp);
 }
