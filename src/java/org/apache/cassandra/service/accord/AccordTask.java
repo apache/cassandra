@@ -65,7 +65,9 @@ import org.apache.cassandra.service.accord.AccordExecutor.SubmittableTask;
 import org.apache.cassandra.service.accord.AccordExecutor.TaskQueue;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
@@ -652,8 +654,11 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         logger.trace("Running {} with state {}", this, state);
         AccordSafeCommandStore safeStore = null;
-        try
+        try (Closeable close = locals.get())
         {
+            if (Tracing.isTracing())
+                Tracing.trace(preLoadContext.describe());
+
             if (state != RUNNING)
                 throw illegalState("Unexpected state " + toDescription());
 

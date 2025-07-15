@@ -20,18 +20,31 @@ package org.apache.cassandra.metrics;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
-import accord.api.EventListener;
+import javax.annotation.Nullable;
+
+import accord.api.CoordinatorEventListener;
+import accord.api.LocalEventListener;
+import accord.api.Result;
+import accord.coordinate.ExecutePath;
+import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.Command;
+import accord.local.Node;
+import accord.local.SafeCommandStore;
+import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.PartialDeps;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import com.codahale.metrics.Counting;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
+import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -41,16 +54,21 @@ public class AccordMetrics
     public final static AccordMetrics readMetrics = new AccordMetrics("ro");
     public final static AccordMetrics writeMetrics = new AccordMetrics("rw");
 
-    public static final String STABLE_LATENCY = "StableLatency";
-    public static final String PREAPPLY_LATENCY = "PreApplyLatency";
-    public static final String APPLY_LATENCY = "ApplyLatency";
-    public static final String APPLY_DURATION = "ApplyDuration";
-    public static final String PARTIAL_DEPENDENCIES = "PartialDependencies";
+    public static final String ACCORD_REPLICA = "AccordReplica";
+    public static final String REPLICA_STABLE_LATENCY = "StableLatency";
+    public static final String REPLICA_PREAPPLY_LATENCY = "PreApplyLatency";
+    public static final String REPLICA_APPLY_LATENCY = "ApplyLatency";
+    public static final String REPLICA_APPLY_DURATION = "ApplyDuration";
+    public static final String REPLICA_DEPENDENCIES = "Dependencies";
     public static final String PROGRESS_LOG_SIZE = "ProgressLogSize";
 
-    public static final String DEPENDENCIES = "Dependencies";
-    public static final String EPHEMERAL = "Ephemeral";
+    public static final String ACCORD_COORDINATOR = "AccordCoordinator";
+    public static final String COORDINATOR_DEPENDENCIES = "Dependencies";
+    public static final String COORDINATOR_PREACCEPT_LATENCY = "PreAcceptLatency";
+    public static final String COORDINATOR_EXECUTE_LATENCY = "ExecuteLatency";
+    public static final String COORDINATOR_APPLY_LATENCY = "ApplyLatency";
     public static final String FAST_PATHS = "FastPaths";
+    public static final String MEDIUM_PATHS = "MediumPaths";
     public static final String SLOW_PATHS = "SlowPaths";
     public static final String PREEMPTS = "Preempts";
     public static final String TIMEOUTS = "Timeouts";
@@ -58,40 +76,35 @@ public class AccordMetrics
     public static final String RECOVERY_DELAY = "RecoveryDelay";
     public static final String RECOVERY_TIME = "RecoveryTime";
     public static final String FAST_PATH_TO_TOTAL = "FastPathToTotal";
-    public static final String ACCORD_REPLICA = "AccordReplica";
-    public static final String ACCORD_COORDINATOR = "AccordCoordinator";
 
     /**
      * The time between start on the coordinator and commit on this replica.
      */
-    public final Timer stableLatency;
+    public final Timer replicaStableLatency;
 
     /**
      * The time between start on the coordinator and arrival of the result on this replica.
      */
-    public final Timer preapplyLatency;
+    public final Timer replicaPreapplyLatency;
 
     /**
      * The time between start on the coordinator and application on this replica.
      */
-    public final Timer applyLatency;
+    public final Timer replicaApplyLatency;
 
     /**
      * TODO (expected): probably more interesting is latency from preapplied to apply;
      *  we already track local write latencies, whch this effectively duplicates (but including queueing latencies)
      * Duration of applying changes.
      */
-    public final Timer applyDuration;
+    public final Timer replicaApplyDuration;
 
     /**
      * A histogram of the number of dependencies per transaction at this replica.
      */
-    public final Histogram localDependencies;
+    public final Histogram replicaDependencies;
 
-    /**
-     * TODO (expected): this should be a Gauge
-     */
-    public final Meter progressLogSize;
+    public final Gauge<Long> progressLogSize;
 
     /**
      * A histogram of the number of dependencies per transaction at this coordinator.
@@ -99,9 +112,29 @@ public class AccordMetrics
     public final Histogram coordinatorDependencies;
 
     /**
+     * A histogram of the time to preaccept on this coordinator
+     */
+    public final Histogram coordinatorPreacceptLatency;
+
+    /**
+     * A histogram of the time to begin execution on this coordinator
+     */
+    public final Histogram coordinatorExecuteLatency;
+
+    /**
+     * A histogram of the time to complete execution on this coordinator
+     */
+    public final Histogram coordinatorApplyLatency;
+
+    /**
      * The number of fast path transactions executed on this coordinator.
      */
     public final Meter fastPaths;
+
+    /**
+     * The number of medium path transactions executed on this coordinator.
+     */
+    public final Meter mediumPaths;
 
     /**
      * The number of slow path transactions executed on this coordinator.
@@ -141,23 +174,33 @@ public class AccordMetrics
     private AccordMetrics(String scope)
     {
         DefaultNameFactory replica = new DefaultNameFactory(ACCORD_REPLICA, scope);
-        stableLatency = Metrics.timer(replica.createMetricName(STABLE_LATENCY));
-        preapplyLatency = Metrics.timer(replica.createMetricName(PREAPPLY_LATENCY));
-        applyLatency = Metrics.timer(replica.createMetricName(APPLY_LATENCY));
-        applyDuration = Metrics.timer(replica.createMetricName(APPLY_DURATION));
-        localDependencies = Metrics.histogram(replica.createMetricName(PARTIAL_DEPENDENCIES), true);
-        progressLogSize = Metrics.meter(replica.createMetricName(PROGRESS_LOG_SIZE));
+        replicaStableLatency = Metrics.timer(replica.createMetricName(REPLICA_STABLE_LATENCY));
+        replicaPreapplyLatency = Metrics.timer(replica.createMetricName(REPLICA_PREAPPLY_LATENCY));
+        replicaApplyLatency = Metrics.timer(replica.createMetricName(REPLICA_APPLY_LATENCY));
+        replicaApplyDuration = Metrics.timer(replica.createMetricName(REPLICA_APPLY_DURATION));
+        replicaDependencies = Metrics.histogram(replica.createMetricName(REPLICA_DEPENDENCIES), true);
+        progressLogSize = Metrics.gauge(replica.createMetricName(PROGRESS_LOG_SIZE), () -> {
+            AtomicLong i = new AtomicLong();
+            AccordService.instance().node().commandStores().forEachCommandStore(store -> {
+                i.addAndGet(((DefaultProgressLog)store.unsafeProgressLog()).size());
+            });
+            return i.get();
+        });
 
         DefaultNameFactory coordinator = new DefaultNameFactory(ACCORD_COORDINATOR, scope);
-        coordinatorDependencies = Metrics.histogram(coordinator.createMetricName(DEPENDENCIES), true);
+        coordinatorDependencies = Metrics.histogram(coordinator.createMetricName(COORDINATOR_DEPENDENCIES), true);
+        coordinatorPreacceptLatency = Metrics.histogram(coordinator.createMetricName(COORDINATOR_PREACCEPT_LATENCY), true);
+        coordinatorExecuteLatency = Metrics.histogram(coordinator.createMetricName(COORDINATOR_EXECUTE_LATENCY), true);
+        coordinatorApplyLatency = Metrics.histogram(coordinator.createMetricName(COORDINATOR_APPLY_LATENCY), true);
         fastPaths = Metrics.meter(coordinator.createMetricName(FAST_PATHS));
+        mediumPaths = Metrics.meter(coordinator.createMetricName(MEDIUM_PATHS));
         slowPaths = Metrics.meter(coordinator.createMetricName(SLOW_PATHS));
         preempts = Metrics.meter(coordinator.createMetricName(PREEMPTS));
         timeouts = Metrics.meter(coordinator.createMetricName(TIMEOUTS));
         invalidations = Metrics.meter(coordinator.createMetricName(INVALIDATIONS));
         recoveryDelay = Metrics.timer(coordinator.createMetricName(RECOVERY_DELAY));
         recoveryDuration = Metrics.timer(coordinator.createMetricName(RECOVERY_TIME));
-        fastPathToTotal = new RatioGaugeSet(fastPaths, RatioGaugeSet.sum(fastPaths, slowPaths), coordinator, FAST_PATH_TO_TOTAL + ".%s");
+        fastPathToTotal = new RatioGaugeSet(fastPaths, RatioGaugeSet.sum(fastPaths, mediumPaths, slowPaths), coordinator, FAST_PATH_TO_TOTAL + ".%s");
     }
 
     @Override
@@ -186,7 +229,7 @@ public class AccordMetrics
         return builder.toString();
     }
 
-    public static class Listener implements EventListener
+    public static class Listener implements CoordinatorEventListener, LocalEventListener
     {
         public final static Listener instance = new Listener(AccordMetrics.readMetrics, AccordMetrics.writeMetrics);
 
@@ -212,112 +255,112 @@ public class AccordMetrics
         }
 
         @Override
-        public void onStable(Command cmd)
+        public void onStable(SafeCommandStore safeStore, Command cmd)
         {
+            Tracing.trace("Stable {} on {}", cmd.txnId(), safeStore.commandStore());
             long now = AccordTimeService.nowMicros();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
                 long trxTimestamp = cmd.txnId().hlc();
-                metrics.stableLatency.update(now - trxTimestamp, TimeUnit.MICROSECONDS);
+                metrics.replicaStableLatency.update(now - trxTimestamp, TimeUnit.MICROSECONDS);
             }
         }
 
         @Override
-        public void onPreApplied(Command cmd)
+        public void onPreApplied(SafeCommandStore safeStore, Command cmd)
         {
+            Tracing.trace("Preapplied {} on {}", cmd.txnId(), safeStore.commandStore());
             long now = AccordTimeService.nowMicros();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
                 Timestamp trxTimestamp = cmd.txnId();
-                metrics.preapplyLatency.update(now - trxTimestamp.hlc(), TimeUnit.MICROSECONDS);
+                metrics.replicaPreapplyLatency.update(now - trxTimestamp.hlc(), TimeUnit.MICROSECONDS);
                 PartialDeps deps = cmd.partialDeps();
-                metrics.localDependencies.update(deps != null ? deps.txnIdCount() : 0);
+                metrics.replicaDependencies.update(deps != null ? deps.txnIdCount() : 0);
             }
         }
 
         @Override
-        public void onApplied(Command cmd, long applyStartTimestamp)
+        public void onApplied(SafeCommandStore safeStore, Command cmd, long applyStartedAt)
         {
+            Tracing.trace("Applied {} on {}", cmd.txnId(), safeStore.commandStore());
             long now = AccordTimeService.nowMicros();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
                 Timestamp trxTimestamp = cmd.txnId();
-                metrics.applyLatency.update(now - trxTimestamp.hlc(), TimeUnit.MICROSECONDS);
-                if (applyStartTimestamp > 0)
-                    metrics.applyDuration.update(now - applyStartTimestamp, TimeUnit.MICROSECONDS);
+                metrics.replicaApplyLatency.update(now - trxTimestamp.hlc(), TimeUnit.MICROSECONDS);
+                if (applyStartedAt > 0)
+                    metrics.replicaApplyDuration.update(now - applyStartedAt, TimeUnit.MICROSECONDS);
             }
         }
 
         @Override
-        public void onFastPathTaken(TxnId txnId, Deps deps)
+        public void onPreAccepted(TxnId txnId)
         {
             AccordMetrics metrics = forTransaction(txnId);
             if (metrics != null)
             {
-                metrics.fastPaths.mark();
-                metrics.coordinatorDependencies.update(deps.txnIdCount());
+                long now = AccordTimeService.nowMicros();
+                metrics.coordinatorPreacceptLatency.update(Math.max(0, now - txnId.hlc()));
             }
         }
 
         @Override
-        public void onSlowPathTaken(TxnId txnId, Deps deps)
+        public void onExecuting(TxnId txnId, @Nullable Ballot ballot, Deps deps, @Nullable ExecutePath path)
+        {
+            Tracing.trace("{} agreed {}", path, txnId);
+            AccordMetrics metrics = forTransaction(txnId);
+            if (metrics != null)
+            {
+                metrics.coordinatorDependencies.update(deps.txnIdCount());
+                long now = AccordTimeService.nowMicros();
+                metrics.coordinatorExecuteLatency.update(Math.max(0, now - txnId.hlc()));
+                if (path != null)
+                {
+                    switch (path)
+                    {
+                        case FAST: metrics.fastPaths.mark(); break;
+                        case MEDIUM: metrics.mediumPaths.mark(); break;
+                        case SLOW: metrics.slowPaths.mark(); break;
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onExecuted(TxnId txnId, Ballot ballot)
         {
             AccordMetrics metrics = forTransaction(txnId);
             if (metrics != null)
             {
-                metrics.slowPaths.mark();
-                metrics.coordinatorDependencies.update(deps.txnIdCount());
+                long now = AccordTimeService.nowMicros();
+                metrics.coordinatorApplyLatency.update(Math.max(0, now - txnId.hlc()));
             }
         }
 
         @Override
-        public void onRecover(TxnId txnId, Timestamp recoveryTimestamp)
+        public void onRecoveryStopped(Node node, TxnId txnId, Ballot ballot, Result result, Throwable failure)
         {
             AccordMetrics metrics = forTransaction(txnId);
             if (metrics != null)
             {
                 long now = AccordTimeService.nowMicros();
 
-                metrics.recoveryDuration.update(now - recoveryTimestamp.hlc(), MICROSECONDS);
-                metrics.recoveryDelay.update(recoveryTimestamp.hlc() - txnId.hlc(), MICROSECONDS);
+                metrics.recoveryDuration.update(Math.max(0, now - ballot.hlc()), MICROSECONDS);
+                metrics.recoveryDelay.update(Math.max(0, ballot.hlc() - txnId.hlc()), MICROSECONDS);
             }
-        }
-
-        @Override
-        public void onPreempted(TxnId txnId)
-        {
-            AccordMetrics metrics = forTransaction(txnId);
-            if (metrics != null)
-                metrics.preempts.mark();
-        }
-
-        @Override
-        public void onTimeout(TxnId txnId)
-        {
-            // TODO (required): we appear to be marking this twice, once in AccordResult and once here.
-            //   why does AccordMetricsTest only see this one? remove duplication.
-            AccordMetrics metrics = forTransaction(txnId);
-            if (metrics != null)
-                metrics.timeouts.mark();
         }
 
         @Override
         public void onInvalidated(TxnId txnId)
         {
+            Tracing.trace("Invalidated {}", txnId);
             AccordMetrics metrics = forTransaction(txnId);
             if (metrics != null)
                 metrics.invalidations.mark();
-        }
-
-        @Override
-        public void onProgressLogSizeChange(TxnId txnId, int delta)
-        {
-            AccordMetrics metrics = forTransaction(txnId);
-            if (metrics != null)
-                metrics.progressLogSize.mark(delta);
         }
     }
 }

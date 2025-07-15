@@ -92,8 +92,9 @@ public class ExecutorLocals implements WithResources, Closeable
     /**
      * Overwrite current locals, and return the previous ones
      */
-    public Closeable get()
+    public ExecutorLocals get()
     {
+        // TODO (desired): add compareAndSet to save one thread local round trip
         ExecutorLocals old = current();
         if (old != this)
             locals.set(this);

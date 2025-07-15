@@ -70,7 +70,10 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResults.CountingResult;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -159,6 +162,7 @@ public class AccordCommandStore extends CommandStore
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
     private final CommandsForRanges.Manager commandsForRanges;
     private final TableId tableId;
+    private TableMetadataRef metadata;
     volatile SafeRedundantBefore safeRedundantBefore;
 
     private AccordSafeCommandStore current;
@@ -502,7 +506,7 @@ public class AccordCommandStore extends CommandStore
     protected void ensureDurable(Ranges ranges, RedundantBefore onCommandStoreDurable)
     {
         long reportId = nextDurabilityLoggingId.incrementAndGet();
-        logger.info("{} awaiting local metadata durability for {} ({})", this, ranges, reportId);
+        logger.debug("{} awaiting local metadata durability for {} ({})", this, ranges, reportId);
         executor().afterSubmittedAndConsequences(() -> {
             logger.debug("{}: saving intersecting keys ({})", this, reportId);
             class Ready extends CountingResult implements Runnable
@@ -639,5 +643,30 @@ public class AccordCommandStore extends CommandStore
         {
             return a.ticket >= b.ticket ? a : b;
         }
+    }
+
+    private @Nullable TableMetadata tableMetadata()
+    {
+        TableMetadataRef metadataRef = this.metadata;
+        if (metadataRef != null)
+            return metadataRef.get();
+
+        TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+        if (metadata == null)
+            return null;
+        this.metadata = metadata.ref;
+        return metadata;
+    }
+
+    @Override
+    public String toString()
+    {
+        TableMetadata metadata = tableMetadata();
+        StringBuilder sb = new StringBuilder("[");
+        if (metadata != null)
+            sb.append(metadata).append('|');
+        sb.append(tableId.lsb());
+        sb.append(',').append(id).append(',').append(node.id().id).append(']');
+        return sb.toString();
     }
 }

@@ -69,7 +69,10 @@ import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.SaveExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.UniqueSave;
+import org.apache.cassandra.concurrent.ExecutorLocals;
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -900,6 +903,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     static abstract class SubmittableTask extends Task
     {
+        final WithResources locals = ExecutorLocals.propagate();
         abstract void submitExclusive(AccordExecutor owner);
     }
 
@@ -1261,7 +1265,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         protected void runInternal()
         {
-            run.run();
+            try (Closeable close = locals.get())
+            {
+                run.run();
+            }
             if (result != null)
                 result.trySuccess(null);
         }
@@ -1358,7 +1365,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         public void runInternal()
         {
-            result = entry.owner.parent().adapter().load(entry.owner.commandStore, entry.key());
+            try (Closeable close = locals.get())
+            {
+                result = entry.owner.parent().adapter().load(entry.owner.commandStore, entry.key());
+            }
         }
 
         @Override
@@ -1400,7 +1410,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         protected void runInternal()
         {
-            wrapped.runInternal();
+            try (Closeable close = locals.get())
+            {
+                wrapped.runInternal();
+            }
         }
 
         @Override
@@ -1446,7 +1459,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         public void runInternal()
         {
-            run.run();
+            try (Closeable close = locals.get())
+            {
+                run.run();
+            }
             failure = null;
         }
 
@@ -1486,7 +1502,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         protected void runInternal()
         {
             T success;
-            try
+            try (Closeable close = locals.get())
             {
                 success = call.call();
             }
