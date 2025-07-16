@@ -21,6 +21,7 @@ package org.apache.cassandra.index.accord;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableSet;
@@ -485,12 +486,13 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                     tableId = route.table();
                     start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
-                NavigableSet<ByteBuffer> matches = new TreeSet<>();
+                // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
+                Set<ByteBuffer> matches = new HashSet<>();
                 sstableManager.search(storeId, tableId, start, minTimestamp, maxTimestamp, matches::add);
                 memtableIndexManager.search(storeId, tableId, start,
                                             minTimestamp, maxTimestamp,
                                             matches::add);
-                return matches;
+                return new TreeSet<>(matches);
             }
         };
     }
@@ -532,10 +534,11 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                     start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
                 byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
-                NavigableSet<ByteBuffer> matches = new TreeSet<>();
+                // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
+                Set<ByteBuffer> matches = new HashSet<>();
                 sstableManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp, matches::add);
                 memtableIndexManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp, matches::add);
-                return matches;
+                return new TreeSet<>(matches);
             }
         };
     }
