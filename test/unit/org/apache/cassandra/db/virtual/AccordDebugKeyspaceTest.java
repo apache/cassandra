@@ -150,31 +150,31 @@ public class AccordDebugKeyspaceTest extends CQLTester
             TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
             Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
 
-            execute(SET_TRACE, 1, id.toString(), "PROGRESS");
-            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"), row(id.toString(), "PROGRESS", 1));
-            execute(SET_TRACE, 0, id.toString(), "PROGRESS");
-            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"));
-            execute(SET_TRACE, 1, id.toString(), "PROGRESS");
-            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"), row(id.toString(), "PROGRESS", 1));
+            execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"), row(id.toString(), "WAIT_PROGRESS", 1));
+            execute(SET_TRACE, 0, id.toString(), "WAIT_PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"));
+            execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"), row(id.toString(), "WAIT_PROGRESS", 1));
             execute(UNSET_TRACE1, id.toString());
-            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"));
-            execute(SET_TRACE, 1, id.toString(), "PROGRESS");
-            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"), row(id.toString(), "PROGRESS", 1));
-            execute(UNSET_TRACE2, id.toString(), "PROGRESS");
-            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"));
-            execute(SET_TRACE, 1, id.toString(), "PROGRESS");
-            assertRows(execute(QUERY_TRACE, id.toString(), "PROGRESS"), row(id.toString(), "PROGRESS", 1));
+            assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"));
+            execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"), row(id.toString(), "WAIT_PROGRESS", 1));
+            execute(UNSET_TRACE2, id.toString(), "WAIT_PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"));
+            execute(SET_TRACE, 1, id.toString(), "WAIT_PROGRESS");
+            assertRows(execute(QUERY_TRACE, id.toString(), "WAIT_PROGRESS"), row(id.toString(), "WAIT_PROGRESS", 1));
             accord.node().coordinate(id, txn);
             filter.preAccept.awaitThrowUncheckedOnInterrupt();
 
             filter.apply.awaitThrowUncheckedOnInterrupt();
-            spinUntilSuccess(() -> Assertions.assertThat(execute(QUERY_TRACES, id.toString(), "PROGRESS").size()).isGreaterThan(0));
+            spinUntilSuccess(() -> Assertions.assertThat(execute(QUERY_TRACES, id.toString(), "WAIT_PROGRESS").size()).isGreaterThan(0));
             execute(ERASE_TRACES1, id.toString(), "FETCH", Long.MAX_VALUE);
             execute(ERASE_TRACES2, id.toString(), "FETCH");
-            execute(ERASE_TRACES1, id.toString(), "PROGRESS", Long.MAX_VALUE);
-            Assertions.assertThat(execute(QUERY_TRACES, id.toString(), "PROGRESS").size()).isEqualTo(0);
+            execute(ERASE_TRACES1, id.toString(), "WAIT_PROGRESS", Long.MAX_VALUE);
+            Assertions.assertThat(execute(QUERY_TRACES, id.toString(), "WAIT_PROGRESS").size()).isEqualTo(0);
             // just check other variants don't fail
-            execute(ERASE_TRACES2, id.toString(), "PROGRESS");
+            execute(ERASE_TRACES2, id.toString(), "WAIT_PROGRESS");
             execute(ERASE_TRACES3, id.toString());
         }
         finally

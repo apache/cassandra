@@ -245,7 +245,10 @@ public class AccordAgent implements Agent
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
         long oneSecond = SECONDS.toMicros(1L);
-        long mostRecentStart = Math.max(command.txnId().hlc(), command.promised().hlc());
+        long promisedHlc = command.promised().hlc();
+        if (promisedHlc == Long.MAX_VALUE)
+            promisedHlc = 0;
+        long mostRecentStart = Math.max(command.txnId().hlc(), promisedHlc);
         long waitMicros = recover(txnId).computeWait(retryCount, MICROSECONDS);
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         Invariants.expect(mostRecentStart <= nowMicros + SECONDS.toMicros(1L), "max(%s,%s)>%d", command.txnId(), command.promised(), nowMicros);
