@@ -23,7 +23,12 @@ import org.apache.cassandra.utils.Pair;
 
 public class StorageProxyMetricsManager extends AbstractMetricsManager<Pair<String, ConsistencyLevel>, StorageProxyMetrics>
 {
-    public final static StorageProxyMetricsManager instance = new StorageProxyMetricsManager();
+    public final static StorageProxyMetricsManager instance = new StorageProxyMetricsManager(false);
+
+    protected StorageProxyMetricsManager(boolean asyncRegistration)
+    {
+        super(asyncRegistration);
+    }
 
     @Override
     protected StorageProxyMetrics createMetric(Pair<String, ConsistencyLevel> key)

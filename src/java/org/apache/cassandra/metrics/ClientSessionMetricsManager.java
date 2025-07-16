@@ -18,9 +18,20 @@
 
 package org.apache.cassandra.metrics;
 
+import javax.management.MalformedObjectNameException;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.utils.concurrent.Future;
+
 public class ClientSessionMetricsManager extends AbstractMetricsManager<String, ClientSessionMetrics>
 {
-    private final static ClientSessionMetricsManager instance = new ClientSessionMetricsManager();
+    private final static ClientSessionMetricsManager instance = new ClientSessionMetricsManager(true);
+
+    public ClientSessionMetricsManager(boolean asyncRegistration)
+    {
+        super(asyncRegistration);
+    }
 
     @Override
     protected ClientSessionMetrics createMetric(String key) throws IllegalArgumentException
@@ -53,15 +64,45 @@ public class ClientSessionMetricsManager extends AbstractMetricsManager<String, 
                            (String) objects[3], (String) objects[4], (String) objects[5], (String) objects[6]);
     }
 
-    public static ClientSessionMetrics getSessionMetrics(String clientService,
-                                                         String tenancy,
-                                                         String tier,
-                                                         String driverName,
-                                                         String enforcementLevelString,
-                                                         String isDriverSupportedString,
-                                                         String isAuthenticated)
+    @VisibleForTesting
+    protected static ClientSessionMetrics getSessionMetrics(String clientService,
+                                                            String tenancy,
+                                                            String tier,
+                                                            String driverName,
+                                                            String enforcementLevelString,
+                                                            String isDriverSupportedString,
+                                                            String isAuthenticated) throws InterruptedException
     {
-        return instance.getMetricsSync(clientService, tenancy, tier, driverName,
+        String key = instance.buildKey(clientService, tenancy, tier, driverName,
                                        enforcementLevelString, isDriverSupportedString, isAuthenticated);
+        instance.maybeRegisterMetricsAsync(null, key).await();
+        return instance.getMetricsSyncWithoutRegistration(key);
+    }
+
+    @VisibleForTesting
+    protected static void release(String clientService,
+                                  String tenancy,
+                                  String tier,
+                                  String driverName,
+                                  String enforcementLevelString,
+                                  String isDriverSupportedString,
+                                  String isAuthenticated) throws InterruptedException, MalformedObjectNameException
+    {
+        getSessionMetrics(clientService, tenancy, tier, driverName,
+                          enforcementLevelString, isDriverSupportedString, isAuthenticated).release();
+        instance.release(instance.buildKey(clientService, tenancy, tier, driverName,
+                                           enforcementLevelString, isDriverSupportedString, isAuthenticated));
+    }
+
+    public static Future<Boolean> markSession(String clientService,
+                                              String tenancy,
+                                              String tier,
+                                              String driverName,
+                                              String enforcementLevelString,
+                                              String isDriverSupportedString,
+                                              String isAuthenticated)
+    {
+        return instance.maybeRegisterMetricsAsync(metric -> metric.sessions.mark(),
+                                                  instance.buildKey(clientService, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, isAuthenticated));
     }
 }

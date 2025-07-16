@@ -18,7 +18,15 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.Set;
+
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
+
+import com.google.common.annotations.VisibleForTesting;
+
 import com.codahale.metrics.Meter;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -27,11 +35,23 @@ public class ClientSessionMetrics
     public Meter sessions;
 
     public ClientSessionMetrics(String clientService, String tenancy, String tier, String driverName, String enforcementLevelString, String isDriverSupportedString, String authState) {
-        MetricNameFactory factory = new ClientSessionsMetricsFactory(clientService, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, authState);
+        ClientSessionsMetricsFactory factory = new ClientSessionsMetricsFactory(clientService, tenancy, tier, driverName, enforcementLevelString, isDriverSupportedString, authState);
         sessions = Metrics.meter(factory.createMetricName("ClientSessions"));
     }
 
-    class ClientSessionsMetricsFactory implements MetricNameFactory
+    @VisibleForTesting
+    public void release() throws MalformedObjectNameException
+    {
+        MBeanWrapper mbw = MBeanWrapper.instance;
+        ObjectName query = new ObjectName(ClientMetrics.class.getPackage().getName() + ":*");
+        Set<ObjectName> names = mbw.queryNames(query, null);
+        for (ObjectName name : names)
+        {
+            mbw.unregisterMBean(name, MBeanWrapper.OnException.IGNORE);
+        }
+    }
+
+    static class ClientSessionsMetricsFactory implements MetricNameFactory
     {
         private static final String TYPE = "ClientSessions";
         private String clientService;

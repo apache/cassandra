@@ -22,7 +22,12 @@ import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 
 public class AutoRepairMetricsManager extends AbstractMetricsManager<RepairType, AutoRepairMetricsV2>
 {
-    public final static AutoRepairMetricsManager instance = new AutoRepairMetricsManager();
+    public final static AutoRepairMetricsManager instance = new AutoRepairMetricsManager(false);
+
+    protected AutoRepairMetricsManager(boolean asyncRegistration)
+    {
+        super(asyncRegistration);
+    }
 
     @Override
     protected AutoRepairMetricsV2 createMetric(RepairType repairType)

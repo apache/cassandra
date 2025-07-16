@@ -18,11 +18,19 @@
 
 package org.apache.cassandra.metrics;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public class ClientQueryMetricsManager extends AbstractMetricsManager<Pair<String, String>, ClientQueryMetrics>
 {
-    public static final ClientQueryMetricsManager instance = new ClientQueryMetricsManager();
+    public static final ClientQueryMetricsManager instance = new ClientQueryMetricsManager(true);
+
+    public ClientQueryMetricsManager(boolean asyncRegistration)
+    {
+        super(asyncRegistration);
+    }
 
     @Override
     protected ClientQueryMetrics createMetric(Pair<String, String> key)
@@ -41,8 +49,17 @@ public class ClientQueryMetricsManager extends AbstractMetricsManager<Pair<Strin
         return Pair.create((String) objects[0], (String) objects[1]);
     }
 
-    public static ClientQueryMetrics getQueryMetrics(String clientService, String tenancy)
+    @VisibleForTesting
+    protected static ClientQueryMetrics getQueryMetrics(String clientService, String tenancy) throws InterruptedException
     {
-        return instance.getMetricsSync(clientService, tenancy);
+        Pair<String, String> key = instance.buildKey(clientService, tenancy);
+        instance.maybeRegisterMetricsAsync(null, key).await();
+        return instance.getMetricsSyncWithoutRegistration(key);
+    }
+
+    public static Future<Boolean> incQuery(String clientService, String tenancy)
+    {
+        return instance.maybeRegisterMetricsAsync(metric -> metric.query.inc(),
+                                                  instance.buildKey(clientService, tenancy));
     }
 }

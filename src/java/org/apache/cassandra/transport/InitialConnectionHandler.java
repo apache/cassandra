@@ -265,15 +265,14 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 
         // Logging the client context data with NoSpamLogger
         NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, key, 5, TimeUnit.MINUTES, "Client context data: {}", optionsWithClientPrefix);
-        // Send the client session metric
-        ClientSessionMetricsManager.getSessionMetrics(
-            service,
-            options.getOrDefault(REQUEST_TENANCY, ""),
-            options.getOrDefault(TIER, "empty"),
-            driverName,
-            enforcementLevelString,
-            String.valueOf(isDriverSupported),
-            options.getOrDefault(IS_AUTHENTICATED, "false")).sessions.mark();
+
+        // This initial connection message is handled within epoll event loop, and the operation here must be light-weighted
+        String tenancy = options.getOrDefault(REQUEST_TENANCY, "");
+        String tier = options.getOrDefault(TIER, "empty");
+        String driverSupported = String.valueOf(isDriverSupported);
+        String isAuthenticated = options.getOrDefault(IS_AUTHENTICATED, "false");
+        ClientSessionMetricsManager.markSession(service, tenancy, tier, driverName,
+                                                enforcementLevelString, driverSupported, isAuthenticated);
 
         // Check for service vs cassandra tier mismatch
         BadQuery.checkForTierMismatch(

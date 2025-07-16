@@ -24,13 +24,13 @@ import static org.junit.Assert.assertEquals;
 
 public class ClientQueryMetricsTest
 {
+    private static final String serviceName = "service";
+    private static final String tenancy = "staging";
     @Test
-    public void testClientQueryMetrics() {
-        String serviceName = "service";
-        String tenancy = "staging";
+    public void testClientQueryMetrics() throws InterruptedException
+    {
         long beforeCount = ClientQueryMetricsManager.getQueryMetrics(serviceName, tenancy).query.getCount();
-
-        ClientQueryMetricsManager.getQueryMetrics(serviceName, tenancy).query.inc();
+        ClientQueryMetricsManager.incQuery(serviceName, tenancy).await();
         long curCount = ClientQueryMetricsManager.getQueryMetrics(serviceName, tenancy).query.getCount();
         assertEquals(beforeCount+1, curCount);
     }

@@ -22,7 +22,12 @@ import org.apache.cassandra.metrics.AbstractMetricsManager;
 
 public class KeyspaceThrottlingMetricsManager extends AbstractMetricsManager<String, KeyspaceThrottlingMetrics>
 {
-    private final static KeyspaceThrottlingMetricsManager instance = new KeyspaceThrottlingMetricsManager();
+    private final static KeyspaceThrottlingMetricsManager instance = new KeyspaceThrottlingMetricsManager(false);
+
+    protected KeyspaceThrottlingMetricsManager(boolean asyncRegistration)
+    {
+        super(asyncRegistration);
+    }
 
     @Override
     protected KeyspaceThrottlingMetrics createMetric(String ksName)

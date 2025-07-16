@@ -20,7 +20,12 @@ package org.apache.cassandra.metrics;
 
 public class AuthMetricsManager extends AbstractMetricsManager<String, AuthMetrics>
 {
-    public final static AuthMetricsManager instance = new AuthMetricsManager();
+    public final static AuthMetricsManager instance = new AuthMetricsManager(false);
+
+    protected AuthMetricsManager(boolean asyncRegistration)
+    {
+        super(asyncRegistration);
+    }
 
     @Override
     protected AuthMetrics createMetric(String key) throws IllegalArgumentException

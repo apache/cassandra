@@ -41,6 +41,8 @@ import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -197,10 +199,9 @@ public abstract class Message
                 res.put((String) entry.getKey(), new String(((ByteBuffer) entry.getValue()).array()));
             }
             // Send the client query metric based on the context data in the custom payload
-            ClientQueryMetricsManager.getQueryMetrics(
-                res.getOrDefault("SERVICE", ""),
-                res.getOrDefault("REQUEST_TENANCY", "")).query.inc();
-
+            String service = res.getOrDefault("SERVICE", "");
+            String tenancy = res.getOrDefault("REQUEST_TENANCY", "");
+            ClientQueryMetricsManager.incQuery(service, tenancy);
             // Whether to print the client custom payload
             if (DatabaseDescriptor.getEnableCustomPayloadLogging())
             {
