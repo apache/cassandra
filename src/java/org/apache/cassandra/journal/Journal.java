@@ -1013,7 +1013,10 @@ public class Journal<K, V> implements Shutdownable
 
         public StaticSegmentKeyIterator(K min, K max)
         {
-            this.segments = selectAndReference(s -> s.isStatic() && (min == null || keySupport.compare(s.index().lastId(), min) >= 0) && (max == null || keySupport.compare(s.index().firstId(), max) <= 0));
+            this.segments = selectAndReference(s -> s.isStatic()
+                                                    && s.asStatic().index().entryCount() > 0
+                                                    && (min == null || keySupport.compare(s.index().lastId(), min) >= 0)
+                                                    && (max == null || keySupport.compare(s.index().firstId(), max) <= 0));
             List<Iterator<Head>> iterators = new ArrayList<>(segments.count());
 
             for (Segment<K, V> segment : segments.allSorted(true))

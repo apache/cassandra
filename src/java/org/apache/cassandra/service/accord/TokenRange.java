@@ -41,7 +41,7 @@ public class TokenRange extends Range.EndInclusive
     public static final long EMPTY_SIZE = ObjectSizes.measure(new TokenRange(TokenKey.min(TableId.fromLong(0), Murmur3Partitioner.instance), TokenKey.max(TableId.fromLong(0), Murmur3Partitioner.instance)));
 
     // Don't make this public use create or createUnsafe
-    private TokenRange(TokenKey start, TokenKey end)
+    protected TokenRange(TokenKey start, TokenKey end)
     {
         super(start, end);
     }
@@ -59,19 +59,19 @@ public class TokenRange extends Range.EndInclusive
         return new TokenRange(start, end);
     }
 
-    public TableId table()
+    public final TableId table()
     {
         return start().table();
     }
 
     @Override
-    public TokenKey start()
+    public final TokenKey start()
     {
         return (TokenKey) super.start();
     }
 
     @Override
-    public TokenKey end()
+    public final TokenKey end()
     {
         return  (TokenKey) super.end();
     }
