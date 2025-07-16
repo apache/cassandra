@@ -85,7 +85,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.audit.AuditUsersCacheService;
+import org.apache.cassandra.audit.AuditLogRoleFilteringService;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.cql3.QueryHandler;
@@ -1036,7 +1036,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Gossiper.instance.addLocalApplicationStates(states);
             }
             doAuthSetup(true);
-            doAuditUsersCacheServiceInit();
+            doAuditLogRoleFilteringServiceInit();
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
@@ -1365,7 +1365,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 joinTokenRing(SCHEMA_DELAY_MILLIS, 0);
                 doAuthSetup(false);
-                doAuditUsersCacheServiceInit();
+                doAuditLogRoleFilteringServiceInit();
             }
             catch (ConfigurationException e)
             {
@@ -1381,7 +1381,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.info("Leaving write survey mode and joining ring at operator request");
                 finishJoiningRing(resumedBootstrap, SystemKeyspace.getSavedTokens());
                 doAuthSetup(false);
-                doAuditUsersCacheServiceInit();
+                doAuditLogRoleFilteringServiceInit();
                 isSurveyMode = false;
                 daemon.start();
             }
@@ -1448,7 +1448,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    public void doAuditUsersCacheServiceInit()
+    public void doAuditLogRoleFilteringServiceInit()
     {
         // TODO: remove DatabaseDescriptor.getAuditUserCacheEnabled()
         //  once conf.audit_user_cache_enabled is deprecated and removed
@@ -1456,11 +1456,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             DatabaseDescriptor.getAuditLoggingOptions().role_filtering &&
             DatabaseDescriptor.getAuditUserCacheEnabled())
         {
-            AuditUsersCacheService.instance.initialize();
+            AuditLogRoleFilteringService.instance.initialize();
         }
     }
 
-    public void doAuditUsersCacheServiceSetup()
+    public void doAuditLogRoleFilteringServiceSetup()
     {
         // TODO: remove DatabaseDescriptor.getAuditUserCacheEnabled()
         //  once conf.audit_user_cache_enabled is deprecated and removed
@@ -1468,13 +1468,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             DatabaseDescriptor.getAuditLoggingOptions().role_filtering &&
             DatabaseDescriptor.getAuditUserCacheEnabled())
         {
-            AuditUsersCacheService.instance.setup();
+                AuditLogRoleFilteringService.instance.setup();
         }
     }
 
-    public void doAuditUsersCacheServiceTeardown()
+    public void doAuditLogRoleFilteringServiceTeardown()
     {
-        AuditUsersCacheService.instance.teardown();
+            AuditLogRoleFilteringService.instance.teardown();
     }
 
     private void doRequestThrottlerSetup()
@@ -2416,7 +2416,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
                             finishJoiningRing(true, bootstrapTokens);
                             doAuthSetup(false);
-                            doAuditUsersCacheServiceInit();
+                            doAuditLogRoleFilteringServiceInit();
                         }
                         progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                         if (!isNativeTransportRunning())
@@ -6964,7 +6964,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void disableAuditLog()
     {
         AuditLogManager.instance.disableAuditLog();
-        doAuditUsersCacheServiceTeardown();
+        doAuditLogRoleFilteringServiceTeardown();
         logger.info("Auditlog is disabled");
     }
 
@@ -7030,8 +7030,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // first, enable dependencies
         if (options.role_filtering && DatabaseDescriptor.getAuditUserCacheEnabled())
         {
-            doAuditUsersCacheServiceInit();
-            doAuditUsersCacheServiceSetup();
+            doAuditLogRoleFilteringServiceInit();
+            doAuditLogRoleFilteringServiceSetup();
         }
 
         // then, start the audit logger
@@ -7049,19 +7049,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Fetching audit log filters for roles: " + roles);
         if (refresh)
         {
-            AuditUsersCacheService.instance.refresh();
+            AuditLogRoleFilteringService.instance.refresh();
         }
-        return AuditUsersCacheService.instance.toNestedList(roles);
+        return AuditLogRoleFilteringService.instance.toNestedList(roles);
     }
 
     public void setAuditLogRoleFilter(String role, String type, double rate, boolean refresh)
     {
         logger.info(String.format("Setting audit log filter: role=%s, account-type=%s, filter-rate=%s",
                                   role, type, rate));
-        AuditUsersCacheService.instance.updateRole(role, type, rate);
+        AuditLogRoleFilteringService.instance.updateRole(role, type, rate);
         if (refresh)
         {
-            AuditUsersCacheService.instance.refresh();
+            AuditLogRoleFilteringService.instance.refresh();
         }
     }
 
@@ -7073,10 +7073,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // refresh before deletion to update cache
         if (refresh)
         {
-            AuditUsersCacheService.instance.refresh();
+            AuditLogRoleFilteringService.instance.refresh();
         }
 
-        List<String> filteredRoles = AuditUsersCacheService.instance.filterRoles(roles);
+        List<String> filteredRoles = AuditLogRoleFilteringService.instance.filterRoles(roles);
 
         if (filteredRoles.isEmpty())
         {
@@ -7086,25 +7086,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         if (shouldDelete)
         {
-            AuditUsersCacheService.instance.deleteRoles(filteredRoles, false);
+            AuditLogRoleFilteringService.instance.deleteRoles(filteredRoles, false);
         }
         else {
             for (String role : filteredRoles)
             {
-                String accountType = AuditUsersCacheService.instance.getAccountType(role);
+                String accountType = AuditLogRoleFilteringService.instance.getAccountType(role);
                 if (StringUtils.isEmpty(accountType))
                 {
                     logger.warn("no account type found for " + role);
                     continue;
                 }
-                AuditUsersCacheService.instance.updateRole(role, accountType, 0.0);
+                AuditLogRoleFilteringService.instance.updateRole(role, accountType, 0.0);
             }
         }
 
         // refresh after deletion
         if (refresh)
         {
-            AuditUsersCacheService.instance.refresh();
+            AuditLogRoleFilteringService.instance.refresh();
         }
     }
 

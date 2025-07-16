@@ -78,8 +78,8 @@ public class AuditLoggerAuthTest
         System.setProperty("cassandra.superuser_setup_delay_ms", "0");
         embedded = ServerTestUtils.startEmbeddedCassandraService();
 
-        AuditUsersCacheService.instance.initialize();
-        AuditUsersCacheService.instance.setup();
+        AuditLogRoleFilteringService.instance.initialize();
+        AuditLogRoleFilteringService.instance.setup();
         executeWithCredentials(
         Arrays.asList(String.format("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('%s', 'SERVICE', 100.0)", CASS_USER)),
         CASS_USER, CASS_PW, null);
@@ -99,7 +99,7 @@ public class AuditLoggerAuthTest
         Arrays.asList(String.format("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('%s', 'PERSONNEL', 100.0)", TEST_USER)),
                 CASS_USER, CASS_PW, null);
 
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.refresh();
     }
 
     @AfterClass
@@ -111,9 +111,9 @@ public class AuditLoggerAuthTest
     @Before
     public void clearInMemoryLogger()
     {
-        AuditUsersCacheService.instance.initialize();
-        AuditUsersCacheService.instance.setup();
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.initialize();
+        AuditLogRoleFilteringService.instance.setup();
+        AuditLogRoleFilteringService.instance.refresh();
         getInMemAuditLogger().clear();
     }
 

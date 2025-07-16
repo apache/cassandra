@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
- * {@code AuditUsersCacheService} keeps an in‑memory cache of the <em>audit_users</em> table that tells
+ * {@code AuditLogRoleFilteringService} keeps an in‑memory cache of the <em>audit_users</em> table that tells
  * {@code AuditLogManager} which roles should have their CQL statements written to the audit log – and
  * with which sampling rate.  The cache is refreshed periodically by a task scheduled on
  * {@link ScheduledExecutors#scheduledTasks}.
@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
  * <p>Once {@linkplain #setup() set up}, callers can query the cache through
  * {@link #shouldLog(String)} and {@link #getAccountType(String)}.</p>
  */
-public class AuditUsersCacheService
+public class AuditLogRoleFilteringService
 {
 
     private static final String ROLE_COLUMN = "role";
@@ -145,7 +145,7 @@ public class AuditUsersCacheService
     /** Handle to the periodic cache-refresh task. */
     private ScheduledFuture<?> refreshTask;
 
-    private static final Logger logger = LoggerFactory.getLogger(AuditUsersCacheService.class);
+    private static final Logger logger = LoggerFactory.getLogger(AuditLogRoleFilteringService.class);
 
     private static final String INSERT_AUDIT_USER_ROLE_CQL = "INSERT INTO %s.%s (role, account_type, filter_percent) " +
                                                              "VALUES ('%s', '%s', %s)";
@@ -192,9 +192,8 @@ public class AuditUsersCacheService
     private static ConcurrentHashMap<String, UserProp> auditUserCache = new ConcurrentHashMap<>();
 
     /** The singleton instance of the service. */
-    public final static AuditUsersCacheService instance = new AuditUsersCacheService();
-
-    private AuditUsersCacheService() {}
+    public final static AuditLogRoleFilteringService instance = new AuditLogRoleFilteringService();
+    private AuditLogRoleFilteringService() {}
 
     /** Helper function to atomically update the cache */
     private void updateAuditUserCache(String role, String accountType, double percentage)

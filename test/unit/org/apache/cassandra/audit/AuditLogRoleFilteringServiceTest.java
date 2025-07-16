@@ -20,18 +20,14 @@ package org.apache.cassandra.audit;
 import java.lang.NoSuchFieldError;
 import java.lang.NoSuchFieldException;
 import java.lang.reflect.Field;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.lang.reflect.Field;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 
 import org.junit.After;
@@ -65,13 +61,13 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
 
-/** AuditUsersCacheTest class is responsible for covering test cases for AuditUsersCacheService */
-public class AuditUsersCacheTest
+/** AuditLogRoleFilteringServiceTest class is responsible for covering test cases for AuditLogRoleFilteringService */
+public class AuditLogRoleFilteringServiceTest
 {
     private static Field refreshTaskField;
     private static Field auditUserCacheField;
     private static Field auditLoggerField;
-    private static Map<String, AuditUsersCacheService.UserProp> auditUserCache;
+    private static Map<String, AuditLogRoleFilteringService.UserProp> auditUserCache;
     private static EmbeddedCassandraService embedded;
 
     private static final String TEST_USER = "testuser";
@@ -98,7 +94,7 @@ public class AuditUsersCacheTest
         embedded.start();
 
         Thread.sleep(5000);
-        AuditUsersCacheService.instance.setup();
+        AuditLogRoleFilteringService.instance.setup();
 
         executeWithCredentials(
         Collections.singletonList(String.format("INSERT INTO system_distributed.audit_users " +
@@ -125,14 +121,14 @@ public class AuditUsersCacheTest
                       getGrantPermCql(TEST_USER, "testks"), getGrantPermCql(TEST_SERVICE, "testks")),
         "cassandra", "cassandra", null);
 
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.refresh();
 
         try
         {
-            refreshTaskField = AuditUsersCacheService.class.getDeclaredField("refreshTask");
+            refreshTaskField = AuditLogRoleFilteringService.class.getDeclaredField("refreshTask");
             refreshTaskField.setAccessible(true);
 
-            auditUserCacheField = AuditUsersCacheService.class.getDeclaredField("auditUserCache");
+            auditUserCacheField = AuditLogRoleFilteringService.class.getDeclaredField("auditUserCache");
             auditUserCacheField.setAccessible(true);
 
             auditLoggerField = AuditLogManager.class.getDeclaredField("auditLogger");
@@ -144,9 +140,9 @@ public class AuditUsersCacheTest
             fail("MUST change fild accessability: " + e.getMessage());
         }
 
-        Object obj = auditUserCacheField.get(AuditUsersCacheService.instance);
+        Object obj = auditUserCacheField.get(AuditLogRoleFilteringService.instance);
         if (obj instanceof Map) {
-            auditUserCache = (Map<String, AuditUsersCacheService.UserProp>)obj;
+            auditUserCache = (Map<String, AuditLogRoleFilteringService.UserProp>)obj;
         } else {
             fail("should be of type Map<String, UserProp>");
         }
@@ -156,7 +152,7 @@ public class AuditUsersCacheTest
     @AfterClass
     public static void shutdown()
     {
-        StorageService.instance.doAuditUsersCacheServiceTeardown();
+        StorageService.instance.doAuditLogRoleFilteringServiceTeardown();
         embedded.stop();
     }
 
@@ -168,9 +164,9 @@ public class AuditUsersCacheTest
                                                10, true, "HOURLY",
                                                1024L, 1024, null);
 
-        AuditUsersCacheService.instance.initialize();
-        AuditUsersCacheService.instance.setup();
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.initialize();
+        AuditLogRoleFilteringService.instance.setup();
+        AuditLogRoleFilteringService.instance.refresh();
         getInMemAuditLogger().clear();
     }
 
@@ -183,7 +179,7 @@ public class AuditUsersCacheTest
     @Test
     public void testAuditCaasUser()
     {
-        auditUserCache.put(CASS_USER, new AuditUsersCacheService.UserProp("SERVICE", 100.0));
+        auditUserCache.put(CASS_USER, new AuditLogRoleFilteringService.UserProp("SERVICE", 100.0));
         String cql = "LIST ALL";
         executeWithCredentials(Arrays.asList(cql), CASS_USER, CASS_PW, AuditLogEntryType.LOGIN_SUCCESS);
         assertTrue(getInMemAuditLogger().size() > 0);
@@ -231,7 +227,7 @@ public class AuditUsersCacheTest
     @Test
     public void testAuditService()
     {
-        AuditUsersCacheService.instance.state = AuditUsersCacheService.State.READY;
+        AuditLogRoleFilteringService.instance.state = AuditLogRoleFilteringService.State.READY;
         String cql = "SELECT * FROM testks.table1";
         executeWithCredentials(Arrays.asList(cql), TEST_SERVICE, TEST_PW, null);
         assertTrue(getInMemAuditLogger().size() == 0);
@@ -242,7 +238,7 @@ public class AuditUsersCacheTest
 
     @Test
     public void cacheProbabilityIsHonouredWhenFilteringEnabled() throws Throwable {
-        auditUserCache.put(TEST_USER, new AuditUsersCacheService.UserProp("EMPLOYEE", 0.0));
+        auditUserCache.put(TEST_USER, new AuditLogRoleFilteringService.UserProp("EMPLOYEE", 0.0));
 
         // toggle the assigned logger to force audit log options reload
         StorageService.instance.enableAuditLog(false, "NoOpAuditLogger",
@@ -257,14 +253,14 @@ public class AuditUsersCacheTest
 
         String cql = "SELECT * FROM testks.table1";
         getInMemAuditLogger().clear();
-        AuditUsersCacheService.instance.state = AuditUsersCacheService.State.READY;
+        AuditLogRoleFilteringService.instance.state = AuditLogRoleFilteringService.State.READY;
         executeWithCredentials(Arrays.asList(cql), TEST_USER, TEST_PW, null);
         assertEquals(0, getInMemAuditLogger().size());
     }
 
     @Test
     public void loggingBypassesCacheWhenFilteringDisabled() throws Throwable {
-            auditUserCache.put(TEST_USER, new AuditUsersCacheService.UserProp("EMPLOYEE", 0.0));
+            auditUserCache.put(TEST_USER, new AuditLogRoleFilteringService.UserProp("EMPLOYEE", 0.0));
             // toggle the assigned logger to force audit log options reload
             StorageService.instance.enableAuditLog(false, "NoOpAuditLogger",
                                                        Map.of(), "", "", "", "", "", "",
@@ -287,31 +283,31 @@ public class AuditUsersCacheTest
     {
         try
         {
-            AuditUsersCacheService.instance.teardown();
-            AuditUsersCacheService.instance.initCalled.set(false);
+            AuditLogRoleFilteringService.instance.teardown();
+            AuditLogRoleFilteringService.instance.initCalled.set(false);
 
             // Enable without role filtering should not start refresh task
             StorageService.instance.enableAuditLog(false, "NoOpAuditLogger", Map.of(), "", "", "", "", "", "", 10, true, "HOURLY", 1024L, 1024, null);
-            assertNull(refreshTaskField.get(AuditUsersCacheService.instance));
-            assertFalse(AuditUsersCacheService.instance.initCalled.get());
+            assertNull(refreshTaskField.get(AuditLogRoleFilteringService.instance));
+            assertFalse(AuditLogRoleFilteringService.instance.initCalled.get());
             StorageService.instance.disableAuditLog();
 
             // Enable with role filtering should start refresh task once
             StorageService.instance.enableAuditLog(true, "BinAuditLogger", Map.of(), "", "", "", "", "", "", 10, true, "HOURLY", 1024L, 1024, null);
-            assertTrue(AuditUsersCacheService.instance.initCalled.get());
-            ScheduledFuture<?> first = (ScheduledFuture<?>) refreshTaskField.get(AuditUsersCacheService.instance);
+            assertTrue(AuditLogRoleFilteringService.instance.initCalled.get());
+            ScheduledFuture<?> first = (ScheduledFuture<?>) refreshTaskField.get(AuditLogRoleFilteringService.instance);
             assertNotNull(first);
             assertFalse(first.isCancelled());
 
             // Additional calls should not create another task
             StorageService.instance.enableAuditLog(true, "InMemoryAuditLogger", Map.of(), "", "", "", "", "", "", 10, true, "HOURLY", 1024L, 1024, null);
-            ScheduledFuture<?> second = (ScheduledFuture<?>) refreshTaskField.get(AuditUsersCacheService.instance);
+            ScheduledFuture<?> second = (ScheduledFuture<?>) refreshTaskField.get(AuditLogRoleFilteringService.instance);
             assertNotNull(second);
             assertSame(first, second);
 
             // Audit log disabled -> task is no longer running runs
             StorageService.instance.disableAuditLog();
-            assertNull(refreshTaskField.get(AuditUsersCacheService.instance));
+            assertNull(refreshTaskField.get(AuditLogRoleFilteringService.instance));
         }
         catch (IllegalAccessException e)
         {
@@ -332,11 +328,11 @@ public class AuditUsersCacheTest
         CASS_USER, CASS_PW, null);
 
         // Re-load the cache
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.refresh();
 
         // The incomplete row must NOT be present in the in-memory cache
-        assertEquals("", AuditUsersCacheService.instance.getAccountType(INVALID_ROLE));
-        assertFalse(AuditUsersCacheService.instance.shouldLog(INVALID_ROLE));
+        assertEquals("", AuditLogRoleFilteringService.instance.getAccountType(INVALID_ROLE));
+        assertFalse(AuditLogRoleFilteringService.instance.shouldLog(INVALID_ROLE));
 
         executeWithCredentials(Arrays.asList(String.format(
                                              "DELETE FROM system_distributed.audit_users WHERE role = '%s'",
@@ -356,10 +352,10 @@ public class AuditUsersCacheTest
         INVALID_ROLE)),
         CASS_USER, CASS_PW, null);
 
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.refresh();
 
-        assertEquals("", AuditUsersCacheService.instance.getAccountType(INVALID_ROLE));
-        assertFalse(AuditUsersCacheService.instance.shouldLog(INVALID_ROLE));
+        assertEquals("", AuditLogRoleFilteringService.instance.getAccountType(INVALID_ROLE));
+        assertFalse(AuditLogRoleFilteringService.instance.shouldLog(INVALID_ROLE));
 
         executeWithCredentials(Arrays.asList(String.format(
                                              "DELETE FROM system_distributed.audit_users WHERE role = '%s'",
@@ -370,13 +366,13 @@ public class AuditUsersCacheTest
     @Test
     public void testRefreshRemovesOrphanRole() throws Exception
     {
-        Field cacheField = AuditUsersCacheService.class.getDeclaredField("auditUserCache");
+        Field cacheField = AuditLogRoleFilteringService.class.getDeclaredField("auditUserCache");
         cacheField.setAccessible(true);
         @SuppressWarnings("unchecked")
-        ConcurrentHashMap<String, AuditUsersCacheService.UserProp> originalCache =
-        (ConcurrentHashMap<String, AuditUsersCacheService.UserProp>) cacheField.get(null);
+        ConcurrentHashMap<String, AuditLogRoleFilteringService.UserProp> originalCache =
+        (ConcurrentHashMap<String, AuditLogRoleFilteringService.UserProp>) cacheField.get(null);
 
-        ConcurrentHashMap<String, AuditUsersCacheService.UserProp> testCache = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, AuditLogRoleFilteringService.UserProp> testCache = new ConcurrentHashMap<>();
         cacheField.set(null, testCache);
 
         try
@@ -384,18 +380,18 @@ public class AuditUsersCacheTest
             executeWithCredentials(List.of("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('shouldexist','SERVICE',0.01)",
                                            "INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('ghost_role','SERVICE',1.0)"), CASS_USER, CASS_PW, null);
 
-            AuditUsersCacheService.instance.insert("shouldexist", "SERVICE", 0.01);
+            AuditLogRoleFilteringService.instance.insert("shouldexist", "SERVICE", 0.01);
 
-            AuditUsersCacheService.instance.refresh();
+            AuditLogRoleFilteringService.instance.refresh();
             assertTrue(testCache.containsKey("shouldexist"));
             assertTrue(testCache.containsKey("ghost_role"));
 
             executeWithCredentials(List.of("DELETE FROM system_distributed.audit_users WHERE role = 'ghost_role'"), CASS_USER, CASS_PW, null);
 
-            AuditUsersCacheService.instance.insert("ghost_role", "SERVICE", 1.0);
-            AuditUsersCacheService.instance.insert("shouldexist", "SERVICE", 0.01);
+            AuditLogRoleFilteringService.instance.insert("ghost_role", "SERVICE", 1.0);
+            AuditLogRoleFilteringService.instance.insert("shouldexist", "SERVICE", 0.01);
 
-            AuditUsersCacheService.instance.refresh();
+            AuditLogRoleFilteringService.instance.refresh();
 
             assertFalse(testCache.containsKey("ghost_role"));
             assertTrue(testCache.containsKey("shouldexist"));
@@ -411,20 +407,20 @@ public class AuditUsersCacheTest
     @Test
     public void testRefreshKeepsExistingRole() throws Exception
     {
-        Field cacheField = AuditUsersCacheService.class.getDeclaredField("auditUserCache");
+        Field cacheField = AuditLogRoleFilteringService.class.getDeclaredField("auditUserCache");
         cacheField.setAccessible(true);
         @SuppressWarnings("unchecked")
-        ConcurrentHashMap<String, AuditUsersCacheService.UserProp> originalCache =
-        (ConcurrentHashMap<String, AuditUsersCacheService.UserProp>) cacheField.get(null);
+        ConcurrentHashMap<String, AuditLogRoleFilteringService.UserProp> originalCache =
+        (ConcurrentHashMap<String, AuditLogRoleFilteringService.UserProp>) cacheField.get(null);
 
-        ConcurrentHashMap<String, AuditUsersCacheService.UserProp> testCache = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, AuditLogRoleFilteringService.UserProp> testCache = new ConcurrentHashMap<>();
         cacheField.set(null, testCache);
 
         try
         {
             executeWithCredentials(List.of("INSERT INTO system_distributed.audit_users (role, account_type, filter_percent) VALUES ('shouldexist','SERVICE',0.01)"), CASS_USER, CASS_PW, null);
 
-            AuditUsersCacheService.instance.refresh();
+            AuditLogRoleFilteringService.instance.refresh();
 
             assertTrue(testCache.containsKey("shouldexist"));
             assertTrue(testCache.containsKey("cassandra"));
@@ -433,82 +429,82 @@ public class AuditUsersCacheTest
         {
             cacheField.set(null, originalCache);
             executeWithCredentials(List.of("DELETE FROM system_distributed.audit_users WHERE role = 'shouldexist'"), CASS_USER, CASS_PW, null);
-            AuditUsersCacheService.instance.refresh();
+            AuditLogRoleFilteringService.instance.refresh();
         }
     }
 
     @Test
     public void testInsertRoleAndShouldLog() {
         String role = "insert_test_role";
-        AuditUsersCacheService.instance.insertRole(role, "SERVICE", 99.0);
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.insertRole(role, "SERVICE", 99.0);
+        AuditLogRoleFilteringService.instance.refresh();
 
-        assertTrue(AuditUsersCacheService.instance.shouldLog(role));
+        assertTrue(AuditLogRoleFilteringService.instance.shouldLog(role));
 
-        AuditUsersCacheService.instance.deleteRoles(List.of(role), false);
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.deleteRoles(List.of(role), false);
+        AuditLogRoleFilteringService.instance.refresh();
     }
 
     @Test
     public void testUpdateRoleReflectsChanges() {
         String role = "update_test_role";
-        AuditUsersCacheService.instance.insertRole(role, "DEVELOPER", 10.0);
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.insertRole(role, "DEVELOPER", 10.0);
+        AuditLogRoleFilteringService.instance.refresh();
 
-        assertEquals("DEVELOPER", AuditUsersCacheService.instance.getAccountType(role));
+        assertEquals("DEVELOPER", AuditLogRoleFilteringService.instance.getAccountType(role));
 
-        AuditUsersCacheService.instance.updateRole(role, "SERVICE", 0.01);
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.updateRole(role, "SERVICE", 0.01);
+        AuditLogRoleFilteringService.instance.refresh();
 
-        assertEquals("SERVICE", AuditUsersCacheService.instance.getAccountType(role));
-        assertFalse(AuditUsersCacheService.instance.shouldLog(role));
+        assertEquals("SERVICE", AuditLogRoleFilteringService.instance.getAccountType(role));
+        assertFalse(AuditLogRoleFilteringService.instance.shouldLog(role));
 
-        AuditUsersCacheService.instance.deleteRoles(List.of(role), false);
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.deleteRoles(List.of(role), false);
+        AuditLogRoleFilteringService.instance.refresh();
     }
 
     @Test
     public void testDeleteRoleRemovesFromCache() {
         String role = "delete_test_role";
-        AuditUsersCacheService.instance.insertRole(role, "SERVICE", 55.0);
-        AuditUsersCacheService.instance.refresh();
-        assertEquals("SERVICE", AuditUsersCacheService.instance.getAccountType(role));
+        AuditLogRoleFilteringService.instance.insertRole(role, "SERVICE", 55.0);
+        AuditLogRoleFilteringService.instance.refresh();
+        assertEquals("SERVICE", AuditLogRoleFilteringService.instance.getAccountType(role));
 
-        AuditUsersCacheService.instance.deleteRoles(List.of(role), false);
-        AuditUsersCacheService.instance.refresh();
+        AuditLogRoleFilteringService.instance.deleteRoles(List.of(role), false);
+        AuditLogRoleFilteringService.instance.refresh();
 
-        assertEquals("", AuditUsersCacheService.instance.getAccountType(role));
-        assertFalse(AuditUsersCacheService.instance.shouldLog(role));
+        assertEquals("", AuditLogRoleFilteringService.instance.getAccountType(role));
+        assertFalse(AuditLogRoleFilteringService.instance.shouldLog(role));
     }
 
     @Test
     public void testToNestedListFiltersCorrectly() {
-        AuditUsersCacheService.instance.insert("role1", "SERVICE", 5.0);
-        AuditUsersCacheService.instance.insert("role2", "DEVELOPER", 95.0);
-        AuditUsersCacheService.instance.state = AuditUsersCacheService.State.READY;
+        AuditLogRoleFilteringService.instance.insert("role1", "SERVICE", 5.0);
+        AuditLogRoleFilteringService.instance.insert("role2", "DEVELOPER", 95.0);
+        AuditLogRoleFilteringService.instance.state = AuditLogRoleFilteringService.State.READY;
 
-        List<List<String>> nested = AuditUsersCacheService.instance.toNestedList(List.of("role1", "role2"));
+        List<List<String>> nested = AuditLogRoleFilteringService.instance.toNestedList(List.of("role1", "role2"));
         assertFalse(nested.isEmpty());
         assertEquals(2, nested.size());
         assertEquals("role1", nested.get(0).get(0));
         assertEquals("role2", nested.get(1).get(0));
 
-        List<List<String>> all = AuditUsersCacheService.instance.toNestedList(List.of());
+        List<List<String>> all = AuditLogRoleFilteringService.instance.toNestedList(List.of());
         assertTrue(all.size() >= 2);
     }
 
     @Test
     public void testFilterRolesSubset() {
-        AuditUsersCacheService.instance.insert("roleA", "SERVICE", 10.0);
-        AuditUsersCacheService.instance.insert("roleB", "DEVELOPER", 20.0);
-        AuditUsersCacheService.instance.state = AuditUsersCacheService.State.READY;
+        AuditLogRoleFilteringService.instance.insert("roleA", "SERVICE", 10.0);
+        AuditLogRoleFilteringService.instance.insert("roleB", "DEVELOPER", 20.0);
+        AuditLogRoleFilteringService.instance.state = AuditLogRoleFilteringService.State.READY;
 
-        List<String> filtered = AuditUsersCacheService.instance.filterRoles(List.of("roleA"));
+        List<String> filtered = AuditLogRoleFilteringService.instance.filterRoles(List.of("roleA"));
         assertFalse(filtered.isEmpty());
         assertEquals(1, filtered.size());
         assertEquals("roleA", filtered.get(0));
 
-        List<String> all = AuditUsersCacheService.instance.filterRoles(Collections.emptyList());
+        List<String> all = AuditLogRoleFilteringService.instance.filterRoles(Collections.emptyList());
         assertTrue(all.contains("roleA"));
         assertTrue(all.contains("roleB"));
     }

@@ -223,7 +223,7 @@ public class AuditLogEntry
                 user = AuthenticatedUser.SYSTEM_USER.getName();
             }
 
-            userType = AuditUsersCacheService.instance.getAccountType(user);
+            userType = AuditLogRoleFilteringService.instance.getAccountType(user);
             timestamp = currentTimeMillis();
         }
 

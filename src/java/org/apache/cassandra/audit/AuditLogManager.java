@@ -101,7 +101,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
             ClientState clientState = state.getClientState();
             if (clientState != null && clientState.getUser() != null)  {
                 String user = clientState.getUser().getName();
-                return AuditUsersCacheService.instance.shouldLog(user);
+                return AuditLogRoleFilteringService.instance.shouldLog(user);
             }
         }
         return true;

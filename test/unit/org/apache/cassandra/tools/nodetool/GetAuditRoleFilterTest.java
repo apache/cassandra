@@ -26,7 +26,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.audit.AuditUsersCacheService;
+import org.apache.cassandra.audit.AuditLogRoleFilteringService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
@@ -67,8 +67,8 @@ public class GetAuditRoleFilterTest extends CQLTester
         embedded.start();
         Thread.sleep(5000);
 
-        AuditUsersCacheService.instance.setup();
-        AuditUsersCacheService.instance.initialize();
+        AuditLogRoleFilteringService.instance.setup();
+        AuditLogRoleFilteringService.instance.initialize();
 
         try (Cluster cluster = Cluster.builder().addContactPoints(InetAddress.getLoopbackAddress())
                                       .withoutJMXReporting()

@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-45500] Rename the AuditUsersCacheService to AuditLogRoleFilteringService
  * [SO-48145] Make keysapce related metrics ops with async registration
  * [SO-47878] Make client related metrics registration async
  * [SO-47877] Introduce AbstractMetricManager to standardize metric managers behavior & fix AuthMetricsManager

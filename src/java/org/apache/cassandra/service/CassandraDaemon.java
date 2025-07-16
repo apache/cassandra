@@ -50,7 +50,7 @@ import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import org.apache.cassandra.audit.AuditLogManager;
-import org.apache.cassandra.audit.AuditUsersCacheService;
+import org.apache.cassandra.audit.AuditLogRoleFilteringService;
 import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -524,8 +524,8 @@ public class CassandraDaemon
 
         AuditLogManager.instance.initialize();
 
-        // Set up the AuditUsersCacheService on instance start
-        AuditUsersCacheService.instance.setup();
+        // Set up the AuditLogRoleFilteringService on instance start
+        AuditLogRoleFilteringService.instance.setup();
 
         // Initialize the SampledQueryEventLogger on instance start
         SampledQueryEventLogger.instance.initialize();
