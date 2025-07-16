@@ -21,8 +21,10 @@ package org.apache.cassandra.service.accord;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
@@ -86,9 +88,10 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
 
     private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId)
     {
-        TreeSet<TxnId> matches = new TreeSet<>();
+        // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
+        Set<TxnId> matches = new HashSet<>();
         segmentIndexes.values().forEach(s -> s.search(storeId, tableId, start, end, minTxnId, maxTxnId, e -> matches.add(e.getValue())));
-        return matches.isEmpty() ? Collections.emptyNavigableSet() : matches;
+        return matches.isEmpty() ? Collections.emptyNavigableSet() : new TreeSet<>(matches);
     }
 
     @Override
@@ -100,9 +103,10 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
 
     private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId)
     {
-        TreeSet<TxnId> matches = new TreeSet<>();
+        // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
+        Set<TxnId> matches = new HashSet<>();
         segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, minTxnId, maxTxnId, e -> matches.add(e.getValue())));
-        return matches.isEmpty() ? Collections.emptyNavigableSet() : matches;
+        return matches.isEmpty() ? Collections.emptyNavigableSet() : new TreeSet<>(matches);
     }
 
     public synchronized void truncateForTesting()
