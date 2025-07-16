@@ -380,7 +380,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
     @Override
     public Searcher searcherFor(ReadCommand command)
     {
-        List<RowFilter.Expression> expressions = command.rowFilter().getExpressions().stream().collect(Collectors.toList());
+        List<RowFilter.Expression> expressions = new ArrayList<>(command.rowFilter().getExpressions());
         if (expressions.isEmpty())
             return null;
         ByteBuffer start = null;
@@ -395,14 +395,10 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 switch (e.operator())
                 {
                     case GT:
-                        start = e.getIndexValue();
-                        break;
                     case GTE:
                         start = e.getIndexValue();
                         break;
                     case LT:
-                        end = e.getIndexValue();
-                        break;
                     case LTE:
                         end = e.getIndexValue();
                         break;
@@ -419,14 +415,10 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 switch (e.operator())
                 {
                     case GT:
-                        minTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
-                        break;
                     case GTE:
                         minTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
                         break;
                     case LT:
-                        maxTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
-                        break;
                     case LTE:
                         maxTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
                         break;
@@ -587,7 +579,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         throw new UnsupportedOperationException();
     }
 
-    private class SearchIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    private static class SearchIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
         private final TableMetadata metadata;
         private final Iterator<ByteBuffer> partitions;
