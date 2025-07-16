@@ -54,7 +54,6 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
-import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Shard;
@@ -186,7 +185,7 @@ public class RouteIndexTest extends CQLTester
         long start = range.start().isMin() ? Long.MIN_VALUE : ((LongToken) range.start().token()).token;
         long end = range.end().isMax() ? Long.MAX_VALUE : ((LongToken) range.end().token()).token;
         long token = 1 + rs.nextLong(start, end);
-        return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)));
+        return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)), state.nextTxnRange(rs));
     }
 
     private static RangeSearch rangeSearchExisting(RandomSource rs, State state)
@@ -195,17 +194,17 @@ public class RouteIndexTest extends CQLTester
         var tables = state.storeToTableToRangesToTxns.get(storeId);
         TableId tableId = rs.pickUnorderedSet(tables.keySet());
         var ranges = tables.get(tableId);
-        return new RangeSearch(storeId, selectExistingRange(rs, ranges));
+        return new RangeSearch(storeId, selectExistingRange(rs, ranges), state.nextTxnRange(rs));
     }
 
     private static Command<State, Sut, ?> rangeSearch(RandomSource rs, State state)
     {
-        return new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs));
+        return new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs), state.nextTxnRange(rs));
     }
 
     private static Command<State, Sut, ?> keySearch(RandomSource rs, State state)
     {
-        return new KeySearch(rs.nextInt(0, state.numStores), new TokenKey(rs.pick(state.tables), new LongToken(state.tokenGen.nextInt(rs))));
+        return new KeySearch(rs.nextInt(0, state.numStores), new TokenKey(rs.pick(state.tables), new LongToken(state.tokenGen.nextInt(rs))), state.nextTxnRange(rs));
     }
 
     @Test
@@ -213,7 +212,7 @@ public class RouteIndexTest extends CQLTester
     {
         cfs().disableAutoCompaction(); // let the test control compaction
         //TODO (coverage): include with the ability to mark ranges as durable for compaction cleanup
-        stateful().withSeed(3447572084501251040L).withExamples(10).withSteps(500).check(commands(() -> State::new, Sut::new)
+        stateful().withExamples(10).withSteps(500).check(commands(() -> State::new, Sut::new)
                                           .destroyState(State::close)
                                           .destroySut(Sut::close)
                                           .addIf(State::mayFlush, CLOSE)
@@ -272,11 +271,13 @@ public class RouteIndexTest extends CQLTester
     {
         private final int storeId;
         private final TokenKey key;
+        private final TxnRange txnRange;
 
-        private KeySearch(int storeId, TokenKey key)
+        private KeySearch(int storeId, TokenKey key, TxnRange txnRange)
         {
             this.storeId = storeId;
             this.key = key;
+            this.txnRange = txnRange;
         }
 
         @Override
@@ -287,7 +288,10 @@ public class RouteIndexTest extends CQLTester
             var ranges = tables.get(key.table());
             if (ranges == null) return Collections.emptySet();
             Set<TxnId> matches = new HashSet<>();
-            ranges.searchToken(key, e -> matches.add(e.getValue()));
+            ranges.searchToken(key, e -> {
+                if (txnRange.includes(e.getValue()))
+                    matches.add(e.getValue());
+            });
             return matches;
         }
 
@@ -295,7 +299,7 @@ public class RouteIndexTest extends CQLTester
         public Set<TxnId> run(Sut sut) throws Throwable
         {
             Set<TxnId> result = new ObjectHashSet<>();
-            sut.journal.get().rangeSearcher().search(storeId, key, TxnId.NONE, Timestamp.MAX).consume(result::add);
+            sut.journal.get().rangeSearcher().search(storeId, key, txnRange.minTxnId, txnRange.maxTxnId).consume(result::add);
             return result;
         }
 
@@ -320,11 +324,13 @@ public class RouteIndexTest extends CQLTester
     {
         private final int storeId;
         private final TokenRange range;
+        private final TxnRange txnRange;
 
-        private RangeSearch(int storeId, TokenRange range)
+        private RangeSearch(int storeId, TokenRange range, TxnRange txnRange)
         {
             this.storeId = storeId;
             this.range = range;
+            this.txnRange = txnRange;
         }
 
         @Override
@@ -335,7 +341,10 @@ public class RouteIndexTest extends CQLTester
             var ranges = tables.get(range.table());
             if (ranges == null) return Collections.emptySet();
             Set<TxnId> matches = new HashSet<>();
-            ranges.search(range, e -> matches.add(e.getValue()));
+            ranges.search(range, e -> {
+                if (txnRange.includes(e.getValue()))
+                    matches.add(e.getValue());
+            });
             return matches;
         }
 
@@ -343,7 +352,7 @@ public class RouteIndexTest extends CQLTester
         public Set<TxnId> run(Sut sut) throws Throwable
         {
             Set<TxnId> result = new ObjectHashSet<>();
-            sut.journal.get().rangeSearcher().search(storeId, range, TxnId.NONE, Timestamp.MAX).consume(result::add);
+            sut.journal.get().rangeSearcher().search(storeId, range, txnRange.minTxnId, txnRange.maxTxnId).consume(result::add);
             return result;
         }
 
@@ -453,6 +462,8 @@ public class RouteIndexTest extends CQLTester
 
     private static class State implements AutoCloseable
     {
+        private static final int MIN_TIMESTAMP = 1000;
+
         private final Int2ObjectHashMap<Map<TableId, Long2ObjectHashMap<List<TxnId>>>> storeToTableToRoutingKeysToTxns = new Int2ObjectHashMap<>();
         private final Int2ObjectHashMap<Map<TableId, RangeTree<TokenKey, TokenRange, TxnId>>> storeToTableToRangesToTxns = new Int2ObjectHashMap<>();
         private final Int2ObjectHashMap<RangesForEpoch> storeRangesForEpochs = new Int2ObjectHashMap<>();
@@ -465,7 +476,7 @@ public class RouteIndexTest extends CQLTester
         private final Gen<Domain> domainGen;
         private final ColumnFamilyStore journalTable;
         private AccordService accordService;
-        private int hlc = 1000;
+        private int hlc = MIN_TIMESTAMP;
 
         public State(RandomSource rs)
         {
@@ -504,7 +515,19 @@ public class RouteIndexTest extends CQLTester
 
         TxnId nextTxnId(Domain domain)
         {
-            return new TxnId(1, hlc++, Txn.Kind.Write, domain, NODE);
+            return idFor(domain, hlc++);
+        }
+
+        static TxnId idFor(Domain domain, long hlc)
+        {
+            return new TxnId(1, hlc, Txn.Kind.Write, domain, NODE);
+        }
+
+        TxnRange nextTxnRange(RandomSource rs)
+        {
+            long maxKnown = hlc;
+            long minKnown = MIN_TIMESTAMP;
+            return TxnRange.next(rs, minKnown, maxKnown, hlc -> idFor(Domain.Key, hlc));
         }
 
         void insertTxn(int storeId, TxnId txnId, Route<?> route)

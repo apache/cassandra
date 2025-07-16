@@ -38,6 +38,7 @@ import accord.utils.RandomSource;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.index.accord.TxnRange;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -45,6 +46,7 @@ import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.index.accord.AccordIndexUtil.normalize;
 
 public class RouteInMemoryIndexTest
 {
@@ -68,20 +70,6 @@ public class RouteInMemoryIndexTest
                          .build());
     }
 
-    private static String normalize(TokenRange range)
-    {
-        return "R:" + range.toString().replace(range.prefix()  + ":", "");
-    }
-
-    private static String normalize(TokenKey key)
-    {
-        return "K:" + key.toString().replace(key.prefix()  + ":", "");
-    }
-
-    private static String normalize(TxnId txnId)
-    {
-        return "T:" + txnId.hlc();
-    }
 
     private static TokenKey tokenKey(long token)
     {
@@ -113,46 +101,11 @@ public class RouteInMemoryIndexTest
     private static TxnRange nextTxnRange(RandomSource rs, State state)
     {
         if (rs.decide(state.unfiltered))
-            return new TxnRange(TxnId.NONE, TxnId.MAX);
+            return TxnRange.FULL;
 
-        TxnId minTxnId;
-        TxnId maxTxnId;
-        if (state.model.isEmpty())
-        {
-            // just do random
-            minTxnId = idFor(rs.nextLong(1, 1 << 16));
-            maxTxnId = idFor(rs.nextLong(1, 1 << 16));
-        }
-        else
-        {
-            long minKnown = state.model.minTime();
-            long maxKnown = state.operations;
-            switch (rs.nextInt(0, 3))
-            {
-                case 0: // future
-                {
-                    minTxnId = idFor(state.operations + 10);
-                    maxTxnId = idFor(state.operations + 100);
-                }
-                break;
-                case 1: // past
-                {
-                    minTxnId = idFor(Math.max(1, minKnown - 100));
-                    maxTxnId = idFor(Math.max(1, minKnown - 10));
-                }
-                break;
-                case 2: // present-ish
-                {
-                    // this can cause min/max to be reversed!
-                    minTxnId = idFor(Math.max(1, minKnown + 10));
-                    maxTxnId = idFor(Math.max(1, maxKnown - 10));
-                }
-                break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
-        }
-        return new TxnRange(minTxnId, maxTxnId);
+        long maxKnown = state.operations;
+        long minKnown = state.model.isEmpty() ? maxKnown : state.model.minTime();
+        return TxnRange.next(rs, minKnown, maxKnown, RouteInMemoryIndexTest::idFor);
     }
 
     private static class State
@@ -266,24 +219,6 @@ public class RouteInMemoryIndexTest
                 Assertions.assertThat(actual).describedAs("Actual iterator has more data than expected!").isExhausted();
                 Assertions.assertThat(expected).describedAs("Actual iterator has less data than expected!").isExhausted();
             }
-        }
-    }
-
-    private static class TxnRange
-    {
-        final TxnId minTxnId;
-        final TxnId maxTxnId;
-
-        private TxnRange(TxnId minTxnId, TxnId maxTxnId)
-        {
-            this.minTxnId = minTxnId;
-            this.maxTxnId = maxTxnId;
-        }
-
-        @Override
-        public String toString()
-        {
-            return normalize(minTxnId) + ',' + normalize(maxTxnId);
         }
     }
 

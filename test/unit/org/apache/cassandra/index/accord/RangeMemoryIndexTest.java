@@ -47,6 +47,7 @@ import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.index.accord.AccordIndexUtil.*;
 
 public class RangeMemoryIndexTest
 {
@@ -67,21 +68,6 @@ public class RangeMemoryIndexTest
                          .add(State::keySearch)
                          .onSuccess((state, sut, history) -> logger.info("Successful for the following:\nState {}\nHistory:\n{}", state, Property.formatList("\t\t", history)))
                          .build());
-    }
-
-    private static String normalize(TokenRange range)
-    {
-        return "R:" + range.toString().replace(range.prefix()  + ":", "");
-    }
-
-    private static String normalize(TokenKey key)
-    {
-        return "K:" + key.toString().replace(key.prefix()  + ":", "");
-    }
-
-    private static String normalize(TxnId txnId)
-    {
-        return "T:" + txnId.hlc();
     }
 
     private static TokenKey tokenKey(long token)
@@ -114,46 +100,11 @@ public class RangeMemoryIndexTest
     private static TxnRange nextTxnRange(RandomSource rs, State state)
     {
         if (rs.decide(state.unfiltered))
-            return new TxnRange(TxnId.NONE, TxnId.MAX);
+            return TxnRange.FULL;
 
-        TxnId minTxnId;
-        TxnId maxTxnId;
-        if (state.model.isEmpty())
-        {
-            // just do random
-            minTxnId = idFor(rs.nextLong(1, 1 << 16));
-            maxTxnId = idFor(rs.nextLong(1, 1 << 16));
-        }
-        else
-        {
-            long minKnown = state.model.minTime();
-            long maxKnown = state.operations;
-            switch (rs.nextInt(0, 3))
-            {
-                case 0: // future
-                {
-                    minTxnId = idFor(state.operations + 10);
-                    maxTxnId = idFor(state.operations + 100);
-                }
-                break;
-                case 1: // past
-                {
-                    minTxnId = idFor(Math.max(1, minKnown - 100));
-                    maxTxnId = idFor(Math.max(1, minKnown - 10));
-                }
-                break;
-                case 2: // present-ish
-                {
-                    // this can cause min/max to be reversed!
-                    minTxnId = idFor(Math.max(1, minKnown + 10));
-                    maxTxnId = idFor(Math.max(1, maxKnown - 10));
-                }
-                break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
-        }
-        return new TxnRange(minTxnId, maxTxnId);
+        long maxKnown = state.operations;
+        long minKnown = state.model.isEmpty() ? maxKnown : state.model.minTime();
+        return TxnRange.next(rs, minKnown, maxKnown, RangeMemoryIndexTest::idFor);
     }
 
     private static DecoratedKey pk(TxnId txnId)
@@ -192,7 +143,7 @@ public class RangeMemoryIndexTest
             byte[] start = OrderedRouteSerializer.serializeTokenOnly(range.start());
             byte[] end = OrderedRouteSerializer.serializeTokenOnly(range.end());
             return new Property.SimpleCommand<>("search(" + normalize(range) + ", " + txnRange + ')', s2 -> {
-                var actual = normalize(state.index.search(STORE, TABLE_ID, start, end,  txnRange.minTxnId, txnRange.maxTxnId));
+                var actual = normalizePks(state.index.search(STORE, TABLE_ID, start, end,  txnRange.minTxnId, txnRange.maxTxnId));
                 var expected = state.model.search(range, txnRange.minTxnId, txnRange.maxTxnId);
                 Assertions.assertThat(actual).isEqualTo(expected);
             });
@@ -204,14 +155,14 @@ public class RangeMemoryIndexTest
             var txnRange = nextTxnRange(rs, state);
             var start = OrderedRouteSerializer.serializeTokenOnly(key);
             return new Property.SimpleCommand<>("search(" + normalize(key) + ", " + txnRange + ')', s2 -> {
-                var actual = normalize(state.index.search(STORE, TABLE_ID, start, txnRange.minTxnId, txnRange.maxTxnId));
+                var actual = normalizePks(state.index.search(STORE, TABLE_ID, start, txnRange.minTxnId, txnRange.maxTxnId));
                 var expected = state.model.search(key, txnRange.minTxnId, txnRange.maxTxnId);
                 Assertions.assertThat(actual).isEqualTo(expected);
             });
         }
     }
 
-    private static NavigableSet<TxnId> normalize(NavigableSet<ByteBuffer> set)
+    private static NavigableSet<TxnId> normalizePks(NavigableSet<ByteBuffer> set)
     {
         if (set.isEmpty()) return Collections.emptyNavigableSet();
         TreeSet<TxnId> result = new TreeSet<>();
@@ -273,24 +224,6 @@ public class RangeMemoryIndexTest
                     result.add(value.txnId);
             }
             return result;
-        }
-    }
-
-    private static class TxnRange
-    {
-        final TxnId minTxnId;
-        final TxnId maxTxnId;
-
-        private TxnRange(TxnId minTxnId, TxnId maxTxnId)
-        {
-            this.minTxnId = minTxnId;
-            this.maxTxnId = maxTxnId;
-        }
-
-        @Override
-        public String toString()
-        {
-            return normalize(minTxnId) + ',' + normalize(maxTxnId);
         }
     }
 }
