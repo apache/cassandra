@@ -23,12 +23,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
 import org.apache.cassandra.io.FSReadError;
@@ -86,18 +83,17 @@ public class RouteSSTableManager implements SSTableManager
     }
 
     @Override
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId,
-                                                        byte[] start, byte[] end,
-                                                        Timestamp minTimestamp, Timestamp maxTimestamp)
+    public synchronized void search(int storeId, TableId tableId,
+                                    byte[] start, byte[] end,
+                                    Timestamp minTimestamp, Timestamp maxTimestamp,
+                                    Consumer<ByteBuffer> onMatch)
     {
         Key group = new Key(storeId, tableId);
-        // while building the matches use hash set to have O(1) insertion; only pay the sorting cost at the end
-        Set<ByteBuffer> matches = new HashSet<>();
         for (SSTableIndex index : sstables.values())
         {
             try
             {
-                index.search(group, start, end, minTimestamp, maxTimestamp, matches::add);
+                index.search(group, start, end, minTimestamp, maxTimestamp, onMatch);
             }
             catch (Throwable t)
             {
@@ -105,17 +101,13 @@ public class RouteSSTableManager implements SSTableManager
                 throw new FSReadError("Failed to search range index " + file + " for (" + ByteArrayUtil.bytesToHex(start) + "..." + ByteArrayUtil.bytesToHex(end) + "]", t, file);
             }
         }
-        return new TreeSet<>(matches);
     }
 
     @Override
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp)
+    public synchronized void search(int storeId, TableId tableId, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp, Consumer<ByteBuffer> onMatch)
     {
         Key group = new Key(storeId, tableId);
-        // while building the matches use hash set to have O(1) insertion; only pay the sorting cost at the end
-        Set<ByteBuffer> matches = new HashSet<>();
         for (SSTableIndex index : sstables.values())
-            index.search(group, key, minTimestamp, maxTimestamp, matches::add);
-        return new TreeSet<>(matches);
+            index.search(group, key, minTimestamp, maxTimestamp, onMatch);
     }
 }

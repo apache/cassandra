@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
@@ -484,7 +485,8 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                     tableId = route.table();
                     start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
-                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start, minTimestamp, maxTimestamp);
+                NavigableSet<ByteBuffer> matches = new TreeSet<>();
+                sstableManager.search(storeId, tableId, start, minTimestamp, maxTimestamp, matches::add);
                 matches.addAll(memtableIndexManager.search(storeId, tableId, start,
                                                            minTimestamp, maxTimestamp));
                 return matches;
@@ -529,7 +531,8 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                     start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
                 byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
-                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp);
+                NavigableSet<ByteBuffer> matches = new TreeSet<>();
+                sstableManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp, matches::add);
                 matches.addAll(memtableIndexManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp));
                 return matches;
             }
