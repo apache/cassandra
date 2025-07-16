@@ -23,9 +23,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.TreeSet;
 
 import accord.primitives.Timestamp;
@@ -89,12 +91,13 @@ public class RouteSSTableManager implements SSTableManager
                                                         Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         Key group = new Key(storeId, tableId);
-        TreeSet<ByteBuffer> matches = new TreeSet<>();
+        // while building the matches use hash set to have O(1) insertion; only pay the sorting cost at the end
+        Set<ByteBuffer> matches = new HashSet<>();
         for (SSTableIndex index : sstables.values())
         {
             try
             {
-                matches.addAll(index.search(group, start, end, minTimestamp, maxTimestamp));
+                index.search(group, start, end, minTimestamp, maxTimestamp, matches::add);
             }
             catch (Throwable t)
             {
@@ -102,16 +105,17 @@ public class RouteSSTableManager implements SSTableManager
                 throw new FSReadError("Failed to search range index " + file + " for (" + ByteArrayUtil.bytesToHex(start) + "..." + ByteArrayUtil.bytesToHex(end) + "]", t, file);
             }
         }
-        return matches;
+        return new TreeSet<>(matches);
     }
 
     @Override
     public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp)
     {
         Key group = new Key(storeId, tableId);
-        TreeSet<ByteBuffer> matches = new TreeSet<>();
+        // while building the matches use hash set to have O(1) insertion; only pay the sorting cost at the end
+        Set<ByteBuffer> matches = new HashSet<>();
         for (SSTableIndex index : sstables.values())
-            matches.addAll(index.search(group, key, minTimestamp, maxTimestamp));
-        return matches;
+            index.search(group, key, minTimestamp, maxTimestamp, matches::add);
+        return new TreeSet<>(matches);
     }
 }

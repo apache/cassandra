@@ -20,14 +20,11 @@ package org.apache.cassandra.index.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import accord.primitives.Timestamp;
@@ -82,7 +79,7 @@ public class SSTableIndex extends SharedCloseableImpl
         return new SSTableIndex(id, files, segments, cleanup);
     }
 
-    public Collection<? extends ByteBuffer> search(Key group, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp)
+    public void search(Key group, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp, Consumer<ByteBuffer> onMatch)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
@@ -93,32 +90,27 @@ public class SSTableIndex extends SharedCloseableImpl
                                                    && ByteArrayUtil.compareUnsigned(metadata.maxTerm, key) >= 0;
                                         })
                                         .collect(Collectors.toList());
-        if (matches.isEmpty()) return Collections.emptyList();
-        if (matches.size() == 1) return search(matches.get(0), group, key);
-        Set<ByteBuffer> found =  new HashSet<>();
+        if (matches.isEmpty()) return;
         for (Segment s : matches)
-            found.addAll(search(s, group, key));
-        return found;
+            search(s, group, key, onMatch);
     }
 
-    private Collection<? extends ByteBuffer> search(Segment segment, Key group, byte[] key)
+    private void search(Segment segment, Key group, byte[] key, Consumer<ByteBuffer> onMatch)
     {
-        Set<ByteBuffer> matches = new HashSet<>();
         Segment.Metadata metadata = Objects.requireNonNull(segment.groups.get(group), () -> "Unknown group: " + group);
         try
         {
             SegmentSearcher searcher = new SegmentSearcher(fileFor(IndexComponent.CINTIA_SORTED_LIST), metadata.metas.get(IndexComponent.CINTIA_SORTED_LIST).offset,
                                                            fileFor(IndexComponent.CINTIA_CHECKPOINTS), metadata.metas.get(IndexComponent.CINTIA_CHECKPOINTS).offset);
-            searcher.contains(key, interval -> matches.add(ByteBuffer.wrap(interval.value)));
+            searcher.contains(key, interval -> onMatch.accept(ByteBuffer.wrap(interval.value)));
         }
         catch (IOException e)
         {
             throw new FSReadError(e, id.fileFor(IndexComponent.CINTIA_SORTED_LIST));
         }
-        return matches;
     }
 
-    public Collection<? extends ByteBuffer> search(Key group, byte[] start, byte[] end, Timestamp minTimestamp, Timestamp maxTimestamp)
+    public void search(Key group, byte[] start, byte[] end, Timestamp minTimestamp, Timestamp maxTimestamp, Consumer<ByteBuffer> onMatch)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
@@ -132,29 +124,24 @@ public class SSTableIndex extends SharedCloseableImpl
                                             return true;
                                         })
                                         .collect(Collectors.toList());
-        if (matches.isEmpty()) return Collections.emptyList();
-        if (matches.size() == 1) return search(matches.get(0), group, start, end);
-        Set<ByteBuffer> found =  new HashSet<>();
+        if (matches.isEmpty()) return;
         for (Segment s : matches)
-            found.addAll(search(s, group, start, end));
-        return found;
+            search(s, group, start, end, onMatch);
     }
 
-    private Collection<? extends ByteBuffer> search(Segment segment, Key group, byte[] start, byte[] end)
+    private void search(Segment segment, Key group, byte[] start, byte[] end, Consumer<ByteBuffer> onMatch)
     {
-        Set<ByteBuffer> matches = new HashSet<>();
         Segment.Metadata metadata = Objects.requireNonNull(segment.groups.get(group), () -> "Unknown group: " + group);
         try
         {
             SegmentSearcher searcher = new SegmentSearcher(fileFor(IndexComponent.CINTIA_SORTED_LIST), metadata.metas.get(IndexComponent.CINTIA_SORTED_LIST).offset,
                                                            fileFor(IndexComponent.CINTIA_CHECKPOINTS), metadata.metas.get(IndexComponent.CINTIA_CHECKPOINTS).offset);
-            searcher.intersects(start, end, interval -> matches.add(ByteBuffer.wrap(interval.value)));
+            searcher.intersects(start, end, interval -> onMatch.accept(ByteBuffer.wrap(interval.value)));
         }
         catch (IOException e)
         {
             throw new FSReadError(e, id.fileFor(IndexComponent.CINTIA_SORTED_LIST));
         }
-        return matches;
     }
 
     private FileHandle fileFor(IndexComponent c)
