@@ -19,7 +19,7 @@ public class Profile extends NodeTool.NodeToolCmd {
     public String event = "cpu";
 
     @Option(name = {"-r", "--raw"}, description = "Raw commands to execute")
-    public String raw = "help";
+    public String raw;
 
     @Option(name = {"-f", "--file"}, description = "Output file for profile dump")
     public String outputFile = "/tmp/profile.html";
@@ -39,7 +39,7 @@ public class Profile extends NodeTool.NodeToolCmd {
             } else if (stop) {
                 System.out.printf("Stopping profiler and writing output to: %s\n", outputFile);
                 profiler.stop(outputFile);
-            } else if (raw != "help"){
+            } else if (raw != null){
                 System.out.printf("Executing raw command: %s\n", raw);
                 profiler.execute(raw);
             } else {
