@@ -20,6 +20,7 @@ package org.apache.cassandra.index.accord;
 
 import java.nio.ByteBuffer;
 import java.util.NavigableSet;
+import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
 import org.apache.cassandra.db.DecoratedKey;
@@ -38,8 +39,11 @@ public interface MemtableIndexManager
 
     void renewMemtable(Memtable renewed);
 
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, byte[] end,
-                                    Timestamp minTimestamp, Timestamp maxTimestamp);
-    NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
-                                    Timestamp minTimestamp, Timestamp maxTimestamp);
+    void search(int storeId, TableId tableId, byte[] start, byte[] end,
+                Timestamp minTimestamp, Timestamp maxTimestamp,
+                Consumer<ByteBuffer> onMatch);
+
+    void search(int storeId, TableId tableId, byte[] key,
+                Timestamp minTimestamp, Timestamp maxTimestamp,
+                Consumer<ByteBuffer> onMatch);
 }

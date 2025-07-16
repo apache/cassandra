@@ -212,7 +212,7 @@ public class RouteIndexTest extends CQLTester
     {
         cfs().disableAutoCompaction(); // let the test control compaction
         //TODO (coverage): include with the ability to mark ranges as durable for compaction cleanup
-        stateful().withExamples(10).withSteps(500).withExamples(Integer.MAX_VALUE).check(commands(() -> State::new, Sut::new)
+        stateful().withExamples(10).withSteps(500).check(commands(() -> State::new, Sut::new)
                                           .destroyState(State::close)
                                           .destroySut(Sut::close)
                                           .addIf(State::mayFlush, CLOSE)

@@ -24,6 +24,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
 import org.apache.cassandra.db.DecoratedKey;
@@ -103,23 +104,23 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
     }
 
     @Override
-    public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] start, byte[] end,
-                                           Timestamp minTimestamp, Timestamp maxTimestamp)
+    public void search(int storeId, TableId tableId, byte[] start, byte[] end,
+                       Timestamp minTimestamp, Timestamp maxTimestamp,
+                       Consumer<ByteBuffer> onMatch)
     {
-        TreeSet<ByteBuffer> matches = new TreeSet<>();
-        liveMemtableIndexMap.values().forEach(m -> matches.addAll(m.search(storeId, tableId,
-                                                                           start, end,
-                                                                           minTimestamp, maxTimestamp)));
-        return matches;
+        liveMemtableIndexMap.values().forEach(m -> m.search(storeId, tableId,
+                                                            start, end,
+                                                            minTimestamp, maxTimestamp,
+                                                            onMatch));
     }
 
     @Override
-    public NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
-                                           Timestamp minTimestamp, Timestamp maxTimestamp)
+    public void search(int storeId, TableId tableId, byte[] key,
+                                           Timestamp minTimestamp, Timestamp maxTimestamp,
+                                           Consumer<ByteBuffer> onMatch)
     {
-        TreeSet<ByteBuffer> matches = new TreeSet<>();
-        liveMemtableIndexMap.values().forEach(m -> matches.addAll(m.search(storeId, tableId, key,
-                                                                           minTimestamp, maxTimestamp)));
-        return matches;
+        liveMemtableIndexMap.values().forEach(m -> m.search(storeId, tableId, key,
+                                                            minTimestamp, maxTimestamp,
+                                                            onMatch));
     }
 }

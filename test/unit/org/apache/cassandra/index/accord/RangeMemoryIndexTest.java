@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.index.accord;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.TreeSet;
@@ -47,7 +45,7 @@ import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
-import static org.apache.cassandra.index.accord.AccordIndexUtil.*;
+import static org.apache.cassandra.index.accord.AccordIndexUtil.normalize;
 
 public class RangeMemoryIndexTest
 {
@@ -143,7 +141,8 @@ public class RangeMemoryIndexTest
             byte[] start = OrderedRouteSerializer.serializeTokenOnly(range.start());
             byte[] end = OrderedRouteSerializer.serializeTokenOnly(range.end());
             return new Property.SimpleCommand<>("search(" + normalize(range) + ", " + txnRange + ')', s2 -> {
-                var actual = normalizePks(state.index.search(STORE, TABLE_ID, start, end,  txnRange.minTxnId, txnRange.maxTxnId));
+                TreeSet<TxnId> actual = new TreeSet<>();
+                state.index.search(STORE, TABLE_ID, start, end,  txnRange.minTxnId, txnRange.maxTxnId, bb -> actual.add(AccordKeyspace.JournalColumns.getJournalKey(bb).id));
                 var expected = state.model.search(range, txnRange.minTxnId, txnRange.maxTxnId);
                 Assertions.assertThat(actual).isEqualTo(expected);
             });
@@ -155,20 +154,12 @@ public class RangeMemoryIndexTest
             var txnRange = nextTxnRange(rs, state);
             var start = OrderedRouteSerializer.serializeTokenOnly(key);
             return new Property.SimpleCommand<>("search(" + normalize(key) + ", " + txnRange + ')', s2 -> {
-                var actual = normalizePks(state.index.search(STORE, TABLE_ID, start, txnRange.minTxnId, txnRange.maxTxnId));
+                TreeSet<TxnId> actual = new TreeSet<>();
+                state.index.search(STORE, TABLE_ID, start, txnRange.minTxnId, txnRange.maxTxnId, bb -> actual.add(AccordKeyspace.JournalColumns.getJournalKey(bb).id));
                 var expected = state.model.search(key, txnRange.minTxnId, txnRange.maxTxnId);
                 Assertions.assertThat(actual).isEqualTo(expected);
             });
         }
-    }
-
-    private static NavigableSet<TxnId> normalizePks(NavigableSet<ByteBuffer> set)
-    {
-        if (set.isEmpty()) return Collections.emptyNavigableSet();
-        TreeSet<TxnId> result = new TreeSet<>();
-        for (var bb : set)
-            result.add(AccordKeyspace.JournalColumns.getJournalKey(bb).id);
-        return result;
     }
 
     private static class Model

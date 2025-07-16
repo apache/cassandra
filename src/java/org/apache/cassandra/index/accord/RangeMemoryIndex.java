@@ -22,17 +22,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -190,38 +184,27 @@ public class RangeMemoryIndex
         return TableId.EMPTY_SIZE + range.unsharedHeapSize();
     }
 
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId,
-                                                        byte[] start, byte[] end,
-                                                        Timestamp minTimestamp, Timestamp maxTimestamp)
+    public synchronized void search(int storeId, TableId tableId,
+                                    byte[] start, byte[] end,
+                                    Timestamp minTimestamp, Timestamp maxTimestamp,
+                                    Consumer<ByteBuffer> onMatch)
     {
         Group group = map.get(new Key(storeId, tableId));
-        if (group == null) return Collections.emptyNavigableSet();
-        RangeTree<byte[], Range, DecoratedKey> rangesToPks = group.tree;
-        if (rangesToPks.isEmpty())
-            return Collections.emptyNavigableSet();
-        TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
-        group.search(start, end, minTimestamp, maxTimestamp, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
-        if (matches.isEmpty())
-            return Collections.emptyNavigableSet();
-        TreeSet<ByteBuffer> pks = new TreeSet<>();
-        matches.values().forEach(s -> s.forEach(d -> pks.add(d.getKey())));
-        return pks;
+        if (group == null) return;
+        if (group.tree.isEmpty()) return;
+
+        group.search(start, end, minTimestamp, maxTimestamp, e -> onMatch.accept(e.getValue().getKey()));
     }
 
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key,
-                                                        Timestamp minTimestamp, Timestamp maxTimestamp)
+    public synchronized void search(int storeId, TableId tableId, byte[] key,
+                                    Timestamp minTimestamp, Timestamp maxTimestamp,
+                                    Consumer<ByteBuffer> onMatch)
     {
         Group group = map.get(new Key(storeId, tableId));
-        if (group == null) return Collections.emptyNavigableSet();
-        if (group.tree.isEmpty())
-            return Collections.emptyNavigableSet();
+        if (group == null) return;
+        if (group.tree.isEmpty()) return;
 
-        TreeMap<Range, Set<DecoratedKey>> matches = new TreeMap<>();
-        group.searchToken(key, minTimestamp, maxTimestamp, e -> matches.computeIfAbsent(e.getKey(), ignore -> new HashSet<>()).add(e.getValue()));
-
-        TreeSet<ByteBuffer> pks = new TreeSet<>();
-        matches.values().forEach(s -> s.forEach(d -> pks.add(d.getKey())));
-        return pks;
+        group.searchToken(key, minTimestamp, maxTimestamp, e -> onMatch.accept(e.getValue().getKey()));
     }
 
     public synchronized boolean isEmpty()

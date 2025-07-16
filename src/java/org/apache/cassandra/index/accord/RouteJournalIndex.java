@@ -487,8 +487,9 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 }
                 NavigableSet<ByteBuffer> matches = new TreeSet<>();
                 sstableManager.search(storeId, tableId, start, minTimestamp, maxTimestamp, matches::add);
-                matches.addAll(memtableIndexManager.search(storeId, tableId, start,
-                                                           minTimestamp, maxTimestamp));
+                memtableIndexManager.search(storeId, tableId, start,
+                                            minTimestamp, maxTimestamp,
+                                            matches::add);
                 return matches;
             }
         };
@@ -533,7 +534,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
                 NavigableSet<ByteBuffer> matches = new TreeSet<>();
                 sstableManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp, matches::add);
-                matches.addAll(memtableIndexManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp));
+                memtableIndexManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp, matches::add);
                 return matches;
             }
         };
