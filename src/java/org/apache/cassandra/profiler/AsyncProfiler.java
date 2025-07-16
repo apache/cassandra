@@ -13,6 +13,10 @@ public class AsyncProfiler implements AsyncProfilerMBean {
         service.stop(outputFile);
     }
 
+    public void execute(String command) {
+        service.execute(command);
+    }
+
     public boolean isAvailable() {
         return service.isAvailable();
     }

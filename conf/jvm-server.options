@@ -140,8 +140,9 @@
 # Disable chronicle analytics. See CASSANDRA-19656
 -Dchronicle.analytics.disable=true
 
-# Set Async-Profiler's native library path
--Dcassandra.async_profiler.library_path=lib/async-profiler/asyncProfiler.dylib
+# AsyncProfiler Flags
+#-Dcassandra.async_profiler.enabled=true|false
+#-Dcassandra.async_profiler.advanced_mode=true|false
 
 ### Debug options
 
