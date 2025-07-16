@@ -545,7 +545,7 @@ public class Paxos
         /**
          * update relevant counters and throw the relevant exception
          */
-        RequestExecutionException markAndThrowAsTimeoutOrFailure(boolean isWrite, ConsistencyLevel consistency, int failedAttemptsDueToContention, StorageProxyMetrics storageProxyMetrics)
+        RequestExecutionException markAndThrowAsTimeoutOrFailure(boolean isWrite, ConsistencyLevel consistency, int failedAttemptsDueToContention, TableMetadata metadata)
         {
             if (isFailure)
             {
@@ -553,15 +553,20 @@ public class Paxos
                     if (isWrite)
                     {
                         casWriteMetrics.rateLimiterThrottles.mark();
-                        storageProxyMetrics.casWriteMetrics.rateLimiterThrottles.mark();
+                        StorageProxyMetricsManager.markMetric(metadata.keyspace, consistency, m -> m.casWriteMetrics.rateLimiterThrottles.mark());
                     }
                     else
                     {
                         casReadMetrics.rateLimiterThrottles.mark();
-                        storageProxyMetrics.casReadMetrics.rateLimiterThrottles.mark();
+                        StorageProxyMetricsManager.markMetric(metadata.keyspace, consistency, m -> m.casReadMetrics.rateLimiterThrottles.mark());
                     }
                 mark(isWrite, m -> m.failures, consistency);
-                markStorageProxyMetrics(isWrite, m -> m.failures, storageProxyMetrics);
+                StorageProxyMetricsManager.markMetric(metadata.keyspace, consistency, m -> {
+                    if (isWrite)
+                        m.casWriteMetrics.failures.mark();
+                    else
+                        m.casReadMetrics.failures.mark();
+                });
                 throw serverError != null ? new RequestFailureException(ExceptionCode.SERVER_ERROR, serverError, consistency, successes, required, failures)
                                           : isWrite
                                             ? new WriteFailureException(consistency, successes, required, WriteType.CAS, failures)
@@ -570,7 +575,12 @@ public class Paxos
             else
             {
                 mark(isWrite, m -> m.timeouts, consistency);
-                markStorageProxyMetrics(isWrite, m -> m.timeouts, storageProxyMetrics);
+                StorageProxyMetricsManager.markMetric(metadata.keyspace, consistency, m -> {
+                    if (isWrite)
+                        m.casWriteMetrics.timeouts.mark();
+                    else
+                        m.casReadMetrics.timeouts.mark();
+                });
                 throw isWrite
                         ? new CasWriteTimeoutException(WriteType.CAS, consistency, successes, required, failedAttemptsDueToContention)
                         : new ReadTimeoutException(consistency, successes, required, false);
@@ -676,7 +686,7 @@ public class Paxos
 
         consistencyForConsensus.validateForCas();
         consistencyForCommit.validateForCasCommit(Keyspace.open(metadata.keyspace).getReplicationStrategy());
-        StorageProxyMetrics storageProxyMetrics = StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyForConsensus);
+//        StorageProxyMetrics storageProxyMetrics = StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyForConsensus);
 
         Ballot minimumBallot = null;
         int failedAttemptsDueToContention = 0;
@@ -708,7 +718,7 @@ public class Paxos
                     {
                         Tracing.trace("CAS precondition rejected", current);
                         casWriteMetrics.conditionNotMet.inc();
-                        storageProxyMetrics.casWriteMetrics.conditionNotMet.inc();
+                        StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForConsensus, m -> m.casWriteMetrics.conditionNotMet.inc());
                         return current.rowIterator();
                     }
 
@@ -725,7 +735,7 @@ public class Paxos
                     if (begin.isLinearizableRead)
                     {
                         Tracing.trace("CAS precondition does not match current values {}; read is already linearizable; aborting", current);
-                        storageProxyMetrics.casWriteMetrics.conditionNotMet.inc();
+                        StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForConsensus, m -> m.casWriteMetrics.conditionNotMet.inc());
                         return conditionNotMet(current);
                     }
 
@@ -741,7 +751,7 @@ public class Paxos
                     long size = updates.dataSize();
                     casWriteMetrics.mutationSize.update(size);
                     writeMetricsForLevel(consistencyForConsensus).mutationSize.update(size);
-                    storageProxyMetrics.casWriteMetrics.mutationSize.update(size);
+                    StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForConsensus, m -> m.casWriteMetrics.mutationSize.update(size));
 
                     // Apply triggers to cas updates. A consideration here is that
                     // triggers emit Mutations, and so a given trigger implementation
@@ -768,13 +778,13 @@ public class Paxos
                     default: throw new IllegalStateException();
 
                     case MAYBE_FAILURE:
-                        throw propose.maybeFailure().markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                        throw propose.maybeFailure().markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, metadata);
 
                     case SUCCESS:
                     {
                         if (!conditionMet)
                         {
-                            storageProxyMetrics.casWriteMetrics.conditionNotMet.inc();
+                            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForConsensus, m -> m.casWriteMetrics.conditionNotMet.inc());
                             return conditionNotMet(current);
                         }
 
@@ -805,14 +815,14 @@ public class Paxos
                                 // our proposal.  We yield our uncertainty to the caller via timeout exception.
                                 // TODO: should return more useful result to client, and should also avoid this situation where possible
                                 throw new MaybeFailure(false, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, 0, emptyMap())
-                                        .markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                                        .markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, metadata);
 
                             case NO:
                                 minimumBallot = propose.superseded().by;
                                 // We have been superseded without our proposal being accepted by anyone, so we can safely retry
                                 Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
                                 if (!waitForContention(proposeDeadline, ++failedAttemptsDueToContention, metadata, partitionKey, consistencyForConsensus, WRITE))
-                                    throw MaybeFailure.noResponses(participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                                    throw MaybeFailure.noResponses(participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, metadata);
                         }
                     }
                 }
@@ -823,7 +833,7 @@ public class Paxos
             {
                 PaxosCommit.Status result = commit.awaitUntil(commitDeadline);
                 if (!result.isSuccess())
-                    throw result.maybeFailure().markAndThrowAsTimeoutOrFailure(true, consistencyForCommit, failedAttemptsDueToContention, storageProxyMetrics);
+                    throw result.maybeFailure().markAndThrowAsTimeoutOrFailure(true, consistencyForCommit, failedAttemptsDueToContention, metadata);
             }
             Tracing.trace("CAS successful");
             return null;
@@ -835,14 +845,15 @@ public class Paxos
 
             if (failedAttemptsDueToContention > 0)
             {
+                int finalFailedAttemptsDueToContention = failedAttemptsDueToContention;
                 casWriteMetrics.contention.update(failedAttemptsDueToContention);
-                storageProxyMetrics.casWriteMetrics.contention.update(failedAttemptsDueToContention);
+                StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForConsensus, m -> m.casWriteMetrics.contention.update(finalFailedAttemptsDueToContention));
                 openAndGetStore(metadata).metric.topCasPartitionContention.addSample(partitionKey.getKey(), failedAttemptsDueToContention);
             }
 
 
             casWriteMetrics.addNano(latency);
-            storageProxyMetrics.casWriteMetrics.addNano(latency);
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForConsensus, m -> m.casWriteMetrics.addNano(latency));
             writeMetricsMap.get(consistencyForConsensus).addNano(latency);
         }
     }
@@ -877,8 +888,6 @@ public class Paxos
         int failedAttemptsDueToContention = 0;
         Ballot minimumBallot = null;
         SinglePartitionReadCommand read = group.queries.get(0);
-        StorageProxyMetrics storageProxyMetrics = StorageProxyMetricsManager.getMetrics(read.metadata().keyspace, consistencyForConsensus);
-
         try (PaxosOperationLock lock = PaxosState.lock(read.partitionKey(), read.metadata(), deadline, consistencyForConsensus, false))
         {
             while (true)
@@ -908,7 +917,7 @@ public class Paxos
                     default: throw new IllegalStateException();
 
                     case MAYBE_FAILURE:
-                        throw propose.maybeFailure().markAndThrowAsTimeoutOrFailure(false, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                        throw propose.maybeFailure().markAndThrowAsTimeoutOrFailure(false, consistencyForConsensus, failedAttemptsDueToContention, read.metadata());
 
                     case SUCCESS:
                         return begin.readResponse;
@@ -923,14 +932,14 @@ public class Paxos
                                 // our proposal.  We yield our uncertainty to the caller via timeout exception.
                                 // TODO: should return more useful result to client, and should also avoid this situation where possible
                                 throw new MaybeFailure(false, begin.participants.sizeOfPoll(), begin.participants.sizeOfConsensusQuorum, 0, emptyMap())
-                                      .markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                                      .markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, read.metadata());
 
                             case NO:
                                 minimumBallot = propose.superseded().by;
                                 // We have been superseded without our proposal being accepted by anyone, so we can safely retry
                                 Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
                                 if (!waitForContention(deadline, ++failedAttemptsDueToContention, group.metadata(), group.queries.get(0).partitionKey(), consistencyForConsensus, READ))
-                                    throw MaybeFailure.noResponses(begin.participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                                    throw MaybeFailure.noResponses(begin.participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, read.metadata());
                         }
                 }
             }
@@ -944,14 +953,15 @@ public class Paxos
             long latency = nanoTime() - start;
             readMetrics.addNano(latency);
             casReadMetrics.addNano(latency);
-            storageProxyMetrics.casReadMetrics.addNano(latency);
+            StorageProxyMetricsManager.markMetric(read.metadata().keyspace, consistencyForConsensus, m -> m.casReadMetrics.addNano(latency));
             readMetricsMap.get(consistencyForConsensus).addNano(latency);
             TableMetadata table = read.metadata();
             Keyspace.open(table.keyspace).getColumnFamilyStore(table.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
             if (failedAttemptsDueToContention > 0)
             {
+                int finalFailedAttemptsDueToContention = failedAttemptsDueToContention;
                 casReadMetrics.contention.update(failedAttemptsDueToContention);
-                storageProxyMetrics.casReadMetrics.contention.update(failedAttemptsDueToContention);
+                StorageProxyMetricsManager.markMetric(read.metadata().keyspace, consistencyForConsensus, m -> m.casReadMetrics.contention.update(finalFailedAttemptsDueToContention));
             }
 
             try
@@ -1020,7 +1030,6 @@ public class Paxos
                                      Dispatcher.RequestTime requestTime)
             throws WriteTimeoutException, WriteFailureException, ReadTimeoutException, ReadFailureException
     {
-        StorageProxyMetrics storageProxyMetrics = StorageProxyMetricsManager.getMetrics(query.metadata().keyspace, consistencyForConsensus);
         boolean acceptEarlyReadPermission = !isWrite; // if we're reading, begin by assuming a read permission is sufficient
         Participants initialParticipants = Participants.get(query.metadata(), query.partitionKey(), consistencyForConsensus);
         initialParticipants.assureSufficientLiveNodes(isWrite);
@@ -1049,12 +1058,12 @@ public class Paxos
                     if (isWrite)
                     {
                         casWriteMetrics.unfinishedCommit.inc();
-                        storageProxyMetrics.casWriteMetrics.unfinishedCommit.inc();
+                        StorageProxyMetricsManager.markMetric(query.metadata().keyspace, consistencyForConsensus, m -> m.casWriteMetrics.unfinishedCommit.inc());
                     }
                     else
                     {
                         casReadMetrics.unfinishedCommit.inc();
-                        storageProxyMetrics.casReadMetrics.unfinishedCommit.inc();
+                        StorageProxyMetricsManager.markMetric(query.metadata().keyspace, consistencyForConsensus, m -> m.casReadMetrics.unfinishedCommit.inc());
                     }
 
                     // we DO NOT need to change the timestamp of this commit - either we or somebody else will finish it
@@ -1070,7 +1079,7 @@ public class Paxos
                         default: throw new IllegalStateException();
 
                         case MAYBE_FAILURE:
-                            throw proposeResult.maybeFailure().markAndThrowAsTimeoutOrFailure(isWrite, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                            throw proposeResult.maybeFailure().markAndThrowAsTimeoutOrFailure(isWrite, consistencyForConsensus, failedAttemptsDueToContention, query.metadata());
 
                         case SUCCESS:
                             if (query.metadata().strictMVEnabled() && !repropose.update.isEmpty())
@@ -1094,7 +1103,7 @@ public class Paxos
                     Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
                     // sleep a random amount to give the other proposer a chance to finish
                     if (!waitForContention(deadline, ++failedAttemptsDueToContention, query.metadata(), query.partitionKey(), consistencyForConsensus, isWrite ? WRITE : READ))
-                        throw MaybeFailure.noResponses(prepare.participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                        throw MaybeFailure.noResponses(prepare.participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, query.metadata());
                     retry = prepare(prepare.retryWithAtLeast(), prepare.participants, query, isWrite, acceptEarlyReadPermission);
                     break;
                 }
@@ -1127,7 +1136,7 @@ public class Paxos
                 }
 
                 case MAYBE_FAILURE:
-                    throw prepare.maybeFailure().markAndThrowAsTimeoutOrFailure(isWrite, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                    throw prepare.maybeFailure().markAndThrowAsTimeoutOrFailure(isWrite, consistencyForConsensus, failedAttemptsDueToContention, query.metadata());
 
                 case ELECTORATE_MISMATCH:
                     Participants participants = Participants.get(query.metadata(), query.partitionKey(), consistencyForConsensus);
@@ -1142,7 +1151,7 @@ public class Paxos
                 Tracing.trace("Some replicas have already promised a higher ballot than ours; retrying");
                 // sleep a random amount to give the other proposer a chance to finish
                 if (!waitForContention(deadline, ++failedAttemptsDueToContention, query.metadata(), query.partitionKey(), consistencyForConsensus, isWrite ? WRITE : READ))
-                    throw MaybeFailure.noResponses(prepare.participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, storageProxyMetrics);
+                    throw MaybeFailure.noResponses(prepare.participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention, query.metadata());
                 retry = prepare(prepare.retryWithAtLeast(), prepare.participants, query, isWrite, acceptEarlyReadPermission);
             }
 
@@ -1202,14 +1211,6 @@ public class Paxos
             toMark.apply(casReadMetrics).mark();
             toMark.apply(readMetricsMap.get(consistency)).mark();
         }
-    }
-
-    private static void markStorageProxyMetrics(boolean isWrite, Function<ClientRequestMetrics, Meter> toMark, StorageProxyMetrics m)
-    {
-        if (isWrite)
-            toMark.apply(m.casWriteMetrics).mark();
-        else
-            toMark.apply(m.casReadMetrics).mark();
     }
 
     public static Ballot newBallot(@Nullable Ballot minimumBallot, ConsistencyLevel consistency)

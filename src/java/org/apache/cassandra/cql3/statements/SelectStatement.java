@@ -972,7 +972,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             ReadSizeAbortException exception = new ReadSizeAbortException(clientMsg, options.getConsistency(), 0, 1, true,
                                                                           ImmutableMap.of(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.READ_SIZE));
             StorageProxy.recordReadRegularAbort(options.getConsistency(), exception);
-            StorageProxyMetricsManager.getMetrics(keyspace(), options.getConsistency()).readMetrics.markAbort(exception);
+            StorageProxyMetricsManager.markMetric(keyspace(), options.getConsistency(), m -> m.readMetrics.markAbort(exception));
             throw exception;
         }
     }

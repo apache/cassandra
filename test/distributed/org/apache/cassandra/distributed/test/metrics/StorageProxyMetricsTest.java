@@ -116,7 +116,7 @@ public class StorageProxyMetricsTest extends TestBaseImpl
                 cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (pk, ck ,v) values (0, ?, 1)"), ConsistencyLevel.ALL, i);
 
             cluster.get(1).runOnInstance(() -> Paxos.setPaxosVariant(Config.PaxosVariant.v2));
-            testLWTFailure(cluster);
+            testLWTProposeFailure(cluster);
         }
     }
 
@@ -130,7 +130,7 @@ public class StorageProxyMetricsTest extends TestBaseImpl
                 cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (pk, ck ,v) values (0, ?, 1)"), ConsistencyLevel.ALL, i);
 
             cluster.get(1).runOnInstance(() -> Paxos.setPaxosVariant(Config.PaxosVariant.v2));
-            testLWTFailure(cluster);
+            testLWTCommitFailure(cluster);
         }
     }
 
@@ -170,7 +170,7 @@ public class StorageProxyMetricsTest extends TestBaseImpl
         Assert.assertEquals(1, countAfter - countBefore);
     }
 
-    public void testLWTFailure(Cluster cluster)
+    public void testLWTProposeFailure(Cluster cluster)
     {
         String lwtQuery = withKeyspace("UPDATE %s.tbl SET v=10 WHERE pk=0 AND ck=1 IF EXISTS");
         long countBefore = cluster.get(1).callOnInstance(() ->
@@ -185,6 +185,24 @@ public class StorageProxyMetricsTest extends TestBaseImpl
         }
         long countAfter = cluster.get(1).callOnInstance(() ->
                                                         StorageProxyMetricsManager.getMetrics(KEYSPACE, org.apache.cassandra.db.ConsistencyLevel.SERIAL).casWriteMetrics.failures.getCount());
+        Assert.assertEquals(1, countAfter - countBefore);
+    }
+
+    public void testLWTCommitFailure(Cluster cluster)
+    {
+        String lwtQuery = withKeyspace("UPDATE %s.tbl SET v=10 WHERE pk=0 AND ck=1 IF EXISTS");
+        long countBefore = cluster.get(1).callOnInstance(() ->
+                                                         StorageProxyMetricsManager.getMetrics(KEYSPACE, org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM).casWriteMetrics.failures.getCount());
+        try
+        {
+            cluster.coordinator(1).execute(lwtQuery, ConsistencyLevel.LOCAL_QUORUM);
+        }
+        catch (Exception e)
+        {
+            // expected
+        }
+        long countAfter = cluster.get(1).callOnInstance(() ->
+                                                        StorageProxyMetricsManager.getMetrics(KEYSPACE, org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM).casWriteMetrics.failures.getCount());
         Assert.assertEquals(1, countAfter - countBefore);
     }
 

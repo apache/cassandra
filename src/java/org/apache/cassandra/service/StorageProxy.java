@@ -345,7 +345,7 @@ public class StorageProxy implements StorageProxyMBean
         catch (OverloadedException e)
         {
             casWriteMetrics.rateLimiterThrottles.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.rateLimiterThrottles.mark());
             Tracing.trace("CAS request throttled due to overload");
             logger.debug("CAS request throttled due to overload");
             throw e;
@@ -353,7 +353,7 @@ public class StorageProxy implements StorageProxyMBean
         catch (RequestThrottledException e)
         {
             casWriteMetrics.throttles.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.throttles.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.throttles.mark());
             Tracing.trace("CAS request throttled");
             logger.debug("CAS request throttled");
             // TODO: should we throw CasWriteTimeoutException instead?
@@ -397,7 +397,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("CAS precondition does not match current values {}", current);
                     casWriteMetrics.conditionNotMet.inc();
-                    StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyForPaxos).casWriteMetrics.conditionNotMet.inc();
+                    StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForPaxos, m -> m.casWriteMetrics.conditionNotMet.inc());
                     return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator());
                 }
 
@@ -407,7 +407,7 @@ public class StorageProxy implements StorageProxyMBean
                 long size = updates.dataSize();
                 casWriteMetrics.mutationSize.update(size);
                 writeMetricsForLevel(consistencyForPaxos).mutationSize.update(size);
-                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyForPaxos).casWriteMetrics.mutationSize.update(size);
+                StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForPaxos, m -> m.casWriteMetrics.mutationSize.update(size));
 
                 // Apply triggers to cas updates. A consideration here is that
                 // triggers emit Mutations, and so a given trigger implementation
@@ -428,46 +428,46 @@ public class StorageProxy implements StorageProxyMBean
                            consistencyForCommit,
                            requestTime,
                            casWriteMetrics,
-                           StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyForPaxos).casWriteMetrics,
+                           true,
                            updateProposer);
 
         }
         catch (CasWriteUnknownResultException e)
         {
             casWriteMetrics.unknownResult.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.unknownResult.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.unknownResult.mark());
             throw e;
         }
         catch (CasWriteTimeoutException wte)
         {
             casWriteMetrics.timeouts.mark();
             writeMetricsForLevel(consistencyForPaxos).timeouts.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.timeouts.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.timeouts.mark());
             throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, wte.contentions);
         }
         catch (ReadTimeoutException e)
         {
             casWriteMetrics.timeouts.mark();
             writeMetricsForLevel(consistencyForPaxos).timeouts.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.timeouts.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.timeouts.mark());
             throw e;
         }
         catch (ReadAbortException e)
         {
             casWriteMetrics.markAbort(e);
             writeMetricsForLevel(consistencyForPaxos).markAbort(e);
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.markAbort(e);
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.markAbort(e));
             throw e;
         }
         catch (WriteFailureException | ReadFailureException e)
         {
             casWriteMetrics.failures.mark();
             writeMetricsForLevel(consistencyForPaxos).failures.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.failures.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.failures.mark());
             if (isFailureCausedByTrafficThrottled(e.failureReasonByEndpoint))
             {
                 casWriteMetrics.rateLimiterThrottles.mark();
-                StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.rateLimiterThrottles.mark());
             }
             throw e;
         }
@@ -475,7 +475,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             casWriteMetrics.unavailables.mark();
             writeMetricsForLevel(consistencyForPaxos).unavailables.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.unavailables.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.unavailables.mark());
             throw e;
         }
         finally
@@ -485,21 +485,27 @@ public class StorageProxy implements StorageProxyMBean
             long latency = nanoTime() - requestTime.startedAtNanos();
             casWriteMetrics.addNano(latency);
             writeMetricsForLevel(consistencyForPaxos).addNano(latency);
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.addNano(latency);
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyForPaxos, m -> m.casWriteMetrics.addNano(latency));
         }
     }
 
     private static void recordCasContention(TableMetadata table,
                                             DecoratedKey key,
                                             CASClientRequestMetrics casMetrics,
-                                            CASClientRequestMetrics storageProxyCasMetrics,
+                                            Boolean isLWT,
+                                            ConsistencyLevel cl,
                                             int contentions)
     {
         if (contentions == 0)
             return;
 
         casMetrics.contention.update(contentions);
-        storageProxyCasMetrics.contention.update(contentions);
+        StorageProxyMetricsManager.markMetric(table.keyspace, cl, m -> {
+            if (isLWT)
+                m.casWriteMetrics.contention.update(contentions);
+            else
+                m.casReadMetrics.contention.update(contentions);
+        });
         Keyspace.open(table.keyspace)
                 .getColumnFamilyStore(table.name)
                 .metric
@@ -524,6 +530,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param requestTime the nano time for the start of the query this is part of. This is the base time for
      *     timeouts.
      * @param casMetrics the metrics to update for this operation.
+     * @param isLWT whether this is a lightweight transaction (LWT) or not.
      * @param createUpdateProposal method called after a successful 'prepare' phase to obtain 1) the actual update of
      *     this operation and 2) the result that the whole method should return. This can return {@code null} in the
      *     special where, after having "prepared" (and thus potentially replayed in-progress upgdates), we don't want
@@ -538,7 +545,7 @@ public class StorageProxy implements StorageProxyMBean
                                        ConsistencyLevel consistencyForCommit,
                                        Dispatcher.RequestTime requestTime,
                                        CASClientRequestMetrics casMetrics,
-                                       CASClientRequestMetrics storageProxyCasMetrics,
+                                       Boolean isLWT,
                                        Function<Ballot, Pair<PartitionUpdate, RowIterator>> createUpdateProposal)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
@@ -565,7 +572,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                     consistencyForPaxos,
                                                                     consistencyForReplayCommits,
                                                                     casMetrics,
-                                                                    storageProxyCasMetrics);
+                                                                    isLWT);
 
                 final Ballot ballot = pair.ballot;
                 contentions += pair.contentions;
@@ -615,7 +622,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            recordCasContention(metadata, key, casMetrics, storageProxyCasMetrics, contentions);
+            recordCasContention(metadata, key, casMetrics, isLWT, consistencyForPaxos, contentions);
         }
 
         throw new CasWriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(latestRs), contentions);
@@ -634,7 +641,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                 ConsistencyLevel consistencyForPaxos,
                                                                 ConsistencyLevel consistencyForCommit,
                                                                 CASClientRequestMetrics casMetrics,
-                                                                CASClientRequestMetrics storageProxyCasMetrics)
+                                                                Boolean isLWT)
     throws WriteTimeoutException, WriteFailureException
     {
         long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
@@ -693,7 +700,12 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("Finishing incomplete paxos round {}", inProgress);
                     casMetrics.unfinishedCommit.inc();
-                    storageProxyCasMetrics.unfinishedCommit.inc();
+                    StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyForPaxos, m -> {
+                        if (isLWT)
+                            m.casWriteMetrics.unfinishedCommit.inc();
+                        else
+                            m.casReadMetrics.unfinishedCommit.inc();
+                    });
                     Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
                     if (proposePaxos(refreshedInProgress, paxosPlan, false, requestTime))
                     {
@@ -969,7 +981,7 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("Throttling write request");
             logger.debug("Throttling write request");
             writeMetrics.throttles.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.throttles.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.throttles.mark());
             throw new WriteTimeoutException(wt, consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT);
         }
         catch (WriteTimeoutException|WriteFailureException ex)
@@ -984,20 +996,20 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     writeMetrics.failures.mark();
                     writeMetricsForLevel(consistencyLevel).failures.mark();
-                    StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.failures.mark();
+                    StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.failures.mark());
                     WriteFailureException fe = (WriteFailureException)ex;
                     Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
                                   fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
                     if (isFailureCausedByTrafficThrottled(((WriteFailureException) ex).failureReasonByEndpoint)) {
                         writeMetrics.rateLimiterThrottles.mark();
-                        StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.rateLimiterThrottles.mark();
+                        StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.rateLimiterThrottles.mark());
                     }
                 }
                 else
                 {
                     writeMetrics.timeouts.mark();
                     writeMetricsForLevel(consistencyLevel).timeouts.mark();
-                    StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.timeouts.mark();
+                    StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.timeouts.mark());
                     WriteTimeoutException te = (WriteTimeoutException)ex;
                     Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
                 }
@@ -1008,7 +1020,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             writeMetrics.unavailables.mark();
             writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.unavailables.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.unavailables.mark());
             Tracing.trace("Unavailable");
             throw e;
         }
@@ -1020,7 +1032,7 @@ public class StorageProxy implements StorageProxyMBean
             if (CassandraResourceUtilization.isExceptionDuetoRateLimiter(e))
             {
                 writeMetrics.rateLimiterThrottles.mark();
-                StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.rateLimiterThrottles.mark());
                 Tracing.trace("Throttling write request due to overload");
                 logger.trace("Throttling write request due to overload");
                 throw e;
@@ -1029,7 +1041,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 writeMetrics.unavailables.mark();
                 writeMetricsForLevel(consistencyLevel).unavailables.mark();
-                StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.unavailables.mark();
+                StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.unavailables.mark());
                 Tracing.trace("Overloaded");
                 throw e;
             }
@@ -1041,7 +1053,7 @@ public class StorageProxy implements StorageProxyMBean
             long latency = nanoTime() - requestTime.startedAtNanos();
             writeMetrics.addNano(latency);
             writeMetricsForLevel(consistencyLevel).addNano(latency);
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.addNano(latency);
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.addNano(latency));
             updateCoordinatorWriteLatencyTableMetric(mutations, latency);
             BadQuery.checkForSlowCoordinatorWrite(mutations, latency);
         }
@@ -1217,7 +1229,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             long latency = nanoTime() - startTime;
             viewWriteMetrics.addNano(latency);
-            StorageProxyMetricsManager.getMetrics(ksName, ConsistencyLevel.ONE).viewWriteMetrics.addNano(latency);
+            StorageProxyMetricsManager.markMetric(ksName, ConsistencyLevel.ONE, m -> m.viewWriteMetrics.addNano(latency));
         }
     }
 
@@ -1257,7 +1269,7 @@ public class StorageProxy implements StorageProxyMBean
         long size = IMutation.dataSize(mutations);
         writeMetrics.mutationSize.update(size);
         writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
-        StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.mutationSize.update(size);
+        StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.mutationSize.update(size));
 
         if (augmented != null)
             mutateAtomically(augmented, consistencyLevel, updatesView, requestTime);
@@ -1277,12 +1289,12 @@ public class StorageProxy implements StorageProxyMBean
      * After: remove the batchlog entry (after writing hints for the batch rows, if necessary).
      *
      * @param mutations the Mutations to be applied across the replicas
-     * @param consistency_level the consistency level for the operation
+     * @param consistencyLevel the consistency level for the operation
      * @param requireQuorumForRemove at least a quorum of nodes will see update before deleting batchlog
      * @param requestTime object holding times when request got enqueued and started execution
      */
     public static void mutateAtomically(Collection<Mutation> mutations,
-                                        ConsistencyLevel consistency_level,
+                                        ConsistencyLevel consistencyLevel,
                                         boolean requireQuorumForRemove,
                                         Dispatcher.RequestTime requestTime)
     throws UnavailableException, OverloadedException, WriteTimeoutException
@@ -1305,13 +1317,13 @@ public class StorageProxy implements StorageProxyMBean
             // require ALL, or EACH_QUORUM. This is so that *at least* QUORUM nodes see the update.
             ConsistencyLevel batchConsistencyLevel = requireQuorumForRemove
                                                      ? ConsistencyLevel.QUORUM
-                                                     : consistency_level;
+                                                     : consistencyLevel;
 
-            switch (consistency_level)
+            switch (consistencyLevel)
             {
                 case ALL:
                 case EACH_QUORUM:
-                    batchConsistencyLevel = consistency_level;
+                    batchConsistencyLevel = consistencyLevel;
             }
 
             ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY);
@@ -1324,9 +1336,9 @@ public class StorageProxy implements StorageProxyMBean
             for (Mutation mutation : mutations)
             {
                 CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), mutation.getTableNames(), TrafficType.CoordWrite);
-                DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistency_level);
+                DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistencyLevel);
                 WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
-                                                                               consistency_level,
+                                                                               consistencyLevel,
                                                                                batchConsistencyLevel,
                                                                                WriteType.BATCH,
                                                                                cleanup,
@@ -1346,13 +1358,13 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("Throttling write request");
             logger.debug("Throttling write request");
             writeMetrics.throttles.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.throttles.mark();
-            throw new WriteTimeoutException(WriteType.BATCH, consistency_level, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT);
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.throttles.mark());
+            throw new WriteTimeoutException(WriteType.BATCH, consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT);
         }
         catch (OverloadedException e)
         {
             writeMetrics.rateLimiterThrottles.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.rateLimiterThrottles.mark());
             Tracing.trace("Throttling write request due to overload");
             logger.debug("Throttling write request due to overload");
             throw e;
@@ -1360,29 +1372,29 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistency_level).unavailables.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.unavailables.mark();
+            writeMetricsForLevel(consistencyLevel).unavailables.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.unavailables.mark());
             Tracing.trace("Unavailable");
             throw e;
         }
         catch (WriteTimeoutException e)
         {
             writeMetrics.timeouts.mark();
-            writeMetricsForLevel(consistency_level).timeouts.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.timeouts.mark();
+            writeMetricsForLevel(consistencyLevel).timeouts.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.timeouts.mark());
             Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
             throw e;
         }
         catch (WriteFailureException e)
         {
             writeMetrics.failures.mark();
-            writeMetricsForLevel(consistency_level).failures.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.failures.mark();
+            writeMetricsForLevel(consistencyLevel).failures.mark();
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.failures.mark());
             Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
             if (isFailureCausedByTrafficThrottled(e.failureReasonByEndpoint))
             {
                 writeMetrics.rateLimiterThrottles.mark();
-                StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.rateLimiterThrottles.mark());
             }
             throw e;
         }
@@ -1390,8 +1402,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             long latency = nanoTime() - startTime;
             writeMetrics.addNano(latency);
-            writeMetricsForLevel(consistency_level).addNano(latency);
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.addNano(latency);
+            writeMetricsForLevel(consistencyLevel).addNano(latency);
+            StorageProxyMetricsManager.markMetric(keyspaceName, consistencyLevel, m -> m.writeMetrics.addNano(latency));
             updateCoordinatorWriteLatencyTableMetric(mutations, latency);
         }
     }
@@ -1586,7 +1598,7 @@ public class StorageProxy implements StorageProxyMBean
         AbstractWriteResponseHandler<IMutation> writeHandler = replicationStrategy.getWriteResponseHandler(replicaPlan, () -> {
             long delay = Math.max(0, currentTimeMillis() - baseComplete.get());
             viewWriteMetrics.viewWriteLatency.update(delay, MILLISECONDS);
-            StorageProxyMetricsManager.getMetrics(keyspace.getName(), consistencyLevel).viewWriteMetrics.viewWriteLatency.update(delay, MILLISECONDS);
+            StorageProxyMetricsManager.markMetric(keyspace.getName(), consistencyLevel, m -> m.viewWriteMetrics.viewWriteLatency.update(delay, MILLISECONDS));
         }, writeType, mutation, requestTime);
         BatchlogResponseHandler<IMutation> batchHandler = new ViewWriteMetricsWrapped(writeHandler, batchConsistencyLevel.blockFor(replicationStrategy), cleanup, requestTime);
         return new WriteResponseHandlerWrapper(batchHandler, mutation);
@@ -1999,7 +2011,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             readMetrics.unavailables.mark();
             readMetricsForLevel(consistencyLevel).unavailables.mark();
-            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.unavailables.mark();
+            StorageProxyMetricsManager.markMetric(group.queries.get(0).metadata().keyspace, consistencyLevel, m -> m.readMetrics.unavailables.mark());
             IsBootstrappingException exception = new IsBootstrappingException();
             logRequestException(exception, group.queries);
             throw exception;
@@ -2034,11 +2046,11 @@ public class StorageProxy implements StorageProxyMBean
             logger.debug("Throttling read request");
             Tracing.trace("Throttling read request");
             readMetrics.throttles.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.throttles.mark();
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.throttles.mark());
             if (isPaxosRead)
             {
                 casReadMetrics.throttles.mark();
-                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.throttles.mark();
+                StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.throttles.mark());
             }
             throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
         }
@@ -2047,11 +2059,11 @@ public class StorageProxy implements StorageProxyMBean
             logger.debug("Throttling read request due to overload");
             Tracing.trace("Throttling read request due to overload");
             readMetrics.rateLimiterThrottles.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.rateLimiterThrottles.mark());
             if (isPaxosRead)
             {
                 casReadMetrics.rateLimiterThrottles.mark();
-                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.rateLimiterThrottles.mark());
             }
             throw e;
         }
@@ -2108,7 +2120,7 @@ public class StorageProxy implements StorageProxyMBean
                         ConsistencyLevel.ANY,
                         requestTime,
                         casReadMetrics,
-                        StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics,
+                        false,
                         updateProposer);
             }
             catch (WriteTimeoutException e)
@@ -2127,8 +2139,8 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.unavailables.mark();
             casReadMetrics.unavailables.mark();
             readMetricsForLevel(consistencyLevel).unavailables.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.unavailables.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.unavailables.mark();
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.unavailables.mark());
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.unavailables.mark());
             logRequestException(e, group.queries);
             throw e;
         }
@@ -2137,8 +2149,8 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.timeouts.mark();
             casReadMetrics.timeouts.mark();
             readMetricsForLevel(consistencyLevel).timeouts.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.timeouts.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.timeouts.mark();
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.timeouts.mark());
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.timeouts.mark());
             logRequestException(e, group.queries);
             throw e;
         }
@@ -2147,8 +2159,8 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.markAbort(e);
             casReadMetrics.markAbort(e);
             readMetricsForLevel(consistencyLevel).markAbort(e);
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.markAbort(e);
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.markAbort(e);
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.markAbort(e));
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.markAbort(e));
             throw e;
         }
         catch (ReadFailureException e)
@@ -2156,14 +2168,14 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.failures.mark();
             casReadMetrics.failures.mark();
             readMetricsForLevel(consistencyLevel).failures.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.failures.mark();
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.failures.mark();
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.failures.mark());
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.failures.mark());
             if (isFailureCausedByTrafficThrottled(e.failureReasonByEndpoint))
             {
                 readMetrics.rateLimiterThrottles.mark();
                 casReadMetrics.rateLimiterThrottles.mark();
-                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
-                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.rateLimiterThrottles.mark());
+                StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.rateLimiterThrottles.mark());
             }
             throw e;
         }
@@ -2177,8 +2189,8 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.addNano(latency);
             casReadMetrics.addNano(latency);
             readMetricsForLevel(consistencyLevel).addNano(latency);
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.addNano(latency);
-            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.addNano(latency);
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.readMetrics.addNano(latency));
+            StorageProxyMetricsManager.markMetric(metadata.keyspace, consistencyLevel, m -> m.casReadMetrics.addNano(latency));
             Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
 
             try
@@ -2214,7 +2226,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             readMetrics.unavailables.mark();
             readMetricsForLevel(consistencyLevel).unavailables.mark();
-            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.unavailables.mark();
+            StorageProxyMetricsManager.markMetric(group.queries.get(0).metadata().keyspace, consistencyLevel, m -> m.readMetrics.unavailables.mark());
             logRequestException(e, group.queries);
             throw e;
         }
@@ -2222,25 +2234,25 @@ public class StorageProxy implements StorageProxyMBean
         {
             readMetrics.timeouts.mark();
             readMetricsForLevel(consistencyLevel).timeouts.mark();
-            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.timeouts.mark();
+            StorageProxyMetricsManager.markMetric(group.queries.get(0).metadata().keyspace, consistencyLevel, m -> m.readMetrics.timeouts.mark());
             logRequestException(e, group.queries);
             throw e;
         }
         catch (ReadAbortException e)
         {
             recordReadRegularAbort(consistencyLevel, e);
-            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.markAbort(e);
+            StorageProxyMetricsManager.markMetric(group.queries.get(0).metadata().keyspace, consistencyLevel, m -> m.readMetrics.markAbort(e));
             throw e;
         }
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
             readMetricsForLevel(consistencyLevel).failures.mark();
-            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.failures.mark();
+            StorageProxyMetricsManager.markMetric(group.queries.get(0).metadata().keyspace, consistencyLevel, m -> m.readMetrics.failures.mark());
             if (isFailureCausedByTrafficThrottled(e.failureReasonByEndpoint))
             {
                 readMetrics.rateLimiterThrottles.mark();
-                StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.markMetric(group.queries.get(0).metadata().keyspace, consistencyLevel, m -> m.readMetrics.rateLimiterThrottles.mark());
             }
             throw e;
         }
@@ -2253,7 +2265,7 @@ public class StorageProxy implements StorageProxyMBean
             long latency = nanoTime() - start;
             readMetrics.addNano(latency);
             readMetricsForLevel(consistencyLevel).addNano(latency);
-            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.addNano(latency);
+            StorageProxyMetricsManager.markMetric(group.queries.get(0).metadata().keyspace, consistencyLevel, m -> m.readMetrics.addNano(latency));
             // TODO avoid giving every command the same latency number.  Can fix this in CASSADRA-5329
             for (SinglePartitionReadCommand command : group.queries)
             {
@@ -2786,14 +2798,14 @@ public class StorageProxy implements StorageProxyMBean
         {
             super(writeHandler, i, cleanup, requestTime);
             viewWriteMetrics.viewReplicasAttempted.inc(candidateReplicaCount());
-            StorageProxyMetricsManager.getMetrics(wrapped.replicaPlan.keyspace().getName(), wrapped.consistencyLevel()).viewWriteMetrics.viewReplicasAttempted.inc(candidateReplicaCount());
+            StorageProxyMetricsManager.markMetric(wrapped.replicaPlan.keyspace().getName(), wrapped.consistencyLevel(), m -> m.viewWriteMetrics.viewReplicasAttempted.inc(candidateReplicaCount()));
         }
 
         public void onResponse(Message<IMutation> msg)
         {
             super.onResponse(msg);
             viewWriteMetrics.viewReplicasSuccess.inc();
-            StorageProxyMetricsManager.getMetrics(wrapped.replicaPlan.keyspace().getName(), wrapped.consistencyLevel()).viewWriteMetrics.viewReplicasSuccess.inc();
+            StorageProxyMetricsManager.markMetric(wrapped.replicaPlan.keyspace().getName(), wrapped.consistencyLevel(), m -> m.viewWriteMetrics.viewReplicasSuccess.inc());
         }
     }
 

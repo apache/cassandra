@@ -1203,22 +1203,21 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static void enforceWriteCL(ClientState clientState, String keyspace, ConsistencyLevel cl, ConsistencyLevel serialCL, Consumer<ConsistencyLevel> clSetter)
     {
-        StorageProxyMetrics clMetrics = StorageProxyMetricsManager.getMetrics(keyspace, cl);
         writeConsistencyEnforcement.guard(EnumSet.of(cl, serialCL),
                                           (ConsistencyLevel c) -> {
                                               // None enforcement, a warning message will be printed out
-                                              clMetrics.markWriteCLEnforced(Config.CLEnforcementLevel.None);
+                                              StorageProxyMetricsManager.markMetric(keyspace, cl, m -> m.markWriteCLEnforced(Config.CLEnforcementLevel.None));
                                           },
                                           (ConsistencyLevel c) ->
                                           {
                                               // Soft enforcement, CL will be set to default
                                               clSetter.accept(DatabaseDescriptor.getWriteCLDefault());
-                                              clMetrics.markWriteCLEnforced(Config.CLEnforcementLevel.Soft);
+                                              StorageProxyMetricsManager.markMetric(keyspace, cl, m -> m.markWriteCLEnforced(Config.CLEnforcementLevel.Soft));
                                           },
                                           (ConsistencyLevel c) ->
                                           {
                                               // Hard enforcement, query will be rejected
-                                              clMetrics.markWriteCLEnforced(Config.CLEnforcementLevel.Hard);
+                                              StorageProxyMetricsManager.markMetric(keyspace, cl, m -> m.markWriteCLEnforced(Config.CLEnforcementLevel.Hard));
                                           }, clientState);
     }
 }

@@ -18,12 +18,17 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.function.Consumer;
+
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public class StorageProxyMetricsManager extends AbstractMetricsManager<Pair<String, ConsistencyLevel>, StorageProxyMetrics>
 {
-    public final static StorageProxyMetricsManager instance = new StorageProxyMetricsManager(false);
+    public final static StorageProxyMetricsManager instance = new StorageProxyMetricsManager(true);
 
     protected StorageProxyMetricsManager(boolean asyncRegistration)
     {
@@ -44,8 +49,16 @@ public class StorageProxyMetricsManager extends AbstractMetricsManager<Pair<Stri
         return Pair.create((String) parts[0], (ConsistencyLevel) parts[1]);
     }
 
+    public static Future<?> markMetric(String ksName, ConsistencyLevel consistencyLevel, Consumer<StorageProxyMetrics> consumer)
+    {
+        return instance.maybeRegisterMetricsAsync(consumer, instance.buildKey(ksName, consistencyLevel));
+    }
+
+    @VisibleForTesting
     public static StorageProxyMetrics getMetrics(String ksName, ConsistencyLevel consistencyLevel)
     {
-        return instance.getMetricsSync(ksName, consistencyLevel);
+        Pair<String, ConsistencyLevel> key = Pair.create(ksName, consistencyLevel);
+        instance.maybeRegisterMetricsAsync(null, key).awaitThrowUncheckedOnInterrupt();
+        return instance.getMetricsSyncWithoutRegistration(key);
     }
 }
