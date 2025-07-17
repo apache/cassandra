@@ -21,6 +21,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 
 public abstract class Offsets implements Iterable<ShortMutationId>
 {
@@ -198,6 +200,19 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         digest.updateWithInt(size);
         for (int i = 0; i < size; i++)
             digest.updateWithInt(bounds[i]);
+    }
+
+    List<Integer> asList()
+    {
+        return new IntArrayList(Arrays.copyOf(bounds, size), size, IntArrayList.DEFAULT_NULL_VALUE);
+    }
+
+    static Mutable fromList(CoordinatorLogId logId, List<Integer> list)
+    {
+        int[] bounds = new int[list.size()];
+        for (int i = 0; i < list.size(); i++)
+            bounds[i] = list.get(i);
+        return new Mutable(logId, bounds, bounds.length);
     }
 
     static abstract class AbstractMutable<T extends AbstractMutable<T>> extends Offsets implements OffsetReciever
@@ -378,6 +393,11 @@ public abstract class Offsets implements Iterable<ShortMutationId>
                 bounds[pos] = offset - 1;
             }
             // the offset is before all existing ranges, in-between two, or after all exsiting ranges
+        }
+
+        public void add(int... offsets)
+        {
+            for (int offset : offsets) add(offset);
         }
 
         private enum AddAction
@@ -672,6 +692,19 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         public static Mutable intersection(Offsets a, Offsets b)
         {
             return Offsets.intersection(a, b, adaptor);
+        }
+
+        public static Mutable intersection(Offsets.Mutable... offsets)
+        {
+            Preconditions.checkArgument(offsets.length > 0);
+
+            if (offsets.length == 1)
+                return copy(offsets[0]);
+
+            Mutable intersection = offsets[0];
+            for (int i = 1; i < offsets.length; i++)
+                intersection = intersection(intersection, offsets[i]);
+            return intersection;
         }
     }
 

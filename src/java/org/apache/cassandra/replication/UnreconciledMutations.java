@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
@@ -196,5 +197,42 @@ public class UnreconciledMutations
             // contiguous range
             return collect(statesSet.subSet(start, end), tableId, includePending, into);
         }
+    }
+
+    @VisibleForTesting
+    boolean equalsForTesting(UnreconciledMutations other)
+    {
+        return this.statesMap.equals(other.statesMap) && this.statesSet.equals(other.statesSet);
+    }
+
+    @VisibleForTesting
+    void addDirectly(Mutation mutation)
+    {
+        Entry entry = Entry.create(mutation);
+        entry.visibility = Visibility.VISIBLE;
+        statesMap.put(entry.offset, entry);
+        statesSet.add(entry);
+    }
+
+    static UnreconciledMutations loadFromJournal(Node2OffsetsMap witnessedOffsets, int localNodeId)
+    {
+        UnreconciledMutations result = new UnreconciledMutations();
+
+        Offsets.Mutable witnessed = witnessedOffsets.get(localNodeId);
+        Offsets.Mutable reconciled = witnessedOffsets.intersection();
+
+        // difference between locally witnessed offsets and fully reconciled ones is all the ids
+        // that need to be loaded into UnreconciledMutations index
+        Offsets.RangeIterator iter = Offsets.difference(witnessed.rangeIterator(), reconciled.rangeIterator());
+        while (iter.tryAdvance())
+        {
+            for (int offset = iter.start(), end = iter.end(); offset <= end; offset++)
+            {
+                ShortMutationId id = new ShortMutationId(witnessed.logId, offset);
+                result.addDirectly(MutationJournal.instance.read(id));
+            }
+        }
+
+        return result;
     }
 }
