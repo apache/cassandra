@@ -19,6 +19,9 @@ package org.apache.cassandra.replication;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
+
+import org.agrona.collections.IntHashSet;
 
 public class Participants
 {
@@ -62,5 +65,22 @@ public class Participants
     public String toString()
     {
         return Arrays.toString(hosts);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (!(o instanceof Participants))
+            return false;
+        Participants that = (Participants) o;
+        return Arrays.equals(this.hosts, that.hosts);
+    }
+
+    Set<Integer> asSet()
+    {
+        IntHashSet set = new IntHashSet(hosts.length);
+        for (int host : hosts)
+            set.add(host);
+        return set;
     }
 }

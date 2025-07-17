@@ -843,21 +843,27 @@ public class OffsetsTest
     public void testRemoveWithExactSizedArray()
     {
         {
-            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[] {10, 11}, 2);
+            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[]{ 10, 11 }, 2);
             offsets.remove(10);
             assertOffsetsEqual(offsets(11, 11), offsets);
         }
 
         {
-            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[] {10, 11}, 2);
+            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[]{ 10, 11 }, 2);
             offsets.remove(11);
             assertOffsetsEqual(offsets(10, 10), offsets);
         }
 
         {
-            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[] {11, 11}, 2);
+            Offsets.Mutable offsets = new Offsets.Mutable(LOG_ID, new int[]{ 11, 11 }, 2);
             offsets.remove(11);
             assertOffsetsEqual(offsets(), offsets);
         }
+    }
+
+    public void asListFromListRoundTripTest()
+    {
+        for (Offsets.Mutable offsets : new Offsets.Mutable[] { offsets(), offsets(1, 2), offsets(1, 3, 7, 9) })
+            assertOffsetsEqual(offsets, Offsets.fromList(LOG_ID, offsets.asList()));
     }
 }

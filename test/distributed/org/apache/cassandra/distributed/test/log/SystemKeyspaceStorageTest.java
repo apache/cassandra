@@ -39,7 +39,7 @@ import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.db.SystemKeyspace.SNAPSHOT_TABLE_NAME;
+import static org.apache.cassandra.db.SystemKeyspace.METADATA_SNAPSHOTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -184,7 +184,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
 
     public static void deleteSnapshot(long epoch)
     {
-        String query = String.format("DELETE FROM %s.%s WHERE epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        String query = String.format("DELETE FROM %s.%s WHERE epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, METADATA_SNAPSHOTS);
         QueryProcessor.executeInternal(query, epoch);
     }
 }

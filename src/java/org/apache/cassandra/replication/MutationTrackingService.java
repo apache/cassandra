@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -26,10 +27,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,10 +40,11 @@ import com.google.common.base.Preconditions;
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
-import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
@@ -55,10 +56,13 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
@@ -66,14 +70,17 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 // TODO (expected): persistence (handle restarts)
 // TODO (expected): handle topology changes
 public class MutationTrackingService
 {
+    private static final ScheduledExecutorPlus executor = executorFactory().scheduled("Mutation-Tracking-Service", NORMAL);
+
     /**
      * Split ranges into this many shards.
      *
@@ -89,6 +96,7 @@ public class MutationTrackingService
     private final ConcurrentHashMap<CoordinatorLogId, Shard> log2ShardMap = new ConcurrentHashMap<>();
 
     private final ReplicatedOffsetsBroadcaster offsetsBroadcaster = new ReplicatedOffsetsBroadcaster();
+    private final LogStatePersister offsetsPersister = new LogStatePersister();
     private final ActiveLogReconciler activeReconciler = new ActiveLogReconciler();
 
     private final IncomingMutations incomingMutations = new IncomingMutations();
@@ -104,13 +112,16 @@ public class MutationTrackingService
         if (started)
             return;
 
-        logger.info("Starting replication tracking service");
+        prevHostLogId = loadHostLogIdFromSystemTable();
 
-        for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
-            if (keyspace.useMutationTracking())
-                keyspaceShards.put(keyspace.name, KeyspaceShards.make(keyspace, metadata, this::nextHostLogId, this::onNewLog));
+        logger.info("Starting mutation tracking service. Previous host log id: {}", prevHostLogId);
+
+        if (metadata.myNodeId() != null)
+            for (KeyspaceShards ks : KeyspaceShards.loadFromSystemTables(metadata, this::nextLogId, this::onNewLog))
+                keyspaceShards.put(ks.keyspace, ks);
 
         offsetsBroadcaster.start();
+        offsetsPersister.start();
 
         ExpiredStatePurger.instance.register(incomingMutations);
 
@@ -124,9 +135,10 @@ public class MutationTrackingService
 
     public void shutdownBlocking() throws InterruptedException
     {
-        offsetsBroadcaster.shutdown();
-        offsetsBroadcaster.awaitTermination(1, TimeUnit.MINUTES);
+        // TODO: FIXME
         activeReconciler.shutdownBlocking();
+        executor.shutdown();
+        executor.awaitTermination(1, TimeUnit.MINUTES);
         ExpiredStatePurger.instance.shutdownBlocking();
     }
 
@@ -165,9 +177,9 @@ public class MutationTrackingService
         activeReconciler.schedule(mutationId, onHost, ActiveLogReconciler.Priority.REGULAR);
     }
 
-    public void updateReplicatedOffsets(String keyspace, Range<Token> range, List<? extends Offsets> offsets, InetAddressAndPort onHost)
+    public void updateReplicatedOffsets(String keyspace, Range<Token> range, List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
     {
-        getOrCreateShards(keyspace).updateReplicatedOffsets(range, offsets, onHost);
+        getOrCreateShards(keyspace).updateReplicatedOffsets(range, offsets, durable, onHost);
     }
 
     public boolean startWriting(Mutation mutation)
@@ -264,41 +276,41 @@ public class MutationTrackingService
 
         ClusterMetadata csm = ClusterMetadata.current();
         KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
-        return keyspaceShards.computeIfAbsent(keyspace, ignore -> KeyspaceShards.make(ksm, csm, this::nextHostLogId, this::onNewLog));
+        return keyspaceShards.computeIfAbsent(keyspace, ignore -> KeyspaceShards.make(ksm, csm, this::nextLogId, this::onNewLog));
     }
 
-    // TODO (expected): durability
-    int nextHostLogId()
+    private long nextLogId()
     {
-        return nextHostLogId.incrementAndGet();
+        NodeId nodeId = ClusterMetadata.current().myNodeId();
+        Preconditions.checkNotNull(nodeId);
+        return CoordinatorLogId.asLong(nodeId.id(), nextHostLogId());
     }
-    private final AtomicInteger nextHostLogId = new AtomicInteger();
 
-    public boolean isDurablyReconciled(String keyspace, ImmutableCoordinatorLogOffsets logOffsets)
+    /*
+     * Allocate and persist the next host log id.
+     * We only do this on startup and when rotating logs.
+     */
+    private int nextHostLogId()
+    {
+        int nextHostLogId = ++prevHostLogId;
+        persistHostLogIdToSystemTable(nextHostLogId);
+        return nextHostLogId;
+    }
+    private int prevHostLogId;
+
+    public boolean isDurablyReconciled(ImmutableCoordinatorLogOffsets logOffsets)
     {
         // Could pass through SSTable bounds to exclude shards for non-overlapping ranges, but this will mostly be
         // called on flush for L0 SSTables with wide bounds.
-
-        KeyspaceShards shards = keyspaceShards.get(keyspace);
-        if (shards == null)
-        {
-            logger.debug("Could not find shards for keyspace {}", keyspace);
-            return false;
-        }
-
         for (Long logId : logOffsets)
         {
-            CoordinatorLogId coordinatorLogId = new CoordinatorLogId(logId);
-            CoordinatorLog log = shards.logs.get(coordinatorLogId);
-            if (log == null)
-            {
-                logger.warn("Could not determine lifecycle for unknown logId {}, not marking as durably reconciled", coordinatorLogId);
-                return false;
-            }
-            if (!log.isDurablyReconciled(logOffsets))
+            Shard shard = getShardNullable(new CoordinatorLogId(logId));
+            if (shard == null)
+                throw new IllegalStateException("Could not find shard for logId " + logId);
+
+            if (!shard.isDurablyReconciled(logId, logOffsets))
                 return false;
         }
-
         return true;
     }
 
@@ -308,17 +320,15 @@ public class MutationTrackingService
         log2ShardMap.put(log.logId, shard);
     }
 
-    private static class KeyspaceShards implements Shard.Subscriber
+    private static class KeyspaceShards
     {
         private final String keyspace;
         private final Map<Range<Token>, Shard> shards;
         private final ReplicaGroups groups;
-        private final BiConsumer<Shard, CoordinatorLog> onNewLog;
 
         private transient final Map<Range<PartitionPosition>, Shard> ppShards;
-        private transient final Map<CoordinatorLogId, CoordinatorLog> logs;
 
-        static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, IntSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
+        static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
             Preconditions.checkArgument(keyspace.params.replicationType.isTracked());
 
@@ -341,26 +351,23 @@ public class MutationTrackingService
 
                 for (Range<Token> tokenRange : ranges)
                 {
-                    shards.put(tokenRange, new Shard(keyspace.name, tokenRange, cluster.myNodeId().id(), participants, forRange.lastModified(), logIdProvider, onNewLog));
+                    shards.put(tokenRange, new Shard(cluster.myNodeId().id(), keyspace.name, tokenRange, participants, logIdProvider, onNewLog));
                     groups.put(tokenRange, forRange.map(original -> original.withRange(tokenRange)));
                 }
             });
-            return new KeyspaceShards(keyspace.name, shards, new ReplicaGroups(groups), onNewLog);
+            KeyspaceShards keyspaceShards = new KeyspaceShards(keyspace.name, shards, new ReplicaGroups(groups));
+            keyspaceShards.persistToSystemTables();
+            return keyspaceShards;
         }
 
-        KeyspaceShards(String keyspace, Map<Range<Token>, Shard> shards, ReplicaGroups groups, BiConsumer<Shard, CoordinatorLog> onNewLog)
+        KeyspaceShards(String keyspace, Map<Range<Token>, Shard> shards, ReplicaGroups groups)
         {
             this.keyspace = keyspace;
             this.shards = shards;
             this.groups = groups;
-            this.onNewLog = onNewLog;
 
-            this.logs = new HashMap<>();
             HashMap<Range<PartitionPosition>, Shard> ppShards = new HashMap<>();
-            shards.forEach((range, shard) -> {
-                ppShards.put(Range.makeRowRange(range), shard);
-                shard.addSubscriber(this);
-            });
+            shards.forEach((range, shard) -> ppShards.put(Range.makeRowRange(range), shard));
             this.ppShards = ppShards;
         }
 
@@ -369,9 +376,9 @@ public class MutationTrackingService
             return lookUp(token).nextId();
         }
 
-        void updateReplicatedOffsets(Range<Token> range, List<? extends Offsets> offsets, InetAddressAndPort onHost)
+        void updateReplicatedOffsets(Range<Token> range, List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
         {
-            shards.get(range).updateReplicatedOffsets(offsets, onHost);
+            shards.get(range).updateReplicatedOffsets(offsets, durable, onHost);
         }
 
         boolean startWriting(Mutation mutation)
@@ -430,66 +437,105 @@ public class MutationTrackingService
             return shards.get(groups.forRange(token).range());
         }
 
-        @Override
-        public void onLogCreation(CoordinatorLog log)
+        void persistToSystemTables()
         {
-            logger.debug("Indexing created log {}", log);
-            logs.put(log.logId, log);
+            for (Shard shard : shards.values()) shard.persistToSystemTables();
         }
 
-        @Override
-        public void onSubscribe(CoordinatorLog currentLog)
+        static List<KeyspaceShards> loadFromSystemTables(ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
-            logger.debug("Indexing current log {}", currentLog);
-            logs.put(currentLog.logId, currentLog);
+            Map<String, Map<Range<Token>, Shard>> groupedShards = new HashMap<>();
+            for (Shard shard : Shard.loadFromSystemTables(cluster.myNodeId().id(), logIdProvider, onNewLog))
+                groupedShards.computeIfAbsent(shard.keyspace, k -> new HashMap<>()).put(shard.range, shard);
+            List<KeyspaceShards> keyspaceShards = new ArrayList<>();
+            for (Map.Entry<String, Map<Range<Token>, Shard>> entry : groupedShards.entrySet())
+            {
+                ReplicationParams params = cluster.schema.getKeyspaceMetadata(entry.getKey()).params.replication;
+                ReplicaGroups originalGroups = cluster.placements.get(params).writes; // prior to splitting
+
+                Map<Range<Token>, VersionedEndpoints.ForRange> splitGroups = new HashMap<>();
+                for (Range<Token> splitRange : entry.getValue().keySet())
+                    splitGroups.put(splitRange, originalGroups.matchRange(splitRange));
+
+                keyspaceShards.add(new KeyspaceShards(entry.getKey(), entry.getValue(), new ReplicaGroups(splitGroups)));
+            }
+            return keyspaceShards;
         }
     }
 
-    // TODO (later): a more intelligent heuristic for offsets included in broadcasts
-    private static class ReplicatedOffsetsBroadcaster implements Runnable, Shutdownable
-    {
-        private static final ScheduledExecutorPlus executor =
-            executorFactory().scheduled("Replicated-Offsets-Broadcaster", NORMAL);
+    private static final String HOST_LOG_ID_KEY = "local";
 
+    private static final String INSERT_QUERY =
+        format("INSERT INTO %s.%s (key, host_log_id) VALUES (?, ?)",
+               SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.HOST_LOG_ID);
+
+    static void persistHostLogIdToSystemTable(int hostLogId)
+    {
+        executeInternal(INSERT_QUERY, HOST_LOG_ID_KEY, hostLogId);
+    }
+
+    private static final String SELECT_QUERY =
+        format("SELECT * FROM %s.%s WHERE key = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.HOST_LOG_ID);
+
+    static int loadHostLogIdFromSystemTable()
+    {
+        UntypedResultSet rows = executeInternal(SELECT_QUERY, HOST_LOG_ID_KEY);
+        if (rows.isEmpty())
+            return 0;
+        return rows.one().getInt("host_log_id");
+    }
+
+    // TODO (later): a more intelligent heuristic for offsets included in broadcasts
+    private static class ReplicatedOffsetsBroadcaster
+    {
         // TODO (later): a more intelligent heuristic for scheduling broadcasts
-        private static final long BROADCAST_INTERVAL_MILLIS = 200;
+        private static final long TRANSIENT_BROADCAST_INTERVAL_MILLIS = 200;
+        private static final long DURABLE_BROADCAST_INTERVAL_MILLIS = 60_000;
 
         void start()
         {
-            executor.scheduleWithFixedDelay(this, BROADCAST_INTERVAL_MILLIS, BROADCAST_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+            executor.scheduleWithFixedDelay(() -> run(false),
+                                            TRANSIENT_BROADCAST_INTERVAL_MILLIS,
+                                            TRANSIENT_BROADCAST_INTERVAL_MILLIS,
+                                            TimeUnit.MILLISECONDS);
+            executor.scheduleWithFixedDelay(() -> run(true),
+                                            DURABLE_BROADCAST_INTERVAL_MILLIS,
+                                            DURABLE_BROADCAST_INTERVAL_MILLIS,
+                                            TimeUnit.MILLISECONDS);
         }
 
-        @Override
-        public boolean isTerminated()
+        public void run(boolean durable)
         {
-            return executor.isTerminated();
+            MutationTrackingService.instance.forEachKeyspace(ks -> run(ks, durable));
         }
 
-        @Override
-        public void shutdown()
+        private void run(KeyspaceShards shards, boolean durable)
         {
-            executor.shutdown();
+            shards.forEachShard(sh -> run(sh, durable));
         }
 
-        @Override
-        public Object shutdownNow()
+        private void run(Shard shard, boolean durable)
         {
-            return executor.shutdownNow();
-        }
+            BroadcastLogOffsets replicatedOffsets = shard.collectReplicatedOffsets(durable);
+            if (replicatedOffsets.isEmpty())
+                return;
 
-        @Override
-        public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
-        {
-            return executor.awaitTermination(timeout, units);
-        }
+            Message<BroadcastLogOffsets> message = Message.out(Verb.BROADCAST_LOG_OFFSETS, replicatedOffsets);
 
-        public void shutdownBlocking() throws InterruptedException
+            for (InetAddressAndPort target : shard.remoteReplicas())
+                if (FailureDetector.instance.isAlive(target))
+                    MessagingService.instance().send(message, target);
+        }
+    }
+
+    private static class LogStatePersister implements Runnable
+    {
+        // TODO (expected): consider a different interval
+        private static final long PERSIST_INTERVAL_MINUTES = 1;
+
+        void start()
         {
-            if (!executor.isTerminated())
-            {
-                executor.shutdown();
-                executor.awaitTermination(1, MINUTES);
-            }
+            executor.scheduleWithFixedDelay(this, PERSIST_INTERVAL_MINUTES, PERSIST_INTERVAL_MINUTES, TimeUnit.MINUTES);
         }
 
         @Override
@@ -505,22 +551,21 @@ public class MutationTrackingService
 
         private void run(Shard shard)
         {
-            BroadcastLogOffsets replicatedOffsets = shard.collectReplicatedOffsets();
-            if (replicatedOffsets.isEmpty())
-                return;
-
-            Message<BroadcastLogOffsets> message = Message.out(Verb.BROADCAST_LOG_OFFSETS, replicatedOffsets);
-
-            for (InetAddressAndPort target : shard.remoteReplicas())
-                if (FailureDetector.instance.isAlive(target))
-                    MessagingService.instance().send(message, target);
+            shard.updateLogsInSystemTable();
         }
+    }
+
+    @VisibleForTesting
+    public void persistLogStateForTesting()
+    {
+        offsetsPersister.run();
     }
 
     @VisibleForTesting
     public void broadcastOffsetsForTesting()
     {
-        offsetsBroadcaster.run();
+        offsetsBroadcaster.run(false);
+        offsetsBroadcaster.run(true);
     }
 
     @VisibleForTesting

@@ -285,10 +285,10 @@ public class OfflineClusterMetadataDump implements Runnable
             }
 
             // Find and import SSTables for metadata_snapshots
-            Set<String> snapshotTablePaths = findTablePaths(SystemKeyspace.SNAPSHOT_TABLE_NAME, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+            Set<String> snapshotTablePaths = findTablePaths(SystemKeyspace.METADATA_SNAPSHOTS, SchemaConstants.SYSTEM_KEYSPACE_NAME);
             if (!snapshotTablePaths.isEmpty())
             {
-                ColumnFamilyStore snapshotCfs = ks.getColumnFamilyStore(SystemKeyspace.SNAPSHOT_TABLE_NAME);
+                ColumnFamilyStore snapshotCfs = ks.getColumnFamilyStore(SystemKeyspace.METADATA_SNAPSHOTS);
                 snapshotCfs.importNewSSTables(snapshotTablePaths, false, false, false, false, false, false, true);
                 if (verbose)
                 {

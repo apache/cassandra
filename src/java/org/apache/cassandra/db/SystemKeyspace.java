@@ -190,7 +190,10 @@ public final class SystemKeyspace
     public static final String REPAIRS = "repairs";
     public static final String TOP_PARTITIONS = "top_partitions";
     public static final String METADATA_LOG = "local_metadata_log";
-    public static final String SNAPSHOT_TABLE_NAME = "metadata_snapshots";
+    public static final String METADATA_SNAPSHOTS = "metadata_snapshots";
+    public static final String HOST_LOG_ID = "host_log_id";
+    public static final String SHARDS = "shards";
+    public static final String COORDINATOR_LOGS = "coordinator_logs";
 
     /**
      * By default the system keyspace tables should be stored in a single data directory to allow the server
@@ -225,14 +228,16 @@ public final class SystemKeyspace
         TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS,
         BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS,
         LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY,
-        METADATA_LOG, SNAPSHOT_TABLE_NAME, CONSENSUS_MIGRATION_STATE);
+        METADATA_LOG, METADATA_SNAPSHOTS, CONSENSUS_MIGRATION_STATE,
+        HOST_LOG_ID, SHARDS, COORDINATOR_LOGS);
 
     public static final Set<String> TABLE_NAMES = ImmutableSet.of(
         BATCHES, PAXOS, PAXOS_REPAIR_HISTORY, BUILT_INDEXES, LOCAL, PEERS_V2, PEER_EVENTS_V2,
         COMPACTION_HISTORY, SSTABLE_ACTIVITY_V2, TABLE_ESTIMATES, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS,
         BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS,
         LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY,
-        METADATA_LOG, SNAPSHOT_TABLE_NAME, CONSENSUS_MIGRATION_STATE);
+        METADATA_LOG, METADATA_SNAPSHOTS, CONSENSUS_MIGRATION_STATE,
+        HOST_LOG_ID, SHARDS, COORDINATOR_LOGS);
 
     public static final TableMetadata Batches =
         parse(BATCHES,
@@ -518,7 +523,7 @@ public final class SystemKeyspace
           + "cfids set<uuid>, "
           + "PRIMARY KEY (parent_id))").build();
 
-    public static final TableMetadata LocalMetadataLog =
+    private static final TableMetadata LocalMetadataLog =
         parse(METADATA_LOG,
               "Local Metadata Log",
               "CREATE TABLE %s ("
@@ -532,13 +537,49 @@ public final class SystemKeyspace
                                                           "compaction_window_size","1")))
         .build();
 
-    public static final TableMetadata Snapshots = parse(SNAPSHOT_TABLE_NAME,
-                                                        "ClusterMetadata snapshots",
-                                                        "CREATE TABLE IF NOT EXISTS %s (" +
-                                                        "epoch bigint PRIMARY KEY," +
-                                                        "snapshot blob)")
-                                                  .partitioner(MetaStrategy.partitioner)
-                                                  .build();
+    private static final TableMetadata Snapshots =
+        parse(METADATA_SNAPSHOTS,
+              "ClusterMetadata snapshots",
+              "CREATE TABLE IF NOT EXISTS %s (" +
+              "epoch bigint PRIMARY KEY," +
+              "snapshot blob)")
+        .partitioner(MetaStrategy.partitioner)
+        .build();
+
+    private static final TableMetadata HostLogId =
+        parse(HOST_LOG_ID,
+              "mutation tracking last used host log id",
+              "CREATE TABLE %s ("
+              + "key text,"
+              + "host_log_id int,"
+              + "PRIMARY KEY ((key)))")
+              .build();
+
+    private static final TableMetadata Shards =
+        parse(SHARDS,
+              "mutation tracking shards",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "range_start text,"
+              + "range_end text,"
+              + "participants frozen<set<int>>,"
+              + "PRIMARY KEY ((keyspace_name, range_start, range_end)))")
+              .build();
+
+    private static final TableMetadata CoordinatorLogs =
+        parse(COORDINATOR_LOGS,
+              "mutation tracking coordinator logs",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "range_start text,"
+              + "range_end text,"
+              + "host_id int,"
+              + "host_log_id int,"
+              + "participants frozen<set<int>>,"
+              + "witnessed_offsets map<int, frozen<list<int>>>,"
+              + "persisted_offsets map<int, frozen<list<int>>>,"
+              + "PRIMARY KEY ((keyspace_name, range_start, range_end), host_id, host_log_id))")
+              .build();
 
     @Deprecated(since = "4.0")
     private static final TableMetadata LegacyPeers =
@@ -633,7 +674,10 @@ public final class SystemKeyspace
                          TopPartitions,
                          LocalMetadataLog,
                          Snapshots,
-                         ConsensusMigrationState);
+                         ConsensusMigrationState,
+                         HostLogId,
+                         Shards,
+                         CoordinatorLogs);
     }
 
     private static volatile Map<TableId, Pair<CommitLogPosition, Long>> truncationRecords;
@@ -2129,16 +2173,16 @@ public final class SystemKeyspace
     {
         Preconditions.checkArgument(epoch.isAfter(Epoch.FIRST), "Cannot store a snapshot for an epoch less than " + Epoch.FIRST.getEpoch());
         logger.info("Storing snapshot of cluster metadata at epoch {}", epoch);
-        String query = String.format("INSERT INTO %s.%s (epoch, snapshot) VALUES (?, ?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        String query = String.format("INSERT INTO %s.%s (epoch, snapshot) VALUES (?, ?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, METADATA_SNAPSHOTS);
         executeInternal(query, epoch.getEpoch(), snapshot);
-        forceBlockingFlush(SNAPSHOT_TABLE_NAME);
+        forceBlockingFlush(METADATA_SNAPSHOTS);
     }
 
     public static ByteBuffer getSnapshot(Epoch epoch)
     {
         Preconditions.checkArgument(epoch.isAfter(Epoch.FIRST), "Cannot retrieve a snapshot for an epoch less than " + Epoch.FIRST.getEpoch());
         logger.info("Getting snapshot of epoch = {}", epoch);
-        String query = String.format("SELECT snapshot FROM %s.%s WHERE epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        String query = String.format("SELECT snapshot FROM %s.%s WHERE epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, METADATA_SNAPSHOTS);
         UntypedResultSet res = executeInternal(query, epoch.getEpoch());
         if (res == null || res.isEmpty())
             return null;
@@ -2167,7 +2211,7 @@ public final class SystemKeyspace
     {
         // during gossip upgrade we have epoch = Long.MIN_VALUE + 1 (and the reverse partitioner doesn't support negative keys)
         search = search.isBefore(Epoch.EMPTY) ? Epoch.EMPTY : search;
-        String query = String.format("SELECT snapshot FROM %s.%s WHERE token(epoch) >= token(?) LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        String query = String.format("SELECT snapshot FROM %s.%s WHERE token(epoch) >= token(?) LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, METADATA_SNAPSHOTS);
         UntypedResultSet res = executeInternal(query, search.getEpoch());
         if (res != null && !res.isEmpty())
             return res.one().getBytes("snapshot").duplicate();
@@ -2178,7 +2222,7 @@ public final class SystemKeyspace
     {
         // during gossip upgrade we have epoch = Long.MIN_VALUE + 1 (and the reverse partitioner doesn't support negative keys)
         search = search.isBefore(Epoch.EMPTY) ? Epoch.EMPTY : search;
-        String query = String.format("SELECT epoch FROM %s.%s WHERE token(epoch) < token(?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        String query = String.format("SELECT epoch FROM %s.%s WHERE token(epoch) < token(?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, METADATA_SNAPSHOTS);
         UntypedResultSet res = executeInternal(query, search.getEpoch());
         if (res == null)
             return Collections.emptyList();
@@ -2191,7 +2235,7 @@ public final class SystemKeyspace
      */
     public static ByteBuffer findLastSnapshot()
     {
-        String query = String.format("SELECT snapshot FROM %s.%s LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        String query = String.format("SELECT snapshot FROM %s.%s LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, METADATA_SNAPSHOTS);
         UntypedResultSet res = executeInternal(query);
         if (res != null && !res.isEmpty())
             return res.one().getBytes("snapshot").duplicate();
