@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.TimeUUID;
 import static org.apache.cassandra.db.SystemKeyspace.BATCHES;
 import static org.apache.cassandra.db.SystemKeyspace.LOCAL;
 import static org.apache.cassandra.db.SystemKeyspace.METADATA_LOG;
-import static org.apache.cassandra.db.SystemKeyspace.SNAPSHOT_TABLE_NAME;
+import static org.apache.cassandra.db.SystemKeyspace.METADATA_SNAPSHOTS;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 
 public class SystemKeyspaceQueryTest extends CQLTester
@@ -44,7 +44,7 @@ public class SystemKeyspaceQueryTest extends CQLTester
         assertRowCountNet(executeNet(String.format("SELECT * FROM %s.%s WHERE epoch = 1",
                                                    SYSTEM_KEYSPACE_NAME, METADATA_LOG)), 0);
         assertRowCountNet(executeNet(String.format("SELECT * FROM %s.%s WHERE epoch = 1",
-                                                   SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME)), 0);
+                                                   SYSTEM_KEYSPACE_NAME, METADATA_SNAPSHOTS)), 0);
         // system.batches table uses LocalPartitioner
         assertRowCountNet(executeNet(String.format("SELECT * FROM %s.%s WHERE id = %s",
                                                    SYSTEM_KEYSPACE_NAME, BATCHES,

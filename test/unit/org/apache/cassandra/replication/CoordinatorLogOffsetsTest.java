@@ -280,7 +280,7 @@ public class CoordinatorLogOffsetsTest
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
                     .build();
-            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(ks, logOffsets)).isTrue();
+            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(logOffsets)).isTrue();
         }
 
         // Applied locally but not on remote replicas
@@ -292,7 +292,7 @@ public class CoordinatorLogOffsetsTest
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
                     .build();
-            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(ks, logOffsets)).isFalse();
+            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(logOffsets)).isFalse();
         }
 
         // Applied on remote replicas but not locally
@@ -306,7 +306,7 @@ public class CoordinatorLogOffsetsTest
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
                     .build();
-            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(ks, logOffsets)).isFalse();
+            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(logOffsets)).isFalse();
         }
 
         // If no replicas are aware of a log, it should be considered unreconciled out of caution
@@ -326,7 +326,7 @@ public class CoordinatorLogOffsetsTest
 
             ImmutableCoordinatorLogOffsets.Builder logOffsetsBuilder = new ImmutableCoordinatorLogOffsets.Builder();
             logOffsetsBuilder.add(fakeMutationId);
-            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(ks, logOffsetsBuilder.build())).isFalse();
+            Assertions.assertThat(MutationTrackingService.instance.isDurablyReconciled(logOffsetsBuilder.build())).isFalse();
         }
 
         MutationTrackingService.instance.shutdownBlocking();

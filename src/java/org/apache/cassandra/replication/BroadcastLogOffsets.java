@@ -41,12 +41,14 @@ public class BroadcastLogOffsets
     private final String keyspace;
     private final Range<Token> range;
     private final List<Offsets.Immutable> replicatedOffsets;
+    private final boolean durable;
 
-    public BroadcastLogOffsets(String keyspace, Range<Token> range, List<Offsets.Immutable> offsets)
+    public BroadcastLogOffsets(String keyspace, Range<Token> range, List<Offsets.Immutable> offsets, boolean durable)
     {
         this.keyspace = keyspace;
         this.range = range;
         this.replicatedOffsets = offsets;
+        this.durable = durable;
     }
 
     boolean isEmpty()
@@ -57,7 +59,7 @@ public class BroadcastLogOffsets
     @Override
     public String toString()
     {
-        return "ShardReplicatedOffsets{" + keyspace + ", " + range + ", " + replicatedOffsets + '}';
+        return "ShardReplicatedOffsets{" + keyspace + ", " + range + ", " + replicatedOffsets + ", " + durable + '}';
     }
 
     public static final IVerbHandler<BroadcastLogOffsets> verbHandler = message -> {
@@ -66,6 +68,7 @@ public class BroadcastLogOffsets
         MutationTrackingService.instance.updateReplicatedOffsets(replicatedOffsets.keyspace,
                                                                  replicatedOffsets.range,
                                                                  replicatedOffsets.replicatedOffsets,
+                                                                 replicatedOffsets.durable,
                                                                  message.from());
     };
 
@@ -79,6 +82,7 @@ public class BroadcastLogOffsets
             out.writeInt(status.replicatedOffsets.size());
             for (Offsets.Immutable logOffsets : status.replicatedOffsets)
                 Offsets.serializer.serialize(logOffsets, out, version);
+            out.writeBoolean(status.durable);
         }
 
         @Override
@@ -90,7 +94,8 @@ public class BroadcastLogOffsets
             List<Offsets.Immutable> replicatedOffsets = new ArrayList<>(count);
             for (int i = 0; i < count; ++i)
                 replicatedOffsets.add(Offsets.serializer.deserialize(in, version));
-            return new BroadcastLogOffsets(keyspace, range, replicatedOffsets);
+            boolean durable = in.readBoolean();
+            return new BroadcastLogOffsets(keyspace, range, replicatedOffsets, durable);
         }
 
         @Override
@@ -102,6 +107,7 @@ public class BroadcastLogOffsets
             size += TypeSizes.sizeof(replicatedOffsets.replicatedOffsets.size());
             for (Offsets.Immutable logOffsets : replicatedOffsets.replicatedOffsets)
                 size += Offsets.serializer.serializedSize(logOffsets, version);
+            size += TypeSizes.sizeof(replicatedOffsets.durable);
             return size;
         }
     };
