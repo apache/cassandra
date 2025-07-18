@@ -37,9 +37,9 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     boolean isHeldByExecutor;
     boolean shutdown;
 
-    AccordExecutorAbstractLockLoop(Lock lock, int executorId, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    AccordExecutorAbstractLockLoop(Lock lock, int executorId, AccordCacheMetrics metrics, Agent agent)
     {
-        super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        super(lock, executorId, metrics, agent);
     }
 
     abstract void notifyWork();
@@ -81,18 +81,25 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 
     public boolean hasTasks()
     {
-        if (tasks > 0 || !submitted.isEmpty() || running > 0)
+        if (tasks > 0 || !submitted.isEmpty() || runningThreads > 0)
             return true;
 
         lock.lock();
         try
         {
-            return tasks > 0 || !submitted.isEmpty() || running > 0;
+            return tasks > 0 || !submitted.isEmpty() || runningThreads > 0;
         }
         finally
         {
             lock.unlock();
         }
+    }
+
+    @Override
+    void beforeUnlock()
+    {
+        if (!isInLoop())
+            notifyIfMoreWorkExclusive();
     }
 
     void updateWaitingToRunExclusive()
@@ -125,14 +132,14 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     private void pauseExclusive()
     {
         isHeldByExecutor = false;
-        if (--running == 0 && tasks == 0)
-            signalQuiescentExclusive();
+        if (--runningThreads == 0 && tasks == 0)
+            notifyQuiescentExclusive();
     }
 
     private void resumeExclusive()
     {
         isHeldByExecutor = true;
-        ++running;
+        ++runningThreads;
     }
 
     LoopTask task(String name, Mode mode)
@@ -161,11 +168,11 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 
                             if (task != null)
                             {
-                                --tasks;
+                                setRunning(task);
                                 try
                                 {
-                                    task.preRunExclusive(this);
-                                    task.run();
+                                    task.preRunExclusive();
+                                    task.runInternal();
                                 }
                                 catch (Throwable t)
                                 {
@@ -173,7 +180,8 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                                 }
                                 finally
                                 {
-                                    task.cleanupExclusive(this);
+                                    completeTaskExclusive(task, true);
+                                    clearRunning();
                                 }
                             }
                             else
@@ -222,7 +230,13 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                     lock.lock();
                     try
                     {
-                        if (task != null) task.cleanupExclusive(this);
+                        if (task != null)
+                        {
+                            Task tmp = task;
+                            task = null;
+                            completeTaskExclusive(tmp, true);
+                            clearRunning();
+                        }
                         else resumeExclusive();
                         enterLockExclusive();
 
@@ -231,6 +245,8 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                             task = pollWaitingToRunExclusive();
                             if (task != null)
                             {
+                                setRunning(task);
+                                task.preRunExclusive();
                                 exitLockExclusive();
                                 break;
                             }
@@ -247,8 +263,6 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                             awaitExclusive();
                             resumeExclusive();
                         }
-                        --tasks;
-                        task.preRunExclusive(this);
                     }
                     catch (Throwable t)
                     {
@@ -256,11 +270,16 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                         {
                             try { task.fail(t); }
                             catch (Throwable t2) { t.addSuppressed(t2); }
-                            try { task.cleanupExclusive(this); }
+                            try { completeTaskExclusive(task, true); }
                             catch (Throwable t2) { t.addSuppressed(t2); }
                             try { agent.onUncaughtException(t); }
                             catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
                             task = null;
+                        }
+                        else
+                        {
+                            try { agent.onUncaughtException(t); }
+                            catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
                         }
                         if (isHeldByExecutor)
                             pauseExclusive();
@@ -274,7 +293,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 
                     try
                     {
-                        task.run();
+                        task.runInternal();
                     }
                     catch (Throwable t)
                     {

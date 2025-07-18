@@ -64,6 +64,7 @@ import accord.local.ICommand;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
+import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.SequentialAsyncExecutor;
@@ -649,7 +650,9 @@ public class CommandsForKeySerializerTest
         }
 
         @Override public boolean inStore() { return true; }
-        @Override public Journal.Loader loader() { throw new UnsupportedOperationException(); }
+        @Override public Journal.Replayer replayer() { throw new UnsupportedOperationException(); }
+
+        @Override protected void ensureDurable(Ranges ranges, RedundantBefore onSuccess) {}
         @Override public Agent agent() { return this; }
         @Override public AsyncChain<Void> build(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { return null; }
         @Override public <T> AsyncChain<T> build(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }

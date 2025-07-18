@@ -5372,7 +5372,6 @@ public class DatabaseDescriptor
             case THREAD_PER_SHARD_SYNC_QUEUE:
                 return conf.accord.queue_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
             case THREAD_POOL_PER_SHARD:
-            case THREAD_POOL_PER_SHARD_EXCLUDES_IO:
                 int defaultMax = getAccordQueueSubmissionModel() == AccordSpec.QueueSubmissionModel.SYNC ? 8 : 4;
                 return conf.accord.queue_shard_count.or(Math.min(defaultMax, DatabaseDescriptor.getAvailableProcessors()));
         }
@@ -5391,6 +5390,11 @@ public class DatabaseDescriptor
     public static int getAccordMaxQueuedRangeLoadCount()
     {
         return conf.accord.max_queued_range_loads.or(Math.max(4, getAccordConcurrentOps() / 4));
+    }
+
+    public static int getAccordProgressLogMaxConcurrency()
+    {
+        return conf.accord.max_progress_log_concurrency.or(64);
     }
 
     public static boolean getAccordCacheShrinkingOn()
@@ -5426,14 +5430,14 @@ public class DatabaseDescriptor
         return bound == null ? -1 : bound.to(TimeUnit.MILLISECONDS);
     }
 
-    public static long getAccordGCDelay(TimeUnit unit)
-    {
-        return conf.accord.gc_delay.to(unit);
-    }
-
     public static int getAccordShardDurabilityTargetSplits()
     {
         return conf.accord.shard_durability_target_splits;
+    }
+
+    public static int getAccordShardDurabilityMaxSplits()
+    {
+        return conf.accord.shard_durability_max_splits;
     }
 
     public static long getAccordScheduleDurabilityTxnIdLag(TimeUnit unit)

@@ -57,14 +57,11 @@ public class AccordSpec
         /**
          * Same number of threads as queue shards, but the shard lock is held only while managing the queue,
          * so that submitting threads may queue load/save work.
-         *
-         * The global READ and WRITE stages are used for IO.
          */
         THREAD_PER_SHARD,
 
         /**
          * Same number of threads as shards, and the shard lock is held for the duration of serving requests.
-         * The global READ and WRITE stages are used for IO.
          */
         THREAD_PER_SHARD_SYNC_QUEUE,
 
@@ -73,12 +70,6 @@ public class AccordSpec
          * Fewer shards is generally better, until queue-contention is encountered.
          */
         THREAD_POOL_PER_SHARD,
-
-        /**
-         * More threads than shards. Threads update transaction state only, relying on READ and WRITE stages for IO.
-         * Fewer shards is generally better, until queue-contention is encountered.
-         */
-        THREAD_POOL_PER_SHARD_EXCLUDES_IO,
     }
 
     public enum QueueSubmissionModel
@@ -130,6 +121,7 @@ public class AccordSpec
 
     public volatile OptionaldPositiveInt max_queued_loads = OptionaldPositiveInt.UNDEFINED;
     public volatile OptionaldPositiveInt max_queued_range_loads = OptionaldPositiveInt.UNDEFINED;
+    public volatile OptionaldPositiveInt max_progress_log_concurrency = OptionaldPositiveInt.UNDEFINED;
 
     public DataStorageSpec.LongMebibytesBound cache_size = null;
     public DataStorageSpec.LongMebibytesBound working_set_size = null;
@@ -158,8 +150,8 @@ public class AccordSpec
 
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
 
-    public volatile DurationSpec.IntSecondsBound gc_delay = new DurationSpec.IntSecondsBound("5m");
     public volatile int shard_durability_target_splits = 16;
+    public volatile int shard_durability_max_splits = 128;
     public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
     public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
     public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);

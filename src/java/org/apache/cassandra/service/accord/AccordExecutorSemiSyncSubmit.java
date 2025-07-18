@@ -33,14 +33,14 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     private final ReentrantLock lock;
     private final Condition hasWork;
 
-    public AccordExecutorSemiSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    public AccordExecutorSemiSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(new ReentrantLock(), executorId, mode, threads, name, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        this(new ReentrantLock(), executorId, mode, threads, name, metrics, agent);
     }
 
-    private AccordExecutorSemiSyncSubmit(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    private AccordExecutorSemiSyncSubmit(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
     {
-        super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        super(lock, executorId, metrics, agent);
         this.lock = lock;
         this.hasWork = lock.newCondition();
         this.loops = new AccordExecutorLoops(mode, threads, name, this::task);

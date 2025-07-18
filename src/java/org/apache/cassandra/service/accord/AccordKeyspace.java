@@ -332,7 +332,7 @@ public class AccordKeyspace
         {
             ByteBuffer bytes;
             if (serialized instanceof ByteBuffer) bytes = (ByteBuffer) serialized;
-            else bytes = Serialize.toBytesWithoutKey(commandsForKey);
+            else bytes = Serialize.toBytesWithoutKey(commandsForKey.maximalPrune()); // TODO (expected): we only need to strip pruned, not prune additional txns
             return makeUpdate(storeId, key, timestampMicros, bytes);
         }
 
@@ -486,8 +486,6 @@ public class AccordKeyspace
         }
     }
 
-    public static final CommandsForKeyAccessor CommandsForKeysAccessor = new CommandsForKeyAccessor(CommandsForKeys);
-
     private static TableMetadata.Builder parse(String name, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, name), ACCORD_KEYSPACE_NAME)
@@ -510,16 +508,6 @@ public class AccordKeyspace
     public static Tables tables()
     {
         return TABLES;
-    }
-
-    public static void truncateAllCaches()
-    {
-        Keyspace ks = Keyspace.open(ACCORD_KEYSPACE_NAME);
-        for (String table : new String[]{ CommandsForKeys.name })
-        {
-            if (!ks.getColumnFamilyStore(table).isEmpty())
-                ks.getColumnFamilyStore(table).truncateBlocking();
-        }
     }
 
     private static <T> ByteBuffer cellValue(Cell<T> cell)

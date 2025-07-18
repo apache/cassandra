@@ -165,7 +165,7 @@ public abstract class AccordTestBase extends TestBaseImpl
     public void tearDown() throws Exception
     {
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(false));
+            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start()));
 
         truncateSystemTables();
 

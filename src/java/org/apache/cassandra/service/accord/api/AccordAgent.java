@@ -209,10 +209,11 @@ public class AccordAgent implements Agent
         return SECONDS.toMicros(1);
     }
 
+    // TODO (expected): I don't think we even need this - just prune each time we have doubled in size
     @Override
     public long maxConflictsPruneInterval()
     {
-        return 100;
+        return 1024;
     }
 
     /**

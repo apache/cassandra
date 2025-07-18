@@ -19,6 +19,8 @@
 package org.apache.cassandra.db.memtable;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -419,6 +421,10 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
     {
         return shouldSwitch(reason, metadata());
     }
+
+    // returns null if already flushed
+    <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory);
+    void notifyFlushed();
 
     /**
      * Called when the table's metadata is updated. The memtable's metadata reference now points to the new version.

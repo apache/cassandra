@@ -225,10 +225,10 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     {
         return "AccordInteropApply{" +
                "txnId:" + txnId +
-               ", deps:" + deps +
+               ", deps:" + deps() +
                ", executeAt:" + executeAt +
-               ", writes:" + writes +
-               ", result:" + result +
+               ", writes:" + writes() +
+               ", result:" + result() +
                '}';
     }
 

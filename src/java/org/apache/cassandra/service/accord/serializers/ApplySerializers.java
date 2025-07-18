@@ -73,11 +73,11 @@ public class ApplySerializers
             out.writeUnsignedVInt(apply.maxEpoch - apply.minEpoch);
             kind.serialize(apply.kind, out);
             ExecuteAtSerializer.serialize(apply.txnId, apply.executeAt, out);
-            DepsSerializers.partialDeps.serialize(apply.deps, out);
-            CommandSerializers.nullablePartialTxn.serialize(apply.txn, out, version);
+            DepsSerializers.partialDeps.serialize(apply.deps(), out);
+            CommandSerializers.nullablePartialTxn.serialize(apply.txn(), out, version);
             KeySerializers.nullableFullRoute.serialize(apply.fullRoute, out);
             if (apply.txnId.is(Write))
-                CommandSerializers.writes.serialize(apply.writes, out, version);
+                CommandSerializers.writes.serialize(apply.writes(), out, version);
             out.writeUnsignedVInt32(apply.flags.bits());
         }
 
@@ -109,10 +109,10 @@ public class ApplySerializers
                    + TypeSizes.sizeofUnsignedVInt(apply.maxEpoch - apply.minEpoch)
                    + kind.serializedSize(apply.kind)
                    + ExecuteAtSerializer.serializedSize(apply.txnId, apply.executeAt)
-                   + DepsSerializers.partialDeps.serializedSize(apply.deps)
-                   + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
+                   + DepsSerializers.partialDeps.serializedSize(apply.deps())
+                   + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn(), version)
                    + KeySerializers.nullableFullRoute.serializedSize(apply.fullRoute)
-                   + (apply.txnId.is(Write) ? CommandSerializers.writes.serializedSize(apply.writes, version) : 0)
+                   + (apply.txnId.is(Write) ? CommandSerializers.writes.serializedSize(apply.writes(), version) : 0)
                    + VIntCoding.sizeOfUnsignedVInt(apply.flags.bits())
             ;
         }
