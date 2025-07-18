@@ -155,7 +155,7 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
         long value = initialValue;
         while (list != null)
         {
-            value = accumulator.apply(list, initialValue);
+            value = accumulator.apply(list, value);
             list = list.next;
         }
         return value;
