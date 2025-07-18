@@ -3317,11 +3317,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return Replicas.stringify(getNaturalReplicasForToken(keyspaceName, cf, key), true);
     }
 
+    public List<String> getNaturalEndpointsByTokenWithPort(String keyspaceName, String cf, String token)
+    {
+        return Replicas.stringify(getNaturalReplicasByToken(keyspaceName, cf, token), true);
+    }
+
     /** @deprecated See CASSANDRA-7544 */
     @Deprecated(since = "4.0")
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key)
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
+        List<InetAddress> inetList = new ArrayList<>(replicas.size());
+        replicas.forEach(r -> inetList.add(r.endpoint().getAddress()));
+        return inetList;
+    }
+
+    public List<InetAddress> getNaturalEndpointsByToken(String keyspaceName, String cf, String token)
+    {
+        EndpointsForToken replicas = getNaturalReplicasByToken(keyspaceName, cf, token);
         List<InetAddress> inetList = new ArrayList<>(replicas.size());
         replicas.forEach(r -> inetList.add(r.endpoint().getAddress()));
         return inetList;
@@ -3373,6 +3386,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             token = MetaStrategy.partitioner.getToken(key);
         else
             token = metadata.partitioner.getToken(key);
+        return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token).get();
+    }
+
+    public EndpointsForToken getNaturalReplicasByToken(String keyspaceName, String cf, String tokenString) {
+        KeyspaceMetadata ksMetaData = Schema.instance.getKeyspaceMetadata(keyspaceName);
+        if (ksMetaData == null)
+            throw new IllegalArgumentException("Unknown keyspace '" + keyspaceName + "'");
+
+        TableMetadata tableMetadata = ksMetaData.getTableOrViewNullable(cf);
+        if (tableMetadata == null)
+            throw new IllegalArgumentException("Unknown table '" + cf + "' in keyspace '" + keyspaceName + "'");
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        KeyspaceMetadata keyspaceMetadata = Keyspace.open(keyspaceName).getMetadata();
+        Token token = metadata.tokenMap.partitioner().getTokenFactory().fromString(tokenString);
+
         return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token).get();
     }
 
