@@ -2494,7 +2494,7 @@ public class BTree
         final BranchBuilder ensureParent()
         {
             if (parent == null) parent = allocateParent();
-            else if (!parent.inUse) initParent();
+            if (!parent.inUse) initParent();
             return parent;
         }
 
@@ -3500,12 +3500,14 @@ public class BTree
             while (branch != null && branch.inUse)
             {
                 branch.count = 0;
+                branch.hasRightChild = false;
                 clearBranchBuffer(branch.buffer);
                 if (branch.savedBuffer != null && branch.savedBuffer[0] != null)
                     Arrays.fill(branch.savedBuffer, null); // by definition full, if non-empty
                 branch.inUse = false;
                 branch = branch.parent;
             }
+            Invariants.require(branch == null || (branch.count == 0 && !branch.hasRightChild));
         }
 
         /**
@@ -3589,8 +3591,13 @@ public class BTree
             this.allocated = isSimple(updateF) ? -1 : 0;
             int leafDepth = BTree.depth(update) - 1;
             LeafOrBranchBuilder builder = leaf();
+            Invariants.require(builder.isEmpty());
             for (int i = 0; i < leafDepth; ++i)
-                builder = builder.ensureParent();
+            {
+                BranchBuilder branch = builder.ensureParent();
+                Invariants.require(builder.isEmpty() && !branch.hasRightChild);
+                builder = branch;
+            }
 
             Insert ik = this.insert.next();
             ik = updateRecursive(ik, update, null, builder);
@@ -3738,13 +3745,14 @@ public class BTree
             reset();
             pool.offer(this);
             pool = null;
-            comparator = null;
         }
 
         void reset()
         {
             super.reset();
             insert.reset();
+            comparator = null;
+            updateF = null;
         }
     }
 
@@ -3788,8 +3796,13 @@ public class BTree
         {
             int height = this.update.initToRoot(root);
             LeafOrBranchBuilder level = leaf();
+            Invariants.require(level.isEmpty());
             for (int d = 1; d < height; ++d)
-                level = level.ensureParent();
+            {
+                BranchBuilder branch = level.ensureParent();
+                Invariants.require(branch.isEmpty() && !branch.hasRightChild);
+                level = branch;
+            }
             level.setSourceNode(root);
             return level;
         }
@@ -4111,8 +4124,8 @@ public class BTree
 
         void reset()
         {
-            update.reset();
             super.reset();
+            update.reset();
         }
     }
 
@@ -4210,6 +4223,20 @@ public class BTree
 
             leaf().copy(unode, prev, usz - prev);
             return true;
+        }
+
+        @Override
+        public void close()
+        {
+            reset();
+        }
+
+        @Override
+        void reset()
+        {
+            super.reset();
+            remove = null;
+            comparator = null;
         }
     }
 

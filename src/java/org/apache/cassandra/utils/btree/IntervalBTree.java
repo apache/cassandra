@@ -378,7 +378,7 @@ public class IntervalBTree
         @Override
         BTree.BranchBuilder allocateParent()
         {
-            return new IntervalBranchBuilder(this).init(adapter);
+            return new IntervalBranchBuilder(this);
         }
 
         @Override
@@ -442,7 +442,7 @@ public class IntervalBTree
         @Override
         BTree.BranchBuilder allocateParent()
         {
-            return new IntervalBranchBuilder(this).init(adapter);
+            return new IntervalBranchBuilder(this);
         }
 
         @Override
@@ -479,7 +479,7 @@ public class IntervalBTree
         @Override
         BTree.BranchBuilder allocateParent()
         {
-            return new IntervalBranchBuilder(this).init(adapter);
+            return new IntervalBranchBuilder(this);
         }
 
         @Override
@@ -492,6 +492,8 @@ public class IntervalBTree
         @Override
         public void close()
         {
+            // TODO (required): validate this in IntervalBTreeTest
+            super.close();
             adapter.reset();
         }
     }
@@ -524,7 +526,7 @@ public class IntervalBTree
         @Override
         BTree.BranchBuilder allocateParent()
         {
-            return new IntervalBranchBuilder(this).init(adapter);
+            return new IntervalBranchBuilder(this);
         }
 
         @Override
@@ -535,10 +537,9 @@ public class IntervalBTree
         }
 
         @Override
-        public void close()
+        void reset()
         {
-            reset();
-            comparator = null;
+            super.reset();
             adapter.reset();
         }
     }

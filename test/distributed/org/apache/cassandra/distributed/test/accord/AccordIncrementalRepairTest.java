@@ -35,7 +35,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.impl.progresslog.DefaultProgressLogs;
 import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
@@ -147,7 +146,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     public void tearDown()
     {
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(false));
+            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start()));
         SHARED_CLUSTER.filters().reset();
     }
 
@@ -293,7 +292,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         // heal partition and wait for node 1 to see node 3 again
         for (IInvokableInstance instance : SHARED_CLUSTER)
             instance.runOnInstance(() -> {
-                DefaultProgressLogs.unsafePauseForTesting(true);
+                AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop());
                 Assert.assertFalse(barrierRecordingService().executedBarriers);
             });
         SHARED_CLUSTER.filters().reset();

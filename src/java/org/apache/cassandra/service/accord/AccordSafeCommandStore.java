@@ -134,7 +134,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             long ticket = AccordCommandStore.nextSafeRedundantBeforeTicket.incrementAndGet();
             SafeRedundantBefore update = new SafeRedundantBefore(ticket, updates.newRedundantBefore);
             Runnable reportRedundantBefore = () -> {
-                AccordCommandStore.safeRedundantBeforeUpdater.accumulateAndGet((AccordCommandStore)commandStore, update, SafeRedundantBefore::max);
+                AccordCommandStore.safeRedundantBeforeUpdater.accumulateAndGet(commandStore, update, SafeRedundantBefore::max);
             };
             Runnable prevOnDone = onDone;
             onDone = prevOnDone == null ? reportRedundantBefore : () -> {

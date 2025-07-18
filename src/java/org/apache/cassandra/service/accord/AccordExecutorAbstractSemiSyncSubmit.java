@@ -27,9 +27,9 @@ import org.apache.cassandra.metrics.AccordCacheMetrics;
 
 abstract class AccordExecutorAbstractSemiSyncSubmit extends AccordExecutorAbstractLockLoop
 {
-    AccordExecutorAbstractSemiSyncSubmit(Lock lock, int executorId, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    AccordExecutorAbstractSemiSyncSubmit(Lock lock, int executorId, AccordCacheMetrics metrics, Agent agent)
     {
-        super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        super(lock, executorId, metrics, agent);
     }
 
     abstract void awaitExclusive() throws InterruptedException;

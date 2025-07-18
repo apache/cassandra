@@ -51,6 +51,8 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -58,6 +60,7 @@ import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
 public class AccordLoadTest extends AccordTestBase
 {
@@ -70,10 +73,11 @@ public class AccordLoadTest extends AccordTestBase
 //        AccordTestBase.setupCluster(builder -> builder, 3);
         AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config
                                                                             .with(Feature.NETWORK, Feature.GOSSIP)
-                                                                            .set("accord.shard_durability_target_splits", "32")
+                                                                            .set("accord.shard_durability_target_splits", "8")
+                                                                            .set("accord.shard_durability_max_splits", "16")
                                                                             .set("accord.shard_durability_cycle", "1m")
 //                                                                            .set("accord.ephemeral_read_enabled", "true")
-                                                                            .set("accord.gc_delay", "30s")), 3);
+                                                                             ), 3);
     }
 
     @Ignore
@@ -101,7 +105,9 @@ public class AccordLoadTest extends AccordTestBase
             final int repairInterval = Integer.MAX_VALUE;
             final int compactionInterval = 20_000;
 //            final int flushInterval = 50_000;
-            final int flushInterval = 500;
+            final int journalFlushInterval = 2_000;
+            final int cfkFlushInterval = 10_000;
+            final int dataFlushInterval = 10_000;
             final int compactionPeriodSeconds = 0;
             int restartInterval = 30_000;
             final int restartDecay = 2;
@@ -114,7 +120,9 @@ public class AccordLoadTest extends AccordTestBase
             final float readChance = 0.33f;
             long nextRepairAt = repairInterval;
             long nextCompactionAt = compactionInterval;
-            long nextFlushAt = flushInterval;
+            long nextJournalFlushAt = journalFlushInterval;
+            long nextDataFlushAt = dataFlushInterval;
+            long nextCfkFlushAt = cfkFlushInterval;
             long nextRestartAt = restartInterval;
             final ExecutorService restartExecutor = Executors.newSingleThreadExecutor();
             final BitSet initialised = new BitSet();
@@ -205,9 +213,9 @@ public class AccordLoadTest extends AccordTestBase
                     });
                 }
 
-                if ((nextFlushAt -= batchSize) <= 0)
+                if ((nextJournalFlushAt -= batchSize) <= 0)
                 {
-                    nextFlushAt += flushInterval;
+                    nextJournalFlushAt += journalFlushInterval;
                     System.out.println("flushing journal...");
                     cluster.forEach(i -> {
                         try
@@ -221,7 +229,43 @@ public class AccordLoadTest extends AccordTestBase
                         {
                             logger.error("", t);
                         }
-                });
+                    });
+                }
+
+                if ((nextDataFlushAt -= batchSize) <= 0)
+                {
+                    nextDataFlushAt += dataFlushInterval;
+                    System.out.println("flushing data...");
+                    cluster.forEach(i -> {
+                        try
+                        {
+                            i.acceptOnInstance(name -> {
+                                Schema.instance.getColumnFamilyStoreInstance(Schema.instance.getTableMetadata(KEYSPACE, name).id).forceFlush(UNIT_TESTS);
+                            }, accordTableName);
+                        }
+                        catch (Throwable t)
+                        {
+                            logger.error("", t);
+                        }
+                    });
+                }
+
+                if ((nextCfkFlushAt -= batchSize) <= 0)
+                {
+                    nextCfkFlushAt += cfkFlushInterval;
+                    System.out.println("flushing data...");
+                    cluster.forEach(i -> {
+                        try
+                        {
+                            i.acceptOnInstance(name -> {
+                                AccordKeyspace.AccordColumnFamilyStores.commandsForKey.forceFlush(UNIT_TESTS);
+                            }, accordTableName);
+                        }
+                        catch (Throwable t)
+                        {
+                            logger.error("", t);
+                        }
+                    });
                 }
 
                 if ((nextRestartAt -= batchSize) <= 0)

@@ -60,6 +60,7 @@ import accord.utils.SymmetricComparator;
 import accord.utils.UnhandledEnum;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.IntervalBTree;
 import org.apache.cassandra.utils.concurrent.IntrusiveStack;
@@ -90,6 +91,12 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
         TxnIdInterval(Range range, TxnId txnId)
         {
             this(range.start(), range.end(), txnId);
+        }
+
+        @Override
+        public String toString()
+        {
+            return super.toString() + ':' + txnId;
         }
     }
 
@@ -204,6 +211,12 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                         if (!upd.equals(cur))
                             pushEdit(new IntervalTreeEdit(txnId, toMap(txnId, upd), cur == null ? null : toMap(txnId, cur)));
                     }
+                    else
+                    {
+                        RangeRoute cur = cachedRangeTxnsById.remove(cmd.txnId());
+                        if (cur != null)
+                            pushEdit(new IntervalTreeEdit(txnId, null, toMap(txnId, cur)));
+                    }
                 }
             }
         }
@@ -267,8 +280,8 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             List<TxnIdInterval> update = new ArrayList<>(), remove = new ArrayList<>();
             for (IntervalTreeEdit edit : editMap.values())
             {
-                if (edit.update != null) update.addAll(BTreeSet.wrap(edit.update, COMPARATORS.totalOrder()));
                 if (edit.remove != null) remove.addAll(BTreeSet.wrap(edit.remove, COMPARATORS.totalOrder()));
+                if (edit.update != null) update.addAll(BTreeSet.wrap(edit.update, COMPARATORS.totalOrder()));
             }
 
             if (!remove.isEmpty())
@@ -280,6 +293,26 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             {
                 update.sort(COMPARATORS.totalOrder());
                 cachedRangeTxnsByRange = IntervalBTree.update(cachedRangeTxnsByRange, IntervalBTree.build(update, COMPARATORS), COMPARATORS);
+            }
+
+            if (Invariants.isParanoid())
+            {
+                try (AccordCommandStore.ExclusiveCaches caches = commandStore.tryLockCaches())
+                {
+                    if (caches != null)
+                    {
+                        for (TxnIdInterval i : BTree.<TxnIdInterval>iterable(cachedRangeTxnsByRange))
+                        {
+                            if (caches.commands().getUnsafe(i.txnId) == null)
+                            {
+                                boolean removed = pendingEdits != null && pendingEdits.foldl((edit, interval, r) -> {
+                                    return r || (edit.txnId.equals(i.txnId) && BTree.find(edit.remove, COMPARATORS.totalOrder(), i) != null);
+                                }, i, false);
+                                Invariants.require(removed);
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -472,9 +505,14 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                             if (isRelevant(i))
                             {
                                 TxnId txnId = i.txnId;
-                                Summary summary = ifRelevant(c.getUnsafe(txnId));
-                                if (summary != null)
-                                    f.accept(summary);
+                                AccordCacheEntry<TxnId, Command> entry = c.getUnsafe(txnId);
+                                Invariants.expect(entry != null, "%s found interval %s but no matching transaction in cache", manager.commandStore, i);
+                                if (entry != null)
+                                {
+                                    Summary summary = ifRelevant(entry);
+                                    if (summary != null)
+                                        f.accept(summary);
+                                }
                             }
                             return c;
                         }, forEach, this, caches.commands());
@@ -529,6 +567,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
                 case LOADED:
                 case MODIFIED:
                 case SAVING:
+                case WAITING_TO_SAVE:
                 case FAILED_TO_SAVE:
             }
 

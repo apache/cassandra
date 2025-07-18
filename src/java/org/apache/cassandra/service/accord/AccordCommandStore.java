@@ -19,8 +19,10 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -34,14 +36,18 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
-import accord.impl.AbstractLoader;
+import accord.impl.AbstractReplayer;
 import accord.impl.AbstractSafeCommandStore.CommandStoreCaches;
+import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
@@ -61,6 +67,9 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResults.CountingResult;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
@@ -76,6 +85,8 @@ import static accord.utils.Invariants.require;
 
 public class AccordCommandStore extends CommandStore
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
+
     // TODO (required): track this via a PhantomReference, so that if we remove a CommandStore without clearing the caches we can be sure to release them
     public static class Caches
     {
@@ -140,7 +151,7 @@ public class AccordCommandStore extends CommandStore
     static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
 
     public final String loggingId;
-    private final Journal journal;
+    public final Journal journal;
     private final RangeSearcher rangeSearcher;
     private final AccordExecutor sharedExecutor;
     final AccordExecutor.SequentialExecutor exclusiveExecutor;
@@ -151,8 +162,6 @@ public class AccordCommandStore extends CommandStore
     volatile SafeRedundantBefore safeRedundantBefore;
 
     private AccordSafeCommandStore current;
-
-    private final AccordCommandStoreLoader loader;
 
     public AccordCommandStore(int id,
                               NodeCommandStoreService node,
@@ -169,6 +178,8 @@ public class AccordCommandStore extends CommandStore
         this.journal = journal;
         this.rangeSearcher = RangeSearcher.extractRangeSearcher(journal);
         this.sharedExecutor = sharedExecutor;
+        if (this.progressLog() instanceof DefaultProgressLog)
+            ((DefaultProgressLog)this.progressLog).setMaxConcurrency(DatabaseDescriptor.getAccordProgressLogMaxConcurrency());
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
@@ -181,7 +192,6 @@ public class AccordCommandStore extends CommandStore
 
         this.exclusiveExecutor = sharedExecutor.executor();
         this.commandsForRanges = new CommandsForRanges.Manager(this);
-        this.loader = new AccordCommandStoreLoader(this);
 
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
@@ -216,8 +226,6 @@ public class AccordCommandStore extends CommandStore
     @Override
     public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges, Status.Durability durability)
     {
-        if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
-            dataStore.snapshot(ranges, globalSyncId);
         super.markShardDurable(safeStore, globalSyncId, ranges, durability);
         if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
             commandsForRanges.gcBefore(globalSyncId, ranges);
@@ -484,9 +492,60 @@ public class AccordCommandStore extends CommandStore
         return rangeSearcher;
     }
 
-    public AccordCommandStoreLoader loader()
+    public AccordCommandStoreReplayer replayer()
     {
-        return loader;
+        return new AccordCommandStoreReplayer(this);
+    }
+
+    static final AtomicLong nextDurabilityLoggingId = new AtomicLong();
+    @Override
+    protected void ensureDurable(Ranges ranges, RedundantBefore onCommandStoreDurable)
+    {
+        long reportId = nextDurabilityLoggingId.incrementAndGet();
+        logger.info("{} awaiting local metadata durability for {} ({})", this, ranges, reportId);
+        executor().afterSubmittedAndConsequences(() -> {
+            logger.debug("{}: saving intersecting keys ({})", this, reportId);
+            class Ready extends CountingResult implements Runnable
+            {
+                public Ready() { super(1); }
+                @Override public void run() { decrement(); }
+            }
+
+            Map<RoutingKey, String> saving = new TreeMap<>();
+            Map<RoutingKey, String> excluding = new TreeMap<>();
+            Ready ready = new Ready();
+            try (ExclusiveCaches caches = lockCaches())
+            {
+                for (AccordCacheEntry<RoutingKey, CommandsForKey> e : caches.commandsForKeys())
+                {
+                    if (ranges.contains(e.key()) && e.isModified())
+                    {
+                        ready.increment();
+                        caches.global().saveWhenReadyExclusive(e, ready);
+                    }
+                }
+            }
+
+            ready.begin((success, fail) -> {
+                if (fail != null)
+                {
+                    logger.error("{}: failed to ensure durability of {} ({})", this, ranges, reportId, fail);
+                }
+                else
+                {
+                    logger.debug("{}: waiting for CommandsForKey to flush ({})", this, reportId);
+                    ColumnFamilyStore cfs = AccordKeyspace.AccordColumnFamilyStores.commandsForKey;
+
+                    AccordDurableOnFlush onFlush = null;
+                    while (onFlush == null)
+                        onFlush = cfs.getCurrentMemtable().ensureFlushListener(AccordDataStore.FlushListenerKey.KEY, AccordDurableOnFlush::new);
+
+                    if (!onFlush.add(id, onCommandStoreDurable))
+                        AccordDurableOnFlush.notify(cfs.metadata(), this, onCommandStoreDurable);
+                }
+            });
+            ready.decrement();
+        });
     }
 
     @VisibleForTesting
@@ -495,19 +554,28 @@ public class AccordCommandStore extends CommandStore
         super.unsafeUpsertRedundantBefore(addRedundantBefore);
     }
 
-    public static class AccordCommandStoreLoader extends AbstractLoader
+    public static class AccordCommandStoreReplayer extends AbstractReplayer
     {
         private final AccordCommandStore store;
 
-        private AccordCommandStoreLoader(AccordCommandStore store)
+        private AccordCommandStoreReplayer(AccordCommandStore store)
         {
+            super(store.unsafeGetRedundantBefore());
             this.store = store;
         }
 
         @Override
-        public AsyncChain<Route> load(TxnId txnId)
+        public AsyncChain<Route> replay(TxnId txnId)
         {
+            if (!maybeShouldReplay(txnId))
+            {
+                return AsyncChains.success(null);
+            }
+
             return store.submit(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
+                if (!shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants()))
+                    return null;
+
                 initialiseState(safeStore, txnId);
                 return safeStore.unsafeGet(txnId).current().route();
             });

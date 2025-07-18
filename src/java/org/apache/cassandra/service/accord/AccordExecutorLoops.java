@@ -85,6 +85,13 @@ class AccordExecutorLoops
         };
     }
 
+    AccordExecutor.Task activeTaskForCurrentThread()
+    {
+        Thread thread = Thread.currentThread();
+        LoopTask task = tasks.get(thread.getId());
+        return task == null ? null : task.runningTask();
+    }
+
     public Stream<? extends DebuggableTaskRunner> active()
     {
         return tasks.values().stream();

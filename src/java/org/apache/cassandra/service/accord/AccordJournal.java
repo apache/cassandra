@@ -529,14 +529,14 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         class ReplayStream implements Closeable
         {
             final CommandStore commandStore;
-            final Loader loader;
+            final Replayer replayer;
             final CloseableIterator<Journal.KeyRefs<JournalKey>> iter;
             JournalKey prev;
 
             public ReplayStream(CommandStore commandStore)
             {
                 this.commandStore = commandStore;
-                this.loader = commandStore.loader();
+                this.replayer = commandStore.replayer();
                 // Keys in the index are sorted by command store id, so index iteration will be sequential
                 this.iter = journalTable.keyIterator(new JournalKey(TxnId.NONE, COMMAND_DIFF, commandStore.id()), new JournalKey(TxnId.MAX.withoutNonIdentityFlags(), COMMAND_DIFF, commandStore.id()));
             }
@@ -569,8 +569,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                                    "duplicate key detected %s == %s", key, prev);
                 prev = key;
                 commandParallelism.acquireThrowUncheckedOnInterrupt(1);
-                loader.load(txnId)
-                      .map(route -> {
+                replayer.replay(txnId)
+                        .map(route -> {
                           if (segments != null && route != null)
                           {
                               for (long segment : segments)

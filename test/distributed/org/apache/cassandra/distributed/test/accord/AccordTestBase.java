@@ -46,7 +46,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
 import accord.coordinate.Invalidated;
-import accord.impl.progresslog.DefaultProgressLogs;
 import accord.messages.PreAccept;
 import accord.primitives.KeyRoute;
 import accord.primitives.Routable.Domain;
@@ -165,7 +164,7 @@ public abstract class AccordTestBase extends TestBaseImpl
     public void tearDown() throws Exception
     {
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(false));
+            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start()));
 
         truncateSystemTables();
 
