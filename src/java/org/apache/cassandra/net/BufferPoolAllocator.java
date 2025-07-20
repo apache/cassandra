@@ -91,6 +91,12 @@ public abstract class BufferPoolAllocator extends AbstractByteBufAllocator
         return bufferPool.usedSizeInBytes();
     }
 
+    @VisibleForTesting
+    long overflowMemoryInBytes()
+    {
+        return bufferPool.overflowMemoryInBytes();
+    }
+
     void release()
     {
     }
@@ -117,6 +123,7 @@ public abstract class BufferPoolAllocator extends AbstractByteBufAllocator
 
             ByteBuf newBuffer = super.capacity(newCapacity);
             ByteBuffer nioBuffer = newBuffer.nioBuffer(0, newBuffer.capacity());
+            nioBuffer = bufferPool.unwrapBufferPoolManagedBuffer(nioBuffer);
 
             bufferPool.put(wrapped);
             wrapped = nioBuffer;
