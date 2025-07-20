@@ -1613,4 +1613,30 @@ public class BufferPool
                  + (pool.chunks.chunk1 != null ? 1 : 0)
                  + (pool.chunks.chunk2 != null ? 1 : 0);
     }
+
+    /**
+     * @return the inner buffer if it has a BufferPool.Chunk attached
+     *  and originalBuffer in other cases
+     */
+    public ByteBuffer unwrapBufferPoolManagedBuffer(ByteBuffer originalBuffer)
+    {
+        int MAX_DEPTH = 32; // a protection against possible loops in attachments
+        int depth = 0;
+        ByteBuffer buffer = originalBuffer;
+        do
+        {
+            if (buffer == null || !isExactlyDirect(buffer))
+                return originalBuffer;
+            if (Chunk.getParentChunk(buffer) != null)
+                return buffer;
+
+            Object attachment = MemoryUtil.getAttachment(buffer);
+            if (!(attachment instanceof ByteBuffer))
+                return originalBuffer;
+            buffer = (ByteBuffer) attachment;
+            depth++;
+        }
+        while (depth < MAX_DEPTH);
+        return originalBuffer;
+    }
 }

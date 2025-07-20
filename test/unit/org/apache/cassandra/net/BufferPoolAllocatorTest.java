@@ -22,31 +22,43 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 public class BufferPoolAllocatorTest
 {
+
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.clientInitialization();
+        // cache size hould be more than a macro chunk size for proper pool testing
+        // if it is 0 or less than a macro chunk size we actually do not pool
+        DatabaseDescriptor.getRawConfig().networking_cache_size_in_mb = 128;
+    }
+
     @Test
     public void testAdoptedBufferContentAfterResize() {
-        DatabaseDescriptor.clientInitialization();
-        ByteBuf buffer = GlobalBufferPoolAllocator.instance.buffer(200, 500);
-        assertEquals(200, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
-
+        ByteBuf buffer = allocateByteBuf(200, 500);
+        int originalCapacity = buffer.capacity();
         byte[] content = new byte[300];
 
         Random rand = new Random();
         rand.nextBytes(content);
 
         buffer.writeBytes(Arrays.copyOfRange(content, 0, 200));
-        assertEquals(200, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(originalCapacity, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
 
         buffer.writeBytes(Arrays.copyOfRange(content, 200, 300));
+        int increasedCapacity = buffer.capacity();
+        assertEquals(increasedCapacity, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
 
         byte[] bufferContent = new byte[300];
 
@@ -54,17 +66,16 @@ public class BufferPoolAllocatorTest
         ByteBuffer adopted = wrapped.adopt();
         adopted.get(bufferContent);
         assertArrayEquals(content, bufferContent);
-        assertEquals(500, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(increasedCapacity, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
 
         GlobalBufferPoolAllocator.instance.put(adopted);
-        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ensureThatAllMemoryIsReturnedBackToBufferPool();
     }
 
     @Test
     public void testAdoptedBufferContentBeforeResize() {
-        DatabaseDescriptor.clientInitialization();
-        ByteBuf buffer = GlobalBufferPoolAllocator.instance.buffer(200, 300);
-        assertEquals(200, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ByteBuf buffer = allocateByteBuf(200, 300);
+        int originalCapacity = buffer.capacity();
 
         byte[] content = new byte[200];
 
@@ -72,7 +83,7 @@ public class BufferPoolAllocatorTest
         rand.nextBytes(content);
 
         buffer.writeBytes(content);
-        assertEquals(200, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(originalCapacity, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
 
         byte[] bufferContent = new byte[200];
 
@@ -82,115 +93,121 @@ public class BufferPoolAllocatorTest
         assertArrayEquals(content, bufferContent);
 
         GlobalBufferPoolAllocator.instance.put(adopted);
-        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ensureThatAllMemoryIsReturnedBackToBufferPool();
     }
 
     @Test
     public void testPutPooledBufferBackIntoPool() {
-        DatabaseDescriptor.clientInitialization();
-        ByteBuf buffer = GlobalBufferPoolAllocator.instance.buffer(200, 500);
-        assertEquals(200, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ByteBuf buffer = allocateByteBuf(200, 500);
         buffer.writeBytes(new byte[200]);
 
         buffer.release();
-        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ensureThatAllMemoryIsReturnedBackToBufferPool();
     }
 
     @Test
     public void testPutResizedBufferBackIntoPool() {
-        DatabaseDescriptor.clientInitialization();
-        ByteBuf buffer = GlobalBufferPoolAllocator.instance.buffer(200, 500);
-        assertEquals(200, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ByteBuf buffer = allocateByteBuf(200, 500);
         buffer.writeBytes(new byte[500]);
 
         buffer.release();
-        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ensureThatAllMemoryIsReturnedBackToBufferPool();
     }
 
     @Test
     public void testBufferDefaultMaxCapacity()
     {
-        DatabaseDescriptor.clientInitialization();
         ByteBuf noMaxCapacity = GlobalBufferPoolAllocator.instance.buffer(100);
         noMaxCapacity.writeBytes(new byte[100]);
         assertEquals(100, noMaxCapacity.readableBytes());
         noMaxCapacity.release();
-        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ensureThatAllMemoryIsReturnedBackToBufferPool();
     }
 
     @Test
     public void testBufferWithMaxCapacity()
     {
-        DatabaseDescriptor.clientInitialization();
-        ByteBuf buffer = GlobalBufferPoolAllocator.instance.buffer(100, 500);
+        ByteBuf buffer = allocateByteBuf(100, 500);
         buffer.writeBytes(new byte[500]);
         assertEquals(500, buffer.readableBytes());
-        assertEquals(500, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(buffer.capacity(), GlobalBufferPoolAllocator.instance.usedSizeInBytes());
         buffer.release();
-        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ensureThatAllMemoryIsReturnedBackToBufferPool();
     }
 
     @Test
     public void testBufferContentAfterResize()
     {
-        DatabaseDescriptor.clientInitialization();
-        ByteBuf buffer = GlobalBufferPoolAllocator.instance.buffer(200, 300);
-        assertEquals(200, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ByteBuf buffer = allocateByteBuf(200, 300);
+        int originalCapacity = buffer.capacity();
 
         byte[] content = new byte[300];
-
         Random rand = new Random();
         rand.nextBytes(content);
 
         buffer.writeBytes(Arrays.copyOfRange(content, 0, 200));
-        assertEquals(200, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(originalCapacity, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
 
         buffer.writeBytes(Arrays.copyOfRange(content, 200, 300));
 
         byte[] bufferContent = new byte[300];
         buffer.readBytes(bufferContent);
         assertArrayEquals(content, bufferContent);
-        assertEquals(300, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        Assertions.assertThat(buffer.capacity()).isGreaterThanOrEqualTo(300);
+        assertEquals(buffer.capacity(), GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+
         buffer.release();
-        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ensureThatAllMemoryIsReturnedBackToBufferPool();
+
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
     public void testBufferExceedMaxCapacity()
     {
-        DatabaseDescriptor.clientInitialization();
-        ByteBuf maxCapacity = GlobalBufferPoolAllocator.instance.buffer(100, 200);
+        ByteBuf maxCapacity = allocateByteBuf(100, 200);
         try
         {
             maxCapacity.writeBytes(new byte[300]);
         } finally {
             maxCapacity.release();
-            assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+            ensureThatAllMemoryIsReturnedBackToBufferPool();
         }
     }
 
     @Test
     public void testResizeBufferMultipleTimes()
     {
-        DatabaseDescriptor.clientInitialization();
-        ByteBuf buffer = GlobalBufferPoolAllocator.instance.buffer(100, 2000);
+        ByteBuf buffer = allocateByteBuf(100, 2000);
         buffer.writeBytes(new byte[200]);
         assertEquals(200, buffer.readableBytes());
-        assertEquals(256, buffer.capacity());
-        assertEquals(256, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(buffer.capacity(), GlobalBufferPoolAllocator.instance.usedSizeInBytes());
 
         buffer.writeBytes(new byte[100]);
         assertEquals(300, buffer.readableBytes());
-        assertEquals(512, buffer.capacity());
-        assertEquals(512, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(buffer.capacity(), GlobalBufferPoolAllocator.instance.usedSizeInBytes());
 
         buffer.writeBytes(new byte[300]);
         assertEquals(600, buffer.readableBytes());
-        assertEquals(1024, buffer.capacity());
-        assertEquals(1024, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(buffer.capacity(), GlobalBufferPoolAllocator.instance.usedSizeInBytes());
 
         buffer.release();
-        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        ensureThatAllMemoryIsReturnedBackToBufferPool();
     }
 
+    private static ByteBuf allocateByteBuf(int initialCapacity, int maxCapacity)
+    {
+        ByteBuf buffer = GlobalBufferPoolAllocator.instance.buffer(initialCapacity, maxCapacity);
+        int originalCapacity = buffer.capacity();
+
+        // BufferPool can allocate more capacity than requested to avoid fragmentation
+        Assertions.assertThat(originalCapacity).isGreaterThanOrEqualTo(initialCapacity);
+        assertEquals(originalCapacity, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        return buffer;
+    }
+
+    private static void ensureThatAllMemoryIsReturnedBackToBufferPool()
+    {
+        assertEquals(0, GlobalBufferPoolAllocator.instance.usedSizeInBytes());
+        assertEquals(0, GlobalBufferPoolAllocator.instance.overflowMemoryInBytes());
+    }
 }
