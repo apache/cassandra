@@ -35,6 +35,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Property;
 import accord.utils.RandomSource;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.TableId;
@@ -50,6 +51,12 @@ import static org.apache.cassandra.index.accord.AccordIndexUtil.normalize;
 
 public class RangeMemoryIndexTest
 {
+    static
+    {
+        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(RangeMemoryIndexTest.class);
 
     private static final Node.Id N1 = new Node.Id(1);

@@ -88,7 +88,7 @@ public class RangeMemoryIndex
         {
             if (this.minTxnId.compareTo(maxTxnId) > 0 || this.maxTxnId.compareTo(minTxnId) < 0)
                 return;
-            if (minDecidedId != null && minDecidedId.compareTo(maxRXId) > 0)
+            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, maxRXId))
                 return;
             tree.search(new Range(start, end), e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
@@ -103,7 +103,7 @@ public class RangeMemoryIndex
         {
             if (this.minTxnId.compareTo(maxTxnId) > 0 || this.maxTxnId.compareTo(minTxnId) < 0)
                 return;
-            if (minDecidedId != null && minDecidedId.compareTo(maxRXId) > 0)
+            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, maxRXId))
                 return;
             tree.searchToken(key, e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
