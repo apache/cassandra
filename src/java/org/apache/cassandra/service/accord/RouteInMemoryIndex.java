@@ -28,10 +28,13 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekable;
 import accord.utils.Invariants;
@@ -77,35 +80,35 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
     }
 
     @Override
-    public RangeSearcher.Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId)
+    public RangeSearcher.Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
     {
         NavigableSet<TxnId> result = search(commandStoreId, range.table(),
                                             OrderedRouteSerializer.serializeTokenOnly(range.start()),
                                             OrderedRouteSerializer.serializeTokenOnly(range.end()),
-                                            minTxnId, maxTxnId);
-        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
+                                            minTxnId, maxTxnId, minDecidedId);
+        return new DefaultResult(minTxnId, maxTxnId, minDecidedId, CloseableIterator.wrap(result.iterator()));
     }
 
-    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId)
+    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
     {
         // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
         Set<TxnId> matches = new HashSet<>();
-        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, start, end, minTxnId, maxTxnId, e -> matches.add(e.getValue())));
+        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, start, end, minTxnId, maxTxnId, minDecidedId, e -> matches.add(e.getValue())));
         return matches.isEmpty() ? Collections.emptyNavigableSet() : new TreeSet<>(matches);
     }
 
     @Override
-    public RangeSearcher.Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId)
+    public RangeSearcher.Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
     {
-        NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeTokenOnly(key), minTxnId, maxTxnId);
-        return new DefaultResult(minTxnId, maxTxnId, CloseableIterator.wrap(result.iterator()));
+        NavigableSet<TxnId> result = search(commandStoreId, key.table(), OrderedRouteSerializer.serializeTokenOnly(key), minTxnId, maxTxnId, minDecidedId);
+        return new DefaultResult(minTxnId, maxTxnId, minDecidedId, CloseableIterator.wrap(result.iterator()));
     }
 
-    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId)
+    private synchronized NavigableSet<TxnId> search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
     {
         // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
         Set<TxnId> matches = new HashSet<>();
-        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, minTxnId, maxTxnId, e -> matches.add(e.getValue())));
+        segmentIndexes.values().forEach(s -> s.search(storeId, tableId, key, minTxnId, maxTxnId, minDecidedId, e -> matches.add(e.getValue())));
         return matches.isEmpty() ? Collections.emptyNavigableSet() : new TreeSet<>(matches);
     }
 
@@ -129,22 +132,22 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
 
         private void search(int storeId, TableId tableId,
                             byte[] start, byte[] end,
-                            TxnId minTxnId, Timestamp maxTxnId,
+                            TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                             Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
             StoreIndex idx = storeIndexes.get(storeId);
             if (idx == null) return;
-            idx.search(tableId, start, end, minTxnId, maxTxnId, fn);
+            idx.search(tableId, start, end, minTxnId, maxTxnId, minDecidedId, fn);
         }
 
         private void search(int storeId, TableId tableId,
                             byte[] key,
-                            TxnId minTxnId, Timestamp maxTxnId,
+                            TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                             Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
             StoreIndex idx = storeIndexes.get(storeId);
             if (idx == null) return;
-            idx.search(tableId, key, minTxnId, maxTxnId, fn);
+            idx.search(tableId, key, minTxnId, maxTxnId, minDecidedId, fn);
         }
     }
 
@@ -172,22 +175,22 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
 
         public void search(TableId tableId,
                            byte[] start, byte[] end,
-                           TxnId minTxnId, Timestamp maxTxnId,
+                           TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                            Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
             TableIndex index = tableIndex.get(tableId);
             if (index == null) return;
-            index.search(start, end, minTxnId, maxTxnId, fn);
+            index.search(start, end, minTxnId, maxTxnId, minDecidedId, fn);
         }
 
         public void search(TableId tableId,
                            byte[] key,
-                           TxnId minTxnId, Timestamp maxTxnId,
+                           TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                            Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
             TableIndex index = tableIndex.get(tableId);
             if (index == null) return;
-            index.search(key, minTxnId, maxTxnId, fn);
+            index.search(key, minTxnId, maxTxnId, minDecidedId, fn);
         }
     }
 
@@ -196,6 +199,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
         private final RangeTree<byte[], IndexRange, TxnId> index = createRangeTree();
         private TxnId min = TxnId.MAX;
         private TxnId max = TxnId.NONE;
+        private TxnId maxRX = TxnId.NONE;
 
         private TableIndex()
         {
@@ -212,14 +216,17 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
                 min = id;
             if (max.compareTo(id) < 0)
                 max = id;
+            if (id.is(Txn.Kind.ExclusiveSyncPoint) && id.compareTo(maxRX) > 0)
+                maxRX = id;
         }
 
         private void search(byte[] start, byte[] end,
-                           TxnId minTxnId, Timestamp maxTxnId,
+                           TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                            Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
             if (minTxnId.compareTo(max) > 0) return;
             if (maxTxnId.compareTo(min) < 0) return;
+            if (minDecidedId != null && minDecidedId.compareTo(maxRX) < 0) return;
             index.search(new IndexRange(start, end), e -> {
                 if (minTxnId.compareTo(e.getValue()) > 0) return;
                 if (maxTxnId.compareTo(e.getValue()) < 0) return;
@@ -228,11 +235,12 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
         }
 
         private void search(byte[] key,
-                            TxnId minTxnId, Timestamp maxTxnId,
+                            TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                             Consumer<Map.Entry<IndexRange, TxnId>> fn)
         {
             if (minTxnId.compareTo(max) > 0) return;
             if (maxTxnId.compareTo(min) < 0) return;
+            if (minDecidedId != null && minDecidedId.compareTo(maxRX) < 0) return;
             index.searchToken(key, e -> {
                 if (minTxnId.compareTo(e.getValue()) > 0) return;
                 if (maxTxnId.compareTo(e.getValue()) < 0) return;

@@ -382,15 +382,16 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
         private final Manager manager;
         private final MaxDecidedRX maxDecidedRX;
         private final TxnId primaryTxnId;
-        private final TxnId minRelevantId;
+        @Nullable
+        private final TxnId minDecidedId;
 
-        public Loader(Manager manager, TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, RedundantBefore redundantBefore, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId findAsDep, MaxDecidedRX maxDecidedRX)
+        public Loader(Manager manager, TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, RedundantBefore redundantBefore, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId findAsDep, @Nullable MaxDecidedRX maxDecidedRX)
         {
             super(primaryTxnId, searchKeysOrRanges, redundantBefore, testKinds, minTxnId, maxTxnId, findAsDep);
             this.manager = manager;
             this.maxDecidedRX = maxDecidedRX;
             this.primaryTxnId = primaryTxnId;
-            this.minRelevantId = MaxDecidedRX.minDecidedDependencyId(maxDecidedRX, searchKeysOrRanges, primaryTxnId);
+            this.minDecidedId = MaxDecidedRX.minDecidedDependencyId(maxDecidedRX, searchKeysOrRanges, primaryTxnId);
         }
 
         public void intersects(Consumer<TxnId> forEach)
@@ -400,11 +401,11 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             {
                 case Range:
                     for (Unseekable range : searchKeysOrRanges)
-                        manager.searcher.search(manager.commandStore.id(), (TokenRange) range, minTxnId, maxTxnId).consume(forEach);
+                        manager.searcher.search(manager.commandStore.id(), (TokenRange) range, minTxnId, maxTxnId, minDecidedId).consume(forEach);
                     break;
                 case Key:
                     for (Unseekable key : searchKeysOrRanges)
-                        manager.searcher.search(manager.commandStore.id(), (TokenKey) key, minTxnId, maxTxnId).consume(forEach);
+                        manager.searcher.search(manager.commandStore.id(), (TokenKey) key, minTxnId, maxTxnId, minDecidedId).consume(forEach);
             }
 
             NavigableMap<TxnId, Ranges> transitive = manager.transitive.get();
@@ -437,7 +438,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
 
         boolean isMaybeRelevant(TxnId txnId)
         {
-            return isRelevant(minRelevantId, txnId);
+            return isRelevant(minDecidedId, txnId);
         }
 
         public void forEachInCache(Unseekables<?> keysOrRanges, Consumer<Summary> forEach, AccordCommandStore.Caches caches)

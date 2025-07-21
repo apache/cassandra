@@ -287,7 +287,8 @@ public class RouteIndexFormat
                     byte[] maxTerm = ByteArrayUtil.readWithVIntLength(segmentReader);
                     TxnId minTxnId = CommandSerializers.txnId.deserialize(segmentReader);
                     TxnId maxTxnId = CommandSerializers.txnId.deserialize(segmentReader);
-                    Segment.Metadata existing = groups.put(group, new Segment.Metadata(metas, minTerm, maxTerm, minTxnId, maxTxnId));
+                    TxnId maxRXId = CommandSerializers.txnId.deserialize(segmentReader);
+                    Segment.Metadata existing = groups.put(group, new Segment.Metadata(metas, minTerm, maxTerm, minTxnId, maxTxnId, maxRXId));
                     assert existing == null;
                 }
                 int actualSegmentChecksum = segmentReader.getValue32AndResetChecksum();
@@ -339,5 +340,6 @@ public class RouteIndexFormat
         ByteArrayUtil.writeWithVIntLength(metadata.maxTerm, seq);
         CommandSerializers.txnId.serialize(metadata.minTxnId, seq);
         CommandSerializers.txnId.serialize(metadata.maxTxnId, seq);
+        CommandSerializers.txnId.serialize(metadata.maxRxId, seq);
     }
 }

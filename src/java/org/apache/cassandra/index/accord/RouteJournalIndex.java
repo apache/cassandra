@@ -31,6 +31,8 @@ import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Splitter;
 
 import org.slf4j.Logger;
@@ -388,6 +390,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         Integer storeId = null;
         TxnId minTxnId = TxnId.NONE;
         Timestamp maxTxnId = TxnId.MAX;
+        @Nullable TxnId minDecidedId = null;
         for (RowFilter.Expression e : expressions)
         {
             if (e.column() == AccordJournalTable.SyntheticColumn.participants.metadata)
@@ -426,6 +429,10 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                         return null;
                 }
             }
+            else if (e.column() == AccordJournalTable.SyntheticColumn.min_decided_id.metadata)
+            {
+                minDecidedId = CommandSerializers.txnId.deserialize(e.getIndexValue());
+            }
             else
             {
                 String cqlString;
@@ -443,12 +450,12 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         if (start == null || end == null || storeId == null)
             return null;
         if (start.equals(end))
-            return keySearcher(command, storeId, start, minTxnId, maxTxnId);
-        return rangeSearcher(command, storeId, start, end, minTxnId, maxTxnId);
+            return keySearcher(command, storeId, start, minTxnId, maxTxnId, minDecidedId);
+        return rangeSearcher(command, storeId, start, end, minTxnId, maxTxnId, minDecidedId);
     }
 
     private Searcher keySearcher(ReadCommand command, Integer storeId, ByteBuffer key,
-                                 TxnId minTxnId, Timestamp maxTxnId)
+                                 TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
     {
         return new Searcher()
         {
@@ -463,13 +470,13 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             {
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId, key,
-                                                             minTxnId, maxTxnId);
+                                                             minTxnId, maxTxnId, minDecidedId);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId, ByteBuffer key,
-                                            TxnId minTxnId, Timestamp maxTxnId)
+                                            TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
             {
                 TableId tableId;
                 byte[] start;
@@ -480,9 +487,9 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 }
                 // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
                 Set<ByteBuffer> matches = new HashSet<>();
-                sstableManager.search(storeId, tableId, start, minTxnId, maxTxnId, matches::add);
+                sstableManager.search(storeId, tableId, start, minTxnId, maxTxnId, minDecidedId, matches::add);
                 memtableIndexManager.search(storeId, tableId, start,
-                                            minTxnId, maxTxnId,
+                                            minTxnId, maxTxnId, minDecidedId,
                                             matches::add);
                 return new TreeSet<>(matches);
             }
@@ -491,7 +498,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
 
     private Searcher rangeSearcher(ReadCommand command, int storeId,
                                    ByteBuffer start, ByteBuffer end,
-                                   TxnId minTxnId, Timestamp maxTxnId)
+                                   TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
     {
         return new Searcher()
         {
@@ -507,15 +514,14 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId,
                                                              start, end,
-                                                             minTxnId,
-                                                             maxTxnId);
+                                                             minTxnId, maxTxnId, minDecidedId);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId,
                                             ByteBuffer startTableWithToken, ByteBuffer endTableWithToken,
-                                            TxnId minTxnId, Timestamp maxTxnId)
+                                            TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
             {
                 TableId tableId;
                 byte[] start;
@@ -528,8 +534,8 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
                 // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
                 Set<ByteBuffer> matches = new HashSet<>();
-                sstableManager.search(storeId, tableId, start, end, minTxnId, maxTxnId, matches::add);
-                memtableIndexManager.search(storeId, tableId, start, end, minTxnId, maxTxnId, matches::add);
+                sstableManager.search(storeId, tableId, start, end, minTxnId, maxTxnId, minDecidedId, matches::add);
+                memtableIndexManager.search(storeId, tableId, start, end, minTxnId, maxTxnId, minDecidedId, matches::add);
                 return new TreeSet<>(matches);
             }
         };

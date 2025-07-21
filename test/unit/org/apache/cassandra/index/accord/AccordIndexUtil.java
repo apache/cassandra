@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.index.accord;
 
+import javax.annotation.Nullable;
+
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -34,8 +36,8 @@ public class AccordIndexUtil
         return "K:" + key.toString().replace(key.prefix()  + ":", "");
     }
 
-    public static String normalize(TxnId txnId)
+    public static String normalize(@Nullable TxnId txnId)
     {
-        return "T:" + txnId.hlc();
+        return "T:" + (txnId == null ? "null" : Long.toString(txnId.hlc()));
     }
 }

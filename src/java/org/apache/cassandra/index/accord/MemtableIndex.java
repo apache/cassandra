@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.Clustering;
@@ -66,21 +68,21 @@ public class MemtableIndex
     }
 
     public void search(int storeId, TableId tableId, byte[] start, byte[] end,
-                       TxnId minTxnId, Timestamp maxTxnId,
+                       TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                        Consumer<ByteBuffer> onMatch)
     {
         memoryIndex.search(storeId, tableId,
                            start, end,
-                           minTxnId, maxTxnId,
+                           minTxnId, maxTxnId, minDecidedId,
                            onMatch);
     }
 
     public void search(int storeId, TableId tableId, byte[] key,
-                       TxnId minTxnId, Timestamp maxTxnId,
+                       TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                        Consumer<ByteBuffer> onMatch)
     {
         memoryIndex.search(storeId, tableId, key,
-                           minTxnId, maxTxnId,
+                           minTxnId, maxTxnId, minDecidedId,
                            onMatch);
     }
 }

@@ -52,16 +52,18 @@ public class Segment
         public final byte[] minTerm, maxTerm;
         public final TxnId minTxnId;
         public final TxnId maxTxnId;
+        public final TxnId maxRxId;
 
         public Metadata(EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas,
                         byte[] minTerm, byte[] maxTerm,
-                        TxnId minTxnId, TxnId maxTxnId)
+                        TxnId minTxnId, TxnId maxTxnId, TxnId maxRxId)
         {
             this.metas = metas;
             this.minTerm = minTerm;
             this.maxTerm = maxTerm;
             this.minTxnId = minTxnId;
             this.maxTxnId = maxTxnId;
+            this.maxRxId = maxRxId;
         }
     }
 }

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -36,6 +37,7 @@ import com.google.common.annotations.VisibleForTesting;
 import accord.primitives.Participants;
 import accord.primitives.Routable;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekable;
 import org.apache.cassandra.cache.IMeasurableMemory;
@@ -63,25 +65,30 @@ public class RangeMemoryIndex
     {
         private RangeTree<byte[], Range, DecoratedKey> tree = createRangeTree();
         public byte[] minTerm, maxTerm;
-        public TxnId minTimestamp = TxnId.MAX;
-        public TxnId maxTimestamp = TxnId.NONE;
+        public TxnId minTxnId = TxnId.MAX;
+        public TxnId maxTxnId = TxnId.NONE;
+        public TxnId maxRXId = TxnId.NONE;
 
         void add(Range range, DecoratedKey key, TxnId txnId, byte[] start, byte[] end)
         {
             tree.add(range, key);
             minTerm = minTerm == null ? start : ByteArrayUtil.compareUnsigned(minTerm, 0, start, 0, minTerm.length) > 0 ? start : minTerm;
             maxTerm = maxTerm == null ? end : ByteArrayUtil.compareUnsigned(maxTerm, 0, end, 0, maxTerm.length) < 0 ? end : maxTerm;
-            if (minTimestamp.compareTo(txnId) > 0)
-                minTimestamp = txnId;
-            if (maxTimestamp.compareTo(txnId) < 0)
-                maxTimestamp = txnId;
+            if (minTxnId.compareTo(txnId) > 0)
+                minTxnId = txnId;
+            if (maxTxnId.compareTo(txnId) < 0)
+                maxTxnId = txnId;
+            if (txnId.is(Txn.Kind.ExclusiveSyncPoint) && maxRXId.compareTo(txnId) < 0)
+                maxRXId = txnId;
         }
 
         void search(byte[] start, byte[] end,
-                    TxnId minTxnId, Timestamp maxTxnId,
+                    TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                     Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
         {
-            if (this.minTimestamp.compareTo(maxTxnId) > 0 || this.maxTimestamp.compareTo(minTxnId) < 0)
+            if (this.minTxnId.compareTo(maxTxnId) > 0 || this.maxTxnId.compareTo(minTxnId) < 0)
+                return;
+            if (minDecidedId != null && minDecidedId.compareTo(maxRXId) > 0)
                 return;
             tree.search(new Range(start, end), e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
@@ -91,10 +98,12 @@ public class RangeMemoryIndex
         }
 
         void searchToken(byte[] key,
-                         TxnId minTxnId, Timestamp maxTxnId,
+                         TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                          Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
         {
-            if (this.minTimestamp.compareTo(maxTxnId) > 0 || this.maxTimestamp.compareTo(minTxnId) < 0)
+            if (this.minTxnId.compareTo(maxTxnId) > 0 || this.maxTxnId.compareTo(minTxnId) < 0)
+                return;
+            if (minDecidedId != null && minDecidedId.compareTo(maxRXId) > 0)
                 return;
             tree.searchToken(key, e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
@@ -186,25 +195,25 @@ public class RangeMemoryIndex
 
     public synchronized void search(int storeId, TableId tableId,
                                     byte[] start, byte[] end,
-                                    TxnId minTxnId, Timestamp maxTxnId,
+                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                                     Consumer<ByteBuffer> onMatch)
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return;
         if (group.tree.isEmpty()) return;
 
-        group.search(start, end, minTxnId, maxTxnId, e -> onMatch.accept(e.getValue().getKey()));
+        group.search(start, end, minTxnId, maxTxnId, minDecidedId, e -> onMatch.accept(e.getValue().getKey()));
     }
 
     public synchronized void search(int storeId, TableId tableId, byte[] key,
-                                    TxnId minTxnId, Timestamp maxTxnId,
+                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
                                     Consumer<ByteBuffer> onMatch)
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return;
         if (group.tree.isEmpty()) return;
 
-        group.searchToken(key, minTxnId, maxTxnId, e -> onMatch.accept(e.getValue().getKey()));
+        group.searchToken(key, minTxnId, maxTxnId, minDecidedId, e -> onMatch.accept(e.getValue().getKey()));
     }
 
     public synchronized boolean isEmpty()
@@ -239,7 +248,7 @@ public class RangeMemoryIndex
             EnumMap<IndexDescriptor.IndexComponent, Segment.ComponentMetadata> meta = writer.write(list.toArray(CheckpointIntervalArrayIndex.Interval[]::new));
             if (meta.isEmpty()) // don't include empty segments
                 continue;
-            output.put(key, new Segment.Metadata(meta, group.minTerm, group.maxTerm, group.minTimestamp, group.maxTimestamp));
+            output.put(key, new Segment.Metadata(meta, group.minTerm, group.maxTerm, group.minTxnId, group.maxTxnId, group.maxRXId));
         }
 
         return new Segment(output);
