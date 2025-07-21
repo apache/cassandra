@@ -61,7 +61,7 @@ public class RangeMemoryIndexTest
     @Test
     public void minMaxFilter()
     {
-        stateful().withSeed(3417605128647726192L).check(commands(() -> State::new)
+        stateful().check(commands(() -> State::new)
                          .add(State::update)
                          .add(State::rangeSearch)
                          .add(State::keySearch)
@@ -93,7 +93,7 @@ public class RangeMemoryIndexTest
 
     static TxnId idFor(long operation)
     {
-        return new TxnId(1, operation, Txn.Kind.Write, Routable.Domain.Range, N1);
+        return new TxnId(1, operation, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range, N1);
     }
 
     private static TxnRange nextTxnRange(RandomSource rs, State state)

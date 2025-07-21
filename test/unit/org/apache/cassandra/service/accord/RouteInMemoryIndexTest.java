@@ -97,7 +97,7 @@ public class RouteInMemoryIndexTest
 
     static TxnId idFor(long operation)
     {
-        return new TxnId(1, operation, Txn.Kind.Write, Routable.Domain.Range, N1);
+        return new TxnId(1, operation, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range, N1);
     }
 
     private static TxnRange nextTxnRange(RandomSource rs, State state)
