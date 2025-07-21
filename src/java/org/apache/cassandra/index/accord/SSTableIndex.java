@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.index.accord.CheckpointIntervalArrayIndex.SegmentSearcher;
 import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
 import org.apache.cassandra.io.FSReadError;
@@ -79,12 +80,12 @@ public class SSTableIndex extends SharedCloseableImpl
         return new SSTableIndex(id, files, segments, cleanup);
     }
 
-    public void search(Key group, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp, Consumer<ByteBuffer> onMatch)
+    public void search(Key group, byte[] key, TxnId minTxnId, Timestamp maxTxnId, Consumer<ByteBuffer> onMatch)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
                                             if (metadata == null) return false;
-                                            if (metadata.maxTimestamp.compareTo(minTimestamp) < 0 || metadata.minTimestamp.compareTo(maxTimestamp) > 0)
+                                            if (metadata.maxTxnId.compareTo(minTxnId) < 0 || metadata.minTxnId.compareTo(maxTxnId) > 0)
                                                 return false;
                                             return ByteArrayUtil.compareUnsigned(metadata.minTerm, key) < 0
                                                    && ByteArrayUtil.compareUnsigned(metadata.maxTerm, key) >= 0;
@@ -110,12 +111,12 @@ public class SSTableIndex extends SharedCloseableImpl
         }
     }
 
-    public void search(Key group, byte[] start, byte[] end, Timestamp minTimestamp, Timestamp maxTimestamp, Consumer<ByteBuffer> onMatch)
+    public void search(Key group, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId, Consumer<ByteBuffer> onMatch)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
                                             if (metadata == null) return false;
-                                            if (metadata.maxTimestamp.compareTo(minTimestamp) < 0 || metadata.minTimestamp.compareTo(maxTimestamp) > 0)
+                                            if (metadata.maxTxnId.compareTo(minTxnId) < 0 || metadata.minTxnId.compareTo(maxTxnId) > 0)
                                                 return false;
                                             if (ByteArrayUtil.compareUnsigned(metadata.minTerm, end) >= 0)
                                                 return false;

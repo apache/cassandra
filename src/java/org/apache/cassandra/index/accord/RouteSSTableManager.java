@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
@@ -85,7 +86,7 @@ public class RouteSSTableManager implements SSTableManager
     @Override
     public synchronized void search(int storeId, TableId tableId,
                                     byte[] start, byte[] end,
-                                    Timestamp minTimestamp, Timestamp maxTimestamp,
+                                    TxnId minTxnId, Timestamp maxTxnId,
                                     Consumer<ByteBuffer> onMatch)
     {
         Key group = new Key(storeId, tableId);
@@ -93,7 +94,7 @@ public class RouteSSTableManager implements SSTableManager
         {
             try
             {
-                index.search(group, start, end, minTimestamp, maxTimestamp, onMatch);
+                index.search(group, start, end, minTxnId, maxTxnId, onMatch);
             }
             catch (Throwable t)
             {
@@ -104,10 +105,10 @@ public class RouteSSTableManager implements SSTableManager
     }
 
     @Override
-    public synchronized void search(int storeId, TableId tableId, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp, Consumer<ByteBuffer> onMatch)
+    public synchronized void search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId, Consumer<ByteBuffer> onMatch)
     {
         Key group = new Key(storeId, tableId);
         for (SSTableIndex index : sstables.values())
-            index.search(group, key, minTimestamp, maxTimestamp, onMatch);
+            index.search(group, key, minTxnId, maxTxnId, onMatch);
     }
 }

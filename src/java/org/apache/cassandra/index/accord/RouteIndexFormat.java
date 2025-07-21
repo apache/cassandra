@@ -35,7 +35,6 @@ import com.google.common.collect.Maps;
 
 import accord.local.StoreParticipants;
 import accord.primitives.Participants;
-import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -286,9 +285,9 @@ public class RouteIndexFormat
                     }
                     byte[] minTerm = ByteArrayUtil.readWithVIntLength(segmentReader);
                     byte[] maxTerm = ByteArrayUtil.readWithVIntLength(segmentReader);
-                    Timestamp minTimestamp = CommandSerializers.timestamp.deserialize(segmentReader);
-                    Timestamp maxTimestamp = CommandSerializers.timestamp.deserialize(segmentReader);
-                    Segment.Metadata existing = groups.put(group, new Segment.Metadata(metas, minTerm, maxTerm, minTimestamp, maxTimestamp));
+                    TxnId minTxnId = CommandSerializers.txnId.deserialize(segmentReader);
+                    TxnId maxTxnId = CommandSerializers.txnId.deserialize(segmentReader);
+                    Segment.Metadata existing = groups.put(group, new Segment.Metadata(metas, minTerm, maxTerm, minTxnId, maxTxnId));
                     assert existing == null;
                 }
                 int actualSegmentChecksum = segmentReader.getValue32AndResetChecksum();
@@ -338,7 +337,7 @@ public class RouteIndexFormat
         }
         ByteArrayUtil.writeWithVIntLength(metadata.minTerm, seq);
         ByteArrayUtil.writeWithVIntLength(metadata.maxTerm, seq);
-        CommandSerializers.timestamp.serialize(metadata.minTimestamp, seq);
-        CommandSerializers.timestamp.serialize(metadata.maxTimestamp, seq);
+        CommandSerializers.txnId.serialize(metadata.minTxnId, seq);
+        CommandSerializers.txnId.serialize(metadata.maxTxnId, seq);
     }
 }

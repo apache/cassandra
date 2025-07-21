@@ -386,8 +386,8 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         ByteBuffer start = null;
         ByteBuffer end = null;
         Integer storeId = null;
-        Timestamp minTimestamp = TxnId.NONE;
-        Timestamp maxTimestamp = TxnId.MAX;
+        TxnId minTxnId = TxnId.NONE;
+        Timestamp maxTxnId = TxnId.MAX;
         for (RowFilter.Expression e : expressions)
         {
             if (e.column() == AccordJournalTable.SyntheticColumn.participants.metadata)
@@ -416,11 +416,11 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 {
                     case GT:
                     case GTE:
-                        minTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
+                        minTxnId = CommandSerializers.txnId.deserialize(e.getIndexValue());
                         break;
                     case LT:
                     case LTE:
-                        maxTimestamp = CommandSerializers.timestamp.deserialize(e.getIndexValue());
+                        maxTxnId = CommandSerializers.timestamp.deserialize(e.getIndexValue());
                         break;
                     default:
                         return null;
@@ -443,12 +443,12 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         if (start == null || end == null || storeId == null)
             return null;
         if (start.equals(end))
-            return keySearcher(command, storeId, start, minTimestamp, maxTimestamp);
-        return rangeSearcher(command, storeId, start, end, minTimestamp, maxTimestamp);
+            return keySearcher(command, storeId, start, minTxnId, maxTxnId);
+        return rangeSearcher(command, storeId, start, end, minTxnId, maxTxnId);
     }
 
     private Searcher keySearcher(ReadCommand command, Integer storeId, ByteBuffer key,
-                                 Timestamp minTimestamp, Timestamp maxTimestamp)
+                                 TxnId minTxnId, Timestamp maxTxnId)
     {
         return new Searcher()
         {
@@ -463,13 +463,13 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             {
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId, key,
-                                                             minTimestamp, maxTimestamp);
+                                                             minTxnId, maxTxnId);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId, ByteBuffer key,
-                                            Timestamp minTimestamp, Timestamp maxTimestamp)
+                                            TxnId minTxnId, Timestamp maxTxnId)
             {
                 TableId tableId;
                 byte[] start;
@@ -480,9 +480,9 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 }
                 // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
                 Set<ByteBuffer> matches = new HashSet<>();
-                sstableManager.search(storeId, tableId, start, minTimestamp, maxTimestamp, matches::add);
+                sstableManager.search(storeId, tableId, start, minTxnId, maxTxnId, matches::add);
                 memtableIndexManager.search(storeId, tableId, start,
-                                            minTimestamp, maxTimestamp,
+                                            minTxnId, maxTxnId,
                                             matches::add);
                 return new TreeSet<>(matches);
             }
@@ -491,7 +491,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
 
     private Searcher rangeSearcher(ReadCommand command, int storeId,
                                    ByteBuffer start, ByteBuffer end,
-                                   Timestamp minTimestamp, Timestamp maxTimestamp)
+                                   TxnId minTxnId, Timestamp maxTxnId)
     {
         return new Searcher()
         {
@@ -507,15 +507,15 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 // find all partitions from memtable / sstable
                 NavigableSet<ByteBuffer> partitions = search(storeId,
                                                              start, end,
-                                                             minTimestamp,
-                                                             maxTimestamp);
+                                                             minTxnId,
+                                                             maxTxnId);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId,
                                             ByteBuffer startTableWithToken, ByteBuffer endTableWithToken,
-                                            Timestamp minTimestamp, Timestamp maxTimestamp)
+                                            TxnId minTxnId, Timestamp maxTxnId)
             {
                 TableId tableId;
                 byte[] start;
@@ -528,8 +528,8 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
                 // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
                 Set<ByteBuffer> matches = new HashSet<>();
-                sstableManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp, matches::add);
-                memtableIndexManager.search(storeId, tableId, start, end, minTimestamp, maxTimestamp, matches::add);
+                sstableManager.search(storeId, tableId, start, end, minTxnId, maxTxnId, matches::add);
+                memtableIndexManager.search(storeId, tableId, start, end, minTxnId, maxTxnId, matches::add);
                 return new TreeSet<>(matches);
             }
         };

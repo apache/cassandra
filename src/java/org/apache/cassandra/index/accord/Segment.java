@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
-import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 
 public class Segment
 {
@@ -50,17 +50,18 @@ public class Segment
     {
         public final EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas;
         public final byte[] minTerm, maxTerm;
-        public final Timestamp minTimestamp, maxTimestamp;
+        public final TxnId minTxnId;
+        public final TxnId maxTxnId;
 
         public Metadata(EnumMap<IndexDescriptor.IndexComponent, ComponentMetadata> metas,
                         byte[] minTerm, byte[] maxTerm,
-                        Timestamp minTimestamp, Timestamp maxTimestamp)
+                        TxnId minTxnId, TxnId maxTxnId)
         {
             this.metas = metas;
             this.minTerm = minTerm;
             this.maxTerm = maxTerm;
-            this.minTimestamp = minTimestamp;
-            this.maxTimestamp = maxTimestamp;
+            this.minTxnId = minTxnId;
+            this.maxTxnId = maxTxnId;
         }
     }
 }

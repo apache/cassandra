@@ -20,11 +20,11 @@ package org.apache.cassandra.index.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.schema.TableId;
@@ -66,22 +66,21 @@ public class MemtableIndex
     }
 
     public void search(int storeId, TableId tableId, byte[] start, byte[] end,
-                       Timestamp minTimestamp,
-                       Timestamp maxTimestamp,
+                       TxnId minTxnId, Timestamp maxTxnId,
                        Consumer<ByteBuffer> onMatch)
     {
         memoryIndex.search(storeId, tableId,
                            start, end,
-                           minTimestamp, maxTimestamp,
+                           minTxnId, maxTxnId,
                            onMatch);
     }
 
     public void search(int storeId, TableId tableId, byte[] key,
-                       Timestamp minTimestamp, Timestamp maxTimestamp,
+                       TxnId minTxnId, Timestamp maxTxnId,
                        Consumer<ByteBuffer> onMatch)
     {
         memoryIndex.search(storeId, tableId, key,
-                           minTimestamp, maxTimestamp,
+                           minTxnId, maxTxnId,
                            onMatch);
     }
 }

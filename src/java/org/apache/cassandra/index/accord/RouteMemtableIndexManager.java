@@ -19,14 +19,13 @@
 package org.apache.cassandra.index.accord;
 
 import java.nio.ByteBuffer;
-import java.util.NavigableSet;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -105,22 +104,22 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
 
     @Override
     public void search(int storeId, TableId tableId, byte[] start, byte[] end,
-                       Timestamp minTimestamp, Timestamp maxTimestamp,
+                       TxnId minTxnId, Timestamp maxTxnId,
                        Consumer<ByteBuffer> onMatch)
     {
         liveMemtableIndexMap.values().forEach(m -> m.search(storeId, tableId,
                                                             start, end,
-                                                            minTimestamp, maxTimestamp,
+                                                            minTxnId, maxTxnId,
                                                             onMatch));
     }
 
     @Override
     public void search(int storeId, TableId tableId, byte[] key,
-                                           Timestamp minTimestamp, Timestamp maxTimestamp,
-                                           Consumer<ByteBuffer> onMatch)
+                       TxnId minTxnId, Timestamp maxTxnId,
+                       Consumer<ByteBuffer> onMatch)
     {
         liveMemtableIndexMap.values().forEach(m -> m.search(storeId, tableId, key,
-                                                            minTimestamp, maxTimestamp,
+                                                            minTxnId, maxTxnId,
                                                             onMatch));
     }
 }

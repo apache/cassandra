@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.function.Consumer;
 
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 
@@ -31,6 +32,6 @@ public interface SSTableManager
     void onSSTableChanged(Collection<SSTableReader> removed, Iterable<SSTableReader> added);
     boolean isIndexComplete(SSTableReader reader);
 
-    void search(int storeId, TableId tableId, byte[] start, byte[] end, Timestamp minTimestamp, Timestamp maxTimestamp, Consumer<ByteBuffer> onMatch);
-    void search(int storeId, TableId tableId, byte[] key, Timestamp minTimestamp, Timestamp maxTimestamp, Consumer<ByteBuffer> onMatch);
+    void search(int storeId, TableId tableId, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId, Consumer<ByteBuffer> onMatch);
+    void search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId, Consumer<ByteBuffer> onMatch);
 }

@@ -78,27 +78,27 @@ public class RangeMemoryIndex
         }
 
         void search(byte[] start, byte[] end,
-                    Timestamp minTimestamp, Timestamp maxTimestamp,
+                    TxnId minTxnId, Timestamp maxTxnId,
                     Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
         {
-            if (this.minTimestamp.compareTo(maxTimestamp) > 0 || this.maxTimestamp.compareTo(minTimestamp) < 0)
+            if (this.minTimestamp.compareTo(maxTxnId) > 0 || this.maxTimestamp.compareTo(minTxnId) < 0)
                 return;
             tree.search(new Range(start, end), e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
-                if (minTimestamp.compareTo(id) > 0 || maxTimestamp.compareTo(id) < 0) return;
+                if (minTxnId.compareTo(id) > 0 || maxTxnId.compareTo(id) < 0) return;
                 fn.accept(e);
             });
         }
 
         void searchToken(byte[] key,
-                         Timestamp minTimestamp, Timestamp maxTimestamp,
+                         TxnId minTxnId, Timestamp maxTxnId,
                          Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
         {
-            if (this.minTimestamp.compareTo(maxTimestamp) > 0 || this.maxTimestamp.compareTo(minTimestamp) < 0)
+            if (this.minTimestamp.compareTo(maxTxnId) > 0 || this.maxTimestamp.compareTo(minTxnId) < 0)
                 return;
             tree.searchToken(key, e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
-                if (minTimestamp.compareTo(id) > 0 || maxTimestamp.compareTo(id) < 0) return;
+                if (minTxnId.compareTo(id) > 0 || maxTxnId.compareTo(id) < 0) return;
                 fn.accept(e);
             });
         }
@@ -186,25 +186,25 @@ public class RangeMemoryIndex
 
     public synchronized void search(int storeId, TableId tableId,
                                     byte[] start, byte[] end,
-                                    Timestamp minTimestamp, Timestamp maxTimestamp,
+                                    TxnId minTxnId, Timestamp maxTxnId,
                                     Consumer<ByteBuffer> onMatch)
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return;
         if (group.tree.isEmpty()) return;
 
-        group.search(start, end, minTimestamp, maxTimestamp, e -> onMatch.accept(e.getValue().getKey()));
+        group.search(start, end, minTxnId, maxTxnId, e -> onMatch.accept(e.getValue().getKey()));
     }
 
     public synchronized void search(int storeId, TableId tableId, byte[] key,
-                                    Timestamp minTimestamp, Timestamp maxTimestamp,
+                                    TxnId minTxnId, Timestamp maxTxnId,
                                     Consumer<ByteBuffer> onMatch)
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return;
         if (group.tree.isEmpty()) return;
 
-        group.searchToken(key, minTimestamp, maxTimestamp, e -> onMatch.accept(e.getValue().getKey()));
+        group.searchToken(key, minTxnId, maxTxnId, e -> onMatch.accept(e.getValue().getKey()));
     }
 
     public synchronized boolean isEmpty()
