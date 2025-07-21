@@ -93,8 +93,7 @@ public class RouteIndexFormat
 
     public static boolean includeByMinDecidedId(@Nullable TxnId minDecidedId, TxnId maxRXId)
     {
-        if (minDecidedId == null) return true;
-        if (maxRXId.equals(TxnId.NONE)) return true;
+        if (minDecidedId == null || maxRXId.equals(TxnId.NONE)) return true;
         return maxRXId.compareTo(minDecidedId) >= 0;
     }
 
