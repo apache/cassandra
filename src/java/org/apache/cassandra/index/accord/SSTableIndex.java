@@ -89,7 +89,7 @@ public class SSTableIndex extends SharedCloseableImpl
                                             if (metadata == null) return false;
                                             if (metadata.maxTxnId.compareTo(minTxnId) < 0 || metadata.minTxnId.compareTo(maxTxnId) > 0)
                                                 return false;
-                                            if (minDecidedId != null && !metadata.maxRxId.equals(TxnId.NONE) && minDecidedId.compareTo(metadata.maxRxId) > 0)
+                                            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, metadata.maxRxId))
                                                 return false;
                                             return ByteArrayUtil.compareUnsigned(metadata.minTerm, key) < 0
                                                    && ByteArrayUtil.compareUnsigned(metadata.maxTerm, key) >= 0;
@@ -122,7 +122,7 @@ public class SSTableIndex extends SharedCloseableImpl
                                             if (metadata == null) return false;
                                             if (metadata.maxTxnId.compareTo(minTxnId) < 0 || metadata.minTxnId.compareTo(maxTxnId) > 0)
                                                 return false;
-                                            if (minDecidedId != null && !metadata.maxRxId.equals(TxnId.NONE) && minDecidedId.compareTo(metadata.maxRxId) > 0)
+                                            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, metadata.maxRxId))
                                                 return false;
                                             if (ByteArrayUtil.compareUnsigned(metadata.minTerm, end) >= 0)
                                                 return false;

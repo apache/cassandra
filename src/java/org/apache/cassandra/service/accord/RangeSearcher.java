@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import org.apache.cassandra.index.accord.RouteIndexFormat;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.CloseableIterator;
 
@@ -82,7 +83,8 @@ public interface RangeSearcher
                 while (results.hasNext())
                 {
                     TxnId next = results.next();
-                    if (next.compareTo(minTxnId) >= 0 && next.compareTo(maxTxnId) < 0 && (minDecidedId == null || minDecidedId.compareTo(next) <= 0))
+
+                    if (next.compareTo(minTxnId) >= 0 && next.compareTo(maxTxnId) < 0 && RouteIndexFormat.includeByMinDecidedId(minDecidedId, next))
                         forEach.accept(next);
                 }
             }

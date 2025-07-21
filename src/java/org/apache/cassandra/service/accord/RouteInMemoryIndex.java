@@ -41,6 +41,7 @@ import accord.utils.Invariants;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.index.accord.OrderedRouteSerializer;
+import org.apache.cassandra.index.accord.RouteIndexFormat;
 import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.schema.TableId;
@@ -226,7 +227,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
         {
             if (minTxnId.compareTo(max) > 0) return;
             if (maxTxnId.compareTo(min) < 0) return;
-            if (minDecidedId != null && minDecidedId.compareTo(maxRX) < 0) return;
+            if (!RouteIndexFormat.includeByMinDecidedId(min, maxRX)) return;
             index.search(new IndexRange(start, end), e -> {
                 if (minTxnId.compareTo(e.getValue()) > 0) return;
                 if (maxTxnId.compareTo(e.getValue()) < 0) return;
@@ -240,7 +241,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
         {
             if (minTxnId.compareTo(max) > 0) return;
             if (maxTxnId.compareTo(min) < 0) return;
-            if (minDecidedId != null && minDecidedId.compareTo(maxRX) < 0) return;
+            if (!RouteIndexFormat.includeByMinDecidedId(min, maxRX)) return;
             index.searchToken(key, e -> {
                 if (minTxnId.compareTo(e.getValue()) > 0) return;
                 if (maxTxnId.compareTo(e.getValue()) < 0) return;

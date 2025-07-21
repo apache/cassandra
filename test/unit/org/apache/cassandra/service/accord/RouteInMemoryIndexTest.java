@@ -39,7 +39,10 @@ import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongArrayList;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.index.accord.RouteIndexFormat;
 import org.apache.cassandra.index.accord.TxnRange;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -52,6 +55,12 @@ import static org.apache.cassandra.index.accord.AccordIndexUtil.normalize;
 
 public class RouteInMemoryIndexTest
 {
+    static
+    {
+        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(RouteInMemoryIndexTest.class);
 
     private static final Node.Id N1 = new Node.Id(1);
@@ -189,7 +198,7 @@ public class RouteInMemoryIndexTest
             var range = nextRange(rs);
             var txnRange = nextTxnRange(rs, state);
             @Nullable TxnId minDecidedId = nextMinDecidedId(rs, state);
-            return new Property.SimpleCommand<>("Search " + normalize(range) + ", txn_id range " + txnRange + ", minDecidedId" + normalize(minDecidedId), s2 -> s2.assertSearchMatch(range, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId));
+            return new Property.SimpleCommand<>("Search " + normalize(range) + ", txn_id range " + txnRange + ", minDecidedId " + normalize(minDecidedId), s2 -> s2.assertSearchMatch(range, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId));
         }
 
         public static Property.Command<State, Void, ?> keySearch(RandomSource rs, State state)
@@ -202,30 +211,20 @@ public class RouteInMemoryIndexTest
 
         private void assertSearchMatch(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
         {
-            try (var actual = index.search(0, range, minTxnId, maxTxnId, minDecidedId).results();
-                 var expected = model.search(range, minTxnId, maxTxnId, minDecidedId).results())
-            {
-                while (actual.hasNext() && expected.hasNext())
-                {
-                    Assertions.assertThat(actual.next()).isEqualTo(expected.next());
-                }
-                Assertions.assertThat(actual).describedAs("Expected iterator was exhausted first!").isExhausted();
-                Assertions.assertThat(expected).describedAs("Actual iterator was exhausted first!").isExhausted();
-            }
+            List<TxnId> actual = new ArrayList<>();
+            index.search(0, range, minTxnId, maxTxnId, minDecidedId).consume(actual::add);
+            List<TxnId> expected = new ArrayList<>();
+            model.search(range, minTxnId, maxTxnId, minDecidedId).consume(expected::add);
+            Assertions.assertThat(actual).isEqualTo(expected);
         }
 
         private void assertSearchMatch(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
         {
-            try (var actual = index.search(0, key, minTxnId, maxTxnId, minDecidedId).results();
-                 var expected = model.search(key, minTxnId, maxTxnId, minDecidedId).results())
-            {
-                while (actual.hasNext() && expected.hasNext())
-                {
-                    Assertions.assertThat(actual.next()).isEqualTo(expected.next());
-                }
-                Assertions.assertThat(actual).describedAs("Actual iterator has more data than expected!").isExhausted();
-                Assertions.assertThat(expected).describedAs("Actual iterator has less data than expected!").isExhausted();
-            }
+            List<TxnId> actual = new ArrayList<>();
+            index.search(0, key, minTxnId, maxTxnId, minDecidedId).consume(actual::add);
+            List<TxnId> expected = new ArrayList<>();
+            model.search(key, minTxnId, maxTxnId, minDecidedId).consume(expected::add);
+            Assertions.assertThat(actual).isEqualTo(expected);
         }
     }
 
@@ -245,6 +244,14 @@ public class RouteInMemoryIndexTest
         private static class Segment
         {
             private final List<Value> values = new ArrayList<>();
+            private TxnId maxRXId = TxnId.NONE;
+
+            void add(TokenRange range, TxnId txnId)
+            {
+                values.add(new Value(range, txnId));
+                if (txnId.is(Txn.Kind.ExclusiveSyncPoint) && txnId.compareTo(maxRXId) > 0)
+                    maxRXId = txnId;
+            }
         }
 
         public long minTime()
@@ -266,7 +273,7 @@ public class RouteInMemoryIndexTest
 
         void update(long segment, TxnId txnId, TokenRange range)
         {
-            segments.computeIfAbsent(segment, i -> new Segment()).values.add(new Value(range, txnId));
+            segments.computeIfAbsent(segment, i -> new Segment()).add(range, txnId);
         }
 
         public RangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
@@ -284,6 +291,7 @@ public class RouteInMemoryIndexTest
             TreeSet<TxnId> result = new TreeSet<>();
             for (var segment: segments.values())
             {
+                if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, segment.maxRXId)) continue;
                 for (var value : segment.values)
                 {
                     if (value.txnId.compareTo(minTxnId) < 0 || value.txnId.compareTo(maxTxnId) > 0) continue;

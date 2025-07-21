@@ -31,6 +31,8 @@ import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Maps;
 
 import accord.local.StoreParticipants;
@@ -87,6 +89,13 @@ public class RouteIndexFormat
             return null;
 
         return touches.deserialize(bytes);
+    }
+
+    public static boolean includeByMinDecidedId(@Nullable TxnId minDecidedId, TxnId maxRXId)
+    {
+        if (minDecidedId == null) return true;
+        if (maxRXId.equals(TxnId.NONE)) return true;
+        return maxRXId.compareTo(minDecidedId) >= 0;
     }
 
     public interface Writer extends SSTableFlushObserver
