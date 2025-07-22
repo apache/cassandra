@@ -67,8 +67,7 @@ public class RangeMemoryIndex
         public byte[] minTerm, maxTerm;
         public TxnId minTxnId = TxnId.MAX;
         public TxnId maxTxnId = TxnId.NONE;
-        @Nullable
-        public TxnId maxRXId = TxnId.NONE;
+        public @Nullable TxnId maxRXId = TxnId.NONE;
 
         void add(Range range, DecoratedKey key, TxnId txnId, byte[] start, byte[] end)
         {
