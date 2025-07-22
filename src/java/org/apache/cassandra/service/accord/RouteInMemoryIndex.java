@@ -200,8 +200,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
         private final RangeTree<byte[], IndexRange, TxnId> index = createRangeTree();
         private TxnId min = TxnId.MAX;
         private TxnId max = TxnId.NONE;
-        @Nullable
-        private TxnId maxRX = TxnId.NONE;
+        private @Nullable TxnId maxRX = TxnId.NONE;
 
         private TableIndex()
         {
