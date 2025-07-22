@@ -67,6 +67,7 @@ public class RangeMemoryIndex
         public byte[] minTerm, maxTerm;
         public TxnId minTxnId = TxnId.MAX;
         public TxnId maxTxnId = TxnId.NONE;
+        @Nullable
         public TxnId maxRXId = TxnId.NONE;
 
         void add(Range range, DecoratedKey key, TxnId txnId, byte[] start, byte[] end)
@@ -78,8 +79,11 @@ public class RangeMemoryIndex
                 minTxnId = txnId;
             if (maxTxnId.compareTo(txnId) < 0)
                 maxTxnId = txnId;
-            if (txnId.is(Txn.Kind.ExclusiveSyncPoint) && maxRXId.compareTo(txnId) < 0)
-                maxRXId = txnId;
+            if (maxRXId != null)
+            {
+                if (!txnId.is(Txn.Kind.ExclusiveSyncPoint)) maxRXId = null;
+                else if (maxRXId.compareTo(txnId) < 0)      maxRXId = txnId;
+            }
         }
 
         void search(byte[] start, byte[] end,
@@ -88,7 +92,7 @@ public class RangeMemoryIndex
         {
             if (this.minTxnId.compareTo(maxTxnId) > 0 || this.maxTxnId.compareTo(minTxnId) < 0)
                 return;
-            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, maxRXId))
+            if (maxRXId != null && !RouteIndexFormat.includeByMinDecidedId(minDecidedId, maxRXId))
                 return;
             tree.search(new Range(start, end), e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
@@ -103,7 +107,7 @@ public class RangeMemoryIndex
         {
             if (this.minTxnId.compareTo(maxTxnId) > 0 || this.maxTxnId.compareTo(minTxnId) < 0)
                 return;
-            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, maxRXId))
+            if (maxRXId != null && !RouteIndexFormat.includeByMinDecidedId(minDecidedId, maxRXId))
                 return;
             tree.searchToken(key, e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
@@ -248,7 +252,7 @@ public class RangeMemoryIndex
             EnumMap<IndexDescriptor.IndexComponent, Segment.ComponentMetadata> meta = writer.write(list.toArray(CheckpointIntervalArrayIndex.Interval[]::new));
             if (meta.isEmpty()) // don't include empty segments
                 continue;
-            output.put(key, new Segment.Metadata(meta, group.minTerm, group.maxTerm, group.minTxnId, group.maxTxnId, group.maxRXId));
+            output.put(key, new Segment.Metadata(meta, group.minTerm, group.maxTerm, group.minTxnId, group.maxTxnId, group.maxRXId == null ? TxnId.NONE : group.maxRXId));
         }
 
         return new Segment(output);

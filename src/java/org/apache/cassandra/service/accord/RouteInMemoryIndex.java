@@ -200,6 +200,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
         private final RangeTree<byte[], IndexRange, TxnId> index = createRangeTree();
         private TxnId min = TxnId.MAX;
         private TxnId max = TxnId.NONE;
+        @Nullable
         private TxnId maxRX = TxnId.NONE;
 
         private TableIndex()
@@ -217,8 +218,11 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
                 min = id;
             if (max.compareTo(id) < 0)
                 max = id;
-            if (id.is(Txn.Kind.ExclusiveSyncPoint) && id.compareTo(maxRX) > 0)
-                maxRX = id;
+            if (maxRX != null)
+            {
+                if (!id.is(Txn.Kind.ExclusiveSyncPoint)) maxRX = null;
+                else if (id.compareTo(maxRX) > 0)        maxRX = id;
+            }
         }
 
         private void search(byte[] start, byte[] end,
@@ -227,7 +231,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
         {
             if (minTxnId.compareTo(max) > 0) return;
             if (maxTxnId.compareTo(min) < 0) return;
-            if (!RouteIndexFormat.includeByMinDecidedId(min, maxRX)) return;
+            if (maxRX != null && !RouteIndexFormat.includeByMinDecidedId(min, maxRX)) return;
             index.search(new IndexRange(start, end), e -> {
                 if (minTxnId.compareTo(e.getValue()) > 0) return;
                 if (maxTxnId.compareTo(e.getValue()) < 0) return;
@@ -241,7 +245,7 @@ public class RouteInMemoryIndex<V> implements RangeSearcher
         {
             if (minTxnId.compareTo(max) > 0) return;
             if (maxTxnId.compareTo(min) < 0) return;
-            if (!RouteIndexFormat.includeByMinDecidedId(min, maxRX)) return;
+            if (maxRX != null && !RouteIndexFormat.includeByMinDecidedId(min, maxRX)) return;
             index.searchToken(key, e -> {
                 if (minTxnId.compareTo(e.getValue()) > 0) return;
                 if (maxTxnId.compareTo(e.getValue()) < 0) return;
