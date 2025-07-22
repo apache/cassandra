@@ -25,9 +25,12 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableSet;
-import java.util.TreeSet;
+import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
@@ -83,34 +86,31 @@ public class RouteSSTableManager implements SSTableManager
     }
 
     @Override
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId,
-                                                        byte[] start, boolean startInclusive,
-                                                        byte[] end, boolean endInclusive)
+    public synchronized void search(int storeId, TableId tableId,
+                                    byte[] start, byte[] end,
+                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                                    Consumer<ByteBuffer> onMatch)
     {
-        Group group = new Group(storeId, tableId);
-        TreeSet<ByteBuffer> matches = new TreeSet<>();
+        Key group = new Key(storeId, tableId);
         for (SSTableIndex index : sstables.values())
         {
             try
             {
-                matches.addAll(index.search(group, start, startInclusive, end, endInclusive));
+                index.search(group, start, end, minTxnId, maxTxnId, minDecidedId, onMatch);
             }
             catch (Throwable t)
             {
                 File file = index.id.fileFor(CINTIA_SORTED_LIST);
-                throw new FSReadError("Failed to search range index " + file + " for " + (startInclusive ? "[" : "(") + ByteArrayUtil.bytesToHex(start) + "..." + ByteArrayUtil.bytesToHex(end) + (endInclusive ? "]" : ")"), t, file);
+                throw new FSReadError("Failed to search range index " + file + " for (" + ByteArrayUtil.bytesToHex(start) + "..." + ByteArrayUtil.bytesToHex(end) + "]", t, file);
             }
         }
-        return matches;
     }
 
     @Override
-    public synchronized NavigableSet<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    public synchronized void search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, Consumer<ByteBuffer> onMatch)
     {
-        Group group = new Group(storeId, tableId);
-        TreeSet<ByteBuffer> matches = new TreeSet<>();
+        Key group = new Key(storeId, tableId);
         for (SSTableIndex index : sstables.values())
-            matches.addAll(index.search(group, key));
-        return matches;
+            index.search(group, key, minTxnId, maxTxnId, minDecidedId, onMatch);
     }
 }

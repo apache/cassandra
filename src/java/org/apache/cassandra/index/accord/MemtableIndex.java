@@ -20,9 +20,13 @@ package org.apache.cassandra.index.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.schema.TableId;
@@ -63,13 +67,22 @@ public class MemtableIndex
         return memoryIndex.write(id);
     }
 
-    public Collection<ByteBuffer> search(int storeId, TableId tableId, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    public void search(int storeId, TableId tableId, byte[] start, byte[] end,
+                       TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                       Consumer<ByteBuffer> onMatch)
     {
-        return memoryIndex.search(storeId, tableId, start, startInclusive, end, endInclusive);
+        memoryIndex.search(storeId, tableId,
+                           start, end,
+                           minTxnId, maxTxnId, minDecidedId,
+                           onMatch);
     }
 
-    public Collection<ByteBuffer> search(int storeId, TableId tableId, byte[] key)
+    public void search(int storeId, TableId tableId, byte[] key,
+                       TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                       Consumer<ByteBuffer> onMatch)
     {
-        return memoryIndex.search(storeId, tableId, key);
+        memoryIndex.search(storeId, tableId, key,
+                           minTxnId, maxTxnId, minDecidedId,
+                           onMatch);
     }
 }

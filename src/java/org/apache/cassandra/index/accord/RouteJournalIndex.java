@@ -21,19 +21,24 @@ package org.apache.cassandra.index.accord;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
@@ -86,6 +91,7 @@ import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -376,14 +382,15 @@ public class RouteJournalIndex implements Index, INotificationConsumer
     @Override
     public Searcher searcherFor(ReadCommand command)
     {
-        List<RowFilter.Expression> expressions = command.rowFilter().getExpressions().stream().collect(Collectors.toList());
+        List<RowFilter.Expression> expressions = new ArrayList<>(command.rowFilter().getExpressions());
         if (expressions.isEmpty())
             return null;
         ByteBuffer start = null;
-        boolean startInclusive = true;
         ByteBuffer end = null;
-        boolean endInclusive = true;
         Integer storeId = null;
+        TxnId minTxnId = TxnId.NONE;
+        Timestamp maxTxnId = TxnId.MAX;
+        @Nullable TxnId minDecidedId = null;
         for (RowFilter.Expression e : expressions)
         {
             if (e.column() == AccordJournalTable.SyntheticColumn.participants.metadata)
@@ -391,20 +398,12 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                 switch (e.operator())
                 {
                     case GT:
-                        start = e.getIndexValue();
-                        startInclusive = false;
-                        break;
                     case GTE:
                         start = e.getIndexValue();
-                        startInclusive = true;
                         break;
                     case LT:
-                        end = e.getIndexValue();
-                        endInclusive = false;
-                        break;
                     case LTE:
                         end = e.getIndexValue();
-                        endInclusive = true;
                         break;
                     default:
                         return null;
@@ -414,19 +413,49 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             {
                 storeId = Int32Type.instance.compose(e.getIndexValue());
             }
+            else if (e.column() == AccordJournalTable.SyntheticColumn.txn_id.metadata)
+            {
+                switch (e.operator())
+                {
+                    case GT:
+                    case GTE:
+                        minTxnId = CommandSerializers.txnId.deserialize(e.getIndexValue());
+                        break;
+                    case LT:
+                    case LTE:
+                        maxTxnId = CommandSerializers.timestamp.deserialize(e.getIndexValue());
+                        break;
+                    default:
+                        return null;
+                }
+            }
+            else if (e.column() == AccordJournalTable.SyntheticColumn.min_decided_id.metadata)
+            {
+                minDecidedId = CommandSerializers.txnId.deserialize(e.getIndexValue());
+            }
             else
             {
-                throw new IllegalArgumentException("Unexpected expression: " + e.toCQLString());
+                String cqlString;
+                try
+                {
+                    cqlString = e.toCQLString();
+                }
+                catch (Exception ex)
+                {
+                    cqlString = "Unable to convert RowFilter to CQL; " + e.column() + ' ' + e.operator();
+                }
+                throw new IllegalArgumentException("Unexpected expression: " + cqlString);
             }
         }
         if (start == null || end == null || storeId == null)
             return null;
         if (start.equals(end))
-            return keySearcher(command, storeId, start);
-        return rangeSearcher(command, storeId, start, startInclusive, end, endInclusive);
+            return keySearcher(command, storeId, start, minTxnId, maxTxnId, minDecidedId);
+        return rangeSearcher(command, storeId, start, end, minTxnId, maxTxnId, minDecidedId);
     }
 
-    private Searcher keySearcher(ReadCommand command, Integer storeId, ByteBuffer key)
+    private Searcher keySearcher(ReadCommand command, Integer storeId, ByteBuffer key,
+                                 TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
     {
         return new Searcher()
         {
@@ -440,12 +469,14 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             public UnfilteredPartitionIterator search(ReadExecutionController executionController)
             {
                 // find all partitions from memtable / sstable
-                NavigableSet<ByteBuffer> partitions = search(storeId, key);
+                NavigableSet<ByteBuffer> partitions = search(storeId, key,
+                                                             minTxnId, maxTxnId, minDecidedId);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(command, partitions);
             }
 
-            NavigableSet<ByteBuffer> search(int storeId, ByteBuffer key)
+            NavigableSet<ByteBuffer> search(int storeId, ByteBuffer key,
+                                            TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
             {
                 TableId tableId;
                 byte[] start;
@@ -454,14 +485,20 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                     tableId = route.table();
                     start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
-                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start);
-                matches.addAll(memtableIndexManager.search(storeId, tableId, start));
-                return matches;
+                // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
+                Set<ByteBuffer> matches = new HashSet<>();
+                sstableManager.search(storeId, tableId, start, minTxnId, maxTxnId, minDecidedId, matches::add);
+                memtableIndexManager.search(storeId, tableId, start,
+                                            minTxnId, maxTxnId, minDecidedId,
+                                            matches::add);
+                return new TreeSet<>(matches);
             }
         };
     }
 
-    private Searcher rangeSearcher(ReadCommand command, int storeId, ByteBuffer start, boolean startInclusive, ByteBuffer end, boolean endInclusive)
+    private Searcher rangeSearcher(ReadCommand command, int storeId,
+                                   ByteBuffer start, ByteBuffer end,
+                                   TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
     {
         return new Searcher()
         {
@@ -475,14 +512,16 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             public UnfilteredPartitionIterator search(ReadExecutionController executionController)
             {
                 // find all partitions from memtable / sstable
-                NavigableSet<ByteBuffer> partitions = search(storeId, start, startInclusive, end, endInclusive);
+                NavigableSet<ByteBuffer> partitions = search(storeId,
+                                                             start, end,
+                                                             minTxnId, maxTxnId, minDecidedId);
                 // do SinglePartitionReadCommand per partition
                 return new SearchIterator(command, partitions);
             }
 
             NavigableSet<ByteBuffer> search(int storeId,
-                                            ByteBuffer startTableWithToken, boolean startInclusive,
-                                            ByteBuffer endTableWithToken, boolean endInclusive)
+                                            ByteBuffer startTableWithToken, ByteBuffer endTableWithToken,
+                                            TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
             {
                 TableId tableId;
                 byte[] start;
@@ -493,9 +532,11 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                     start = OrderedRouteSerializer.serializeTokenOnly(route);
                 }
                 byte[] end = OrderedRouteSerializer.serializeTokenOnly(OrderedRouteSerializer.deserialize(endTableWithToken));
-                NavigableSet<ByteBuffer> matches = sstableManager.search(storeId, tableId, start, startInclusive, end, endInclusive);
-                matches.addAll(memtableIndexManager.search(storeId, tableId, start, startInclusive, end, endInclusive));
-                return matches;
+                // store matches in a hash set so add is O(1), and the sorting is done after collecting all matches
+                Set<ByteBuffer> matches = new HashSet<>();
+                sstableManager.search(storeId, tableId, start, end, minTxnId, maxTxnId, minDecidedId, matches::add);
+                memtableIndexManager.search(storeId, tableId, start, end, minTxnId, maxTxnId, minDecidedId, matches::add);
+                return new TreeSet<>(matches);
             }
         };
     }
@@ -544,7 +585,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         throw new UnsupportedOperationException();
     }
 
-    private class SearchIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    private static class SearchIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
         private final TableMetadata metadata;
         private final Iterator<ByteBuffer> partitions;

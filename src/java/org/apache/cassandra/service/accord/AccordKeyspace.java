@@ -64,9 +64,6 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -129,8 +126,6 @@ public class AccordKeyspace
     public static final String JOURNAL_INDEX_NAME = "record";
 
     public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS_FOR_KEY, JOURNAL);
-
-    public static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
 
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexNamesFilter(BTreeSet.of(new ClusteringComparator(), Clustering.EMPTY), false);
 
@@ -567,7 +562,11 @@ public class AccordKeyspace
 
         public static JournalKey getJournalKey(DecoratedKey key)
         {
-            ByteBuffer bb = key.getKey();
+            return getJournalKey(key.getKey());
+        }
+
+        public static JournalKey getJournalKey(ByteBuffer bb)
+        {
             int storeId = ByteBufferAccessor.instance.getUnsignedVInt32(bb, 0);
             int offset = VIntCoding.readLengthOfVInt(bb, 0);
             JournalKey.Type type = JournalKey.Type.fromId(bb.get(offset));

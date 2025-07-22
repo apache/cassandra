@@ -31,10 +31,13 @@ import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Maps;
 
 import accord.local.StoreParticipants;
 import accord.primitives.Participants;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -56,6 +59,7 @@ import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ByteArrayUtil;
@@ -86,6 +90,12 @@ public class RouteIndexFormat
             return null;
 
         return touches.deserialize(bytes);
+    }
+
+    public static boolean includeByMinDecidedId(@Nullable TxnId minDecidedId, TxnId txnId)
+    {
+        if (minDecidedId == null || txnId.equals(TxnId.NONE) || !txnId.is(Txn.Kind.ExclusiveSyncPoint)) return true;
+        return txnId.compareTo(minDecidedId) >= 0;
     }
 
     public interface Writer extends SSTableFlushObserver
@@ -269,12 +279,12 @@ public class RouteIndexFormat
 
                 segmentReader.resetChecksum();
                 segmentReader.seek(startPointer);
-                Map<Group, Segment.Metadata> groups = Maps.newHashMapWithExpectedSize(groupSize);
+                Map<Key, Segment.Metadata> groups = Maps.newHashMapWithExpectedSize(groupSize);
                 for (int i = 0; i < groupSize; i++)
                 {
                     int storeId = segmentReader.readVInt32();
                     TableId tableId = TableId.fromUUID(new UUID(segmentReader.readLong(), segmentReader.readLong()));
-                    Group group = new Group(storeId, tableId);
+                    Key group = new Key(storeId, tableId);
                     int metaSize = segmentReader.readUnsignedVInt32();
                     EnumMap<IndexComponent, Segment.ComponentMetadata> metas = new EnumMap<>(IndexComponent.class);
                     for (int j = 0; j < metaSize; j++)
@@ -284,7 +294,10 @@ public class RouteIndexFormat
                     }
                     byte[] minTerm = ByteArrayUtil.readWithVIntLength(segmentReader);
                     byte[] maxTerm = ByteArrayUtil.readWithVIntLength(segmentReader);
-                    Segment.Metadata existing = groups.put(group, new Segment.Metadata(metas, minTerm, maxTerm));
+                    TxnId minTxnId = CommandSerializers.txnId.deserialize(segmentReader);
+                    TxnId maxTxnId = CommandSerializers.txnId.deserialize(segmentReader);
+                    TxnId maxRXId = CommandSerializers.txnId.deserialize(segmentReader);
+                    Segment.Metadata existing = groups.put(group, new Segment.Metadata(metas, minTerm, maxTerm, minTxnId, maxTxnId, maxRXId));
                     assert existing == null;
                 }
                 int actualSegmentChecksum = segmentReader.getValue32AndResetChecksum();
@@ -298,14 +311,14 @@ public class RouteIndexFormat
 
     static void appendSegment(IndexDescriptor id, Segment segment) throws IOException
     {
-        List<Group> groups = new ArrayList<>(segment.groups.keySet());
+        List<Key> groups = new ArrayList<>(segment.groups.keySet());
         groups.sort(Comparator.naturalOrder());
 
         try (ChecksumedSequentialWriter segmentWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.SEGMENT), true, CHECKSUM_SUPPLIER);
              ChecksumedSequentialWriter metadataWriter = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.METADATA), true, CHECKSUM_SUPPLIER))
         {
             long startPointer = segmentWriter.getFilePointer();
-            for (Group group : groups)
+            for (Key group : groups)
             {
                 Segment.Metadata metadata = segment.groups.get(group);
                 writeGroup(segmentWriter, group, metadata);
@@ -321,7 +334,7 @@ public class RouteIndexFormat
         }
     }
 
-    private static void writeGroup(ChecksumedSequentialWriter seq, Group group, Segment.Metadata metadata) throws IOException
+    private static void writeGroup(ChecksumedSequentialWriter seq, Key group, Segment.Metadata metadata) throws IOException
     {
         seq.writeVInt32(group.storeId);
         seq.write(UUIDSerializer.instance.serialize(group.tableId.asUUID()));
@@ -334,5 +347,8 @@ public class RouteIndexFormat
         }
         ByteArrayUtil.writeWithVIntLength(metadata.minTerm, seq);
         ByteArrayUtil.writeWithVIntLength(metadata.maxTerm, seq);
+        CommandSerializers.txnId.serialize(metadata.minTxnId, seq);
+        CommandSerializers.txnId.serialize(metadata.maxTxnId, seq);
+        CommandSerializers.txnId.serialize(metadata.maxRxId, seq);
     }
 }

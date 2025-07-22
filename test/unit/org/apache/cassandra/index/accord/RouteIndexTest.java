@@ -30,6 +30,8 @@ import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.junit.Before;
@@ -54,7 +56,6 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
-import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Shard;
@@ -109,6 +110,7 @@ import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
 import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.index.accord.AccordIndexUtil.normalize;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 
 public class RouteIndexTest extends CQLTester
@@ -186,7 +188,8 @@ public class RouteIndexTest extends CQLTester
         long start = range.start().isMin() ? Long.MIN_VALUE : ((LongToken) range.start().token()).token;
         long end = range.end().isMax() ? Long.MAX_VALUE : ((LongToken) range.end().token()).token;
         long token = 1 + rs.nextLong(start, end);
-        return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)));
+        @Nullable TxnId minDecidedId = state.nextMinDecidedId(rs);
+        return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)), state.nextTxnRange(rs), minDecidedId);
     }
 
     private static RangeSearch rangeSearchExisting(RandomSource rs, State state)
@@ -195,17 +198,20 @@ public class RouteIndexTest extends CQLTester
         var tables = state.storeToTableToRangesToTxns.get(storeId);
         TableId tableId = rs.pickUnorderedSet(tables.keySet());
         var ranges = tables.get(tableId);
-        return new RangeSearch(storeId, selectExistingRange(rs, ranges));
+        @Nullable TxnId minDecidedId = state.nextMinDecidedId(rs);
+        return new RangeSearch(storeId, selectExistingRange(rs, ranges), state.nextTxnRange(rs), minDecidedId);
     }
 
     private static Command<State, Sut, ?> rangeSearch(RandomSource rs, State state)
     {
-        return new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs));
+        @Nullable TxnId minDecidedId = state.nextMinDecidedId(rs);
+        return new RangeSearch(rs.nextInt(0, state.numStores), state.rangeGen.next(rs), state.nextTxnRange(rs), minDecidedId);
     }
 
     private static Command<State, Sut, ?> keySearch(RandomSource rs, State state)
     {
-        return new KeySearch(rs.nextInt(0, state.numStores), new TokenKey(rs.pick(state.tables), new LongToken(state.tokenGen.nextInt(rs))));
+        @Nullable TxnId minDecidedId = state.nextMinDecidedId(rs);
+        return new KeySearch(rs.nextInt(0, state.numStores), new TokenKey(rs.pick(state.tables), new LongToken(state.tokenGen.nextInt(rs))), state.nextTxnRange(rs), minDecidedId);
     }
 
     @Test
@@ -272,11 +278,15 @@ public class RouteIndexTest extends CQLTester
     {
         private final int storeId;
         private final TokenKey key;
+        private final TxnRange txnRange;
+        private final @Nullable TxnId minDecidedId;
 
-        private KeySearch(int storeId, TokenKey key)
+        private KeySearch(int storeId, TokenKey key, TxnRange txnRange, @Nullable TxnId minDecidedId)
         {
             this.storeId = storeId;
             this.key = key;
+            this.txnRange = txnRange;
+            this.minDecidedId = minDecidedId;
         }
 
         @Override
@@ -287,7 +297,13 @@ public class RouteIndexTest extends CQLTester
             var ranges = tables.get(key.table());
             if (ranges == null) return Collections.emptySet();
             Set<TxnId> matches = new HashSet<>();
-            ranges.searchToken(key, e -> matches.add(e.getValue()));
+            ranges.searchToken(key, e -> {
+                TxnId txnId = e.getValue();
+                if (minDecidedId != null && txnId.is(Txn.Kind.ExclusiveSyncPoint) && minDecidedId.compareTo(txnId) > 0)
+                    return;
+                if (txnRange.includes(txnId))
+                    matches.add(txnId);
+            });
             return matches;
         }
 
@@ -295,7 +311,7 @@ public class RouteIndexTest extends CQLTester
         public Set<TxnId> run(Sut sut) throws Throwable
         {
             Set<TxnId> result = new ObjectHashSet<>();
-            sut.journal.get().rangeSearcher().search(storeId, key, TxnId.NONE, Timestamp.MAX).consume(result::add);
+            sut.journal.get().rangeSearcher().search(storeId, key, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId).consume(result::add);
             return result;
         }
 
@@ -312,6 +328,7 @@ public class RouteIndexTest extends CQLTester
             return "KeySearch{" +
                    "storeId=" + storeId +
                    ", key=" + key +
+                   ", minDecidedId=" + normalize(minDecidedId) +
                    '}';
         }
     }
@@ -320,11 +337,15 @@ public class RouteIndexTest extends CQLTester
     {
         private final int storeId;
         private final TokenRange range;
+        private final TxnRange txnRange;
+        private final TxnId minDecidedId;
 
-        private RangeSearch(int storeId, TokenRange range)
+        private RangeSearch(int storeId, TokenRange range, TxnRange txnRange, @Nullable TxnId minDecidedId)
         {
             this.storeId = storeId;
             this.range = range;
+            this.txnRange = txnRange;
+            this.minDecidedId = minDecidedId;
         }
 
         @Override
@@ -335,7 +356,12 @@ public class RouteIndexTest extends CQLTester
             var ranges = tables.get(range.table());
             if (ranges == null) return Collections.emptySet();
             Set<TxnId> matches = new HashSet<>();
-            ranges.search(range, e -> matches.add(e.getValue()));
+            ranges.search(range, e -> {
+                TxnId txnId = e.getValue();
+                if (minDecidedId != null && txnId.is(Txn.Kind.ExclusiveSyncPoint) && minDecidedId.compareTo(txnId) > 0) return;
+                if (txnRange.includes(txnId))
+                    matches.add(txnId);
+            });
             return matches;
         }
 
@@ -343,7 +369,7 @@ public class RouteIndexTest extends CQLTester
         public Set<TxnId> run(Sut sut) throws Throwable
         {
             Set<TxnId> result = new ObjectHashSet<>();
-            sut.journal.get().rangeSearcher().search(storeId, range, TxnId.NONE, Timestamp.MAX).consume(result::add);
+            sut.journal.get().rangeSearcher().search(storeId, range, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId).consume(result::add);
             return result;
         }
 
@@ -360,6 +386,7 @@ public class RouteIndexTest extends CQLTester
             return "RangeSearch{" +
                    "storeId=" + storeId +
                    ", range=" + range +
+                   ", minDecidedId=" + normalize(minDecidedId) +
                    '}';
         }
     }
@@ -453,6 +480,8 @@ public class RouteIndexTest extends CQLTester
 
     private static class State implements AutoCloseable
     {
+        private static final int MIN_TIMESTAMP = 1000;
+
         private final Int2ObjectHashMap<Map<TableId, Long2ObjectHashMap<List<TxnId>>>> storeToTableToRoutingKeysToTxns = new Int2ObjectHashMap<>();
         private final Int2ObjectHashMap<Map<TableId, RangeTree<TokenKey, TokenRange, TxnId>>> storeToTableToRangesToTxns = new Int2ObjectHashMap<>();
         private final Int2ObjectHashMap<RangesForEpoch> storeRangesForEpochs = new Int2ObjectHashMap<>();
@@ -464,8 +493,10 @@ public class RouteIndexTest extends CQLTester
         private final Gen<TokenRange> rangeGen;
         private final Gen<Domain> domainGen;
         private final ColumnFamilyStore journalTable;
+        private final float minDecidedIdNull;
+        private final long txnWriteFrequency;
         private AccordService accordService;
-        private int hlc = 1000;
+        private int hlc = MIN_TIMESTAMP;
 
         public State(RandomSource rs)
         {
@@ -483,6 +514,13 @@ public class RouteIndexTest extends CQLTester
             accordService = startAccord();
             accordService.configService().listener.notifyPostCommit(null, ClusterMetadata.current(), false);
             accordService.epochReady(ClusterMetadata.current().epoch).awaitUninterruptibly();
+
+            minDecidedIdNull = rs.nextFloat();
+            txnWriteFrequency = rs.pickInt(1, // every txn is a Write
+                                           2, // every other txn is a Write
+                                           10, // Write txn every 10 txn
+                                           100 // Write txn every 100 txn; in most cases this disables write txn
+            );
         }
 
         AccordService startAccord()
@@ -504,7 +542,29 @@ public class RouteIndexTest extends CQLTester
 
         TxnId nextTxnId(Domain domain)
         {
-            return new TxnId(1, hlc++, Txn.Kind.Write, domain, NODE);
+            return idFor(domain, hlc++);
+        }
+
+        TxnId idFor(Domain domain, long hlc)
+        {
+            Txn.Kind kind = hlc % txnWriteFrequency == 0 ? Txn.Kind.Write : Txn.Kind.ExclusiveSyncPoint;
+            return new TxnId(1, hlc, kind, domain, NODE);
+        }
+
+        TxnRange nextTxnRange(RandomSource rs)
+        {
+            long maxKnown = hlc;
+            long minKnown = MIN_TIMESTAMP;
+            return TxnRange.next(rs, minKnown, maxKnown, hlc -> idFor(Domain.Key, hlc));
+        }
+
+        private @Nullable TxnId nextMinDecidedId(RandomSource rs)
+        {
+            if (rs.decide(minDecidedIdNull)) return null;
+            long maxKnown = hlc;
+            long minKnown = MIN_TIMESTAMP;
+            if (minKnown == maxKnown) return idFor(Domain.Range, maxKnown);
+            return idFor(Domain.Range, rs.nextLong(minKnown, maxKnown));
         }
 
         void insertTxn(int storeId, TxnId txnId, Route<?> route)

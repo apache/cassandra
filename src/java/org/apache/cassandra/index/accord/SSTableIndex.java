@@ -20,16 +20,17 @@ package org.apache.cassandra.index.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import org.apache.cassandra.index.accord.CheckpointIntervalArrayIndex.SegmentSearcher;
 import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
 import org.apache.cassandra.io.FSReadError;
@@ -81,45 +82,48 @@ public class SSTableIndex extends SharedCloseableImpl
         return new SSTableIndex(id, files, segments, cleanup);
     }
 
-    public Collection<? extends ByteBuffer> search(Group group, byte[] key)
+    public void search(Key group, byte[] key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, Consumer<ByteBuffer> onMatch)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
                                             if (metadata == null) return false;
+                                            if (metadata.maxTxnId.compareTo(minTxnId) < 0 || metadata.minTxnId.compareTo(maxTxnId) > 0)
+                                                return false;
+                                            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, metadata.maxRxId))
+                                                return false;
                                             return ByteArrayUtil.compareUnsigned(metadata.minTerm, key) < 0
                                                    && ByteArrayUtil.compareUnsigned(metadata.maxTerm, key) >= 0;
                                         })
                                         .collect(Collectors.toList());
-        if (matches.isEmpty()) return Collections.emptyList();
-        if (matches.size() == 1) return search(matches.get(0), group, key);
-        Set<ByteBuffer> found =  new HashSet<>();
+        if (matches.isEmpty()) return;
         for (Segment s : matches)
-            found.addAll(search(s, group, key));
-        return found;
+            search(s, group, key, onMatch);
     }
 
-    private Collection<? extends ByteBuffer> search(Segment segment, Group group, byte[] key)
+    private void search(Segment segment, Key group, byte[] key, Consumer<ByteBuffer> onMatch)
     {
-        Set<ByteBuffer> matches = new HashSet<>();
         Segment.Metadata metadata = Objects.requireNonNull(segment.groups.get(group), () -> "Unknown group: " + group);
         try
         {
             SegmentSearcher searcher = new SegmentSearcher(fileFor(IndexComponent.CINTIA_SORTED_LIST), metadata.metas.get(IndexComponent.CINTIA_SORTED_LIST).offset,
                                                            fileFor(IndexComponent.CINTIA_CHECKPOINTS), metadata.metas.get(IndexComponent.CINTIA_CHECKPOINTS).offset);
-            searcher.contains(key, interval -> matches.add(ByteBuffer.wrap(interval.value)));
+            searcher.contains(key, interval -> onMatch.accept(ByteBuffer.wrap(interval.value)));
         }
         catch (IOException e)
         {
             throw new FSReadError(e, id.fileFor(IndexComponent.CINTIA_SORTED_LIST));
         }
-        return matches;
     }
 
-    public Collection<? extends ByteBuffer> search(Group group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    public void search(Key group, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, Consumer<ByteBuffer> onMatch)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
                                             if (metadata == null) return false;
+                                            if (metadata.maxTxnId.compareTo(minTxnId) < 0 || metadata.minTxnId.compareTo(maxTxnId) > 0)
+                                                return false;
+                                            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, metadata.maxRxId))
+                                                return false;
                                             if (ByteArrayUtil.compareUnsigned(metadata.minTerm, end) >= 0)
                                                 return false;
                                             if (ByteArrayUtil.compareUnsigned(metadata.maxTerm, start) <= 0)
@@ -127,29 +131,24 @@ public class SSTableIndex extends SharedCloseableImpl
                                             return true;
                                         })
                                         .collect(Collectors.toList());
-        if (matches.isEmpty()) return Collections.emptyList();
-        if (matches.size() == 1) return search(matches.get(0), group, start, startInclusive, end, endInclusive);
-        Set<ByteBuffer> found =  new HashSet<>();
+        if (matches.isEmpty()) return;
         for (Segment s : matches)
-            found.addAll(search(s, group, start, startInclusive, end, endInclusive));
-        return found;
+            search(s, group, start, end, onMatch);
     }
 
-    private Collection<? extends ByteBuffer> search(Segment segment, Group group, byte[] start, boolean startInclusive, byte[] end, boolean endInclusive)
+    private void search(Segment segment, Key group, byte[] start, byte[] end, Consumer<ByteBuffer> onMatch)
     {
-        Set<ByteBuffer> matches = new HashSet<>();
         Segment.Metadata metadata = Objects.requireNonNull(segment.groups.get(group), () -> "Unknown group: " + group);
         try
         {
             SegmentSearcher searcher = new SegmentSearcher(fileFor(IndexComponent.CINTIA_SORTED_LIST), metadata.metas.get(IndexComponent.CINTIA_SORTED_LIST).offset,
                                                            fileFor(IndexComponent.CINTIA_CHECKPOINTS), metadata.metas.get(IndexComponent.CINTIA_CHECKPOINTS).offset);
-            searcher.intersects(start, end, interval -> matches.add(ByteBuffer.wrap(interval.value)));
+            searcher.intersects(start, end, interval -> onMatch.accept(ByteBuffer.wrap(interval.value)));
         }
         catch (IOException e)
         {
             throw new FSReadError(e, id.fileFor(IndexComponent.CINTIA_SORTED_LIST));
         }
-        return matches;
     }
 
     private FileHandle fileFor(IndexComponent c)

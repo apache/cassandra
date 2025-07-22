@@ -18,22 +18,26 @@
 
 package org.apache.cassandra.index.accord;
 
-import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.function.Consumer;
-
 import javax.annotation.Nullable;
 
-import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.TokenKey;
 
-public interface SSTableManager
+public class AccordIndexUtil
 {
-    void onSSTableChanged(Collection<SSTableReader> removed, Iterable<SSTableReader> added);
-    boolean isIndexComplete(SSTableReader reader);
+    public static String normalize(TokenRange range)
+    {
+        return "R:" + range.toString().replace(range.prefix()  + ":", "");
+    }
 
-    void search(int storeId, TableId tableId, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, Consumer<ByteBuffer> onMatch);
-    void search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, Consumer<ByteBuffer> onMatch);
+    public static String normalize(TokenKey key)
+    {
+        return "K:" + key.toString().replace(key.prefix()  + ":", "");
+    }
+
+    public static String normalize(@Nullable TxnId txnId)
+    {
+        return "T:" + (txnId == null ? "null" : Long.toString(txnId.hlc()));
+    }
 }
