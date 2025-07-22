@@ -298,10 +298,11 @@ public class RouteIndexTest extends CQLTester
             if (ranges == null) return Collections.emptySet();
             Set<TxnId> matches = new HashSet<>();
             ranges.searchToken(key, e -> {
-                if (minDecidedId != null && minDecidedId.compareTo(e.getValue()) > 0)
+                TxnId txnId = e.getValue();
+                if (minDecidedId != null && txnId.is(Txn.Kind.ExclusiveSyncPoint) && minDecidedId.compareTo(txnId) > 0)
                     return;
-                if (txnRange.includes(e.getValue()))
-                    matches.add(e.getValue());
+                if (txnRange.includes(txnId))
+                    matches.add(txnId);
             });
             return matches;
         }
@@ -356,9 +357,10 @@ public class RouteIndexTest extends CQLTester
             if (ranges == null) return Collections.emptySet();
             Set<TxnId> matches = new HashSet<>();
             ranges.search(range, e -> {
-                if (minDecidedId != null && minDecidedId.compareTo(e.getValue()) > 0) return;
-                if (txnRange.includes(e.getValue()))
-                    matches.add(e.getValue());
+                TxnId txnId = e.getValue();
+                if (minDecidedId != null && txnId.is(Txn.Kind.ExclusiveSyncPoint) && minDecidedId.compareTo(txnId) > 0) return;
+                if (txnRange.includes(txnId))
+                    matches.add(txnId);
             });
             return matches;
         }
@@ -492,6 +494,7 @@ public class RouteIndexTest extends CQLTester
         private final Gen<Domain> domainGen;
         private final ColumnFamilyStore journalTable;
         private final float minDecidedIdNull;
+        private final long txnWriteFrequency;
         private AccordService accordService;
         private int hlc = MIN_TIMESTAMP;
 
@@ -513,6 +516,11 @@ public class RouteIndexTest extends CQLTester
             accordService.epochReady(ClusterMetadata.current().epoch).awaitUninterruptibly();
 
             minDecidedIdNull = rs.nextFloat();
+            txnWriteFrequency = rs.pickInt(1, // every txn is a Write
+                                           2, // every other txn is a Write
+                                           10, // Write txn every 10 txn
+                                           100 // Write txn every 100 txn; in most cases this disables write txn
+            );
         }
 
         AccordService startAccord()
@@ -537,9 +545,10 @@ public class RouteIndexTest extends CQLTester
             return idFor(domain, hlc++);
         }
 
-        static TxnId idFor(Domain domain, long hlc)
+        TxnId idFor(Domain domain, long hlc)
         {
-            return new TxnId(1, hlc, Txn.Kind.Write, domain, NODE);
+            Txn.Kind kind = hlc % txnWriteFrequency == 0 ? Txn.Kind.Write : Txn.Kind.ExclusiveSyncPoint;
+            return new TxnId(1, hlc, kind, domain, NODE);
         }
 
         TxnRange nextTxnRange(RandomSource rs)

@@ -37,6 +37,7 @@ import com.google.common.collect.Maps;
 
 import accord.local.StoreParticipants;
 import accord.primitives.Participants;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -91,10 +92,10 @@ public class RouteIndexFormat
         return touches.deserialize(bytes);
     }
 
-    public static boolean includeByMinDecidedId(@Nullable TxnId minDecidedId, TxnId maxRXId)
+    public static boolean includeByMinDecidedId(@Nullable TxnId minDecidedId, TxnId txnId)
     {
-        if (minDecidedId == null || maxRXId.equals(TxnId.NONE)) return true;
-        return maxRXId.compareTo(minDecidedId) >= 0;
+        if (minDecidedId == null || txnId.equals(TxnId.NONE) || !txnId.is(Txn.Kind.ExclusiveSyncPoint)) return true;
+        return txnId.compareTo(minDecidedId) >= 0;
     }
 
     public interface Writer extends SSTableFlushObserver
