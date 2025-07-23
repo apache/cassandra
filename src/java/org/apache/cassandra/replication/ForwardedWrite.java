@@ -155,7 +155,6 @@ public class ForwardedWrite
                                      .withRequestTime(handler.getRequestTime())
                                      .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
                                      .withParam(ParamType.COORDINATOR_ACK_INFO, ackTo)
-                                     .withId(ackTo.id)
                                      .build();
 
                 Replica replica = replicas.get(recipient);
