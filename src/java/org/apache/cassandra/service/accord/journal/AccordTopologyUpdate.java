@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
@@ -112,9 +113,6 @@ public interface AccordTopologyUpdate
                 out.writeUnsignedVInt32(e.getKey());
                 RangesForEpochSerializer.instance.serialize(e.getValue(), out);
             }
-            //TODO (desired): local to what?  Rather than serializing local we can serialize the node its relative too?  that why when we deserialize we do globa.forNode(node)
-            // this also decreases the size as we don't have redundent shards
-            TopologySerializers.compactTopology.serialize(from.local, out);
             TopologySerializers.compactTopology.serialize(from.global, out);
         }
 
@@ -129,8 +127,8 @@ public interface AccordTopologyUpdate
                 CommandStores.RangesForEpoch rangesForEpoch = RangesForEpochSerializer.instance.deserialize(in);
                 commandStores.put(commandStoreId, rangesForEpoch);
             }
-            Topology local = TopologySerializers.compactTopology.deserialize(in);
             Topology global = TopologySerializers.compactTopology.deserialize(in);
+            Topology local = global.forNode(AccordService.instance().nodeId());
             return new Journal.TopologyUpdate(commandStores, local, global);
         }
 
@@ -144,7 +142,6 @@ public interface AccordTopologyUpdate
                 size += RangesForEpochSerializer.instance.serializedSize(e.getValue());
             }
 
-            size += TopologySerializers.compactTopology.serializedSize(from.local);
             size += TopologySerializers.compactTopology.serializedSize(from.global);
             return size;
         }
