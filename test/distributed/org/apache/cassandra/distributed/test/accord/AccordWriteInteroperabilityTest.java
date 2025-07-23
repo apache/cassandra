@@ -21,9 +21,13 @@ package org.apache.cassandra.distributed.test.accord;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -32,14 +36,27 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.shared.InstanceClassLoader;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
+import static com.google.common.base.Throwables.getStackTraceAsString;
+import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.apache.commons.collections.ListUtils.synchronizedList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Check that the query is sent to Accord and the apply is an interop apply as is required by the transactional
@@ -146,54 +163,57 @@ public class AccordWriteInteroperabilityTest extends AccordTestBase
              cluster -> {
                  MessageCountingSink messageCountingSink = new MessageCountingSink(SHARED_CLUSTER, MessageCountingSink.EXCLUDE_SYNC_POINT_MESSAGES);
                  List<String> failures = synchronizedList(new ArrayList<>());
+                 Set<List<Object>> interopApplies = Collections.newSetFromMap(new ConcurrentHashMap<>());
                  // Verify that the apply response is only sent after the row has been inserted
                  // TODO (required): Need to delay mutation stage/mutation to ensure this has time to catch it
                  SHARED_CLUSTER.setMessageSink((to, message) -> {
                      try
                      {
-                         if (message.verb() == Verb.ACCORD_APPLY_RSP.id)
+                         int nodeIndex = ((InstanceClassLoader)Thread.currentThread().getContextClassLoader()).getInstanceId();
+                         if (message.verb() == Verb.ACCORD_INTEROP_APPLY_REQ.id)
                          {
-                             // TODO (required): https://issues.apache.org/jira/browse/CASSANDRA-20770
-//                             // It can be async because Paxos no longer reads
-//                             if (migration == Migration.notNeeded || migration == Migration.secondPhase || migration == Migration.finished)
-//                                 return;
-//                             // It's a different class loader now?
-//                             int nodeIndex = 0;
-//                             try
-//                             {
-//                                 nodeIndex = ((InstanceClassLoader)Thread.currentThread().getContextClassLoader()).getInstanceId();
-//                             }
-//                             catch (Throwable t)
-//                             {
-//                                 t.printStackTrace();
-//                             }
-//                             try
-//                             {
-//                                 String keyspace = KEYSPACE;
-//                                 String tableName = accordTableName;
-//                                 SHARED_CLUSTER.get(nodeIndex).runOnInstance(() -> {
-//                                     ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, tableName);
-//                                     Memtable memtable = cfs.getCurrentMemtable();
-//                                     int expectedPartitions = query.startsWith("BEGIN BATCH") ? 2 : 1;
-//                                     assertEquals(expectedPartitions, memtable.partitionCount());
-//                                     UnfilteredPartitionIterator partitions = memtable.partitionIterator(ColumnFilter.all(cfs.metadata()), DataRange.allData(cfs.getPartitioner()), SSTableReadsListener.NOOP_LISTENER);
-//                                     assertTrue(partitions.hasNext());
-//                                     for (int i = 0; i < expectedPartitions; i++)
-//                                     {
-//                                         UnfilteredRowIterator rows = partitions.next();
-//                                         assertTrue(rows.partitionKey().equals(dk(42)) || rows.partitionKey().equals(dk(1)));
-//                                         assertTrue(rows.hasNext());
-//                                         Row row = (Row)rows.next();
-//                                         assertFalse(rows.hasNext());
-//                                     }
-//                                     assertFalse(partitions.hasNext());
-//                                 });
-//                             }
-//                             catch (Throwable t)
-//                             {
-//                                 failures.add(getStackTraceAsString(t));
-//                             }
+                             int from = to.getAddress().getAddress()[3];
+                             interopApplies.add(ImmutableList.of(nodeIndex, from, message.idAsLong()));
                          }
+                         else if (message.verb() == Verb.ACCORD_APPLY_RSP.id)
+                         {
+                             int originalFromNodeIndex = to.getAddress().getAddress()[3];
+                             boolean respondingToInteropApply = interopApplies.remove(ImmutableList.of(originalFromNodeIndex, nodeIndex, message.idAsLong()));
+                             // It should be async/not interop because Paxos no longer reads and the mode doesn't respect commit CL
+                             if (transactionalMode.ignoresSuppliedCommitCL() && (migration == Migration.notNeeded || migration == Migration.secondPhase || migration == Migration.finished))
+                             {
+                                 assertFalse(respondingToInteropApply);
+                                 return;
+                             }
+
+                             // This isn't a response to an interop apply
+                             if (!respondingToInteropApply)
+                                 return;
+
+                             String keyspace = KEYSPACE;
+                             String tableName = accordTableName;
+                             SHARED_CLUSTER.get(nodeIndex).runOnInstance(() -> {
+                                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, tableName);
+                                 Memtable memtable = cfs.getCurrentMemtable();
+                                 int expectedPartitions = query.startsWith("BEGIN BATCH") ? 2 : 1;
+                                 assertEquals(expectedPartitions, memtable.partitionCount());
+                                 UnfilteredPartitionIterator partitions = memtable.partitionIterator(ColumnFilter.all(cfs.metadata()), DataRange.allData(cfs.getPartitioner()), SSTableReadsListener.NOOP_LISTENER);
+                                 assertTrue(partitions.hasNext());
+                                 for (int i = 0; i < expectedPartitions; i++)
+                                 {
+                                     UnfilteredRowIterator rows = partitions.next();
+                                     assertTrue(rows.partitionKey().equals(dk(42)) || rows.partitionKey().equals(dk(1)));
+                                     assertTrue(rows.hasNext());
+                                     Row row = (Row)rows.next();
+                                     assertFalse(rows.hasNext());
+                                 }
+                                 assertFalse(partitions.hasNext());
+                             });
+                         }
+                     }
+                     catch (Throwable t)
+                     {
+                         failures.add(getStackTraceAsString(t));
                      }
                      finally
                      {
@@ -219,7 +239,7 @@ public class AccordWriteInteroperabilityTest extends AccordTestBase
                  }
                  boolean transactionalQuery = finalQuery.startsWith("BEGIN TRANSACTION") || finalQuery.contains("IF NOT EXISTS");
                  boolean isCAS = finalQuery.contains("IF NOT EXISTS");
-                 cluster.coordinator(1).execute(finalQuery, consistencyLevel, ConsistencyLevel.QUORUM);
+                 cluster.coordinator(1).execute(finalQuery, consistencyLevel, ConsistencyLevel.ALL);
                  // If it isn't a transaction query and the mode doesn't write through Accord for non-SERIAL we don't expect to see any apply messages
                  // If it is a CAS statement, but it's the first phase of migration then we expect it to continue to run on Paxos
                  if ((!transactionalQuery && !transactionalMode.nonSerialWritesThroughAccord) ||  (isCAS && migration == migration.firstPhase))
@@ -243,7 +263,12 @@ public class AccordWriteInteroperabilityTest extends AccordTestBase
                  {
                      assertEquals(3, messageCount(Verb.ACCORD_INTEROP_APPLY_REQ));
                  }
-                 assertTrue(failures.toString(), failures.isEmpty());
+                 // Converting the stack traces to strings and passing them to fail causes test failures to be ignored
+                 if (!failures.isEmpty())
+                 {
+                     logger.error(failures.toString());
+                     fail();
+                 }
              });
     }
 }
