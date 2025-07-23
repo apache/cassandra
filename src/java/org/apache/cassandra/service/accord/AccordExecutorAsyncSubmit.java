@@ -31,14 +31,14 @@ class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     private final AccordExecutorLoops loops;
     private final LockWithAsyncSignal lock;
 
-    public AccordExecutorAsyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    public AccordExecutorAsyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
     {
-        this(new LockWithAsyncSignal(), executorId, mode, threads, name, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        this(new LockWithAsyncSignal(), executorId, mode, threads, name, metrics, agent);
     }
 
-    private AccordExecutorAsyncSubmit(LockWithAsyncSignal lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    private AccordExecutorAsyncSubmit(LockWithAsyncSignal lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
     {
-        super(lock, executorId, metrics, loadExecutor, saveExecutor, rangeLoadExecutor, agent);
+        super(lock, executorId, metrics, agent);
         this.lock = lock;
         this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
     }

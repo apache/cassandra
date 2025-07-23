@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.qos.logback.classic.LoggerContext;
 import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
@@ -273,6 +274,8 @@ public final class JVMStabilityInspector
 
             if (doExit && killing.compareAndSet(false, true))
             {
+                if (LoggerFactory.getILoggerFactory() instanceof LoggerContext)
+                    ((LoggerContext) LoggerFactory.getILoggerFactory()).stop();
                 StorageService.instance.removeShutdownHook();
                 System.exit(100);
             }

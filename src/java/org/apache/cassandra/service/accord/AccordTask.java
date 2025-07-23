@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
@@ -63,7 +62,6 @@ import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
 import org.apache.cassandra.service.accord.AccordExecutor.SubmittableTask;
-import org.apache.cassandra.service.accord.AccordExecutor.Task;
 import org.apache.cassandra.service.accord.AccordExecutor.TaskQueue;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -92,7 +90,7 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RU
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_SCAN_RANGES;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public abstract class AccordTask<R> extends SubmittableTask implements Runnable, Function<SafeCommandStore, R>, Cancellable, DebuggableTask
+public abstract class AccordTask<R> extends SubmittableTask implements Function<SafeCommandStore, R>, Cancellable, DebuggableTask
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordTask.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
@@ -336,6 +334,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
     // to be invoked only by the CommandStore owning thread, to take references to objects already in use by the current execution
     public void presetup(AccordTask<?> parent)
     {
+        this.queuePosition = parent.queuePosition;
         // note we use the caches "unsafely" here deliberately, as we only reference commands we already have references to
         // so we do not mutate anything, except the atomic counter of references
         if (parent.commands != null)
@@ -470,11 +469,12 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
         Map<? super K, ? super S> map;
         switch (entryStatus)
         {
-            default: throw new IllegalStateException("Unhandled global state: " + entryStatus);
+            default: throw new UnhandledEnum(entryStatus);
             case WAITING_TO_LOAD:
             case LOADING:
                 map = ensureLoading();
                 break;
+            case WAITING_TO_SAVE:
             case SAVING:
             case LOADED:
             case MODIFIED:
@@ -632,12 +632,10 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
     }
 
     @Override
-    protected void preRunExclusive(@Nullable AccordExecutor.TaskRunner runner)
+    protected void preRunExclusive()
     {
         state(RUNNING);
         queued = null;
-        if (runner != null)
-            runner.setDebuggable(this);
         if (rangeScanner != null)
         {
             commandsForRanges = rangeScanner.finish(commandStore.cachesExclusive());
@@ -650,7 +648,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
     }
 
     @Override
-    public void run()
+    public void runInternal()
     {
         logger.trace("Running {} with state {}", this, state);
         AccordSafeCommandStore safeStore = null;
@@ -749,10 +747,8 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
         }
     }
 
-    protected void cleanupExclusive(@Nullable AccordExecutor.TaskRunner runner)
+    protected void cleanupExclusive()
     {
-        if (runner != null)
-            runner.clearDebuggable();
         releaseResources(commandStore.cachesExclusive());
         if (state == FAILING)
             state(FAILED);
@@ -952,7 +948,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
 
         boolean scanned;
 
-        void runInternal()
+        protected void runInternal()
         {
             for (Range range : ranges)
             {
@@ -984,6 +980,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
                     return;
 
                 case MODIFIED:
+                case WAITING_TO_SAVE:
                 case SAVING:
                 case LOADED:
                 case FAILED_TO_SAVE:
@@ -1027,7 +1024,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
         }
     }
 
-    public class RangeTxnScanner implements Runnable
+    public class RangeTxnScanner extends AccordExecutor.AbstractIOTask
     {
         class CommandWatcher implements AccordCache.Listener<TxnId, Command>
         {
@@ -1047,23 +1044,9 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
 
         CommandsForRanges.Loader summaryLoader;
         boolean scanned;
+        Throwable failure;
 
-        @Override
-        public void run()
-        {
-            try
-            {
-                runInternal();
-            }
-            catch (Throwable t)
-            {
-                commandStore.executor().onScannedRanges(AccordTask.this, t);
-                throw t;
-            }
-            commandStore.executor().onScannedRanges(AccordTask.this, null);
-        }
-
-        void runInternal()
+        protected void runInternal()
         {
             summaryLoader.intersects(txnId -> {
                 if (summaries.containsKey(txnId))
@@ -1075,12 +1058,24 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
             });
         }
 
-        public void start(BiFunction<Task, Runnable, Cancellable> executor)
+        @Override
+        protected void postRunExclusive()
+        {
+            commandStore.executor().onScannedRangesExclusive(AccordTask.this, failure);
+        }
+
+        @Override
+        protected void fail(Throwable t)
+        {
+            this.failure = t;
+        }
+
+        public void start(AccordExecutor executor)
         {
             Caches caches = commandStore.cachesExclusive();
             state(SCANNING_RANGES);
             startInternal(caches);
-            executor.apply(AccordTask.this, this);
+            executor.submitPlainExclusive(AccordTask.this, this);
         }
 
         void startInternal(Caches caches)
@@ -1116,9 +1111,15 @@ public abstract class AccordTask<R> extends SubmittableTask implements Runnable,
         }
 
         @Override
-        public String toString()
+        public String description()
         {
             return "Scanning range intersections for " + AccordTask.this;
+        }
+
+        @Override
+        public String toString()
+        {
+            return description();
         }
     }
 

@@ -131,15 +131,15 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
             {
                 ApplyThenWaitUntilApplied msg = (ApplyThenWaitUntilApplied) read;
                 boolean hasMinEpoch = msg.minEpoch() != read.txnId.epoch();
-                boolean hasWrites = msg.writes != null;
+                boolean hasWrites = msg.writes() != null;
                 out.writeUnsignedVInt32((hasMinEpoch ? ATWUA_HAS_MIN_EPOCH : 0)
                                       | (hasWrites ? ATWUA_HAS_WRITES : 0));
                 if (hasMinEpoch)
                     out.writeVInt(read.txnId.epoch() - msg.minEpoch());
-                DepsSerializers.partialDeps.serialize(msg.deps, out);
+                DepsSerializers.partialDeps.serialize(msg.deps(), out);
                 KeySerializers.fullRoute.serialize(msg.route, out);
                 if (hasWrites)
-                    CommandSerializers.writes.serialize(msg.writes, out, version);
+                    CommandSerializers.writes.serialize(msg.writes(), out, version);
                 break;
             }
         }
@@ -276,15 +276,15 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
             {
                 ApplyThenWaitUntilApplied msg = (ApplyThenWaitUntilApplied) read;
                 boolean hasMinEpoch = msg.minEpoch() != read.txnId.epoch();
-                boolean hasWrites = msg.writes != null;
+                boolean hasWrites = msg.writes() != null;
                 size += VIntCoding.computeUnsignedVIntSize((hasMinEpoch ? ATWUA_HAS_MIN_EPOCH : 0)
                                                            | (hasWrites ? ATWUA_HAS_WRITES : 0));
                 if (hasMinEpoch)
                     size += VIntCoding.computeVIntSize(read.txnId.epoch() - msg.minEpoch());
-                size += DepsSerializers.partialDeps.serializedSize(msg.deps);
+                size += DepsSerializers.partialDeps.serializedSize(msg.deps());
                 size += KeySerializers.fullRoute.serializedSize(msg.route);
                 if (hasWrites)
-                    size += CommandSerializers.writes.serializedSize(msg.writes, version);
+                    size += CommandSerializers.writes.serializedSize(msg.writes(), version);
                 break;
             }
         }

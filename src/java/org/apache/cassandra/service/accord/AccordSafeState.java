@@ -18,7 +18,6 @@
 package org.apache.cassandra.service.accord;
 
 import accord.impl.SafeState;
-import accord.utils.async.Cancellable;
 
 public interface AccordSafeState<K, V> extends SafeState<V>
 {
@@ -43,11 +42,6 @@ public interface AccordSafeState<K, V> extends SafeState<V>
     default K key()
     {
         return global().key();
-    }
-
-    default Cancellable saving()
-    {
-        return global().saving();
     }
 
     default Throwable failure()

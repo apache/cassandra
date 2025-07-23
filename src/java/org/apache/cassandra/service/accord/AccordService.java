@@ -146,6 +146,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityCycle;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityMaxSplits;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityTargetSplits;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
@@ -261,12 +262,12 @@ public class AccordService implements IAccordService, Shutdownable
         CommandsForKey.disableLinearizabilityViolationsReporting();
         try
         {
-            AccordKeyspace.truncateAllCaches();
-
+            as.node.commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop());
             as.journal().replay(as.node().commandStores());
             logger.info("Waiting for command stores to quiesce.");
             ((AccordCommandStores)as.node.commandStores()).waitForQuiescense();
             as.journal.unsafeSetStarted();
+            as.node.commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start());
         }
         finally
         {
@@ -456,6 +457,7 @@ public class AccordService implements IAccordService, Shutdownable
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
         node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
+                                               Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
                                                Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
         node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
         state = State.STARTED;

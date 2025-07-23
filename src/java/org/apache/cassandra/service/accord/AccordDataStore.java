@@ -18,44 +18,27 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.DataStore;
+import accord.local.CommandStore;
 import accord.local.Node;
+import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
-import accord.primitives.TxnId;
-import accord.utils.async.AsyncResult;
-import accord.utils.async.AsyncResults;
-import org.agrona.collections.Object2ObjectHashMap;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.memtable.TrieMemtable;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
-
-import static accord.utils.Invariants.require;
-import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.ACCORD_TXN_GC;
 
 public class AccordDataStore implements DataStore
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordDataStore.class);
+    enum FlushListenerKey { KEY }
+
     @Override
     public FetchResult fetch(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback)
     {
@@ -64,121 +47,41 @@ public class AccordDataStore implements DataStore
         return coordinator.result();
     }
 
-    static class SnapshotBounds
+    /**
+     * Ensures data for the intersecting ranges is flushed to sstable before calling back with reportOnSuccess.
+     * This is used to gate journal cleanup, since we skip the CommitLog for applying to the data table.
+     */
+    public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess)
     {
-        final List<org.apache.cassandra.dht.Range<Token>> ranges = new ArrayList<>();
-        long id;
-    }
-
-    @Override
-    public AsyncResult<Void> snapshot(Ranges ranges, TxnId before)
-    {
-        AsyncResults.SettableResult<Void> result = new AsyncResults.SettableResult<>();
-        // TODO (desired): maintain a list of Accord tables, perhaps in ClusterMetadata?
-        ClusterMetadata metadata = ClusterMetadata.current();
-        Object2ObjectHashMap<TableId, SnapshotBounds> tables = new Object2ObjectHashMap<>();
+        logger.debug("{} awaiting local data durability of {}", commandStore, ranges);
+        ColumnFamilyStore prev = null;
         for (Range range : ranges)
         {
-            tables.computeIfAbsent(((TokenRange)range).table(), ignore -> new SnapshotBounds())
-            .ranges.add(((TokenRange) range).toKeyspaceRange());
-        }
-
-        for (Map.Entry<TableId, SnapshotBounds> e : tables.entrySet())
-        {
-            // TODO (required): is it safe to ignore null table metadata / cfs?
-            TableMetadata tableMetadata = metadata.schema.getTableMetadata(e.getKey());
-            if (tableMetadata == null || !tableMetadata.isAccordEnabled())
-                continue;
-
-            ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(tableMetadata);
+            ColumnFamilyStore cfs;
+            if (prev != null && prev.metadata().id.equals(range.prefix())) cfs = prev;
+            else cfs = Schema.instance.getColumnFamilyStoreInstance((TableId) range.prefix());
             if (cfs == null)
-                continue;
-
-            // TODO (required): when we can safely map TxnId.hlc() -> local timestamp, consult Memtable timestamps
-            Memtable memtable = cfs.getCurrentMemtable();
-            e.getValue().id = memtable.getMemtableId();
-        }
-
-        ScheduledExecutors.scheduledTasks.schedule(() -> {
-            List<Future<?>> futures = new ArrayList<>();
-            for (Map.Entry<TableId, SnapshotBounds> e : tables.entrySet())
             {
-                // TODO (required): is it safe to ignore null tableMetadata (or ColumnFamilyStore below)?
-                TableMetadata tableMetadata = metadata.schema.getTableMetadata(e.getKey());
-                if (tableMetadata == null) continue;
+                // TODO (expected): should we record this as durable?
+                continue;
+            }
 
-                ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(tableMetadata);
-                if (cfs == null) continue;
+            while (true)
+            {
+                Memtable memtable = cfs.getCurrentMemtable();
+                AccordDurableOnFlush onFlush = memtable.ensureFlushListener(FlushListenerKey.KEY, AccordDurableOnFlush::new);
+                if (onFlush != null && onFlush.add(commandStore.id(), reportOnSuccess))
+                    break;
 
-                SnapshotBounds bounds = e.getValue();
-                View view = cfs.getTracker().getView();
-                for (Memtable memtable : view.getAllMemtables())
+                if (cfs == prev)
                 {
-                    if (memtable.getMemtableId() > bounds.id) continue;
-                    if (!intersects(cfs, memtable, bounds.ranges)) continue;
-
-                    futures.add(cfs.forceFlush(ACCORD_TXN_GC));
+                    // we must already have a successful notify, so just propagate
+                    AccordDurableOnFlush.notify(cfs.metadata(), commandStore, reportOnSuccess);
                     break;
                 }
             }
 
-            FutureCombiner.allOf(futures).addCallback((objects, throwable) -> {
-                if (throwable != null)
-                    result.setFailure(throwable);
-                else
-                    result.setSuccess(null);
-            });
-        }, DatabaseDescriptor.getAccordGCDelay(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-
-        return result;
-    }
-
-    private boolean intersects(ColumnFamilyStore cfs, Memtable memtable, List<org.apache.cassandra.dht.Range<Token>> tableRanges)
-    {
-        boolean intersects = false;
-        // TrieMemtable doesn't support reverse iteration so can't find the last token
-        if (memtable instanceof TrieMemtable)
-            intersects = true;
-        else
-        {
-            Token firstToken = null;
-            try (UnfilteredPartitionIterator iterator = memtable.partitionIterator(ColumnFilter.all(cfs.metadata()), DataRange.allData(cfs.getPartitioner()), SSTableReadsListener.NOOP_LISTENER))
-            {
-                if (iterator.hasNext())
-                    firstToken = iterator.next().partitionKey().getToken();
-            }
-            Token lastToken = memtable.lastToken();
-
-            if (firstToken != null)
-            {
-                require(lastToken != null);
-                if (firstToken.equals(lastToken))
-                {
-                    for (org.apache.cassandra.dht.Range<Token> tableRange : tableRanges)
-                    {
-                        if (tableRange.contains(firstToken))
-                        {
-                            intersects = true;
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    require(firstToken.compareTo(lastToken) < 0);
-                    org.apache.cassandra.dht.Range<Token> memtableRange = new org.apache.cassandra.dht.Range<>(firstToken, lastToken);
-                    for (org.apache.cassandra.dht.Range<Token> tableRange : tableRanges)
-                    {
-                        if (tableRange.intersects(memtableRange))
-                        {
-                            intersects = true;
-                            break;
-                        }
-                    }
-                }
-            }
+            prev = cfs;
         }
-
-        return intersects;
     }
 }

@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +37,9 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Functions;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.AsyncExecutor;
@@ -58,20 +63,24 @@ import accord.utils.async.Cancellable;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
-import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
+import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
+import org.apache.cassandra.service.accord.AccordCacheEntry.SaveExecutor;
+import org.apache.cassandra.service.accord.AccordCacheEntry.UniqueSave;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static accord.utils.Invariants.createIllegalState;
 import static org.apache.cassandra.service.accord.AccordCache.CommandAdapter.COMMAND_ADAPTER;
 import static org.apache.cassandra.service.accord.AccordCache.CommandsForKeyAdapter.CFK_ADAPTER;
 import static org.apache.cassandra.service.accord.AccordCache.registerJfrListener;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordTask.State.LOADING;
+import static org.apache.cassandra.service.accord.AccordTask.State.RUNNING;
 import static org.apache.cassandra.service.accord.AccordTask.State.SCANNING_RANGES;
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_LOAD;
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RUN;
@@ -79,32 +88,33 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RU
 /**
  * NOTE: We assume that NO BLOCKING TASKS are submitted to this executor AND WAITED ON by another task executing on this executor.
  */
-public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLoaded, AccordCacheEntry.OnSaved, Shutdownable, AsyncExecutor
+public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTask<?>, Boolean>, SaveExecutor, Shutdownable, AsyncExecutor
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordExecutor.class);
     public interface AccordExecutorFactory
     {
-        AccordExecutor get(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent);
+        AccordExecutor get(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent);
     }
 
     public enum Mode { RUN_WITH_LOCK, RUN_WITHOUT_LOCK }
-
-    public interface ExecutorFunction extends BiFunction<Task, Runnable, Cancellable> {}
-    public interface ExecutorFunctionFactory extends Function<AccordExecutor, ExecutorFunction> {}
 
     // WARNING: this is a shared object, so close is NOT idempotent
     public static final class ExclusiveGlobalCaches extends GlobalCaches implements AutoCloseable
     {
         final Lock lock;
+        final AccordExecutor executor;
 
-        public ExclusiveGlobalCaches(Lock lock, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand> commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey)
+        public ExclusiveGlobalCaches(AccordExecutor executor, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand> commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey)
         {
             super(global, commands, commandsForKey);
-            this.lock = lock;
+            this.lock = executor.lock;
+            this.executor = executor;
         }
 
         @Override
         public void close()
         {
+            executor.beforeUnlock();
             lock.unlock();
         }
     }
@@ -127,21 +137,39 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     final Agent agent;
     final int executorId;
     private final AccordCache cache;
-    private final ExecutorFunction loadExecutor;
-    private final ExecutorFunction rangeLoadExecutor;
 
     private final TaskQueue<AccordTask<?>> scanningRanges = new TaskQueue<>(SCANNING_RANGES); // never queried, just parked here while scanning
     private final TaskQueue<AccordTask<?>> loading = new TaskQueue<>(LOADING); // never queried, just parked here while loading
+    private final TaskQueue<Task> running = new TaskQueue<>(RUNNING);
 
     private final TaskQueue<AccordTask<?>> waitingToLoadRangeTxns = new TaskQueue<>(WAITING_TO_LOAD);
 
     private final TaskQueue<AccordTask<?>> waitingToLoad = new TaskQueue<>(WAITING_TO_LOAD);
     private final TaskQueue<Task> waitingToRun = new TaskQueue<>(WAITING_TO_RUN);
 
-    private final AccordCacheEntry.OnLoaded onRangeLoaded = this::onRangeLoaded;
     private final ExclusiveGlobalCaches caches;
 
     private List<Condition> waitingForQuiescence;
+    private Queue<WaitForCompletion> waitingForCompletion;
+
+    private static class WaitForCompletion
+    {
+        final int position;
+        int maybeNotify;
+        final Runnable run;
+
+        private WaitForCompletion(int position, Runnable run)
+        {
+            this.position = position;
+            this.maybeNotify = position - 1;
+            this.run = run;
+        }
+
+        public String toString()
+        {
+            return run.toString() + " @" + position;
+        }
+    }
 
     /**
      * The maximum total number of loads we can queue at once - this includes loads for range transactions,
@@ -159,15 +187,13 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     private int activeLoads, activeRangeLoads;
     private boolean hasPausedLoading;
     int tasks;
-    int running;
+    int runningThreads;
 
-    AccordExecutor(Lock lock, int executorId, AccordCacheMetrics metrics, ExecutorFunctionFactory loadExecutor, ExecutorFunctionFactory saveExecutor, ExecutorFunctionFactory rangeLoadExecutor, Agent agent)
+    AccordExecutor(Lock lock, int executorId, AccordCacheMetrics metrics, Agent agent)
     {
         this.lock = lock;
         this.executorId = executorId;
-        this.cache = new AccordCache(alwaysNullTask(saveExecutor.apply(this)), this, 0, metrics);
-        this.loadExecutor = loadExecutor.apply(this);
-        this.rangeLoadExecutor = rangeLoadExecutor.apply(this);
+        this.cache = new AccordCache(this, 0, metrics);
         this.agent = agent;
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand> commands;
@@ -178,7 +204,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         commandsForKey = cache.newType(RoutingKey.class, CFK_ADAPTER);
         registerJfrListener(executorId, commandsForKey, "CommandsForKey");
 
-        this.caches = new ExclusiveGlobalCaches(lock, cache, commands, commandsForKey);
+        this.caches = new ExclusiveGlobalCaches(this, cache, commands, commandsForKey);
         ScheduledExecutors.scheduledFastTasks.scheduleAtFixedRate(() -> {
             executeDirectlyWithLock(cache::processNoEvictQueue);
         }, 1L, 1L, TimeUnit.SECONDS);
@@ -216,7 +242,10 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     Task pollWaitingToRunExclusive()
     {
         updateWaitingToRunExclusive();
-        return waitingToRun.poll();
+        Task next = waitingToRun.poll();
+        if (next != null)
+            next.addToQueue(running);
+        return next;
     }
 
     void updateWaitingToRunExclusive()
@@ -235,7 +264,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         lock.lock();
         try
         {
-            if (tasks == 0 && running == 0)
+            if (tasks == 0 && runningThreads == 0)
                 return;
 
             if (waitingForQuiescence == null)
@@ -250,12 +279,43 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         condition.awaitThrowUncheckedOnInterrupt();
     }
 
-    protected void signalQuiescentExclusive()
+    protected void notifyQuiescentExclusive()
     {
         if (waitingForQuiescence != null)
         {
             waitingForQuiescence.forEach(Condition::signalAll);
             waitingForQuiescence = null;
+        }
+        if (waitingForCompletion != null)
+        {
+            logger.warn("{} processed all pending tasks (<{}) but found waiting: {}", this, nextPosition, waitingForCompletion);
+            waitingForCompletion.forEach(w -> w.run.run());
+            waitingForCompletion = null;
+        }
+    }
+
+    public void afterSubmittedAndConsequences(Runnable run)
+    {
+        lock.lock();
+        try
+        {
+            if (tasks == 0 && runningThreads == 0)
+            {
+                run.run();
+                return;
+            }
+
+            if (waitingForCompletion != null) // escape hatch for some bug that means we lose a notification for a given task's queue position
+                maybeNotifyWaitingForCompletion();
+            if (waitingForCompletion == null)
+                waitingForCompletion = new ArrayDeque<>();
+
+            int position = nextPosition;
+            waitingForCompletion.add(new WaitForCompletion(position, run));
+        }
+        finally
+        {
+            lock.unlock();
         }
     }
 
@@ -272,6 +332,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
     }
 
     public abstract boolean hasTasks();
+    abstract void beforeUnlock();
     abstract boolean isOwningThread();
 
     private void enqueueLoadsExclusive()
@@ -297,7 +358,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
             {
                 default:
                 {
-                    failExclusive(next, new AssertionError("Unexpected state: " + next.toDescription()));
+                    failExclusive(next, createIllegalState("Unexpected state: " + next.toDescription()));
                     break;
                 }
                 case WAITING_TO_SCAN_RANGES:
@@ -309,7 +370,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                     {
                         ++activeRangeLoads;
                         ++activeLoads;
-                        next.rangeScanner().start(rangeLoadExecutor);
+                        next.rangeScanner().start(this);
                         updateQueue(next);
                     }
                     break;
@@ -326,15 +387,11 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                         }
 
                         Invariants.require(load != null);
-                        AccordCacheEntry.OnLoaded onLoaded = this;
                         ++activeLoads;
                         if (isForRange)
-                        {
                             ++activeRangeLoads;
-                            onLoaded = onRangeLoaded;
-                        }
 
-                        for (AccordTask<?> task : cache.load(loadExecutor, next, load, onLoaded))
+                        for (AccordTask<?> task : cache.load(this, next, isForRange, load))
                         {
                             if (task == next) continue;
                             if (task.onLoading(load))
@@ -448,28 +505,6 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         task.addToQueue(queue == null ? waitingToRun : queue);
     }
 
-    private Cancellable submitIOExclusive(Task parent, Runnable run)
-    {
-        Invariants.require(isOwningThread());
-        ++tasks;
-        IORunnable task = new IORunnable(run);
-        // TODO (expected): adopt queue position of the submitting task
-        if (parent == null) assignNewQueuePosition(task);
-        else assignQueueSubPosition(parent, task);
-        waitingToRun.append(task);
-        return task;
-    }
-
-    private void assignNewQueuePosition(Task task)
-    {
-        task.queuePosition = (((long)++nextPosition) & 0xffffffffL) << 31;
-    }
-
-    private void assignQueueSubPosition(Task parent, Task task)
-    {
-        task.queuePosition = parent.queuePosition | (++nextPosition & 0x7fffffff);
-    }
-
     public SequentialExecutor executor()
     {
         return new SequentialExecutor();
@@ -480,11 +515,6 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         return new SequentialExecutor();
     }
 
-    public <R> void submit(AccordTask<R> operation)
-    {
-        submit(AccordExecutor::submitExclusive, Function.identity(), operation);
-    }
-
     public <R> void cancel(AccordTask<R> task)
     {
         Invariants.require(task.commandStore.executor() == this,
@@ -493,25 +523,16 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         submit(AccordExecutor::cancelExclusive, CancelAsync::new, task);
     }
 
-    public void onScannedRanges(AccordTask<?> task, Throwable fail)
+    @Override
+    public <K, V> Cancellable load(AccordTask<?> parent, Boolean isForRange, AccordCacheEntry<K, V> entry)
     {
-        submit(AccordExecutor::onScannedRangesExclusive, OnScannedRanges::new, task, fail);
-    }
-
-    public <K, V> void onSaved(AccordCacheEntry<K, V> saved, Object identity, Throwable fail)
-    {
-        submit(AccordExecutor::onSavedExclusive, OnSaved::new, saved, identity, fail);
+        return submitPlainExclusive(parent, newLoad(entry, isForRange));
     }
 
     @Override
-    public <K, V> void onLoaded(AccordCacheEntry<K, V> loaded, V value, Throwable fail)
+    public Cancellable save(AccordCacheEntry<?, ?> entry, UniqueSave identity, Runnable save)
     {
-        submit(AccordExecutor::onLoadedExclusive, OnLoaded::new, loaded, value, fail, false);
-    }
-
-    public <K, V> void onRangeLoaded(AccordCacheEntry<K, V> loaded, V value, Throwable fail)
-    {
-        submit(AccordExecutor::onLoadedExclusive, OnLoaded::new, loaded, value, fail, true);
+        return submitPlainExclusive(null, new SaveRunnable(entry, identity, save));
     }
 
     private <P1> void submit(BiConsumer<AccordExecutor, P1> sync, Function<P1, ?> async, P1 p1)
@@ -536,25 +557,101 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     abstract <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
 
-    private void submitExclusive(Plain task)
+    <R> void submit(AccordTask<R> operation)
     {
-        ++tasks;
-        task.queuePosition = ++nextPosition;
-        waitingToRun(task, task.executor());
-    }
-
-    void submitExclusive(Runnable run)
-    {
-        submitExclusive(new PlainRunnable(run));
+        submit(AccordExecutor::submitExclusive, Function.identity(), operation);
     }
 
     void submitExclusive(AccordTask<?> task)
     {
+        assignQueuePosition(task);
         ++tasks;
-        assignNewQueuePosition(task);
         task.setupExclusive();
         updateQueue(task);
         enqueueLoadsExclusive();
+    }
+
+    void submitExclusive(Runnable runnable)
+    {
+        submitPlainExclusive(new PlainRunnable(null, runnable, null));
+    }
+
+    private void submitPlainExclusive(Plain task)
+    {
+        ++tasks;
+        assignQueuePosition(task);
+        waitingToRun(task, task.executor());
+    }
+
+    Cancellable submitPlainExclusive(Task parent, AbstractIOTask task)
+    {
+        return submitPlainExclusive(parent, new WrappedIOTask(task));
+    }
+
+    <T extends Task> T submitPlainExclusive(Task parent, T task)
+    {
+        Invariants.require(isOwningThread());
+        ++tasks;
+        if (parent != null) inheritQueuePosition(parent, task);
+        else assignNewQueuePosition(task);
+        waitingToRun.append(task);
+        return task;
+    }
+
+    private void assignQueuePosition(Task task)
+    {
+        if (task.queuePosition == 0)
+            assignNewQueuePosition(task);
+    }
+
+    private void assignNewQueuePosition(Task task)
+    {
+        if (nextPosition == 0) nextPosition++;
+        task.queuePosition = nextPosition++;
+    }
+
+    private void inheritQueuePosition(Task parent, Task task)
+    {
+        task.queuePosition = parent.queuePosition;
+    }
+
+    void completeTaskExclusive(Task task, boolean cleanupTask)
+    {
+        --tasks;
+
+        // for integration with SequentialExecutor, we must :
+        //  - first take the position so that represents the just-executed task
+        //  - call cleanup to submit any following task on the relevant sub-queue
+        //  - remove the previous task from the running collection only if still present (SequentialExecutor will have removed it)
+        int position = task.queuePosition;
+        if (cleanupTask) task.cleanupExclusive();
+        if (running.contains(task))
+            running.remove(task);
+
+        if (waitingForCompletion != null && waitingForCompletion.peek().maybeNotify - position >= 0)
+            maybeNotifyWaitingForCompletion();
+    }
+
+    private void maybeNotifyWaitingForCompletion()
+    {
+        int min = minPosition(waitingToRun.peek(),
+                    minPosition(waitingToLoad.peek(),
+                      minPosition(waitingToLoadRangeTxns.peek(),
+                        minPosition(running.peek(),
+                          minPosition(loading.peek(),
+                            minPosition(scanningRanges.peek(), Integer.MAX_VALUE))))));
+
+        while (!waitingForCompletion.isEmpty() && waitingForCompletion.peek().position - min <= 0)
+            waitingForCompletion.poll().run.run();
+        if (waitingForCompletion.isEmpty())
+            waitingForCompletion = null;
+        else
+            waitingForCompletion.peek().maybeNotify = min;
+    }
+
+    private static int minPosition(@Nullable Task task, int min)
+    {
+        return task == null ? min : Integer.min(task.queuePosition, min);
     }
 
     private void cancelExclusive(AccordTask<?> task)
@@ -572,9 +669,9 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
             case WAITING_TO_LOAD:
             case WAITING_TO_SCAN_RANGES:
             case WAITING_TO_RUN:
-                --tasks;
                 task.unqueueIfQueued();
                 task.cancelExclusive();
+                completeTaskExclusive(task, false);
                 break;
 
             case FAILING:
@@ -587,7 +684,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
     }
 
-    private void onScannedRangesExclusive(AccordTask<?> task, Throwable fail)
+    void onScannedRangesExclusive(AccordTask<?> task, Throwable fail)
     {
         --activeLoads;
         --activeRangeLoads;
@@ -612,13 +709,12 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         if (task.state().isExecuted())
             return;
 
-        --tasks;
         try { task.failExclusive(fail); }
         catch (Throwable t) { agent.onUncaughtException(t); }
         finally
         {
             task.unqueueIfQueued();
-            task.cleanupExclusive(null);
+            completeTaskExclusive(task, true);
         }
     }
 
@@ -664,26 +760,20 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     public Future<?> submit(Runnable run)
     {
-        return submit(run, null);
-    }
-
-    // TODO (expected): offer queue jumping/priorities
-    private Future<?> submit(Runnable run, @Nullable SequentialExecutor executor)
-    {
-        PlainRunnable task = new PlainRunnable(new AsyncPromise<>(), run, executor);
+        PlainRunnable task = new PlainRunnable(new AsyncPromise<>(), run, null);
         submit(task);
         return task.result;
-    }
-
-    private Cancellable submit(Plain task)
-    {
-        submit(AccordExecutor::submitExclusive, Functions.identity(), task);
-        return task;
     }
 
     public void execute(Runnable command)
     {
         submit(new PlainRunnable(null, command, null));
+    }
+
+    private Cancellable submit(Plain task)
+    {
+        submit(AccordExecutor::submitPlainExclusive, Functions.identity(), task);
+        return task;
     }
 
     public void executeDirectlyWithLock(Runnable command)
@@ -695,6 +785,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
         finally
         {
+            beforeUnlock();
             lock.unlock();
         }
     }
@@ -748,6 +839,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     protected static abstract class TaskRunner implements DebuggableTaskRunner
     {
+        // TODO (desired): this probably doesn't need to be volatile
         private volatile Task running;
         private static final AtomicReferenceFieldUpdater<TaskRunner, Task> runningUpdater = AtomicReferenceFieldUpdater.newUpdater(TaskRunner.class, Task.class, "running");
 
@@ -758,12 +850,17 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
             return running == null ? null : running.debuggable();
         }
 
-        void setDebuggable(Task debuggable)
+        Task runningTask()
+        {
+            return running;
+        }
+
+        void setRunning(Task debuggable)
         {
             runningUpdater.lazySet(this, debuggable);
         }
 
-        void clearDebuggable()
+        void clearRunning()
         {
             runningUpdater.lazySet(this, null);
         }
@@ -771,7 +868,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
 
     public static abstract class Task extends IntrusivePriorityHeap.Node
     {
-        long queuePosition;
+        int queuePosition;
 
         protected Task()
         {
@@ -782,12 +879,12 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         /**
          * Prepare to run while holding the state cache lock
          */
-        abstract protected void preRunExclusive(@Nullable TaskRunner runner);
+        abstract protected void preRunExclusive();
 
         /**
          * Run the command; the state cache lock may or may not be held depending on the executor implementation
          */
-        abstract protected void run();
+        abstract protected void runInternal();
         /**
          * Fail the command; the state cache lock may or may not be held depending on the executor implementation
          */
@@ -796,7 +893,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         /**
          * Cleanup the command while holding the state cache lock
          */
-        abstract protected void cleanupExclusive(@Nullable TaskRunner runner);
+        abstract protected void cleanupExclusive();
 
         abstract protected void addToQueue(TaskQueue queue);
     }
@@ -817,13 +914,13 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
 
         @Override
-        protected void preRunExclusive(@Nullable TaskRunner runner)
+        protected void preRunExclusive()
         {
-            queue.preRunTask(runner);
+            queue.preRunTask();
         }
 
         @Override
-        protected void run()
+        protected void runInternal()
         {
             queue.runTask();
         }
@@ -835,15 +932,16 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
 
         @Override
-        protected void cleanupExclusive(@Nullable TaskRunner runner)
+        protected void cleanupExclusive()
         {
-            queue.cleanupTask(runner);
+            queue.cleanupTask();
         }
 
         @Override
         protected void addToQueue(TaskQueue queue)
         {
-            throw new UnsupportedOperationException();
+            Invariants.require(queue.kind == RUNNING);
+            queue.append(this);
         }
     }
 
@@ -861,10 +959,10 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
             this.selfTask = new SequentialQueueTask(this);
         }
 
-        void preRunTask(@Nullable TaskRunner runner)
+        void preRunTask()
         {
             Invariants.require(task != null);
-            task.preRunExclusive(runner);
+            task.preRunExclusive();
             running = true;
         }
 
@@ -878,7 +976,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                     LockSupport.park();
                 waiting = null;
             }
-            task.run();
+            task.runInternal();
         }
 
         void failTask(Throwable t)
@@ -886,14 +984,15 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
             task.fail(t);
         }
 
-        void cleanupTask(@Nullable TaskRunner runner)
+        void cleanupTask()
         {
-            task.cleanupExclusive(runner);
+            task.cleanupExclusive();
             running = false;
             owner = null;
             task = super.poll();
             if (task != null)
             {
+                AccordExecutor.this.running.remove(selfTask);
                 selfTask.queuePosition = task.queuePosition;
                 waitingToRun.append(selfTask);
             }
@@ -905,10 +1004,12 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         {
             if (task != null)
             {
+                Invariants.require(running || waitingToRun.contains(selfTask));
                 super.append(newTask);
             }
             else
             {
+                Invariants.require(!running && isEmpty());
                 task = newTask;
                 selfTask.queuePosition = newTask.queuePosition;
                 waitingToRun.append(selfTask);
@@ -948,6 +1049,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
                     }
                 }
             }
+            Invariants.require(task == null || running || waitingToRun.contains(selfTask));
         }
 
         public boolean inExecutor()
@@ -970,18 +1072,21 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         @Override
         protected boolean contains(Task contains)
         {
-            throw new UnsupportedOperationException();
+            return super.contains(contains) || (task == contains && !running);
         }
 
         @Override
-        public <T> AsyncChain<T> build(Callable<T> task)
+        public <T> AsyncChain<T> build(Callable<T> call)
         {
+            int position = inExecutor() && task != null ? task.queuePosition : 0;
             return new AsyncChains.Head<>()
             {
                 @Override
                 protected Cancellable start(BiConsumer<? super T, Throwable> callback)
                 {
-                    return submit(new PlainChain<>(task, callback, SequentialExecutor.this));
+                    PlainChain<T> submit = new PlainChain<>(call, callback, SequentialExecutor.this);
+                    submit.queuePosition = position;
+                    return AccordExecutor.this.submit(submit);
                 }
             };
         }
@@ -989,7 +1094,10 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         @Override
         public void execute(Runnable run)
         {
-            submit(new PlainRunnable(null, run, this));
+            PlainRunnable submit = new PlainRunnable(null, run, this);
+            if (inExecutor() && this.task != null)
+                submit.queuePosition = this.task.queuePosition;
+            AccordExecutor.this.submit(submit);
         }
 
         @Override
@@ -1071,90 +1179,6 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         abstract void submitExclusive(AccordExecutor executor);
     }
 
-    private static class OnLoaded<K, V> extends SubmitAsync
-    {
-        static final int FAIL = 1;
-        static final int RANGE = 2;
-        final AccordCacheEntry<K, V> loaded;
-        final Object result;
-        final int flags;
-
-        OnLoaded(AccordCacheEntry<K, V> loaded, V success, Throwable fail, boolean isForRange)
-        {
-            this.loaded = loaded;
-            int flags = isForRange ? RANGE : 0;
-            if (fail == null)
-            {
-                result = success;
-            }
-            else
-            {
-                result = fail;
-                flags |= FAIL;
-            }
-            this.flags = flags;
-        }
-
-        V success()
-        {
-            return (flags & FAIL) == 0 ? (V) result : null;
-        }
-
-        Throwable fail()
-        {
-            return (flags & FAIL) == 0 ? null : (Throwable) result;
-        }
-
-        boolean isForRange()
-        {
-            return (flags & RANGE) != 0;
-        }
-
-        @Override
-        void submitExclusive(AccordExecutor executor)
-        {
-            executor.onLoadedExclusive(loaded, success(), fail(), isForRange());
-        }
-    }
-
-    private static class OnScannedRanges extends SubmitAsync
-    {
-        final AccordTask<?> scanned;
-        final Throwable fail;
-
-        private OnScannedRanges(AccordTask<?> scanned, Throwable fail)
-        {
-            this.scanned = scanned;
-            this.fail = fail;
-        }
-
-        @Override
-        void submitExclusive(AccordExecutor executor)
-        {
-            executor.onScannedRangesExclusive(scanned, fail);
-        }
-    }
-
-    private static class OnSaved<K, V> extends SubmitAsync
-    {
-        final AccordCacheEntry<K, V> state;
-        final Object identity;
-        final Throwable fail;
-
-        private OnSaved(AccordCacheEntry<K, V> state, Object identity, Throwable fail)
-        {
-            this.state = state;
-            this.identity = identity;
-            this.fail = fail;
-        }
-
-        @Override
-        void submitExclusive(AccordExecutor executor)
-        {
-            executor.onSavedExclusive(state, identity, fail);
-        }
-    }
-
     private static class CancelAsync<R> extends SubmitAsync
     {
         final AccordTask<R> cancel;
@@ -1176,64 +1200,35 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         return ignore -> out;
     }
 
-    static ExecutorFunctionFactory constantFactory(ExecutorFunction exec)
-    {
-        return ignore -> exec;
-    }
-
-    static ExecutorFunctionFactory constantFactory(ExecutorPlus exec)
-    {
-        return ignore -> wrap(exec);
-    }
-
-    static ExecutorFunction wrap(ExecutorPlus exec)
-    {
-        return (t, r) -> wrap(exec.submit(r));
-    }
-
-    static Cancellable wrap(Future<?> f)
-    {
-        return () -> f.cancel(false);
-    }
-
-    public static ExecutorFunction submitIOToSelf(AccordExecutor executor)
-    {
-        return executor::submitIOExclusive;
-    }
-
-    private static Function<Runnable, Cancellable> alwaysNullTask(ExecutorFunction f)
-    {
-        return r -> f.apply(null, r);
-    }
-
     abstract class Plain extends SubmittableTask implements Cancellable
     {
         abstract SequentialExecutor executor();
 
         @Override
-        protected void preRunExclusive(@Nullable TaskRunner runner) {}
+        protected void preRunExclusive() {}
 
         @Override
-        protected void cleanupExclusive(@Nullable TaskRunner runner) {}
+        protected void cleanupExclusive() {}
 
         @Override
         protected final void addToQueue(TaskQueue queue)
         {
-            Invariants.require(queue.kind == WAITING_TO_RUN);
+            Invariants.require(queue.kind == WAITING_TO_RUN || queue.kind == RUNNING);
             queue.append(this);
         }
 
         @Override
-        public final void cancel()
+        public void cancel()
         {
             executeDirectlyWithLock(() -> {
                 SequentialExecutor executor = executor();
                 TaskQueue queue = executor == null ? waitingToRun : executor;
                 if (queue.contains(this))
                 {
-                    --tasks;
                     queue.remove(this);
-                    fail(new CancellationException());
+                    try { fail(new CancellationException()); }
+                    catch (Throwable t) { agent.onUncaughtException(t); }
+                    completeTaskExclusive(this, true);
                 }
             });
         }
@@ -1241,7 +1236,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         @Override
         final void submitExclusive(AccordExecutor owner)
         {
-            owner.submitExclusive(this);
+            owner.submitPlainExclusive(this);
         }
     }
 
@@ -1264,7 +1259,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
 
         @Override
-        protected void run()
+        protected void runInternal()
         {
             run.run();
             if (result != null)
@@ -1286,45 +1281,24 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
     }
 
-    class IORunnable extends Plain implements Cancellable, DebuggableTask
+    // a task that may be submitted to this executor or another
+    abstract class IOTask extends Plain implements Cancellable, DebuggableTask
     {
-        // expected to implement toString
-        final Runnable run;
         final long createdAtNanos = MonotonicClock.Global.approxTime.now();
         long startedAtNanos;
 
-        IORunnable(Runnable run)
+        abstract void postRunExclusive();
+
+        @Override
+        protected void preRunExclusive()
         {
-            this.run = run;
+            startedAtNanos = MonotonicClock.Global.approxTime.now();
         }
 
         @Override
-        protected void run()
+        protected void cleanupExclusive()
         {
-            run.run();
-        }
-
-        @Override
-        protected void preRunExclusive(@Nullable TaskRunner runner)
-        {
-            if (runner != null)
-            {
-                startedAtNanos = MonotonicClock.Global.approxTime.now();
-                runner.setDebuggable(this);
-            }
-        }
-
-        @Override
-        protected void cleanupExclusive(@Nullable TaskRunner runner)
-        {
-            if (runner != null)
-                runner.clearDebuggable();
-        }
-
-        @Override
-        protected void fail(Throwable t)
-        {
-            agent.onUncaughtException(t);
+            postRunExclusive();
         }
 
         @Override
@@ -1344,11 +1318,148 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         {
             return startedAtNanos;
         }
+    }
+
+    static class FailureHolder
+    {
+        static final FailureHolder NOT_STARTED = new FailureHolder(new RuntimeException("Not started"));
+
+        final Throwable fail;
+
+        FailureHolder(Throwable fail)
+        {
+            this.fail = fail;
+        }
+    }
+
+    <K, V> LoadRunnable<K, V> newLoad(AccordCacheEntry<K, V> entry, boolean isForRange)
+    {
+        return isForRange ? new LoadRangeRunnable<>(entry) : new LoadRunnable<>(entry);
+    }
+
+    class LoadRunnable<K, V> extends IOTask
+    {
+        final AccordCacheEntry<K, V> entry;
+        Object result = FailureHolder.NOT_STARTED;
+
+        LoadRunnable(AccordCacheEntry<K, V> entry)
+        {
+            this.entry = entry;
+        }
+
+        boolean isForRange() { return false; }
+
+        void postRunExclusive()
+        {
+            if (!(result instanceof FailureHolder)) onLoadedExclusive(entry, (V)result, null, isForRange());
+            else onLoadedExclusive(entry, null, ((FailureHolder)result).fail, isForRange());
+        }
+
+        @Override
+        public void runInternal()
+        {
+            result = entry.owner.parent().adapter().load(entry.owner.commandStore, entry.key());
+        }
+
+        @Override
+        protected void fail(Throwable t)
+        {
+            result = new FailureHolder(t);
+        }
 
         @Override
         public String description()
         {
-            return run.toString();
+            return "Loading " + entry;
+        }
+    }
+
+    final class LoadRangeRunnable<K, V> extends LoadRunnable<K, V>
+    {
+        LoadRangeRunnable(AccordCacheEntry<K, V> entry) { super(entry); }
+        @Override boolean isForRange() { return true; }
+    }
+
+    static abstract class AbstractIOTask
+    {
+        abstract protected void runInternal();
+        abstract protected void postRunExclusive();
+        abstract protected void fail(Throwable t);
+        abstract protected String description();
+    }
+
+    class WrappedIOTask extends IOTask
+    {
+        final AbstractIOTask wrapped;
+
+        WrappedIOTask(AbstractIOTask wrap)
+        {
+            this.wrapped = wrap;
+        }
+
+        @Override
+        protected void runInternal()
+        {
+            wrapped.runInternal();
+        }
+
+        @Override
+        void postRunExclusive()
+        {
+            wrapped.postRunExclusive();
+        }
+
+        @Override
+        public String description()
+        {
+            return wrapped.description();
+        }
+
+        @Override
+        protected void fail(Throwable fail)
+        {
+            wrapped.fail(fail);
+        }
+    }
+
+    private static final Throwable NOT_STARTED = new Throwable();
+    class SaveRunnable extends IOTask
+    {
+        final AccordCacheEntry<?, ?> entry;
+        final UniqueSave identity;
+        final Runnable run;
+        Throwable failure = NOT_STARTED;
+
+        SaveRunnable(AccordCacheEntry<?, ?> entry, UniqueSave identity, Runnable run)
+        {
+            this.entry = entry;
+            this.identity = identity;
+            this.run = run;
+        }
+
+        @Override
+        void postRunExclusive()
+        {
+            onSavedExclusive(entry, identity, failure);
+        }
+
+        @Override
+        public void runInternal()
+        {
+            run.run();
+            failure = null;
+        }
+
+        @Override
+        protected void fail(Throwable t)
+        {
+            failure = t;
+        }
+
+        @Override
+        public String description()
+        {
+            return "Save " + entry;
         }
     }
 
@@ -1372,7 +1483,7 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
 
         @Override
-        protected void run()
+        protected void runInternal()
         {
             T success;
             try
@@ -1435,18 +1546,14 @@ public abstract class AccordExecutor implements CacheSize, AccordCacheEntry.OnLo
         }
 
         @Override
-        protected void preRunExclusive(@Nullable TaskRunner runner)
+        protected void preRunExclusive()
         {
             startedAtNanos = MonotonicClock.Global.approxTime.now();
-            if (runner != null)
-                runner.setDebuggable(this);
         }
 
         @Override
-        protected void cleanupExclusive(@Nullable TaskRunner runner)
+        protected void cleanupExclusive()
         {
-            if (runner != null)
-                runner.clearDebuggable();
         }
 
         @Override

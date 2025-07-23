@@ -31,6 +31,7 @@ import accord.impl.progresslog.DefaultProgressLogs;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.accord.AccordService;
 
 public class AccordIntegrationTest extends AccordTestBase
 {
@@ -125,6 +126,6 @@ public class AccordIntegrationTest extends AccordTestBase
     private void pauseSimpleProgressLog()
     {
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> DefaultProgressLogs.unsafePauseForTesting(true));
+            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop()));
     }
 }
