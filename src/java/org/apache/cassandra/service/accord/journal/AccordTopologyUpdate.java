@@ -128,7 +128,7 @@ public interface AccordTopologyUpdate
                 commandStores.put(commandStoreId, rangesForEpoch);
             }
             Topology global = TopologySerializers.compactTopology.deserialize(in);
-            Topology local = global.forNode(AccordService.instance().nodeId());
+            Topology local = global.forNode(AccordService.instance().nodeId()).trim();
             return new Journal.TopologyUpdate(commandStores, local, global);
         }
 
