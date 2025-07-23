@@ -186,16 +186,19 @@ public class AccordService implements IAccordService, Shutdownable
     private static final IAccordService NOOP_SERVICE = new NoOpAccordService();
 
     private static volatile IAccordService instance = null;
+    private static volatile Id nodeId = null;
 
     @VisibleForTesting
-    public static void unsafeSetNewAccordService(IAccordService service)
+    public synchronized static void unsafeSetNewAccordService(IAccordService service)
     {
+        nodeId = service.nodeId();
         instance = service;
     }
 
     @VisibleForTesting
-    public static void unsafeSetNoop()
+    public synchronized static void unsafeSetNoop()
     {
+        nodeId = null;
         instance = NOOP_SERVICE;
     }
 
@@ -227,6 +230,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (!DatabaseDescriptor.getAccordTransactionsEnabled())
         {
+            nodeId = null; // its already null, just doing this to be consistent
             instance = NOOP_SERVICE;
             return;
         }
@@ -234,7 +238,8 @@ public class AccordService implements IAccordService, Shutdownable
         if (instance != null)
             return;
 
-        AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
+        Id myId = nodeId = AccordTopology.tcmIdToAccord(tcmId);
+        AccordService as = new AccordService(myId);
         as.startup();
         if (StorageService.instance.isReplacingSameAddress())
         {
@@ -285,6 +290,13 @@ public class AccordService implements IAccordService, Shutdownable
     public boolean shouldAcceptMessages()
     {
         return state == State.STARTED && journal.started();
+    }
+
+    public static Id id()
+    {
+        Id id = nodeId;
+        Invariants.require(id != null, "AccordService was not started");
+        return id;
     }
 
     public static IAccordService instance()
