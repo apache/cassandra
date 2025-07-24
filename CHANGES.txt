@@ -26,6 +26,7 @@
  * Fixed multiple single-node SAI query bugs relating to static columns (CASSANDRA-20338)
  * Upgrade com.datastax.cassandra:cassandra-driver-core:3.11.5 to org.apache.cassandra:cassandra-driver-core:3.12.1 (CASSANDRA-17231)
 Merged from 4.1:
+ * Rework / simplification of nodetool get/setguardrailsconfig commands (CASSANDRA-20778)
  * IntrusiveStack.accumulate is not accumulating correctly (CASSANDRA-20670)
  * Add nodetool get/setguardrailsconfig commands (CASSANDRA-19552)
 Merged from 4.0:

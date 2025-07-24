@@ -18,23 +18,29 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.ArrayList;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.guardrails.GuardrailsMBean;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.apache.cassandra.tools.nodetool.GuardrailsConfigCommand.GuardrailCategory;
+import org.apache.cassandra.tools.nodetool.GuardrailsConfigCommand.GetGuardrailsConfig;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class GuardrailsConfigCommandsTest extends CQLTester
 {
@@ -52,6 +58,10 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         getResult.asserts().success();
         assertEquals(removeMultipleSpaces(ALL_GUARDRAILS_GETTER_OUTPUT), getOutput(getResult));
 
+        ToolResult getResultVerbose = invokeNodetool("getguardrailsconfig", "--expand");
+        getResultVerbose.asserts().success();
+        assertEquals(removeMultipleSpaces(ALL_GUARDRAILS_GETTER_VERBOSE_OUTPUT), getOutput(getResultVerbose));
+
         ToolResult getFlagsResult = invokeNodetool("getguardrailsconfig", "-c", "flags");
         getFlagsResult.asserts().success();
         assertEquals(removeMultipleSpaces(ALL_FLAGS_GETTER_OUTPUT), getOutput(getFlagsResult));
@@ -61,7 +71,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         assertEquals(removeMultipleSpaces(ALL_VALUES_GETTER_OUTPUT), getOutput(getValuesResult));
 
         ToolResult getThresholdsResult = invokeNodetool("getguardrailsconfig", "-c", "thresholds");
-        getValuesResult.asserts().success();
+        getThresholdsResult.asserts().success();
         assertEquals(removeMultipleSpaces(ALL_THRESHOLDS_GETTER_OUTPUT), getOutput(getThresholdsResult));
 
         ToolResult wrongCategory = invokeNodetool("getguardrailsconfig", "-c", "nonsense");
@@ -70,31 +80,18 @@ public class GuardrailsConfigCommandsTest extends CQLTester
 
         // individual guardrail
         ToolResult individualResult = invokeNodetool("getguardrailsconfig", "group_by_enabled");
-        getResult.asserts().success();
+        individualResult.asserts().success();
         assertEquals("true\n", getOutput(individualResult));
 
-        // more than one result
+        // more than one guardrail
         ToolResult multipleResult = invokeNodetool("getguardrailsconfig", "group_by_enabled", "keyspaces_fail_threshold");
-        getResult.asserts().success();
-        assertEquals("group_by_enabled true\nkeyspaces_fail_threshold -1\n", getOutput(multipleResult));
+        multipleResult.asserts().failure();
+        assertTrue(getOutput(multipleResult).contains("Specify only one guardrail name to get the configuration of or no name to get the configuration of all of them."));
 
         // category with individual
         ToolResult categoryWithIndividualResult = invokeNodetool("getguardrailsconfig", "-c", "values", "group_by_enabled");
         categoryWithIndividualResult.asserts().failure();
         assertTrue(categoryWithIndividualResult.getStdout().contains("Do not specify additional arguments when --category/-c is set."));
-
-        // get config of all guardrails enumerated on command line
-        String[] allLines = ALL_GUARDRAILS_GETTER_OUTPUT.split("\n");
-
-        List<String> argsForAllGuardrails = new ArrayList<>();
-        argsForAllGuardrails.add("getguardrailsconfig");
-
-        for (String line : allLines)
-            argsForAllGuardrails.add(line.split(" ")[0]);
-
-        ToolResult allGuardrails = invokeNodetool(argsForAllGuardrails);
-        allGuardrails.asserts().success();
-        assertEquals(ALL_GUARDRAILS_GETTER_OUTPUT, removeMultipleSpaces(allGuardrails.getStdout()));
 
         // set
 
@@ -102,52 +99,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         setResultNoArgs.asserts().failure();
         assertTrue(getOutput(setResultNoArgs).contains("No arguments."));
 
-        ToolResult setResultList = invokeNodetool("setguardrailsconfig", "--list");
-        setResultList.asserts().success();
-        setResultList = invokeNodetool("setguardrailsconfig", "-l");
-        setResultList.asserts().success();
-        assertEquals(removeMultipleSpaces(ALL_GUARDRAILS_SETTER_OUTPUT), getOutput(setResultList));
-
-        ToolResult categoryList = invokeNodetool("setguardrailsconfig", "--list", "--category", "values");
-        categoryList.asserts().success();
-
-        for (GuardrailCategory category : GuardrailCategory.values())
-        {
-            categoryList = invokeNodetool("setguardrailsconfig", "-l", "-c", category.name());
-            categoryList.asserts().success();
-
-            String expectedOutput = null;
-            switch (category)
-            {
-                case flags:
-                    expectedOutput = ALL_FLAGS_SETTER_OUTPUT;
-                    break;
-                case values:
-                    expectedOutput = ALL_VALUES_SETTER_OUTPUT;
-                    break;
-                case thresholds:
-                    expectedOutput = ALL_THRESHOLDS_SETTER_OUTPUT;
-                    break;
-                case others:
-                    expectedOutput = ALL_OTHER_SETTER_OUTPUT;
-                    break;
-                default:
-                    fail("Untested category " + category);
-            }
-            assertEquals(removeMultipleSpaces(expectedOutput), getOutput(categoryList));
-        }
-
-        // test -c without -l does not make sense
-        ToolResult emptyCategoryListing = invokeNodetool("setguardrailsconfig", "-l", "-c");
-        emptyCategoryListing.asserts().failure();
-        assertTrue(getOutput(emptyCategoryListing).contains("Required values for option 'guardrailCategory' not provided"));
-
-        // test -c alone does not make sense
-        ToolResult onlyCategory = invokeNodetool("setguardrailsconfig", "-c", "values");
-        onlyCategory.asserts().failure();
-        assertTrue(getOutput(onlyCategory).contains("--category/-c can be specified only together with --list/-l"));
-
-        // it would be quite cumbersome to test all guardrails are settable so we will
+        // it would be quite cumbersome to test all guardrails are settable, so we will
         // set one from each category to prove the point
 
         // flag
@@ -161,9 +113,13 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         assertArrayEquals(new String[]{ "comment", "cdc" }, getValues("table_properties_warned"));
         setValues("table_properties_warned", "null");
         assertArrayEquals(new String[0], getValues("table_properties_warned"));
+        setValues("table_properties_warned", "comment", "cdc");
+        assertArrayEquals(new String[]{ "comment", "cdc" }, getValues("table_properties_warned"));
+        setValues("table_properties_warned", "[]");
+        assertArrayEquals(new String[0], getValues("table_properties_warned"));
 
         // threshold
-        setThresholds("keyspaces_threshold", "10", "20");
+        setThresholds("keyspaces_threshold", "20", "10");
         assertEquals("20", getThreshold("keyspaces_fail_threshold"));
         assertEquals("10", getThreshold("keyspaces_warn_threshold"));
         setThresholds("keyspaces_threshold", "-1", "-1");
@@ -175,10 +131,13 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         invalidNumberOfArgsForThreshold.asserts().failure();
         assertTrue(invalidNumberOfArgsForThreshold.getStdout().contains("keyspaces_threshold is expecting 2 argument values. Getting 3 instead."));
 
-        // not separated by comma
-        ToolResult invalidNumberOfArgsForValues = invokeNodetool("setguardrailsconfig", "table_properties_warned", "comment", "cdc");
-        invalidNumberOfArgsForValues.asserts().failure();
-        assertTrue(invalidNumberOfArgsForValues.getStdout().contains("table_properties_warned is expecting 1 argument values. Getting 2 instead."));
+        // separated by comma
+        ToolResult argumentsForValuesSeparatedByComma = invokeNodetool("setguardrailsconfig", "table_properties_warned", "comment,cdc");
+        argumentsForValuesSeparatedByComma.asserts().success();
+
+        // enumerated
+        ToolResult argumentsForValuesEnumerated = invokeNodetool("setguardrailsconfig", "table_properties_warned", "comment", "cdc");
+        argumentsForValuesEnumerated.asserts().success();
 
         // invalid boolean
         ToolResult invalidBooleanForFlags = invokeNodetool("setguardrailsconfig", "allow_filtering_enabled", "nonsense");
@@ -189,29 +148,100 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         ToolResult nonsenseSetterArgs = invokeNodetool("setguardrailsconfig", "keyspaces_threshold", "-10", "-20");
         nonsenseSetterArgs.asserts().failure();
         assertTrue(nonsenseSetterArgs.getStdout().contains("Error occured when setting the config for setter keyspaces_threshold with arguments [-10, -20]: " +
-                                                           "Invalid value -10 for keyspaces_warn_threshold: negative values are not allowed, outside of -1 which disables the guardrail"));
+                                                           "Invalid value -20 for keyspaces_warn_threshold: negative values are not allowed, outside of -1 which disables the guardrail"));
+
+        // invalid set name
+        ToolResult setInvalidName = invokeNodetool("setguardrailsconfig", "non_sense", "10");
+        setInvalidName.asserts().failure();
+        assertTrue(setInvalidName.getStdout().contains("Guardrail non_sense not found."));
+
+        // invalid get name
+        ToolResult getInvalidName = invokeNodetool("getguardrailsconfig", "non_sense");
+        getInvalidName.asserts().failure();
+        assertTrue(getInvalidName.getStdout().contains("Guardrail non_sense not found."));
+    }
+
+    @Test
+    public void testParsedGuardrailNamesFromMBeanExistInCassandraYaml()
+    {
+        Set<String> configFieldNames = getConfigFieldNames();
+        Map<String, List<Method>> snakeCaseGuardrailsMap = GetGuardrailsConfig.parseGuardrailNames(GuardrailsMBean.class.getDeclaredMethods(), null);
+
+        for (Map.Entry<String, List<Method>> entry : snakeCaseGuardrailsMap.entrySet())
+        {
+            for (Method method : entry.getValue())
+            {
+                String guardrailName = GuardrailsConfigCommand.toSnakeCase(method.getName().substring(3));
+                if (entry.getValue().size() == 1)
+                    assertEquals(entry.getKey(), guardrailName);
+                // else it is threshold, so it does not match the key
+
+                // assert converted snake-case guardrail name is actually in Config / cassandra.yaml
+                assertTrue(configFieldNames.contains(guardrailName));
+            }
+        }
+    }
+
+    private Set<String> getConfigFieldNames()
+    {
+        Set<String> variableNames = new HashSet<>();
+        for (Field field : Config.class.getFields())
+        {
+            // ignore the constants
+            if (Modifier.isFinal(field.getModifiers()))
+                continue;
+            variableNames.add(field.getName());
+        }
+
+        return variableNames;
     }
 
     private static final String ALL_FLAGS_GETTER_OUTPUT =
-    "allow_filtering_enabled                      true \n" +
-    "alter_table_enabled                          true \n" +
-    "compact_tables_enabled                       true \n" +
-    "drop_keyspace_enabled                        true \n" +
-    "drop_truncate_table_enabled                  true \n" +
-    "group_by_enabled                             true \n" +
-    "intersect_filtering_query_enabled            true \n" +
-    "intersect_filtering_query_warned             true \n" +
-    "non_partition_restricted_query_enabled       true \n" +
-    "read_before_write_list_operations_enabled    true \n" +
-    "secondary_indexes_enabled                    true \n" +
-    "simple_strategy_enabled                      true \n" +
-    "uncompressed_tables_enabled                  true \n" +
-    "user_timestamps_enabled                      true \n" +
-    "vector_type_enabled                          true \n" +
-    "zero_ttl_on_twcs_enabled                     true \n" +
-    "zero_ttl_on_twcs_warned                      true \n";
+    "allow_filtering_enabled                         true          \n" +
+    "alter_table_enabled                             true          \n" +
+    "compact_tables_enabled                          true          \n" +
+    "drop_keyspace_enabled                           true          \n" +
+    "drop_truncate_table_enabled                     true          \n" +
+    "group_by_enabled                                true          \n" +
+    "intersect_filtering_query_enabled               true          \n" +
+    "intersect_filtering_query_warned                true          \n" +
+    "non_partition_restricted_index_query_enabled    true          \n" +
+    "read_before_write_list_operations_enabled       true          \n" +
+    "secondary_indexes_enabled                       true          \n" +
+    "simplestrategy_enabled                          true          \n" +
+    "uncompressed_tables_enabled                     true          \n" +
+    "user_timestamps_enabled                         true          \n" +
+    "vector_type_enabled                             true          \n" +
+    "zero_ttl_on_twcs_enabled                        true          \n" +
+    "zero_ttl_on_twcs_warned                         true          \n";
 
     private static final String ALL_THRESHOLDS_GETTER_OUTPUT =
+    "collection_size_threshold                 [null, null]  \n" +
+    "column_value_size_threshold               [null, null]  \n" +
+    "columns_per_table_threshold               [-1, -1]      \n" +
+    "data_disk_usage_percentage_threshold      [-1, -1]      \n" +
+    "fields_per_udt_threshold                  [-1, -1]      \n" +
+    "in_select_cartesian_product_threshold     [-1, -1]      \n" +
+    "items_per_collection_threshold            [-1, -1]      \n" +
+    "keyspaces_threshold                       [-1, -1]      \n" +
+    "materialized_views_per_table_threshold    [-1, -1]      \n" +
+    "maximum_replication_factor_threshold      [-1, -1]      \n" +
+    "maximum_timestamp_threshold               [null, null]  \n" +
+    "minimum_replication_factor_threshold      [-1, -1]      \n" +
+    "minimum_timestamp_threshold               [null, null]  \n" +
+    "page_size_threshold                       [-1, -1]      \n" +
+    "partition_keys_in_select_threshold        [-1, -1]      \n" +
+    "partition_size_threshold                  [null, null]  \n" +
+    "partition_tombstones_threshold            [-1, -1]      \n" +
+    "sai_frozen_term_size_threshold            [8KiB, 1KiB]  \n" +
+    "sai_sstable_indexes_per_query_threshold   [-1, 32]      \n" +
+    "sai_string_term_size_threshold            [8KiB, 1KiB]  \n" +
+    "sai_vector_term_size_threshold            [32KiB, 16KiB]\n" +
+    "secondary_indexes_per_table_threshold     [-1, -1]      \n" +
+    "tables_threshold                          [-1, -1]      \n" +
+    "vector_dimensions_threshold               [-1, -1]      \n";
+
+    private static final String ALL_THRESHOLDS_GETTER_VERBOSE_OUTPUT =
     "collection_size_fail_threshold               null \n" +
     "collection_size_warn_threshold               null \n" +
     "column_value_size_fail_threshold             null \n" +
@@ -273,73 +303,16 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     private static final String ALL_OTHER_GETTER_OUTPUT =
     "data_disk_usage_max_disk_size                null \n";
 
-    private static final String ALL_FLAGS_SETTER_OUTPUT =
-    "allow_filtering_enabled                   boolean                             \n" +
-    "alter_table_enabled                       boolean                             \n" +
-    "compact_tables_enabled                    boolean                             \n" +
-    "drop_keyspace_enabled                     boolean                             \n" +
-    "drop_truncate_table_enabled               boolean                             \n" +
-    "group_by_enabled                          boolean                             \n" +
-    "intersect_filtering_query_enabled         boolean                             \n" +
-    "intersect_filtering_query_warned          boolean                             \n" +
-    "non_partition_restricted_query_enabled    boolean                             \n" +
-    "read_before_write_list_operations_enabled boolean                             \n" +
-    "secondary_indexes_enabled                 boolean                             \n" +
-    "simple_strategy_enabled                   boolean                             \n" +
-    "uncompressed_tables_enabled               boolean                             \n" +
-    "user_timestamps_enabled                   boolean                             \n" +
-    "vector_type_enabled                       boolean                             \n" +
-    "zero_ttl_on_twcs_enabled                  boolean                             \n" +
-    "zero_ttl_on_twcs_warned                   boolean                             \n";
-
-    private static final String ALL_THRESHOLDS_SETTER_OUTPUT =
-    "collection_size_threshold                 [java.lang.String, java.lang.String]\n" +
-    "column_value_size_threshold               [java.lang.String, java.lang.String]\n" +
-    "columns_per_table_threshold               [int, int]                          \n" +
-    "data_disk_usage_percentage_threshold      [int, int]                          \n" +
-    "fields_per_udt_threshold                  [int, int]                          \n" +
-    "in_select_cartesian_product_threshold     [int, int]                          \n" +
-    "items_per_collection_threshold            [int, int]                          \n" +
-    "keyspaces_threshold                       [int, int]                          \n" +
-    "materialized_views_per_table_threshold    [int, int]                          \n" +
-    "maximum_replication_factor_threshold      [int, int]                          \n" +
-    "maximum_timestamp_threshold               [java.lang.String, java.lang.String]\n" +
-    "minimum_replication_factor_threshold      [int, int]                          \n" +
-    "minimum_timestamp_threshold               [java.lang.String, java.lang.String]\n" +
-    "page_size_threshold                       [int, int]                          \n" +
-    "partition_keys_in_select_threshold        [int, int]                          \n" +
-    "partition_size_threshold                  [java.lang.String, java.lang.String]\n" +
-    "partition_tombstones_threshold            [long, long]                        \n" +
-    "sai_frozen_term_size_threshold            [java.lang.String, java.lang.String]\n" +
-    "sai_sstable_indexes_per_query_threshold   [int, int]                          \n" +
-    "sai_string_term_size_threshold            [java.lang.String, java.lang.String]\n" +
-    "sai_vector_term_size_threshold            [java.lang.String, java.lang.String]\n" +
-    "secondary_indexes_per_table_threshold     [int, int]                          \n" +
-    "tables_threshold                          [int, int]                          \n" +
-    "vector_dimensions_threshold               [int, int]                          \n";
-
-    private static final String ALL_VALUES_SETTER_OUTPUT =
-    "read_consistency_levels_disallowed        java.util.Set                       \n" +
-    "read_consistency_levels_warned            java.util.Set                       \n" +
-    "table_properties_disallowed               java.util.Set                       \n" +
-    "table_properties_ignored                  java.util.Set                       \n" +
-    "table_properties_warned                   java.util.Set                       \n" +
-    "write_consistency_levels_disallowed       java.util.Set                       \n" +
-    "write_consistency_levels_warned           java.util.Set                       \n";
-
-    private static final String ALL_OTHER_SETTER_OUTPUT =
-    "data_disk_usage_max_disk_size             java.lang.String                    \n";
-
 
     private static final String ALL_GUARDRAILS_GETTER_OUTPUT = removeMultipleSpaces(ALL_FLAGS_GETTER_OUTPUT +
                                                                                     ALL_THRESHOLDS_GETTER_OUTPUT +
                                                                                     ALL_VALUES_GETTER_OUTPUT +
                                                                                     ALL_OTHER_GETTER_OUTPUT);
 
-    private static final String ALL_GUARDRAILS_SETTER_OUTPUT = removeMultipleSpaces(ALL_FLAGS_SETTER_OUTPUT +
-                                                                                    ALL_THRESHOLDS_SETTER_OUTPUT +
-                                                                                    ALL_VALUES_SETTER_OUTPUT +
-                                                                                    ALL_OTHER_SETTER_OUTPUT);
+    private static final String ALL_GUARDRAILS_GETTER_VERBOSE_OUTPUT = removeMultipleSpaces(ALL_FLAGS_GETTER_OUTPUT +
+                                                                                            ALL_THRESHOLDS_GETTER_VERBOSE_OUTPUT +
+                                                                                            ALL_VALUES_GETTER_OUTPUT +
+                                                                                            ALL_OTHER_GETTER_OUTPUT);
 
     private static String removeMultipleSpaces(String input)
     {
@@ -356,9 +329,9 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         return invokeNodetool("setguardrailsconfig", name, flag.toString());
     }
 
-    private ToolResult setThresholds(String name, String warn, String fail)
+    private ToolResult setThresholds(String name, String fail, String warn)
     {
-        return invokeNodetool("setguardrailsconfig", name, warn, fail);
+        return invokeNodetool("setguardrailsconfig", name, fail, warn);
     }
 
     private ToolResult setValues(String name, String... values)

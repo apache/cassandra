@@ -22,9 +22,13 @@ import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -56,7 +60,11 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
         allowedValues = { "values", "thresholds", "flags", "others" })
         private String guardrailCategory;
 
-        @Arguments(description = "Specific names or guardrails to get configuration of.")
+        @Option(name = { "--expand" },
+        description = "Expand all guardrail names so they reflect their counterparts in cassandra.yaml")
+        private boolean expand = false;
+
+        @Arguments(description = "Specific name of a guardrail to get configuration of.")
         private List<String> args = new ArrayList<>();
 
         @Override
@@ -64,43 +72,100 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
         {
             GuardrailCategory categoryEnum = GuardrailCategory.parseCategory(guardrailCategory, probe.output().out);
 
-            if (!args.isEmpty() && categoryEnum != null)
+            if (args.size() > 1)
+                throw new IllegalStateException("Specify only one guardrail name to get the configuration of or no name to get the configuration of all of them.");
+
+            String guardrailName = !args.isEmpty() ? args.get(0) : null;
+
+            if (guardrailName != null && categoryEnum != null)
                 throw new IllegalStateException("Do not specify additional arguments when --category/-c is set.");
 
-            List<Method> allGetters = stream(probe.getGuardrailsMBean().getClass().getDeclaredMethods())
-                                      .filter(method -> method.getName().startsWith("get")
-                                                        && !method.getName().endsWith("CSV"))
-                                      .filter(method -> args.isEmpty() || args.contains(toSnakeCase(method.getName().substring(3))))
-                                      .sorted(comparing(Method::getName))
-                                      .collect(toList());
+            Map<String, List<Method>> allGetters = parseGuardrailNames(probe.getGuardrailsMBean().getClass().getDeclaredMethods(), guardrailName);
 
-            display(probe, allGetters, categoryEnum);
+            if (allGetters.isEmpty())
+            {
+                assert guardrailName != null;
+                throw new IllegalStateException(format("Guardrail %s not found.", guardrailName));
+            }
+
+            display(probe, allGetters, categoryEnum, expand);
+        }
+
+        @VisibleForTesting
+        public static Map<String, List<Method>> parseGuardrailNames(Method[] guardrailsMethods, String guardrailName)
+        {
+            Map<String, List<Method>> allGetters = stream(guardrailsMethods)
+                                                   .filter(method -> method.getName().startsWith("get")
+                                                                     && !method.getName().endsWith("CSV")
+                                                                     && !(method.getName().endsWith("WarnThreshold") || method.getName().endsWith("FailThreshold")))
+                                                   .filter(method -> guardrailName == null || guardrailName.equals(toSnakeCase(method.getName().substring(3))))
+                                                   .collect(Collectors.groupingBy(method -> toSnakeCase(method.getName().substring(3))));
+
+            Map<String, List<Method>> thresholds = stream(guardrailsMethods)
+                                                   .filter(method -> method.getName().startsWith("get")
+                                                                     && !method.getName().endsWith("CSV")
+                                                                     && (method.getName().endsWith("WarnThreshold") || method.getName().endsWith("FailThreshold")))
+                                                   .filter(method -> {
+                                                       if (guardrailName == null)
+                                                           return true;
+
+                                                       String snakeCase = toSnakeCase(method.getName().substring(3));
+                                                       String snakeCaseSuccinct = snakeCase.replace("_warn_", "_")
+                                                                                           .replace("_fail_", "_");
+
+                                                       return guardrailName.equals(snakeCase) || guardrailName.equals(snakeCaseSuccinct);
+                                                   })
+                                                   .sorted(comparing(Method::getName))
+                                                   .collect(Collectors.groupingBy(method -> {
+                                                       String methodName = method.getName().substring(3);
+                                                       String snakeCase = toSnakeCase(methodName);
+                                                       if (snakeCase.endsWith("warn_threshold"))
+                                                           return snakeCase.replaceAll("_warn_", "_");
+                                                       else
+                                                           return snakeCase.replaceAll("_fail_", "_");
+                                                   }));
+
+            allGetters.putAll(thresholds);
+
+            return allGetters.entrySet()
+                             .stream()
+                             .sorted(Map.Entry.comparingByKey())
+                             .collect(Collectors.toMap(Map.Entry::getKey,
+                                                       Map.Entry::getValue,
+                                                       (e1, e2) -> e1,
+                                                       LinkedHashMap::new));
         }
 
         @Override
-        public void addRow(List<InternalRow> bucket, GuardrailsMBean mBean, Method method, String guardrailName) throws Throwable
+        public void addRow(List<InternalRow> bucket, GuardrailsMBean mBean, List<Method> methods, String guardrailName) throws Throwable
         {
-            Class<?> returnType = method.getReturnType();
-            Object value = method.invoke(mBean);
+            List<String> values = new ArrayList<>();
+            for (Method method : methods)
+            {
+                Class<?> returnType = method.getReturnType();
+                Object value = method.invoke(mBean);
 
-            if (returnType.equals(int.class) || returnType.equals(Integer.class)
-                || returnType.equals(long.class) || returnType.equals(Long.class)
-                || returnType.equals(boolean.class) || returnType.equals(Boolean.class)
-                || returnType.equals(Set.class))
-            {
-                constructRow(bucket, guardrailName, value.toString());
-            }
-            else if (returnType.equals(String.class))
-            {
-                if (value == null || value.toString().isEmpty())
-                    constructRow(bucket, guardrailName, "null");
+                if (returnType.equals(int.class) || returnType.equals(Integer.class)
+                    || returnType.equals(long.class) || returnType.equals(Long.class)
+                    || returnType.equals(boolean.class) || returnType.equals(Boolean.class)
+                    || returnType.equals(Set.class))
+                {
+                    values.add(value.toString());
+                }
+                else if (returnType.equals(String.class))
+                {
+                    if (value == null || value.toString().isEmpty())
+                        values.add("null");
+                    else
+                        values.add(value.toString());
+                }
                 else
-                    constructRow(bucket, guardrailName, value.toString());
+                {
+                    throw new RuntimeException("Unhandled return type: " + returnType.getTypeName());
+                }
             }
-            else
-            {
-                throw new RuntimeException("unhandled return type: " + returnType.getTypeName());
-            }
+
+            constructRow(bucket, guardrailName, values.size() == 1 ? values.get(0) : values.toString());
         }
     }
 
@@ -109,54 +174,75 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
     {
         private static final Pattern SETTER_PATTERN = Pattern.compile("^set");
 
-        @Option(name = { "--list", "-l" },
-        description = "List all available guardrails setters")
-        private boolean list;
-
-        @Option(name = { "--category", "-c" },
-        description = "Category of guardrails to filter, can be one of 'values', 'thresholds', 'flags', 'others'.",
-        allowedValues = { "values", "thresholds", "flags", "others" })
-        private String guardrailCategory;
-
         @Arguments(usage = "[<setter> <value1> ...]",
         description = "For flags, possible values are 'true' or 'false'. " +
-                      "For thresholds, two values are expected, first for warning, second for failure. " +
-                      "For values, one value is expected, multiple values separated by comma.")
+                      "For thresholds, two values are expected, first for failure, second for warning. " +
+                      "For values, enumeration of values expected or one value where multiple items are separated by comma. " +
+                      "Setting for thresholds accepting strings and value guardrails are reset by specifying 'null' or '[]' value. " +
+                      "For thresholds accepting integers, the reset value is -1.")
         private final List<String> args = new ArrayList<>();
 
         @Override
         public void execute(NodeProbe probe)
         {
-            if (!list && guardrailCategory != null)
-                throw new IllegalStateException("--category/-c can be specified only together with --list/-l");
-
-            GuardrailCategory categoryEnum = GuardrailCategory.parseCategory(guardrailCategory, probe.output().out);
-
-            if (args.isEmpty() && !list)
+            if (args.isEmpty())
                 throw new IllegalStateException("No arguments.");
 
-            if (list)
-                display(probe, getAllSetters(probe), categoryEnum);
-            else
-                executeSetter(probe);
+            String snakeCaseName = args.get(0);
+
+            Method setter = getAllSetters(probe).entrySet().stream()
+                                                .findFirst()
+                                                .map(o -> o.getValue().get(0))
+                                                .orElseThrow(() -> new IllegalStateException(format("Guardrail %s not found.", snakeCaseName)));
+
+            sanitizeArguments(setter, args);
+            validateArguments(setter, snakeCaseName, args);
+
+            List<String> methodArgs = args.subList(1, args.size());
+            try
+            {
+                setter.invoke(probe.getGuardrailsMBean(), prepareArguments(methodArgs, setter));
+            }
+            catch (Exception ex)
+            {
+                String reason;
+                if (ex.getCause() != null && ex.getCause().getMessage() != null)
+                    reason = ex.getCause().getMessage();
+                else
+                    reason = ex.getMessage();
+
+                throw new IllegalStateException(format("Error occured when setting the config for setter %s with arguments %s: %s",
+                                                       snakeCaseName, methodArgs, reason));
+            }
         }
 
         @Override
-        public void addRow(List<InternalRow> bucket, GuardrailsMBean mBean, Method method, String guardrailName) throws Throwable
+        public void addRow(List<InternalRow> bucket, GuardrailsMBean mBean, List<Method> methods, String guardrailName) throws Throwable
         {
-            if (method.getParameterTypes().length == 1)
-                constructRow(bucket, sanitizeSetterName(method), method.getParameterTypes()[0].getName());
-            else
-                constructRow(bucket, sanitizeSetterName(method), stream(method.getParameterTypes()).map(Class::getName).collect(toList()).toString());
+            if (methods.size() == 1)
+            {
+                Method method = methods.get(0);
+                if (method.getParameterTypes().length == 1)
+                    constructRow(bucket, sanitizeSetterName(method), method.getParameterTypes()[0].getName());
+                else
+                    constructRow(bucket, sanitizeSetterName(method), stream(method.getParameterTypes()).map(Class::getName).collect(toList()).toString());
+            }
         }
 
-        private List<Method> getAllSetters(NodeProbe probe)
+        private Map<String, List<Method>> getAllSetters(NodeProbe probe)
         {
             return stream(probe.getGuardrailsMBean().getClass().getDeclaredMethods())
                    .filter(method -> method.getName().startsWith("set") && !method.getName().endsWith("CSV"))
                    .filter(method -> args.isEmpty() || args.contains(toSnakeCase(method.getName().substring(3))))
                    .sorted(comparing(Method::getName))
-                   .collect(toList());
+                   .collect(Collectors.groupingBy(method -> toSnakeCase(method.getName().substring(3))))
+                   .entrySet()
+                   .stream()
+                   .sorted(Map.Entry.comparingByKey())
+                   .collect(Collectors.toMap(Map.Entry::getKey,
+                                             Map.Entry::getValue,
+                                             (e1, e2) -> e1,
+                                             LinkedHashMap::new));
         }
 
         private String sanitizeSetterName(Method setter)
@@ -164,34 +250,20 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
             return toSnakeCase(SETTER_PATTERN.matcher(setter.getName()).replaceAll(""));
         }
 
-        private void executeSetter(NodeProbe nodeProbe)
+        private void sanitizeArguments(Method setter, List<String> args)
         {
-            String snakeCaseName = args.get(0);
-            String setterName = toCamelCase(args.get(0).startsWith("set_") ? args.get(0) : "set_" + args.get(0));
-
-            Method setter = getAllSetters(nodeProbe).stream()
-                                                    .findFirst()
-                                                    .orElseThrow(() -> new IllegalStateException(format("Setter method %s not found. " +
-                                                                                                        "Run nodetool setguardrailsconfig --list " +
-                                                                                                        "to see available setters", setterName)));
-
-            validateArguments(setter, snakeCaseName, args);
-
-            List<String> methodArgs = args.subList(1, args.size());
-            try
+            Class<?>[] parameterTypes = setter.getParameterTypes();
+            if (parameterTypes.length == 1 && parameterTypes[0] == Set.class)
             {
-                setter.invoke(nodeProbe.getGuardrailsMBean(), prepareArguments(methodArgs, setter));
-            }
-            catch (Exception ex)
-            {
-                String reason;
-                if (ex.getCause() != null)
-                    reason = ex.getCause().getMessage();
-                else
-                    reason = ex.getMessage();
-
-                throw new IllegalStateException(format("Error occured when setting the config for setter %s with arguments %s: %s",
-                                                       snakeCaseName, methodArgs, reason));
+                if (args.size() > 2)
+                {
+                    String guardrail = args.get(0);
+                    // replace multiple arguments with one which is separated by a single comma
+                    String collectedArguments = String.join(",", args.subList(1, args.size()));
+                    args.clear();
+                    args.add(guardrail);
+                    args.add(collectedArguments);
+                }
             }
         }
 
@@ -213,6 +285,13 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
 
             for (int i = 0; i < args.size(); i++)
                 arguments[i] = castType(parameterTypes[i], args.get(i));
+
+            if (method.getName().endsWith("Threshold"))
+            {
+                List<Object> thresholdArgs = Arrays.asList(arguments);
+                Collections.reverse(thresholdArgs);
+                arguments = thresholdArgs.toArray();
+            }
 
             return arguments;
         }
@@ -236,10 +315,10 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
             }
             else if (targetType == Set.class)
             {
-                if (value == null || value.equals("null"))
-                    return Set.of();
+                if (value == null || value.equals("null") || value.equals("[]"))
+                    return new HashSet<>();
                 else
-                    return Set.of(value.split(","));
+                    return new LinkedHashSet<>(Arrays.asList(value.split(",")));
             }
             else
             {
@@ -273,11 +352,13 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
                                                                                 "ZeroTTLOnTWCSWarned", "zero_ttl_on_twcs_warned",
                                                                                 "FieldsPerUDTFailThreshold", "fields_per_udt_fail_threshold",
                                                                                 "FieldsPerUDTWarnThreshold", "fields_per_udt_warn_threshold",
-                                                                                "FieldsPerUDTThreshold", "fields_per_udt_threshold");
-
-    private static final Map<String, String> toCamelCaseTranslationMap = Map.of("set_zero_ttl_on_twcs_enabled", "setZeroTTLOnTWCSEnabled",
-                                                                                "set_zero_ttl_on_twcs_warned", "setZeroTTLOnTWCSWarned",
-                                                                                "set_fields_per_udt_threshold", "setFieldsPerUDTThreshold");
+                                                                                "FieldsPerUDTThreshold", "fields_per_udt_threshold",
+                                                                                "SimpleStrategyEnabled", "simplestrategy_enabled",
+                                                                                "NonPartitionRestrictedQueryEnabled", "non_partition_restricted_index_query_enabled");
+    /**
+     * Set of guardrails which are flags, even though their suffix would suggest they are part of "values" which have warned, ignored, and disallowed sub-categories
+     */
+    private static final Set<String> specialFlags = Set.of("intersect_filtering_query_warned", "zero_ttl_on_twcs_warned");
 
     @VisibleForTesting
     public enum GuardrailCategory
@@ -309,12 +390,7 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
         }
     }
 
-    /**
-     * Set of guardrails which are flags, even though their suffix would suggest they are part of "values" which have warned, ignored, and disallowed sub-categories
-     */
-    private static final Set<String> specialFlags = Set.of("intersect_filtering_query_warned", "zero_ttl_on_twcs_warned");
-
-    void display(NodeProbe probe, List<Method> methods, GuardrailCategory userCategory)
+    void display(NodeProbe probe, Map<String, List<Method>> methods, GuardrailCategory userCategory, boolean verbose)
     {
         try
         {
@@ -323,22 +399,35 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
             List<InternalRow> values = new ArrayList<>();
             List<InternalRow> others = new ArrayList<>();
 
-            for (Method method : methods)
+            for (Map.Entry<String, List<Method>> entry : methods.entrySet())
             {
-                String guardrailName = toSnakeCase(method.getName().substring(3));
-
+                String key = entry.getKey();
                 List<InternalRow> bucket;
 
-                if (guardrailName.endsWith("_enabled"))
+                if (key.endsWith("_enabled"))
                     bucket = flags;
-                else if (guardrailName.endsWith("_threshold"))
-                    bucket = thresholds;
-                else if (guardrailName.endsWith("_disallowed") ||
-                         guardrailName.endsWith("_ignored"))
-                    bucket = values;
-                else if (guardrailName.endsWith("_warned"))
+                else if (key.endsWith("_threshold"))
                 {
-                    if (specialFlags.contains(guardrailName))
+                    if (!verbose)
+                    {
+                        addRow(thresholds, probe.getGuardrailsMBean(), entry.getValue(), entry.getKey());
+                    }
+                    else
+                    {
+                        for (Method method : entry.getValue())
+                        {
+                            String guardrailName = toSnakeCase(method.getName().substring(3));
+                            addRow(thresholds, probe.getGuardrailsMBean(), method, guardrailName);
+                        }
+                    }
+                    continue;
+                }
+                else if (key.endsWith("_disallowed") ||
+                         key.endsWith("_ignored"))
+                    bucket = values;
+                else if (key.endsWith("_warned"))
+                {
+                    if (specialFlags.contains(key))
                         bucket = flags;
                     else
                         bucket = values;
@@ -346,7 +435,7 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
                 else
                     bucket = others;
 
-                addRow(bucket, probe.getGuardrailsMBean(), method, guardrailName);
+                addRow(bucket, probe.getGuardrailsMBean(), entry.getValue().get(0), key);
             }
 
             TableBuilder tb = new TableBuilder();
@@ -363,7 +452,7 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
             }
             else
             {
-                if (holder.values().stream().flatMap(list -> Stream.of(list.toArray(InternalRow[]::new))).count() == 1)
+                if (holder.values().stream().flatMap(list -> Stream.of(list.toArray(new InternalRow[0]))).count() == 1)
                 {
                     for (Map.Entry<GuardrailCategory, List<InternalRow>> entry : holder.entrySet())
                         populateOne(tb, entry.getValue());
@@ -400,7 +489,14 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
         bucket.add(new InternalRow(guardrailName, value));
     }
 
-    abstract void addRow(List<InternalRow> bucket, GuardrailsMBean mBean, Method method, String guardrailName) throws Throwable;
+    void addRow(List<InternalRow> bucket, GuardrailsMBean mBean, Method method, String guardrailName) throws Throwable
+    {
+        List<Method> methods = new ArrayList<>();
+        methods.add(method);
+        addRow(bucket, mBean, methods, guardrailName);
+    }
+
+    abstract void addRow(List<InternalRow> bucket, GuardrailsMBean mBean, List<Method> method, String guardrailName) throws Throwable;
 
     public static class InternalRow
     {
@@ -412,9 +508,34 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
             this.name = name;
             this.value = value;
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            InternalRow that = (InternalRow) o;
+            return Objects.equals(name, that.name) && Objects.equals(value, that.value);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(name, value);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "InternalRow{" +
+                   "name='" + name + '\'' +
+                   ", value='" + value + '\'' +
+                   '}';
+        }
     }
 
-    private static String toSnakeCase(String camelCase)
+    @VisibleForTesting
+    public static String toSnakeCase(String camelCase)
     {
         if (camelCase == null || camelCase.isEmpty())
             return camelCase;
@@ -426,34 +547,5 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
 
             return CAMEL_PATTERN.matcher(camelCase).replaceAll("$1_$2").toLowerCase();
         }
-    }
-
-    private static String toCamelCase(String snakeCase)
-    {
-        if (snakeCase == null || snakeCase.isEmpty())
-            return snakeCase;
-
-        String maybeCamelCase = toCamelCaseTranslationMap.get(snakeCase);
-        if (maybeCamelCase != null)
-            return maybeCamelCase;
-
-        StringBuilder result = new StringBuilder();
-        boolean toUpper = false;
-
-        for (int i = 0; i < snakeCase.length(); i++)
-        {
-            char c = snakeCase.charAt(i);
-            if (c == '_')
-            {
-                toUpper = true;
-            }
-            else
-            {
-                result.append(toUpper ? Character.toUpperCase(c) : c);
-                toUpper = false;
-            }
-        }
-
-        return result.toString();
     }
 }
