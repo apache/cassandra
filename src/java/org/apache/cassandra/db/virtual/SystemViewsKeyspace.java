@@ -71,6 +71,9 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .addAll(CIDRFilteringMetricsTable.getAll(VIRTUAL_VIEWS))
                     .addAll(StorageAttachedIndexTables.getAll(VIRTUAL_VIEWS))
                     .addAll(AccordVirtualTables.getAll(VIRTUAL_VIEWS))
+                    .add(new GuardrailEnableFlagsTable(VIRTUAL_VIEWS))
+                    .add(new GuardrailThresholdsTable(VIRTUAL_VIEWS))
+                    .add(new GuardrailValuesTable(VIRTUAL_VIEWS))
                     .build());
     }
 }
