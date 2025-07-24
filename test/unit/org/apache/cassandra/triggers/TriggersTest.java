@@ -21,6 +21,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -99,6 +101,16 @@ public class TriggersTest
     public void after()
     {
         DatabaseDescriptor.setTriggersPolicy(originalTriggersPolicy);
+    }
+
+    @Test
+    public void testCreateNonExistTrigger()
+    {
+        Assertions.assertThatThrownBy(() -> {
+                    QueryProcessor.process(String.format("CREATE TRIGGER no_trigger_test ON %s.%s USING 'org.apache.cassandra.triggers.Noexisttrigger' ", ksName, cfName), ConsistencyLevel.ONE);
+        })
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessageContaining("Trigger class 'org.apache.cassandra.triggers.Noexisttrigger' couldn't be loaded during validation.");
     }
 
     @Test

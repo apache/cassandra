@@ -37,6 +37,7 @@ import org.apache.cassandra.schema.Triggers;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -89,6 +90,15 @@ public class TriggerExecutorTest
     {
         TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", DifferentKeyTrigger.class.getName()));
         TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
+    }
+
+    @Test
+    public void triggerClassNotFound()
+    {
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", "NotExistedTriggerClass"));
+        assertThatExceptionOfType(ConfigurationException.class)
+        .isThrownBy(()-> TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null)))
+        .withMessageContaining("Trigger class NotExistedTriggerClass couldn't be found.");
     }
 
     @Test
