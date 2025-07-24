@@ -1,4 +1,5 @@
 5.1
+ * Execution of CreateTriggerStatement should not rely on external state (CASSANDRA-20287)
  * Support LIKE expressions in filtering queries (CASSANDRA-17198)
  * Make legacy index rebuilds safe on Gossip -> TCM upgrades (CASSANDRA-20887)
  * Minor improvements and hardening for IndexHints (CASSANDRA-20888)

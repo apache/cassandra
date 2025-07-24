@@ -40,6 +40,7 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.CassandraException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableId;
@@ -245,11 +246,13 @@ public class TriggerExecutor
         }
         List<Mutation> tmutations = Lists.newLinkedList();
         Thread.currentThread().setContextClassLoader(customClassLoader);
+        String triggerClass = "";
         try
         {
             for (TriggerMetadata td : triggers)
             {
                 ITrigger trigger = cachedTriggers.get(td.classOption);
+                triggerClass = td.classOption;
                 if (trigger == null)
                 {
                     trigger = loadTriggerInstance(td.classOption);
@@ -264,6 +267,10 @@ public class TriggerExecutor
         catch (CassandraException ex)
         {
             throw ex;
+        }
+        catch (ClassNotFoundException ex)
+        {
+            throw new ConfigurationException("Trigger class " + triggerClass + " couldn't be found.");
         }
         catch (Exception ex)
         {
