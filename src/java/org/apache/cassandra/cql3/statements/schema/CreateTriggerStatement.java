@@ -48,6 +48,21 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
     }
 
     @Override
+    public void validate(ClientState state)
+    {
+        try
+        {
+            TriggerExecutor.instance.loadTriggerClass(triggerClass);
+        }
+        catch (Exception e)
+        {
+            InvalidRequestException thrown = ire("Trigger class '%s' couldn't be loaded during validation.", triggerClass);
+            thrown.initCause(e);
+            throw thrown;
+        }
+    }
+
+    @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
@@ -69,17 +84,6 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
                 return schema;
 
             throw ire("Trigger '%s' already exists", triggerName);
-        }
-
-        try
-        {
-            TriggerExecutor.instance.loadTriggerClass(triggerClass);
-        }
-        catch (Exception e)
-        {
-            InvalidRequestException thrown = ire("Trigger class '%s' couldn't be loaded", triggerClass);
-            thrown.initCause(e);
-            throw thrown;
         }
 
         TableMetadata newTable = table.withSwapped(table.triggers.with(TriggerMetadata.create(triggerName, triggerClass)));
