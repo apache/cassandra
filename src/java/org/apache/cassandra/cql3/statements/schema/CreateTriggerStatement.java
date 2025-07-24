@@ -21,6 +21,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -31,8 +32,12 @@ import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public final class CreateTriggerStatement extends AlterSchemaStatement
 {
+    private static final Logger log = LoggerFactory.getLogger(CreateTriggerStatement.class);
     private final String tableName;
     private final String triggerName;
     private final String triggerClass;
@@ -45,6 +50,21 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
         this.triggerName = triggerName;
         this.triggerClass = triggerClass;
         this.ifNotExists = ifNotExists;
+    }
+
+    @Override
+    public void validate(ClientState state)
+    {
+        try
+        {
+            TriggerExecutor.instance.loadTriggerClass(triggerClass);
+        }
+        catch (Exception e)
+        {
+            InvalidRequestException thrown = ire("Trigger class '%s' couldn't be loaded during validation. Reason : %s.", triggerClass, e.getMessage());
+            thrown.initCause(e);
+            throw thrown;
+        }
     }
 
     @Override
@@ -77,9 +97,8 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
         }
         catch (Exception e)
         {
-            InvalidRequestException thrown = ire("Trigger class '%s' couldn't be loaded", triggerClass);
-            thrown.initCause(e);
-            throw thrown;
+            log.error("Trigger class '%s' couldn't be loaded during apply.", triggerClass);
+            ColumnFamilyStore.getIfExists(keyspaceName, tableName).metric.triggerLoadFailures.inc();
         }
 
         TableMetadata newTable = table.withSwapped(table.triggers.with(TriggerMetadata.create(triggerName, triggerClass)));

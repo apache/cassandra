@@ -243,6 +243,8 @@ public class TableMetrics
     public final Counter speculativeInsufficientReplicas;
     public final Gauge<Long> speculativeSampleLatencyNanos;
 
+    public final Counter triggerLoadFailures;
+
     public final Counter additionalWrites;
     public final Gauge<Long> additionalWriteLatencyNanos;
 
@@ -785,6 +787,8 @@ public class TableMetrics
         speculativeFailedRetries = createTableCounter("SpeculativeFailedRetries");
         speculativeInsufficientReplicas = createTableCounter("SpeculativeInsufficientReplicas");
         speculativeSampleLatencyNanos = createTableGauge("SpeculativeSampleLatencyNanos", () -> MICROSECONDS.toNanos(cfs.sampleReadLatencyMicros));
+
+        triggerLoadFailures = createTableCounter("TriggerLoadFailures");
 
         additionalWrites = createTableCounter("AdditionalWrites");
         additionalWriteLatencyNanos = createTableGauge("AdditionalWriteLatencyNanos", () -> MICROSECONDS.toNanos(cfs.additionalWriteLatencyMicros));
