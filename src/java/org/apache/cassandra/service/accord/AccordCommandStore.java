@@ -505,6 +505,9 @@ public class AccordCommandStore extends CommandStore
     @Override
     protected void ensureDurable(Ranges ranges, RedundantBefore onCommandStoreDurable)
     {
+        if (!CommandsForKey.reportLinearizabilityViolations())
+            return;
+
         long reportId = nextDurabilityLoggingId.incrementAndGet();
         logger.debug("{} awaiting local metadata durability for {} ({})", this, ranges, reportId);
         executor().afterSubmittedAndConsequences(() -> {
@@ -515,8 +518,6 @@ public class AccordCommandStore extends CommandStore
                 @Override public void run() { decrement(); }
             }
 
-            Map<RoutingKey, String> saving = new TreeMap<>();
-            Map<RoutingKey, String> excluding = new TreeMap<>();
             Ready ready = new Ready();
             try (ExclusiveCaches caches = lockCaches())
             {
