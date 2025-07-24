@@ -528,7 +528,7 @@ public class RouteIndexTest extends CQLTester
             NodeId tcmNodeId = ClusterMetadata.current().myNodeId();
             AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmNodeId));
             Topology topology = new Topology(1, Shard.create(TokenRange.fullRange(tableId, getPartitioner()), ofSorted(new Node.Id(1)), ofSorted(new Node.Id(1))));
-            as.unsafeStartupWithOverrides(new Journal.TopologyUpdate(storeRangesForEpochs, topology, topology));
+            as.unsafeStartupWithOverrides(new Journal.TopologyUpdate(storeRangesForEpochs, topology));
             for (CommandStore commandStore : as.node().commandStores().all())
                 ((AccordCommandStore)commandStore).unsafeUpsertRedundantBefore(emptyRedundantBefore);
             // the reason for the mocking is to speed up compaction.  Collecting the info from the stores has been slow and its always empty in this test... so stub it out to speed up the test

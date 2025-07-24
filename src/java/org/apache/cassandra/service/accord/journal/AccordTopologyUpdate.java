@@ -112,9 +112,6 @@ public interface AccordTopologyUpdate
                 out.writeUnsignedVInt32(e.getKey());
                 RangesForEpochSerializer.instance.serialize(e.getValue(), out);
             }
-            //TODO (desired): local to what?  Rather than serializing local we can serialize the node its relative too?  that why when we deserialize we do globa.forNode(node)
-            // this also decreases the size as we don't have redundent shards
-            TopologySerializers.compactTopology.serialize(from.local, out);
             TopologySerializers.compactTopology.serialize(from.global, out);
         }
 
@@ -129,9 +126,8 @@ public interface AccordTopologyUpdate
                 CommandStores.RangesForEpoch rangesForEpoch = RangesForEpochSerializer.instance.deserialize(in);
                 commandStores.put(commandStoreId, rangesForEpoch);
             }
-            Topology local = TopologySerializers.compactTopology.deserialize(in);
             Topology global = TopologySerializers.compactTopology.deserialize(in);
-            return new Journal.TopologyUpdate(commandStores, local, global);
+            return new Journal.TopologyUpdate(commandStores, global);
         }
 
         @Override
@@ -144,7 +140,6 @@ public interface AccordTopologyUpdate
                 size += RangesForEpochSerializer.instance.serializedSize(e.getValue());
             }
 
-            size += TopologySerializers.compactTopology.serializedSize(from.local);
             size += TopologySerializers.compactTopology.serializedSize(from.global);
             return size;
         }
@@ -296,7 +291,7 @@ public interface AccordTopologyUpdate
     {
         public ImmutableTopoloyImage(TopologyImage image)
         {
-            super(image.update.commandStores, image.update.local, image.update.global);
+            super(image.update.commandStores, image.update.global);
         }
     }
 

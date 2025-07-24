@@ -180,7 +180,7 @@ public class AccordConfigurationServiceTest
                 public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean isLoad, boolean startSync)
                 {
                     // Fake journal save
-                    journal_.saveTopology(new Journal.TopologyUpdate(new Int2ObjectHashMap<>(), topology, topology), () -> {});
+                    journal_.saveTopology(new Journal.TopologyUpdate(new Int2ObjectHashMap<>(), topology), () -> {});
                     return super.onTopologyUpdate(topology, isLoad, startSync);
                 }
             };
