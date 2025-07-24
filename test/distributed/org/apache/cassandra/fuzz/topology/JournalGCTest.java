@@ -20,10 +20,12 @@ package org.apache.cassandra.fuzz.topology;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.primitives.TxnId;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -40,8 +42,10 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.JournalKey;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
 public class JournalGCTest extends FuzzTestBase
@@ -104,29 +108,40 @@ public class JournalGCTest extends FuzzTestBase
                     ((AccordService) AccordService.instance()).journal().compactor().run();
                 });
 
-                Callable<Integer> countDiffs = cluster.get(1).callsOnInstance(() -> {
-                    AtomicInteger a = new AtomicInteger();
+                String maximumId = cluster.get(1).callOnInstance(() -> {
+                    AtomicReference<TxnId> a = new AtomicReference<>();
                     ((AccordService) AccordService.instance()).journal().forEach((v) -> {
-                        if (v.type == JournalKey.Type.COMMAND_DIFF &&
-                            // Do not count syncpoints
-                            !v.id.isSyncPoint())
+                        if (v.type == JournalKey.Type.COMMAND_DIFF && (a.get() == null || v.id.compareTo(a.get()) > 0))
+                            a.set(v.id);
+                    });
+                    return a.get() == null ? "" : a.get().toString();
+                });
+
+                Callable<Integer> countDiffs = () -> cluster.get(1).applyOnInstance(maxIdStr -> {
+                    AtomicInteger a = new AtomicInteger();
+                    TxnId maxId = TxnId.parse(maxIdStr);
+                    ((AccordService) AccordService.instance()).journal().forEach((v) -> {
+                        if (v.type == JournalKey.Type.COMMAND_DIFF && v.id.compareTo(maxId) <= 0)
                             a.incrementAndGet();
                     });
                     return a.get();
-                });
+                }, maximumId);
 
                 int after =-1;
-                for (int i = 0; i < 60; i++)
+                int maxCycles = 3;
+                for (int i = 0; i < maxCycles; i++)
                 {
-                    cluster.get(1).runOnInstance(() -> {
+                    cluster.get(1).acceptOnInstance((ks, tbl) -> {
+                        Keyspace.open(ks).getColumnFamilyStore(tbl).forceBlockingFlush(UNIT_TESTS);
+                        Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.COMMANDS_FOR_KEY).forceBlockingFlush(UNIT_TESTS);
                         Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL).forceMajorCompaction();
-                    });
+                    }, schema.keyspace, schema.table);
                     after = countDiffs.call();
                     if (after == 0)
                         return;
-                    Thread.sleep(1000);
+                    Thread.sleep(10000);
                 }
-                Assert.fail("Should have GC'd all in (way under) 60 cycles. Remaining: " + after);
+                Assert.fail("Should have GC'd all in (way under) " + maxCycles + " cycles. Remaining: " + after);
             });
         }
     }
