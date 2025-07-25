@@ -467,6 +467,8 @@ public class DatabaseDescriptor
 
         applySslContext();
 
+        createAllDirectories();
+
         applyGuardrails();
 
         applyStartupChecks();
