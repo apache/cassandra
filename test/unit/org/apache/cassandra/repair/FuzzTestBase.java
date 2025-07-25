@@ -51,7 +51,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.junit.BeforeClass;
 
 import accord.utils.DefaultRandom;
@@ -129,8 +128,8 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupHistory;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
-import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamReceiveException;
@@ -157,6 +156,7 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 import org.quicktheories.impl.JavaRandom;
+import picocli.CommandLine;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
@@ -554,14 +554,17 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     private static RepairOption repairOption(RandomSource rs, Cluster.Node coordinator, String ks, Gen<List<String>> tablesGen, Gen<RepairType> repairTypeGen, Gen<PreviewType> previewTypeGen, Gen<RepairParallelism> repairParallelismGen)
     {
+        Repair repair = new Repair();
         List<String> args = new RepairGenerators.Builder(tablesGen.map(l -> ImmutableList.<String>builderWithExpectedSize(l.size() + 1).add(ks).addAll(l).build()))
-                            .withType(repairTypeGen)
-                            .withPreviewType(previewTypeGen)
-                            .withParallelism(repairParallelismGen)
-                            .withRanges(i -> RepairGenerators.PRIMARY_RANGE)
-                            .build()
-                            .next(rs);
-        RepairOption options = RepairOption.parse(Repair.parseOptionMap(() -> "test", args), DatabaseDescriptor.getPartitioner());
+                                .withType(repairTypeGen)
+                                .withPreviewType(previewTypeGen)
+                                .withParallelism(repairParallelismGen)
+                                .withRanges(i -> RepairGenerators.PRIMARY_RANGE)
+                                .build()
+                                .next(rs);
+        new CommandLine(repair).parseArgs(args.toArray(new String[0]));
+        RepairOption options = RepairOption.parse(repair.createOptions(() -> "test", repair.tables), DatabaseDescriptor.getPartitioner());
+
         if (options.getRanges().isEmpty())
         {
             if (options.isPrimaryRange())

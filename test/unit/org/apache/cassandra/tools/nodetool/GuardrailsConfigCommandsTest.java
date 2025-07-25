@@ -76,7 +76,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
 
         ToolResult wrongCategory = invokeNodetool("getguardrailsconfig", "-c", "nonsense");
         wrongCategory.asserts().failure();
-        assertTrue(getOutput(wrongCategory).contains("Error: Illegal value for -c/--category used: 'nonsense'. Supported values are values,thresholds,flags,others."));
+        assertTrue(getOutput(wrongCategory).contains("Invalid value for option '--category': expected one of [values, thresholds, flags, others] (case-sensitive) but was 'nonsense'"));
 
         // individual guardrail
         ToolResult individualResult = invokeNodetool("getguardrailsconfig", "group_by_enabled");
@@ -86,7 +86,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         // more than one guardrail
         ToolResult multipleResult = invokeNodetool("getguardrailsconfig", "group_by_enabled", "keyspaces_fail_threshold");
         multipleResult.asserts().failure();
-        assertTrue(getOutput(multipleResult).contains("Specify only one guardrail name to get the configuration of or no name to get the configuration of all of them."));
+        assertTrue(getOutput(multipleResult).contains("Unmatched argument at index 6: 'keyspaces_fail_threshold'"));
 
         // category with individual
         ToolResult categoryWithIndividualResult = invokeNodetool("getguardrailsconfig", "-c", "values", "group_by_enabled");

@@ -32,9 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
@@ -50,7 +47,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
-public class HintsMaker
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
+@Command(name = "hintsmaker",
+         description = "Generate hints file",
+         subcommands = { CommandLine.HelpCommand.class, HintsMaker.MakeHint.class })
+public class HintsMaker implements Runnable
 {
     public static void main(String[] args)
     {
@@ -59,21 +63,18 @@ public class HintsMaker
 
     public int execute(String[] args)
     {
-        Cli.CliBuilder<Runnable> builder = Cli.<Runnable>builder("hintsmaker")
-                                              .withCommands(MakeHint.class)
-                                              .withDefaultCommand(MakeHint.class);
+        CommandLine commandLine = new CommandLine(HintsMaker.class);
+        commandLine.setExecutionExceptionHandler((ex, c, arg) -> {
+            ex.printStackTrace(System.err);
+            return 1;
+        });
+        return commandLine.execute(args);
+    }
 
-        try
-        {
-            builder.build().parse(args).run();
-            return 0;
-        }
-        catch (Throwable t)
-        {
-            t.printStackTrace(System.err);
-        }
-
-        return 1;
+    @Override
+    public void run()
+    {
+        CommandLine.usage(this, System.out);
     }
 
     @Command(name = "make", description = "make file of hints")
@@ -93,25 +94,25 @@ public class HintsMaker
 
         private static ByteBuffer dataSource;
 
-        @Option(name = "dir")
+        @Option(names = "dir")
         private String dir = DATA_DIR;
 
-        @Option(name = HOST_ID_PROPERTY)
+        @Option(names = HOST_ID_PROPERTY)
         private UUID hostId = UUID.randomUUID();
 
-        @Option(name = "maxLength") // 1MB by default
+        @Option(names = "maxLength") // 1MB by default
         private long maxLength = 1024 * 1024;
 
-        @Option(name = "randomSize")
+        @Option(names = "randomSize")
         private boolean randomSize;
 
-        @Option(name = "cellSize")
+        @Option(names = "cellSize")
         private int cellSize = 256;
 
-        @Option(name = "numCells")
+        @Option(names = "numCells")
         private int numCells = 1;
 
-        @Option(name = DESCRIPTOR_TIMESTAMP_PROPERTY)
+        @Option(names = DESCRIPTOR_TIMESTAMP_PROPERTY)
         private long descriptorTimestamp = System.currentTimeMillis();
 
         public void run()

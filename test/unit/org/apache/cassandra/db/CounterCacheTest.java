@@ -25,11 +25,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -38,22 +38,26 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.InvalidateCounterCache
+ */
 public class CounterCacheTest
 {
     private static final String KEYSPACE1 = "CounterCacheTest";
     private static final String COUNTER1 = "Counter1";
 
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException
+    public static void defineSchema() throws Exception
     {
         SchemaLoader.prepareServer();
-
+        CQLTester.startJMXServer();
         TableMetadata.Builder counterTable =
             TableMetadata.builder(KEYSPACE1, COUNTER1)
                          .isCounter(true)
@@ -68,6 +72,7 @@ public class CounterCacheTest
     public static void cleanup()
     {
         SchemaLoader.cleanupSavedCaches();
+        CQLTester.tearDownClass();
     }
 
     @Test
@@ -75,7 +80,7 @@ public class CounterCacheTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         cfs.truncateBlocking();
-        CacheService.instance.invalidateCounterCache();
+        ToolRunner.invokeNodetoolInJvm("invalidatecountercache").assertOnCleanExit();
 
         Clustering<?> c1 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(1)).build();
         Clustering<?> c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
@@ -103,7 +108,7 @@ public class CounterCacheTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         cfs.truncateBlocking();
-        CacheService.instance.invalidateCounterCache();
+        ToolRunner.invokeNodetoolInJvm("invalidatecountercache").assertOnCleanExit();
 
         Clustering<?> c1 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(1)).build();
         Clustering<?> c2 = CBuilder.create(cfs.metadata().comparator).add(ByteBufferUtil.bytes(2)).build();
@@ -148,7 +153,7 @@ public class CounterCacheTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         cfs.truncateBlocking();
-        CacheService.instance.invalidateCounterCache();
+        ToolRunner.invokeNodetoolInJvm("invalidatecountercache").assertOnCleanExit();
 
         new CounterMutation(new RowUpdateBuilder(cfs.metadata(), 0, bytes(1)).clustering(1).add("c", 1L).build(), ConsistencyLevel.ONE).apply();
         new CounterMutation(new RowUpdateBuilder(cfs.metadata(), 0, bytes(1)).clustering(2).add("c", 2L).build(), ConsistencyLevel.ONE).apply();
@@ -159,7 +164,7 @@ public class CounterCacheTest
 
         // flush the counter cache and invalidate
         CacheService.instance.counterCache.submitWrite(Integer.MAX_VALUE).get();
-        CacheService.instance.invalidateCounterCache();
+        ToolRunner.invokeNodetoolInJvm("invalidatecountercache").assertOnCleanExit();
         assertEquals(0, CacheService.instance.counterCache.size());
 
         // load from cache and validate
@@ -181,7 +186,7 @@ public class CounterCacheTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         cfs.truncateBlocking();
-        CacheService.instance.invalidateCounterCache();
+        ToolRunner.invokeNodetoolInJvm("invalidatecountercache").assertOnCleanExit();
 
         new CounterMutation(new RowUpdateBuilder(cfs.metadata(), 0, bytes(1)).clustering(1).add("c", 1L).build(), ConsistencyLevel.ONE).apply();
         new CounterMutation(new RowUpdateBuilder(cfs.metadata(), 0, bytes(1)).clustering(2).add("c", 2L).build(), ConsistencyLevel.ONE).apply();
@@ -190,7 +195,7 @@ public class CounterCacheTest
 
         // flush the counter cache and invalidate
         CacheService.instance.counterCache.submitWrite(Integer.MAX_VALUE).get();
-        CacheService.instance.invalidateCounterCache();
+        ToolRunner.invokeNodetoolInJvm("invalidatecountercache").assertOnCleanExit();
         assertEquals(0, CacheService.instance.counterCache.size());
 
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
@@ -213,7 +218,7 @@ public class CounterCacheTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
         cfs.truncateBlocking();
-        CacheService.instance.invalidateCounterCache();
+        ToolRunner.invokeNodetoolInJvm("invalidatecountercache").assertOnCleanExit();
 
         new CounterMutation(new RowUpdateBuilder(cfs.metadata(), 0, bytes(1)).clustering(1).add("c", 1L).build(), ConsistencyLevel.ONE).apply();
         new CounterMutation(new RowUpdateBuilder(cfs.metadata(), 0, bytes(1)).clustering(2).add("c", 2L).build(), ConsistencyLevel.ONE).apply();
@@ -222,7 +227,7 @@ public class CounterCacheTest
 
         // flush the counter cache and invalidate
         CacheService.instance.counterCache.submitWrite(Integer.MAX_VALUE).get();
-        CacheService.instance.invalidateCounterCache();
+        ToolRunner.invokeNodetoolInJvm("invalidatecountercache").assertOnCleanExit();
         assertEquals(0, CacheService.instance.counterCache.size());
 
 

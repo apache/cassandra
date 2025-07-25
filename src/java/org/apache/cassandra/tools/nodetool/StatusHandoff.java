@@ -17,13 +17,12 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "statushandoff", description = "Status of storing future hints on the current node")
-public class StatusHandoff extends NodeToolCmd
+public class StatusHandoff extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

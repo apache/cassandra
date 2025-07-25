@@ -19,35 +19,48 @@
 package org.apache.cassandra.simulator.paxos;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import javax.inject.Inject;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.SimulatorUtils;
 
-public class PaxosSimulationRunner extends SimulationRunner
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
+@Command(name = "paxos",
+         description = "Run a paxos simulation",
+         helpCommand = true,
+         subcommands = { CommandLine.HelpCommand.class,
+                         PaxosSimulationRunner.Run.class,
+                         PaxosSimulationRunner.VersionCommand.class,
+                         PaxosSimulationRunner.Record.class,
+                         PaxosSimulationRunner.Reconcile.class})
+public class PaxosSimulationRunner extends SimulationRunner implements Runnable
 {
     @Command(name = "run")
     public static class Run extends SimulationRunner.Run<PaxosClusterSimulation.Builder>
     {
-        @Option(name = "--consistency", description = "Specify the consistency level to perform paxos operations at")
+        @Option(names = "--consistency", description = "Specify the consistency level to perform paxos operations at")
         String consistency;
 
-        @Option(name = "--with-paxos-state-cache", arity = 0, description = "Run with the paxos state cache always enabled")
+        @Option(names = "--with-paxos-state-cache", description = "Run with the paxos state cache always enabled")
         boolean withStateCache;
 
-        @Option(name = "--without-paxos-state-cache", arity = 0, description = "Run with the paxos state cache always disabled")
+        @Option(names = "--without-paxos-state-cache", description = "Run with the paxos state cache always disabled")
         boolean withoutStateCache;
 
-        @Option(name = "--variant", title = "paxos variant", description = "Specify the initial paxos variant to use")
+        @Option(names = "--variant", paramLabel = "from_paxos_variant", description = "Specify the initial paxos variant to use")
         String variant;
 
-        @Option(name = "--to-variant",  title = "paxos variant", description = "Specify the paxos variant to change to at some point during the simulation")
+        @Option(names = "--to-variant",  paramLabel = "to_paxos_variant", description = "Specify the paxos variant to change to at some point during the simulation")
         String toVariant;
 
         public Run() {}
@@ -69,19 +82,19 @@ public class PaxosSimulationRunner extends SimulationRunner
     @Command(name = "record")
     public static class Record extends SimulationRunner.Record<PaxosClusterSimulation.Builder>
     {
-        @Option(name = "--consistency")
+        @Option(names = "--consistency")
         String consistency;
 
-        @Option(name = "--with-paxos-state-cache", arity = 0)
+        @Option(names = "--with-paxos-state-cache")
         boolean withStateCache;
 
-        @Option(name = "--without-paxos-state-cache", arity = 0)
+        @Option(names = "--without-paxos-state-cache")
         boolean withoutStateCache;
 
-        @Option(name = "--variant", description = "paxos variant to use")
+        @Option(names = "--variant", description = "paxos variant to use")
         String variant;
 
-        @Option(name = "--to-variant", description = "paxos variant to change to during the simulation")
+        @Option(names = "--to-variant", description = "paxos variant to change to during the simulation")
         String toVariant;
 
         public Record() {}
@@ -98,19 +111,19 @@ public class PaxosSimulationRunner extends SimulationRunner
     public static class
     Reconcile extends SimulationRunner.Reconcile<PaxosClusterSimulation.Builder>
     {
-        @Option(name = "--consistency")
+        @Option(names = "--consistency")
         String consistency;
 
-        @Option(name = "--with-paxos-state-cache", arity = 0)
+        @Option(names = "--with-paxos-state-cache")
         boolean withStateCache;
 
-        @Option(name = "--without-paxos-state-cache", arity = 0)
+        @Option(names = "--without-paxos-state-cache")
         boolean withoutStateCache;
 
-        @Option(name = "--variant", description = "paxos variant to use")
+        @Option(names = "--variant", description = "paxos variant to use")
         String variant;
 
-        @Option(name = "--to-variant", description = "paxos variant to change to during the simulation")
+        @Option(names = "--to-variant", description = "paxos variant to change to during the simulation")
         String toVariant;
         
         public Reconcile() {}
@@ -122,9 +135,6 @@ public class PaxosSimulationRunner extends SimulationRunner
             propagateTo(consistency, withStateCache, withoutStateCache, variant, toVariant, builder);
         }
     }
-
-    public static class Help extends HelpCommand<PaxosClusterSimulation.Builder> {}
-    public static class Version extends VersionCommand<PaxosClusterSimulation.Builder> {}
 
     static void propagateTo(String consistency, boolean withStateCache, boolean withoutStateCache, String variant, String toVariant, PaxosClusterSimulation.Builder builder)
     {
@@ -138,6 +148,59 @@ public class PaxosSimulationRunner extends SimulationRunner
     // for simple unit tests so we can simply invoke main()
     private static final AtomicInteger uniqueNum = new AtomicInteger();
 
+    @Override
+    public void run()
+    {
+        CommandLine.usage(this, System.out);
+    }
+
+    public static class InjectPaxosClusterSimulationFactory implements CommandLine.IFactory
+    {
+        private final CommandLine.IFactory defaultFactory = CommandLine.defaultFactory();
+        private final ClusterSimulation.Builder<?> builder;
+
+        public InjectPaxosClusterSimulationFactory(ClusterSimulation.Builder<?> builder)
+        {
+            this.builder = builder;
+        }
+
+        @Override
+        public <K> K create(Class<K> cls) throws Exception
+        {
+            try
+            {
+                K bean = this.defaultFactory.create(cls);
+                Class<?> beanClass = bean.getClass();
+                do
+                {
+                    Field[] fields = beanClass.getDeclaredFields();
+                    for (Field field : fields)
+                    {
+                        if (!field.isAnnotationPresent(Inject.class))
+                            continue;
+                        if (field.getType().equals(ClusterSimulation.Builder.class))
+                        {
+                            field.setAccessible(true);
+                            field.set(bean, builder);
+                        }
+                        else
+                        {
+                            throw new RuntimeException("Unsupported injectable field type: " + field.getType() +
+                                    " in class " + beanClass.getName() + ". " +
+                                    "Only INodeProbeFactory and Output are supported.");
+                        }
+                    }
+                }
+                while ((beanClass = beanClass.getSuperclass()) != null);
+                return bean;
+            }
+            catch (Exception e)
+            {
+                throw new CommandLine.InitializationException("Failed to create instance of " + cls, e);
+            }
+        }
+    }
+
     /**
      * See {@link org.apache.cassandra.simulator} package info for execution tips
      */
@@ -147,15 +210,7 @@ public class PaxosSimulationRunner extends SimulationRunner
         PaxosClusterSimulation.Builder builder = new PaxosClusterSimulation.Builder();
         builder.unique(uniqueNum.getAndIncrement());
 
-        Cli.<SimulationRunner.ICommand<PaxosClusterSimulation.Builder>>builder("paxos")
-           .withCommand(Run.class)
-           .withCommand(Reconcile.class)
-           .withCommand(Record.class)
-           .withCommand(Version.class)
-           .withCommand(Help.class)
-           .withDefaultCommand(Help.class)
-           .build()
-           .parse(args)
-           .run(builder);
+        CommandLine commandLine = new CommandLine(PaxosSimulationRunner.class, new InjectPaxosClusterSimulationFactory(builder));
+        commandLine.execute(args);
     }
 }

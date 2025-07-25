@@ -1208,7 +1208,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         public DTestNodeTool(boolean withNotifications, Output output)
         {
-            super(new InternalNodeProbeFactory(withNotifications), output);
+            super(new InternalNodeProbeFactory(withNotifications, output), output);
             internalNodeProbe = new InternalNodeProbe(withNotifications);
             storageProxy = internalNodeProbe.getStorageService();
             storageProxy.addNotificationListener(notifications, null, null);

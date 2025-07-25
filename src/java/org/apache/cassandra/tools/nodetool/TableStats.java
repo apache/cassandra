@@ -17,37 +17,43 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.*;
-
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.tools.nodetool.stats.*;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
+import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
+import org.apache.cassandra.tools.nodetool.stats.StatsTableComparator;
+import org.apache.cassandra.tools.nodetool.stats.TableStatsHolder;
+import org.apache.cassandra.tools.nodetool.stats.TableStatsPrinter;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "tablestats", description = "Print statistics on tables")
-public class TableStats extends NodeToolCmd
+public class TableStats extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace.table>...]", description = "List of tables (or keyspace) names")
+    @CassandraUsage(usage = "[<keyspace.table>...]", description = "List of tables (or keyspace) names")
+    @CommandLine.Parameters(paramLabel = "keyspace.table", index = "0..*", arity = "0..*", description = "List of tables (or keyspace) names")
     private List<String> tableNames = new ArrayList<>();
 
-    @Option(name = "-i", description = "Ignore the list of tables and display the remaining tables")
+    @Option(names = { "-i" }, description = "Ignore the list of tables and display the remaining tables")
     private boolean ignore = false;
 
-    @Option(title = "human_readable",
-            name = {"-H", "--human-readable"},
+    @Option(paramLabel = "human_readable",
+            names = { "-H", "--human-readable" },
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
-    @Option(title = "format",
-            name = {"-F", "--format"},
+    @Option(paramLabel = "format",
+            names = { "-F", "--format" },
             description = "Output format (json, yaml)")
     private String outputFormat = "";
 
-    @Option(title = "sort_key",
-            name = {"-s", "--sort"},
+    @Option(paramLabel = "sort_key",
+            names = { "-s", "--sort" },
             description = "Sort tables by specified sort key (average_live_cells_per_slice_last_five_minutes, "
                         + "average_tombstones_per_slice_last_five_minutes, bloom_filter_false_positives, "
                         + "bloom_filter_false_ratio, bloom_filter_off_heap_memory_used, bloom_filter_space_used, "
@@ -66,13 +72,13 @@ public class TableStats extends NodeToolCmd
                         + "sai_rows_filtered, sai_total_query_timeouts, sai_total_queryable_index_ratio)")
     private String sortKey = "";
 
-    @Option(title = "top",
-            name = {"-t", "--top"},
+    @Option(paramLabel = "top",
+            names = { "-t", "--top" },
             description = "Show only the top K tables for the sort key (specify the number K of tables to be shown")
     private int top = 0;
 
-    @Option(title = "sstable_location_check",
-            name = {"-l", "--sstable-location-check"},
+    @Option(paramLabel = "sstable_location_check",
+            names = { "-l", "--sstable-location-check" },
             description = "Check whether or not the SSTables are in the correct location.")
     private boolean locationCheck = false;
 

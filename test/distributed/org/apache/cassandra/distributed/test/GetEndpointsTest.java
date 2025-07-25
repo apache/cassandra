@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 
@@ -29,6 +30,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -43,11 +45,11 @@ public class GetEndpointsTest extends TestBaseImpl
         {
             for (IInvokableInstance i : cluster)
             {
-                i.runOnInstance(() -> {
-                    List<String> endpoints = StorageService.instance.getNaturalEndpointsWithPort("system", "compaction_history", "7d431310-43c9-11ef-bd50-53ff742309a9");
-                    assertEquals(1, endpoints.size());
-                    assertEquals(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(), endpoints.get(0));
-                });
+                ToolRunner.ToolResult tool = ToolRunner.invokeNodetoolJvmDtestIsolated(i, "-pp", "getendpoints", "system", "compaction_history", "7d431310-43c9-11ef-bd50-53ff742309a9");
+                tool.asserts().success();
+                List<String> endpoints = tool.getStdout().trim().lines().collect(Collectors.toList());
+                assertEquals(1, endpoints.size());
+                i.runOnInstance(() -> assertEquals(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(), endpoints.get(0)));
             }
         }
     }
@@ -59,19 +61,20 @@ public class GetEndpointsTest extends TestBaseImpl
                                            .withConfig(c -> c.with(Feature.NETWORK))
                                            .start()))
         {
+            ToolRunner.ToolResult tool;
             for (IInvokableInstance i : cluster)
             {
-                i.runOnInstance(() -> {
-                    List<String> endpoints = StorageService.instance.getNaturalEndpointsWithPort("system", "local_metadata_log", "1");
-                    assertEquals(1, endpoints.size());
-                    assertEquals(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(), endpoints.get(0));
-                });
+                tool = ToolRunner.invokeNodetoolJvmDtestIsolated(i, "-pp", "getendpoints", "system", "local_metadata_log", "1");
+                tool.asserts().success();
+                List<String> systemKsEndpoints = tool.getStdout().trim().lines().collect(Collectors.toList());
+                assertEquals(1, systemKsEndpoints.size());
+                i.runOnInstance(() -> assertEquals(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(), systemKsEndpoints.get(0)));
 
-                i.runOnInstance(() -> {
-                    List<String> endpoints = StorageService.instance.getNaturalEndpointsWithPort("system_cluster_metadata", "distributed_metadata_log", "1");
-                    assertEquals(1, endpoints.size());
-                    assertEquals(Replicas.stringify(ClusterMetadata.current().fullCMSMembersAsReplicas(), true), endpoints);
-                });
+                tool = ToolRunner.invokeNodetoolJvmDtestIsolated(i, "-pp", "getendpoints", "system_cluster_metadata", "distributed_metadata_log", "1");
+                tool.asserts().success();
+                List<String> scmEndpoints = tool.getStdout().trim().lines().collect(Collectors.toList());
+                assertEquals(1, scmEndpoints.size());
+                i.runOnInstance(() -> assertEquals(Replicas.stringify(ClusterMetadata.current().fullCMSMembersAsReplicas(), true), scmEndpoints));
             }
             cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
             for (IInvokableInstance i : cluster)

@@ -17,13 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.collect.Iterables.toArray;
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import static org.apache.commons.lang3.StringUtils.join;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -34,25 +27,33 @@ import java.util.Map;
 
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static com.google.common.collect.Iterables.toArray;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "clearsnapshot", description = "Remove the snapshot with the given name from the given keyspaces")
-public class ClearSnapshot extends NodeToolCmd
+public class ClearSnapshot extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspaces>...] ", description = "Remove snapshots from the given keyspaces")
+    @CassandraUsage(usage = "[<keyspaces>...]", description = "Remove snapshots from the given keyspaces")
+    @Parameters(description = "Remove snapshots from the given keyspaces", arity = "0..*")
     private List<String> keyspaces = new ArrayList<>();
 
-    @Option(title = "snapshot_name", name = "-t", description = "Remove the snapshot with a given name")
+    @Option(paramLabel = "snapshot_name", names = "-t", description = "Remove the snapshot with a given name")
     private String snapshotName = EMPTY;
 
-    @Option(title = "clear_all_snapshots", name = "--all", description = "Removes all snapshots")
+    @Option(paramLabel = "clear_all_snapshots", names = "--all", description = "Removes all snapshots")
     private boolean clearAllSnapshots = false;
 
-    @Option(title = "older_than", name = "--older-than", description = "Clear snapshots older than specified time period.")
+    @Option(paramLabel = "older_than", names = "--older-than", description = "Clear snapshots older than specified time period.")
     private String olderThan;
 
-    @Option(title = "older_than_timestamp", name = "--older-than-timestamp",
-    description = "Clear snapshots older than specified timestamp. It has to be a string in ISO format, for example '2022-12-03T10:15:30Z'")
+    @Option(paramLabel = "older_than_timestamp", names = "--older-than-timestamp",
+            description = "Clear snapshots older than specified timestamp. It has to be a string in ISO format, for example '2022-12-03T10:15:30Z'")
     private String olderThanTimestamp;
 
     @Override
@@ -121,7 +122,8 @@ public class ClearSnapshot extends NodeToolCmd
                 parameters.put("older_than_timestamp", olderThanTimestamp);
 
             probe.clearSnapshot(parameters, snapshotName, toArray(keyspaces, String.class));
-        } catch (IOException e)
+        }
+        catch (IOException e)
         {
             throw new RuntimeException("Error during clearing snapshots", e);
         }

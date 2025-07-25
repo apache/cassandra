@@ -32,13 +32,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +50,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.util.Lists;
 
+import static com.github.jknack.handlebars.internal.lang3.ArrayUtils.isEmpty;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -192,6 +195,21 @@ public class ToolRunner
         return invoke(CQLTester.buildNodetoolArgs(args));
     }
 
+    public static ToolResult invokeNodetool(Map<String, String> env, String... args)
+    {
+        return invokeNodetool(env, Arrays.asList(args));
+    }
+
+    public static ToolResult invokeNodetool(Map<String, String> env, List<String> args)
+    {
+        return invoke(env, CQLTester.buildNodetoolArgs(args));
+    }
+
+    public static ToolRunner.ToolResult invokeNodetoolInJvm(String... args)
+    {
+        return ToolRunner.invokeNodetoolInJvm(NodeTool::new, args);
+    }
+
     public static ToolResult invoke(List<String> args)
     {
         return invoke(args.toArray(new String[args.size()]));
@@ -284,8 +302,24 @@ public class ToolRunner
                               res.right.getException());
 
     }
-    
+
+    public static ToolResult invokeNodetoolJvmDtestIsolated(IInstance node, String... args)
+    {
+        return invokeNodetoolJvmDtest(node, o -> o.left.getStdout(), e -> e.left.getStderr(), args);
+    }
+
     public static ToolResult invokeNodetoolJvmDtest(IInstance node, String... args)
+    {
+        return invokeNodetoolJvmDtest(node,
+                                      res -> res.right.getStdout() + res.left.getStdout(),
+                                      res -> res.right.getStderr() + res.left.getStderr(),
+                                      args);
+    }
+
+    private static ToolResult invokeNodetoolJvmDtest(IInstance node,
+                                                    Function<Pair<NodeToolResult, ToolResult>, String> stdout,
+                                                    Function<Pair<NodeToolResult, ToolResult>, String> stderr,
+                                                    String... args)
     {
         Supplier<NodeToolResult> runMe = new Supplier<NodeToolResult>()
         {
@@ -301,9 +335,62 @@ public class ToolRunner
         return new ToolResult(Arrays.asList(args),
                               res.left,
                               res.right.getExitCode() == -1 ? -1 : res.left.getRc(),
-                              res.right.getStdout() + res.left.getStdout(),
-                              res.right.getStderr() + res.left.getStderr(),
+                              stdout.apply(res),
+                              stderr.apply(res),
                               res.right.getException());
+    }
+
+    public static ToolRunner.ToolResult invokeNodetoolInJvm(BiFunction<INodeProbeFactory, Output, Object> nodeTool, String... args)
+    {
+        PrintStream originalSysOut = System.out;
+        PrintStream originalSysErr = System.err;
+        LinesOutputStream out = new LinesOutputStream(logger::info);
+        LinesOutputStream err = new LinesOutputStream(logger::error);
+        PrintStream printOut = new PrintStream(out);
+        PrintStream printErr = new PrintStream(err);
+        Output output = new Output(printOut, printErr);
+        List<String> clearedArgs = CQLTester.buildNodetoolArgs(isEmpty(args) ? new ArrayList<>() : List.of(args));
+        clearedArgs.remove("bin/nodetool");
+        try
+        {
+            Object runner = nodeTool.apply(new INodeProbeFactory()
+            {
+                private final INodeProbeFactory delegate = new NodeProbeFactory();
+
+                @Override
+                public NodeProbe create(String host, int port) throws IOException
+                {
+                    NodeProbe probe = delegate.create(host, port);
+                    probe.setOutput(output);
+                    return probe;
+                }
+
+                @Override
+                public NodeProbe create(String host, int port, String username, String password) throws IOException
+                {
+                    NodeProbe probe = delegate.create(host, port, username, password);
+                    probe.setOutput(output);
+                    return probe;
+                }
+            }, output);
+
+            System.setOut(printOut);
+            System.setErr(printErr);
+            Object result = runner.getClass().getMethod("execute", String[].class)
+                                  .invoke(runner, new Object[] { clearedArgs.toArray(new String[0]) });
+            assertTrue(result instanceof Integer);
+            return new ToolResult(clearedArgs, (Integer) result, out.getOutput(), err.getOutput(), null);
+        }
+        catch (Exception e)
+        {
+            return new ToolResult(clearedArgs, -1, out.getOutput(),
+                                  err.getOutput() + '\n' + Throwables.getStackTraceAsString(e), e);
+        }
+        finally
+        {
+            System.setOut(originalSysOut);
+            System.setErr(originalSysErr);
+        }
     }
 
     public static <T> Pair<T, ToolResult> invokeSupplier(Supplier<T> runMe)
@@ -738,6 +825,49 @@ public class ToolRunner
         public ToolResult invoke()
         {
             return ToolRunner.invoke(env, stdin, args);
+        }
+    }
+
+    private static class LinesOutputStream extends OutputStream
+    {
+        private final List<String> outputLines = new ArrayList<>();
+        private final StringBuilder buffer = new StringBuilder();
+        private final Consumer<String> logger;
+
+        public LinesOutputStream(Consumer<String> logger)
+        {
+            this.logger = logger;
+        }
+
+        @Override
+        public void write(int b)
+        {
+            char c = (char) b;
+            if (c == '\n')
+            {
+                // Add the buffer to the list if it's a new line
+                outputLines.add(buffer.toString());
+                logger.accept(buffer.toString());
+                buffer.setLength(0); // Clear the buffer
+            }
+            else
+                buffer.append(c);
+        }
+
+        public void flush()
+        {
+            if (buffer.length() > 0)
+            {
+                outputLines.add(buffer.toString());
+                logger.accept(buffer.toString());
+                buffer.setLength(0);
+            }
+        }
+
+        public String getOutput()
+        {
+            flush();
+            return String.join("\n", outputLines);
         }
     }
 }

@@ -35,17 +35,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import javax.inject.Inject;
 
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
-import io.airlift.airline.Command;
-import io.airlift.airline.HelpOption;
-import io.airlift.airline.Option;
-import io.airlift.airline.SingleCommand;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -107,6 +102,9 @@ import org.apache.cassandra.tcm.sequences.SingleNodeSequences;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
@@ -183,27 +181,36 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
         --add-opens jdk.management.jfr/jdk.management.jfr=ALL-UNNAMED
         --add-opens java.desktop/com.sun.beans.introspect=ALL-UNNAMED
  */
-@Command(name = "harry", description = "Harry simulation test")
-public class HarrySimulatorTest
+@Command(name = "harry", description = "Harry simulation test", mixinStandardHelpOptions = true)
+public class HarrySimulatorTest implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(HarrySimulatorTest.class);
 
-    @Inject
-    public HelpOption helpOption;
-    @Option(name = { "-r", "--rows-per-phase"}, description = "Number of rows to check at each phase of the test")
+    @Option(names = { "-r", "--rows-per-phase" }, description = "Number of rows to check at each phase of the test")
     public int rowsPerPhase = 10;
-    @Option(name = {"--nodes-per-dc"}, description = "How many nodes per dc for replication")
+    @Option(names = { "--nodes-per-dc" }, description = "How many nodes per dc for replication")
     public int nodesPerDc = 3;
-    @Option(name = {"-s", "--seed"}, title = "0x", description = "What seed to run with; in hex format... example: 0x190e6ff01d6")
+    @Option(names = { "-s", "--seed" }, description = "What seed to run with; in hex format... example: 0x190e6ff01d6")
     public String seed = null;
 
     public static void main(String... args) throws Throwable
     {
-        HarrySimulatorTest test = SingleCommand.singleCommand(HarrySimulatorTest.class).parse(args);
-        if (test.helpOption.showHelpIfRequested())
-            return;
-        test.testInternal();
-        System.exit(1);
+        CommandLine commandLine = new CommandLine(HarrySimulatorTest.class);
+        commandLine.execute(args);
+    }
+
+    @Override
+    public void run()
+    {
+        try
+        {
+            testInternal();
+        }
+        catch (Throwable t)
+        {
+            logger.error("Error running simulation", t);
+            throw new RuntimeException(t);
+        }
     }
 
     @Test

@@ -15,25 +15,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.tools;
 
-import java.io.IOException;
+package org.apache.cassandra.tools.nodetool.mock;
 
-import io.airlift.airline.Command;
+import org.junit.Test;
 
-@Command(name = "reloadssl", description = "Signals Cassandra to reload SSL certificates")
-public class ReloadSslCertificates extends NodeTool.NodeToolCmd
+import org.apache.cassandra.service.StorageServiceMBean;
+import org.mockito.Mockito;
+
+public class AbortBootstrapMockTest extends AbstractNodetoolMock
 {
-    @Override
-    public void execute(NodeProbe probe)
+    @Test
+    public void testAbortBootstrapByNodeId()
     {
-        try
-        {
-            probe.reloadSslCerts();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Failed to reload SSL certificates. Please check the SSL certificates", e);
-        }
+        String nodeId = "1";
+        StorageServiceMBean mock = getMock(STORAGE_SERVICE_MBEAN);
+        invokeNodetool("abortbootstrap", "--node", nodeId).assertOnCleanExit();
+        Mockito.verify(mock).abortBootstrap(nodeId, "");
+    }
+
+    @Test
+    public void testAbortBootstrapByIp()
+    {
+        String ip = "10.20.113.11";
+        StorageServiceMBean mock = getMock(STORAGE_SERVICE_MBEAN);
+        invokeNodetool("abortbootstrap", "--ip", ip).assertOnCleanExit();
+        Mockito.verify(mock).abortBootstrap("", ip);
     }
 }

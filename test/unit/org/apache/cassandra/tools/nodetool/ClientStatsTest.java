@@ -142,61 +142,6 @@ public class ClientStatsTest
     }
 
     @Test
-    public void testClientStatsHelp()
-    {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "clientstats");
-        tool.assertOnCleanExit();
-
-        String help = "NAME\n" +
-                      "        nodetool clientstats - Print information about connected clients\n" +
-                      "\n" +
-                      "SYNOPSIS\n" +
-                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                      "                [(-u <username> | --username <username>)] clientstats [--all]\n" +
-                      "                [--by-protocol] [--clear-history] [--client-options] [--verbose]\n" +
-                      "\n" +
-                      "OPTIONS\n" +
-                      "        --all\n" +
-                      "            Lists all connections\n" +
-                      "\n" +
-                      "        --by-protocol\n" +
-                      "            Lists most recent client connections by protocol version\n" +
-                      "\n" +
-                      "        --clear-history\n" +
-                      "            Clear the history of connected clients\n" +
-                      "\n" +
-                      "        --client-options\n" +
-                      "            Lists all connections and the client options\n" +
-                      "\n" +
-                      "        -h <host>, --host <host>\n" +
-                      "            Node hostname or ip address\n" +
-                      "\n" +
-                      "        -p <port>, --port <port>\n" +
-                      "            Remote jmx agent port number\n" +
-                      "\n" +
-                      "        -pp, --print-port\n" +
-                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                      "\n" +
-                      "        -pw <password>, --password <password>\n" +
-                      "            Remote jmx agent password\n" +
-                      "\n" +
-                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                      "            Path to the JMX password file\n" +
-                      "\n" +
-                      "        -u <username>, --username <username>\n" +
-                      "            Remote jmx agent username\n" +
-                      "\n" +
-                      "        --verbose\n" +
-                      "            Lists all connections with additional details (client options,\n" +
-                      "            authenticator-specific metadata and more)\n" +
-                      "\n" +
-                      "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
-    }
-
-    @Test
     public void testClientStats()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("clientstats");

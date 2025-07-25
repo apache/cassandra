@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.service;
 
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,13 +31,16 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.awaitility.Awaitility;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;
@@ -48,7 +53,7 @@ public class StorageServiceDrainTest
     private static final int ROWS = 1000;
 
     @Before
-    public void before() throws UnknownHostException
+    public void before() throws Exception
     {
         ServerTestUtils.prepareServerNoRegister();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
@@ -58,8 +63,11 @@ public class StorageServiceDrainTest
         CompactionManager.instance.disableAutoCompaction();
 
         SchemaLoader.prepareServer();
+        CQLTester.startJMXServer();
+        StorageService.instance.registerMBeans();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), SchemaLoader.standardCFMD(KEYSPACE, TABLE));
         StorageService.instance.unsafeSetInitialized();
+
 
         final ColumnFamilyStore table = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         for (int row = 0; row < ROWS; row++)
@@ -74,6 +82,12 @@ public class StorageServiceDrainTest
         Util.flush(table);
     }
 
+    @AfterClass
+    public static void afterClass()
+    {
+        CQLTester.tearDownClass();
+    }
+
     @Test
     public void testSSTablesImportAbort()
     {
@@ -86,15 +100,16 @@ public class StorageServiceDrainTest
         Executors.newSingleThreadExecutor().execute(() -> {
                 try
                 {
-                    StorageService.instance.drain();
+                    ToolRunner.invokeNodetoolInJvm("drain").assertOnCleanExit();
                 }
                 catch (final Exception exception)
                 {
                     throw new RuntimeException(exception);
                 }});
 
-        while (!StorageService.instance.isDraining())
-            Thread.yield();
+        Awaitility.await()
+                  .atMost(30, TimeUnit.SECONDS)
+                  .until(StorageService.instance::isDraining);
 
         assertThatThrownBy(() -> table
                 .importNewSSTables(Collections.emptySet(), false, false, false, false, false, false, false))

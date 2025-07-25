@@ -46,60 +46,16 @@ public class GetAuthCacheConfigTest extends CQLTester
     }
 
     @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "getauthcacheconfig");
-        tool.assertOnCleanExit();
-
-        String help = "NAME\n" +
-                      "        nodetool getauthcacheconfig - Get configuration of Auth cache\n" +
-                      "\n" +
-                      "SYNOPSIS\n" +
-                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                      "                [(-u <username> | --username <username>)] getauthcacheconfig\n" +
-                      "                --cache-name <cache-name>\n" +
-                      "\n" +
-                      "OPTIONS\n" +
-                      "        --cache-name <cache-name>\n" +
-                      "            Name of Auth cache (required)\n" +
-                      "\n" +
-                      "        -h <host>, --host <host>\n" +
-                      "            Node hostname or ip address\n" +
-                      "\n" +
-                      "        -p <port>, --port <port>\n" +
-                      "            Remote jmx agent port number\n" +
-                      "\n" +
-                      "        -pp, --print-port\n" +
-                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                      "\n" +
-                      "        -pw <password>, --password <password>\n" +
-                      "            Remote jmx agent password\n" +
-                      "\n" +
-                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                      "            Path to the JMX password file\n" +
-                      "\n" +
-                      "        -u <username>, --username <username>\n" +
-                      "            Remote jmx agent username\n" +
-                      "\n" +
-                      "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
-    }
-
-    @Test
     public void testInvalidCacheName()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getauthcacheconfig");
         assertThat(tool.getExitCode()).isEqualTo(1);
-        assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Required option '--cache-name' is missing"));
+        assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Missing required option: '--cache-name=cache-name'"));
         assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("getauthcacheconfig", "--cache-name");
         assertThat(tool.getExitCode()).isEqualTo(1);
-        assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Required values for option 'cache-name' not provided"));
+        assertThat(tool.getStdout()).isEqualTo(wrapByDefaultNodetoolMessage("Missing required parameter for option '--cache-name' (cache-name)"));
         assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("getauthcacheconfig", "--cache-name", "wrong");

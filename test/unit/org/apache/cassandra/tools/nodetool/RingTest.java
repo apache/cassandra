@@ -32,6 +32,9 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * @see Ring
+ */
 public class RingTest extends CQLTester
 {
     private static String token;
@@ -53,12 +56,12 @@ public class RingTest extends CQLTester
         final HostStatWithPort host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
                                                            false, null);
         validateRingOutput(host.ipOrDns(false), "ring");
-        Arrays.asList("-pp", "--print-port").forEach(arg -> validateRingOutput(host.ipOrDns(true), "-pp", "ring"));
+        Arrays.asList("-pp", "--print-port").forEach(arg -> validateRingOutput(host.ipOrDns(true), arg, "ring"));
 
         final HostStatWithPort hostResolved = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
                                                                    true, null);
         Arrays.asList("-r", "--resolve-ip").forEach(arg ->
-                validateRingOutput(hostResolved.ipOrDns(false), "ring", "-r"));
+                validateRingOutput(hostResolved.ipOrDns(false), "ring", arg));
         validateRingOutput(hostResolved.ipOrDns(true), "-pp", "ring", "-r");
     }
 
@@ -96,59 +99,6 @@ public class RingTest extends CQLTester
         tool.assertCleanStdErr();
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).contains("nodetool help");
-    }
-
-    @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "ring");
-        tool.assertOnCleanExit();
-
-        String help = "NAME\n" + "        nodetool ring - Print information about the token ring\n"
-                      + "\n"
-                      + "SYNOPSIS\n"
-                      + "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n"
-                      + "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n"
-                      + "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n"
-                      + "                [(-u <username> | --username <username>)] ring [(-r | --resolve-ip)]\n"
-                      + "                [--] [<keyspace>]\n"
-                      + "\n"
-                      + "OPTIONS\n"
-                      + "        -h <host>, --host <host>\n"
-                      + "            Node hostname or ip address\n"
-                      + "\n"
-                      + "        -p <port>, --port <port>\n"
-                      + "            Remote jmx agent port number\n"
-                      + "\n"
-                      + "        -pp, --print-port\n"
-                      + "            Operate in 4.0 mode with hosts disambiguated by port number\n"
-                      + "\n"
-                      + "        -pw <password>, --password <password>\n"
-                      + "            Remote jmx agent password\n"
-                      + "\n"
-                      + "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n"
-                      + "            Path to the JMX password file\n"
-                      + "\n"
-                      + "        -r, --resolve-ip\n"
-                      + "            Show node domain names instead of IPs\n"
-                      + "\n"
-                      + "        -u <username>, --username <username>\n"
-                      + "            Remote jmx agent username\n"
-                      + "\n"
-                      + "        --\n"
-                      + "            This option can be used to separate command-line options from the\n"
-                      + "            list of argument, (useful when arguments might be mistaken for\n"
-                      + "            command-line options\n"
-                      + "\n"
-                      + "        <keyspace>\n"
-                      + "            Specify a keyspace for accurate ownership information (topology\n"
-                      + "            awareness)\n"
-                      + "\n"
-                      + "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test

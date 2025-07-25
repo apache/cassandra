@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "resumehandoff", description = "Resume hints delivery process")
-public class ResumeHandoff extends NodeToolCmd
+public class ResumeHandoff extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

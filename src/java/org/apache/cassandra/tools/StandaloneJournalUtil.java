@@ -21,9 +21,19 @@ package org.apache.cassandra.tools;
 import accord.local.RedundantBefore;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -44,17 +54,9 @@ import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 
-import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.PathMatcher;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static accord.api.Journal.Load.ALL;
 import static com.google.common.base.Throwables.getStackTraceAsString;
@@ -91,7 +93,11 @@ import static org.apache.cassandra.config.DatabaseDescriptor.setAccordJournalDir
 
  *
 **/
-public class StandaloneJournalUtil
+@Command(name = "journal_util",
+         mixinStandardHelpOptions = true,
+         description = "Standalone Journal Util",
+         subcommands = { StandaloneJournalUtil.DumpSegments.class, StandaloneJournalUtil.DumpJournal.class })
+public class StandaloneJournalUtil implements Runnable
 {
     private static final Output output = Output.CONSOLE;
 
@@ -101,25 +107,20 @@ public class StandaloneJournalUtil
         DatabaseDescriptor.setPartitioner("org.apache.cassandra.dht.Murmur3Partitioner");
         AccordKeyspace.TABLES = Tables.of(AccordKeyspace.journalMetadata("journal", false));
         ClusterMetadataService.empty(Keyspaces.of(AccordKeyspace.metadata()));
-        Cli.CliBuilder<Runnable> builder = Cli.builder("util");
 
-        builder.withDescription("Dump journal").withCommand(DumpSegments.class).withCommand(DumpJournal.class);
-
-        Cli<Runnable> parser = builder.build();
-
-        int status = 0;
-        try
-        {
-            Runnable parse = parser.parse(args);
-            parse.run();
-        }
-        catch (Throwable throwable)
-        {
-            err(throwable);
-            status = 2;
-        }
-
+        CommandLine cli = new CommandLine(StandaloneJournalUtil.class)
+                .setExecutionExceptionHandler((ex, cmd, parseResult) -> {
+                    err(ex);
+                    return 2;
+                });
+        int status = cli.execute(args);
         System.exit(status);
+    }
+
+    @Override
+    public void run()
+    {
+        CommandLine.usage(this, output.out);
     }
 
     protected static void err(Throwable e)
@@ -132,19 +133,19 @@ public class StandaloneJournalUtil
     @Command(name = "dump_segments", description = "Dump journal segments")
     public static class DumpSegments implements Runnable
     {
-        @Option(name = {"-d", "--dir"}, description = "Directory to find journal segments")
+        @Option(names = {"-d", "--dir"}, description = "Directory to find journal segments")
         public String dir;
 
-        @Option(name = {"-p", "--pattern"}, description = "Kind to filter by")
+        @Option(names = {"-p", "--pattern"}, description = "Kind to filter by")
         public String pattern;
 
-        @Option(name = {"-k", "--kind"}, description = "Kind to filter by")
+        @Option(names = {"-k", "--kind"}, description = "Kind to filter by")
         public String kind;
 
-        @Option(name = {"-t", "--txnid"}, description = "Transaction id to filter by")
+        @Option(names = {"-t", "--txnid"}, description = "Transaction id to filter by")
         public String txnId;
 
-        @Option(name = {"-m", "--metadata-only"}, description = "Only dump metadata file contents")
+        @Option(names = {"-m", "--metadata-only"}, description = "Only dump metadata file contents")
         public boolean metadataOnly;
 
         public void run()
@@ -173,7 +174,8 @@ public class StandaloneJournalUtil
                         }
                         catch (Throwable t)
                         {
-                            t.printStackTrace(output.err);
+                            throw new RuntimeException(String.format("Error reading key %s in segment %s at position %d: %s",
+                                                                key, segment1, position, t.getMessage()), t);
                         }
                     });
                 });
@@ -189,28 +191,28 @@ public class StandaloneJournalUtil
     @Command(name = "dump_journal", description = "Dump journal")
     public static class DumpJournal implements Runnable
     {
-        @Option(name = {"-s", "--sstables"}, description = "Path to sstables")
+        @Option(names = {"-s", "--sstables"}, description = "Path to sstables")
         public String sstables;
 
-        @Option(name = {"-j", "--journal-segments"}, description = "Path to journal segments")
+        @Option(names = {"-j", "--journal-segments"}, description = "Path to journal segments")
         public String journalSegments;
 
-        @Option(name = {"-k", "--kind"}, description = "Kind to filter by")
+        @Option(names = {"-k", "--kind"}, description = "Kind to filter by")
         public String kind;
 
-        @Option(name = {"-t", "--txnid"}, description = "Transaction id to filter by")
+        @Option(names = {"-t", "--txnid"}, description = "Transaction id to filter by")
         public String txnId;
 
-        @Option(name = {"--since"}, description = "Filter transactions since this timestamp (inclusive)")
+        @Option(names = {"--since"}, description = "Filter transactions since this timestamp (inclusive)")
         public String since;
 
-        @Option(name = {"--until"}, description = "Filter transactions until this timestamp (inclusive)")
+        @Option(names = {"--until"}, description = "Filter transactions until this timestamp (inclusive)")
         public String until;
 
-        @Option(name = {"-e", "--skip-errors"}, description = "Skip errors: 'true' to skip all, or comma-separated exception class names to skip specific types")
+        @Option(names = {"-e", "--skip-errors"}, description = "Skip errors: 'true' to skip all, or comma-separated exception class names to skip specific types")
         public String skipErrors;
 
-        @Option(name = {"-c", "--construct"}, description = "Construct entry")
+        @Option(names = {"-c", "--construct"}, description = "Construct entry")
         public boolean construct;
 
 
@@ -345,8 +347,7 @@ public class StandaloneJournalUtil
                 if (!shouldSkip)
                     throw t;
 
-                output.out.println(String.format("Got error reading key %s", key));
-                t.printStackTrace();
+                throw new RuntimeException(String.format("Error reading key %s: %s", key, t.getMessage()), t);
             }
         }
     }

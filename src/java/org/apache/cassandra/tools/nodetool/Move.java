@@ -17,23 +17,22 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.io.IOException;
 
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "move", description = "Move node on the token ring to a new token")
-public class Move extends NodeToolCmd
+public class Move extends AbstractCommand
 {
-    @Arguments(usage = "<new token>", description = "The new token.")
+    @Parameters(paramLabel = "newToken", description = "The new token.", arity = "0..1", index = "0")
     private String newToken = EMPTY;
 
-    @Option(title = "Resume an ongoing move operation", name = "--resume")
+    @Option(description = "Resume an ongoing move operation", names = { "--resume" })
     private boolean resume;
 
     @Override
@@ -59,9 +58,9 @@ public class Move extends NodeToolCmd
     }
 
     @Command(name = "abortmove", description = "Abort a failed move operation for this or a remote node")
-    public static class Abort extends NodeToolCmd
+    public static class Abort extends AbstractCommand
     {
-        @Option(title = "node id", name = "--node")
+        @Option(paramLabel = "nodeId", names = { "--node" })
         private String nodeId;
 
         @Override

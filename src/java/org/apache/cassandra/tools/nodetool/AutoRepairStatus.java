@@ -23,11 +23,10 @@ import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -35,10 +34,10 @@ import static com.google.common.base.Preconditions.checkArgument;
  * Provides currently running auto-repair tasks.
  */
 @Command(name = "autorepairstatus", description = "Print autorepair status")
-public class AutoRepairStatus extends NodeTool.NodeToolCmd
+public class AutoRepairStatus extends AbstractCommand
 {
     @VisibleForTesting
-    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type")
+    @Option(names = { "-t", "--repair-type" }, description = "Repair type")
     protected String repairType;
 
     @Override

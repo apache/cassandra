@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.config;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -87,6 +88,9 @@ public enum CassandraRelevantProperties
     CACHEABLE_MUTATION_SIZE_LIMIT("cassandra.cacheable_mutation_size_limit_bytes", convertToString(1_000_000)),
     CASSANDRA_ALLOW_SIMPLE_STRATEGY("cassandra.allow_simplestrategy"),
     CASSANDRA_AVAILABLE_PROCESSORS("cassandra.available_processors"),
+    /** By default, the standard Cassandra CLI layout is used for backward compatibility, however,
+     * the new Picocli layout can be enabled by setting this property to the {@code "picocli"}. */
+    CASSANDRA_CLI_LAYOUT("cassandra.cli.layout", "airline"),
     /** The classpath storage configuration file. */
     CASSANDRA_CONFIG("cassandra.config", "cassandra.yaml"),
     /**
@@ -1002,7 +1006,16 @@ public enum CassandraRelevantProperties
     public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass)
     {
         String value = System.getProperty(key, defaultVal);
-        return Enum.valueOf(enumClass, toUppercase ? toUpperCaseLocalized(value) : value);
+        try
+        {
+            return Enum.valueOf(enumClass, toUppercase ? toUpperCaseLocalized(value) : value);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for system propery '%s': " +
+                                                           "expected one of %s (case-insensitive) but was '%s'",
+                                                           key, Arrays.toString(enumClass.getEnumConstants()), value));
+        }
     }
 
     /**

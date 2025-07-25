@@ -30,48 +30,60 @@ import javax.management.openmbean.OpenDataException;
 
 import com.google.common.collect.Lists;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 import org.apache.cassandra.utils.Pair;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 import static org.apache.commons.lang3.StringUtils.join;
 
 @Command(name = "profileload", description = "Low footprint profiling of activity for a period of time")
-public class ProfileLoad extends NodeToolCmd
+public class ProfileLoad extends AbstractCommand
 {
-    @Arguments(usage = "<keyspace> <cfname> <duration>", description = "The keyspace, column family name, and duration in milliseconds (Default: 10000)")
+    @CassandraUsage(usage = "<keyspace> <cfname> <duration>", description = "The keyspace, column family name, and duration in milliseconds (Default: 10000)")
     private List<String> args = new ArrayList<>();
 
-    @Option(name = "-s", description = "Capacity of the sampler, higher for more accuracy (Default: 256)")
+    @Parameters(index = "0", description = "The keyspace name", arity = "0..1")
+    private String keyspace;
+
+    @Parameters(index = "1", description = "The cloumn family name", arity = "0..1")
+    private String cfname;
+
+    @Parameters(index = "2", description = "The duration in milliseconds (Default: 10000)", arity = "0..1")
+    private String duration;
+
+    @Option(names = "-s", description = "Capacity of the sampler, higher for more accuracy (Default: 256)")
     private int capacity = 256;
 
-    @Option(name = "-k", description = "Number of the top samples to list (Default: 10)")
+    @Option(names = "-k", description = "Number of the top samples to list (Default: 10)")
     private int topCount = 10;
 
-    @Option(name = "-a", description = "Comma separated list of samplers to use (Default: all)")
+    @Option(names = "-a", description = "Comma separated list of samplers to use (Default: all)")
     private String samplers = join(SamplerType.values(), ',');
 
-    @Option(name = {"-i", "--interval"}, description = "Schedule a new job that samples every interval milliseconds (Default: disabled) in the background")
+    @Option(names = { "-i", "--interval" }, description = "Schedule a new job that samples every interval milliseconds (Default: disabled) in the background")
     private int intervalMillis = -1; // -1 for disabled.
 
-    @Option(name = {"-t", "--stop"}, description = "Stop the scheduled sampling job identified by <keyspace> and <cfname>. Jobs are stopped until the last schedules complete.")
+    @Option(names = { "-t", "--stop" }, description = "Stop the scheduled sampling job identified by <keyspace> and <cfname>. Jobs are stopped until the last schedules complete.")
     private boolean shouldStop = false;
 
-    @Option(name = {"-l", "--list"}, description = "List the scheduled sampling jobs")
+    @Option(names = { "-l", "--list" }, description = "List the scheduled sampling jobs")
     private boolean shouldList = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 3 || args.size() == 2 || args.size() == 1 || args.size() == 0,
+        args = concatArgs(keyspace, cfname, duration);
+
+        checkArgument(args.size() == 3 || args.size() == 2 || args.size() == 1 || args.isEmpty(),
                       "Invalid arguments, either [keyspace table/* duration] or [keyspace table/*] or [duration] or no args.\n" +
                       "Optionally, use * to represent all tables under the keyspace.");
         checkArgument(topCount > 0, "TopK count (-k) option must have positive value");
