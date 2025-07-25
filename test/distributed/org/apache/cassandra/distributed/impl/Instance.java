@@ -758,8 +758,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
         }
 
-        mkdirs();
-
         assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
                                                                                             config.networkTopology(), config.broadcastAddress());
         DistributedTestInitialLocationProvider.assign(config.networkTopology());
@@ -773,7 +771,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         Config.log(DatabaseDescriptor.getRawConfig());
 
         DiskErrorsHandlerService.configure();
-        DatabaseDescriptor.createAllDirectories();
         CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
 
         CommitLog.instance.start();
