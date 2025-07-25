@@ -606,7 +606,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
                 }
 
-                mkdirs();
 
                 assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
                                                                                                     config.networkTopology(), config.broadcastAddress());
@@ -617,7 +616,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 DatabaseDescriptor.daemonInitialization();
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
-                DatabaseDescriptor.createAllDirectories();
                 CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
                 CommitLog.instance.start();
 
@@ -812,15 +810,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         sync(() ->
             StorageService.instance.doAuthSetup(false)
         ).run();
-    }
-
-    private void mkdirs()
-    {
-        new File(config.getString("saved_caches_directory")).tryCreateDirectories();
-        new File(config.getString("hints_directory")).tryCreateDirectories();
-        new File(config.getString("commitlog_directory")).tryCreateDirectories();
-        for (String dir : (String[]) config.get("data_file_directories"))
-            new File(dir).tryCreateDirectories();
     }
 
     private Config loadConfig(IInstanceConfig overrides)
