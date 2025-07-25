@@ -82,7 +82,6 @@ public class CMSOfflineTool
 
     public int execute(String... args)
     {
-
         Cli.CliBuilder<ClusterMetadataToolRunnable> builder = Cli.builder(TOOL_NAME);
 
         List<Class<? extends ClusterMetadataToolRunnable>> commands = new ArrayList<>()
@@ -210,7 +209,7 @@ public class CMSOfflineTool
     @Command(name = "addtocms", description = "Makes a node as CMS member")
     public static class AddToCMS extends ClusterMetadataToolCmd
     {
-        @Option(name = { "-ip", "--ip-address" }, description = "IP address of node to make CMS", required = true)
+        @Option(name = { "-ip", "--ip-address" }, description = "IP address of the target endpoint. Port can be optionally specified using a colon after the IP address (e.g., 127.0.0.1:9042).", required = true)
         private String ipAddress;
 
         @Option(type = OptionType.COMMAND, name = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
@@ -243,7 +242,7 @@ public class CMSOfflineTool
     @Command(name = "assigntokens", description = "Assigns a token for given instance")
     public static class AssignTokens extends ClusterMetadataToolCmd
     {
-        @Option(name = { "-ip", "--ip-address" }, description = "IP address of endpoint. Port can be specified as well.", required = true)
+        @Option(name = { "-ip", "--ip-address" }, description = "IP address of the target endpoint. Port can be optionally specified using a colon after the IP address (e.g., 127.0.0.1:9042).", required = true)
         private String ip;
 
         @Option(name = { "-t", "--token" }, description = "Token to assign. Pass it multiple times to assign multiple tokens to node.", required = true)

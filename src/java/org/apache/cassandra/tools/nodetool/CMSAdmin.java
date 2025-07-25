@@ -298,7 +298,7 @@ public class CMSAdmin extends AbstractCommand
         }
     }
 
-    @Command(name = "dumpclustermetadata", description = "Dumps Cluster Metadata into a file")
+    @Command(name = "dump", description = "Dumps cluster metadata into a file")
     public static class DumpClusterMetadata extends NodeTool.NodeToolCmd
     {
 
@@ -307,11 +307,11 @@ public class CMSAdmin extends AbstractCommand
         private Long epoch;
 
         @Option(title = "Transform Epoch", name = { "-te", "--transform-epoch" }, required = false,
-        description = "The epoch to which the cluster meta data should be transformed before dumping")
+        description = "Force metadata to given X epoch while dumping")
         private Long transformEpoch;
 
-        @Option(title = "Searialization Version", name = { "-sv", "--serialization-version" }, required = false,
-        description = "Searialization Version")
+        @Option(title = "Serialization Version", name = { "-sv", "--serialization-version" }, required = false,
+        description = "Serialization Version")
         private Version version;
 
         protected void execute(NodeProbe probe)
@@ -346,17 +346,13 @@ public class CMSAdmin extends AbstractCommand
             {
                 List<String> invalidArgs = new ArrayList<>(2);
                 if (null == epoch)
-                {
                     invalidArgs.add("epoch");
-                }
+
                 if (null == transformEpoch)
-                {
                     invalidArgs.add("transform-epoch");
-                }
+
                 if (null == version)
-                {
                     invalidArgs.add("version");
-                }
 
                 throw  new IllegalArgumentException("The three aguments epoch, transform-epoch and version " +
                                                     "should be specified together. Arguments " +
