@@ -42,7 +42,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.JournalKey;
-import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;

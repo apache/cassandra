@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.interop;
 import accord.coordinate.Timeout;
 import accord.local.Node;
 import accord.messages.Callback;
+import accord.messages.ReadData;
 import accord.messages.ReadData.ReadOk;
 import accord.messages.ReadData.ReadReply;
 import accord.utils.Invariants;
@@ -68,7 +69,7 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
             // it and instead opts to trigger additional repair messages based on time.
             interopExecution.sendMaximalCommit(id);
         }
-        else
+        else if (reply != ReadData.CommitOrReadNack.Waiting)
         {
             wrapped.onFailure(endpoint, RequestFailure.UNKNOWN);
         }
