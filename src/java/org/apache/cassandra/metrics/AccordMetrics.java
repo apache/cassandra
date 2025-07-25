@@ -70,7 +70,7 @@ public class AccordMetrics
     public static final String FAST_PATHS = "FastPaths";
     public static final String MEDIUM_PATHS = "MediumPaths";
     public static final String SLOW_PATHS = "SlowPaths";
-    public static final String PREEMPTS = "Preempts";
+    public static final String PREEMPTED = "Preempted";
     public static final String TIMEOUTS = "Timeouts";
     public static final String INVALIDATIONS = "Invalidations";
     public static final String RECOVERY_DELAY = "RecoveryDelay";
@@ -144,7 +144,7 @@ public class AccordMetrics
     /**
      * The number of preempted transactions on this coordinator.
      */
-    public final Meter preempts;
+    public final Meter preempted;
 
     /**
      * The number of timed out transactions on this coordinator.
@@ -195,7 +195,7 @@ public class AccordMetrics
         fastPaths = Metrics.meter(coordinator.createMetricName(FAST_PATHS));
         mediumPaths = Metrics.meter(coordinator.createMetricName(MEDIUM_PATHS));
         slowPaths = Metrics.meter(coordinator.createMetricName(SLOW_PATHS));
-        preempts = Metrics.meter(coordinator.createMetricName(PREEMPTS));
+        preempted = Metrics.meter(coordinator.createMetricName(PREEMPTED));
         timeouts = Metrics.meter(coordinator.createMetricName(TIMEOUTS));
         invalidations = Metrics.meter(coordinator.createMetricName(INVALIDATIONS));
         recoveryDelay = Metrics.timer(coordinator.createMetricName(RECOVERY_DELAY));
