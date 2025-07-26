@@ -2491,6 +2491,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
+
+    /**
+     * Truncate this table if there is any data(SSTable). This is mainly used for reset
+     * bootstrap progress that we want to clear all the previous streamed data
+     */
+    public void truncateIfLiveSSTableExists()
+    {
+        if (!getLiveSSTables().isEmpty())
+        {
+            truncateBlockingWithoutSnapshot();
+        }
+    }
+
     public void truncateBlocking()
     {
         truncateBlocking(false);
