@@ -1183,9 +1183,19 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getNaturalEndpointsWithPort(keyspace, cf, key);
     }
 
+    public List<String> getEndpointsByTokenWithPort(String keyspace, String cf, String token)
+    {
+        return ssProxy.getNaturalEndpointsByTokenWithPort(keyspace, cf, token);
+    }
+
     public List<InetAddress> getEndpoints(String keyspace, String cf, String key)
     {
         return ssProxy.getNaturalEndpoints(keyspace, cf, key);
+    }
+
+    public List<InetAddress> getEndpointsByToken(String keyspaceName, String cf, String token)
+    {
+        return ssProxy.getNaturalEndpointsByToken(keyspaceName, cf, token);
     }
 
     public List<String> getSSTables(String keyspace, String cf, String key, boolean hexFormat)

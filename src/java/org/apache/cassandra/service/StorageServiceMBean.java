@@ -264,6 +264,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     @Deprecated(since = "4.0") public List<InetAddress> getNaturalEndpoints(String keyspaceName, String cf, String key);
     public List<String> getNaturalEndpointsWithPort(String keyspaceName, String cf, String key);
+    List<InetAddress> getNaturalEndpointsByToken(String keyspaceName, String cf, String token);
+    List<String> getNaturalEndpointsByTokenWithPort(String keyspaceName, String cf, String token);
     /** @deprecated See CASSANDRA-7544 */
     @Deprecated(since = "4.0") public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key);
     public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);

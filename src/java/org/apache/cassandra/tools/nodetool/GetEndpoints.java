@@ -25,33 +25,40 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "getendpoints", description = "Print the end points that owns the key")
+@Command(name = "getendpoints", description = "Print the end points that owns the key/token")
 public class GetEndpoints extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the endpoint")
+    @Arguments(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key/token for which we need to find the endpoint")
     private List<String> args = new ArrayList<>();
+
+    @Option(title = "token",
+    name = { "-t", "--token" },
+    description = "Print the endpoints by token")
+    private boolean byToken = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 3, "getendpoints requires keyspace, table and partition key arguments");
+        checkArgument(args.size() == 3, "getendpoints requires keyspace, table and partition key/token arguments");
         String ks = args.get(0);
         String table = args.get(1);
-        String key = args.get(2);
+        String keyOrToken = args.get(2);
 
         if (printPort)
         {
-            for (String endpoint : probe.getEndpointsWithPort(ks, table, key))
+            List<String> endpoints = byToken ? probe.getEndpointsByTokenWithPort(ks, table, keyOrToken) : probe.getEndpointsWithPort(ks, table, keyOrToken);
+            for (String endpoint : endpoints)
             {
                 probe.output().out.println(endpoint);
             }
         }
         else
         {
-            List<InetAddress> endpoints = probe.getEndpoints(ks, table, key);
+            List<InetAddress> endpoints = byToken ? probe.getEndpointsByToken(ks, table, keyOrToken) : probe.getEndpoints(ks, table, keyOrToken);
             for (InetAddress endpoint : endpoints)
             {
                 probe.output().out.println(endpoint.getHostAddress());
