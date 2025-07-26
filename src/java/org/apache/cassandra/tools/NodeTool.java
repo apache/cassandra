@@ -205,6 +205,7 @@ public class NodeTool
                 SetBatchlogReplayThrottle.class,
                 SetCacheCapacity.class,
                 SetCacheKeysToSave.class,
+                SetCachePeriod.class,
                 SetColumnIndexSize.class,
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,

@@ -1173,6 +1173,14 @@ public class NodeProbe implements AutoCloseable
         cacheMBean.setCounterCacheKeysToSave(counterCacheKeysToSave);
     }
 
+    public void setCachePeriod(int keyCachePeriod, int rowCachePeriod, int counterPeriod)
+    {
+        CacheServiceMBean cacheMBean = getCacheServiceMBean();
+        cacheMBean.setKeyCacheSavePeriodInSeconds(keyCachePeriod);
+        cacheMBean.setRowCacheSavePeriodInSeconds(rowCachePeriod);
+        cacheMBean.setCounterCacheSavePeriodInSeconds(counterPeriod);
+    }
+
     public void setHintedHandoffThrottleInKB(int throttleInKB)
     {
         ssProxy.setHintedHandoffThrottleInKB(throttleInKB);
