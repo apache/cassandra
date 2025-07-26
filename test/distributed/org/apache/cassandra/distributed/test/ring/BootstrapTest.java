@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.ring;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.management.MBeanAttributeInfo;
@@ -29,6 +30,8 @@ import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
+import net.bytebuddy.implementation.bind.annotation.Argument;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
@@ -171,8 +174,48 @@ public class BootstrapTest extends TestBaseImpl
         }
     }
 
-    public static <T> T getMetricGaugeValue(IInvokableInstance instance, String metricName, Class<T> gaugeReturnType)
-    {
+    @Test
+    public void resumeBootstrapTest() throws Throwable {
+        int originalNodeCount = 2;
+        int expandedNodeCount = originalNodeCount + 1;
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, JMX))
+                                        .withInstanceInitializer(BB::installSetBootstrapStateWithDelay)
+                                        .start()) {
+            populate(cluster, 0, 100);
+            IInstanceConfig config = cluster.newInstanceConfig()
+                                    .set("auto_bootstrap", true);
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            IInvokableInstance joiningInstance = cluster.get(3);
+            newInstance.startup(cluster);
+
+            joiningInstance.runOnInstance(() -> {
+                assertEquals("IN_PROGRESS", StorageService.instance.getBootstrapState());
+            });
+
+            joiningInstance.runOnInstance(() -> {
+                RESET_BOOTSTRAP_PROGRESS.setBoolean(false);
+            });
+
+            joiningInstance.runOnInstance(() -> {
+                assertEquals("IN_PROGRESS", StorageService.instance.getBootstrapState());
+            });
+            assertEquals("Node is already bootstrapped or bootstrap is in progress.\n", joiningInstance.nodetoolResult("bootstrap", "resume").getStdout());
+            // Releasing the lock.
+            BB.latch.countDown();
+
+            if (BB.isLatchreleased) {
+                //Assuming node is still bootstrapping.
+                joiningInstance.runOnInstance(() -> {
+                    assertEquals("COMPLETED", StorageService.instance.getBootstrapState());
+                });
+            }
+        }
+    }
+
+    public static <T> T getMetricGaugeValue(IInvokableInstance instance, String metricName, Class<T> gaugeReturnType) {
         return gaugeReturnType.cast(getMetricAttribute(instance, metricName, "Value"));
     }
 
@@ -252,12 +295,13 @@ public class BootstrapTest extends TestBaseImpl
                                                   nodeId -> (Long) cluster.get(nodeId).executeInternal("SELECT count(*) FROM " + KEYSPACE + ".tbl")[0][0]));
     }
 
-    public static class BB
-    {
-        public static void install(ClassLoader classLoader, Integer num)
-        {
-            if (num != 3)
-            {
+    public static class BB {
+        private static CountDownLatch latch = new CountDownLatch(1);
+        private static final Object lock = new Object();
+        private static boolean isLatchreleased = false;
+
+        public static void install(ClassLoader classLoader, Integer num) {
+            if (num != 3) {
                 return;
             }
             new ByteBuddy().rebase(StorageService.class)
@@ -286,6 +330,51 @@ public class BootstrapTest extends TestBaseImpl
                 throw new RuntimeException(e);
             }
         }
-    }
 
+        public static void installSetBootstrapStateWithDelay(ClassLoader classLoader, Integer num) {
+            // Apply ByteBuddy modification for setBootstrapState only on node 3
+            if (num == 3) {
+                new ByteBuddy().rebase(SystemKeyspace.class)
+                        .method(named("setBootstrapState"))
+                        .intercept(MethodDelegation.to(BB.class))
+                        .make()
+                        .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+            }
+        }
+
+        @SuppressWarnings("unused")
+        public static void setBootStrapState(@SuperCall Callable<Void> zuper, @Argument(0) SystemKeyspace.BootstrapState state) {
+            if (!(state == SystemKeyspace.BootstrapState.COMPLETED))
+            {
+                // Calling original method without latch for state other than COMPLETED
+                try
+                {
+                    zuper.call();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+                return;
+            }
+            new Thread(() -> {
+                try {
+                    synchronized (lock) {
+                        latch.await(); // This will block until the latch is released
+                    }
+                    // Once the latch is released, call the original method
+                    try {
+                        zuper.call(); // Call the original method now
+                        isLatchreleased = true;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted while waiting for latch to proceed", e);
+                }
+            }).start();
+
+        }
+    }
 }

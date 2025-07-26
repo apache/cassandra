@@ -2400,7 +2400,7 @@ public class NodeProbe implements AutoCloseable
             }
             else
             {
-                out.println("Node is already bootstrapped.");
+                out.println("Node is already bootstrapped or bootstrap is in progress.");
             }
         }
         catch (Exception e)
