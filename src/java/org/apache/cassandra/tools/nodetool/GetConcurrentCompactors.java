@@ -18,16 +18,15 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "getconcurrentcompactors", description = "Get the number of concurrent compactors in the system.")
-public class GetConcurrentCompactors extends NodeToolCmd
+public class GetConcurrentCompactors extends AbstractCommand
 {
     protected void execute(NodeProbe probe)
     {
         probe.output().out.println("Current concurrent compactors in the system is: \n" +
-                            probe.getConcurrentCompactors());
+                                   probe.getConcurrentCompactors());
     }
 }

@@ -108,11 +108,11 @@ public abstract class AbstractNodetoolStatusTest extends TestBaseImpl
         // test illegal sort by or order
         NodeToolResult invalidSortBy = NODE_1.nodetoolResult("status", "--sort", "not_an_option");
         invalidSortBy.asserts().failure();
-        Assert.assertTrue(invalidSortBy.getStderr().contains("Illegal value for -s/--sort used: 'not_an_option'. Supported values are state, ip, host, load, owns, id, token, rack."));
+        Assert.assertTrue(invalidSortBy.getStdout().contains("Invalid value for option '--sort': expected one of [state, ip, host, load, owns, id, token, rack] (case-sensitive) but was 'not_an_option'"));
 
         NodeToolResult invalidSortOrder = NODE_1.nodetoolResult("status", "--sort", "ip", "-o", "not_an_order");
         invalidSortOrder.asserts().failure();
-        Assert.assertTrue(invalidSortOrder.getStderr().contains("Illegal value for -o/--order used: 'not_an_order'. Supported values are asc, desc."));
+        Assert.assertTrue(invalidSortOrder.getStdout().contains("Invalid value for option '--order': expected one of [asc, desc] (case-sensitive) but was 'not_an_order'"));
 
         // test order alone
         assertEquals(0, NODE_1.nodetool("status", "-o", "asc"));

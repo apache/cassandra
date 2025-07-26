@@ -17,26 +17,41 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static java.lang.Integer.parseInt;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.Integer.parseInt;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "setcompactionthreshold", description = "Set min and max compaction thresholds for a given table")
-public class SetCompactionThreshold extends NodeToolCmd
+public class SetCompactionThreshold extends AbstractCommand
 {
-    @Arguments(title = "<keyspace> <table> <minthreshold> <maxthreshold>", usage = "<keyspace> <table> <minthreshold> <maxthreshold>", description = "The keyspace, the table, min and max threshold", required = true)
+    @CassandraUsage(usage = "<keyspace> <table> <minthreshold> <maxthreshold>", description = "The keyspace, the table, min and max threshold")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(paramLabel = "keyspace", description = "The keyspace name", arity = "0..1", index = "0")
+    private String keyspace;
+
+    @Parameters(paramLabel = "table", description = "The table name", arity = "0..1", index = "1")
+    private String table;
+
+    @Parameters(paramLabel = "minthreshold", description = "The min threshold", arity = "0..1", index = "2")
+    private String minthreshold;
+
+    @Parameters(paramLabel = "maxthreshold", description = "The max threshold", arity = "0..1", index = "3")
+    private String maxthreshold;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, table, minthreshold, maxthreshold);
+
         checkArgument(args.size() == 4, "setcompactionthreshold requires ks, cf, min, and max threshold args.");
 
         int minthreshold = parseInt(args.get(2));

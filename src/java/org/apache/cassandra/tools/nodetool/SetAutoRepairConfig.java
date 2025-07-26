@@ -20,11 +20,6 @@ package org.apache.cassandra.tools.nodetool;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -33,31 +28,40 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import org.apache.cassandra.tools.NodeProbe;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
 import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Allows to set AutoRepair configuration through nodetool.
  */
 @Command(name = "setautorepairconfig", description = "sets the autorepair configuration")
-public class SetAutoRepairConfig extends NodeToolCmd
+public class SetAutoRepairConfig extends AbstractCommand
 {
     @VisibleForTesting
-    @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
-    description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
-                  "[start_scheduler|number_of_repair_threads|min_repair_interval|sstable_upper_threshold" +
-                  "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
-                  "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
-                  "|parallel_repair_count|parallel_repair_percentage" +
-                  "|allow_parallel_replica_repair|allow_parallel_repair_across_schedules" +
-                  "|materialized_view_repair_enabled|repair_max_retries" +
-                  "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration" +
-                  "|repair_by_keyspace|token_range_splitter.<property>]",
-    required = true)
     protected List<String> args = new ArrayList<>();
 
+    @Parameters(index = "0", arity = "0..1", description = { "Autorepair param type.",
+                                                          "Possible autorepair parameters are as following: " +
+                                                          "[start_scheduler|number_of_repair_threads|min_repair_interval|sstable_upper_threshold" +
+                                                          "|enabled|table_max_repair_time|priority_hosts|forcerepair_hosts|ignore_dcs" +
+                                                          "|history_clear_delete_hosts_buffer_interval|repair_primary_token_range_only" +
+                                                          "|parallel_repair_count|parallel_repair_percentage" +
+                                                          "|allow_parallel_replica_repair|allow_parallel_repair_across_schedules" +
+                                                          "|materialized_view_repair_enabled|repair_max_retries" +
+                                                          "|repair_retry_backoff|repair_session_timeout|min_repair_task_duration" +
+                                                          "|repair_by_keyspace|token_range_splitter.<property>]" })
+    public String autorepairParamType;
+
+    @Parameters(index = "1", description = "Autorepair param value", arity = "0..1")
+    public String autorepairParamValue;
+
     @VisibleForTesting
-    @Option(title = "repair type", name = { "-t", "--repair-type" }, description = "Repair type")
-    protected String repairTypeStr;
+    @Option(paramLabel = "repairType", names = { "-t", "--repair-type" }, description = "Repair type")
+    public String repairTypeStr;
 
     @VisibleForTesting
     protected PrintStream out = System.out;
@@ -67,6 +71,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        args = args.isEmpty() ? CommandUtils.concatArgs(autorepairParamType, autorepairParamValue) : args;
         checkArgument(args.size() == 2, "setautorepairconfig requires param-type, and value args.");
         String paramType = args.get(0);
         String paramVal = args.get(1);

@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "gettraceprobability", description = "Print the current trace probability value")
-public class GetTraceProbability extends NodeToolCmd
+public class GetTraceProbability extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

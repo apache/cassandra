@@ -17,18 +17,17 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "decommission", description = "Decommission the *node I am connecting to*")
-public class Decommission extends NodeToolCmd
+public class Decommission extends AbstractCommand
 {
-    @Option(title = "force",
-    name = {"-f", "--force"},
-    description = "Force decommission of this node even when it reduces the number of replicas to below configured RF")
+
+    @Option(paramLabel = "force",
+            names = { "-f", "--force" },
+            description = "Force decommission of this node even when it reduces the number of replicas to below configured RF")
     private boolean force = false;
 
     @Override
@@ -57,9 +56,9 @@ public class Decommission extends NodeToolCmd
     }
 
     @Command(name = "abortdecommission", description = "Abort an ongoing, failed decommission")
-    public static class Abort extends NodeToolCmd
+    public static class Abort extends AbstractCommand
     {
-        @Option(title = "node id", name = "--node")
+        @Option(paramLabel = "nodeId", names = { "--node" })
         private String nodeId;
 
         @Override

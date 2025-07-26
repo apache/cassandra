@@ -17,11 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static java.lang.String.format;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -30,25 +25,37 @@ import java.util.Map;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 import org.apache.cassandra.utils.EstimatedHistogram;
-
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang3.ArrayUtils;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "tablehistograms", description = "Print statistic histograms for a given table")
-public class TableHistograms extends NodeToolCmd
+public class TableHistograms extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <table> | <keyspace.table>]", description = "The keyspace and table name")
+    @CassandraUsage(usage = "[<keyspace> <table> | <keyspace.table>]", description = "The keyspace and table name")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(index = "0", description = "The keyspace name or keyspace and table name", arity = "0..1")
+    private String keyspaceTable = null;
+
+    @Parameters(index = "1", description = "The table name", arity = "0..1")
+    private String table = null;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspaceTable, table);
         PrintStream out = probe.output().out;
         Multimap<String, String> tablesList = HashMultimap.create();
 

@@ -30,14 +30,12 @@ import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.Option;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.Debug.Info;
@@ -55,6 +53,8 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -149,132 +149,135 @@ public class SimulationRunner
         ThreadLocalRandom.current();
     }
 
-    protected interface ICommand<B extends ClusterSimulation.Builder<?>>
+    protected abstract static class BasicCommand<B extends ClusterSimulation.Builder<?>> implements Runnable
     {
-        public void run(B builder) throws IOException;
-    }
+        @Inject
+        protected B builder;
 
-    protected abstract static class BasicCommand<B extends ClusterSimulation.Builder<?>> implements ICommand<B>
-    {
-        @Option(name = { "--seed" } , title = "0x", description = "Specify the first seed to test (each simulation will increment the seed by 1)")
+        @Option(names = { "--seed" }, description = { "Specify the first seed to test (each simulation will increment the seed by 1)", "0x" })
         protected String seed;
 
-        @Option(name = { "--simulations"} , title = "int", description = "The number of simulations to run")
+        @Option(names = { "--simulations" }, description = { "The number of simulations to run", "int" })
         protected int simulationCount = 1;
 
-        @Option(name = { "-t", "--threads" }, title = "int", description = "The number of threads to split between node thread pools. Each ongoing action also requires its own thread.")
+        @Option(names = { "-t", "--threads" }, description = { "The number of threads to split between node thread pools. Each ongoing action also requires its own thread.", "int" })
         protected int threadCount = 1000;
 
-        @Option(name = { "-n", "--nodes" } , title = "int...int", description = "Cluster size range, lb..ub (default 4..16)")
+        @Option(names = { "-n", "--nodes" }, description = { "Cluster size range, lb..ub (default 4..16)", "int...int" })
         protected String nodeCount = "4..16";
 
-        @Option(name = { "--dcs" }, title = "int...int", description = "Cluster DC count, lb..ub (default 1..2)")
+        @Option(names = { "--dcs" }, description = { "Cluster DC count, lb..ub (default 1..2)", "int...int" })
         protected String dcCount = "1..2";
 
-        @Option(name = { "-o", "--within-key-concurrency" }, title = "int..int", description = "Number of simultaneous paxos operations per key, lb..ub (default 2..5)")
+        @Option(names = { "-o", "--within-key-concurrency" }, description = { "Number of simultaneous paxos operations per key, lb..ub (default 2..5)", "int...int" })
         protected String withinKeyConcurrency = "2..5";
 
-        @Option(name = { "-c", "--concurrency" }, title = "int", description = "Number of keys to operate on simultaneously (default 10)")
+        @Option(names = { "-c", "--concurrency" }, description = { "Number of keys to operate on simultaneously (default 10)", "int" })
         protected int concurrency = 10;
-        @Option(name = { "-k", "--keys" }, title = "int", description = "Number of unique partition keys to operate over (default to 2* concurrency)")
+        @Option(names = { "-k", "--keys" }, description = { "Number of unique partition keys to operate over (default to 2* concurrency)", "int" })
         protected int primaryKeyCount = -1;
-        @Option(name = { "--key-seconds" }, title = "int...int", description = "Number of seconds to simulate a partition key for before selecting another (default 5..30)")
+        @Option(names = { "--key-seconds" }, description = { "Number of seconds to simulate a partition key for before selecting another (default 5..30)", "int...int" })
         protected String primaryKeySeconds = "5..30";
 
-        @Option(name = { "--cluster-actions" }, title = "JOIN,LEAVE,REPLACE,CHANGE_RF", description = "Cluster actions to select from, comma delimited (JOIN, LEAVE, REPLACE, CHANGE_RF)")
+        @Option(names = { "--cluster-actions" }, description = { "Cluster actions to select from, comma delimited (JOIN, LEAVE, REPLACE, CHANGE_RF)", "JOIN,LEAVE,REPLACE,CHANGE_RF" })
         protected String topologyChanges = stream(TopologyChange.values()).map(Object::toString).collect(Collectors.joining(","));
-        @Option(name = { "--cluster-action-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of time between two cluster actions (default 5..15s)")
+        @Option(names = { "--cluster-action-interval" }, description = { "The period of time between two cluster actions (default 5..15s)", "int...int(s|ms|us|ns)" })
         protected String topologyChangeInterval = "5..15s";
-        @Option(name = { "--cluster-action-limit" }, title = "int", description = "The maximum number of topology change events to perform (default 0 disabled, -1 unlimited)")
+        @Option(names = { "--cluster-action-limit" }, description = { "The maximum number of topology change events to perform (default 0 disabled, -1 unlimited)", "int" })
         protected String topologyChangeLimit = "0";
 
-        @Option(name = { "--consensus-actions" }, title = "ACCORD_MIGRATE", description = "Consensus migration actions to select from, comma delimited (ACCORD_MIGRATE)")
+        @Option(names = { "--consensus-actions" }, description = { "Consensus migration actions to select from, comma delimited (ACCORD_MIGRATE)", "ACCORD_MIGRATE" })
         protected String consensusChanges = stream(ConsensusChange.values()).map(Object::toString).collect(Collectors.joining(","));
-        @Option(name = { "--consensus-action-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of time between two consensus actions (default 5..15s)")
+        @Option(names = { "--consensus-action-interval" }, description = { "The period of time between two consensus actions (default 5..15s)", "int...int(s|ms|us|ns)" })
         protected String consensusChangeInterval = "1..5s";
-        @Option(name = { "--consensus-action-limit" }, title = "int", description = "The maximum number of consensus change events to perform (default 0 disabled, -1 unlimited)")
+        @Option(names = { "--consensus-action-limit" }, description = { "The maximum number of consensus change events to perform (default 0 disabled, -1 unlimited)", "int" })
         protected String consensusChangeLimit = "0";
 
-        @Option(name = { "-s", "--run-time" }, title = "int", description = "Length of simulated time to run in seconds (default -1)")
+        @Option(names = { "-s", "--run-time" }, description = { "Length of simulated time to run in seconds (default -1)", "int" })
         protected int secondsToSimulate = -1;
 
-        @Option(name = { "--reads" }, title = "[distribution:]float...float", description = "Proportion of actions that are reads (default: 0.05..0.95)")
+        @Option(names = { "--reads" }, description = { "Proportion of actions that are reads (default: 0.05..0.95)", "[distribution:]float...float" })
         protected String readChance;
-        @Option(name = { "--nemesis" }, title = "[distribution:]float...float", description = "Proportion of nemesis points that are intercepted (default: 0..0.01)")
+        @Option(names = { "--nemesis" }, description = { "Proportion of nemesis points that are intercepted (default: 0..0.01)", "[distribution:]float...float" })
         protected String nemesisChance;
 
-        @Option(name = { "--priority" }, title = "uniform|randomwalk|seq", description = "Priority assignment for actions that may overlap their execution", allowedValues = { "uniform", "randomwalk", "seq" })
+        @Option(names = { "--priority" }, description = { "Priority assignment for actions that may overlap their execution", "uniform|randomwalk|seq" })
         protected String priority;
 
         // TODO (feature): simulate GC pauses
 
-        @Option(name = { "--network-flaky-chance" }, title = "[distribution:]float...float", description = "Chance of some minority of nodes experiencing flaky connections (default: qlog:0.01..0.1)")
+        @Option(names = { "--network-flaky-chance" }, description = { "Chance of some minority of nodes experiencing flaky connections (default: qlog:0.01..0.1)", "[distribution:]float...float" })
         protected String networkFlakyChance = "qlog:0.01..0.1";
-        @Option(name = { "--network-partition-chance" }, title = "[distribution:]float...float", description = "Chance of some minority of nodes being isolated (default: qlog:0.01..0.1)")
+        @Option(names = { "--network-partition-chance" }, description = { "Chance of some minority of nodes being isolated (default: qlog:0.01..0.1)", "[distribution:]float...float" })
         protected String networkPartitionChance = "qlog:0.01..0.1";
-        @Option(name = { "--network-reconfigure-interval" }, title = "int...int(s|ms|us|ns)", description = "Period of time for which a flaky or catastrophic network partition may be in force")
+        @Option(names = { "--network-reconfigure-interval" }, description = { "Period of time for which a flaky or catastrophic network partition may be in force", "int...int(s|ms|us|ns)" })
         protected String networkReconfigureInterval = "1..10s";
-        @Option(name = { "--network-drop-chance" }, title = "[distribution:]float...float", description = "Chance of dropping a message under normal circumstances (default: qlog:0..0.001)")
+        @Option(names = { "--network-drop-chance" }, description = { "Chance of dropping a message under normal circumstances (default: qlog:0..0.001)", "[[distribution:]float...float]" })
         protected String networkDropChance = "qlog:0..0.001";
         // TODO (feature): TDP vs UDP simulation (right now we have no head of line blocking so we deliver in a UDP fashion which is not how the cluster operates)
-        @Option(name = { "--network-delay-chance" }, title = "[distribution:]float...float", description = "Chance of delaying a message under normal circumstances (default: qlog:0..0.1)")
+        @Option(names = { "--network-delay-chance" }, description = { "Chance of delaying a message under normal circumstances (default: qlog:0..0.1)", "[[distribution:]float...float]" })
         protected String networkDelayChance = "qlog:0..0.01";
-        @Option(name = { "--network-latency" }, title = "int...int(s|ms|us|ns)", description = "Range of possible latencies messages can be simulated to experience (default 1..2ms)")
+        @Option(names = { "--network-latency" }, description = { "Range of possible latencies messages can be simulated to experience (default 1..2ms)", "[int...int(s|ms|us|ns)]" })
         protected String networkLatency = "1..2ms";
-        @Option(name = { "--network-delay" }, title = "int...int(s|ms|us|ns)", description = "Range of possible latencies messages can be simulated to experience when delayed (default 2..20ms)")
+        @Option(names = { "--network-delay" }, description = { "Range of possible latencies messages can be simulated to experience when delayed (default 2..20ms)", "[int...int(s|ms|us|ns)]" })
         protected String networkDelay = "2..20ms";
-        @Option(name = { "--network-flaky-drop-chance" }, title = "[distribution:]float...float", description = "Chance of dropping a message on a flaky connection (default: qlog:0.01..0.1)")
+        @Option(names = { "--network-flaky-drop-chance" }, description = { "Chance of dropping a message on a flaky connection (default: qlog:0.01..0.1)", "[[distribution:]float...float]" })
         protected String flakyNetworkDropChance = "qlog:0.01..0.1";
-        @Option(name = { "--network-flaky-delay-chance" }, title = "[distribution:]float...float", description = "Chance of delaying a message on a flaky connection (default: qlog:0.01..0.2)")
+        @Option(names = { "--network-flaky-delay-chance" }, description = { "Chance of delaying a message on a flaky connection (default: qlog:0.01..0.2)", "[[distribution:]float...float]" })
         protected String flakyNetworkDelayChance = "qlog:0.01..0.2";
-        @Option(name = { "--network-flaky-latency" }, title = "int...int(s|ms|us|ns)", description = "Range of possible latencies messages can be simulated to experience on a flaky connection (default 2..4ms)")
+        @Option(names = { "--network-flaky-latency" }, description = { "Range of possible latencies messages can be simulated to experience on a flaky connection (default 2..4ms)", "[int...int(s|ms|us|ns)]" })
         protected String flakyNetworkLatency = "2..4ms";
-        @Option(name = { "--network-flaky-delay" }, title = "int...int(s|ms|us|ns)", description = "Range of possible latencies messages can be simulated to experience when delayed on a flaky connection (default 4..100ms)")
+        @Option(names = { "--network-flaky-delay" }, description = { "Range of possible latencies messages can be simulated to experience when delayed on a flaky connection (default 4..100ms)", "[int...int(s|ms|us|ns)]" })
         protected String flakyNetworkDelay = "4..100ms";
 
-        @Option(name = { "--clock-drift" }, title = "int...int(s|ms|us|ns)", description = "The range of clock skews to experience (default 10..1000ms)")
+        @Option(names = { "--clock-drift" }, description = { "The range of clock skews to experience (default 10..1000ms)", "[int...int(s|ms|us|ns)]" })
         protected String clockDrift = "10..1000ms";
-        @Option(name = { "--clock-discontinuity-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of clock continuity (a discontinuity is a large jump of the global clock to introduce additional chaos for event scheduling) (default 10..60s)")
+        @Option(names = { "--clock-discontinuity-interval" }, description = { "The period of clock continuity (a discontinuity is a large jump of the global clock to introduce additional chaos for event scheduling) (default 10..60s)", "[int...int(s|ms|us|ns)]" })
         protected String clockDiscontinuityInterval = "10..60s";
 
-        @Option(name = { "--scheduler-jitter" }, title = "int...int(s|ms|us|ns)", description = "The scheduler will randomly prioritise all tasks scheduled to run within this interval (default 10..1500us)")
+        @Option(names = { "--scheduler-jitter" }, description = { "The scheduler will randomly prioritise all tasks scheduled to run within this interval (default 10..1500us)", "[int...int(s|ms|us|ns)]" })
         protected String schedulerJitter = "10..1500us";
-        @Option(name = { "--scheduler-delay-chance" }, title = "[distribution:]float...float", description = "Chance of delaying the consequence of an action (default: 0..0.1)")
+        @Option(names = { "--scheduler-delay-chance" }, description = { "Chance of delaying the consequence of an action (default: 0..0.1)", "[[distribution:]float...float]" })
         protected String schedulerDelayChance = "qlog:0..0.1";
-        @Option(name = { "--scheduler-delay" }, title = "int...int(s|ms|us|ns)", description = "Range of possible additional latencies thread execution can be simulated to experience when delayed (default 1..10000us)")
+        @Option(names = { "--scheduler-delay" }, description = { "Range of possible additional latencies thread execution can be simulated to experience when delayed (default 1..10000us)", "[int...int(s|ms|us|ns)]" })
         protected String schedulerDelayMicros = "1..10000us";
-        @Option(name = { "--scheduler-long-delay" }, title = "int...int(s|ms|us|ns)", description = "Range of possible additional latencies thread execution can be simulated to experience when delayed (default 1..10000us)")
+        @Option(names = { "--scheduler-long-delay" }, description = { "Range of possible additional latencies thread execution can be simulated to experience when delayed (default 1..10000us)", "[int...int(s|ms|us|ns)]" })
         protected String schedulerLongDelayMicros = "1..10000us";
 
-        @Option(name = { "--log" }, title = "level", description = "<partition> <cluster> level events, between 0 and 2", arity = 2)
+        @Option(names = { "--log" }, description = "<partition> <cluster> level events, between 0 and 2", arity = "2")
         protected List<Integer> log;
 
-        @Option(name = { "--debug-keys" }, title = "level", description = "Print debug info only for these keys (comma delimited)")
+        @Option(names = { "--debug-keys" }, description = "Print debug info only for these keys (comma delimited)")
         protected String debugKeys;
 
-        @Option(name = { "--debug-rf" }, title = "level", description = "Print RF on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-rf" }, description = { "Print RF on <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugRf;
 
-        @Option(name = { "--debug-ownership" }, title = "level", description = "Print ownership on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-ownership" }, description = { "Print ownership on <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugOwnership;
 
-        @Option(name = { "--debug-ring" }, title = "level", description = "Print ring state on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-ring" }, description = { "Print ring state on <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugRing;
 
-        @Option(name = { "--debug-gossip" }, title = "level", description = "Debug gossip at <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-gossip" }, description = { "Debug gossip at <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugGossip;
 
-        @Option(name = { "--debug-paxos" }, title = "level", description = "Print paxos state on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(names = { "--debug-paxos" }, description = { "Print paxos state on <partition> <cluster> events; level 0 to 2", "allowed values 0|1|2" }, arity = "2")
         protected List<Integer> debugPaxos;
 
-        @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
+        @Option(names = { "--capture" }, description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
         protected String capture;
 
-        @Option(name = { "--transactional-mode" }, title = "off|mixed_reads|full]", description = "Starting transactional mode for the created table")
+        @Option(names = { "--transactional-mode" }, description = { "Starting transactional mode for the created table", "[off|mixed_reads|full]" })
         protected String transactionalMode;
 
         protected void propagate(B builder)
         {
+            checkArgumentAllowed(debugRf, 0, 1, 2);
+            checkArgumentAllowed(debugOwnership, 0, 1, 2);
+            checkArgumentAllowed(debugRing, 0, 1, 2);
+            checkArgumentAllowed(debugGossip, 0, 1, 2);
+            checkArgumentAllowed(debugPaxos, 0, 1, 2);
             builder.threadCount(threadCount);
             builder.concurrency(concurrency);
             if (primaryKeyCount >= 0) builder.primaryKeyCount(primaryKeyCount);
@@ -346,6 +349,21 @@ public class SimulationRunner
             Optional.ofNullable(transactionalMode).ifPresent(builder::transactionalMode);
         }
 
+        @Override
+        public void run()
+        {
+            try
+            {
+                if (builder == null)
+                    throw new IllegalStateException("No builder provided");
+                run(builder);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
         public void run(B builder) throws IOException
         {
             long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
@@ -412,18 +430,20 @@ public class SimulationRunner
     @Command(name = "record")
     protected static class Record<B extends ClusterSimulation.Builder<?>> extends BasicCommand<B>
     {
-        @Option(name = {"--to"}, description = "Directory of recordings to reconcile with for the seed", required = true)
+        @Option(names = { "--to" }, description = "Directory of recordings to reconcile with for the seed", required = true)
         private String dir;
 
-        @Option(name = {"--with-rng"}, title = "0|1", description = "Record RNG values (with or without call sites)", allowedValues = {"0", "1"})
+        @Option(names = { "--with-rng" }, description = { "Record RNG values (with or without call sites)", "allowed values 0|1" })
         private int rng = -1;
 
-        @Option(name = {"--with-time"}, title = "0|1", description = "Record time values (with or without call sites)", allowedValues = {"0", "1"})
+        @Option(names = { "--with-time" }, description = { "Record time values (with or without call sites)", "allowed values 0|1" })
         private int time = -1;
 
         @Override
         protected void run(long seed, B builder) throws IOException
         {
+            checkArgumentAllowed(rng, 0, 1);
+            checkArgumentAllowed(time, 0, 1);
             record(dir, seed, RecordOption.values()[rng + 1], RecordOption.values()[time + 1], builder);
         }
     }
@@ -431,24 +451,26 @@ public class SimulationRunner
     @Command(name = "reconcile")
     protected static class Reconcile<B extends ClusterSimulation.Builder<?>> extends BasicCommand<B>
     {
-        @Option(name = {"--with"}, description = "Directory of recordings to reconcile with for the seed")
+        @Option(names = { "--with" }, description = "Directory of recordings to reconcile with for the seed")
         private String dir;
 
-        @Option(name = {"--with-rng"}, title = "0|1", description = "Reconcile RNG values (if present in source)", allowedValues = {"0", "1"})
+        @Option(names = { "--with-rng" }, description = { "Reconcile RNG values (if present in source)", "allowed values 0|1" })
         private int rng = -1;
 
-        @Option(name = {"--with-time"}, title = "0|1", description = "Reconcile time values (if present in source)", allowedValues = {"0", "1"})
+        @Option(names = { "--with-time" }, description = { "Reconcile time values (if present in source)", "allowed values 0|1" })
         private int time = -1;
 
-        @Option(name = {"--with-allocations"}, description = "Reconcile memtable allocations (only with --with-self)", arity = 0)
+        @Option(names = { "--with-allocations" }, description = "Reconcile memtable allocations (only with --with-self)", arity = "0..1")
         private boolean allocations;
 
-        @Option(name = {"--with-self"}, description = "Reconcile with self", arity = 0)
+        @Option(names = { "--with-self" }, description = "Reconcile with self", arity = "0..1")
         private boolean withSelf;
 
         @Override
         protected void run(long seed, B builder) throws IOException
         {
+            checkArgumentAllowed(rng, 0, 1);
+            checkArgumentAllowed(time, 0, 1);
             RecordOption withRng = RecordOption.values()[rng + 1];
             RecordOption withTime = RecordOption.values()[time + 1];
             if (withSelf) reconcileWithSelf(seed, withRng, withTime, allocations, builder);
@@ -457,24 +479,26 @@ public class SimulationRunner
         }
     }
 
-    protected static class HelpCommand<B extends ClusterSimulation.Builder<?>> extends Help implements ICommand<B>
+    public static void checkArgumentAllowed(int value, int... allowed)
     {
-        @Override
-        public void run(B builder) throws IOException
-        {
-            super.run();
-        }
+        if (Arrays.stream(allowed).noneMatch(v -> v == value))
+            throw new IllegalArgumentException("Value " + value + " not allowed, must be one of " + Arrays.toString(allowed));
     }
 
     @Command(name = "version", description = "Display version information")
-    protected static class VersionCommand<B extends ClusterSimulation.Builder<?>> implements ICommand<B>
+    public static class VersionCommand implements Runnable
     {
         @Override
-        public void run(B builder) throws IOException
+        public void run()
         {
             System.out.println(FBUtilities.getReleaseVersionString());
             System.out.println(FBUtilities.getGitSHA());
         }
+    }
+
+    public static void checkArgumentAllowed(List<Integer> values, int... allowed)
+    {
+        values.forEach(v -> checkArgumentAllowed(v, allowed));
     }
 
     public static Optional<Long> parseHex(Optional<String> value)

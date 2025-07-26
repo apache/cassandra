@@ -20,6 +20,12 @@ package org.apache.cassandra.config;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 
+import java.util.Arrays;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
+
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 public enum CassandraRelevantEnv
 {
     /**
@@ -28,8 +34,10 @@ public enum CassandraRelevantEnv
      */
     JAVA_HOME ("JAVA_HOME"),
     CIRCLECI("CIRCLECI"),
-    CASSANDRA_SKIP_SYNC("CASSANDRA_SKIP_SYNC")
-
+    CASSANDRA_SKIP_SYNC("CASSANDRA_SKIP_SYNC"),
+    /** By default, the standard Cassandra CLI layout is used for backward compatibility, however,
+     * the new Picocli layout can be enabled by setting this property to the {@code "picocli"}. */
+    CASSANDRA_CLI_LAYOUT("CASSANDRA_CLI_LAYOUT"),
     ;
 
     CassandraRelevantEnv(String key)
@@ -55,5 +63,21 @@ public enum CassandraRelevantEnv
 
     public String getKey() {
         return key;
+    }
+
+    public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass, String defaultVal)
+    {
+        String value = System.getenv(key);
+        value = value == null ? defaultVal : value;
+        try
+        {
+            return Enum.valueOf(enumClass, toUppercase ? toUpperCaseLocalized(value) : value);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for environment variable '%s': " +
+                                                           "expected one of %s (case-insensitive) but was '%s'",
+                                                           key, Arrays.toString(enumClass.getEnumConstants()), value));
+        }
     }
 }

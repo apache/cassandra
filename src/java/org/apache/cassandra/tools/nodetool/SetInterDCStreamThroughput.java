@@ -17,25 +17,21 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "setinterdcstreamthroughput", description = "Set the throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the system, or 0 to disable throttling")
-public class SetInterDCStreamThroughput extends NodeToolCmd
+public class SetInterDCStreamThroughput extends AbstractCommand
 {
-    @SuppressWarnings("UnusedDeclaration")
-    @Arguments(title = "inter_dc_stream_throughput", usage = "<value_in_mb>", description = "Value in megabits, 0 to disable throttling", required = true)
+    @Parameters(paramLabel = "inter_dc_stream_throughput", description = "Value in megabits, 0 to disable throttling", arity = "1")
     private int interDCStreamThroughput;
 
-    @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-e", "--entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput in MiB/s")
+    @Option(names = { "-e", "--entire-sstable-throughput" }, description = "Set entire SSTable streaming throughput in MiB/s")
     private boolean setEntireSSTableThroughput;
 
-    @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-m", "--mib" }, description = "Set streaming throughput in MiB/s")
+    @Option(names = { "-m", "--mib" }, description = "Set streaming throughput in MiB/s")
     private boolean interDCStreamThroughputInMebibytes;
 
     @Override

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,6 +33,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -60,17 +62,28 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.lucene.codecs.CodecUtil.FOOTER_MAGIC;
 import static org.apache.lucene.codecs.CodecUtil.writeBEInt;
 import static org.apache.lucene.codecs.CodecUtil.writeBELong;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.Import
+ */
 public class ImportTest extends CQLTester
 {
+    @BeforeClass
+    public static void setup() throws Throwable
+    {
+        startJMXServer();
+    }
 
     @Override
     public void afterTest() throws Throwable
@@ -491,9 +504,7 @@ public class ImportTest extends CQLTester
                                                                                  .verifySSTables(true)
                                                                                  .verifyTokens(true)
                                                                                  .extendedVerify(true).build();
-        SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
-        List<String> failedDirectories = importer.importNewSSTables(options);
-        assertEquals(Collections.singletonList(backupdir.toString()), failedDirectories);
+        assertThat(assertImportFailed(getCurrentColumnFamilyStore(), options).getStderr()).contains(backupdir.toString());
     }
 
 
@@ -669,17 +680,7 @@ public class ImportTest extends CQLTester
         assertEquals(0, execute("select * from %s").size());
 
         SSTableImporter.Options options = SSTableImporter.Options.options(Sets.newHashSet(backupdir.toString(), backupdir2.toString(), "/tmp/DOESNTEXIST")).build();
-        SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
-        boolean gotException = false;
-        try
-        {
-            importer.importNewSSTables(options);
-        }
-        catch (Throwable t)
-        {
-            gotException = true;
-        }
-        assertTrue(gotException);
+        assertThat(assertImportFailed(getCurrentColumnFamilyStore(), options).getStderr()).contains("error: Directory /tmp/DOESNTEXIST does not exist");
         assertEquals(0, execute("select * from %s").size());
         assertEquals(0, getCurrentColumnFamilyStore().getLiveSSTables().size());
     }
@@ -710,10 +711,8 @@ public class ImportTest extends CQLTester
 
                 // copy is true - so importing will be done by copying
 
-                SSTableImporter importer = new SSTableImporter(cfs);
                 SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString()).copyData(true).build();
-                List<String> failedDirectories = importer.importNewSSTables(options);
-                assertTrue(failedDirectories.isEmpty());
+                assertImportSuccessfull(cfs, options);
                 assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
 
                 // files are left there as they were just copied
@@ -754,10 +753,8 @@ public class ImportTest extends CQLTester
 
             assertEquals(0, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, table)).size());
 
-            SSTableImporter importer = new SSTableImporter(cfs);
             SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString()).copyData(true).build();
-            List<String> failedDirectories = importer.importNewSSTables(options);
-            assertTrue(failedDirectories.isEmpty());
+            assertImportSuccessfull(cfs, options);
             assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
 
             // files are left there as they were just copied
@@ -790,12 +787,11 @@ public class ImportTest extends CQLTester
 
             assertEquals(0, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, "sai_test")).size());
 
-            SSTableImporter importer = new SSTableImporter(cfs);
             SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString())
                                                                      .copyData(true)
                                                                      .failOnMissingIndex(true)
                                                                      .build();
-            assertTrue(importer.importNewSSTables(options).isEmpty());
+            assertImportSuccessfull(cfs, options);
             assertEquals(10, execute(String.format("SELECT * FROM %s.%s WHERE d >= 0", KEYSPACE, "sai_test")).size());
         }
         finally
@@ -824,14 +820,13 @@ public class ImportTest extends CQLTester
 
             assertEquals(0, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, "sai_less_test")).size());
 
-            SSTableImporter importer = new SSTableImporter(cfs);
             SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString())
                                                                      .copyData(true)
                                                                      // this does not mean anything
                                                                      // because our table does not have any SAI index
                                                                      .failOnMissingIndex(true)
                                                                      .build();
-            assertTrue(importer.importNewSSTables(options).isEmpty());
+            assertImportSuccessfull(cfs, options);
             assertEquals(10, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, "sai_less_test")).size());
         }
         finally
@@ -865,12 +860,11 @@ public class ImportTest extends CQLTester
             // data when index was not created yet)
             schemaChange(String.format("CREATE INDEX idx1 ON %s.%s (d) USING 'sai'", KEYSPACE, "sai_test"));
 
-            SSTableImporter importer = new SSTableImporter(cfs);
             SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString())
                                                                      .copyData(true)
                                                                      .failOnMissingIndex(true)
                                                                      .build();
-            assertFalse(importer.importNewSSTables(options).isEmpty());
+            assertThat(assertImportFailed(cfs, options).getStderr()).contains("Some directories failed to import, check server logs for details");
             assertEquals(0, execute(String.format("SELECT * FROM %s.%s WHERE d >= 0", KEYSPACE, "sai_test")).size());
         }
         finally
@@ -924,7 +918,6 @@ public class ImportTest extends CQLTester
 
             assertEquals(0, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, "sai_test")).size());
 
-            SSTableImporter importer = new SSTableImporter(cfs);
             SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString())
                                                                      .copyData(true)
                                                                      .failOnMissingIndex(true)
@@ -932,7 +925,7 @@ public class ImportTest extends CQLTester
                                                                      .build();
 
             // even with corrupted column completion marker (wrong checksum), it will import
-            assertTrue(importer.importNewSSTables(options).isEmpty());
+            assertImportSuccessfull(cfs, options);
             assertEquals(10, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, "sai_test")).size());
         }
         finally
@@ -962,20 +955,62 @@ public class ImportTest extends CQLTester
             File backupDir = moveToBackupDir(sstables);
 
             assertEquals(0, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, "sai_test")).size());
-
-            SSTableImporter importer = new SSTableImporter(cfs);
             SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString())
                                                                      .copyData(true)
                                                                      .failOnMissingIndex(true)
                                                                      .validateIndexChecksum(true)
                                                                      .build();
-            assertTrue(importer.importNewSSTables(options).isEmpty());
+            assertImportSuccessfull(cfs, options);
             assertEquals(10, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, "sai_test")).size());
         }
         finally
         {
             execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, "sai_test"));
         }
+    }
+
+    private static void assertImportSuccessfull(ColumnFamilyStore cfs, SSTableImporter.Options options)
+    {
+        ToolRunner.ToolResult result = doImportWithNodetool(cfs, options);
+        result.assertOnCleanExit();
+        assertThat(result.getStderr()).doesNotContain("Some directories failed to import, check server logs for details");
+    }
+
+    private static ToolRunner.ToolResult assertImportFailed(ColumnFamilyStore cfs, SSTableImporter.Options options)
+    {
+        ToolRunner.ToolResult result = doImportWithNodetool(cfs, options);
+        assertNotEquals(0, result.getExitCode());
+        return result;
+    }
+
+    private static ToolRunner.ToolResult doImportWithNodetool(ColumnFamilyStore cfs, SSTableImporter.Options options)
+    {
+        List<String> args = new ArrayList<>();
+        args.add("import");
+        if (!options.resetLevel)
+            args.add("--keep-level");
+        if (!options.clearRepaired)
+            args.add("--keep-repaired");
+        if (!options.verifySSTables)
+            args.add("--no-verify");
+        if (!options.verifyTokens)
+            args.add("--no-tokens");
+        if (!options.invalidateCaches)
+            args.add("--no-invalidate-caches");
+        if (options.extendedVerify)
+            args.add("--extended-verify");
+        if (options.copyData)
+            args.add("--copy-data");
+        if (options.failOnMissingIndex)
+            args.add("--require-index-components");
+        if (!options.validateIndexChecksum)
+            args.add("--no-index-validation");
+
+        args.add(cfs.keyspace.getName());
+        args.add(cfs.getTableName());
+        args.addAll(options.srcPaths);
+
+        return ToolRunner.invokeNodetoolInJvm(args.toArray(new String[0]));
     }
 
     private static class MockCFS extends ColumnFamilyStore

@@ -15,38 +15,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.tools;
+package org.apache.cassandra.tools.nodetool;
 
-import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.auth.AuthKeyspace;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.NodeProbe;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.printSet;
 
 /**
  * Nodetool command to list available CIDR groups, in the table {@link AuthKeyspace#CIDR_GROUPS}
  */
 @Command(name = "listcidrgroups", description = "List existing cidr groups")
-public class ListCIDRGroups extends NodeToolCmd
+public class ListCIDRGroups extends AbstractCommand
 {
-    @Arguments(usage = "[<cidrGroup>]", description = "LIST operation can be invoked with or without cidr group name")
-    private List<String> args = new ArrayList<>();
+    @Parameters(paramLabel = "cidrGroup", description = "LIST operation can be invoked with or without cidr group name", arity = "0..1")
+    private String cidrGroup;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        PrintStream out = probe.output().out;
-
-        if (args.size() < 1)
+        if (StringUtils.isEmpty(cidrGroup))
         {
-            probe.printSet(out, "CIDR Groups", probe.listAvailableCidrGroups());
+            printSet(probe.output().out, "CIDR Groups", probe.listAvailableCidrGroups());
             return;
         }
 
-        String cidrGroup = args.get(0);
-        probe.printSet(out, "CIDRs", probe.listCidrsOfCidrGroup(cidrGroup));
+        printSet(probe.output().out, "CIDRs", probe.listCidrsOfCidrGroup(cidrGroup));
     }
 }

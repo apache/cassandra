@@ -17,16 +17,14 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "gossipinfo", description = "Shows the gossip information for the cluster")
-public class GossipInfo extends NodeToolCmd
+public class GossipInfo extends WithPortDisplayAbstractCommand
 {
-    @Option(title = "resolve_ip", name = {"-r", "--resolve-ip"}, description = "Show node domain names instead of IPs")
+    @Option(paramLabel = "resolve_ip", names = { "-r", "--resolve-ip" }, description = "Show node domain names instead of IPs")
     private boolean resolveIp = false;
 
     @Override

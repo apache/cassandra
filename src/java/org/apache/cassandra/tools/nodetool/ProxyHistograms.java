@@ -19,14 +19,13 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
 
-import static java.lang.String.format;
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+
+import static java.lang.String.format;
 
 @Command(name = "proxyhistograms", description = "Print statistic histograms for network operations")
-public class ProxyHistograms extends NodeToolCmd
+public class ProxyHistograms extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

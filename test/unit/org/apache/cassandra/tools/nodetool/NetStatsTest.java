@@ -54,51 +54,6 @@ public class NetStatsTest extends CQLTester
     }
 
     @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "netstats");
-        tool.assertOnCleanExit();
-
-        String help =   "NAME\n" +
-                        "        nodetool netstats - Print network information on provided host\n" + 
-                        "        (connecting node by default)\n" + 
-                        "\n" + 
-                        "SYNOPSIS\n" + 
-                        "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" + 
-                        "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" + 
-                        "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" + 
-                        "                [(-u <username> | --username <username>)] netstats\n" + 
-                        "                [(-H | --human-readable)]\n" + 
-                        "\n" + 
-                        "OPTIONS\n" + 
-                        "        -h <host>, --host <host>\n" + 
-                        "            Node hostname or ip address\n" + 
-                        "\n" + 
-                        "        -H, --human-readable\n" + 
-                        "            Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB\n" + 
-                        "\n" + 
-                        "        -p <port>, --port <port>\n" + 
-                        "            Remote jmx agent port number\n" + 
-                        "\n" + 
-                        "        -pp, --print-port\n" + 
-                        "            Operate in 4.0 mode with hosts disambiguated by port number\n" + 
-                        "\n" + 
-                        "        -pw <password>, --password <password>\n" + 
-                        "            Remote jmx agent password\n" + 
-                        "\n" + 
-                        "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" + 
-                        "            Path to the JMX password file\n" + 
-                        "\n" + 
-                        "        -u <username>, --username <username>\n" + 
-                        "            Remote jmx agent username\n" + 
-                        "\n" + 
-                        "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
-    }
-
-    @Test
     public void testNetStats()
     {
         Message<NoPayload> echoMessageOut = Message.out(ECHO_REQ, NoPayload.noPayload);

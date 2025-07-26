@@ -1,0 +1,53 @@
+NAME
+        nodetool sstablerepairedset - Set the repaired state of SSTables for
+        given keyspace/tables
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] sstablerepairedset
+                [--is-repaired] [--is-unrepaired] [--really-set] [--] <keyspace>
+                <tables>
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        --is-repaired
+            Set SSTables to repaired state.
+
+        --is-unrepaired
+            Set SSTables to unrepaired state.
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        --really-set
+            Really set the repaired state of SSTables. If not set, only print
+            SSTables that would be affected.
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        <keyspace>
+            Keyspace to set the repaired state of SSTables. If not provided,
+            all keyspaces are used.
+
+        <tables>
+            Tables to set the repaired state of SSTables. If not provided, all
+            tables in the keyspace are used.

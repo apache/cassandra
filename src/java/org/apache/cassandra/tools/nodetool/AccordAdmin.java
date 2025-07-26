@@ -21,15 +21,30 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
-public abstract class AccordAdmin extends NodeTool.NodeToolCmd
+@Command(name = "accord",
+         description = "Manage the operation of Accord",
+         subcommands = {
+             AccordAdmin.Describe.class,
+             AccordAdmin.MarkStale.class,
+             AccordAdmin.MarkRejoining.class
+         })
+public class AccordAdmin extends AbstractCommand
 {
+    @Override
+    protected void execute(NodeProbe probe)
+    {
+        AbstractCommand cmd = new AccordAdmin.Describe();
+        cmd.probe(probe);
+        cmd.logger(output);
+        cmd.run();
+    }
+
     @Command(name = "describe", description = "Describe current cluster metadata relating to Accord")
-    public static class Describe extends NodeTool.NodeToolCmd
+    public static class Describe extends AbstractCommand
     {
         @Override
         protected void execute(NodeProbe probe)
@@ -42,9 +57,9 @@ public abstract class AccordAdmin extends NodeTool.NodeToolCmd
     }
 
     @Command(name = "mark_stale", description = "Mark a replica as being stale and no longer able to participate in durability status coordination")
-    public static class MarkStale extends AccordAdmin
+    public static class MarkStale extends AbstractCommand
     {
-        @Arguments(required = true, description = "One or more node IDs to mark stale", usage = "<nodeId>+")
+        @Parameters(arity = "1..*", description = "One or more node IDs to mark stale")
         public List<String> nodeIds;
 
         @Override
@@ -55,9 +70,9 @@ public abstract class AccordAdmin extends NodeTool.NodeToolCmd
     }
 
     @Command(name = "mark_rejoining", description = "Mark a stale replica as being allowed to participate in durability status coordination again")
-    public static class MarkRejoining extends AccordAdmin
+    public static class MarkRejoining extends AbstractCommand
     {
-        @Arguments(required = true, description = "One or more node IDs to mark no longer stale", usage = "<nodeId>+")
+        @Parameters(arity = "1", description = "One or more node IDs to mark no longer stale")
         public List<String> nodeIds;
 
         @Override

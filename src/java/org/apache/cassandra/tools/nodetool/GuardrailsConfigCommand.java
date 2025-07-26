@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,48 +36,41 @@ import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.db.guardrails.GuardrailsMBean;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 import org.apache.cassandra.utils.LocalizeString;
+
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static java.lang.String.format;
 import static java.util.Arrays.stream;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
 
-public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
+public abstract class GuardrailsConfigCommand extends AbstractCommand
 {
     @Command(name = "getguardrailsconfig", description = "Print runtime configuration of guardrails.")
     public static class GetGuardrailsConfig extends GuardrailsConfigCommand
     {
-        @Option(name = { "--category", "-c" },
-        description = "Category of guardrails to filter, can be one of 'values', 'thresholds', 'flags', 'others'.",
-        allowedValues = { "values", "thresholds", "flags", "others" })
-        private String guardrailCategory;
+        @Option(names = { "--category", "-c" },
+                description = "Category of guardrails to filter, can be one of 'values', 'thresholds', 'flags', 'others'.")
+        private GuardrailCategory guardrailCategory;
 
-        @Option(name = { "--expand" },
+        @Option(names = { "--expand" },
         description = "Expand all guardrail names so they reflect their counterparts in cassandra.yaml")
         private boolean expand = false;
 
-        @Arguments(description = "Specific name of a guardrail to get configuration of.")
-        private List<String> args = new ArrayList<>();
+        @Parameters(index = "0", arity = "0..1", description = "Specific name of a guardrail to get configuration of or all guardrails if not specified.")
+        private String guardrailName;
 
         @Override
         public void execute(NodeProbe probe)
         {
-            GuardrailCategory categoryEnum = GuardrailCategory.parseCategory(guardrailCategory, probe.output().out);
-
-            if (args.size() > 1)
-                throw new IllegalStateException("Specify only one guardrail name to get the configuration of or no name to get the configuration of all of them.");
-
-            String guardrailName = !args.isEmpty() ? args.get(0) : null;
-
-            if (guardrailName != null && categoryEnum != null)
+            if (guardrailName != null && guardrailCategory != null)
                 throw new IllegalStateException("Do not specify additional arguments when --category/-c is set.");
 
             Map<String, List<Method>> allGetters = parseGuardrailNames(probe.getGuardrailsMBean().getClass().getDeclaredMethods(), guardrailName);
@@ -89,7 +81,7 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
                 throw new IllegalStateException(format("Guardrail %s not found.", guardrailName));
             }
 
-            display(probe, allGetters, categoryEnum, expand);
+            display(probe, allGetters, guardrailCategory, expand);
         }
 
         @VisibleForTesting
@@ -179,17 +171,28 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
     {
         private static final Pattern SETTER_PATTERN = Pattern.compile("^set");
 
-        @Arguments(usage = "[<setter> <value1> ...]",
-        description = "For flags, possible values are 'true' or 'false'. " +
-                      "For thresholds, two values are expected, first for failure, second for warning. " +
-                      "For values, enumeration of values expected or one value where multiple items are separated by comma. " +
-                      "Setting for thresholds accepting strings and value guardrails are reset by specifying 'null' or '[]' value. " +
-                      "For thresholds accepting integers, the reset value is -1.")
-        private final List<String> args = new ArrayList<>();
+        @CassandraUsage(usage = "[<setter> <value1> ...]",
+                description = "For flags, possible values are 'true' or 'false'. " +
+                        "For thresholds, two values are expected, first for failure, second for warning. " +
+                        "For values, enumeration of values expected or one value where multiple items are separated by comma. " +
+                        "Setting for thresholds accepting strings and value guardrails are reset by specifying 'null' or '[]' value. " +
+                        "For thresholds accepting integers, the reset value is -1.")
+        private List<String> args = new ArrayList<>();
+
+        @Parameters(index = "0", arity = "0..1")
+        private String setterName;
+
+        @Parameters(index = "1..*", arity = "0..*", description = "Arguments for the setter. For flags, possible values are 'true' or 'false'. " +
+                "For thresholds, two values are expected, first for failure, second for warning. " +
+                "For values, enumeration of values expected or one value where multiple items are separated by comma. " +
+                "Setting for thresholds accepting strings and value guardrails are reset by specifying 'null' or '[]' value. " +
+                "For thresholds accepting integers, the reset value is -1.")
+        private List<String> setterArgs = new ArrayList<>();
 
         @Override
         public void execute(NodeProbe probe)
         {
+            args = CommandUtils.concatArgs(setterName, setterArgs);
             if (args.isEmpty())
                 throw new IllegalStateException("No arguments.");
 
@@ -376,27 +379,6 @@ public abstract class GuardrailsConfigCommand extends NodeTool.NodeToolCmd
         thresholds,
         flags,
         others;
-
-        public static GuardrailCategory parseCategory(String category, PrintStream out)
-        {
-            if (category == null)
-                return null;
-
-            try
-            {
-                return GuardrailCategory.valueOf(LocalizeString.toLowerCaseLocalized(category));
-            }
-            catch (IllegalArgumentException ex)
-            {
-                String enabledValues = Arrays.stream(GuardrailCategory.values())
-                                             .map(GuardrailCategory::name)
-                                             .collect(Collectors.joining(","));
-                out.printf("%nError: Illegal value for -c/--category used: '"
-                           + category + "'. Supported values are " + enabledValues + ".%n");
-                System.exit(1);
-                return null;
-            }
-        }
     }
 
     void display(NodeProbe probe, Map<String, List<Method>> methods, GuardrailCategory userCategory, boolean verbose)

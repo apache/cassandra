@@ -21,17 +21,14 @@ import java.util.Map;
 
 import com.google.common.math.DoubleMath;
 
-import io.airlift.airline.Command;
-
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "getcompactionthroughput", description = "Print the MiB/s throughput cap for compaction in the system as a rounded number")
-public class GetCompactionThroughput extends NodeToolCmd
+public class GetCompactionThroughput extends AbstractCommand
 {
-    @SuppressWarnings("UnusedDeclaration")
-    @Option(name = { "-d", "--precise-mib" }, description = "Print the MiB/s throughput cap for compaction in the system as a precise number (double)")
+    @Option(names = { "-d", "--precise-mib" }, description = "Print the MiB/s throughput cap for compaction in the system as a precise number (double)")
     private boolean  compactionThroughputAsDouble;
 
     @Override

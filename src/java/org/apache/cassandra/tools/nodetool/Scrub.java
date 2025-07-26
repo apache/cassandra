@@ -17,53 +17,61 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.StandaloneScrubber;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "scrub", description = "Scrub (rebuild sstables for) one or more tables")
-public class Scrub extends NodeToolCmd
+public class Scrub extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @CassandraUsage(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
-    @Option(title = "disable_snapshot",
-            name = {"-ns", "--no-snapshot"},
+    @Parameters(index = "0", description = "The keyspace followed by one or many tables", arity = "0..1")
+    private String keyspace;
+
+    @Parameters(index = "1..*", description = "The tables to scrub", arity = "0..*")
+    private List<String> tables;
+
+    @Option(paramLabel = "disable_snapshot",
+            names = { "-ns", "--no-snapshot" },
             description = "Scrubbed CFs will be snapshotted first, if disableSnapshot is false. (default false)")
     private boolean disableSnapshot = false;
 
-    @Option(title = "skip_corrupted",
-            name = {"-s", "--skip-corrupted"},
+    @Option(paramLabel = "skip_corrupted",
+            names = { "-s", "--skip-corrupted" },
             description = "Skip corrupted partitions even when scrubbing counter tables. (default false)")
     private boolean skipCorrupted = false;
 
-    @Option(title = "no_validate",
-                   name = {"-n", "--no-validate"},
-                   description = "Do not validate columns using column validator")
+    @Option(paramLabel = "no_validate",
+            names = { "-n", "--no-validate" },
+            description = "Do not validate columns using column validator")
     private boolean noValidation = false;
 
-    @Option(title = "reinsert_overflowed_ttl",
-    name = {"-r", "--reinsert-overflowed-ttl"},
-    description = StandaloneScrubber.REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION)
+    @Option(paramLabel = "reinsert_overflowed_ttl",
+            names = { "-r", "--reinsert-overflowed-ttl" },
+            description = StandaloneScrubber.REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION)
     private boolean reinsertOverflowedTTL = false;
 
-    @Option(title = "jobs",
-            name = {"-j", "--jobs"},
+    @Option(paramLabel = "jobs",
+            names = { "-j", "--jobs" },
             description = "Number of sstables to scrub simultanously, set to 0 to use all available compaction threads")
     private int jobs = 2;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] tableNames = parseOptionalTables(args);
+        args = concatArgs(keyspace, tables);
+        List<String> keyspaces = CommandUtils.parseOptionalKeyspace(args, probe);
+        String[] tableNames = CommandUtils.parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {

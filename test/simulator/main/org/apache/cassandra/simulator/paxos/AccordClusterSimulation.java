@@ -27,10 +27,10 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 
-class AccordClusterSimulation extends ClusterSimulation<PaxosSimulation> implements AutoCloseable
+public class AccordClusterSimulation extends ClusterSimulation<PaxosSimulation> implements AutoCloseable
 {
     @SuppressWarnings("UnusedReturnValue")
-    static class Builder extends ClusterSimulation.Builder<PaxosSimulation>
+    public static class Builder extends ClusterSimulation.Builder<PaxosSimulation>
     {
         public AccordClusterSimulation create(long seed) throws IOException
         {

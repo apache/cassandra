@@ -17,17 +17,16 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "settraceprobability", description = "Sets the probability for tracing any given request to value. 0 disables, 1 enables for all requests, 0 is the default")
-public class SetTraceProbability extends NodeToolCmd
+public class SetTraceProbability extends AbstractCommand
 {
-    @Arguments(title = "trace_probability", usage = "<value>", description = "Trace probability between 0 and 1 (ex: 0.2)", required = true)
+    @Parameters(paramLabel = "trace_probability", description = "Trace probability between 0 and 1 (ex: 0.2)", arity = "1")
     private Double traceProbability = null;
 
     @Override

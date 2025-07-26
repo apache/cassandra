@@ -18,12 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "disableauditlog", description = "Disable the audit log")
-public class DisableAuditLog extends NodeToolCmd
+public class DisableAuditLog extends AbstractCommand
 {
     @Override
     public void execute(NodeProbe probe)

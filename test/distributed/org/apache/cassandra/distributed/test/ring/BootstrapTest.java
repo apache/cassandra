@@ -59,7 +59,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-
+/**
+ * @see org.apache.cassandra.tools.nodetool.Join
+ */
 public class BootstrapTest extends TestBaseImpl
 {
     @Test

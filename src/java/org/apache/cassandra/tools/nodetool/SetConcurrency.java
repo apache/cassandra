@@ -20,20 +20,21 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+// TODO CASSANDRA-20791 Types of input aguments shouldn't depend on the number of arguments. Commands should be split into separate commands.
 @Command(name = "setconcurrency", description = "Set maximum concurrency for processing stage")
-public class SetConcurrency extends NodeToolCmd
+public class SetConcurrency extends AbstractCommand
 {
-    @Arguments(title = "<pool-name> <maximum-concurrency> | <stage-name> <core-pool> <maximum-concurrency>",
-    usage = "<stage-name> <maximum-concurrency> | <stage-name> <core-pool> <maximum-concurrency>",
-    description = "Set concurrency for processing stage",
-    required = true)
+    @CassandraUsage(usage = "<stage-name> <maximum-concurrency> | <stage-name> <core-pool> <maximum-concurrency>",
+                    description = "Set concurrency for processing stage")
+    @Parameters(paramLabel = "<stage-name> <maximum-concurrency> | <stage-name> <core-pool> <maximum-concurrency>",
+                arity = "2..3", description = "Set concurrency for processing stage")
     private List<String> args = new ArrayList<>();
 
     @Override
@@ -55,7 +56,7 @@ public class SetConcurrency extends NodeToolCmd
         {
             String message = e.getMessage() != null ? e.getMessage() : "invalid pool size";
             probe.output().out.println("Unable to set concurrency: " + message);
-            System.exit(1);
+            throw e;
         }
     }
 }

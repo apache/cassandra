@@ -18,17 +18,16 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "setconcurrentviewbuilders", description = "Set the number of concurrent view builders in the system")
-public class SetConcurrentViewBuilders extends NodeTool.NodeToolCmd
+public class SetConcurrentViewBuilders extends AbstractCommand
 {
-    @Arguments(title = "concurrent_view_builders", usage = "<value>", description = "Number of concurrent view builders, greater than 0.", required = true)
+    @Parameters(paramLabel = "concurrent_view_builders", description = "Number of concurrent view builders, greater than 0.", arity = "1")
     private Integer concurrentViewBuilders = null;
 
     protected void execute(NodeProbe probe)

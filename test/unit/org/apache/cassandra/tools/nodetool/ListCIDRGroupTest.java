@@ -57,55 +57,6 @@ public class ListCIDRGroupTest extends CQLTester
     }
 
     @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testListCidrGroupDoc()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "listcidrgroups");
-        tool.assertOnCleanExit();
-
-        String help = "NAME\n" +
-                      "        nodetool listcidrgroups - List existing cidr groups\n" +
-                      "\n" +
-                      "SYNOPSIS\n" +
-                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                      "                [(-u <username> | --username <username>)] listcidrgroups [--]\n" +
-                      "                [<cidrGroup>]\n" +
-                      "\n" +
-                      "OPTIONS\n" +
-                      "        -h <host>, --host <host>\n" +
-                      "            Node hostname or ip address\n" +
-                      "\n" +
-                      "        -p <port>, --port <port>\n" +
-                      "            Remote jmx agent port number\n" +
-                      "\n" +
-                      "        -pp, --print-port\n" +
-                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                      "\n" +
-                      "        -pw <password>, --password <password>\n" +
-                      "            Remote jmx agent password\n" +
-                      "\n" +
-                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                      "            Path to the JMX password file\n" +
-                      "\n" +
-                      "        -u <username>, --username <username>\n" +
-                      "            Remote jmx agent username\n" +
-                      "\n" +
-                      "        --\n" +
-                      "            This option can be used to separate command-line options from the\n" +
-                      "            list of argument, (useful when arguments might be mistaken for\n" +
-                      "            command-line options\n" +
-                      "\n" +
-                      "        [<cidrGroup>]\n" +
-                      "            LIST operation can be invoked with or without cidr group name\n" +
-                      "\n" +
-                      "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
-    }
-
-    @Test
     public void testListCidrGroup()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("listcidrgroups");

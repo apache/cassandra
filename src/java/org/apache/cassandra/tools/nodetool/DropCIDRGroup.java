@@ -17,34 +17,26 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 /**
  * Nodetool command to drop a CIDR group and associated mapping from the table {@link AuthKeyspace#CIDR_GROUPS}
  */
 @Command(name = "dropcidrgroup", description = "Drop an existing cidr group")
-public class DropCIDRGroup extends NodeToolCmd
+public class DropCIDRGroup extends AbstractCommand
 {
-    @Arguments(usage = "<cidrGroup>", description = "Requires a cidr group name")
-    private List<String> args = new ArrayList<>();
+    @Parameters(paramLabel = "cidrGroup", description = "Requires a cidr group name", index = "0", arity = "1")
+    private String cidrGroup;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 1, "dropcidrgroup command requires a cidr group name");
+        probe.dropCidrGroup(cidrGroup);
 
-        String cidrGroupName = args.get(0);
-        probe.dropCidrGroup(cidrGroupName);
-
-        probe.output().out.println("Deleted CIDR group " + cidrGroupName);
+        probe.output().out.println("Deleted CIDR group " + cidrGroup);
     }
 }

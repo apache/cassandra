@@ -25,81 +25,69 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+import javax.annotation.Nullable;
 import javax.management.MBeanServerConnection;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterDescription;
 import com.beust.jcommander.Parameterized;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.Output;
 import org.gridkit.jvmtool.JmxConnectionInfo;
 import org.gridkit.jvmtool.cli.CommandLauncher;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.ExecutionException;
+import picocli.CommandLine.IParameterPreprocessor;
+import picocli.CommandLine.Parameters;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-
-@Command(name = "sjk", description = "Run commands of 'Swiss Java Knife'. Run 'nodetool sjk --help' for more information.")
-public class Sjk extends NodeToolCmd
+@Command(name = "sjk", description = "Run commands of 'Swiss Java Knife'. Run 'nodetool sjk --help' for more information.",
+         preprocessor = Sjk.ParameterPreprocessor.class)
+public class Sjk extends AbstractCommand
 {
-    @Arguments(description = "Arguments passed as is to 'Swiss Java Knife'.")
-    private List<String> args;
+    @Parameters(description = "Arguments passed as is to 'Swiss Java Knife'.", arity = "0..*", index = "0..*")
+    private List<String> args = new ArrayList<>();
 
     private final Wrapper wrapper = new Wrapper();
 
     @Override
-    public void runInternal()
+    protected boolean shouldConnect() throws ExecutionException
     {
-        wrapper.prepare(args != null ? args.toArray(new String[0]) : new String[]{"help"}, output.out, output.err);
-
-        if (!wrapper.requiresMbeanServerConn())
-        {
-            // SJK command does not require an MBeanServerConnection, so just invoke it
-            wrapper.run(null, output);
-        }
-        else
-        {
-            // invoke common nodetool handling to establish MBeanServerConnection
-            super.runInternal();
-        }
+        // We want to parse the given arguments in advance to determine if the SJK command requires an MBeanServerConnection or not.
+        wrapper.prepare(args.isEmpty() ? new String[]{ "--help" } : args.toArray(new String[0]), output.out, output.err);
+        // {@code true} then the connection will be established and an {@code NodeProbe} instance will be passed to the execute method.
+        return wrapper.requiresMbeanServerConn();
     }
 
-    public void sequenceRun(NodeProbe probe)
+    @Override
+    protected void execute(@Nullable NodeProbe probe)
     {
-        wrapper.prepare(args != null ? args.toArray(new String[0]) : new String[]{"help"}, probe.output().out, probe.output().err);
-        if (!wrapper.run(probe, probe.output()))
-            probe.failed();
+        wrapper.run(probe, output);
     }
 
-    protected void execute(NodeProbe probe)
+    /** Argumets preprocessor for SJK command to pass all arguments to SJK 'as is'. */
+    public static class ParameterPreprocessor implements IParameterPreprocessor
     {
-        if (!wrapper.run(probe, probe.output()))
-            probe.failed();
+        @Override
+        public boolean preprocess(Stack<String> args, CommandLine.Model.CommandSpec commandSpec, CommandLine.Model.ArgSpec argSpec, Map<String, Object> info)
+        {
+            // Consume all arguments and pass them to SJK.
+            assert commandSpec.userObject() instanceof Sjk;
+            if (args.isEmpty())
+                return true;
+
+            ((Sjk) commandSpec.userObject()).args.add(args.pop());
+            return true;
+        }
     }
 
     /**
@@ -193,7 +181,7 @@ public class Sjk extends NodeToolCmd
             }
             catch (Throwable e)
             {
-                e.printStackTrace(err);
+                throw new RuntimeException(e);
             }
         }
 
@@ -204,10 +192,10 @@ public class Sjk extends NodeToolCmd
                 parser.usage(sb, optionalCommand);
             else
                 parser.usage(sb);
-            out.println(sb.toString());
+            out.println(sb);
         }
 
-        public boolean run(final NodeProbe probe, final Output output)
+        public void run(final NodeProbe probe, final Output output)
         {
             PrintStream out = output.out;
             PrintStream err = output.err;
@@ -218,7 +206,6 @@ public class Sjk extends NodeToolCmd
                 if (cmd != null)
                     cmd.run();
 
-                return true;
             }
             catch (CommandAbortedError error)
             {
@@ -234,15 +221,11 @@ public class Sjk extends NodeToolCmd
                 {
                     printUsage(parser, out, parser.getParsedCommand());
                 }
-                return true;
             }
             catch (Throwable e)
             {
-                e.printStackTrace(err);
+                throw new RuntimeException(e);
             }
-
-            // abnormal termination
-            return false;
         }
 
         private void setJmxConnInfo(final NodeProbe probe) throws IllegalAccessException

@@ -33,9 +33,11 @@ import org.apache.cassandra.tracing.TraceKeyspace;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
+/**
+ * @see TableHistograms
+ */
 public class TableHistogramsTest extends CQLTester
 {
     private static final String INFO_ROW = "Percentile      Read Latency     Write Latency          SSTables    Partition Size        Cell Count";
@@ -52,56 +54,6 @@ public class TableHistogramsTest extends CQLTester
     {
         requireNetwork();
         startJMXServer();
-    }
-
-    @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = invokeNodetool("help", "tablehistograms");
-        assertEquals(0, tool.getExitCode());
-        tool.assertOnCleanExit();
-
-        String help = "NAME\n" +
-                      "        nodetool tablehistograms - Print statistic histograms for a given table\n" +
-                      "\n" +
-                      "SYNOPSIS\n" +
-                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                      "                [(-u <username> | --username <username>)] tablehistograms [--]\n" +
-                      "                [<keyspace> <table> | <keyspace.table>]\n" +
-                      "\n" +
-                      "OPTIONS\n" +
-                      "        -h <host>, --host <host>\n" +
-                      "            Node hostname or ip address\n" +
-                      "\n" +
-                      "        -p <port>, --port <port>\n" +
-                      "            Remote jmx agent port number\n" +
-                      "\n" +
-                      "        -pp, --print-port\n" +
-                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                      "\n" +
-                      "        -pw <password>, --password <password>\n" +
-                      "            Remote jmx agent password\n" +
-                      "\n" +
-                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                      "            Path to the JMX password file\n" +
-                      "\n" +
-                      "        -u <username>, --username <username>\n" +
-                      "            Remote jmx agent username\n" +
-                      "\n" +
-                      "        --\n" +
-                      "            This option can be used to separate command-line options from the\n" +
-                      "            list of argument, (useful when arguments might be mistaken for\n" +
-                      "            command-line options\n" +
-                      "\n" +
-                      "        [<keyspace> <table> | <keyspace.table>]\n" +
-                      "            The keyspace and table name\n" +
-                      "\n" +
-                      "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -144,7 +96,7 @@ public class TableHistogramsTest extends CQLTester
         // format 2 : ks1 tb1 ks2 tb2
         tool = invokeNodetool("tablehistograms", "system", "local", "system", "paxos");
         assertNotEquals(0, tool.getExitCode());
-        assertThat(tool.getStdout()).contains("nodetool: tablehistograms requires <keyspace> <table> or <keyspace.table> format argument");
+        assertThat(tool.getStdout()).contains("nodetool: Unmatched arguments from index 7: 'system', 'paxos'");
 
         // format 3 : ks1.tb1 ks2
         tool = invokeNodetool("tablehistograms", "system.local", "system");

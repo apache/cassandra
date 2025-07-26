@@ -66,6 +66,12 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+/**
+ * Test gossip related functionality.
+ *
+ * @see org.apache.cassandra.tools.nodetool.EnableGossip
+ * @see org.apache.cassandra.tools.nodetool.DisableGossip
+ */
 public class GossipTest extends TestBaseImpl
 {
     @Test

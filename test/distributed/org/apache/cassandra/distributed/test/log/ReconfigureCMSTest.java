@@ -61,6 +61,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.psjava.util.AssertStatus.assertTrue;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.CMSAdmin.ReconfigureCMS
+ */
 public class ReconfigureCMSTest extends FuzzTestBase
 {
     @Test

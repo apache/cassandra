@@ -23,41 +23,48 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspaceNonLocal;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
 
 /**
  * Provides a way to set the repaired state of SSTables without any downtime through nodetool.
  */
 @Command(name = "sstablerepairedset", description = "Set the repaired state of SSTables for given keyspace/tables")
-public class SSTableRepairedSet extends NodeTool.NodeToolCmd
+public class SSTableRepairedSet extends AbstractCommand
 {
-    @Arguments(usage = "[<keyspace> <table...>]", description = "Optional keyspace followed by zero or more tables")
     protected List<String> args = new ArrayList<>();
 
-    @Option(title = "really-set",
-    name = { "--really-set" },
-    description = "Really set the repaired state of SSTables. If not set, only print SSTables that would be affected.")
+    @Parameters(index = "0", description = "Keyspace to set the repaired state of SSTables. If not provided, all keyspaces are used.")
+    public String keyspace;
+
+    @Parameters(index = "1..*", description = "Tables to set the repaired state of SSTables. If not provided, all tables in the keyspace are used.")
+    public String[] tables;
+
+    @Option(paramLabel = "really_set",
+            names = { "--really-set" },
+            description = "Really set the repaired state of SSTables. If not set, only print SSTables that would be affected.")
     protected boolean reallySet = false;
 
-    @Option(title = "is-repaired",
-    name = { "--is-repaired" },
-    description = "Set SSTables to repaired state.")
+    @Option(paramLabel = "is_repaired",
+            names = { "--is-repaired" },
+            description = "Set SSTables to repaired state.")
     protected boolean isRepaired = false;
 
-    @Option(title = "is-unrepaired",
-    name = { "--is-unrepaired" },
-    description = "Set SSTables to unrepaired state.")
+    @Option(paramLabel = "is_unrepaired",
+            names = { "--is-unrepaired" },
+            description = "Set SSTables to unrepaired state.")
     protected boolean isUnrepaired = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = args.isEmpty() ? CommandUtils.concatArgs(keyspace, tables) : args;
         PrintStream out = probe.output().out;
 
         if (isRepaired == isUnrepaired)
@@ -72,7 +79,7 @@ public class SSTableRepairedSet extends NodeTool.NodeToolCmd
         else
             message = "Previewing repaired state mutation of SSTables for";
 
-        List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
+        List<String> keyspaces = parseOptionalKeyspaceNonLocal(args, probe);
         List<String> tables = new ArrayList<>(Arrays.asList(parseOptionalTables(args)));
 
         if (args.isEmpty())

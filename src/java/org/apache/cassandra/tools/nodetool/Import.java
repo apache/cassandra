@@ -18,13 +18,6 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
-import io.airlift.airline.Option;
-
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -32,67 +25,87 @@ import java.util.List;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "import", description = "Import new SSTables to the system")
-public class Import extends NodeToolCmd
+public class Import extends AbstractCommand
 {
-    @Arguments(usage = "<keyspace> <table> <directory> ...", description = "The keyspace, table name and directories to import sstables from")
+    public static final String IMPORT_FAIL_MESSAGE = "Some directories failed to import, check server logs for details";
+
+    @CassandraUsage(usage = "<keyspace> <table> <directory> ...", description = "The keyspace, table name and directories to import sstables from")
     private List<String> args = new ArrayList<>();
 
-    @Option(title = "keep_level",
-            name = {"-l", "--keep-level"},
+    @Parameters(index = "0", paramLabel = "keyspace", description = "The keyspace name")
+    private String keyspace;
+
+    @Parameters(index = "1", paramLabel = "table", description = "The table name")
+    private String table;
+
+    @Parameters(index = "2..*", paramLabel = "directories", description = "The directories to import sstables from")
+    private String[] directories;
+
+    @Option(paramLabel = "keep_level",
+            names = { "-l", "--keep-level" },
             description = "Keep the level on the new sstables")
     private boolean keepLevel = false;
 
-    @Option(title = "keep_repaired",
-            name = {"-r", "--keep-repaired"},
+    @Option(paramLabel = "keep_repaired",
+            names = { "-r", "--keep-repaired" },
             description = "Keep any repaired information from the sstables")
     private boolean keepRepaired = false;
 
-    @Option(title = "no_verify_sstables",
-            name = {"-v", "--no-verify"},
+    @Option(paramLabel = "no_verify_sstables",
+            names = { "-v", "--no-verify" },
             description = "Don't verify new sstables")
     private boolean noVerify = false;
 
-    @Option(title = "no_verify_tokens",
-            name = {"-t", "--no-tokens"},
+    @Option(paramLabel = "no_verify_tokens",
+            names = { "-t", "--no-tokens" },
             description = "Don't verify that all tokens in the new sstable are owned by the current node")
     private boolean noVerifyTokens = false;
 
-    @Option(title = "no_invalidate_caches",
-            name = {"-c", "--no-invalidate-caches"},
+    @Option(paramLabel = "no_invalidate_caches",
+            names = { "-c", "--no-invalidate-caches" },
             description = "Don't invalidate the row cache when importing")
     private boolean noInvalidateCaches = false;
 
-    @Option(title = "quick",
-            name = {"-q", "--quick"},
+    @Option(paramLabel = "quick",
+            names = { "-q", "--quick" },
             description = "Do a quick import without verifying sstables, clearing row cache or checking in which data directory to put the file")
     private boolean quick = false;
 
-    @Option(title = "extended_verify",
-            name = {"-e", "--extended-verify"},
+    @Option(paramLabel = "extended_verify",
+            names = { "-e", "--extended-verify" },
             description = "Run an extended verify, verifying all values in the new sstables")
     private boolean extendedVerify = false;
 
-    @Option(title = "copy_data",
-            name = {"-p", "--copy-data"},
+    // The previous option -p collides with the --port in the JMX, so we need to alter it to -cd.
+    // It is safe to alter the name since the option is not used by users as it doesn't work.
+    @Option(paramLabel = "copy_data",
+            names = { "-cd", "--copy-data" },
             description = "Copy data from source directories instead of moving them")
     private boolean copyData = false;
 
-    @Option(title = "require_index_components",
-            name = {"-ri", "--require-index-components"},
+    @Option(paramLabel = "require_index_components",
+            names = { "-ri", "--require-index-components" },
             description = "Require existing index components for SSTables with attached indexes")
     private boolean failOnMissingIndex = false;
 
-    @Option(title = "no_index_validation",
-            name = {"-niv", "--no-index-validation"},
+    @Option(paramLabel = "no_index_validation",
+            names = { "-niv", "--no-index-validation" },
             description = "Skip SSTable-attached index checksum validation")
     private boolean noIndexValidation = false;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(keyspace, table, directories);
         checkArgument(args.size() >= 3, "import requires keyspace, table name and directories");
 
         if (quick)
@@ -110,11 +123,9 @@ public class Import extends NodeToolCmd
                                                           extendedVerify, copyData, failOnMissingIndex, !noIndexValidation);
         if (!failedDirs.isEmpty())
         {
-            PrintStream err = probe.output().err;
-            err.println("Some directories failed to import, check server logs for details:");
             for (String directory : failedDirs)
-                err.println(directory);
-            System.exit(1);
+                output.printError(directory);
+            throw new RuntimeException(IMPORT_FAIL_MESSAGE);
         }
     }
 }

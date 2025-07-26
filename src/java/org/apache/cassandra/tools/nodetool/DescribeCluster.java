@@ -25,16 +25,14 @@ import java.util.SortedMap;
 
 import com.google.common.collect.ArrayListMultimap;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import picocli.CommandLine.Command;
 
 @Command(name = "describecluster", description = "Print the name, snitch, partitioner and schema version of a cluster")
-public class DescribeCluster extends NodeToolCmd
+public class DescribeCluster extends WithPortDisplayAbstractCommand
 {
     private boolean resolveIp = false;
     private String keyspace = null;
@@ -114,7 +112,7 @@ public class DescribeCluster extends NodeToolCmd
             System.exit(1);
         }
 
-        SortedMap<String, SetHostStatWithPort> dcs = NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
+        SortedMap<String, SetHostStatWithPort> dcs = CommandUtils.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
 
         out.println("\nData Centers: ");
         for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())

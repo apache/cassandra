@@ -25,6 +25,9 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.serializers.BooleanSerializer;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.GetSSTables
+ */
 public class BooleanTest extends TestBaseImpl
 {
     @Test

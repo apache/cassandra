@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,18 +24,32 @@ import java.util.List;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "setlogginglevel", description = "Set the log level threshold for a given component or class. Will reset to the initial configuration if called with no parameters.")
-public class SetLoggingLevel extends NodeToolCmd
+public class SetLoggingLevel extends AbstractCommand
 {
-    @Arguments(usage = "<component|class> <level>", description = "The component or class to change the level for and the log level threshold to set. Will reset to initial level if omitted. "
-        + "Available components:  bootstrap, compaction, repair, streaming, cql, ring")
+    @CassandraUsage(usage = "<component|class> <level>", description = "The component or class to change the level for and the log level threshold to set. Will reset to initial level if omitted. "
+                                                                       + "Available components: bootstrap, compaction, repair, streaming, cql, ring")
     private List<String> args = new ArrayList<>();
+
+    @Parameters(paramLabel = "component", description = "The component or class to change the level for. " +
+                                                        "Available components: bootstrap, compaction, repair, streaming, cql, ring", arity = "0..1", index = "0")
+    private String component;
+
+    @Parameters(paramLabel = "level", description = "The log level threshold to set. Will reset to initial level if omitted.", arity = "0..1", index = "1")
+    private String level;
 
     @Override
     public void execute(NodeProbe probe)
     {
+        args = concatArgs(component, level);
+
         String target = args.size() >= 1 ? args.get(0) : EMPTY;
         String level = args.size() == 2 ? args.get(1) : EMPTY;
 

@@ -1,0 +1,42 @@
+NAME
+        nodetool setguardrailsconfig - Modify runtime configuration of
+        guardrails.
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] setguardrailsconfig [--]
+                [<setter> <value1> ...]
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        [<setter> <value1> ...]
+            For flags, possible values are 'true' or 'false'. For thresholds,
+            two values are expected, first for failure, second for warning. For
+            values, enumeration of values expected or one value where multiple
+            items are separated by comma. Setting for thresholds accepting
+            strings and value guardrails are reset by specifying 'null' or '[]'
+            value. For thresholds accepting integers, the reset value is -1.
