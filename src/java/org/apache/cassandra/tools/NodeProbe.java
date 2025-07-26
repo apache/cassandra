@@ -1548,6 +1548,26 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setConcurrentCompactors(value);
     }
 
+    public String getAuthenticator()
+    {
+        return ssProxy.getAuthenticator();
+    }
+
+    public void setAuthenticator(String value)
+    {
+        ssProxy.setAuthenticator(value);
+    }
+
+    public String getAuthorizer()
+    {
+        return ssProxy.getAuthorizer();
+    }
+
+    public void setAuthorizer(String value)
+    {
+        ssProxy.setAuthorizer(value);
+    }
+
     public int getConcurrentCompactors()
     {
         return ssProxy.getConcurrentCompactors();
