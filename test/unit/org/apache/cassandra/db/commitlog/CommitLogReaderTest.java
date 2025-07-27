@@ -17,11 +17,15 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -40,9 +44,15 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
+import org.assertj.core.api.Assertions;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_IGNORE_REPLAY_ERRORS;
 
 public class CommitLogReaderTest extends CQLTester
 {
+    private static final long CORRUPTED_COMMIT_LOG_FILE_ID = 111L;
+    private static final String CORRUPTED_COMMIT_LOG_FILE_NAME = "CommitLog-7-1234567.log";
+
     @BeforeClass
     public static void setUpClass()
     {
@@ -60,6 +70,7 @@ public class CommitLogReaderTest extends CQLTester
     @Before
     public void before() throws IOException
     {
+        clearCorruptedCommitLogFile();
         CommitLog.instance.resetUnsafe(true);
     }
 
@@ -163,6 +174,61 @@ public class CommitLogReaderTest extends CQLTester
             readCount, testHandler.seenMutationCount());
 
         confirmReadOrder(testHandler, samples / 2);
+    }
+
+    @Test
+    public void testSyncMarkerChecksumReadFailed_ignoreReplayErrorsDisabled() throws Throwable
+    {
+        DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.stop);
+
+        File corruptedSegmentFile = createAndWriteCorruptedCommitLogFile();
+        CommitLogReader reader = new CommitLogReader();
+        // use real CLR handler to test actual behavior
+        CommitLogReadHandler clrHandler =
+                new CommitLogReplayer(new CommitLog(null), null, null, null);
+
+        // ignore.replay.errors disabled, so we expect the exception here
+        Assertions.assertThatThrownBy(() ->
+                                      reader.readCommitLogSegment(clrHandler,
+                                                                  corruptedSegmentFile,
+                                                                  CommitLogPosition.NONE,
+                                                                  CommitLogReader.ALL_MUTATIONS,
+                                                                  false)
+                  ).isInstanceOf(CommitLogReplayer.CommitLogReplayException.class);
+    }
+
+    @Test
+    public void testSyncMarkerChecksumReadFailed_ignoreReplayErrorsEnabled() throws Throwable
+    {
+        try (WithProperties properties = new WithProperties().set(COMMITLOG_IGNORE_REPLAY_ERRORS, "true"))
+        {
+            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.stop);
+            File corruptedSegmentFile = createAndWriteCorruptedCommitLogFile();
+
+            CommitLogReader reader = new CommitLogReader();
+            // use real CLR handler to test actual behavior
+            CommitLogReadHandler clrHandler =
+            new CommitLogReplayer(new CommitLog(null), null, null, null);
+
+            // ignore.replay.errors enabled, so we don't expect any errors
+            reader.readCommitLogSegment(clrHandler, corruptedSegmentFile, CommitLogPosition.NONE, CommitLogReader.ALL_MUTATIONS, false);
+        }
+    }
+
+    @Test
+    public void testSyncMarkerChecksumReadFailed_ignoreReplayErrorsDisabled_commitFailurePolicyIgnore() throws Throwable
+    {
+        DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
+
+        File corruptedSegmentFile = createAndWriteCorruptedCommitLogFile();
+
+        CommitLogReader reader = new CommitLogReader();
+        // use real CLR handler to test actual behavior
+        CommitLogReadHandler clrHandler =
+                new CommitLogReplayer(new CommitLog(null), null, null, null);
+
+        // commit.failure.policy=ignore, so we don't expect any errors
+        reader.readCommitLogSegment(clrHandler, corruptedSegmentFile, CommitLogPosition.NONE, CommitLogReader.ALL_MUTATIONS, false);
     }
 
     /**
@@ -273,5 +339,36 @@ public class CommitLogReaderTest extends CQLTester
                 .getColumnFamilyStore(currentTable())
                 .forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         return result;
+    }
+
+    private static File createAndWriteCorruptedCommitLogFile() throws IOException
+    {
+        final ByteBuffer corruptedSegmentByteBuffer =
+                ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize());
+
+        final CommitLogDescriptor commitLogDescriptor =
+                new CommitLogDescriptor(CORRUPTED_COMMIT_LOG_FILE_ID, null, EncryptionContextGenerator.createDisabledContext());
+
+        CommitLogDescriptor.writeHeader(corruptedSegmentByteBuffer, commitLogDescriptor);
+
+        // write corrupted sync marker:
+        // put wrong offset
+        corruptedSegmentByteBuffer.putInt(42);
+        // put wrong CRC
+        corruptedSegmentByteBuffer.putInt(42);
+
+        final File corruptedLogFile = new File(DatabaseDescriptor.getCommitLogLocation(), CORRUPTED_COMMIT_LOG_FILE_NAME);
+        try (FileOutputStream fos = new FileOutputStream(corruptedLogFile.toJavaIOFile()))
+        {
+            fos.write(corruptedSegmentByteBuffer.array());
+            fos.flush();
+        }
+
+        return corruptedLogFile;
+    }
+
+    private static void clearCorruptedCommitLogFile()
+    {
+        new File(DatabaseDescriptor.getCommitLogLocation(), CORRUPTED_COMMIT_LOG_FILE_NAME).deleteIfExists();
     }
 }
