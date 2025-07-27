@@ -1,4 +1,5 @@
 4.1.10
+ * Improve CommitLogSegmentReader to skip SyncBlocks correctly in case of CRC errors (CASSANDRA-20664)
  * Do not crash on first boot with data_disk_usage_max_disk_size set when data directory is not created yet (CASSANDRA-20787)
  * Rework / simplification of nodetool get/setguardrailsconfig commands (CASSANDRA-20778)
  * IntrusiveStack.accumulate is not accumulating correctly (CASSANDRA-20670)

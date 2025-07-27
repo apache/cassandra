@@ -101,53 +101,66 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
         {
             while (true)
             {
+                final int currentStart = end;
                 try
                 {
-                    final int currentStart = end;
                     end = readSyncMarker(descriptor, currentStart, reader);
-                    if (end == -1)
-                    {
-                        return endOfData();
-                    }
-                    if (end > reader.length())
-                    {
-                        // the CRC was good (meaning it was good when it was written and still looks legit), but the file is truncated now.
-                        // try to grab and use as much of the file as possible, which might be nothing if the end of the file truly is corrupt
-                        end = (int) reader.length();
-                    }
-                    return segmenter.nextSegment(currentStart + SYNC_MARKER_SIZE, end);
                 }
-                catch(CommitLogSegmentReader.SegmentReadException e)
+                catch (CommitLogSegmentReader.SegmentReadException e)
                 {
-                    try
-                    {
-                        handler.handleUnrecoverableError(new CommitLogReadException(
-                                                    e.getMessage(),
-                                                    CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
-                                                    !e.invalidCrc && tolerateTruncation));
-                    }
-                    catch (IOException ioe)
-                    {
-                        throw new RuntimeException(ioe);
-                    }
+                    handleUnrecoverableError(e, !e.invalidCrc && tolerateTruncation);
+                    end = -1; // skip the remaining part of the corrupted log segment
                 }
                 catch (IOException e)
                 {
-                    try
-                    {
-                        boolean tolerateErrorsInSection = tolerateTruncation & segmenter.tolerateSegmentErrors(end, reader.length());
-                        // if no exception is thrown, the while loop will continue
-                        handler.handleUnrecoverableError(new CommitLogReadException(
-                                                    e.getMessage(),
-                                                    CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
-                                                    tolerateErrorsInSection));
-                    }
-                    catch (IOException ioe)
-                    {
-                        throw new RuntimeException(ioe);
-                    }
+                    boolean tolerateErrorsInSection = tolerateTruncation & segmenter.tolerateSegmentErrors(end, reader.length());
+                    handleUnrecoverableError(e, tolerateErrorsInSection);
+                    end = -1; // skip the remaining part of the corrupted log segment
+                }
+
+                if (end == -1)
+                {
+                    return endOfData();
+                }
+                if (end > reader.length())
+                {
+                    // the CRC was good (meaning it was good when it was written and still looks legit), but the file is truncated now.
+                    // try to grab and use as much of the file as possible, which might be nothing if the end of the file truly is corrupt
+                    end = (int) reader.length();
+                }
+
+                try
+                {
+                    return segmenter.nextSegment(currentStart + SYNC_MARKER_SIZE, end);
+                }
+                catch (CommitLogSegmentReader.SegmentReadException e)
+                {
+                    handleUnrecoverableError(e, !e.invalidCrc && tolerateTruncation);
+                    // if no exception is thrown, the while loop will continue
+                }
+                catch (IOException e)
+                {
+                    boolean tolerateErrorsInSection = tolerateTruncation & segmenter.tolerateSegmentErrors(end, reader.length());
+                    handleUnrecoverableError(e, tolerateErrorsInSection);
+                    // if no exception is thrown, the while loop will continue
                 }
             }
+        }
+    }
+
+    private void handleUnrecoverableError(Exception e, boolean permissible)
+    {
+        try
+        {
+            handler.handleUnrecoverableError(new CommitLogReadException(
+                e.getMessage(),
+                CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
+                permissible)
+            );
+        }
+        catch (IOException ioe)
+        {
+            throw new RuntimeException(ioe);
         }
     }
 
