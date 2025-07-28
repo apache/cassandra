@@ -1,5 +1,9 @@
 buildscript {
     repositories {
+        maven {
+            url = 'http://artifactory.uber.internal:4587/artifactory/repo/'
+            allowInsecureProtocol true
+        }
         mavenLocal()
         mavenCentral()
         maven {
