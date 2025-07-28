@@ -2314,7 +2314,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // Force disk boundary invalidation now that local tokens are set
         invalidateLocalRanges();
-        repairPaxosForTopologyChange("bootstrap");
+        try
+        {
+            repairPaxosForTopologyChange("bootstrap");
+        }
+        catch (Throwable e)
+        {
+            logger.error("Error while attempting to repair Paxos on topology change. Bootstrap will have to be restarted.", e);
+            hasBootstrapFailed = true;
+            return false;
+        }
 
         // check if we need to run a bootstrap repair to sync the data among the existing
         // replicas before starting the streaming
