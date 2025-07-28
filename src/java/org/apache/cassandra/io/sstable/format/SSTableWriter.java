@@ -381,7 +381,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             new StatsComponent(finalizeMetadata()).save(descriptor);
 
             // save the table of components
-            TOCComponent.appendTOC(descriptor, components);
+            TOCComponent.updateTOC(descriptor, components);
 
             if (openResult)
                 finalReader = openFinal(SSTableReader.OpenReason.NORMAL);

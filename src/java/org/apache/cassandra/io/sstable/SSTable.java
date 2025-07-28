@@ -320,7 +320,7 @@ public abstract class SSTable
     public synchronized void addComponents(Collection<Component> newComponents)
     {
         Collection<Component> componentsToAdd = Collections2.filter(newComponents, Predicates.not(Predicates.in(components)));
-        TOCComponent.appendTOC(descriptor, componentsToAdd);
+        TOCComponent.updateTOC(descriptor, componentsToAdd);
         components.addAll(componentsToAdd);
     }
 
@@ -332,7 +332,7 @@ public abstract class SSTable
     public synchronized void registerComponents(Collection<Component> newComponents, Tracker tracker)
     {
         Collection<Component> componentsToAdd = new HashSet<>(Collections2.filter(newComponents, x -> !components.contains(x)));
-        TOCComponent.appendTOC(descriptor, componentsToAdd);
+        TOCComponent.updateTOC(descriptor, componentsToAdd);
         components.addAll(componentsToAdd);
 
         for (Component component : componentsToAdd)
@@ -345,7 +345,7 @@ public abstract class SSTable
 
     /**
      * Unregisters custom components from sstable and update size tracking
-     * @param removeComponents collection of components to be remove
+     * @param removeComponents collection of components to be removed
      * @param tracker used to update on-disk size metrics
      */
     public synchronized void unregisterComponents(Collection<Component> removeComponents, Tracker tracker)
