@@ -24,14 +24,19 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -39,7 +44,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 
-import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
+import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 
 public class TOCComponent
 {
@@ -78,16 +83,41 @@ public class TOCComponent
     }
 
     /**
-     * Appends new component names to the TOC component.
+     * Updates the TOC file by reading existing component entries, merging them with the given components,
+     * sorting the combined list in lexicographic order for deterministic output.
+     *
+     * @param descriptor the SSTable descriptor for which to update the TOC
+     * @param components new components to merge into the TOC (existing TOC entries are preserved)
+     * @throws FSReadError if an I/O error occurs when reading the existing TOC file
+     * @throws FSWriteError if an I/O error occurs when creating or overwriting the TOC file
      */
-    public static void appendTOC(Descriptor descriptor, Collection<Component> components)
+    public static void updateTOC(Descriptor descriptor, Collection<Component> components)
     {
         File tocFile = descriptor.fileFor(Components.TOC);
-        try (FileOutputStreamPlus out = tocFile.newOutputStream(APPEND);
-             PrintWriter w = new PrintWriter(out))
+
+        // read existing entries if any
+        Path tocPath = tocFile.toPath();
+        Set<String> componentNames = new HashSet<>();
+        try
         {
-            for (Component component : components)
-                w.println(component.name);
+            if (Files.exists(tocPath))
+                componentNames.addAll(Files.readAllLines(tocPath));
+        }
+        catch (IOException e)
+        {
+            throw new FSReadError(e, tocFile);
+        }
+
+        componentNames.addAll(Collections2.transform(components, Component::name));
+        List<String> sortedNames = new ArrayList<>(componentNames);
+        sortedNames.sort(String.CASE_INSENSITIVE_ORDER);
+
+        try (FileOutputStreamPlus out = tocFile.newOutputStream(OVERWRITE); PrintWriter w = new PrintWriter(out))
+        {
+            for (String componentName : sortedNames)
+            {
+                w.println(componentName);
+            }
             w.flush();
             out.sync();
         }
@@ -108,11 +138,10 @@ public class TOCComponent
             catch (FileNotFoundException | NoSuchFileException e)
             {
                 Set<Component> components = descriptor.discoverComponents();
-                if (components.isEmpty())
-                    return components; // sstable doesn't exist yet
+                if (components.isEmpty()) return components; // sstable doesn't exist yet
 
                 components.add(Components.TOC);
-                TOCComponent.appendTOC(descriptor, components);
+                TOCComponent.updateTOC(descriptor, components);
                 return components;
             }
         }
@@ -123,13 +152,12 @@ public class TOCComponent
     }
 
     /**
-     * Rewrite TOC components by deleting existing TOC file and append new components
+     * Rewrites the TOC component by deleting and recreating it only with provided component names.
      */
     public static void rewriteTOC(Descriptor descriptor, Collection<Component> components)
     {
         File tocFile = descriptor.fileFor(Components.TOC);
-        if (!tocFile.tryDelete())
-            logger.error("Failed to delete TOC component for " + descriptor);
-        appendTOC(descriptor, components);
+        if (!tocFile.tryDelete()) logger.error("Failed to delete TOC component for {}", descriptor);
+        updateTOC(descriptor, components);
     }
 }
