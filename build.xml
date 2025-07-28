@@ -1115,6 +1115,7 @@
      encoding="utf-8">
      <classpath>
         <path refid="cassandra.classpath.test"/>
+        <pathelement location="${build.lib}/async-profiler.jar" />
         <pathelement location="${fqltool.build.classes}"/>
         <pathelement location="${sstableloader.build.classes}"/>
      </classpath>
@@ -1155,6 +1156,7 @@
             <java taskname="check-test-names" fork="true" failonerror="yes" classname="org.apache.cassandra.anttasks.TestNameCheckTask">
                 <classpath>
                     <path refid="cassandra.classpath.test"/>
+                    <pathelement location="${build.lib}/async-profiler.jar" />
                     <pathelement location="${fqltool.build.classes}"/>
                     <pathelement location="${stress.build.classes}"/>
                     <pathelement location="${sstableloader.build.classes}"/>
@@ -1291,6 +1293,7 @@
           <pathelement location="${sstableloader.build.classes}"/>
           <pathelement location="${test.classes}"/>
           <path refid="cassandra.classpath.test" />
+          <pathelement location="${build.lib}/async-profiler.jar" />
           <pathelement location="${stress.test.classes}"/>
           <pathelement location="${fqltool.test.classes}"/>
           <pathelement location="${sstableloader.test.classes}"/>

@@ -5,8 +5,8 @@ public class AsyncProfiler implements AsyncProfilerMBean {
     public static final String MBEAN_NAME = "org.apache.cassandra.profiler:type=AsyncProfiler";
     private final AsyncProfilerService service = new AsyncProfilerService();
 
-    public void start(String event) {
-        service.start(event);
+    public void start(String event, String outputFormat) {
+        service.start(event, outputFormat);
     }
 
     public void stop(String outputFile) {
