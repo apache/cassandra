@@ -1,4 +1,5 @@
 5.0.6
+ * Sort SSTable TOC entries for determinism (CASSANDRA-20494)
 
 
 5.0.5
