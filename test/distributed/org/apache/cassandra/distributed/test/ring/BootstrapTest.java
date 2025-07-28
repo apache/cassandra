@@ -21,6 +21,10 @@ package org.apache.cassandra.distributed.test.ring;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.management.MBeanAttributeInfo;
@@ -29,6 +33,7 @@ import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
@@ -47,6 +52,9 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
@@ -287,6 +295,83 @@ public class BootstrapTest extends TestBaseImpl
             {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    /**
+     * This regression test for CASSANDRA-19902 ensures {@link StorageServiceMBean} JMX
+     * interface is published before the node finishes bootstrapping
+     */
+    @Test
+    @Ignore("FIXME: CASSANDRA-20795 Operation mode is STARTING instead of JOINING during bootstrap")
+    public void testStorageServiceMBeanIsPublishedOnJMXDuringBootstrap() throws Throwable
+    {
+        ExecutorService es = Executors.newFixedThreadPool(1);
+        try (Cluster cluster = builder().withNodes(2)
+                                        .withConfig(config -> config.with(GOSSIP)
+                                                                    .with(NETWORK)
+                                                                    .with(JMX)
+                                                                    .set("auto_bootstrap", true))
+                                        .withInstanceInitializer(BBBootstrapInterceptor::install)
+                                        .createWithoutStarting();
+             Closeable ignored = es::shutdown)
+        {
+            Runnable test = () ->
+            {
+                // Wait for bootstrap to start via countdown latch
+                IInvokableInstance joiningInstance = cluster.get(2);
+                joiningInstance.runOnInstance(() -> BBBootstrapInterceptor.bootstrapStart.awaitUninterruptibly());
+                // At this point, it should be possible to check bootstrap status via JMX.
+                IInstanceConfig config = joiningInstance.config();
+                try (JMXConnector jmxc = JMXUtil.getJmxConnector(config))
+                {
+                    MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+                    StorageServiceMBean sp = javax.management.JMX.newMBeanProxy(mbsc, new ObjectName("org.apache.cassandra.db:type=StorageService"), StorageServiceMBean.class);
+                    assertEquals(sp.getOperationMode(), StorageService.Mode.JOINING.toString());
+                }
+                catch (Throwable t)
+                {
+                    throw new AssertionError("Should not fail to connect via JMX before bootstrap is completed.", t);
+                }
+                finally
+                {
+                    // Complete bootstrap via countdown latch so test will finish properly
+                    joiningInstance.runOnInstance(() -> BBBootstrapInterceptor.bootstrapReady.decrement());
+                }
+            };
+
+            Future<?> testResult = es.submit(test);
+            try
+            {
+                cluster.startup();
+            }
+            catch (Exception ex) {
+                // ignore exceptions from startup process. More interested in the test result.
+            }
+            testResult.get();
+        }
+        es.awaitTermination(5, TimeUnit.SECONDS);
+    }
+
+    public static class BBBootstrapInterceptor
+    {
+        final static CountDownLatch bootstrapReady = CountDownLatch.newCountDownLatch(1);
+        final static CountDownLatch bootstrapStart = CountDownLatch.newCountDownLatch(1);
+        static void install(ClassLoader cl, int nodeNumber)
+        {
+            if (nodeNumber != 2)
+                return;
+            new ByteBuddy().rebase(StorageService.class)
+                           .method(named("markViewsAsBuilt"))
+                           .intercept(MethodDelegation.to(BBBootstrapInterceptor.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static void markViewsAsBuilt(@SuperCall Callable<Void> zuper)
+        {
+            bootstrapStart.decrement();
+            bootstrapReady.awaitUninterruptibly();
         }
     }
 
