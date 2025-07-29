@@ -22,6 +22,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -115,6 +117,31 @@ public abstract class AbstractReplicationStrategy
     public boolean isTokenInLocalNaturalOrPendingRange(Token token)
     {
         return getLocalReplicaFor(token) != null || tokenMetadata.isTokenInLocalPendingRange(keyspaceName, token);
+    }
+
+    // Note that this method is slightly different from the getNaturalReplicas(RingPosition<?> searchPosition),
+    // that the result here will be based on the given metadata.
+    public Map<Token, EndpointsForRange> getNaturalReplicasFromMetadata(List<Token> tokens, TokenMetadata metadata)
+    {
+        Map<Token, EndpointsForRange> result = new HashMap<>(tokens.size());
+        long ringVersion = metadata.getRingVersion();
+
+        Map<Token, EndpointsForRange> endpointsMap = replicas.get(ringVersion);
+        if (endpointsMap == null) {
+            endpointsMap = new HashMap<>();
+        }
+
+        for (Token t : tokens)
+        {
+            EndpointsForRange endpoints = endpointsMap.get(t);
+            if (endpoints == null) {
+                // Slow path: either the ringVersion has moved on, or we have never calculated the (ringVersion,token)
+                endpoints = calculateNaturalReplicas(t, metadata);
+                replicas.put(ringVersion, t, endpoints);
+            }
+            result.put(t, endpoints);
+        }
+        return result;
     }
 
     public Replica getLocalReplicaFor(Token searchPosition)
@@ -282,6 +309,43 @@ public abstract class AbstractReplicationStrategy
         return getAddressReplicas(tokenMetadata.cloneOnlyTokenMap(), endpoint);
     }
 
+    public RangesAtEndpoint getAddressReplicasWithCache(InetAddressAndPort endpoint)
+    {
+        return getAddressReplicasWithCache(tokenMetadata.cloneOnlyTokenMap(), endpoint);
+    }
+
+    /**
+     * Get address replicas for a specific endpoint, leveraging the existing replica cache.
+     * This uses getNaturalReplicas() which caches results based on the ring version from given metadata.
+     *
+     * @param metadata the token metadata we want to calculate and get the addresses from
+     * @param endpoint the endpoint to get ranges for
+     * @return ranges for the endpoint, using cached replica calculations
+     */
+    public RangesAtEndpoint getAddressReplicasWithCache(TokenMetadata metadata, InetAddressAndPort endpoint)
+    {
+        RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(endpoint);
+
+        List<Token> allTokens = metadata.sortedTokens();
+        // using cached replicasByTokens or recalculate
+        Map<Token, EndpointsForRange> replicasByTokens = getNaturalReplicasFromMetadata(allTokens, metadata);
+        for (Token token : allTokens)
+        {
+            Range<Token> range = metadata.getPrimaryRangeFor(token);
+            EndpointsForRange replicas = replicasByTokens.get(token);
+            assert replicas != null : "Can't find token in replicasByToken";
+            Replica replica = replicas.byEndpoint().get(endpoint);
+            if (replica != null)
+            {
+                // LocalStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
+                Preconditions.checkState(range.equals(replica.range()) || this instanceof LocalStrategy,
+                                         "Replica range %s does not match primary range %s", replica.range(), range);
+                builder.add(replica, Conflict.DUPLICATE);
+            }
+        }
+        return builder.build();
+    }
+
     public RangesAtEndpoint getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
     {
         return getPendingAddressRanges(metadata, Collections.singleton(pendingToken), pendingAddress);
@@ -421,7 +485,7 @@ public abstract class AbstractReplicationStrategy
     {
         String className = cls.contains(".") ? cls : "org.apache.cassandra.locator." + cls;
 
-        if ("org.apache.cassandra.locator.OldNetworkTopologyStrategy".equals(className)) // see CASSANDRA-16301 
+        if ("org.apache.cassandra.locator.OldNetworkTopologyStrategy".equals(className)) // see CASSANDRA-16301
             throw new ConfigurationException("The support for the OldNetworkTopologyStrategy has been removed in C* version 4.0. The keyspace strategy should be switch to NetworkTopologyStrategy");
 
         Class<AbstractReplicationStrategy> strategyClass = FBUtilities.classForName(className, "replication strategy");
@@ -442,7 +506,7 @@ public abstract class AbstractReplicationStrategy
         try
         {
             ReplicationFactor rf = ReplicationFactor.fromString(s);
-            
+
             if (rf.hasTransientReplicas())
             {
                 if (DatabaseDescriptor.getNumTokens() > 1)
@@ -479,6 +543,15 @@ public abstract class AbstractReplicationStrategy
                 return null;
 
             return replicaHolder.replicas.get(keyToken);
+        }
+
+        Map<K, V> get(long ringVersion)
+        {
+            ReplicaHolder<K, V> replicaHolder = maybeClearAndGet(ringVersion);
+            if (replicaHolder == null)
+                return null;
+
+            return replicaHolder.replicas;
         }
 
         void put(long ringVersion, K keyToken, V endpoints)

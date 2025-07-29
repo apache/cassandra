@@ -121,8 +121,7 @@ public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
     {
         Keyspace keyspace = Keyspace.open(ksName);
         List<Range<Token>> localRanges = Range.normalize(keyspace.getReplicationStrategy()
-                                                                 .getAddressReplicas()
-                                                                 .get(FBUtilities.getBroadcastAddressAndPort())
+                                                                 .getAddressReplicasWithCache(FBUtilities.getBroadcastAddressAndPort())
                                                                  .ranges());
 
         RangesAtEndpoint pendingRanges = StorageService.instance.getTokenMetadata().getPendingRanges(ksName, FBUtilities.getBroadcastAddressAndPort());
