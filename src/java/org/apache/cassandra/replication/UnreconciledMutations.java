@@ -126,7 +126,8 @@ public class UnreconciledMutations
     {
         Preconditions.checkArgument(!mutation.id().isNone());
         Entry entry = statesMap.get(mutation.id().offset());
-        Preconditions.checkNotNull(entry);
+        if (entry == null)
+            return;
         entry.visibility = Visibility.VISIBLE;
     }
 

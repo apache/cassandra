@@ -99,9 +99,9 @@ public class Shard
             getOrCreate(logOffsets.logId()).updateReplicatedOffsets(logOffsets, onHostId);
     }
 
-    void startWriting(Mutation mutation)
+    boolean startWriting(Mutation mutation)
     {
-        getOrCreate(mutation).startWriting(mutation);
+        return getOrCreate(mutation).startWriting(mutation);
     }
 
     void finishWriting(Mutation mutation)

@@ -170,10 +170,10 @@ public class MutationTrackingService
         getOrCreateShards(keyspace).updateReplicatedOffsets(range, offsets, onHost);
     }
 
-    public void startWriting(Mutation mutation)
+    public boolean startWriting(Mutation mutation)
     {
         Preconditions.checkArgument(!mutation.id().isNone());
-        getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+        return getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
     }
 
     public void finishWriting(Mutation mutation)
@@ -374,9 +374,9 @@ public class MutationTrackingService
             shards.get(range).updateReplicatedOffsets(offsets, onHost);
         }
 
-        void startWriting(Mutation mutation)
+        boolean startWriting(Mutation mutation)
         {
-            lookUp(mutation).startWriting(mutation);
+            return lookUp(mutation).startWriting(mutation);
         }
 
         void finishWriting(Mutation mutation)

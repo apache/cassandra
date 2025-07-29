@@ -117,15 +117,16 @@ public abstract class CoordinatorLog
         }
     }
 
-    void startWriting(Mutation mutation)
+    boolean startWriting(Mutation mutation)
     {
         lock.writeLock().lock();
         try
         {
             if (getLocal().contains(mutation.id().offset()))
-                return; // already witnessed; shouldn't get to this path often (duplicate mutation)
+                return false; // already witnessed; shouldn't get to this path often (duplicate mutation)
 
             unreconciledMutations.startWriting(mutation);
+            return true;
         }
         finally
         {
@@ -141,8 +142,9 @@ public abstract class CoordinatorLog
         try
         {
             int offset = mutation.id().offset();
+            // we've raced with another write, no need to do anything else
             if (!getLocal().add(offset))
-                throw new IllegalStateException("finishWriting() called on a locally witnessed mutation " + mutation.id());
+                return;
 
             unreconciledMutations.finishWriting(mutation);
 
