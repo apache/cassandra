@@ -507,6 +507,41 @@ public class OffsetsTest
     }
 
     @Test
+    public void testMultiMerge()
+    {
+        Supplier<Offsets.Mutable> sequenceIds = () -> {
+            Offsets.Mutable ids0 = new Offsets.Mutable(LOG_ID);
+            ids0.add(0, 3);
+            ids0.add(7, 10);
+            ids0.add(15, 17);
+
+            assertEquals(3, ids0.rangeCount());
+            assertEquals(11, ids0.offsetCount());
+            return ids0;
+        };
+
+        {
+            // extends on the end
+            Offsets.Mutable offsets = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(offsets.add(0, 12, consumer));
+            consumer.assertOffsetsConsumed(4, 6, 11, 12).clear();
+            assertEquals(offsets(0, 12, 15, 17), offsets);
+        }
+
+        {
+            // extends on the start
+            Offsets.Mutable offsets = sequenceIds.get();
+            TestConsumer consumer = new TestConsumer();
+
+            assertTrue(offsets.add(5, 17, consumer));
+            consumer.assertOffsetsConsumed(5, 6, 11, 14).clear();
+            assertEquals(offsets(0, 3, 5, 17), offsets);
+        }
+    }
+
+    @Test
     public void addTest()
     {
         Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);

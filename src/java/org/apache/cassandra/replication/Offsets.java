@@ -27,6 +27,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,6 +37,7 @@ import java.util.Iterator;
 
 public abstract class Offsets implements Iterable<ShortMutationId>
 {
+    private static final Logger logger = LoggerFactory.getLogger(Offsets.class);
     private static final int INITIAL_CAPACITY = 16;
 
     protected final CoordinatorLogId logId;
@@ -433,6 +436,17 @@ public abstract class Offsets implements Iterable<ShortMutationId>
 
             AddAction eMerge;
             {
+                // if the insert spans multiple ranges and the inserted end value
+                // is less than the start of eRange - 1 (ie: cant' be merged), decrement
+                // the range by one so we can extend the previous range
+                if (eRange > sRange) {
+                    int rStart = bounds[rangeStart(eRange)];
+
+                    if (end < rStart -1)
+                    {
+                        eRange--;
+                    }
+                }
                 int rStart = bounds[rangeStart(eRange)];
                 int rEnd = bounds[rangeEnd(eRange)];
 
