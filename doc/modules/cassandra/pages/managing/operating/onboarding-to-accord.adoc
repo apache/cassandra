@@ -285,8 +285,8 @@ changes. During migration, normal CQL operations will use the Accord
 timestamp once a range starts migration, but will fall back to server 
 timestamp when migrating away from Accord.
 
-Hints will use server timestamp and they only come into play during 
-migration as hints won't be generated when a range is on Accord.
+Hints and batch log replay will use server timestamp and they only come into play during
+migration as hints and batch log replay won't be generated when a range is on Accord.
 
 `USING TIMESTAMP` is allowed and the application of the operations will
 occur in a linearizable order, but from the perspective of a reader the
@@ -301,6 +301,8 @@ For BATCH operations, timestamp handling is more complex:
   * `reject` (default) - reject the CQL operation
   * `log` - accept the operation using server timestamp but log operations where writes to the Accord table will not be linearizable
   * `ignore` - accept the operation silently
+
+Logged batches that only touch Accord tables will not be written to the batch log because that functionality is redundant with Accord. Batches that touch both Accord and non-Accord tables will be written to the batch log.
 
 Paging runs a separate transaction per page and does not produce a
 linearizable result.
