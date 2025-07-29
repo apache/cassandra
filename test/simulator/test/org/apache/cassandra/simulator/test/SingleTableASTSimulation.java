@@ -281,7 +281,7 @@ public class SingleTableASTSimulation extends SimulationTestBase.SimpleSimulatio
             step++;
             Action next = commands.next(rs);
             // empty actions implies that the model state doesn't have enough data to process the action, so we want to "skip"
-            while (next.getClass() == Actions.EmptyAction.class)
+            while (next == null)
                 next = commands.next(rs);
             return next;
         }
@@ -294,7 +294,7 @@ public class SingleTableASTSimulation extends SimulationTestBase.SimpleSimulatio
             switch (partitions.size())
             {
                 case 0:
-                    return Actions.empty("No known clustering keys to select");
+                    return null;
                 case 1:
                     break;
                 default:
@@ -302,10 +302,10 @@ public class SingleTableASTSimulation extends SimulationTestBase.SimpleSimulatio
             }
             BytesPartitionState state = model.get(partitions.get(0));
             if (state == null)
-                return Actions.empty("Partition doesn't exist, unable to select a clustering row");
+                return null;
             NavigableSet<Clustering<ByteBuffer>> clusteringKeys = state.clusteringKeys();
             if (clusteringKeys.isEmpty())
-                return Actions.empty("Partition is empty, unable to select a clustering row");
+                return null;
             Clustering<ByteBuffer> clusteringKey = rs.pickOrderedSet(clusteringKeys);
             for (Symbol ck : model.factory.clusteringColumns)
                 builder.value(ck, clusteringKey.bufferAt(model.factory.clusteringColumns.indexOf(ck)));
