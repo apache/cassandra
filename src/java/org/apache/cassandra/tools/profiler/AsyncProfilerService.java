@@ -15,7 +15,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ASYNC_PROF
 
 public class AsyncProfilerService {
     private static final Logger logger = LoggerFactory.getLogger(AsyncProfilerService.class);
-    private static final Set<String> ALLOWED_EVENTS = Set.of("cpu", "alloc", "lock", "wall", "nativemem", "cache-misses");
+
+    private static final Set<String> VALID_EVENTS = Set.of("cpu", "alloc", "lock", "wall", "nativemem", "cache-misses");
+    private static final Set<String> VALID_FORMATS = Set.of("flat","traces","collapsed","flamegraph","tree","jfr","otlp");
+    private static final Character[] INVALID_CHARS = {'"', '*', '<', '>', '?', '|'};
 
     private static AsyncProfiler profilerInstance;
 
@@ -33,9 +36,10 @@ public class AsyncProfilerService {
     public void start(String event, String outputFormat) {
         checkProfilerInstance();
         validateEvent(event);
+        validateFormat(outputFormat);
 
         try {
-            String cmd = String.format("start,event=%s,fmt=%s", event, outputFormat);
+            String cmd = String.format("start,event=%s,output=%s", event, outputFormat);
             profilerInstance.execute(cmd);
             logger.info("Started async-profiler: cmd={}", cmd);
         } catch (IOException e) {
@@ -85,14 +89,23 @@ public class AsyncProfilerService {
     }
 
     private void validateEvent(String event){
-        if (!Arrays.stream(event.split(",")).filter(s -> !s.isEmpty()).allMatch(ALLOWED_EVENTS::contains)){
-            throw new IllegalArgumentException(String.format("Event must be one or a combination of %s", ALLOWED_EVENTS.toString()));
+        if (!Arrays.stream(event.split(",")).filter(s -> !s.isEmpty()).allMatch(VALID_EVENTS::contains)){
+            throw new IllegalArgumentException(String.format("Event must be one or a combination of %s", VALID_EVENTS.toString()));
+        }
+    }
+
+    private void validateFormat(String format){
+        if (!VALID_FORMATS.contains(format)){
+            throw new IllegalArgumentException(String.format("Format must be one or a combination of %s", VALID_FORMATS.toString()));
         }
     }
 
     private void validateOutputFileName(String outputFile){
-        if (outputFile.matches(".*\\s.*")){
-            throw new IllegalArgumentException("Output file name must be a non-space-delimited string.");
+        if (outputFile == null || outputFile.trim().isEmpty()) {
+            throw new IllegalArgumentException("Output file name must not be null or empty.");
+        }
+        if (Arrays.stream(INVALID_CHARS).anyMatch(ch -> outputFile.contains(ch.toString()))){
+            throw new IllegalArgumentException(String.format("Output file name must not contain any invalid characters %s", INVALID_CHARS.toString()));
         }
     }
 }
