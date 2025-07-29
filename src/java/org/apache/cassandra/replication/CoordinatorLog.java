@@ -160,13 +160,21 @@ public abstract class CoordinatorLog
 
     private boolean othersWitnessed(int offset, int exceptHostId)
     {
-        for (int i = 0; i < participants.size(); ++i)
+        lock.readLock().lock();
+        try
         {
-            int hostId = participants.get(i);
-            if (hostId != exceptHostId && !get(hostId).contains(offset))
-                return false;
+            for (int i = 0; i < participants.size(); ++i)
+            {
+                int hostId = participants.get(i);
+                if (hostId != exceptHostId && !get(hostId).contains(offset))
+                    return false;
+            }
+            return true;
         }
-        return true;
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     protected boolean remoteReplicasWitnessed(int offset)
