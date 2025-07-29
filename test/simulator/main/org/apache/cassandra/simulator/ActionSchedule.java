@@ -91,8 +91,8 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
          */
         TIME_AND_STREAM_LIMITED,
         /**
-         * Definition: Processes a finite set of actions; does not allow stream/daemon actions at all
-         * Behavior: Processes a finite set of actions, if any action is added that has stream or daemon like behavior then the simulation will be rejected.
+         * Definition: Processes a finite set of actions; does not allow stream actions
+         * Behavior: Processes a finite set of actions, if any action is added that has stream then the action will be rejected.
          */
         FINITE,
         /**
