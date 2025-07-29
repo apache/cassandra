@@ -114,6 +114,8 @@ public interface IAccordService
 
     void startup();
 
+    Future<Void> flushCaches();
+    void markShuttingDown();
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
 
     AccordScheduler scheduler();
@@ -272,6 +274,17 @@ public interface IAccordService
             {
                 logger.warn("Current snitch  is not compatable with Accord, make sure to fix the snitch before enabling Accord; {}", t.toString());
             }
+        }
+
+        @Override
+        public void markShuttingDown()
+        {
+        }
+
+        @Override
+        public Future<Void> flushCaches()
+        {
+            return ImmediateFuture.success(null);
         }
 
         @Override
@@ -453,6 +466,18 @@ public interface IAccordService
         public void startup()
         {
             delegate.startup();
+        }
+
+        @Override
+        public Future<Void> flushCaches()
+        {
+            return delegate.flushCaches();
+        }
+
+        @Override
+        public void markShuttingDown()
+        {
+            delegate.markShuttingDown();
         }
 
         @Override

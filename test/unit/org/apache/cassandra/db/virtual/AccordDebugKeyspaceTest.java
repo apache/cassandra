@@ -75,6 +75,9 @@ public class AccordDebugKeyspaceTest extends CQLTester
     private static final String QUERY_TXN_BLOCKED_BY =
         String.format("SELECT * FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_BLOCKED_BY);
 
+    private static final String QUERY_COMMANDS_FOR_KEY =
+        String.format("SELECT txn_id, status FROM %s.%s WHERE key=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.COMMANDS_FOR_KEY);
+
     private static final String QUERY_TXN =
         String.format("SELECT txn_id, save_status FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN);
 
@@ -214,12 +217,14 @@ public class AccordDebugKeyspaceTest extends CQLTester
         AccordService accord = accord();
         TxnId id = accord.node().nextTxnId(Txn.Kind.Write, Routable.Domain.Key);
         Txn txn = createTxn(wrapInTxn(String.format("INSERT INTO %s.%s(k, c, v) VALUES (?, ?, ?)", KEYSPACE, tableName)), 0, 0, 0);
+        String keyStr = txn.keys().get(0).toUnseekable().toString();
         AsyncChains.getBlocking(accord.node().coordinate(id, txn));
 
         spinUntilSuccess(() -> assertRows(execute(QUERY_TXN_BLOCKED_BY, id.toString()),
                                           row(id.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", any(), null, anyOf(SaveStatus.ReadyToExecute.name(), SaveStatus.Applying.name(), SaveStatus.Applied.name()))));
         assertRows(execute(QUERY_TXN, id.toString()), row(id.toString(), "Applied"));
         assertRows(execute(QUERY_JOURNAL, id.toString()), row(id.toString(), "PreAccepted"), row(id.toString(), "Applying"), row(id.toString(), "Applied"), row(id.toString(), null));
+        assertRows(execute(QUERY_COMMANDS_FOR_KEY, keyStr), row(id.toString(), "APPLIED_DURABLE"));
     }
 
     @Test
@@ -330,7 +335,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         }
         catch (Throwable t)
         {
-            Assert.assertTrue(t.getMessage().contains("Unknown"));
+            Assert.assertTrue(t.getMessage().contains("No enum constant"));
         }
     }
 
@@ -358,7 +363,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
             assertRows(rs, row(id.toString(), "PreAccepted", anyNonNull()));
 
             int commandStoreId = rs.one().getInt("command_store_id");
-            String PATCH_JOURNAL = String.format("UPDATE %s.%s SET cleanup = ? WHERE txn_id=? AND command_store_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_UPDATE);
+            String PATCH_JOURNAL = String.format("UPDATE %s.%s SET op = ? WHERE txn_id=? AND command_store_id = ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_OPS);
             execute(PATCH_JOURNAL, cleanupAction, id.toString(), commandStoreId);
 
             assertRows(execute(QUERY_TXN, id.toString()),

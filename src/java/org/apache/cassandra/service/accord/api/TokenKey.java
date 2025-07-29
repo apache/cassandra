@@ -147,6 +147,32 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         return prefix() + ":" + printableSuffix();
     }
 
+    public static TokenKey parse(String str, IPartitioner partitioner)
+    {
+        TableId tableId;
+        {
+            int split = str.indexOf(':', str.startsWith("tid:") ? 4 : 0);
+            tableId = TableId.fromString(str.substring(0, split));
+            str = str.substring(split + 1);
+        }
+        if (str.endsWith("Inf"))
+        {
+            return new TokenKey(tableId, str.charAt(0) == '-' ? MIN_TABLE_SENTINEL : MAX_TABLE_SENTINEL, partitioner.getMinimumToken());
+        }
+        if (str.endsWith(")"))
+        {
+            boolean isBefore = str.startsWith("before(");
+            boolean isAfter = str.startsWith("after(");
+            if (isBefore || isAfter)
+            {
+                byte sentinel = isBefore ? BEFORE_TOKEN_SENTINEL : AFTER_TOKEN_SENTINEL;
+                str = str.substring(isBefore ? 7 : 6, str.length() - 1);
+                return new TokenKey(tableId, sentinel, partitioner.getTokenFactory().fromString(str));
+            }
+        }
+        return new TokenKey(tableId, partitioner.getTokenFactory().fromString(str));
+    }
+
     public long estimatedSizeOnHeap()
     {
         return EMPTY_SIZE + token().getHeapSize();

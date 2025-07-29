@@ -44,6 +44,12 @@ public class TestParams implements Params
     }
 
     @Override
+    public ReplayMode replayMode()
+    {
+        return null;
+    }
+
+    @Override
     public boolean enableCompaction()
     {
         return false;
