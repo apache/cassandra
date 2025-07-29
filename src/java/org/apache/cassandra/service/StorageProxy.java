@@ -242,7 +242,7 @@ public class StorageProxy implements StorageProxyMBean
     public static final String UNREACHABLE = "UNREACHABLE";
 
     private static final int FAILURE_LOGGING_INTERVAL_SECONDS = CassandraRelevantProperties.FAILURE_LOGGING_INTERVAL_SECONDS.getInt();
-    private static final String UNSAFE_MIXED_MUTATIONS_MSG = "Mutations look to have different time sources, some are using 'USING TIMESTAMP' and others are using the server timestamp; this is unsafe while using transactions.  To allow this behavior set accord.mixed_time_source_handling=log or ignore";
+    private static final String UNSAFE_MIXED_MUTATIONS_MSG = "Mutations look to have different time sources, some are using 'USING TIMESTAMP' and others are using the server timestamp; writes to the Accord table will not be linearizable while using transactions.  To allow this behavior set accord.mixed_time_source_handling=log or ignore";
 
     private static final WritePerformer standardWritePerformer;
     private static final WritePerformer counterWritePerformer;
@@ -1273,7 +1273,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (!preserveTimestamps.preserve && normalMutations != null)
                     preserveTimestamps = PreserveTimestamp.yes;
                 // A BATCH statement has multiple mutations mixing server timestamps and `USING TIMESTAMP`,
-                // which is unsafe in Accord because the server timestamp breaks linearizability
+                // which is not linearizable for the writes to Accord tables.
                 if (accordMutations != null && preserveTimestamps == PreserveTimestamp.mixedTimeSource)
                     checkMixedTimeSourceHandling();
                 IAccordResult<TxnResult> accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, requestTime, preserveTimestamps) : null;
