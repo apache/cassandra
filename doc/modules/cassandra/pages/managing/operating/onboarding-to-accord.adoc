@@ -296,10 +296,10 @@ For BATCH operations, timestamp handling is more complex:
 - If the batch uses `USING TIMESTAMP`, the user timestamp will be used
 - If all mutations in a BATCH use `USING TIMESTAMP`, the user timestamp will be used
 - If not using `USING TIMESTAMP` and all partition keys are on Accord, the Accord timestamp is used
-- If the BATCH has some partitions on Accord and others not on Accord, the server timestamp will be used (unsafe for multi-table batches where one table is not migrating to Accord)
+- If the BATCH has some partitions on Accord and others not on Accord, the server timestamp will be used (writes to the Accord table will not be linearizable for multi-table batches where one table is not migrating to Accord)
 - If the batch mixes server timestamp and `USING TIMESTAMP` mutations, the default behavior is to reject the batch, configurable via `accord.mixed_time_source_handling` with values:
   * `reject` (default) - reject the CQL operation
-  * `log` - accept the operation using server timestamp but log unsafe operations
+  * `log` - accept the operation using server timestamp but log operations where writes to the Accord table will not be linearizable
   * `ignore` - accept the operation silently
 
 Paging runs a separate transaction per page and does not produce a
