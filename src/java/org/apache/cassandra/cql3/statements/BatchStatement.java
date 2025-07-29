@@ -487,7 +487,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
                 collector = new TimestampSource.Collector();
             }
             List<? extends IMutation> mutations = getMutations(clientState, options, false, timestamp, nowInSeconds, requestTime, collector);
-            if (collector != null)
+            if (!mutations.isEmpty() && collector != null)
                 preserveTimestamp = preserveTimestamp.merge(collector.get());
             executeWithoutConditions(mutations, options.getConsistency(), requestTime, preserveTimestamp);
         }
