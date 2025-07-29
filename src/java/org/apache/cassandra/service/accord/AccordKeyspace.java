@@ -510,6 +510,16 @@ public class AccordKeyspace
         return TABLES;
     }
 
+    public static void truncateCommandsForKey()
+    {
+        Keyspace ks = Keyspace.open(ACCORD_KEYSPACE_NAME);
+        for (String table : new String[]{ CommandsForKeys.name })
+        {
+            if (!ks.getColumnFamilyStore(table).isEmpty())
+                ks.getColumnFamilyStore(table).truncateBlocking();
+        }
+    }
+
     private static <T> ByteBuffer cellValue(Cell<T> cell)
     {
         return cell.accessor().toBuffer(cell.value());

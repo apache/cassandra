@@ -188,6 +188,7 @@ public class AccordSpec
     {
         public int segmentSize = 32 << 20;
         public FailurePolicy failurePolicy = FailurePolicy.STOP;
+        public ReplayMode replayMode = ReplayMode.ONLY_NON_DURABLE;
         public FlushMode flushMode = FlushMode.PERIODIC;
         public volatile DurationSpec flushPeriod; // pulls default from 'commitlog_sync_period'
         public DurationSpec periodicFlushLagBlock = new DurationSpec.IntMillisecondsBound("1500ms");
@@ -218,6 +219,12 @@ public class AccordSpec
         public FailurePolicy failurePolicy()
         {
             return failurePolicy;
+        }
+
+        @Override
+        public ReplayMode replayMode()
+        {
+            return replayMode;
         }
 
         @Override

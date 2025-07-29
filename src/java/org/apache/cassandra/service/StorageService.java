@@ -171,6 +171,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.accord.AccordKeyspace.AccordColumnFamilyStores;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
@@ -250,6 +251,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPA
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRY_DELAY_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.INTERNALLY_FORCED;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
@@ -3823,7 +3825,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             if (AccordService.isSetup())
-                AccordService.instance().shutdownAndWait(1, MINUTES);
+                AccordService.instance().markShuttingDown();
 
             // In-progress writes originating here could generate hints to be written,
             // which is currently scheduled on the mutation stage. So shut down MessagingService
@@ -3837,6 +3839,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // prevent messaging service timing out shutdown from aborting
                 // drain process; otherwise drain and/or shutdown might throw
                 logger.error("Messaging service timed out shutting down", t);
+            }
+
+            if (AccordService.isSetup())
+            {
+                logger.info("Flushing Accord caches");
+                if (!AccordService.instance().flushCaches().awaitUninterruptibly(1, MINUTES))
+                    logger.error("Could not flush Accord caches promptly");
+                if (AccordColumnFamilyStores.commandsForKey != null)
+                    AccordColumnFamilyStores.commandsForKey.forceBlockingFlush(INTERNALLY_FORCED);
+                AccordService.instance().shutdownAndWait(1, MINUTES);
             }
 
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.

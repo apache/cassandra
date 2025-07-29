@@ -87,6 +87,7 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -149,6 +150,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurab
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityMaxSplits;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityTargetSplits;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.journal.Params.ReplayMode.RESET;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
 import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.ImmutableTopoloyImage;
@@ -262,6 +264,9 @@ public class AccordService implements IAccordService, Shutdownable
         CommandsForKey.disableLinearizabilityViolationsReporting();
         try
         {
+            if (as.journalConfiguration().replayMode() == RESET)
+                AccordKeyspace.truncateCommandsForKey();
+
             as.node.commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop());
             as.journal().replay(as.node().commandStores());
             logger.info("Waiting for command stores to quiesce.");
@@ -696,10 +701,46 @@ public class AccordService implements IAccordService, Shutdownable
         return scheduler.isTerminated();
     }
 
+    public synchronized Future<Void> flushCaches()
+    {
+        class Ready extends AsyncResults.CountingResult implements Runnable
+        {
+            public Ready() { super(1); }
+            @Override public void run() { decrement(); }
+        }
+        Ready ready = new Ready();
+        AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
+        AsyncChains.getBlockingAndRethrow(commandStores.forEach((PreLoadContext.Empty)() -> "Flush Caches", safeStore -> {
+            AccordCommandStore commandStore = (AccordCommandStore)safeStore.commandStore();
+            try (AccordCommandStore.ExclusiveCaches caches = commandStore.lockCaches())
+            {
+                caches.commandsForKeys().forEach(entry -> {
+                    if (entry.isModified())
+                    {
+                        ready.increment();
+                        caches.global().saveWhenReadyExclusive(entry, ready);
+                    }
+                });
+            }
+        }));
+        ready.decrement();
+        AsyncPromise<Void> result = new AsyncPromise<>();
+        ready.begin((success, fail) -> {
+            if (fail != null) result.tryFailure(fail);
+            else result.trySuccess(null);
+        });
+        return result;
+    }
+
+    public synchronized void markShuttingDown()
+    {
+        state = State.SHUTTING_DOWN;
+    }
+
     @Override
     public synchronized void shutdown()
     {
-        if (state != State.STARTED)
+        if (state != State.STARTED && state != State.SHUTTING_DOWN)
             return;
         state = State.SHUTTING_DOWN;
         shutdownAndWait(1, TimeUnit.MINUTES);

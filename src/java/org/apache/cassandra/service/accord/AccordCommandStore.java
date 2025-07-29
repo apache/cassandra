@@ -83,6 +83,7 @@ import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
 import static accord.api.Journal.Load.MINIMAL;
 import static accord.utils.Invariants.require;
+import static org.apache.cassandra.journal.Params.ReplayMode.ONLY_NON_DURABLE;
 
 public class AccordCommandStore extends CommandStore
 {
@@ -496,7 +497,10 @@ public class AccordCommandStore extends CommandStore
 
     public AccordCommandStoreReplayer replayer()
     {
-        return new AccordCommandStoreReplayer(this);
+        boolean replayOnlyDurable = true;
+        if (journal instanceof AccordJournal)
+            replayOnlyDurable = ((AccordJournal)journal).configuration().replayMode() == ONLY_NON_DURABLE;
+        return new AccordCommandStoreReplayer(this, replayOnlyDurable);
     }
 
     static final AtomicLong nextDurabilityLoggingId = new AtomicLong();
@@ -560,23 +564,23 @@ public class AccordCommandStore extends CommandStore
     public static class AccordCommandStoreReplayer extends AbstractReplayer
     {
         private final AccordCommandStore store;
+        private final boolean onlyNonDurable;
 
-        private AccordCommandStoreReplayer(AccordCommandStore store)
+        private AccordCommandStoreReplayer(AccordCommandStore store, boolean onlyNonDurable)
         {
             super(store.unsafeGetRedundantBefore());
             this.store = store;
+            this.onlyNonDurable = onlyNonDurable;
         }
 
         @Override
         public AsyncChain<Route> replay(TxnId txnId)
         {
-            if (!maybeShouldReplay(txnId))
-            {
+            if (onlyNonDurable && !maybeShouldReplay(txnId))
                 return AsyncChains.success(null);
-            }
 
             return store.submit(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
-                if (!shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants()))
+                if (onlyNonDurable && !shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants()))
                     return null;
 
                 initialiseState(safeStore, txnId);

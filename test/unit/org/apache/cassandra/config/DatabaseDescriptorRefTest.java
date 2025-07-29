@@ -297,6 +297,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.journal.Params",
     "org.apache.cassandra.journal.Params$FailurePolicy",
     "org.apache.cassandra.journal.Params$FlushMode",
+    "org.apache.cassandra.journal.Params$ReplayMode",
     "org.apache.cassandra.locator.Endpoint",
     "org.apache.cassandra.locator.IEndpointSnitch",
     "org.apache.cassandra.locator.InetAddressAndPort",
