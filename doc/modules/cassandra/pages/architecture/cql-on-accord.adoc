@@ -265,11 +265,11 @@ uses `USING TIMESTAMP`, the user timestamp will be used. If all mutations
 in a BATCH use `USING TIMESTAMP`, the user timestamp will be used. If not
 using `USING TIMESTAMP` and all partition keys are on Accord, the Accord
 timestamp is used. If the BATCH has some partitions on Accord and others
-not on Accord, the server timestamp will be used (unsafe for multi-table
+not on Accord, the server timestamp will be used (writes to the Accord table will not be linearizable for multi-table
 batches where one table is not migrating to Accord). If a batch mixes
 server timestamp and `USING TIMESTAMP` mutations, the default behavior
 is to reject the batch, configurable via `accord.mixed_time_source_handling`
-with values: `reject` (default), `log` (accept and log unsafe operations),
+with values: `reject` (default), `log` (accept and log operations where writes to the Accord table will not be linearizable),
 or `ignore` (accept silently).
 
 `TxnUpdate` has a write consistency level that is not visible to Accord
