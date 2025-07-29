@@ -230,23 +230,23 @@ public class FastByteOperations
             Object obj1;
             long offset1;
 
+            // Direct ByteBuffer
+            if (buffer1.isDirect())
+            {
+                obj1 = null;
+                offset1 = theUnsafe.getLong(buffer1, DIRECT_BUFFER_ADDRESS_OFFSET) + position1;
+            }
             // Heap ByteBuffer (Mutable)
-            if (buffer1.hasArray())
+            else if (buffer1.hasArray())
             {
                 obj1 = buffer1.array();
                 offset1 = BYTE_ARRAY_BASE_OFFSET + buffer1.arrayOffset() + position1;
             }
             // Read-Only Heap ByteBuffer (Still has hb but read-only)
-            else if (buffer1.isReadOnly() && !buffer1.isDirect())
+            else
             {
                 obj1 = theUnsafe.getObject(buffer1, HEAP_HB_FIELD_OFFSET);
                 offset1 = BYTE_ARRAY_BASE_OFFSET  + position1;
-            }
-            // Direct ByteBuffer
-            else
-            {
-                obj1 = null;
-                offset1 = theUnsafe.getLong(buffer1, DIRECT_BUFFER_ADDRESS_OFFSET) + position1;
             }
 
             return compareTo(obj1, offset1, length1, buffer2, BYTE_ARRAY_BASE_OFFSET + offset2, length2);
@@ -351,23 +351,23 @@ public class FastByteOperations
             long offset1;
             int length1;
 
+            // Direct ByteBuffer
+            if (buffer1.isDirect())
+            {
+                obj1 = null;
+                offset1 = theUnsafe.getLong(buffer1, DIRECT_BUFFER_ADDRESS_OFFSET);
+            }
             // Heap ByteBuffer (Mutable)
-            if (buffer1.hasArray())
+            else if (buffer1.hasArray())
             {
                 obj1 = buffer1.array();
                 offset1 = BYTE_ARRAY_BASE_OFFSET + buffer1.arrayOffset();
             }
             // Read-Only Heap ByteBuffer (Still has hb but read-only)
-            else if (buffer1.isReadOnly() && !buffer1.isDirect())
+            else
             {
                 obj1 = theUnsafe.getObject(buffer1, HEAP_HB_FIELD_OFFSET);
                 offset1 = BYTE_ARRAY_BASE_OFFSET;
-            }
-            // Direct ByteBuffer
-            else
-            {
-                obj1 = null;
-                offset1 = theUnsafe.getLong(buffer1, DIRECT_BUFFER_ADDRESS_OFFSET);
             }
 
             offset1 += buffer1.position();
@@ -384,24 +384,25 @@ public class FastByteOperations
             int position = buffer.position();
             int limit = buffer.limit();
 
+            // Direct ByteBuffer
+            if (buffer.isDirect())
+            {
+                obj2 = null;
+                offset2 = theUnsafe.getLong(buffer, DIRECT_BUFFER_ADDRESS_OFFSET);
+            }
             // Heap ByteBuffer (Mutable)
-            if (buffer.hasArray())
+            else if (buffer.hasArray())
             {
                 obj2 = buffer.array();
                 offset2 = BYTE_ARRAY_BASE_OFFSET + buffer.arrayOffset();
             }
             // Read-Only Heap ByteBuffer (Still has hb but read-only)
-            else if (buffer.isReadOnly() && !buffer.isDirect())
+            else
             {
                 obj2 = theUnsafe.getObject(buffer, HEAP_HB_FIELD_OFFSET);
                 offset2 = BYTE_ARRAY_BASE_OFFSET;
             }
-            // Direct ByteBuffer
-            else
-            {
-                obj2 = null;
-                offset2 = theUnsafe.getLong(buffer, DIRECT_BUFFER_ADDRESS_OFFSET);
-            }
+
             int length2 = limit - position;
             offset2 += position;
 
