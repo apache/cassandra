@@ -283,25 +283,26 @@ public class FastByteOperations
             Object src;
             long srcOffset;
 
+            // Direct ByteBuffer
+            if (srcBuf.isDirect())
+            {
+                src = null;
+                srcOffset = theUnsafe.getLong(srcBuf, DIRECT_BUFFER_ADDRESS_OFFSET);
+            }
             // Heap ByteBuffer (Mutable)
-            if (srcBuf.hasArray())
+            else if (srcBuf.hasArray())
             {
                 src = srcBuf.array();
                 srcOffset = BYTE_ARRAY_BASE_OFFSET + srcBuf.arrayOffset();
             }
             // Read-Only Heap ByteBuffer (Still has hb but read-only)
-            else if (srcBuf.isReadOnly() && !srcBuf.isDirect())
+            else
             {
                 src = theUnsafe.getObject(srcBuf, HEAP_HB_FIELD_OFFSET);
                 int arrayOffset = theUnsafe.getInt(srcBuf, HEAP_ARRAY_FIELD_OFFSET);
                 srcOffset = BYTE_ARRAY_BASE_OFFSET + arrayOffset ;
             }
             // Direct ByteBuffer
-            else
-            {
-                src = null;
-                srcOffset = theUnsafe.getLong(srcBuf, DIRECT_BUFFER_ADDRESS_OFFSET);
-            }
 
             copy(src, srcOffset + srcPosition, trgBuf, trgPosition, length);
         }
