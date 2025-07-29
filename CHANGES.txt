@@ -1,4 +1,5 @@
 5.1
+ * When using BEGIN TRANSACTION if a complex mutation exists in the same statement as one that uses a reference, then the complex delete is dropped (CASSANDRA-20788)
  * Migrate all nodetool commands from airline to picocli (CASSANDRA-17445)
  * Journal.TopologyUpdate should not store the local topology as it can be inferred from the global on (CASSANDRA-20785)
  * Accord: Topology serializer has a lot of repeated data, can dedup to shrink the cost (CASSANDRA-20715)

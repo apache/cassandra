@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -37,6 +38,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -47,8 +49,10 @@ import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -3220,5 +3224,40 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedAccordTableName + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
              }
          );
+    }
+
+    @Test
+    public void setComplexWithReferenceOnAnotherColumn() throws Exception
+    {
+        // we add a row first
+        // then do a mutation that references the row
+        Symbol v0 = new Symbol("v0", SetType.getInstance(Int32Type.instance, true));
+        Symbol v1 = new Symbol("v1", Int32Type.instance);
+        Symbol row = Symbol.unknownType("row");
+        test("CREATE TABLE " + qualifiedAccordTableName + "(k int, c int, v0 set<int>, v1 int, primary key(k, c)) WITH transactional_mode='" + transactionalMode + "'",
+             cluster -> {
+                 ICoordinator coordinator = cluster.coordinator(1);
+                 coordinator.execute("INSERT INTO " + qualifiedAccordTableName + "(k, c, v0, v1) VALUES (0, 0, {0}, 1)", QUORUM);
+
+                 String cql = "BEGIN TRANSACTION\n" +
+                              "  LET row = (SELECT *\n" +
+                              "             FROM " + qualifiedAccordTableName + '\n' +
+                              "             WHERE k = ? AND c = ?);\n" +
+                              "  UPDATE " + qualifiedAccordTableName + '\n' +
+                              "  SET\n" +
+                              "    v0={1},\n" +
+                              "    v1 += row.v1\n" +
+                              "  WHERE \n" +
+                              "    k = ? AND \n" +
+                              "    c = ?;\n" +
+                              "COMMIT TRANSACTION";
+                 coordinator.execute(cql, QUORUM, 0, 0, 0, 0);
+
+                 // is the data correct?
+                 var result = coordinator.executeWithResult("SELECT * FROM " + qualifiedAccordTableName, QUORUM);
+                 QueryResultUtil.assertThat(result).isEqualTo(QueryResults.builder()
+                                 .row(0, 0, Collections.singleton(1), 2)
+                         .build());
+             });
     }
 }
