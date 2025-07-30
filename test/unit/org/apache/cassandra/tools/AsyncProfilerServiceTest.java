@@ -20,6 +20,7 @@ package org.apache.cassandra.tools;
 
 import java.io.File;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.After;
 import org.junit.Test;
@@ -30,18 +31,27 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ASYNC_PROFILER_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ASYNC_PROFILER_ADVANCED_MODE;
+
 public class AsyncProfilerServiceTest
 {
 
     private static AsyncProfilerService profiler;
 
     @BeforeClass
-    public static void setUp() {
+    public static void setUpClass() {
         profiler = new AsyncProfilerService();
 
         if (!profiler.isAvailable()) {
             fail("AsyncProfilerService could not initialize (native lib not found or invalid).");
         }
+    }
+
+    @Before
+    public void setUp(){
+        System.setProperty(ASYNC_PROFILER_ENABLED.getKey(), "true");
+        System.setProperty(ASYNC_PROFILER_ADVANCED_MODE.getKey(), "true");
     }
 
     @After
@@ -53,7 +63,10 @@ public class AsyncProfilerServiceTest
             if (outputFile.exists()) {
                 outputFile.delete();
             }
-        } catch (Exception e){}
+        } catch (Exception e){
+            // The only exception that can surface here is if profiler.start was not
+            // called prior to profiler.stop, we can safely ignore this here.
+        }
     }
 
     @Test
@@ -124,5 +137,35 @@ public class AsyncProfilerServiceTest
         }
     }
 
+    @Test
+    public void testProfilerDisabledThrowsException()
+    {
+        try
+        {
+            System.setProperty(ASYNC_PROFILER_ENABLED.getKey(), "false");
+            profiler.execute(String.format("start,event=cpu"));
+            fail("Expected IllegalStateException due to disabled profiler");
+        }
+        catch (IllegalStateException e)
+        {
+            assertNotNull(e.getMessage());
+            assertTrue("ASYNC_PROFILER_ENABLED is false", e.getMessage().contains("async-profiler is not enabled."));
+        }
+    }
 
+    @Test
+    public void testAdvancedModeDisabledThrowsException()
+    {
+        try
+        {
+            System.setProperty(ASYNC_PROFILER_ADVANCED_MODE.getKey(), "false");
+            profiler.execute(String.format("start,event=cpu"));
+            fail("Expected IllegalStateException due to disabled advanced mode");
+        }
+        catch (IllegalStateException e)
+        {
+            assertNotNull(e.getMessage());
+            assertTrue("ASYNC_PROFILER_ADVANCED_MODE is false", e.getMessage().contains("ASYNC_PROFILER_ADVANCED_MODE must be set to true to execute raw commands."));
+        }
+    }
 }

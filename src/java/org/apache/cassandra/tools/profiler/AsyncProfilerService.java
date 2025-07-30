@@ -18,7 +18,7 @@ public class AsyncProfilerService {
 
     private static final Set<String> VALID_EVENTS = Set.of("cpu", "alloc", "lock", "wall", "nativemem", "cache-misses");
     private static final Set<String> VALID_FORMATS = Set.of("flat","traces","collapsed","flamegraph","tree","jfr","otlp");
-    private static final Character[] INVALID_CHARS = {'"', '*', '<', '>', '?', '|'};
+    private static final Character[] INVALID_OUTPUT_FILENAME_CHARS = {'"', '*', '<', '>', '?', '|'};
 
     private static AsyncProfiler profilerInstance;
 
@@ -81,9 +81,9 @@ public class AsyncProfilerService {
     }
 
     private void checkProfilerInstance() {
-        if (!ASYNC_PROFILER_ENABLED.getBoolean()){
+        if (ASYNC_PROFILER_ENABLED.getBoolean() == false){
             throw new IllegalStateException("async-profiler is not enabled.");
-        } else if (profilerInstance == null) {
+        } else if (!isAvailable()) {
             throw new IllegalStateException("async-profiler is not initialized.");
         }
     }
@@ -104,8 +104,8 @@ public class AsyncProfilerService {
         if (outputFile == null || outputFile.trim().isEmpty()) {
             throw new IllegalArgumentException("Output file name must not be null or empty.");
         }
-        if (Arrays.stream(INVALID_CHARS).anyMatch(ch -> outputFile.contains(ch.toString()))){
-            throw new IllegalArgumentException(String.format("Output file name must not contain any invalid characters %s", INVALID_CHARS.toString()));
+        if (Arrays.stream(INVALID_OUTPUT_FILENAME_CHARS).anyMatch(ch -> outputFile.contains(ch.toString()))){
+            throw new IllegalArgumentException(String.format("Output file name must not contain any invalid characters %s", INVALID_OUTPUT_FILENAME_CHARS.toString()));
         }
     }
 }
