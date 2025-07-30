@@ -72,6 +72,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         cluster = init(Cluster.build(2)
                               .withInstanceInitializer(DiskStateInjection::install)
                               .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
+                                                .set("data_disk_usage_max_disk_size", "10GiB")
                                                 .set("data_disk_usage_percentage_warn_threshold", 98)
                                                 .set("data_disk_usage_percentage_fail_threshold", 99)
                                                 .set("authenticator", "PasswordAuthenticator"))
