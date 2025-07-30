@@ -498,6 +498,8 @@ public class SimulationRunner
 
     public static void checkArgumentAllowed(List<Integer> values, int... allowed)
     {
+        if (values == null || values.isEmpty())
+            return;
         values.forEach(v -> checkArgumentAllowed(v, allowed));
     }
 
