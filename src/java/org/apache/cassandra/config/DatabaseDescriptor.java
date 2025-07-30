@@ -67,6 +67,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.progresslog.DefaultProgressLog;
 import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
@@ -189,6 +190,7 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     private static Config conf;
+    private static DefaultProgressLog.Config accordProgressLogConfig;
 
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
@@ -560,6 +562,8 @@ public class DatabaseDescriptor
         createAllDirectories();
 
         applyGuardrails();
+
+        applyAccordProgressLog();
 
         applyStartupChecks();
     }
@@ -1294,6 +1298,20 @@ public class DatabaseDescriptor
         catch (IllegalArgumentException e)
         {
             throw new ConfigurationException("Invalid guardrails configuration: " + e.getMessage(), e);
+        }
+    }
+
+    private static void applyAccordProgressLog()
+    {
+        try
+        {
+            accordProgressLogConfig = new DefaultProgressLog.Config();
+            accordProgressLogConfig.concurrency = conf.accord.progress_log_concurrency.or(32);
+            accordProgressLogConfig.maxActiveRunTime = conf.accord.progress_log_query_fallback_timeout.toDuration();
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException("Invalid accord progress log configuration: " + e.getMessage(), e);
         }
     }
 
@@ -5394,9 +5412,9 @@ public class DatabaseDescriptor
         return conf.accord.max_queued_range_loads.or(Math.max(4, getAccordConcurrentOps() / 4));
     }
 
-    public static int getAccordProgressLogMaxConcurrency()
+    public static DefaultProgressLog.Config getAccordProgressLogConfig()
     {
-        return conf.accord.max_progress_log_concurrency.or(64);
+        return accordProgressLogConfig;
     }
 
     public static boolean getAccordCacheShrinkingOn()

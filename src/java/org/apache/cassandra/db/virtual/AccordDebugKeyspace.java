@@ -32,8 +32,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
@@ -43,6 +46,10 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
 import accord.api.TraceEventType;
+import accord.coordinate.FetchData;
+import accord.coordinate.FetchRoute;
+import accord.coordinate.MaybeRecover;
+import accord.coordinate.RecoverWithRoute;
 import accord.impl.CommandChange;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.TxnStateKind;
@@ -50,11 +57,13 @@ import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
+import accord.local.CommandStores.LatentStoreSelector;
 import accord.local.Commands;
 import accord.local.DurableBefore;
 import accord.local.LoadKeys;
 import accord.local.LoadKeysFor;
 import accord.local.MaxConflicts;
+import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.RejectBefore;
 import accord.local.SafeCommand;
@@ -63,14 +72,21 @@ import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.local.durability.ShardDurability;
+import accord.primitives.FullRoute;
+import accord.primitives.Known;
 import accord.primitives.Participants;
+import accord.primitives.ProgressToken;
+import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -104,6 +120,8 @@ import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.LocalizeString;
 
+import static accord.api.TraceEventType.RECOVER;
+import static accord.coordinate.Infer.InvalidIf.NotKnownToBeInvalid;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
 import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
 import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
@@ -1201,7 +1219,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final class TxnOpsTable extends AbstractMutableVirtualTable implements AbstractVirtualTable.DataSet
     {
         // TODO (expected): test each of these operations
-        enum Op { ERASE_VESTIGIAL, INVALIDATE, TRY_EXECUTE, FORCE_APPLY, FORCE_UPDATE }
+        enum Op { ERASE_VESTIGIAL, INVALIDATE, TRY_EXECUTE, FORCE_APPLY, FORCE_UPDATE, RECOVER, FETCH, RESET_PROGRESS_LOG }
         private TxnOpsTable()
         {
             super(parse(VIRTUAL_ACCORD_DEBUG, TXN_OPS,
@@ -1209,7 +1227,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  txn_id text,\n" +
                         "  command_store_id int,\n" +
-                        "  op text,\n" +
+                        "  op text," +
                         "  PRIMARY KEY (txn_id, command_store_id)" +
                         ')', UTF8Type.instance));
         }
@@ -1279,6 +1297,76 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         return Commands.applyChain(safeStore, (Command.Executed) command);
                     });
                     break;
+                case FETCH:
+                    runWithRoute(txnId, commandStoreId, command -> {
+                        Timestamp executeAt = command.executeAtIfKnown();
+                        return (route, result) -> fetch(txnId, executeAt, route, result);
+                    });
+                    break;
+                case RECOVER:
+                    runWithRoute(txnId, commandStoreId, command -> (route, result) -> {
+                        recover(txnId, route, result);
+                    });
+                    break;
+                case RESET_PROGRESS_LOG:
+                    run(txnId, commandStoreId, safeStore -> {
+                        ((DefaultProgressLog)safeStore.progressLog()).requeue(safeStore, TxnStateKind.Waiting, txnId);
+                        ((DefaultProgressLog)safeStore.progressLog()).requeue(safeStore, TxnStateKind.Home, txnId);
+                        return AsyncChains.success(null);
+                    });
+            }
+        }
+
+        private void runWithRoute(TxnId txnId, int commandStoreId, Function<Command, BiConsumer<Route<?>, AsyncResult.Settable<Void>>> apply)
+        {
+            run(txnId, commandStoreId, safeStore -> {
+                SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                Command command = safeCommand.current();
+                if (command == null)
+                    throw new InvalidRequestException(txnId + " not known");
+                Node node = AccordService.instance().node();
+                AsyncResult.Settable<Void> result = new AsyncResults.SettableResult<>();
+                BiConsumer<Route<?>, AsyncResult.Settable<Void>> consumer = apply.apply(command);
+                if (command.route() == null)
+                {
+                    FetchRoute.fetchRoute(node, txnId, command.maxContactable(), LatentStoreSelector.standard(), (success, fail) -> {
+                        if (fail != null) result.setFailure(fail);
+                        else consumer.accept(success, result);
+                    });
+                }
+                else
+                {
+                    consumer.accept(command.route(), result);
+                }
+                return result;
+            });
+        }
+
+        private void fetch(TxnId txnId, Timestamp executeAtIfKnown, Route<?> route, AsyncResult.Settable<Void> result)
+        {
+            Node node = AccordService.instance().node();
+            FetchData.fetchSpecific(Known.Apply, node, txnId, executeAtIfKnown, route, route.withHomeKey(), LatentStoreSelector.standard(), (success, fail) -> {
+                if (fail != null) result.setFailure(fail);
+                else result.setSuccess(null);
+            });
+        }
+
+        private void recover(TxnId txnId, @Nullable Route<?> route, AsyncResult.Settable<Void> result)
+        {
+            Node node = AccordService.instance().node();
+            if (Route.isFullRoute(route))
+            {
+                RecoverWithRoute.recover(node, node.someSequentialExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
+                    if (fail != null) result.setFailure(fail);
+                    else result.setSuccess(null);
+                }, node.agent().trace(txnId, RECOVER));
+            }
+            else
+            {
+                MaybeRecover.maybeRecover(node, txnId, NotKnownToBeInvalid, route, ProgressToken.NONE, LatentStoreSelector.standard(), (success, fail) -> {
+                    if (fail != null) result.setFailure(fail);
+                    else result.setSuccess(null);
+                });
             }
         }
 

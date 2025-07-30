@@ -121,7 +121,9 @@ public class AccordSpec
 
     public volatile OptionaldPositiveInt max_queued_loads = OptionaldPositiveInt.UNDEFINED;
     public volatile OptionaldPositiveInt max_queued_range_loads = OptionaldPositiveInt.UNDEFINED;
-    public volatile OptionaldPositiveInt max_progress_log_concurrency = OptionaldPositiveInt.UNDEFINED;
+
+    public volatile OptionaldPositiveInt progress_log_concurrency = OptionaldPositiveInt.UNDEFINED;
+    public DurationSpec.IntMillisecondsBound progress_log_query_fallback_timeout = new DurationSpec.IntMillisecondsBound("1m");
 
     public DataStorageSpec.LongMebibytesBound cache_size = null;
     public DataStorageSpec.LongMebibytesBound working_set_size = null;
