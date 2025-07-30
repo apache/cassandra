@@ -256,7 +256,7 @@ public enum Verb
     PULL_MUTATIONS_REQ         (901, P2, readTimeout,  READ,             () -> PullMutationsRequest.serializer,       () -> PullMutationsRequest.verbHandler                             ),
     PUSH_MUTATION_REQ          (902, P3, writeTimeout, MUTATION,         () -> PushMutationRequest.serializer,        () -> PushMutationRequest.verbHandler,   MUTATION_RSP              ),
     READ_RECONCILE_ACK         (903, P2, readTimeout,  REQUEST_RESPONSE, () -> ReadReconcileAck.serializer,           () -> ReadReconcileAck.verbHandler                                 ),
-    FORWARD_WRITE_REQ          (904, P3, writeTimeout, MUTATION,         () -> ForwardedWrite.Request.serializer,     () -> ForwardedWrite.verbHandler                                   ),
+    FORWARD_WRITE_REQ          (904, P3, writeTimeout, MUTATION,         () -> ForwardedWrite.serializer,             () -> ForwardedWrite.verbHandler                                   ),
     BROADCAST_LOG_OFFSETS      (905, P1, rpcTimeout,   MISC,             () -> BroadcastLogOffsets.serializer,        () -> BroadcastLogOffsets.verbHandler                              ),
     TRACKED_PARTITION_READ_RSP (906, P2, readTimeout,  REQUEST_RESPONSE, () -> TrackedDataResponse.serializer,        () -> ResponseVerbHandler.instance                                 ),
     TRACKED_PARTITION_READ_REQ (907, P3, readTimeout,  READ,             () -> TrackedRead.DataRequest.serializer,    () -> TrackedRead.verbHandler,           TRACKED_PARTITION_READ_RSP),
