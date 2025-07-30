@@ -305,6 +305,10 @@ public class AccordDebugKeyspaceTest extends CQLTester
             assertRows(execute(QUERY_TXN_BLOCKED_BY, second.toString()),
                        row(second.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", anyNonNull(), null, SaveStatus.Stable.name()),
                        row(second.toString(), KEYSPACE, tableName, anyInt(), 1, first.toString(), "Key", anyNonNull(), anyNonNull(), SaveStatus.ReadyToExecute.name()));
+
+            assertRows(execute(QUERY_TXN_BLOCKED_BY + " AND depth < 1", second.toString()),
+                       row(second.toString(), KEYSPACE, tableName, anyInt(), 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "Self", anyNonNull(), null, SaveStatus.Stable.name()));
+
         }
         finally
         {
