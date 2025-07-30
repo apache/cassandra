@@ -69,6 +69,8 @@ import org.apache.cassandra.cql3.ast.Visitor.CompositeVisitor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
@@ -90,8 +92,10 @@ import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
+import org.assertj.core.api.Assertions;
 import org.quicktheories.generators.SourceDSL;
 
+import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
 import static org.apache.cassandra.distributed.test.JavaDriverUtils.toDriverCL;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
@@ -125,6 +129,7 @@ public class StatefulASTBase extends TestBaseImpl
     protected static final Gen<Gen.IntGen> LIMIT_DISTRO = Gens.mixedDistribution(1, 1001);
     protected static final Gen<Gen.IntGen> REPAIR_TYPE_EMPTY_MODEL_DISTRO = Gens.mixedDistribution(0, 2);
     protected static final Gen<Gen.IntGen> REPAIR_TYPE_DISTRO = Gens.mixedDistribution(0, 3);
+    private static final ListType<Long> LONG_LIST_TYPE = ListType.getInstance(LongType.instance, false);
 
     static
     {
@@ -206,10 +211,55 @@ public class StatefulASTBase extends TestBaseImpl
         });
     }
 
+    protected static <S extends CommonState> Property.Command<S, Void, ?> validateUsingTimestamp(RandomSource rs, S state)
+    {
+        if (state.operations == 0)
+            return ignoreCommand();
+        var builder = Select.builder(state.metadata);
+        for (var c : state.model.factory.regularAndStaticColumns)
+            builder.selection(FunctionCall.writetime(c));
+        ByteBuffer upperboundTimestamp = LongType.instance.decompose((long) state.operations);
+        var select = builder.build();
+        var inst = state.selectInstance(rs);
+        return new Property.SimpleCommand<>(state.humanReadable(select, null), s -> {
+            var result = s.executeQuery(inst, Integer.MAX_VALUE, s.selectCl(), select);
+            for (var row : result)
+            {
+                for (var col : state.model.factory.regularAndStaticColumns)
+                {
+                    int idx = state.model.factory.regularAndStaticColumns.indexOf(col);
+                    ByteBuffer value = row[idx];
+                    if (value == null) continue;
+                    if (col.type().isMultiCell())
+                    {
+                        List<ByteBuffer> timestamps = LONG_LIST_TYPE.unpack(value);
+                        int cellIndex = 0;
+                        for (var timestamp : timestamps)
+                        {
+                            Assertions.assertThat(LongType.instance.compare(timestamp, upperboundTimestamp))
+                                      .describedAs("Unexected timestamp at multi-cell index %s for col %s: %s > %s", cellIndex, col, LongType.instance.compose(timestamp), state.operations)
+                                      .isLessThanOrEqualTo(state.operations);
+                            cellIndex++;
+                        }
+                    }
+                    else
+                    {
+                        Assertions.assertThat(LongType.instance.compare(value, upperboundTimestamp))
+                                  .describedAs("Unexected timestamp for col %s: %s > %s", col, LongType.instance.compose(value), state.operations)
+                                  .isLessThanOrEqualTo(state.operations);
+                    }
+                }
+            }
+        });
+    }
+
     protected static <S extends CommonState> Property.Command<S, Void, ?> insert(RandomSource rs, S state)
     {
         int timestamp = ++state.operations;
-        Mutation mutation = state.mutationGen().next(rs).withTimestamp(timestamp);
+        Mutation original = state.mutationGen().next(rs);
+        Mutation mutation = state.allowUsingTimestamp()
+                            ? original.withTimestamp(timestamp)
+                            : original;
 
         if (!state.readAfterWrite())
             return state.command(rs, mutation);
@@ -438,6 +488,11 @@ public class StatefulASTBase extends TestBaseImpl
         protected boolean allowRepair()
         {
             return false;
+        }
+
+        protected boolean allowUsingTimestamp()
+        {
+            return true;
         }
 
         protected RepairGenerators.Builder repairArgsBuilder()
@@ -709,7 +764,7 @@ public class StatefulASTBase extends TestBaseImpl
             return ret.toArray(a);
         }
 
-        private String humanReadable(Statement stmt, @Nullable String annotate)
+        protected String humanReadable(Statement stmt, @Nullable String annotate)
         {
             // With UTF-8 some chars can cause printing issues leading to error messages that don't reproduce the original issue.
             // To avoid this problem, always escape the CQL so nothing gets lost

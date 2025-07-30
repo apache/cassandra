@@ -279,13 +279,30 @@ Supported read consistency levels are `ONE`, `QUORUM`, `SERIAL`, and
 
 == non-SERIAL consistency
 
-non-SERIAL operations are not linearizable even when executed on Accord
-because Accord will continue to write data using the coordinator
-generated timestamp not the transaction's timestamp.
+non-SERIAL operations are linearizable by default when migrated to Accord,
+but during migration they might not be linearizable due to timestamp handling
+changes. During migration, normal CQL operations will use the Accord 
+timestamp once a range starts migration, but will fall back to server 
+timestamp when migrating away from Accord.
+
+Hints and batch log replay will use server timestamp and they only come into play during
+migration as hints and batch log replay won't be generated when a range is on Accord.
 
 `USING TIMESTAMP` is allowed and the application of the operations will
 occur in a linearizable order, but from the perspective of a reader the
 merged result may not appear linearizable.
+
+For BATCH operations, timestamp handling is more complex:
+- If the batch uses `USING TIMESTAMP`, the user timestamp will be used
+- If all mutations in a BATCH use `USING TIMESTAMP`, the user timestamp will be used
+- If not using `USING TIMESTAMP` and all partition keys are on Accord, the Accord timestamp is used
+- If the BATCH has some partitions on Accord and others not on Accord, the server timestamp will be used (writes to the Accord table will not be linearizable for multi-table batches where one table is not migrating to Accord)
+- If the batch mixes server timestamp and `USING TIMESTAMP` mutations, the default behavior is to reject the batch, configurable via `accord.mixed_time_source_handling` with values:
+  * `reject` (default) - reject the CQL operation
+  * `log` - accept the operation using server timestamp but log operations where writes to the Accord table will not be linearizable
+  * `ignore` - accept the operation silently
+
+Logged batches that only touch Accord tables will not be written to the batch log because that functionality is redundant with Accord. Batches that touch both Accord and non-Accord tables will be written to the batch log.
 
 Paging runs a separate transaction per page and does not produce a
 linearizable result.

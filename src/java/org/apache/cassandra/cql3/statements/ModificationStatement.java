@@ -109,6 +109,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -364,6 +365,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return attrs.getTimeToLive(options, metadata);
     }
 
+    @Override
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         state.ensureTablePermission(metadata, Permission.MODIFY);
@@ -648,7 +650,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             );
         if (!mutations.isEmpty())
         {
-            StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime);
+            StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime, attrs.isTimestampSet() ? PreserveTimestamp.yes : PreserveTimestamp.no);
 
             if (!SchemaConstants.isSystemKeyspace(metadata.keyspace))
                 ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);

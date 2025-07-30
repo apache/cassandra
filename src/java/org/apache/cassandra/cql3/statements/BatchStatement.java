@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
@@ -71,8 +73,10 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.TimestampSource;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -198,6 +202,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         return true;
     }
 
+    @Override
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         for (ModificationStatement statement : statements)
@@ -307,7 +312,8 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
                                                   boolean local,
                                                   long batchTimestamp,
                                                   long nowInSeconds,
-                                                  Dispatcher.RequestTime requestTime)
+                                                  Dispatcher.RequestTime requestTime,
+                                                  @Nullable TimestampSource.Collector timestampSourceCollector)
     {
         if (statements.isEmpty())
             return Collections.emptyList();
@@ -324,6 +330,8 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
             HashMultiset<ByteBuffer> perKeyCountsForTable = partitionCounts.computeIfAbsent(stmt.metadata.id, k -> HashMultiset.create());
             for (int stmtIdx = 0, stmtSize = stmtPartitionKeys.size(); stmtIdx < stmtSize; stmtIdx++)
                 perKeyCountsForTable.add(stmtPartitionKeys.get(stmtIdx));
+            if (timestampSourceCollector != null)
+                timestampSourceCollector.collect(stmt.attrs.isTimestampSet() ? TimestampSource.using : TimestampSource.server);
         }
 
         Set<String> tablesWithZeroGcGs = null;
@@ -434,6 +442,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
     }
 
 
+    @Override
     public ResultMessage execute(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
         return execute(queryState, BatchQueryOptions.withoutPerStatementVariables(options), requestTime);
@@ -463,14 +472,30 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
 
         if (updatesVirtualTables)
             executeInternalWithoutCondition(queryState, options, requestTime);
-        else    
-            executeWithoutConditions(getMutations(clientState, options, false, timestamp, nowInSeconds, requestTime),
-                                     options.getConsistency(), requestTime);
+        else
+        {
+            PreserveTimestamp preserveTimestamp;
+            TimestampSource.Collector collector;
+            if (attrs.isTimestampSet())
+            {
+                preserveTimestamp = PreserveTimestamp.yes;
+                collector = null;
+            }
+            else
+            {
+                preserveTimestamp = PreserveTimestamp.no;
+                collector = new TimestampSource.Collector();
+            }
+            List<? extends IMutation> mutations = getMutations(clientState, options, false, timestamp, nowInSeconds, requestTime, collector);
+            if (!mutations.isEmpty() && collector != null)
+                preserveTimestamp = preserveTimestamp.merge(collector.get());
+            executeWithoutConditions(mutations, options.getConsistency(), requestTime, preserveTimestamp);
+        }
 
         return new ResultMessage.Void();
     }
 
-    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, Dispatcher.RequestTime requestTime) throws RequestExecutionException, RequestValidationException
+    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamp) throws RequestExecutionException, RequestValidationException
     {
         if (mutations.isEmpty())
             return;
@@ -481,7 +506,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         updatePartitionsPerBatchMetrics(mutations.size());
 
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
-        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime);
+        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime, preserveTimestamp);
         ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }
 
@@ -611,7 +636,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         long timestamp = batchOptions.getTimestamp(queryState);
         long nowInSeconds = batchOptions.getNowInSeconds(queryState);
 
-        for (IMutation mutation : getMutations(queryState.getClientState(), batchOptions, true, timestamp, nowInSeconds, requestTime))
+        for (IMutation mutation : getMutations(queryState.getClientState(), batchOptions, true, timestamp, nowInSeconds, requestTime, null))
             mutation.apply();
         return null;
     }

@@ -253,10 +253,24 @@ at each replica when `TxnWrite.apply` is called.
 
 `TxnUpdate` is also responsible for populating the update with the
 monotonic transactional hybrid logical clock for the execution time of
-the transaction. This is used instead of the coordinator generated
-timestamp for `SERIAL` and `TransactionStatement` writes. Non-SERIAL
-writes use the coordinator or user supplied timestamp although this may
-change in between the time of this writing and final release.
+the transaction. During migration, normal CQL operations will use the
+Accord timestamp once a range starts migration, but will fall back to
+server timestamp when migrating away from Accord. For normal CQL operations,
+`USING TIMESTAMP` is supported and will cause the data to use the user
+timestamp instead of the Accord one, though this breaks linearizability
+and should be avoided when possible.
+
+For BATCH operations, timestamp handling is more complex: if the batch
+uses `USING TIMESTAMP`, the user timestamp will be used. If all mutations
+in a BATCH use `USING TIMESTAMP`, the user timestamp will be used. If not
+using `USING TIMESTAMP` and all partition keys are on Accord, the Accord
+timestamp is used. If the BATCH has some partitions on Accord and others
+not on Accord, the server timestamp will be used (writes to the Accord table will not be linearizable for multi-table
+batches where one table is not migrating to Accord). If a batch mixes
+server timestamp and `USING TIMESTAMP` mutations, the default behavior
+is to reject the batch, configurable via `accord.mixed_time_source_handling`
+with values: `reject` (default), `log` (accept and log operations where writes to the Accord table will not be linearizable),
+or `ignore` (accept silently).
 
 `TxnUpdate` has a write consistency level that is not visible to Accord
 and is it similar to the commit consistency level for CAS writes. If the

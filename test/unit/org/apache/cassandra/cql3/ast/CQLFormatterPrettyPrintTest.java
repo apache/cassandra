@@ -60,9 +60,9 @@ public class CQLFormatterPrettyPrintTest
     }
 
     @Test
-    public void updatTest()
+    public void updateTest()
     {
-        Mutation.UpdateBuilder builder = Mutation.update(TBL1);
+        Mutation.TableBasedUpdateBuilder builder = Mutation.update(TBL1);
         builder.value("pk", 0);
         builder.set("v0", 0);
         builder.set("v1", 0);
@@ -80,7 +80,7 @@ public class CQLFormatterPrettyPrintTest
     @Test
     public void updateWithInClause()
     {
-        Mutation.UpdateBuilder builder = Mutation.update(TBL1);
+        Mutation.TableBasedUpdateBuilder builder = Mutation.update(TBL1);
         builder.set("v0", 0);
         builder.in("pk", Bind.of(42), Literal.of(78));
         Assertions.assertThat(builder.build().toCQL(format())).isEqualTo("UPDATE ks.tbl\n" +
@@ -93,7 +93,7 @@ public class CQLFormatterPrettyPrintTest
     @Test
     public void updateWithBetweenClause()
     {
-        Mutation.UpdateBuilder builder = Mutation.update(TBL1);
+        Mutation.TableBasedUpdateBuilder builder = Mutation.update(TBL1);
         builder.set("v0", 0);
         builder.value("pk", 0);
         builder.between("ck", Bind.of(42), Literal.of(78));
@@ -108,7 +108,7 @@ public class CQLFormatterPrettyPrintTest
     @Test
     public void updateWithIsClause()
     {
-        Mutation.UpdateBuilder builder = Mutation.update(TBL1);
+        Mutation.TableBasedUpdateBuilder builder = Mutation.update(TBL1);
         builder.set("v0", 0);
         builder.value("pk", 0);
         builder.is(new Symbol("ck", Int32Type.instance),

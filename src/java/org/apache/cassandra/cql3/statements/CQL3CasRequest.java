@@ -62,6 +62,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
@@ -528,7 +529,7 @@ public class CQL3CasRequest implements CASRequest
         TableParams tableParams = tableMetadata.params;
         commitConsistencyLevel = tableParams.transactionalMode.commitCLForMode(tableParams.transactionalMigrationFrom, commitConsistencyLevel, cm, tableMetadata.id, key.getToken());
         // CAS requires using the new txn timestamp to correctly linearize some kinds of updates
-        return new TxnUpdate(tables, createWriteFragments(clientState), createCondition(), commitConsistencyLevel, false);
+        return new TxnUpdate(tables, createWriteFragments(clientState), createCondition(), commitConsistencyLevel, PreserveTimestamp.no);
     }
 
     private TxnCondition createCondition()

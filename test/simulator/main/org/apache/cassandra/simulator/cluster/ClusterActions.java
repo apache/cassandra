@@ -21,6 +21,8 @@ package org.apache.cassandra.simulator.cluster;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -42,18 +45,23 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.Actions.StrictAction;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RandomSource.Choices;
+import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.NonInterceptible;
+import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -186,6 +194,19 @@ public class ClusterActions extends SimulatedSystems
         this.debug = debug;
     }
 
+    public static ClusterActions simple(SimulatedSystems simulated, Cluster cluster)
+    {
+        return simple(simulated, cluster, Options.noActions(cluster.size()));
+    }
+
+    public static ClusterActions simple(SimulatedSystems simulated, Cluster cluster, Options options)
+    {
+        return new ClusterActions(simulated, cluster, options,
+                                  new ClusterActionListener.NoOpListener(),
+                                  new Debug(new EnumMap<>(Debug.Info.class),
+                                            new int[0]));
+    }
+
     public static class InitialConfiguration
     {
         public static final int[] EMPTY = {};
@@ -266,6 +287,84 @@ public class ClusterActions extends SimulatedSystems
     Action resetGossipState(IInvokableInstance i, List<InetSocketAddress> endpoints)
     {
         return transitivelyReliable("Reset Gossip", i, () -> Gossiper.runInGossipStageBlocking(Gossiper.instance::unsafeSetEnabled));
+    }
+
+    public Action reconfigureCMS(int node, int rf)
+    {
+        return reconfigureCMS(node, rf, false);
+    }
+
+    public Action reconfigureCMS(int nodeId, int rf, boolean inEachDc)
+    {
+        String caption = String.format("Reconfigure CMS rf=%d, inEachDc=%s", rf, inEachDc);
+        IInvokableInstance node = cluster.get(nodeId);
+        return new SimulatedActionTask(caption, Action.Modifiers.RELIABLE_NO_TIMEOUTS, Action.Modifiers.RELIABLE_NO_TIMEOUTS, null, this,
+                                       new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) node.executor(),
+                                                                                             node.transfer((IIsolatedExecutor.SerializableRunnable) () -> {
+                                                                                                 ReplicationParams params;
+                                                                                                 if (inEachDc)
+                                                                                                 {
+                                                                                                     Map<String, Integer> rfs = new HashMap<>();
+                                                                                                     for (String dc : ClusterMetadata.current().directory.knownDatacenters())
+                                                                                                     {
+                                                                                                         rfs.put(dc, rf);
+                                                                                                     }
+                                                                                                     params = ReplicationParams.ntsMeta(rfs);
+                                                                                                 }
+                                                                                                 else
+                                                                                                 {
+                                                                                                     params = ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters());
+                                                                                                 }
+                                                                                                 ClusterMetadataService.instance().reconfigureCMS(params);
+                                                                                             })));
+    }
+
+    public Action flush(String keyspace, String... tableNames)
+    {
+        return new Actions.ReliableAction("Flush on all nodes", () -> {
+            List<Action> actions = new ArrayList<>(cluster.size());
+            for (int i = 0; i < cluster.size(); i++)
+                actions.add(flush(i + 1, keyspace, tableNames));
+            return ActionList.of(actions).setStrictlySequential();
+        }, true);
+    }
+
+    public Action flush(int nodeId, String keyspace, String... tableNames)
+    {
+        String caption = String.format("Flush %s: %s", keyspace, Arrays.toString(tableNames));
+        IInvokableInstance node = cluster.get(nodeId);
+        return new SimulatedActionTask(caption, Action.Modifiers.RELIABLE_NO_TIMEOUTS, Action.Modifiers.RELIABLE_NO_TIMEOUTS, null, this,
+                                       new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) node.executor(),
+                                                                                             node.transfer((IIsolatedExecutor.SerializableRunnable) () -> {
+                                                                                                 for (ColumnFamilyStore store : StorageService.instance.getValidColumnFamilies(false, false, keyspace, tableNames))
+                                                                                                 {
+                                                                                                     store.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                                                                                                 }
+                                                                                             })));
+    }
+
+    public Action compact(String keyspace, String... tableNames)
+    {
+        return new Actions.ReliableAction("Compact on all nodes", () -> {
+            List<Action> actions = new ArrayList<>(cluster.size());
+            for (int i = 0; i < cluster.size(); i++)
+                actions.add(compact(i + 1, keyspace, tableNames));
+            return ActionList.of(actions).setStrictlySequential();
+        }, true);
+    }
+
+    public Action compact(int nodeId, String keyspace, String... tableNames)
+    {
+        String caption = String.format("Compact %s: %s", keyspace, Arrays.toString(tableNames));
+        IInvokableInstance node = cluster.get(nodeId);
+        return new SimulatedActionTask(caption, Action.Modifiers.RELIABLE_NO_TIMEOUTS, Action.Modifiers.RELIABLE_NO_TIMEOUTS, null, this,
+                                       new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) node.executor(),
+                                                                                             node.transfer((IIsolatedExecutor.SerializableRunnable) () -> {
+                                                                                                 for (ColumnFamilyStore store : StorageService.instance.getValidColumnFamilies(false, false, keyspace, tableNames))
+                                                                                                 {
+                                                                                                     store.submitMajorCompaction(false, -1);
+                                                                                                 }
+                                                                                             })));
     }
 
     @SuppressWarnings("unchecked")

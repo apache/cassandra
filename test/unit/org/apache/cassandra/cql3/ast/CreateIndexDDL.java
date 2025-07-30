@@ -236,6 +236,23 @@ public class CreateIndexDDL implements Element
         }
     }
 
+    public static class IndexedColumn
+    {
+        public final Symbol symbol;
+        public final CreateIndexDDL indexDDL;
+
+        public IndexedColumn(Symbol symbol, CreateIndexDDL indexDDL)
+        {
+            this.symbol = symbol;
+            this.indexDDL = indexDDL;
+        }
+
+        public EnumSet<CreateIndexDDL.QueryType> supportedQueries()
+        {
+            return indexDDL.indexer.supportedQueries(symbol.type());
+        }
+    }
+
     public static class CollectionReference implements ReferenceExpression
     {
         public enum Kind { FULL, KEYS, ENTRIES }

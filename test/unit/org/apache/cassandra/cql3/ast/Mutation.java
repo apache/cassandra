@@ -31,8 +31,10 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.harry.model.DetailedTableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -103,9 +105,19 @@ public abstract class Mutation implements Statement
         return new InsertBuilder(metadata);
     }
 
-    public static UpdateBuilder update(TableMetadata metadata)
+    public static TableBasedUpdateBuilder update(TableMetadata metadata)
     {
-        return new UpdateBuilder(metadata);
+        return new TableBasedUpdateBuilder(metadata);
+    }
+
+    public static BasicUpdateBuilder update(String table)
+    {
+        return new BasicUpdateBuilder(new TableReference(table));
+    }
+
+    public static BasicUpdateBuilder update(String ks, String table)
+    {
+        return new BasicUpdateBuilder(new TableReference(Optional.of(ks), table));
     }
 
     public static DeleteBuilder delete(TableMetadata metadata)
@@ -668,15 +680,15 @@ WHERE PK_column_conditions
         }
     }
 
-    public static abstract class BaseBuilder<T, B extends BaseBuilder<T, B>> implements Conditional.EqBuilderPlus<B>
+    public static abstract class TableBasedBuilder<T, B extends TableBasedBuilder<T, B>> implements Conditional.EqBuilderPlus<B>
     {
         private final Kind kind;
         protected final TableMetadata metadata;
         protected final LinkedHashSet<Symbol> partitionColumns, clusteringColumns, primaryColumns, regularAndStatic, allColumns;
         private boolean includeKeyspace = true;
-        private final Set<Symbol> neededPks = new HashSet<>();
+        private final PkAware pkAware;
 
-        protected BaseBuilder(Kind kind, TableMetadata table)
+        protected TableBasedBuilder(Kind kind, TableMetadata table)
         {
             this.kind = kind;
             this.metadata = table;
@@ -690,7 +702,7 @@ WHERE PK_column_conditions
             this.regularAndStatic = new LinkedHashSet<>();
             this.regularAndStatic.addAll(toSet(table.regularAndStaticColumns()));
             this.allColumns = toSet(table.columnsInFixedOrder());
-            neededPks.addAll(partitionColumns);
+            this.pkAware = new PkAware(new DetailedTableMetadata(metadata));
         }
 
         protected Symbol find(String name)
@@ -708,36 +720,12 @@ WHERE PK_column_conditions
 
         protected void assertAllPksHaveEq()
         {
-            if (neededPks.isEmpty())
-                return;
-            throw new IllegalStateException("Attempted to create a " + kind + " but not all partition columns have an equality condition; missing " + neededPks);
+            pkAware.assertAllPksHaveEq();
         }
 
         protected void maybePkEq(Expression symbol)
         {
-            if (symbol instanceof Symbol)
-                pkEq((Symbol) symbol);
-        }
-
-        private void pkEq(Symbol symbol)
-        {
-            neededPks.remove(symbol);
-        }
-
-        public B includeKeyspace(boolean value)
-        {
-            this.includeKeyspace = value;
-            return (B) this;
-        }
-
-        public B includeKeyspace()
-        {
-            return includeKeyspace(true);
-        }
-
-        public B excludeKeyspace()
-        {
-            return includeKeyspace(false);
+            pkAware.maybePkEq(symbol);
         }
 
         protected TableReference tableRef()
@@ -746,7 +734,7 @@ WHERE PK_column_conditions
         }
     }
 
-    public static class InsertBuilder extends BaseBuilder<Insert, InsertBuilder>
+    public static class InsertBuilder extends TableBasedBuilder<Insert, InsertBuilder>
     {
         private final LinkedHashMap<Symbol, Expression> values = new LinkedHashMap<>();
         private boolean ifNotExists = false;
@@ -805,131 +793,121 @@ WHERE PK_column_conditions
         }
     }
 
-    public static class UpdateBuilder extends BaseBuilder<Update, UpdateBuilder> implements Conditional.ConditionalBuilderPlus<UpdateBuilder>
+    public interface WithTTl<B extends WithTTl<B>>
     {
+        B ttl(Value value);
+        default B ttl(int value)
+        {
+            return ttl(Bind.of(value));
+        }
+    }
+
+    public interface WithTimestamp<B extends WithTimestamp<B>>
+    {
+        default B timestamp(long value)
+        {
+            return timestamp(Literal.of(value));
+        }
+
+        B timestamp(Value value);
+    }
+
+    public interface UpdateBuilder<B extends UpdateBuilder<B>> extends Conditional.ConditionalBuilder<B>,
+                                                                       Conditional.EqBuilder<B>,
+                                                                       WithTTl<B>, WithTimestamp<B>
+    {
+        B set(Symbol column, Expression value);
+        default B set(String column, Object value, AbstractType<?> type)
+        {
+            return set(new Symbol(column, type), new Literal(value, type));
+        }
+        default B ifExists()
+        {
+            return ifCondition(CasCondition.Simple.Exists);
+        }
+
+        B ifCondition(CasCondition condition);
+
+        Update build();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static class BaseUpdateBuilder<B extends BaseUpdateBuilder<B>> implements UpdateBuilder<B>
+    {
+        private TableReference table;
         private @Nullable TTL ttl;
         private @Nullable Timestamp timestamp;
         private final LinkedHashMap<Symbol, Expression> set = new LinkedHashMap<>();
         private final Conditional.Builder where = new Conditional.Builder();
         private @Nullable CasCondition casCondition;
 
-        protected UpdateBuilder(TableMetadata table)
+        public BaseUpdateBuilder(TableReference table)
         {
-            super(Kind.UPDATE, table);
+            this.table = table;
         }
 
-        public UpdateBuilder timestamp(long value)
-        {
-            return timestamp(Literal.of(value));
-        }
-
-        public UpdateBuilder timestamp(Value value)
+        @Override
+        public B timestamp(Value value)
         {
             this.timestamp = new Timestamp(value);
-            return this;
+            return (B) this;
         }
 
-        public UpdateBuilder ttl(Value value)
+        @Override
+        public B ttl(Value value)
         {
             this.ttl = new TTL(value);
-            return this;
+            return (B) this;
         }
 
-        public UpdateBuilder ttl(int value)
-        {
-            return ttl(Bind.of(value));
-        }
-
-        public UpdateBuilder ifExists()
-        {
-            casCondition = CasCondition.Simple.Exists;
-            return this;
-        }
-
-        public UpdateBuilder ifCondition(CasCondition condition)
+        @Override
+        public B ifCondition(CasCondition condition)
         {
             casCondition = condition;
-            return this;
+            return (B) this;
         }
 
-        public UpdateBuilder set(Symbol column, Expression value)
+        @Override
+        public B set(Symbol column, Expression value)
         {
-            if (!regularAndStatic.contains(column))
-                throw new IllegalArgumentException("Attempted to set a non regular or static column " + column + "; expected " + regularAndStatic);
             set.put(column, value);
-            return this;
-        }
-
-        public UpdateBuilder set(String column, int value)
-        {
-            Symbol symbol = find(column);
-            if (!symbol.type().equals(Int32Type.instance))
-                throw new AssertionError("Expected int type but given " + symbol.type().asCQL3Type());
-            return set(symbol, Bind.of(value));
-        }
-
-        public UpdateBuilder set(String column, Object value)
-        {
-            Symbol symbol = find(column);
-            return set(symbol, new Bind(value, symbol.type()));
-        }
-
-        public UpdateBuilder set(String column, Expression expression)
-        {
-            return set(find(column), expression);
-        }
-
-        public UpdateBuilder set(String column, Function<Symbol, Expression> fn)
-        {
-            Symbol symbol = find(column);
-            return set(symbol, fn.apply(symbol));
-        }
-
-        public UpdateBuilder set(String column, String value)
-        {
-            Symbol symbol = find(column);
-            return set(symbol, new Bind(symbol.type().asCQL3Type().fromCQLLiteral(value), symbol.type()));
+            return (B) this;
         }
 
         @Override
-        public UpdateBuilder where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
+        public B where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
         {
-            if (kind == Conditional.Where.Inequality.EQUAL)
-                maybePkEq(ref);
             where.where(ref, kind, expression);
-            return this;
+            return (B) this;
         }
 
         @Override
-        public UpdateBuilder between(Expression ref, Expression start, Expression end)
+        public B between(Expression ref, Expression start, Expression end)
         {
             where.between(ref, start, end);
-            return this;
+            return (B) this;
         }
 
         @Override
-        public UpdateBuilder in(ReferenceExpression ref, List<? extends Expression> expressions)
+        public B in(ReferenceExpression ref, List<? extends Expression> expressions)
         {
-            maybePkEq(ref);
             where.in(ref, expressions);
-            return this;
+            return (B) this;
         }
 
         @Override
-        public UpdateBuilder is(Symbol ref, Conditional.Is.Kind kind)
+        public B is(ReferenceExpression ref, Conditional.Is.Kind kind)
         {
             where.is(ref, kind);
-            return this;
+            return (B) this;
         }
 
         @Override
         public Update build()
         {
-            assertAllPksHaveEq();
             if (set.isEmpty())
                 throw new IllegalStateException("Unable to create an Update without a SET section; set function was never called");
-
-            return new Update(tableRef(),
+            return new Update(table,
                               (ttl == null && timestamp == null) ? Optional.empty() : Optional.of(new Using(Optional.ofNullable(ttl), Optional.ofNullable(timestamp))),
                               new LinkedHashMap<>(set),
                               where.build(),
@@ -937,7 +915,126 @@ WHERE PK_column_conditions
         }
     }
 
-    public static class DeleteBuilder extends BaseBuilder<Delete, DeleteBuilder> implements Conditional.ConditionalBuilderPlus<DeleteBuilder>
+    public static class BasicUpdateBuilder extends BaseUpdateBuilder<BasicUpdateBuilder>
+    {
+        public BasicUpdateBuilder(TableReference table)
+        {
+            super(table);
+        }
+    }
+
+    private static class PkAware
+    {
+        private final Set<Symbol> neededPks = new HashSet<>();
+        private final DetailedTableMetadata metadata;
+
+        private PkAware(DetailedTableMetadata metadata)
+        {
+            this.metadata = metadata;
+            neededPks.addAll(metadata.partitionColumns);
+        }
+
+        protected void assertAllPksHaveEq()
+        {
+            if (neededPks.isEmpty())
+                return;
+            throw new IllegalStateException("Attempted to create a mutation but not all partition columns have an equality condition; missing " + neededPks);
+        }
+
+        protected void maybePkEq(Expression symbol)
+        {
+            if (symbol instanceof Symbol)
+                pkEq((Symbol) symbol);
+        }
+
+        private void pkEq(Symbol symbol)
+        {
+            neededPks.remove(symbol);
+        }
+    }
+
+    public static class TableBasedUpdateBuilder extends BaseUpdateBuilder<TableBasedUpdateBuilder>
+                                                implements UpdateBuilder<TableBasedUpdateBuilder>, Conditional.ConditionalBuilderPlus<TableBasedUpdateBuilder>
+    {
+        private final DetailedTableMetadata metadata;
+        private final PkAware pkAware;
+
+        protected TableBasedUpdateBuilder(TableMetadata table)
+        {
+            super(TableReference.from(table));
+            this.metadata = new DetailedTableMetadata(table);
+            this.pkAware = new PkAware(metadata);
+        }
+
+        @Override
+        public TableBasedUpdateBuilder set(Symbol column, Expression value)
+        {
+            if (!metadata.regularAndStaticColumns.contains(column))
+                throw new IllegalArgumentException("Attempted to set a non regular or static column " + column + "; expected " + metadata.regularAndStaticColumns);
+            return super.set(column, value);
+        }
+
+        public TableBasedUpdateBuilder set(String column, int value)
+        {
+            Symbol symbol = metadata.find(column);
+            if (!symbol.type().equals(Int32Type.instance))
+                throw new AssertionError("Expected int type but given " + symbol.type().asCQL3Type());
+            return set(symbol, Bind.of(value));
+        }
+
+        public TableBasedUpdateBuilder set(String column, Object value)
+        {
+            Symbol symbol = metadata.find(column);
+            return set(symbol, new Bind(value, symbol.type()));
+        }
+
+        public TableBasedUpdateBuilder set(String column, Expression expression)
+        {
+            return set(metadata.find(column), expression);
+        }
+
+        public TableBasedUpdateBuilder set(String column, Function<Symbol, Expression> fn)
+        {
+            Symbol symbol = metadata.find(column);
+            return set(symbol, fn.apply(symbol));
+        }
+
+        public TableBasedUpdateBuilder set(String column, String value)
+        {
+            Symbol symbol = metadata.find(column);
+            return set(symbol, new Bind(symbol.type().asCQL3Type().fromCQLLiteral(value), symbol.type()));
+        }
+
+        @Override
+        public TableBasedUpdateBuilder where(Expression ref, Conditional.Where.Inequality kind, Expression expression)
+        {
+            if (kind == Conditional.Where.Inequality.EQUAL)
+                pkAware.maybePkEq(ref);
+            return super.where(ref, kind, expression);
+        }
+
+        @Override
+        public TableBasedUpdateBuilder in(ReferenceExpression ref, List<? extends Expression> expressions)
+        {
+            pkAware.maybePkEq(ref);
+            return super.in(ref, expressions);
+        }
+
+        @Override
+        public Update build()
+        {
+            pkAware.assertAllPksHaveEq();
+            return super.build();
+        }
+
+        @Override
+        public TableMetadata metadata()
+        {
+            return metadata.metadata;
+        }
+    }
+
+    public static class DeleteBuilder extends TableBasedBuilder<Delete, DeleteBuilder> implements Conditional.ConditionalBuilderPlus<DeleteBuilder>
     {
         private final List<Symbol> columns = new ArrayList<>();
         private @Nullable Timestamp timestamp = null;
@@ -1033,7 +1130,7 @@ WHERE PK_column_conditions
         }
 
         @Override
-        public DeleteBuilder is(Symbol ref, Conditional.Is.Kind kind)
+        public DeleteBuilder is(ReferenceExpression ref, Conditional.Is.Kind kind)
         {
             where.is(ref, kind);
             return this;

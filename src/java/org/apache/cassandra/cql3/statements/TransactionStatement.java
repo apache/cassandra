@@ -66,6 +66,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -469,7 +470,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
             Keys keys = keyCollector.build();
-            AccordUpdate update = new TxnUpdate(tables, writeFragments, createCondition(options), commitCL, false);
+            AccordUpdate update = new TxnUpdate(tables, writeFragments, createCondition(options), commitCL, PreserveTimestamp.no);
             TxnRead read = createTxnRead(tables, reads, null, Domain.Key);
             return new Txn.InMemory(keys, read, TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
         }

@@ -23,9 +23,11 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.tcm.Epoch;
 
 
 public abstract class AccordInteropMultiNodeTableWalkBase extends MultiNodeTableWalkBase
@@ -83,9 +85,27 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
 
     public class AccordInteropMultiNodeState extends MultiNodeState
     {
+        private final boolean allowUsingTimestamp;
+
         public AccordInteropMultiNodeState(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster);
+            allowUsingTimestamp = rs.nextBoolean();
+        }
+
+        @Override
+        protected void createTable(TableMetadata metadata)
+        {
+            super.createTable(metadata);
+            Epoch maxEpoch = ClusterUtils.maxEpoch(cluster);
+            ClusterUtils.waitForCMSToQuiesce(cluster, maxEpoch);
+            ClusterUtils.awaitAccordEpochReady(cluster, maxEpoch.getEpoch());
+        }
+
+        @Override
+        protected boolean allowUsingTimestamp()
+        {
+            return allowUsingTimestamp;
         }
 
         @Override

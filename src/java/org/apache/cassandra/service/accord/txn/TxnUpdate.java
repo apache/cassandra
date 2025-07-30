@@ -44,6 +44,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.accord.AccordObjectSizes;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -74,7 +75,7 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class TxnUpdate extends AccordUpdate
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(TableMetadatas.none(), null, new ByteBuffer[0], null, null, false));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(TableMetadatas.none(), null, new ByteBuffer[0], null, null, PreserveTimestamp.no));
     private static final int FLAG_PRESERVE_TIMESTAMPS = 0x1;
 
     final TableMetadatas tables;
@@ -88,12 +89,12 @@ public class TxnUpdate extends AccordUpdate
     // Hints and batchlog want to write with the lower timestamp they generated when applying their writes via Accord
     // so they don't resurrect data if they are applied at a later time. Accord should be fine with this because
     // the writes are still deterministic from the perspective of coordinators/recovery coordinators.
-    private final boolean preserveTimestamps;
+    private final PreserveTimestamp preserveTimestamps;
 
     // Memoize computation of condition
     private Boolean conditionResult;
 
-    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
+    public TxnUpdate(TableMetadatas tables, List<Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
     {
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
         this.tables = tables;
@@ -110,7 +111,7 @@ public class TxnUpdate extends AccordUpdate
         this.preserveTimestamps = preserveTimestamps;
     }
 
-    private TxnUpdate(TableMetadatas tables, Keys keys, ByteBuffer[] fragments, SerializedTxnCondition condition, ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
+    private TxnUpdate(TableMetadatas tables, Keys keys, ByteBuffer[] fragments, SerializedTxnCondition condition, ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
     {
         this.tables = tables;
         this.keys = keys;
@@ -122,7 +123,7 @@ public class TxnUpdate extends AccordUpdate
 
     public static TxnUpdate empty()
     {
-        return new TxnUpdate(TableMetadatas.none(), Collections.emptyList(), TxnCondition.none(), null, false);
+        return new TxnUpdate(TableMetadatas.none(), Collections.emptyList(), TxnCondition.none(), null, PreserveTimestamp.no);
     }
 
     @Override
@@ -168,7 +169,7 @@ public class TxnUpdate extends AccordUpdate
 
     // Batch log and hints want to keep their lower timestamp for the applied writes to avoid resurrecting old data
     // when they are applied later, possibly after further updates have already been acknowledged.
-    public boolean preserveTimestamps()
+    public PreserveTimestamp preserveTimestamps()
     {
         return preserveTimestamps;
     }
@@ -271,7 +272,8 @@ public class TxnUpdate extends AccordUpdate
         {
             // Serializing it with the condition result set shouldn't be needed
             checkState(update.conditionResult == null, "Can't serialize if conditionResult is set without adding it to serialization");
-            out.writeByte(update.preserveTimestamps ? FLAG_PRESERVE_TIMESTAMPS : 0);
+            // Once in accord "mixedTimeSource" and "yes" are the same, so only care about the side effect: that the timestamp is preserved or not
+            out.writeByte(update.preserveTimestamps.preserve ? FLAG_PRESERVE_TIMESTAMPS : 0);
             tablesAndKeys.serializeKeys(update.keys, out);
             writeWithVIntLength(update.condition.bytes(), out);
             serializeArray(update.fragments, out, ByteBufferUtil.byteBufferSerializer);
@@ -287,7 +289,7 @@ public class TxnUpdate extends AccordUpdate
             ByteBuffer condition = readWithVIntLength(in);
             ByteBuffer[] fragments = deserializeArray(in, ByteBufferUtil.byteBufferSerializer, ByteBuffer[]::new);
             ConsistencyLevel consistencyLevel = deserializeNullable(in, consistencyLevelSerializer);
-            return new TxnUpdate(tablesAndKeys.tables, keys, fragments, new SerializedTxnCondition(condition), consistencyLevel, preserveTimestamps);
+            return new TxnUpdate(tablesAndKeys.tables, keys, fragments, new SerializedTxnCondition(condition), consistencyLevel, preserveTimestamps ? PreserveTimestamp.yes : PreserveTimestamp.no);
         }
 
         @Override

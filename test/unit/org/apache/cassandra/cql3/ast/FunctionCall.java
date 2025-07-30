@@ -91,9 +91,14 @@ public class FunctionCall implements Expression
         return new FunctionCall(name, as, returnType);
     }
 
+    public static FunctionCall writetime(Symbol symbol)
+    {
+        return new FunctionCall("writetime", Collections.singletonList(symbol), LongType.instance);
+    }
+
     public static FunctionCall writetime(String column, AbstractType<?> type)
     {
-        return new FunctionCall("writetime", Collections.singletonList(new Symbol(column, type)), LongType.instance);
+        return writetime(new Symbol(column, type));
     }
 
     public static FunctionCall countStar()
