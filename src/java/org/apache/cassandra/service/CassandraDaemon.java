@@ -254,7 +254,6 @@ public class CassandraDaemon
 
         NativeLibrary.tryMlockall();
 
-        DatabaseDescriptor.createAllDirectories();
         Keyspace.setInitialized();
         CommitLog.instance.start();
 
