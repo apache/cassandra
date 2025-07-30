@@ -176,6 +176,12 @@ by compression meta data.
 |TombstoneScannedHistogram |Histogram |Histogram of tombstones scanned
 in queries on this table.
 
+|TombstoneWarnings |Counter |Number of tombstone read warnings (reads that scanned more than
+tombstone_warn_threshold tombstones).  
+
+|TombstoneFailures |Counter |Number of tombstone read failures (reads that scanned more than
+tombstone_failure_threshold tombstones). 
+
 |LiveScannedHistogram |Histogram |Histogram of live cells scanned in
 queries on this table.
 
