@@ -58,7 +58,10 @@ public class DataPlacement
                          ReplicaGroups writes)
     {
         this.reads = reads;
-        this.writes = writes;
+        if (reads.equals(writes))
+            this.writes = reads; // performance optimization for a typical case, to not search for endpoints twice
+        else
+            this.writes = writes;
     }
 
     /**
