@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.inject.Inject;
 
 import org.apache.cassandra.config.Config;
@@ -30,14 +29,12 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.SimulatorUtils;
-
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Command(name = "paxos",
          description = "Run a paxos simulation",
-         helpCommand = true,
          subcommands = { CommandLine.HelpCommand.class,
                          PaxosSimulationRunner.Run.class,
                          PaxosSimulationRunner.VersionCommand.class,
@@ -201,16 +198,22 @@ public class PaxosSimulationRunner extends SimulationRunner implements Runnable
         }
     }
 
+    private static CommandLine.IFactory simulationFactory()
+    {
+        return new InjectPaxosClusterSimulationFactory(new PaxosClusterSimulation.Builder()
+                                                       .unique(uniqueNum.getAndIncrement()));
+    }
+
+    public static void executeWithExceptionThrowing(String[] args)
+    {
+        SimulatorUtils.executeWithExceptionThrowing(PaxosSimulationRunner.class, simulationFactory(), args);
+    }
+
     /**
      * See {@link org.apache.cassandra.simulator} package info for execution tips
      */
     public static void main(String[] args) throws IOException
     {
-        SimulatorUtils.verifyAndlogSimulatorArgs(args);
-        PaxosClusterSimulation.Builder builder = new PaxosClusterSimulation.Builder();
-        builder.unique(uniqueNum.getAndIncrement());
-
-        CommandLine commandLine = new CommandLine(PaxosSimulationRunner.class, new InjectPaxosClusterSimulationFactory(builder));
-        commandLine.execute(args);
+        System.exit(SimulatorUtils.prepareRunner(PaxosSimulationRunner.class, simulationFactory(), null).execute(args));
     }
 }
