@@ -4,7 +4,7 @@ import one.profiler.AsyncProfiler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
+import java.io.File; //checkstyle: permit this import
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
@@ -24,7 +24,7 @@ public class AsyncProfilerService {
 
     static {
         try {
-            String asyncProfilerLibPath = new File(ASYNC_PROFILER_LIB_PATH.getString()).getAbsolutePath();
+            String asyncProfilerLibPath = new File(ASYNC_PROFILER_LIB_PATH.getString()).getAbsolutePath(); //checkstyle: permit this instantiation
             profilerInstance = AsyncProfiler.getInstance(asyncProfilerLibPath);
         } catch (Throwable t) {
             System.out.println("async-profiler initialization ERROR");

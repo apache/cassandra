@@ -1,30 +1,30 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.profiler.AsyncProfilerMBean;
-import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeProbe;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "profile", description = "Control async-profiler on this node")
-public class Profile extends NodeTool.NodeToolCmd {
+public class Profile extends AbstractCommand {
 
-    @Option(name = {"-s", "--start"}, description = "Start profiling", arity = 0)
+    @Option(names = {"-s", "--start"}, description = "Start profiling")
     public boolean start;
 
-    @Option(name = {"-x", "--stop"}, description = "Stop profiling and dump output", arity = 0)
+    @Option(names = {"-x", "--stop"}, description = "Stop profiling and dump output")
     public boolean stop;
 
-    @Option(name = {"-e", "--event"}, description = "Event to profile (cpu, alloc, lock, wall, etc.)")
+    @Option(names = {"-e", "--event"}, description = "Event to profile (cpu, alloc, lock, wall, etc.)")
     public String event = "cpu";
 
-    @Option(name = {"-r", "--raw"}, description = "Raw commands to execute")
+    @Option(names = {"-r", "--raw"}, description = "Raw commands to execute")
     public String raw;
 
-    @Option(name = {"-o", "--output"}, description = "Output file for profile dump")
+    @Option(names = {"-o", "--output"}, description = "Output file for profile dump")
     public String outputFile = "/tmp/profile.html";
 
-    @Option(name = {"-f", "--format"}, description = "Output format (flamegraph, tree, traces, etc.)")
+    @Option(names = {"-f", "--format"}, description = "Output format (flamegraph, tree, traces, etc.)")
     public String outputFormat = "flamegraph";
 
     @Override
