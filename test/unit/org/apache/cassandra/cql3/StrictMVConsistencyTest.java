@@ -61,6 +61,21 @@ public class StrictMVConsistencyTest extends CQLTester
     }
 
     @Test
+    public void testStrictMVConsistencyEnforced()
+    {
+        DatabaseDescriptor.setMaterializedViewStrictConsistencyEnforced(true);
+        String tableNmae = "test_base_table_strict_mv_enforced";
+        String mvName = "test_base_table_strict_mv_enforced_mv1";
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int, val1 text, val2 text, PRIMARY KEY(id, val1)) WITH strict_mv_consistency = false;", KEYSPACE, tableNmae));
+        invalidQueryExceptionTestHelper(String.format("CREATE MATERIAlIZED VIEW %s.%s AS SELECT * FROM %s.%s WHERE id IS NOT NULL AND val1 IS NOT NULL AND val2 IS NOT NULL PRIMARY KEY(val2, id, val1);", KEYSPACE, mvName, KEYSPACE, tableNmae),
+                                        "Materialized views can only be created on table with strict MV consistency enabled.");
+        // test strict MV consistency enabled on base table, MV can be created
+        tableNmae = "test_base_table_strict_mv_enforced1";
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int, val1 text, val2 text, PRIMARY KEY(id, val1)) WITH strict_mv_consistency = true;", KEYSPACE, tableNmae));
+        session.execute(String.format("CREATE MATERIAlIZED VIEW %s.%s AS SELECT * FROM %s.%s WHERE id IS NOT NULL AND val1 IS NOT NULL AND val2 IS NOT NULL PRIMARY KEY(val2, id, val1);", KEYSPACE, mvName, KEYSPACE, tableNmae));
+    }
+
+    @Test
     public void testUnqualifiedQueriesShouldFail() throws Throwable
     {
         String partitionDelete = "DELETE FROM %s.%s WHERE id = %d";

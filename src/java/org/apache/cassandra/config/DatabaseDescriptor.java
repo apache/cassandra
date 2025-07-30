@@ -4016,6 +4016,16 @@ public class DatabaseDescriptor
         conf.materialized_view_strict_consistency_enabled = enabled;
     }
 
+    public static boolean getMaterializedViewStrictConsistencyEnforced()
+    {
+        return conf.materialized_view_strict_consistency_enforced;
+    }
+
+    public static void setMaterializedViewStrictConsistencyEnforced(boolean enforced)
+    {
+        conf.materialized_view_strict_consistency_enforced = enforced;
+    }
+
     public static boolean getSkipSufficientLiveCheckForMV()
     {
         return conf.skip_sufficient_live_check_for_mv;
