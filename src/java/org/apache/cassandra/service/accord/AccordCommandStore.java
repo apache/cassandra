@@ -181,8 +181,8 @@ public class AccordCommandStore extends CommandStore
         this.journal = journal;
         this.rangeSearcher = RangeSearcher.extractRangeSearcher(journal);
         this.sharedExecutor = sharedExecutor;
-        if (this.progressLog() instanceof DefaultProgressLog)
-            ((DefaultProgressLog)this.progressLog).setMaxConcurrency(DatabaseDescriptor.getAccordProgressLogMaxConcurrency());
+        if (this.progressLog instanceof DefaultProgressLog)
+            ((DefaultProgressLog)this.progressLog).unsafeSetConfig(DatabaseDescriptor.getAccordProgressLogConfig());
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
