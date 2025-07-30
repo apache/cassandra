@@ -50,7 +50,7 @@ public class TrivialSimulationTest extends SimulationTestBase
                                           simulation.schemaChange(1, "CREATE KEYSPACE ks WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor' : 3}"),
                                           simulation.schemaChange(1, "CREATE TABLE IF NOT EXISTS ks.tbl (pk int PRIMARY KEY, v int)"));
                  },
-                 (simulation) -> ActionList.of(simulation.executeQuery(1, "INSERT INTO ks.tbl VALUES (1,1)", ConsistencyLevel.QUORUM),
+                 (simulation) -> ActionList.of(simulation.executeQuery(1, "INSERT INTO ks.tbl (pk, v) VALUES (1,1)", ConsistencyLevel.QUORUM),
                                                simulation.executeQuery(1, "SELECT * FROM ks.tbl WHERE pk = 1", ConsistencyLevel.QUORUM)),
                  (simulation) -> ActionList.of(),
                  (config) -> config
