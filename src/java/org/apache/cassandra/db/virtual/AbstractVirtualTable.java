@@ -76,7 +76,7 @@ public abstract class AbstractVirtualTable implements VirtualTable
     }
 
     @Override
-    public final UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, ColumnFilter columnFilter, RowFilter rowFilter)
+    public UnfilteredPartitionIterator select(DecoratedKey partitionKey, ClusteringIndexFilter clusteringIndexFilter, ColumnFilter columnFilter, RowFilter rowFilter)
     {
         Partition partition = data(partitionKey).getPartition(partitionKey);
 
