@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.slf4j.Logger;
@@ -123,6 +124,7 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
  --add-opens java.desktop/com.sun.beans.introspect=ALL-UNNAMED
 
  */
+@Ignore("Something is currently wrong with SimulationTestBase and multi node tests. CASSANDRA-20744 exposed that simulator was swallowing errors which then causes this test to fail 100% of the time; until the root cause is fixed it doesn't make sense to run this test.")
 public class EpochStressTest extends SimulationTestBase
 {
     @Test
