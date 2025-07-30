@@ -57,11 +57,13 @@ public final class ReplicationParams
 
     public final Class<? extends AbstractReplicationStrategy> klass;
     public final ImmutableMap<String, String> options;
+    private final int hashCode;
 
     private ReplicationParams(Class<? extends AbstractReplicationStrategy> klass, Map<String, String> options)
     {
         this.klass = klass;
         this.options = ImmutableMap.copyOf(options);
+        this.hashCode = Objects.hashCode(this.klass, this.options);
     }
 
     @VisibleForTesting
@@ -234,7 +236,7 @@ public final class ReplicationParams
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(klass, options);
+        return hashCode;
     }
 
     @Override

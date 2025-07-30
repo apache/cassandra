@@ -117,6 +117,11 @@ public final class KeyspaceParams
         return new KeyspaceParams(true, ReplicationParams.nts(args), FastPathStrategy.simple());
     }
 
+    public KeyspaceParams withSwapped(ReplicationParams params)
+    {
+        return new KeyspaceParams(durableWrites, params, fastPath);
+    }
+
     public void validate(String name, ClientState state, ClusterMetadata metadata)
     {
         replication.validate(name, state, metadata);

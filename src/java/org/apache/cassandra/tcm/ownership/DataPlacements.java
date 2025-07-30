@@ -159,6 +159,17 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
                   .allMatch(e -> e.getValue().equivalentTo(other.get(e.getKey())));
     }
 
+    public ReplicationParams deduplicateReplicationParams(ReplicationParams replicationParams)
+    {
+        if (this.get(replicationParams) == null)
+            return replicationParams;
+
+        for (ReplicationParams placementReplicationParams : keys())
+            if (placementReplicationParams.equals(replicationParams))
+                return placementReplicationParams;
+        return replicationParams;
+    }
+
     public static DataPlacements sortReplicaGroups(DataPlacements placements, Comparator<Replica> comparator)
     {
         Builder builder = DataPlacements.builder(placements.size());

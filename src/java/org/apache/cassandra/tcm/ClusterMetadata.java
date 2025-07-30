@@ -55,6 +55,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.CMSIdentifierMismatchException;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
@@ -1064,6 +1065,8 @@ public class ClusterMetadata
             TokenMap tokenMap = TokenMap.serializer.deserialize(in, version);
             DataPlacements placements = DataPlacements.serializer.deserialize(in, version);
 
+            schema = deduplicateReplicationParams(schema, placements);
+
             AccordFastPath accordFastPath;
             ConsensusMigrationState consensusMigrationState;
             AccordStaleReplicas staleReplicas;
@@ -1105,6 +1108,23 @@ public class ClusterMetadata
                                        consensusMigrationState,
                                        extensions,
                                        staleReplicas);
+        }
+
+        private DistributedSchema deduplicateReplicationParams(DistributedSchema schema, DataPlacements placements)
+        {
+            Keyspaces newKeyspaces = schema.getKeyspaces();
+            for (KeyspaceMetadata keyspaceMetadata : schema.getKeyspaces())
+            {
+                KeyspaceParams params = keyspaceMetadata.params;
+                ReplicationParams newReplicationParams = placements.deduplicateReplicationParams(params.replication);
+                if (newReplicationParams != params.replication)
+                {
+                    KeyspaceParams newKeyspaceParams = params.withSwapped(newReplicationParams);
+                    KeyspaceMetadata newKeyspaceMetadata = keyspaceMetadata.withSwapped(newKeyspaceParams);
+                    newKeyspaces = newKeyspaces.withAddedOrUpdated(newKeyspaceMetadata);
+                }
+            }
+            return new DistributedSchema(newKeyspaces, schema.lastModified());
         }
 
         @Override

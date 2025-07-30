@@ -81,7 +81,13 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
             throw new AlreadyExistsException(keyspaceName);
         }
 
-        KeyspaceMetadata keyspaceMetadata = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
+        // we deduplicate ReplicationParams here to use the same objects in KeyspaceMetadata
+        // as we have as keys in metadata.placements to have a fast map lookup
+        // ReplicationParams are immutable, so it is a safe optimization
+        KeyspaceParams keyspaceParams = attrs.asNewKeyspaceParams();
+        ReplicationParams replicationParams = metadata.placements.deduplicateReplicationParams(keyspaceParams.replication);
+        keyspaceParams = keyspaceParams.withSwapped(replicationParams);
+        KeyspaceMetadata keyspaceMetadata = KeyspaceMetadata.create(keyspaceName, keyspaceParams);
 
         if (keyspaceMetadata.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
