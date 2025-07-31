@@ -495,6 +495,25 @@ public class AutoRepairUtilsV2Test extends CQLTester
     }
 
     @Test
+    public void testShouldRepairTableForNonPaxosCleanup() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        for (RepairType type : RepairType.values())
+        {
+            if (type != RepairType.paxos_cleanup)
+                assertTrue(AutoRepairUtilsV2.shouldRepairTable(type, currentTableMetadata()));
+            else
+            {
+                // when there is no prev LWT traffic
+                assertFalse(AutoRepairUtilsV2.shouldRepairTable(type, currentTableMetadata()));
+                // attempt to do some LWT
+                executeNet("INSERT INTO %s (k, v) values (1, ?) IF NOT EXISTS", 2);
+                assertTrue(AutoRepairUtilsV2.shouldRepairTable(type, currentTableMetadata()));
+            }
+        }
+    }
+
+    @Test
     public void testCheckNodeContainsKeyspaceReplica()
     {
         Keyspace ks = Keyspace.open("ks");

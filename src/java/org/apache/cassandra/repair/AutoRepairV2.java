@@ -252,6 +252,8 @@ public class AutoRepairV2
                         repairState.setTotalTablesConsideredForRepair(repairState.getTotalTablesConsideredForRepair() + 1);
                         TableMetadata tableMetadata = iter.next();
                         String tableName = tableMetadata.name;
+                        if (!AutoRepairUtilsV2.shouldRepairTable(repairType, tableMetadata))
+                            continue;
                         tablesToBeRepaired.add(tableName);
 
                         // See if we should repair MVs as well that are associated with this given table

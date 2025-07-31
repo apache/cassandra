@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-49902] Skip paxos cleanup when possible in auto-repair scheduling
  * [SO-47869] GCInspector should log messages based on pause time only
  * [SO-49805] Add strict MV enforced flag so new MV can only be created with table with strict MV consistency enabled
  * [SO-49645] Optimize PaxosCleanup.isOutOfRange calculation

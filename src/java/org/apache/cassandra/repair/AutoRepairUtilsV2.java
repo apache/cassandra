@@ -38,6 +38,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.metrics.AutoRepairMetricsV2;
 import org.apache.cassandra.transport.Dispatcher;
@@ -877,6 +878,15 @@ public class AutoRepairUtilsV2
             return !Pattern.matches(config.getRepairIgnoreKeyspaces(repairType), ks.getName());
         }
         return true;
+    }
+
+    public static boolean shouldRepairTable(RepairType repairType, TableMetadata metadata)
+    {
+        if (repairType != RepairType.paxos_cleanup)
+            return true;
+        // don't do paxos cleanup if never witness any prepare attempt
+        ColumnFamilyStore cfs = Keyspace.openAndGetStoreIfExists(metadata);
+        return cfs != null && cfs.metric.casPrepare.totalLatency.getCount() > 0;
     }
 
     public static boolean checkNodeContainsKeyspaceReplica(Keyspace ks)

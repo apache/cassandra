@@ -140,7 +140,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     }
 
     @Before
-    public void setup()
+    public void setup() throws Throwable
     {
         MockitoAnnotations.initMocks(this);
 
@@ -167,6 +167,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         when(autoRepairState.calcRepairTurn(any())).thenAnswer(inv -> {
             return AutoRepairUtilsV2.myTurnToRunRepair(repairType, inv.getArgument(0));
         });
+
+        // paxos cleanup will only be scheduled when there is some LWT traffic
+        executeNet("INSERT INTO " + KEYSPACE + '.' + TABLE + " (k, i, v) values (?, ?, ?) IF NOT EXISTS", "1", 2, "3");
     }
 
     @After
@@ -589,7 +592,10 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AutoRepairV2.instance.repair(repairType, 0);
 
         assertEquals(1, shuffleKeyspacesCall.get());
-        assertEquals(4, shuffleTablesCall.get());
+        if (repairType == AutoRepairConfig.RepairType.paxos_cleanup) // 2 tables have no LWT traffic and got skipped
+            assertEquals(2, shuffleTablesCall.get());
+        else
+            assertEquals(4, shuffleTablesCall.get());
     }
 
     @Test
