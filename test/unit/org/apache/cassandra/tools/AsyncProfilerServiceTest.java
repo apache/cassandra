@@ -38,6 +38,7 @@ public class AsyncProfilerServiceTest
 {
 
     private static AsyncProfilerService profiler;
+    private static String testOutputFile = "/tmp/test-profile.html";
 
     @BeforeClass
     public static void setUpClass() {
@@ -51,37 +52,36 @@ public class AsyncProfilerServiceTest
     @Before
     public void setUp(){
         System.setProperty(ASYNC_PROFILER_ENABLED.getKey(), "true");
-        System.setProperty(ASYNC_PROFILER_ADVANCED_MODE.getKey(), "true");
     }
 
     @After
     public void tearDown()
     {
         try {
-            profiler.stop("/tmp/test-profile.html");
-            File outputFile = new File("/tmp/test-profile.html");
+            profiler.stop(testOutputFile);
+            File outputFile = new File(testOutputFile);
             if (outputFile.exists()) {
                 outputFile.delete();
             }
         } catch (Exception e){
-            // The only exception that can surface here is if profiler.start was not
-            // called prior to profiler.stop, we can safely ignore this here.
+            // The only meaningful exception that can surface here is if profiler.start
+            // was not called prior to profiler.stop, we can safely ignore this.
         }
     }
 
     @Test
     public void testStartAndStopProfiling() {
-        String outputFile = "/tmp/test-profile.html";
+
 
         try {
             profiler.start("cpu", "flamegraph");
             Thread.sleep(5000);
-            profiler.stop(outputFile);
+            profiler.stop(testOutputFile);
         } catch (Exception e) {
             fail("Profiling failed: " + e.getMessage());
         }
 
-        File file = new File(outputFile);
+        File file = new File(testOutputFile);
         assertTrue("Output profile file should exist", file.exists());
         assertTrue("Output profile file should not be empty", file.length() > 0);
     }
@@ -167,5 +167,22 @@ public class AsyncProfilerServiceTest
             assertNotNull(e.getMessage());
             assertTrue("ASYNC_PROFILER_ADVANCED_MODE is false", e.getMessage().contains("ASYNC_PROFILER_ADVANCED_MODE must be set to true to execute raw commands."));
         }
+    }
+
+    @Test
+    public void testAdvancedModeEnabledSuccess()
+    {
+        try {
+            System.setProperty(ASYNC_PROFILER_ADVANCED_MODE.getKey(), "true");
+            profiler.execute(String.format("start,event=cpu"));
+            Thread.sleep(5000);
+            profiler.execute(String.format("stop,file=%s", testOutputFile));
+        } catch (Exception e) {
+            fail("Profiling failed: " + e.getMessage());
+        }
+
+        File file = new File(testOutputFile);
+        assertTrue("Output profile file for advanced mode should exist", file.exists());
+        assertTrue("Output profile file for advanced mode should not be empty", file.length() > 0);
     }
 }
