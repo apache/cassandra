@@ -58,6 +58,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 
 public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<TrackedDataResponse>
@@ -140,6 +141,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     private final ReadCommand command;
     private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
     private final ConsistencyLevel consistencyLevel;
+    private final long expiresAtNanos;
 
     private static class RequestFailure extends Throwable
     {
@@ -158,11 +160,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
-    public TrackedRead(ReadCommand command, ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel)
+    public TrackedRead(ReadCommand command, ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel, long expiresAtNanos)
     {
         this.command = command;
         this.replicaPlan = replicaPlan;
         this.consistencyLevel = consistencyLevel;
+        this.expiresAtNanos = expiresAtNanos;
     }
 
     @Override
@@ -180,12 +183,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public static class Partition extends TrackedRead<EndpointsForToken, ReplicaPlan.ForTokenRead>
     {
-        private Partition(SinglePartitionReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan, ConsistencyLevel consistencyLevel)
+        private Partition(SinglePartitionReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan, ConsistencyLevel consistencyLevel, long expiresAtNanos)
         {
-            super(command, replicaPlan, consistencyLevel);
+            super(command, replicaPlan, consistencyLevel, expiresAtNanos);
         }
 
-        public static Partition create(ClusterMetadata metadata, SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel)
+        public static Partition create(ClusterMetadata metadata, SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, long expiresAtNanos)
         {
             Preconditions.checkArgument(command.metadata().replicationType().isTracked());
             Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
@@ -199,7 +202,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                                                                         consistencyLevel,
                                                                         retry,
                                                                         ReadCoordinator.DEFAULT);
-            return new Partition(command, replicaPlan, consistencyLevel);
+            return new Partition(command, replicaPlan, consistencyLevel, expiresAtNanos);
         }
 
         @Override
@@ -211,15 +214,15 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public static class Range extends TrackedRead<EndpointsForRange, ReplicaPlan.ForRangeRead>
     {
-        private Range(PartitionRangeReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForRange, ReplicaPlan.ForRangeRead> replicaPlan, ConsistencyLevel consistencyLevel)
+        private Range(PartitionRangeReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForRange, ReplicaPlan.ForRangeRead> replicaPlan, ConsistencyLevel consistencyLevel, long expiresAtNanos)
         {
-            super(command, replicaPlan, consistencyLevel);
+            super(command, replicaPlan, consistencyLevel, expiresAtNanos);
         }
 
-        public static TrackedRead.Range create(PartitionRangeReadCommand command, ReplicaPlan.ForRangeRead replicaPlan)
+        public static TrackedRead.Range create(PartitionRangeReadCommand command, ReplicaPlan.ForRangeRead replicaPlan, long expiresAtNanos)
         {
             Preconditions.checkArgument(command.metadata().replicationType().isTracked());
-            return new Range(command, replicaPlan, replicaPlan.consistencyLevel());
+            return new Range(command, replicaPlan, replicaPlan.consistencyLevel(), expiresAtNanos);
         }
 
         @Override
@@ -361,7 +364,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     {
         try
         {
-            return future.get(command.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS).makeIterator(command);
+            return future.get(Math.max(0, expiresAtNanos - Clock.Global.nanoTime()), NANOSECONDS).makeIterator(command);
         }
         catch (InterruptedException e)
         {

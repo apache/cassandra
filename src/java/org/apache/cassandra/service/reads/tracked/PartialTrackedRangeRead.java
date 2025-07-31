@@ -369,7 +369,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
                                                                          followUpCmd.dataRange().keyRange(),
                                                                          1);
 
-        TrackedRead.Range read = TrackedRead.Range.create(followUpCmd, replicaPlan);
+        TrackedRead.Range read = TrackedRead.Range.create(followUpCmd, replicaPlan, expiresAtNanos);
         logger.trace("Short read detected, starting followup read {}", read);
         return read;
     }
