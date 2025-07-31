@@ -60,7 +60,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
      */
     final static Field BITS_TOTAL_CAPACITY;
 
-    
+
     static
     {
         Field temp = null;
@@ -287,21 +287,34 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 if (state.compareAndSet(prev, new State(duration, bytes, prev)))
                     break;
             }
-            
-            if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
-                logger.warn(sb.toString());
-            else if (duration > getGcLogThresholdInMs())
-                logger.info(sb.toString());
-            else if (logger.isTraceEnabled())
-                logger.trace(sb.toString());
 
-            if (duration > this.getStatusThresholdInMs())
-                StatusLogger.log();
+            // Only interested in GC pause here
+            if (!isConcurrentPhase(info.getGcCause(), info.getGcName()))
+            {
+                if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
+                    logger.warn(sb.toString());
+                else if (duration > getGcLogThresholdInMs())
+                    logger.info(sb.toString());
+                else if (logger.isTraceEnabled())
+                    logger.trace(sb.toString());
+
+                if (duration > this.getStatusThresholdInMs())
+                    StatusLogger.log();
+            }
 
             // if we just finished an old gen collection and we're still using a lot of memory, try to reduce the pressure
             if (gcState.assumeGCIsOldGen)
                 LifecycleTransaction.rescheduleFailedDeletions();
         }
+    }
+
+    // https://github.com/micrometer-metrics/micrometer/blob/main/micrometer-core/src/main/java/io/micrometer/core/instrument/binder/jvm/JvmMemory.java
+    static boolean isConcurrentPhase(String cause, String name) {
+        return "No GC".equals(cause) //
+               || "Shenandoah Cycles".equals(name) // Shenandoah
+               || (name.startsWith("ZGC") && name.endsWith("Cycles")) // ZGC
+               || (name.startsWith("GPGC") && !name.endsWith("Pauses")) // Zing GPGC
+        ;
     }
 
     public State getTotalSinceLastCheck()

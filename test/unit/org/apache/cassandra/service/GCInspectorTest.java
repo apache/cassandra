@@ -94,4 +94,33 @@ public class GCInspectorTest
         gcInspector.setGcLogThresholdInMs(200);
         gcInspector.setGcWarnThresholdInMs(Integer.MAX_VALUE+1L);
     }
+
+    @Test
+    public void testIsConcurrentPhase()
+    {
+        Assert.assertTrue("No GC cause should be considered concurrent",
+                         GCInspector.isConcurrentPhase("No GC", "SomeGCName"));
+        Assert.assertTrue("Shenandoah Cycles should be considered concurrent",
+                         GCInspector.isConcurrentPhase("SomeCause", "Shenandoah Cycles"));
+        Assert.assertTrue("ZGC Cycles should be considered concurrent",
+                         GCInspector.isConcurrentPhase("SomeCause", "ZGC Cycles"));
+        Assert.assertTrue("ZGC Generation Cycles should be considered concurrent",
+                         GCInspector.isConcurrentPhase("SomeCause", "ZGC Generation Cycles"));
+        Assert.assertTrue("ZGC Minor Cycles should be considered concurrent",
+                         GCInspector.isConcurrentPhase("SomeCause", "ZGC Minor Cycles"));
+        Assert.assertTrue("GPGC Cycles should be considered concurrent",
+                         GCInspector.isConcurrentPhase("SomeCause", "GPGC Cycles"));
+        Assert.assertTrue("GPGC Concurrent Cycles should be considered concurrent",
+                         GCInspector.isConcurrentPhase("SomeCause", "GPGC Concurrent Cycles"));
+        Assert.assertFalse("GPGC Pauses should not be considered concurrent",
+                          GCInspector.isConcurrentPhase("SomeCause", "GPGC Pauses"));
+        Assert.assertFalse("GPGC Minor Pauses should not be considered concurrent",
+                          GCInspector.isConcurrentPhase("SomeCause", "GPGC Minor Pauses"));
+        Assert.assertFalse("Regular GC should not be considered concurrent",
+                          GCInspector.isConcurrentPhase("GCCause", "RegularGC"));
+        Assert.assertFalse("ParallelGC should not be considered concurrent",
+                          GCInspector.isConcurrentPhase("Allocation Failure", "PS Scavenge"));
+        Assert.assertFalse("G1 Young Generation should not be considered concurrent",
+                          GCInspector.isConcurrentPhase("G1 Evacuation Pause", "G1 Young Generation"));
+    }
 }
