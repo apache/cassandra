@@ -43,20 +43,21 @@ if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     exit 1
 fi
 
-# Run cassandra-env.sh to pick up JMX_PORT
+JMX_PORT=""
+
+# Try to parse port from configure_jmx method call, when not commented out
 if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
-    JVM_OPTS_SAVE=$JVM_OPTS
-    MAX_HEAP_SIZE_SAVE=$MAX_HEAP_SIZE
-    . "$CASSANDRA_CONF/cassandra-env.sh"
-    MAX_HEAP_SIZE=$MAX_HEAP_SIZE_SAVE
-    JVM_OPTS="$JVM_OPTS_SAVE"
+    jmx_method_call=$(grep "^configure_jmx \+[0-9]\+$" "$CASSANDRA_CONF/cassandra-env.sh")
+    if [ ! "x${jmx_method_call}" = "x" ]; then
+        JMX_PORT=$(echo "${jmx_method_call}" | tr -s " " | cut -d " " -f2)
+    fi
 fi
 
 # In case JMX_PORT is not set (when configure_jmx in cassandra-env.sh is commented out),
 # try to parse it from cassandra.yaml.
 if [ "x$JMX_PORT" = "x" ]; then
     if [ -f "$CASSANDRA_CONF/cassandra.yaml" ]; then
-        JMX_PORT=`grep jmx_port $CASSANDRA_CONF/cassandra.yaml | cut -d ':' -f 2 | tr -d '[[:space:]]'`
+        JMX_PORT=$(grep jmx_port "$CASSANDRA_CONF/cassandra.yaml" | cut -d ':' -f 2 | tr -d '[[:space:]]')
     fi
 fi
 
@@ -109,6 +110,11 @@ done
 
 if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     MAX_HEAP_SIZE="128m"
+fi
+
+# Sets the path where logback and GC logs are written.
+if [ "x$CASSANDRA_LOG_DIR" = "x" ] ; then
+    CASSANDRA_LOG_DIR="$CASSANDRA_HOME/logs"
 fi
 
 CMD=$(echo "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
