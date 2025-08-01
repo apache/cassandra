@@ -21,6 +21,7 @@ package org.apache.cassandra.simulator.test;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
@@ -204,12 +205,12 @@ public class SimulationTestBase
         protected final Function<SimpleSimulation, ActionList> init;
         protected final Function<SimpleSimulation, ActionList> test;
         protected final Function<SimpleSimulation, ActionList> teardown;
-        protected final Consumer<IInstanceConfig> configUpdater;
+        protected final BiConsumer<RandomSource, IInstanceConfig> configUpdater;
 
         DTestClusterSimulationBuilder(Function<SimpleSimulation, ActionList> init,
                                       Function<SimpleSimulation, ActionList> test,
                                       Function<SimpleSimulation, ActionList> teardown,
-                                      Consumer<IInstanceConfig> configUpdater)
+                                      BiConsumer<RandomSource, IInstanceConfig> configUpdater)
         {
             this.init = init;
             this.test = test;
@@ -223,7 +224,7 @@ public class SimulationTestBase
             random.reset(seed);
 
             return new ClusterSimulation<>(random, seed, 1, this,
-                                           configUpdater,
+                                           c -> configUpdater.accept(random, c),
                                            (simulated, scheduler, cluster, options) -> new SimpleSimulation(simulated, scheduler, cluster)
                                            {
                                                protected ActionList initialize()
@@ -249,7 +250,7 @@ public class SimulationTestBase
                          Function<SimpleSimulation, ActionList> teardown,
                          Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure) throws IOException
     {
-        simulate(init, test, teardown, configure, ignore -> {});
+        simulate(init, test, teardown, configure, (i1, i2) -> {});
     }
 
     @SuppressWarnings("unused")
@@ -259,14 +260,14 @@ public class SimulationTestBase
                          Function<SimpleSimulation, ActionList> teardown,
                          Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure) throws IOException
     {
-        simulate(seed, init, test, teardown, configure, ignore -> {});
+        simulate(seed, init, test, teardown, configure, (i1, i2) -> {});
     }
 
     static void simulate(Function<SimpleSimulation, ActionList> init,
                          Function<SimpleSimulation, ActionList> test,
                          Function<SimpleSimulation, ActionList> teardown,
                          Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure,
-                         Consumer<IInstanceConfig> configUpdater) throws IOException
+                         BiConsumer<RandomSource, IInstanceConfig> configUpdater) throws IOException
     {
         simulate(new DTestClusterSimulationBuilder(init, test, teardown, configUpdater),
                  configure);
@@ -278,7 +279,7 @@ public class SimulationTestBase
                          Function<SimpleSimulation, ActionList> test,
                          Function<SimpleSimulation, ActionList> teardown,
                          Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure,
-                         Consumer<IInstanceConfig> configUpdater) throws IOException
+                         BiConsumer<RandomSource, IInstanceConfig> configUpdater) throws IOException
     {
         simulate(() -> seed, new DTestClusterSimulationBuilder(init, test, teardown, configUpdater),
                 configure);

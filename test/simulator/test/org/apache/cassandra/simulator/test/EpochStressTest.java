@@ -170,11 +170,17 @@ public class EpochStressTest extends SimulationTestBase
                  },
                  config -> config.nodes(3, 3)
                                  .dcs(1, 1)
-                                 .threadCount(100)
-//                 config -> config.set("cms_await_timeout", "3600s")
-//                           .set("cms_retry_delay", "3600s")
-//                           .set("cms_default_max_retries", Integer.toString(Integer.MAX_VALUE))
-//                           .set("request_timeout", "60m")
+                                 .threadCount(100),
+                 (rs, config) -> {
+                     // When the cluster defaults are used then the test will nearly 100% of the time fail to make it to 100 epochs without the epochs failing, so want to cover this in case there is a visbility violation somewhere
+                     // if the CMS retry configs are set to 1h then the failure rate becomes 10%, so more seeds will reach all 100 epochs!
+                     if (rs.decide(0.3f)) return; // 30% of the time use the cluster defaults, so have a high failure rate for TCM transactions
+                     // Make the retry rate long enough that it should recover most of the time.
+                     // As of this moment this only impacts CMS nodes, so if the CQL is sent to a non-CMS node then request_timeout is used for retry timeout, which makes this fail ~10% of the time
+                     config.set("cms_await_timeout", "3600s")
+                           .set("cms_retry_delay", "3600s")
+                           .set("cms_default_max_retries", Integer.toString(Integer.MAX_VALUE));
+                 }
         );
     }
 
