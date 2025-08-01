@@ -89,6 +89,7 @@ public class JournalGCTest extends FuzzTestBase
 
                     if (pk > 0 && pk % 100 == 0)
                     {
+                        cluster.schemaChange("ALTER TABLE " + schema.keyspace + '.' + schema.table + " WITH comment='" + pk + "';");
                         cluster.get(1).runOnInstance(() -> {
                             ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
                             ((AccordService) AccordService.instance()).journal().compactor().run();

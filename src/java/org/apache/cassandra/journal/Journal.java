@@ -960,12 +960,6 @@ public class Journal<K, V> implements Shutdownable
             this.segments = new long[maxSize];
         }
 
-        public void segments(LongConsumer consumer)
-        {
-            for (int i = 0; i < size; i++)
-                consumer.accept(segments[i]);
-        }
-
         public long[] copyOfSegments()
         {
             return segments == null ? new long[0] : Arrays.copyOf(segments, size);

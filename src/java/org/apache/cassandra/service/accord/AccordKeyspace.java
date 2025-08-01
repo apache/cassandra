@@ -544,12 +544,12 @@ public class AccordKeyspace
         {
             int commandStoreIdBytes = VIntCoding.computeUnsignedVIntSize(key.commandStoreId);
             int length = commandStoreIdBytes + 1;
-            if (key.type == JournalKey.Type.COMMAND_DIFF)
+            if (key.type.usesTxnId)
                 length += CommandSerializers.txnId.serializedSize(key.id);
             ByteBuffer pk = ByteBuffer.allocate(length);
             ByteBufferAccessor.instance.putUnsignedVInt32(pk, 0, key.commandStoreId);
             pk.put(commandStoreIdBytes, (byte)key.type.id);
-            if (key.type == JournalKey.Type.COMMAND_DIFF)
+            if (key.type.usesTxnId)
                 CommandSerializers.txnId.serializeComparable(key.id, pk, ByteBufferAccessor.instance, commandStoreIdBytes + 1);
             return Journal.partitioner.decorateKey(pk);
         }
@@ -569,7 +569,13 @@ public class AccordKeyspace
             int storeId = ByteBufferAccessor.instance.getUnsignedVInt32(bb, 0);
             int offset = VIntCoding.readLengthOfVInt(bb, 0);
             JournalKey.Type type = JournalKey.Type.fromId(bb.get(offset));
-            TxnId txnId = type != JournalKey.Type.COMMAND_DIFF ? TxnId.NONE : CommandSerializers.txnId.deserializeComparable(bb, ByteBufferAccessor.instance, offset + 1);
+            TxnId txnId;
+
+            if (type.usesTxnId)
+                txnId = CommandSerializers.txnId.deserializeComparable(bb, ByteBufferAccessor.instance, offset + 1);
+            else
+                txnId = TxnId.NONE;
+
             return new JournalKey(txnId, type, storeId);
         }
     }

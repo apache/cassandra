@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Queue;
@@ -85,7 +84,6 @@ import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
 import org.apache.cassandra.service.accord.AccordJournalValueSerializers.IdentityAccumulator;
 import org.apache.cassandra.service.accord.JournalKey.JournalKeySupport;
-import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.DepsSerializers;
@@ -114,6 +112,10 @@ import static accord.impl.CommandChange.validateFlags;
 import static accord.local.Cleanup.Input.FULL;
 import static org.apache.cassandra.service.accord.AccordJournalValueSerializers.DurableBeforeAccumulator;
 import static org.apache.cassandra.service.accord.JournalKey.Type.COMMAND_DIFF;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Accumulator;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.TopologyImage;
+import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.newTopology;
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 
 public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier, Shutdownable
@@ -367,31 +369,56 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             journal.onDurable(pointer, onFlush);
     }
 
-    public void patchCommand(int commandStoreId, TxnId txnId, Cleanup cleanup, @Nullable Runnable onFlush)
-    {
-        Builder change = new Builder(txnId);
-        change.maybeCleanup(false, cleanup);
-
-        JournalKey key = new JournalKey(txnId, JournalKey.Type.COMMAND_DIFF, commandStoreId);
-        RecordPointer pointer = journal.asyncWrite(key, (out, userVersion) -> change.serialize(out, Version.fromVersion(configuration().userVersion())));
-        if (onFlush != null)
-            journal.onDurable(pointer, onFlush);
-    }
-
     @Override
-    public Iterator<AccordTopologyUpdate.ImmutableTopoloyImage> replayTopologies()
+    public CloseableIterator<TopologyUpdate> replayTopologies()
     {
-        AccordTopologyUpdate.Accumulator accumulator = readAll(TopologyUpdateKey);
-        return accumulator.images();
+        return new CloseableIterator<>()
+        {
+            final CloseableIterator<Journal.KeyRefs<JournalKey>> iter = journalTable.keyIterator(topologyUpdateKey(0L),
+                                                                                                 topologyUpdateKey(Timestamp.MAX_EPOCH));
+            TopologyImage prev = null;
+
+            @Override
+            public boolean hasNext()
+            {
+                return iter.hasNext();
+            }
+
+            @Override
+            public TopologyUpdate next()
+            {
+                Journal.KeyRefs<JournalKey> ref = iter.next();
+                Accumulator read = readAll(ref.key());
+                if (read.accumulated.kind() == Kind.NoOp)
+                    prev = read.accumulated.asImage(Invariants.nonNull(prev.getUpdate()));
+                else
+                    prev = read.accumulated;
+
+                return new TopologyUpdate(prev.getUpdate().commandStores,
+                                          prev.getUpdate().global);
+            }
+
+            @Override
+            public void close()
+            {
+                iter.close();
+            }
+        };
     }
 
-    private static final JournalKey TopologyUpdateKey = new JournalKey(TxnId.NONE, JournalKey.Type.TOPOLOGY_UPDATE, 0);
     @Override
     public void saveTopology(TopologyUpdate topologyUpdate, Runnable onFlush)
     {
-        RecordPointer pointer = appendInternal(TopologyUpdateKey, AccordTopologyUpdate.newTopology(topologyUpdate));
+        RecordPointer pointer = appendInternal(topologyUpdateKey(topologyUpdate.global.epoch()),
+                                               newTopology(topologyUpdate));
         if (onFlush != null)
             journal.onDurable(pointer, onFlush);
+    }
+
+    private static JournalKey topologyUpdateKey(long epoch)
+    {
+        return new JournalKey(TxnId.fromValues(epoch, 0L, Node.Id.NONE),
+                              JournalKey.Type.TOPOLOGY_UPDATE, Integer.MAX_VALUE);
     }
 
     private static final JournalKey DURABLE_BEFORE_KEY = new JournalKey(TxnId.NONE, JournalKey.Type.DURABLE_BEFORE, 0);
@@ -460,6 +487,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public <BUILDER extends FlyweightImage> BUILDER readAll(JournalKey key)
     {
         BUILDER builder = (BUILDER) key.type.serializer.mergerFor();
+        builder.reset(key);
         // TODO (expected): this can be further improved to avoid allocating lambdas
         AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER> serializer = (AccordJournalValueSerializers.FlyweightSerializer<?, BUILDER>) key.type.serializer;
         // TODO (expected): for those where we store an image, read only the first entry we find in DESC order
