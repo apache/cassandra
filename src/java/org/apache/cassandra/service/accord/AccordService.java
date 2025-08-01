@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -35,16 +34,6 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.primitives.Ints;
-
-import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import accord.api.Journal;
 import accord.api.ProtocolModifiers;
 import accord.coordinate.CoordinateMaxConflict;
 import accord.coordinate.CoordinateTransaction;
@@ -90,6 +79,8 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -129,12 +120,19 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+
+import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
 import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.READ_WRITE;
@@ -156,7 +154,6 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.journal.Params.ReplayMode.RESET;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.ImmutableTopoloyImage;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -426,20 +423,22 @@ public class AccordService implements IAccordService, Shutdownable
         ClusterMetadata metadata = ClusterMetadata.current();
         configService.updateMapping(metadata);
 
-        List<ImmutableTopoloyImage> images = new ArrayList<>();
+        List<TopologyUpdate> images = new ArrayList<>();
 
+        TopologyUpdate prev = null;
         // Collect locally known topologies
-        Iterator<ImmutableTopoloyImage> iter = journal.replayTopologies();
-        Journal.TopologyUpdate prev = null;
-        while (iter.hasNext())
+        try (CloseableIterator<TopologyUpdate> iter = journal.replayTopologies())
         {
-            ImmutableTopoloyImage next = iter.next();
-            // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
-            if (prev != null && next.global.epoch() > prev.global.epoch() + 1)
-                images.clear();
+            while (iter.hasNext())
+            {
+                TopologyUpdate next = iter.next();
+                // Due to partial compaction, we can clean up only some of the old epochs, creating gaps. We skip these epochs here.
+                if (prev != null && next.global.epoch() > prev.global.epoch() + 1)
+                    images.clear();
 
-            images.add(next);
-            prev = next;
+                images.add(next);
+                prev = next;
+            }
         }
 
         // Instantiate latest topology from the log, if known
@@ -449,7 +448,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         // Replay local epochs
-        for (ImmutableTopoloyImage image : images)
+        for (TopologyUpdate image : images)
             configService.reportTopology(image.global);
     }
 
@@ -521,9 +520,6 @@ public class AccordService implements IAccordService, Shutdownable
         try
         {
             logger.info("Fetching topologies for epochs [{}, {}] from {}", from, metadata.epoch.getEpoch(), peers);
-            Invariants.require(from <= metadata.epoch.getEpoch(),
-                               "Accord epochs should never be ahead of TCM ones, but %d was ahead of %d", from, metadata.epoch.getEpoch());
-
             Future<TopologyRange> futures = FetchTopologies.fetch(SharedContext.Global.instance,
                                                                   peers,
                                                                   from,

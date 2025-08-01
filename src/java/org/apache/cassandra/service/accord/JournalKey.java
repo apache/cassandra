@@ -257,22 +257,24 @@ public final class JournalKey
 
     public enum Type
     {
-        COMMAND_DIFF                 (0, new CommandDiffSerializer()),
-        REDUNDANT_BEFORE             (1, new RedundantBeforeSerializer()),
-        DURABLE_BEFORE               (2, new DurableBeforeSerializer()),
-        SAFE_TO_READ                 (3, new SafeToReadSerializer()),
-        BOOTSTRAP_BEGAN_AT           (4, new BootstrapBeganAtSerializer()),
-        RANGES_FOR_EPOCH             (5, new RangesForEpochSerializer()),
-        TOPOLOGY_UPDATE              (6, AccordTopologyUpdate.AccumulatingSerializer.defaultInstance),
+        COMMAND_DIFF                 (0, new CommandDiffSerializer(), true),
+        REDUNDANT_BEFORE             (1, new RedundantBeforeSerializer(), false),
+        DURABLE_BEFORE               (2, new DurableBeforeSerializer(), false),
+        SAFE_TO_READ                 (3, new SafeToReadSerializer(), false),
+        BOOTSTRAP_BEGAN_AT           (4, new BootstrapBeganAtSerializer(), false),
+        RANGES_FOR_EPOCH             (5, new RangesForEpochSerializer(), false),
+        TOPOLOGY_UPDATE              (6, new AccordTopologyUpdate.FlyweightSerializer(), true),
         ;
 
         public final int id;
         public final FlyweightSerializer<?, ?> serializer;
+        public final boolean usesTxnId;
 
-        Type(int id, FlyweightSerializer<?, ?> serializer)
+        Type(int id, FlyweightSerializer<?, ?> serializer, boolean usesTxnId)
         {
             this.id = id;
             this.serializer = serializer;
+            this.usesTxnId = usesTxnId;
         }
 
         private static final Type[] idToTypeMapping;

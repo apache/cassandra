@@ -111,7 +111,7 @@ public class AccordJournalValueSerializers
             this.accumulated = initial;
         }
 
-        protected void update(V newValue)
+        public void update(V newValue)
         {
             accumulated = accumulate(accumulated, newValue);
         }
