@@ -23,9 +23,12 @@ import com.google.common.base.Throwables;
 import accord.api.RoutingKey;
 import accord.local.CommandStores;
 import accord.local.LoadKeys;
+import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.distributed.Cluster;
@@ -129,7 +132,8 @@ public class AccordDropTableBase extends TestBaseImpl
             inst.runOnInstance(() -> {
                 TableId tableId = TableId.fromString(s);
                 AccordService accord = (AccordService) AccordService.instance();
-                PreLoadContext ctx = PreLoadContext.contextFor(Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), LoadKeys.SYNC, READ_WRITE, "Test");
+                TxnId syntheticTxnId = new TxnId(TxnId.MAX_EPOCH, 0, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range, new Node.Id(1));
+                PreLoadContext ctx = PreLoadContext.contextFor(syntheticTxnId, Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), LoadKeys.SYNC, READ_WRITE, "Test");
                 CommandStores stores = accord.node().commandStores();
                 for (int storeId : stores.ids())
                 {

@@ -55,11 +55,9 @@ import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
-import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Route;
-import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -227,14 +225,6 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges, Status.Durability durability)
-    {
-        super.markShardDurable(safeStore, globalSyncId, ranges, durability);
-        if (durability.compareTo(Status.Durability.UniversalOrInvalidated) >= 0)
-            commandsForRanges.gcBefore(globalSyncId, ranges);
-    }
-
-    @Override
     public boolean inStore()
     {
         return exclusiveExecutor.inExecutor();
@@ -398,43 +388,6 @@ public class AccordCommandStore extends CommandStore
     @Override
     public void shutdown()
     {
-    }
-
-    public void registerTransitive(SafeCommandStore safeStore, RangeDeps rangeDeps)
-    {
-        if (rangeDeps.isEmpty())
-            return;
-
-        RedundantBefore redundantBefore = unsafeGetRedundantBefore();
-        CommandStores.RangesForEpoch ranges = safeStore.ranges();
-        // used in places such as accord.local.CommandStore.fetchMajorityDeps
-        // We find a set of dependencies for a range then update CommandsFor to know about them
-        Ranges allRanges = safeStore.ranges().all();
-        Ranges coordinateRanges = Ranges.EMPTY;
-        long coordinateEpoch = -1;
-        try (ExclusiveCaches caches = lockCaches())
-        {
-            for (int i = 0; i < rangeDeps.txnIdCount(); i++)
-            {
-                TxnId txnId = rangeDeps.txnId(i);
-                AccordCacheEntry<TxnId, Command> state = caches.commands().getUnsafe(txnId);
-                if (state != null && state.isLoaded() && state.getExclusive() != null && state.getExclusive().known().isDefinitionKnown())
-                    continue;
-
-                Ranges addRanges = rangeDeps.ranges(i).slice(allRanges);
-                if (addRanges.isEmpty()) continue;
-
-                if (coordinateEpoch != txnId.epoch())
-                {
-                    coordinateEpoch = txnId.epoch();
-                    coordinateRanges = ranges.allAt(txnId.epoch());
-                }
-                if (addRanges.intersects(coordinateRanges)) continue;
-                addRanges = redundantBefore.removeGcBefore(txnId, txnId, addRanges);
-                if (addRanges.isEmpty()) continue;
-                commandsForRanges().mergeTransitive(txnId, addRanges, Ranges::with);
-            }
-        }
     }
 
     public void appendCommands(List<CommandUpdate> diffs, Runnable onFlush)
@@ -668,8 +621,8 @@ public class AccordCommandStore extends CommandStore
         StringBuilder sb = new StringBuilder("[");
         if (metadata != null)
             sb.append(metadata).append('|');
-        sb.append(tableId.lsb());
-        sb.append(',').append(id).append(',').append(node.id().id).append(']');
+        sb.append(tableId);
+        sb.append('|').append(id).append(',').append(node.id().id).append(']');
         return sb.toString();
     }
 }

@@ -302,7 +302,8 @@ public class AccordKeyspace
             if (current == null)
                 return null;
 
-            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore.gcBefore());
+            // TODO (desired): consider whether better to not compact any validation failures, since we expect is already overwritten
+            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore.gcBefore(), false);
             if (current == updated)
                 return row;
 
