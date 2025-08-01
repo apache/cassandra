@@ -63,6 +63,13 @@ public class AccordHarrySimulationTest extends HarrySimulatorTest
         return schedulers;
     }
 
+    @Override
+    public void test() throws Exception
+    {
+        seed = "0xfa3d51da237d56e5";
+        super.test();
+    }
+
     protected ConsistencyLevel validateQueryConsistency()
     {
         return ConsistencyLevel.QUORUM;

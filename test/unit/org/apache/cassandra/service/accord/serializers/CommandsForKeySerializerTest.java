@@ -656,7 +656,6 @@ public class CommandsForKeySerializerTest
         @Override public AsyncChain<Void> build(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { return null; }
         @Override public <T> AsyncChain<T> build(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
         @Override public void shutdown() { }
-        @Override protected void registerTransitive(SafeCommandStore safeStore, RangeDeps deps){ }
         @Override public <T> AsyncChain<T> build(Callable<T> task) { throw new UnsupportedOperationException(); }
         @Override public void onInconsistentTimestamp(Command command, Timestamp prev, Timestamp next) { throw new UnsupportedOperationException(); }
         @Override public void onFailedBootstrap(int attempts, String phase, Ranges ranges, Runnable retry, Throwable failure) { throw new UnsupportedOperationException(); }
