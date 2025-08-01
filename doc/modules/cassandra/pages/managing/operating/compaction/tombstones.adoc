@@ -13,8 +13,9 @@ At the end of its expiration period, the grace period, the tombstone is deleted 
 
 [NOTE]
 ====
-You can also mark a {cassandra} row or column with a time-to-live (TTL) value. 
-After this amount of time has ended, {cassandra} marks the object with a tombstone, and handles it like other tombstoned objects.
+You can set a Time-To-Live (TTL) value to a row or column. If the data is compacted after the TTL has expired
+but before `gc_grace_seconds` has passed, the data will be written with an expired flag set to True, effectively acting as a tombstone.
+This situation arises only when gc_grace_seconds exceeds the original TTL.
 ====
 
 == Why tombstones?
