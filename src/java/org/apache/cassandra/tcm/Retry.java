@@ -48,7 +48,7 @@ public class Retry implements WaitStrategy
         DEFAULT_STRATEGY = RetryStrategy.parse(defaultSpec, LatencySourceFactory.none());
     }
 
-    public final long deadlineNanos, createdNanos;
+    public final long deadlineNanos;
     protected Meter retryMeter;
     private final WaitStrategy delegate;
     int attempts = 1;
@@ -56,7 +56,6 @@ public class Retry implements WaitStrategy
     public Retry(long deadlineNanos, Meter retryMeter, WaitStrategy delegate)
     {
         this.deadlineNanos = deadlineNanos;
-        this.createdNanos = nanoTime();
         this.retryMeter = retryMeter;
         this.delegate = delegate;
     }
