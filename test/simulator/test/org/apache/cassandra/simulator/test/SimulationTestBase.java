@@ -138,6 +138,17 @@ public class SimulationTestBase
                                       null);
         }
 
+        public Action schemaChange(int node, String query, Predicate<Throwable> onFailure)
+        {
+            return new SimulatedQuery(String.format("Schema change: %s", query),
+                                      simulated,
+                                      cluster.get(node),
+                                      query,
+                                      org.apache.cassandra.distributed.api.ConsistencyLevel.ALL,
+                                      null,
+                                      onFailure);
+        }
+
         protected ActionList initialize()
         {
             return ActionList.of(clusterActions.initializeCluster(initializeAll(cluster.size())));
@@ -239,6 +250,16 @@ public class SimulationTestBase
                          Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure) throws IOException
     {
         simulate(init, test, teardown, configure, ignore -> {});
+    }
+
+    @SuppressWarnings("unused")
+    static void simulate(long seed,
+                         Function<SimpleSimulation, ActionList> init,
+                         Function<SimpleSimulation, ActionList> test,
+                         Function<SimpleSimulation, ActionList> teardown,
+                         Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure) throws IOException
+    {
+        simulate(seed, init, test, teardown, configure, ignore -> {});
     }
 
     static void simulate(Function<SimpleSimulation, ActionList> init,

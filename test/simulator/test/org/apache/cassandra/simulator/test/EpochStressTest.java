@@ -37,6 +37,7 @@ import accord.api.ConfigurationService;
 import accord.local.Node;
 import accord.primitives.Ranges;
 import accord.topology.TopologyManager;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -49,6 +50,7 @@ import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.Clock;
 
 import static org.apache.cassandra.simulator.cluster.ClusterActions.InitialConfiguration.initializeAll;
@@ -124,10 +126,21 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
  */
 public class EpochStressTest extends SimulationTestBase
 {
+    private static boolean allowedExceptions(Throwable t)
+    {
+        if (AssertionUtils.isInstanceof(InvalidRequestException.class).matches(t))
+        {
+            String msg = t.getMessage();
+            return !msg.contains("policy Retry{remainingMs=0")                                      // this used the "request_timeout" config
+                   && !(msg.contains("policy Retry{") && msg.endsWith(", attempts=12} gave up") );  // this used the cms_retry_delay config
+        }
+        return true;
+    }
+
     @Test
     public void manyEpochsAndAccordConverges() throws IOException
     {
-        simulate(0x1986650bbb7L, simulation -> {
+        simulate(simulation -> {
                      // setup
                      ClusterActions.Options options = noActions(simulation.cluster.size());
                      ClusterActions clusterActions = new ClusterActions(simulation.simulated, simulation.cluster,
@@ -144,7 +157,7 @@ public class EpochStressTest extends SimulationTestBase
                      for (int i = 0; i < numEpochs; i++)
                      {
                          int node = random.uniform(1, simulation.cluster.size() + 1);
-                         actions.add(simulation.schemaChange(node, "ALTER TABLE ks.tbl WITH comment = 'step=" + i + '\''));
+                         actions.add(simulation.schemaChange(node, "ALTER TABLE ks.tbl WITH comment = 'step=" + i + '\'', EpochStressTest::allowedExceptions));
                      }
                      return ActionList.of(actions);
                  },
@@ -157,11 +170,11 @@ public class EpochStressTest extends SimulationTestBase
                  },
                  config -> config.nodes(3, 3)
                                  .dcs(1, 1)
-                                 .threadCount(100),
-                 config -> config.set("cms_await_timeout", "3600s")
-                           .set("cms_retry_delay", "3600s")
-                           .set("cms_default_max_retries", Integer.toString(Integer.MAX_VALUE))
-                           .set("request_timeout", "60m")
+                                 .threadCount(100)
+//                 config -> config.set("cms_await_timeout", "3600s")
+//                           .set("cms_retry_delay", "3600s")
+//                           .set("cms_default_max_retries", Integer.toString(Integer.MAX_VALUE))
+//                           .set("request_timeout", "60m")
         );
     }
 
