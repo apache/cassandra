@@ -365,15 +365,7 @@ public class Commit
             checkCMSState();
             logger.info("Received commit request {} from {}", message.payload, message.from());
             Retry retryPolicy = Retry.until(message.expiresAtNanos(), TCMMetrics.instance.commitRetries);
-            Result result;
-            try
-            {
-                result = processor.commit(message.payload.entryId, message.payload.transform, message.payload.lastKnown, retryPolicy);
-            }
-            catch (Throwable t)
-            {
-                throw t;
-            }
+            Result result = processor.commit(message.payload.entryId, message.payload.transform, message.payload.lastKnown, retryPolicy);
             if (result.isSuccess())
             {
                 Result.Success success = result.success();
