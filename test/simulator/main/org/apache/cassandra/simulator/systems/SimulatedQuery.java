@@ -35,7 +35,7 @@ public class SimulatedQuery extends SimulatedActionCallable<SimpleQueryResult>
 
     public SimulatedQuery(Object description, SimulatedSystems simulated, IInvokableInstance instance, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, Object... params)
     {
-        this(description, Modifiers.NONE, Modifiers.NONE, simulated, instance, query, commitConsistency, serialConsistency, DEFAULT_PREDICATE, params);
+        this(description, Modifiers.NONE, Modifiers.NONE, simulated, instance, query, commitConsistency, serialConsistency, null, params);
     }
 
     public SimulatedQuery(Object description, SimulatedSystems simulated, IInvokableInstance instance, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, @Nullable Predicate<Throwable> onFailure, Object... params)
@@ -51,7 +51,7 @@ public class SimulatedQuery extends SimulatedActionCallable<SimpleQueryResult>
 
     public SimulatedQuery(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, IInvokableInstance instance, String query, long timestamp, ConsistencyLevel consistency, Object... params)
     {
-        this(description, self, transitive, simulated, instance, query, timestamp, consistency, null, DEFAULT_PREDICATE, params);
+        this(description, self, transitive, simulated, instance, query, timestamp, consistency, null, null, params);
     }
 
     private SimulatedQuery(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, IInvokableInstance instance, String query, long timestamp, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, @Nullable Predicate<Throwable> onFailure, Object[] params)
