@@ -33,11 +33,18 @@ public class Failures implements Consumer<Throwable>, BufferPool.DebugLeaks, Ref
 {
     private final List<Throwable> failures = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean hasFailure;
+    private volatile boolean ignoreFailures = false;
 
     public void onFailure(Throwable t)
     {
+        if (ignoreFailures) return;
         failures.add(t);
         hasFailure = true;
+    }
+
+    public void ignoreFailures()
+    {
+        ignoreFailures = true;
     }
 
     public boolean hasFailure()

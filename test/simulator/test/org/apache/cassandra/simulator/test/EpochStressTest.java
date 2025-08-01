@@ -28,7 +28,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.slf4j.Logger;
@@ -56,7 +55,7 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.InitialConfi
 import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noActions;
 
 /**
- * In order to run these tests in your IDE, you need to first build a simulator jara
+ * In order to run these tests in your IDE, you need to first build a simulator jar
  *
  *    ant simulator-jars
  *
@@ -122,15 +121,13 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
  --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
  --add-opens jdk.management.jfr/jdk.management.jfr=ALL-UNNAMED
  --add-opens java.desktop/com.sun.beans.introspect=ALL-UNNAMED
-
  */
-@Ignore("Something is currently wrong with SimulationTestBase and multi node tests. CASSANDRA-20744 exposed that simulator was swallowing errors which then causes this test to fail 100% of the time; until the root cause is fixed it doesn't make sense to run this test.")
 public class EpochStressTest extends SimulationTestBase
 {
     @Test
     public void manyEpochsAndAccordConverges() throws IOException
     {
-        simulate(simulation -> {
+        simulate(0x1986650bbb7L, simulation -> {
                      // setup
                      ClusterActions.Options options = noActions(simulation.cluster.size());
                      ClusterActions clusterActions = new ClusterActions(simulation.simulated, simulation.cluster,
@@ -147,7 +144,7 @@ public class EpochStressTest extends SimulationTestBase
                      for (int i = 0; i < numEpochs; i++)
                      {
                          int node = random.uniform(1, simulation.cluster.size() + 1);
-                         actions.add(simulation.schemaChange(node, "ALTER TABLE ks.tbl WITH comment = 'step=" + i + "'"));
+                         actions.add(simulation.schemaChange(node, "ALTER TABLE ks.tbl WITH comment = 'step=" + i + '\''));
                      }
                      return ActionList.of(actions);
                  },
@@ -160,7 +157,12 @@ public class EpochStressTest extends SimulationTestBase
                  },
                  config -> config.nodes(3, 3)
                                  .dcs(1, 1)
-                                 .threadCount(100));
+                                 .threadCount(100),
+                 config -> config.set("cms_await_timeout", "3600s")
+                           .set("cms_retry_delay", "3600s")
+                           .set("cms_default_max_retries", Integer.toString(Integer.MAX_VALUE))
+                           .set("request_timeout", "60m")
+        );
     }
 
     private static void validate()

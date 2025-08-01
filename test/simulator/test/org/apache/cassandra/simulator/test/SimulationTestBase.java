@@ -117,11 +117,6 @@ public class SimulationTestBase
             super(simulated, scheduler, cluster, options);
         }
 
-        protected SimpleSimulation(SimulatedSystems simulated, RunnableActionScheduler scheduler, Cluster cluster, ClusterActions clusterActions)
-        {
-            super(simulated, scheduler, cluster, clusterActions);
-        }
-
         public Action executeQuery(int node, String query, ConsistencyLevel cl, Object... bindings)
         {
             return new SimulatedQuery(String.format("Execute query: %s %s %s", query, cl, Arrays.toString(bindings)),
@@ -198,14 +193,17 @@ public class SimulationTestBase
         protected final Function<SimpleSimulation, ActionList> init;
         protected final Function<SimpleSimulation, ActionList> test;
         protected final Function<SimpleSimulation, ActionList> teardown;
+        protected final Consumer<IInstanceConfig> configUpdater;
 
         DTestClusterSimulationBuilder(Function<SimpleSimulation, ActionList> init,
                                       Function<SimpleSimulation, ActionList> test,
-                                      Function<SimpleSimulation, ActionList> teardown)
+                                      Function<SimpleSimulation, ActionList> teardown,
+                                      Consumer<IInstanceConfig> configUpdater)
         {
             this.init = init;
             this.test = test;
             this.teardown = teardown;
+            this.configUpdater = configUpdater;
         }
 
         public ClusterSimulation<SimpleSimulation> create(long seed) throws IOException
@@ -214,7 +212,7 @@ public class SimulationTestBase
             random.reset(seed);
 
             return new ClusterSimulation<>(random, seed, 1, this,
-                                           (c) -> {},
+                                           configUpdater,
                                            (simulated, scheduler, cluster, options) -> new SimpleSimulation(simulated, scheduler, cluster)
                                            {
                                                protected ActionList initialize()
@@ -235,13 +233,34 @@ public class SimulationTestBase
         }
     }
 
-    public static void simulate(Function<SimpleSimulation, ActionList> init,
-                                Function<SimpleSimulation, ActionList> test,
-                                Function<SimpleSimulation, ActionList> teardown,
-                                Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure) throws IOException
+    static void simulate(Function<SimpleSimulation, ActionList> init,
+                         Function<SimpleSimulation, ActionList> test,
+                         Function<SimpleSimulation, ActionList> teardown,
+                         Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure) throws IOException
     {
-        simulate(new DTestClusterSimulationBuilder(init, test, teardown),
+        simulate(init, test, teardown, configure, ignore -> {});
+    }
+
+    static void simulate(Function<SimpleSimulation, ActionList> init,
+                         Function<SimpleSimulation, ActionList> test,
+                         Function<SimpleSimulation, ActionList> teardown,
+                         Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure,
+                         Consumer<IInstanceConfig> configUpdater) throws IOException
+    {
+        simulate(new DTestClusterSimulationBuilder(init, test, teardown, configUpdater),
                  configure);
+    }
+
+    @SuppressWarnings("unused")
+    static void simulate(long seed,
+                         Function<SimpleSimulation, ActionList> init,
+                         Function<SimpleSimulation, ActionList> test,
+                         Function<SimpleSimulation, ActionList> teardown,
+                         Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure,
+                         Consumer<IInstanceConfig> configUpdater) throws IOException
+    {
+        simulate(() -> seed, new DTestClusterSimulationBuilder(init, test, teardown, configUpdater),
+                configure);
     }
 
     public static <T extends Simulation> void simulate(ClusterSimulation.Builder<T> factory,
@@ -272,10 +291,10 @@ public class SimulationTestBase
 
     public static <T extends Simulation> void simulate(long seed, ClusterSimulation.SimulationFactory<T> factory, Consumer<ClusterSimulation.Builder<T>> configure) throws IOException
     {
-        BasicSimulationBuilder builder = new BasicSimulationBuilder()
+        BasicSimulationBuilder<T> builder = new BasicSimulationBuilder<>()
         {
             @Override
-            Simulation create(SimulatedSystems simulated, RunnableActionScheduler scheduler, Cluster cluster, ClusterActions.Options options)
+            T create(SimulatedSystems simulated, RunnableActionScheduler scheduler, Cluster cluster, ClusterActions.Options options)
             {
                 return factory.create(simulated, scheduler, cluster, options);
             }
@@ -439,6 +458,7 @@ public class SimulationTestBase
                                 factory.startParked("begin", runnable));
     }
 
+    @SafeVarargs
     public static <T> T[] arr(T... arr)
     {
         return arr;
