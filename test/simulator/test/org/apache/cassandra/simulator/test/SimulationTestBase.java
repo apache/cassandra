@@ -29,6 +29,8 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Iterators;
 import org.junit.BeforeClass;
 
@@ -131,15 +133,10 @@ public class SimulationTestBase
 
         public Action schemaChange(int node, String query)
         {
-            return new SimulatedQuery(String.format("Schema change: %s", query),
-                                      simulated,
-                                      cluster.get(node),
-                                      query,
-                                      org.apache.cassandra.distributed.api.ConsistencyLevel.ALL,
-                                      null);
+            return schemaChange(node, query, null);
         }
 
-        public Action schemaChange(int node, String query, Predicate<Throwable> onFailure)
+        public Action schemaChange(int node, String query, @Nullable Predicate<Throwable> onFailure)
         {
             return new SimulatedQuery(String.format("Schema change: %s", query),
                                       simulated,

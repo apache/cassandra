@@ -20,6 +20,8 @@ package org.apache.cassandra.simulator.systems;
 
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
@@ -36,15 +38,15 @@ public class SimulatedQuery extends SimulatedActionCallable<SimpleQueryResult>
         this(description, Modifiers.NONE, Modifiers.NONE, simulated, instance, query, commitConsistency, serialConsistency, DEFAULT_PREDICATE, params);
     }
 
-    public SimulatedQuery(Object description, SimulatedSystems simulated, IInvokableInstance instance, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, Predicate<Throwable> onFailure, Object... params)
+    public SimulatedQuery(Object description, SimulatedSystems simulated, IInvokableInstance instance, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, @Nullable Predicate<Throwable> onFailure, Object... params)
     {
         this(description, Modifiers.NONE, Modifiers.NONE, simulated, instance, query, commitConsistency, serialConsistency, onFailure, params);
     }
 
-    private SimulatedQuery(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, IInvokableInstance instance, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, Predicate<Throwable> onFailure, Object[] params)
+    private SimulatedQuery(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, IInvokableInstance instance, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, @Nullable Predicate<Throwable> onFailure, Object[] params)
     {
         super(description, self, transitive, simulated, instance, new Query(query, -1, commitConsistency, serialConsistency, params));
-        this.onFailure = onFailure;
+        this.onFailure = onFailure == null ? DEFAULT_PREDICATE : onFailure;
     }
 
     public SimulatedQuery(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, IInvokableInstance instance, String query, long timestamp, ConsistencyLevel consistency, Object... params)
@@ -52,10 +54,10 @@ public class SimulatedQuery extends SimulatedActionCallable<SimpleQueryResult>
         this(description, self, transitive, simulated, instance, query, timestamp, consistency, null, DEFAULT_PREDICATE, params);
     }
 
-    private SimulatedQuery(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, IInvokableInstance instance, String query, long timestamp, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, Predicate<Throwable> onFailure, Object[] params)
+    private SimulatedQuery(Object description, Modifiers self, Modifiers transitive, SimulatedSystems simulated, IInvokableInstance instance, String query, long timestamp, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, @Nullable Predicate<Throwable> onFailure, Object[] params)
     {
         super(description, self, transitive, simulated, instance, new Query(query, timestamp, commitConsistency, serialConsistency, params));
-        this.onFailure = onFailure;
+        this.onFailure = onFailure == null ? DEFAULT_PREDICATE : onFailure;
     }
 
     @Override
