@@ -88,6 +88,19 @@ public class EstimatedHistogram implements DoubleToLongFunction
         buckets = new AtomicLongArray(bucketData);
     }
 
+    public static long[] newOffsetsWithScale(long maxScale, boolean considerZeroes)
+    {
+        int i = 2;
+        long next = 1;
+        while (true)
+        {
+            next = Math.max(next + 1, Math.round(next * 1.2));
+            if (next >= maxScale)
+                return newOffsets(i, considerZeroes);
+            ++i;
+        }
+    }
+
     public static long[] newOffsets(int size, boolean considerZeroes)
     {
         long[] result = new long[size + (considerZeroes ? 1 : 0)];
@@ -256,6 +269,8 @@ public class EstimatedHistogram implements DoubleToLongFunction
             sum += bCount * bucketOffsets[i];
         }
 
+        if (elements == 0)
+            return 0.0D;
         return (double) sum / elements;
     }
 

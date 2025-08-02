@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
 import accord.api.Agent;
-import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.utils.concurrent.LockWithAsyncSignal;
 
 // WARNING: experimental - needs more testing
@@ -31,14 +30,14 @@ class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     private final AccordExecutorLoops loops;
     private final LockWithAsyncSignal lock;
 
-    public AccordExecutorAsyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
+    public AccordExecutorAsyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
-        this(new LockWithAsyncSignal(), executorId, mode, threads, name, metrics, agent);
+        this(new LockWithAsyncSignal(), executorId, mode, threads, name, agent);
     }
 
-    private AccordExecutorAsyncSubmit(LockWithAsyncSignal lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
+    private AccordExecutorAsyncSubmit(LockWithAsyncSignal lock, int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
-        super(lock, executorId, metrics, agent);
+        super(lock, executorId, agent);
         this.lock = lock;
         this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
     }

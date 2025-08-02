@@ -58,6 +58,12 @@ public class RequiredResponseTracker extends SimpleTracker<RequiredResponseTrack
         {
             return !outstandingResponses.isEmpty() ? Fail : NoChange;
         }
+
+        @Override
+        public String summarise()
+        {
+            return (shard.rf - outstandingResponses.size()) + "/" + shard.rf;
+        }
     }
 
     public RequiredResponseTracker(Set<Node.Id> requiredResponses, Topologies topologies)

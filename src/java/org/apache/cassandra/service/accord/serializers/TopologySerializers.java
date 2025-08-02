@@ -27,7 +27,7 @@ import accord.local.Node;
 import accord.primitives.Range;
 import accord.topology.Shard;
 import accord.topology.Topology;
-import accord.utils.SimpleBitSet;
+import accord.utils.LargeBitSet;
 import accord.utils.SortedArrays;
 import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.TinyEnumSet;
@@ -41,7 +41,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
-import org.apache.cassandra.utils.SimpleBitSetSerializer;
+import org.apache.cassandra.utils.LargeBitSetSerializer;
 
 import static accord.utils.SortedArrays.fromSimpleBitSet;
 
@@ -220,10 +220,10 @@ public class TopologySerializers
                 out.writeUnsignedVInt32(rangeIdx);
 
                 CollectionSerializers.serializeList(shard.nodes, out, TopologySerializers.nodeId);
-                SimpleBitSet notInFastPath = SortedArrays.toSimpleBitSet(shard.nodes, shard.notInFastPath);
-                SimpleBitSetSerializer.instance.serialize(notInFastPath, out);
-                SimpleBitSet joining = SortedArrays.toSimpleBitSet(shard.nodes, shard.joining);
-                SimpleBitSetSerializer.instance.serialize(joining, out);
+                LargeBitSet notInFastPath = SortedArrays.toLargeBitSet(shard.nodes, shard.notInFastPath);
+                LargeBitSetSerializer.instance.serialize(notInFastPath, out);
+                LargeBitSet joining = SortedArrays.toLargeBitSet(shard.nodes, shard.joining);
+                LargeBitSetSerializer.instance.serialize(joining, out);
                 out.writeUnsignedVInt32(shard.flags().bitset());
             }
         }
@@ -271,10 +271,10 @@ public class TopologySerializers
                 size += TypeSizes.sizeofUnsignedVInt(rangeIdx);
 
                 size += CollectionSerializers.serializedListSize(shard.nodes, TopologySerializers.nodeId);
-                SimpleBitSet notInFastPath = SortedArrays.toSimpleBitSet(shard.nodes, shard.notInFastPath);
-                size += SimpleBitSetSerializer.instance.serializedSize(notInFastPath);
-                SimpleBitSet joining = SortedArrays.toSimpleBitSet(shard.nodes, shard.joining);
-                size += SimpleBitSetSerializer.instance.serializedSize(joining);
+                LargeBitSet notInFastPath = SortedArrays.toLargeBitSet(shard.nodes, shard.notInFastPath);
+                size += LargeBitSetSerializer.instance.serializedSize(notInFastPath);
+                LargeBitSet joining = SortedArrays.toLargeBitSet(shard.nodes, shard.joining);
+                size += LargeBitSetSerializer.instance.serializedSize(joining);
                 size += TypeSizes.sizeofUnsignedVInt(shard.flags().bitset());
             }
             return size;
@@ -301,8 +301,8 @@ public class TopologySerializers
                 TokenRange range = ranges.get(rangeIndex).withTable(activeTableId);
 
                 SortedArrays.SortedArrayList<Node.Id> nodes = CollectionSerializers.deserializeSortedArrayList(in, TopologySerializers.nodeId, Node.Id[]::new);
-                SimpleBitSet notInFastPath = SimpleBitSetSerializer.instance.deserialize(in);
-                SimpleBitSet joining = SimpleBitSetSerializer.instance.deserialize(in);
+                LargeBitSet notInFastPath = LargeBitSetSerializer.instance.deserialize(in);
+                LargeBitSet joining = LargeBitSetSerializer.instance.deserialize(in);
                 int flags = in.readUnsignedVInt32();
                 shards[i] = Shard.SerializerSupport.create(range, nodes, fromSimpleBitSet(nodes, notInFastPath, Node.Id[]::new), fromSimpleBitSet(nodes, joining, Node.Id[]::new), new TinyEnumSet<>(flags));
             }

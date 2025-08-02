@@ -72,12 +72,12 @@ public class DepsSerializers
         static final int KEYS_BY_TXNID = 0x1;
         static final int RANGES_BY_TXNID = 0x2;
         static final int FLAGS_SIZE = VIntCoding.sizeOfUnsignedVInt(KEYS_BY_TXNID | RANGES_BY_TXNID);
-        final boolean forceByTxnId;
+        final boolean byTxnId;
 
         protected final UnversionedSerializer<Range> tokenRange;
-        public AbstractDepsSerializer(boolean forceByTxnId, UnversionedSerializer<Range> tokenRange)
+        public AbstractDepsSerializer(boolean byTxnId, UnversionedSerializer<Range> tokenRange)
         {
-            this.forceByTxnId = forceByTxnId;
+            this.byTxnId = byTxnId;
             this.tokenRange = tokenRange;
         }
 
@@ -86,8 +86,8 @@ public class DepsSerializers
         @Override
         public void serialize(D deps, DataOutputPlus out) throws IOException
         {
-            boolean keysByTxnId = forceByTxnId || deps.keyDeps.hasByTxnId();
-            boolean rangesByTxnId = forceByTxnId || deps.rangeDeps.hasByTxnId();
+            boolean keysByTxnId = byTxnId;
+            boolean rangesByTxnId = byTxnId;
             out.writeUnsignedVInt32((keysByTxnId ? KEYS_BY_TXNID : 0) | (rangesByTxnId ? RANGES_BY_TXNID : 0));
             {
                 KeyDeps keyDeps = deps.keyDeps;
@@ -109,7 +109,7 @@ public class DepsSerializers
         {
             out.writeUnsignedVInt32(xtoy.length);
 
-            if ((xCount <= 1 || yCount <= 1) && (xtoy.length == xCount + yCount || xCount == 0 || yCount == 0))
+            if ((xCount <= 1 || yCount <= 1) && (xtoy.length == (xCount == 1 ? 1 + yCount : 2 * xCount) || xCount == 0 || yCount == 0))
             {
                 // no point serializing as can be directly inferred
                 if (Invariants.isParanoid())
@@ -172,7 +172,7 @@ public class DepsSerializers
             int length = in.readUnsignedVInt32();
             int[] xtoy = new int[length];
 
-            if ((xCount <= 1 || yCount <= 1) && (xtoy.length == xCount + yCount || xCount == 0 || yCount == 0))
+            if ((xCount <= 1 || yCount <= 1) && (xtoy.length == (xCount == 1 ? 1 + yCount : 2 * xCount) || xCount == 0 || yCount == 0))
             {
                 // no point serializing as can be directly inferred
                 if (xCount == 1)
@@ -207,8 +207,8 @@ public class DepsSerializers
         @Override
         public long serializedSize(D deps)
         {
-            boolean keysByTxnId = forceByTxnId || deps.keyDeps.hasByTxnId();
-            boolean rangesByTxnId = forceByTxnId || deps.rangeDeps.hasByTxnId();
+            boolean keysByTxnId = byTxnId;
+            boolean rangesByTxnId = byTxnId;
             long size = FLAGS_SIZE;
             {
                 KeyDeps keyDeps = deps.keyDeps;
@@ -230,7 +230,7 @@ public class DepsSerializers
         private static long serializedPackedXtoYSize(int[] xtoy, int xCount, int yCount)
         {
             long size = VIntCoding.sizeOfUnsignedVInt(xtoy.length);
-            if ((xCount <= 1 || yCount <= 1) && (xtoy.length == xCount + yCount || xCount == 0 || yCount == 0))
+            if ((xCount <= 1 || yCount <= 1) && (xtoy.length == (xCount == 1 ? 1 + yCount : 2 * xCount) || xCount == 0 || yCount == 0))
             {
                 // no point serializing as can be directly inferred
             }
@@ -274,9 +274,9 @@ public class DepsSerializers
 
     static class DepsSerializer extends AbstractDepsSerializer<Deps>
     {
-        public DepsSerializer(boolean preferByTxnId, UnversionedSerializer<Range> tokenRange)
+        public DepsSerializer(boolean byTxnId, UnversionedSerializer<Range> tokenRange)
         {
-            super(preferByTxnId, tokenRange);
+            super(byTxnId, tokenRange);
         }
 
         @Override
@@ -292,7 +292,7 @@ public class DepsSerializers
         final UnversionedSerializer<Range> tokenRange;
         final DepsSerializer deps;
         final UnversionedSerializer<Deps> nullableDeps;
-        final PartialDepsSerializer partialDeps;
+        final PartialDepsSerializer partialDeps; // currently happens to be byId but doesn't rely upon it
         final PartialDepsSerializer partialDepsById;
         final UnversionedSerializer<PartialDeps> nullablePartialDeps;
 
@@ -301,10 +301,9 @@ public class DepsSerializers
             this.tokenRange = tokenRange;
             this.deps = new DepsSerializer(false, tokenRange);
             this.nullableDeps = NullableSerializer.wrap(deps);
-            this.partialDeps = new PartialDepsSerializer(false, tokenRange);
-            this.partialDepsById = new PartialDepsSerializer(true, tokenRange);
+            this.partialDeps = new PartialDepsSerializer(true, tokenRange);
+            this.partialDepsById = partialDeps;
             this.nullablePartialDeps = NullableSerializer.wrap(partialDeps);
         }
     }
-
 }

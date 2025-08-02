@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.api.ProgressLog.BlockedUntil;
 import accord.messages.Await;
 import accord.messages.Await.AsyncAwaitComplete;
 import accord.messages.Await.AwaitOk;
@@ -42,19 +41,19 @@ public class AwaitSerializers
     public static final UnversionedSerializer<Await> request = new RequestSerializer<>()
     {
         @Override
-        public Await deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in)
+        public Await deserialize(TxnId txnId, Participants<?> scope, Await.Until awaitUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in)
         {
-            return Await.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId);
+            return Await.SerializerSupport.create(txnId, scope, awaitUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId);
         }
     };
 
     public static final UnversionedSerializer<RecoverAwait> recoverRequest = new RequestSerializer<>()
     {
         @Override
-        public RecoverAwait deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in) throws IOException
+        public RecoverAwait deserialize(TxnId txnId, Participants<?> scope, Await.Until awaitUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in) throws IOException
         {
             TxnId recoverId = CommandSerializers.txnId.deserialize(in);
-            return RecoverAwait.SerializerSupport.create(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, recoverId);
+            return RecoverAwait.SerializerSupport.create(txnId, scope, awaitUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, recoverId);
         }
 
         @Override
@@ -73,14 +72,14 @@ public class AwaitSerializers
 
     static abstract class RequestSerializer<A extends Await> implements UnversionedSerializer<A>
     {
-        abstract A deserialize(TxnId txnId, Participants<?> scope, BlockedUntil blockedUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in) throws IOException;
+        abstract A deserialize(TxnId txnId, Participants<?> scope, Await.Until awaitUntil, boolean notifyProgressLog, long minAwaitEpoch, long maxAwaitEpoch, int callbackId, DataInputPlus in) throws IOException;
 
         @Override
         public void serialize(A await, DataOutputPlus out) throws IOException
         {
             CommandSerializers.txnId.serialize(await.txnId, out);
             KeySerializers.participants.serialize(await.scope, out);
-            out.writeByte((await.blockedUntil.ordinal() << 1) | (await.notifyProgressLog ? 1 : 0));
+            out.writeByte((await.until.ordinal() << 1) | (await.notifyProgressLog ? 1 : 0));
             out.writeUnsignedVInt(await.maxAwaitEpoch - await.txnId.epoch());
             out.writeUnsignedVInt(await.maxAwaitEpoch - await.minAwaitEpoch);
             out.writeUnsignedVInt32(await.callbackId + 1);
@@ -93,13 +92,13 @@ public class AwaitSerializers
             TxnId txnId = CommandSerializers.txnId.deserialize(in);
             Participants<?> scope = KeySerializers.participants.deserialize(in);
             int blockedAndNotify = in.readByte();
-            BlockedUntil blockedUntil = BlockedUntil.forOrdinal(blockedAndNotify >>> 1);
+            Await.Until awaitUntil = Await.Until.forOrdinal(blockedAndNotify >>> 1);
             boolean notifyProgressLog = (blockedAndNotify & 1) == 1;
             long maxAwaitEpoch = in.readUnsignedVInt() + txnId.epoch();
             long minAwaitEpoch = maxAwaitEpoch - in.readUnsignedVInt();
             int callbackId = in.readUnsignedVInt32() - 1;
             Invariants.require(callbackId >= -1);
-            return deserialize(txnId, scope, blockedUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, in);
+            return deserialize(txnId, scope, awaitUntil, notifyProgressLog, minAwaitEpoch, maxAwaitEpoch, callbackId, in);
         }
 
         @Override

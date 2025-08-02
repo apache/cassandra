@@ -190,7 +190,7 @@ public class AccordCommandStore extends CommandStore
             this.caches = new ExclusiveCaches(sharedExecutor.lock, exclusive.global, commands, commandsForKey);
         }
 
-        this.exclusiveExecutor = sharedExecutor.executor();
+        this.exclusiveExecutor = sharedExecutor.executor(id);
         this.commandsForRanges = new CommandsForRanges.Manager(this);
 
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));

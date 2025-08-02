@@ -23,12 +23,10 @@ import java.util.concurrent.atomic.LongAdder;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.codahale.metrics.Histogram;
-
 /**
  * Adds ability to reset a histogram
  */
-public class ClearableHistogram extends Histogram
+public class ClearableHistogram extends CassandraHistogram
 {
     private final DecayingEstimatedHistogramReservoir reservoirRef;
 
@@ -58,7 +56,7 @@ public class ClearableHistogram extends Histogram
         // clearly if we start using an incompatible version of the metrics.
         try
         {
-            Field countField = Histogram.class.getDeclaredField("count");
+            Field countField = com.codahale.metrics.Histogram.class.getDeclaredField("count");
             countField.setAccessible(true);
             // in 3.1 the counter object is a LongAdderAdapter which is a package private interface
             // from com.codahale.metrics. In 4.0, it is a java LongAdder so the code will be simpler.

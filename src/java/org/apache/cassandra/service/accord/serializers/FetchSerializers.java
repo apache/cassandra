@@ -26,6 +26,7 @@ import accord.impl.AbstractFetchCoordinator.FetchResponse;
 import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadReply;
 import accord.primitives.Ranges;
+import accord.utils.VIntCoding;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -76,7 +77,6 @@ public class FetchSerializers
 
     public static final UnversionedSerializer<ReadReply> reply = new UnversionedSerializer<>()
     {
-        final CommitOrReadNack[] nacks = CommitOrReadNack.values();
         final UnversionedSerializer<Data> streamDataSerializer = CastingSerializer.create(StreamData.class, StreamData.serializer);
 
         @Override
@@ -84,7 +84,10 @@ public class FetchSerializers
         {
             if (!reply.isOk())
             {
-                out.writeByte(1 + ((CommitOrReadNack) reply).ordinal());
+                CommitOrReadNack nack = (CommitOrReadNack) reply;
+                out.writeByte(1 + nack.kind.ordinal());
+                if (nack.kind == CommitOrReadNack.Kind.InsufficientEpochs)
+                    out.writeUnsignedVInt(nack.minEpoch());
                 return;
             }
 
@@ -100,7 +103,13 @@ public class FetchSerializers
         {
             int id = in.readByte();
             if (id != 0)
-                return nacks[id - 1];
+            {
+                CommitOrReadNack.Kind kind = CommitOrReadNack.Kind.lookupByOrdinal(id - 1);
+                CommitOrReadNack nack = CommitOrReadNack.lookupByKind(kind);
+                if (nack != null)
+                    return nack;
+                return new CommitOrReadNack(kind, in.readUnsignedVInt());
+            }
 
             return new FetchResponse(deserializeNullable(in, KeySerializers.ranges),
                                      deserializeNullable(in, streamDataSerializer),
@@ -111,7 +120,13 @@ public class FetchSerializers
         public long serializedSize(ReadReply reply)
         {
             if (!reply.isOk())
-                return TypeSizes.BYTE_SIZE;
+            {
+                long size = 1;
+                CommitOrReadNack nack = (CommitOrReadNack) reply;
+                if (nack.kind == CommitOrReadNack.Kind.InsufficientEpochs)
+                    size += VIntCoding.sizeOfUnsignedVInt(nack.minEpoch());
+                return size;
+            }
 
             FetchResponse response = (FetchResponse) reply;
             return TypeSizes.BYTE_SIZE

@@ -23,6 +23,7 @@ import java.io.IOException;
 import accord.api.Result;
 import accord.coordinate.ExecuteFlag.ExecuteFlags;
 import accord.messages.Apply;
+import accord.messages.Apply.ApplyReply;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
@@ -31,47 +32,27 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
-import accord.utils.Invariants;
 import accord.utils.VIntCoding;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 
 import static accord.primitives.Txn.Kind.Write;
 
-
 public class ApplySerializers
 {
-    private static final UnversionedSerializer<Apply.Kind> kind = new UnversionedSerializer<>()
-    {
-        public void serialize(Apply.Kind kind, DataOutputPlus out) throws IOException
-        {
-            Invariants.requireArgument(kind == Apply.Kind.Maximal || kind == Apply.Kind.Minimal);
-            out.writeBoolean(kind == Apply.Kind.Maximal);
-        }
-
-        public Apply.Kind deserialize(DataInputPlus in) throws IOException
-        {
-            return in.readBoolean() ? Apply.Kind.Maximal : Apply.Kind.Minimal;
-        }
-
-        public long serializedSize(Apply.Kind t)
-        {
-            return TypeSizes.BOOL_SIZE;
-        }
-    };
-
     public abstract static class ApplySerializer<A extends Apply> extends TxnRequestSerializer<A>
     {
+        private static final EncodeAsVInt32<Apply.Kind> kinds = EncodeAsVInt32.of(Apply.Kind.class);
+
         @Override
         public void serializeBody(A apply, DataOutputPlus out, Version version) throws IOException
         {
             CommandSerializers.ballot.serialize(apply.ballot, out);
             out.writeVInt(apply.minEpoch - apply.waitForEpoch);
             out.writeUnsignedVInt(apply.maxEpoch - apply.minEpoch);
-            kind.serialize(apply.kind, out);
+            kinds.serialize(apply.kind, out);
             ExecuteAtSerializer.serialize(apply.txnId, apply.executeAt, out);
             DepsSerializers.partialDeps.serialize(apply.deps(), out);
             CommandSerializers.nullablePartialTxn.serialize(apply.txn(), out, version);
@@ -91,7 +72,7 @@ public class ApplySerializers
             long minEpoch = waitForEpoch + in.readVInt();
             long maxEpoch = minEpoch + in.readUnsignedVInt();
             return deserializeApply(txnId, ballot, scope, minEpoch, waitForEpoch, maxEpoch,
-                                    kind.deserialize(in),
+                                    kinds.deserialize(in),
                                     ExecuteAtSerializer.deserialize(txnId, in),
                                     DepsSerializers.partialDeps.deserialize(in),
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
@@ -107,7 +88,7 @@ public class ApplySerializers
             return CommandSerializers.ballot.serializedSize(apply.ballot)
                    + TypeSizes.sizeofVInt(apply.minEpoch - apply.waitForEpoch)
                    + TypeSizes.sizeofUnsignedVInt(apply.maxEpoch - apply.minEpoch)
-                   + kind.serializedSize(apply.kind)
+                   + kinds.serializedSize(apply.kind)
                    + ExecuteAtSerializer.serializedSize(apply.txnId, apply.executeAt)
                    + DepsSerializers.partialDeps.serializedSize(apply.deps())
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn(), version)
@@ -128,26 +109,37 @@ public class ApplySerializers
         }
     };
 
-    public static final UnversionedSerializer<Apply.ApplyReply> reply = new UnversionedSerializer<>()
+    public static final IVersionedSerializer<ApplyReply> reply = new ReplySerializer();
+
+    public static final class ReplySerializer implements IVersionedSerializer<ApplyReply>
     {
-        private final Apply.ApplyReply[] replies = Apply.ApplyReply.values();
-
+        private static final EncodeAsVInt32<ApplyReply.Kind> kinds = EncodeAsVInt32.of(ApplyReply.Kind.class);
         @Override
-        public void serialize(Apply.ApplyReply t, DataOutputPlus out) throws IOException
+        public void serialize(ApplyReply t, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeByte(t.ordinal());
+            kinds.serialize(t.kind, out);
+            if (t.kind == ApplyReply.Kind.InsufficientEpochs)
+                out.writeUnsignedVInt(t.minEpoch());
         }
 
         @Override
-        public Apply.ApplyReply deserialize(DataInputPlus in) throws IOException
+        public ApplyReply deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return replies[in.readByte()];
+            ApplyReply.Kind kind = kinds.deserialize(in);
+            if (kind != ApplyReply.Kind.InsufficientEpochs)
+                return ApplyReply.lookupByKind(kind);
+
+            long minEpoch = in.readUnsignedVInt();
+            return new ApplyReply(kind, minEpoch);
         }
 
         @Override
-        public long serializedSize(Apply.ApplyReply t)
+        public long serializedSize(ApplyReply t, Version version)
         {
-            return 1;
+            long size = kinds.serializedSize(t.kind);
+            if (t.kind == ApplyReply.Kind.InsufficientEpochs)
+                size += VIntCoding.sizeOfUnsignedVInt(t.minEpoch());
+            return size;
         }
-    };
+    }
 }

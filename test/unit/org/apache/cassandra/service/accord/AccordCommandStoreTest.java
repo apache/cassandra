@@ -49,7 +49,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.ImmutableBitSet;
-import accord.utils.SimpleBitSet;
+import accord.utils.LargeBitSet;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -130,7 +130,7 @@ public class AccordCommandStoreTest
         Ballot promised = ballot(1, clock.incrementAndGet(), 1);
         Ballot accepted = ballot(1, clock.incrementAndGet(), 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
-        SimpleBitSet waitingOnApply = new SimpleBitSet(3);
+        LargeBitSet waitingOnApply = new LargeBitSet(3);
         waitingOnApply.set(1);
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
         Pair<Writes, Result> result = AsyncChains.getBlocking(AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt));

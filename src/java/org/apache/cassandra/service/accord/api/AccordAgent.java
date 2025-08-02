@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.CoordinatorEventListener;
-import accord.api.LocalEventListener;
+import accord.api.ReplicaEventListener;
 import accord.api.ProgressLog.BlockedUntil;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
@@ -62,7 +62,8 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
-import org.apache.cassandra.metrics.AccordMetrics;
+import org.apache.cassandra.metrics.AccordCoordinatorMetrics;
+import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTracing;
@@ -71,11 +72,13 @@ import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static accord.primitives.Routable.Domain.Key;
 import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag;
@@ -94,6 +97,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 public class AccordAgent implements Agent
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, MINUTES);
 
     private static BiConsumer<TxnId, Throwable> onFailedBarrier;
     public static void setOnFailedBarrier(BiConsumer<TxnId, Throwable> newOnFailedBarrier) { onFailedBarrier = newOnFailedBarrier; }
@@ -224,17 +228,20 @@ public class AccordAgent implements Agent
     @Override
     public CoordinatorEventListener coordinatorEvents()
     {
-        return AccordMetrics.Listener.instance;
+        return AccordCoordinatorMetrics.Listener.instance;
     }
 
     @Override
-    public LocalEventListener localEvents()
+    public ReplicaEventListener replicaEvents()
     {
-        return AccordMetrics.Listener.instance;
+        return AccordReplicaMetrics.Listener.instance;
     }
 
+    private static final long ONE_SECOND = SECONDS.toMicros(1L);
+    private static final long ONE_MINUTE = MINUTES.toMicros(1L);
+
     @Override
-    public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount)
+    public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int attempt)
     {
         SafeCommand safeCommand = safeStore.unsafeGetNoCleanup(txnId);
         Invariants.nonNull(safeCommand);
@@ -242,27 +249,46 @@ public class AccordAgent implements Agent
         Command command = safeCommand.current();
         Invariants.nonNull(command);
 
+        // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
+        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+        long mostRecentStart = mostRecentStart(command, nowMicros);
+        long waitMicros = recover(txnId).computeWait(attempt, MICROSECONDS);
+        long startTime = mostRecentStart + waitMicros;
+        if (startTime < nowMicros)
+        {
+            // TODO (expected): support no waiting here
+            if (attempt == 1)
+                return 1;
+
+            startTime = nowMicros + waitMicros/2;
+        }
+
         RoutingKey homeKey = command.route().homeKey();
         Shard shard = node.topology().forEpochIfKnown(homeKey, command.txnId().epoch());
 
-        // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
-        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-        long oneSecond = SECONDS.toMicros(1L);
-        long promisedHlc = command.promised().hlc();
-        if (promisedHlc > nowMicros + TimeUnit.MINUTES.toMicros(1))
-            promisedHlc = 0;
-        long mostRecentStart = Math.max(command.txnId().hlc(), promisedHlc);
-        long waitMicros = recover(txnId).computeWait(retryCount, MICROSECONDS);
-        if (mostRecentStart > nowMicros + SECONDS.toMicros(1L))
-            logger.warn("max({},{})>{}", command.txnId(), command.promised(), nowMicros);
-        long startTime = mostRecentStart + waitMicros;
-        if (startTime < nowMicros)
-            startTime = nowMicros + waitMicros/2;
-
-        startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), oneSecond, random);
+        startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), ONE_SECOND, random);
         long delayMicros = Math.max(1, startTime - nowMicros);
         Invariants.require(delayMicros < TimeUnit.HOURS.toMicros(1L), "unexpectedly long coordination recovery delay proposed: %d (start %d, now %d)", delayMicros, startTime, nowMicros, command.txnId(), command.promised());
         return units.convert(delayMicros, MICROSECONDS);
+    }
+
+    private static long mostRecentStart(Command command, long nowMicros)
+    {
+        // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
+        long promisedHlc = command.promised().hlc();
+        if (promisedHlc > nowMicros + ONE_MINUTE)
+            promisedHlc = 0;
+        long result = Math.max(command.txnId().hlc(), promisedHlc);
+        if (result > nowMicros + ONE_SECOND)
+            noSpamLogger.warn("max({},{})>{}", command.txnId(), command.promised(), nowMicros);
+        return result;
+    }
+
+    @Override
+    public boolean isSlowCoordinator(long elapsed, TimeUnit units, TxnId txnId, int attempt)
+    {
+        long maxWait = recover(txnId).computeMaxWait(attempt, units);
+        return elapsed >= maxWait;
     }
 
     @VisibleForTesting
@@ -291,7 +317,18 @@ public class AccordAgent implements Agent
     @Override
     public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int attempt, BlockedUntil blockedUntil, TimeUnit units)
     {
-        return fetch(txnId).computeWait(attempt, units);
+        Command command = Invariants.nonNull(safeStore.unsafeGetNoCleanup(txnId).current());
+        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+        long mostRecentStart = mostRecentStart(command, nowMicros);
+        long waitMicros = fetch(txnId).computeWait(attempt, units);
+        long startTime = mostRecentStart + waitMicros;
+        if (startTime < nowMicros)
+        {
+            // TODO (expected): support no waiting here
+            if (attempt == 1) return 1;
+            else return waitMicros/2;
+        }
+        return waitMicros;
     }
 
     @Override

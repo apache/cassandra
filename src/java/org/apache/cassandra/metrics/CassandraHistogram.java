@@ -18,27 +18,24 @@
 
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Clock;
-import com.codahale.metrics.Snapshot;
-import com.codahale.metrics.Timer;
+import com.codahale.metrics.Histogram;
 
-public class SnapshottingTimer extends Timer
+public class CassandraHistogram extends Histogram
 {
-    private final CassandraReservoir reservoir;
-    
-    public SnapshottingTimer(CassandraReservoir reservoir)
+    final CassandraReservoir reservoir;
+    public CassandraHistogram(CassandraReservoir reservoir)
     {
-        this(reservoir, Clock.defaultClock());
-    }
-
-    public SnapshottingTimer(CassandraReservoir reservoir, Clock clock)
-    {
-        super(reservoir, clock);
+        super(reservoir);
         this.reservoir = reservoir;
     }
 
-    public Snapshot getPercentileSnapshot()
+    public CassandraReservoir.BucketStrategy bucketStrategy()
     {
-        return reservoir.getPercentileSnapshot();
+        return reservoir.bucketStrategy();
+    }
+
+    public long[] bucketStarts(int length)
+    {
+        return reservoir.buckets(length);
     }
 }

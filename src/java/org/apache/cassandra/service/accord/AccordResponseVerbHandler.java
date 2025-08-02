@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.coordinate.Timeout;
 import accord.impl.RequestCallbacks;
 import accord.local.Node;
 import accord.messages.Reply;
@@ -84,7 +83,7 @@ class AccordResponseVerbHandler<T extends Reply> implements IVerbHandler<T>
     private static Throwable convertFailureMessage(RequestFailure failure)
     {
         return failure.reason == RequestFailureReason.TIMEOUT ?
-               new Timeout(null, null) :
+               null :
                new RuntimeException(failure.failure);
     }
 

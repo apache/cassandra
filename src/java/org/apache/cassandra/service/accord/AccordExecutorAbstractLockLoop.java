@@ -25,7 +25,6 @@ import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
-import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.service.accord.AccordExecutorLoops.LoopTask;
 import org.apache.cassandra.utils.concurrent.ConcurrentLinkedStack;
 
@@ -37,9 +36,9 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     boolean isHeldByExecutor;
     boolean shutdown;
 
-    AccordExecutorAbstractLockLoop(Lock lock, int executorId, AccordCacheMetrics metrics, Agent agent)
+    AccordExecutorAbstractLockLoop(Lock lock, int executorId, Agent agent)
     {
-        super(lock, executorId, metrics, agent);
+        super(lock, executorId, agent);
     }
 
     abstract void notifyWork();

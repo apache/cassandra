@@ -333,6 +333,11 @@ public class ContentionStrategy extends RetryStrategy
             }
         }
 
+        public long getMaxMicros(int attempts)
+        {
+            return max(min, min(max, delegate.getMaxMicros(attempts)));
+        }
+
         public String toString()
         {
             return "Bound{" +

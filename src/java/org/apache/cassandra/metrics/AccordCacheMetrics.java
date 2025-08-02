@@ -18,35 +18,94 @@
 
 package org.apache.cassandra.metrics;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
-import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Gauge;
+import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.IAccordService;
 
-import static org.apache.cassandra.metrics.CacheMetrics.TYPE_NAME;
+import static org.apache.cassandra.metrics.AccordMetricUtils.fromAccordService;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-public class AccordCacheMetrics extends CacheAccessMetrics
+public class AccordCacheMetrics
 {
-    public static final String OBJECT_SIZE = "ObjectSize";
+    public static final String ACCORD_CACHE = "AccordCache";
+    public static final AccordCacheMetrics CommandsCacheMetrics = new AccordCacheMetrics("Commands");
+    public static final AccordCacheMetrics CommandsForKeyCacheMetrics = new AccordCacheMetrics("CommandsForKey");
+    public static final AccordCacheGlobalMetrics Global = new AccordCacheGlobalMetrics();
 
-    public final Histogram objectSize;
-
-    private final Map<String, CacheAccessMetrics> instanceMetrics = new ConcurrentHashMap<>(2);
-
-    private final String scope;
-
-    public AccordCacheMetrics(String scope)
+    // not sure why we create these wrapper objects that can only be instantiated once, but it's a pattern in this package so...
+    public static class AccordCacheGlobalMetrics
     {
-        super(new DefaultNameFactory(TYPE_NAME, scope));
-        objectSize = Metrics.histogram(factory.createMetricName(OBJECT_SIZE), false);
-        this.scope = scope;
+        final Gauge<Long> usedBytes;
+        final Gauge<Long> unreferencedBytes;
+
+        public AccordCacheGlobalMetrics()
+        {
+            DefaultNameFactory factory = new DefaultNameFactory("AccordCache");
+            this.usedBytes = Metrics.gauge(factory.createMetricName("UsedBytes"), fromAccordService(sumExecutors(executor -> executor.cacheUnsafe().weightedSize()), 0L));
+            this.unreferencedBytes = Metrics.gauge(factory.createMetricName("UnreferencedBytes"), fromAccordService(sumExecutors(executor -> executor.cacheUnsafe().unreferencedBytes()), 0L));
+        }
+
+        private static Function<IAccordService, Long> sumExecutors(ToLongFunction<AccordExecutor> f)
+        {
+            return service -> {
+                long sum = 0;
+                for (AccordExecutor executor : service.executors())
+                    sum += f.applyAsLong(executor);
+                return sum;
+            };
+        }
     }
 
-    public CacheAccessMetrics forInstance(Class<?> klass)
+    public static class Shard
     {
-        // cannot make Class<?> hashCode deterministic, as cannot rewrite - so cannot safely use as Map key if want deterministic simulation
-        // (or we need to create extra hoops to catch this specific case in method rewriting)
-        return instanceMetrics.computeIfAbsent(klass.getSimpleName(), k -> new CacheAccessMetrics(new DefaultNameFactory(TYPE_NAME, String.format("%s-%s", scope, k))));
+        public final ShardedHitRate.HitRateShard hitRate;
+        public final LogLinearHistogram objectSize;
+
+        public Shard(ShardedHitRate.HitRateShard hitRate, LogLinearHistogram objectSize)
+        {
+            this.hitRate = hitRate;
+            this.objectSize = objectSize;
+        }
+    }
+
+    public final ShardedHitRate hitRate = new ShardedHitRate();
+    public final ShardedHistogram objectSize;
+
+    public final Gauge<Long> hits;
+    public final Gauge<Long> misses;
+    public final Gauge<Long> requests;
+    public final Gauge<Double> requestRate1m;
+    public final Gauge<Double> requestRate5m;
+    public final Gauge<Double> requestRate15m;
+    public final Gauge<Double> hitRateAllTime;
+    public final Gauge<Double> hitRate1m;
+    public final Gauge<Double> hitRate5m;
+    public final Gauge<Double> hitRate15m;
+    private final String subTypeName;
+
+    public AccordCacheMetrics(String subTypeName)
+    {
+        DefaultNameFactory factory = new DefaultNameFactory("AccordCache", subTypeName);
+        this.objectSize = Metrics.shardedHistogram(factory.createMetricName("EntrySize"));
+        this.hits = Metrics.gauge(factory.createMetricName("Hits"), hitRate::totalHits);
+        this.misses = Metrics.gauge(factory.createMetricName("Misses"), hitRate::totalMisses);
+        this.requests = Metrics.gauge(factory.createMetricName("Requests"), hitRate::totalRequests);
+        this.requestRate1m = Metrics.gauge(factory.createMetricName("Requests"), () -> hitRate.requestsPerSecond(1));
+        this.requestRate5m = Metrics.gauge(factory.createMetricName("Requests"), () -> hitRate.requestsPerSecond(5));
+        this.requestRate15m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.FIFTEEN_MINUTE + "RequestRate"), () -> hitRate.requestsPerSecond(15));
+        this.hitRate1m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.ONE_MINUTE + "HitRate"), () -> hitRate.hitRate(1));
+        this.hitRate5m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.FIVE_MINUTE + "HitRate"), () -> hitRate.hitRate(5));
+        this.hitRate15m = Metrics.gauge(factory.createMetricName(RatioGaugeSet.FIFTEEN_MINUTE + "HitRate"), () -> hitRate.hitRate(15));
+        this.hitRateAllTime = Metrics.gauge(factory.createMetricName("Misses"), hitRate::hitRateAllTime);
+        this.subTypeName = subTypeName;
+    }
+
+    public Shard newShard(Lock guardedBy)
+    {
+        return new Shard(hitRate.newShard(guardedBy), objectSize.newShard(guardedBy));
     }
 }

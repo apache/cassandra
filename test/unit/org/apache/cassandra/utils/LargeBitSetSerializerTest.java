@@ -19,27 +19,27 @@
 package org.apache.cassandra.utils;
 
 import accord.utils.Gen;
-import accord.utils.SimpleBitSet;
+import accord.utils.LargeBitSet;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.junit.Test;
 
 import static accord.utils.Property.qt;
 
-public class SimpleBitSetSerializerTest
+public class LargeBitSetSerializerTest
 {
     @Test
     public void test()
     {
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
-        qt().forAll(simpleBitSetGen()).check(bits -> Serializers.testSerde(output, SimpleBitSetSerializer.instance, bits));
+        qt().forAll(largeBitSetGen()).check(bits -> Serializers.testSerde(output, LargeBitSetSerializer.instance, bits));
     }
 
-    private static Gen<SimpleBitSet> simpleBitSetGen()
+    private static Gen<LargeBitSet> largeBitSetGen()
     {
         return rs -> {
             int size = rs.nextInt(0, 1 << 10);
-            SimpleBitSet bitSet = new SimpleBitSet(size);
+            LargeBitSet bitSet = new LargeBitSet(size);
             if (size == 0 || rs.decide(0.2))
                 return bitSet; // empty
             if (rs.decide(0.2))

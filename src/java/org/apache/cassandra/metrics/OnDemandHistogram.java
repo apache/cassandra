@@ -18,10 +18,42 @@
 
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Reservoir;
-import com.codahale.metrics.Snapshot;
+import java.util.function.Supplier;
 
-public interface SnapshottingReservoir extends Reservoir
+import com.codahale.metrics.Snapshot;
+import org.apache.cassandra.metrics.LogLinearHistogram.LogLinearSnapshot;
+
+import static org.apache.cassandra.metrics.CassandraReservoir.BucketStrategy.log_linear;
+
+public class OnDemandHistogram extends OverrideHistogram
 {
-    Snapshot getPercentileSnapshot();
+    final Supplier<LogLinearSnapshot> snapshot;
+    protected OnDemandHistogram(Supplier<LogLinearSnapshot> snapshot)
+    {
+        this.snapshot = snapshot;
+    }
+
+    @Override
+    public synchronized long getCount()
+    {
+        return snapshot.get().totalCount;
+    }
+
+    @Override
+    public Snapshot getSnapshot()
+    {
+        return snapshot.get();
+    }
+
+    @Override
+    public CassandraReservoir.BucketStrategy bucketStrategy()
+    {
+        return log_linear;
+    }
+
+    @Override
+    public long[] bucketStarts(int length)
+    {
+        return LogLinearHistogram.bucketsWithLength(length);
+    }
 }

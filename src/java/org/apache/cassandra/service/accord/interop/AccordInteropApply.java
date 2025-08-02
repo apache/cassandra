@@ -167,14 +167,6 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
     }
 
     @Override
-    public ApplyReply reduce(ApplyReply r1, ApplyReply r2)
-    {
-        return r1 == null || r2 == null
-               ? r1 == null ? r2 : r1
-               : r1.compareTo(r2) >= 0 ? r1 : r2;
-    }
-
-    @Override
     protected void acceptInternal(ApplyReply reply, Throwable failure)
     {
         if (reply == ApplyReply.Insufficient)

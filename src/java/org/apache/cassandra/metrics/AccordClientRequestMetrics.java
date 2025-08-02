@@ -72,5 +72,4 @@ public class AccordClientRequestMetrics extends ClientRequestMetrics
         Metrics.remove(factory.createMetricName("Preempted"));
         Metrics.remove(factory.createMetricName("TopologyMismatches"));
     }
-
 }

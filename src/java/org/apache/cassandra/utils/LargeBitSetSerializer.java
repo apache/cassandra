@@ -20,20 +20,20 @@ package org.apache.cassandra.utils;
 
 import java.io.IOException;
 
-import accord.utils.SimpleBitSet;
+import accord.utils.LargeBitSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSet>
+public class LargeBitSetSerializer implements UnversionedSerializer<LargeBitSet>
 {
-    public static final SimpleBitSetSerializer instance = new SimpleBitSetSerializer();
+    public static final LargeBitSetSerializer instance = new LargeBitSetSerializer();
 
     @Override
-    public void serialize(SimpleBitSet t, DataOutputPlus out) throws IOException
+    public void serialize(LargeBitSet t, DataOutputPlus out) throws IOException
     {
-        long[] raw = SimpleBitSet.SerializationSupport.getArray(t);
+        long[] raw = LargeBitSet.SerializationSupport.getArray(t);
         // find the first word written
         int wordsInUse = wordsInUse(raw);
         out.writeUnsignedVInt32(raw.length);
@@ -43,20 +43,20 @@ public class SimpleBitSetSerializer implements UnversionedSerializer<SimpleBitSe
     }
 
     @Override
-    public SimpleBitSet deserialize(DataInputPlus in) throws IOException
+    public LargeBitSet deserialize(DataInputPlus in) throws IOException
     {
         int size = in.readUnsignedVInt32();
         long[] raw = new long[size];
         int wordsInUse = in.readUnsignedVInt32();
         for (int i = 0; i < wordsInUse; i++)
             raw[i] = in.readUnsignedVInt();
-        return SimpleBitSet.SerializationSupport.construct(raw);
+        return LargeBitSet.SerializationSupport.construct(raw);
     }
 
     @Override
-    public long serializedSize(SimpleBitSet t)
+    public long serializedSize(LargeBitSet t)
     {
-        long[] raw = SimpleBitSet.SerializationSupport.getArray(t);
+        long[] raw = LargeBitSet.SerializationSupport.getArray(t);
         // find the last word written
         int wordsInUse = wordsInUse(raw);
         long size = TypeSizes.sizeofUnsignedVInt(raw.length);

@@ -103,12 +103,14 @@ public class TimeoutStrategy implements WaitStrategy
     public interface Wait
     {
         long getMicros(int attempts);
+        long getMaxMicros(int attempts);
 
         class Constant implements Wait
         {
             final long micros;
             public Constant(long micros) { this.micros = micros; }
             @Override public long getMicros(int attempts) { return micros; }
+            @Override public long getMaxMicros(int attempts) { return micros; }
         }
 
         class Modifying implements Wait
@@ -127,18 +129,26 @@ public class TimeoutStrategy implements WaitStrategy
             {
                 return modifier.modify(supplier.getMicros(), attempts);
             }
+
+            @Override
+            public long getMaxMicros(int attempts)
+            {
+                return modifier.modify(supplier.getMaxMicros(), attempts);
+            }
         }
     }
 
     public interface LatencySupplier
     {
         long getMicros();
+        long getMaxMicros();
 
         class Constant implements LatencySupplier
         {
             final long micros;
             public Constant(long micros) {this.micros = micros; }
             @Override public long getMicros() { return micros; }
+            @Override public long getMaxMicros() { return micros; }
         }
 
         class Percentile implements LatencySupplier
@@ -152,11 +162,8 @@ public class TimeoutStrategy implements WaitStrategy
                 this.percentile = percentile;
             }
 
-            @Override
-            public long getMicros()
-            {
-                return latencies.get(percentile);
-            }
+            @Override public long getMicros() { return latencies.get(percentile); }
+            @Override public long getMaxMicros() { return latencies.get(1.0); }
         }
     }
 

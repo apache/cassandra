@@ -247,6 +247,11 @@ public class RetryStrategy implements WaitStrategy
         return units.convert(result, MICROSECONDS);
     }
 
+    public long computeMaxWait(int attempt, TimeUnit units)
+    {
+        return units.convert(max.getMaxMicros(attempt), MICROSECONDS);
+    }
+
     public static RetryStrategy parse(String spec, LatencySourceFactory latencies)
     {
         return parse(spec, latencies, null);

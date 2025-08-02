@@ -23,13 +23,12 @@ import java.util.concurrent.locks.Lock;
 import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
-import org.apache.cassandra.metrics.AccordCacheMetrics;
 
 abstract class AccordExecutorAbstractSemiSyncSubmit extends AccordExecutorAbstractLockLoop
 {
-    AccordExecutorAbstractSemiSyncSubmit(Lock lock, int executorId, AccordCacheMetrics metrics, Agent agent)
+    AccordExecutorAbstractSemiSyncSubmit(Lock lock, int executorId, Agent agent)
     {
-        super(lock, executorId, metrics, agent);
+        super(lock, executorId, agent);
     }
 
     abstract void awaitExclusive() throws InterruptedException;

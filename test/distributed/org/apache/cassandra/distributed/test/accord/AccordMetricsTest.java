@@ -43,7 +43,8 @@ import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.metrics.AccordMetrics;
+import org.apache.cassandra.metrics.AccordCoordinatorMetrics;
+import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.RatioGaugeSet;
 import org.apache.cassandra.net.Verb;
@@ -80,7 +81,7 @@ public class AccordMetricsTest extends AccordTestBase
             ProtocolModifiers.Toggles.setPermittedFastPaths(new FastPaths(FastPath.Unoptimised));
         }));
         for (int i = 0; i < SHARED_CLUSTER.size(); i++) // initialize metrics
-            logger.trace(SHARED_CLUSTER.get(i + 1).callOnInstance(() -> AccordMetrics.readMetrics.toString() + AccordMetrics.writeMetrics.toString()));
+            logger.trace(SHARED_CLUSTER.get(i + 1).callOnInstance(() -> AccordCoordinatorMetrics.readMetrics.toString() + AccordCoordinatorMetrics.writeMetrics.toString()));
     }
 
     String writeCql()
@@ -173,9 +174,8 @@ public class AccordMetricsTest extends AccordTestBase
 
             assertClientMetrics(0, "AccordWrite", 1, 0);
             assertClientMetrics(1, "AccordWrite", 0, 0);
-            // TODO (required): reenable or remove metric
-//            assertCoordinatorMetrics(0, "rw", 0, 0, 1, 0, 0);
-            assertCoordinatorMetrics(1, "rw", 0, 0, 0, 0, 0);
+            assertCoordinatorMetrics(0, "rw", 0, 0, 1, 0, 0);
+            assertCoordinatorMetrics(1, "rw", 0, 0, 0, 0, 1);
             assertReplicaMetrics(0, "rw", 0, 0, 0);
             assertReplicaMetrics(1, "rw", 0, 0, 0);
 
@@ -195,8 +195,8 @@ public class AccordMetricsTest extends AccordTestBase
             assertClientMetrics(0, "AccordRead", 1, 0);
             assertClientMetrics(1, "AccordRead", 0, 0);
             // TODO (required): reenable or remove metric
-//            assertCoordinatorMetrics(0, "ro", 0, 0, 1, 0, 0);
-            assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
+            assertCoordinatorMetrics(0, "ro", 0, 0, 1, 0, 0);
+            assertCoordinatorMetrics(1, "ro"    , 0, 0, 0, 0, 1);
             assertReplicaMetrics(0, "ro", 0, 0, 0);
             assertReplicaMetrics(1, "ro", 0, 0, 0);
 
@@ -231,7 +231,7 @@ public class AccordMetricsTest extends AccordTestBase
 
         assertClientMetrics(0, "AccordRead", 0, 1);
         assertClientMetrics(1, "AccordRead", 0, 0);
-        // TODO (required): reenable or remove metric
+        // TODO (required): rework tests: internal accord timeout triggers later than external C* client one
 //        assertCoordinatorMetrics(0, "ro", 0, 0, 0, 1, 0);
         assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
         assertReplicaMetrics(0, "ro", 0, 0, 0);
@@ -252,13 +252,15 @@ public class AccordMetricsTest extends AccordTestBase
 
         assertClientMetrics(0, "AccordWrite", 0, 1);
         assertClientMetrics(1, "AccordWrite", 0, 0);
-        // TODO (required): reenable or remove metric
-//        assertCoordinatorMetrics(0, "rw", 0, 0, 0, 1, 0);
+        assertCoordinatorMetrics(0, "rw", 0, 0, 0, 1, 0);
         assertCoordinatorMetrics(1, "rw", 0, 0, 0, 0, 0);
         assertReplicaMetrics(0, "rw", 0, 0, 0);
         assertReplicaMetrics(1, "rw", 0, 0, 0);
 
-        assertZeroMetrics("ro","AccordRead");
+        assertCoordinatorMetrics(0, "ro", 0, 0, 0, 0, 1);
+        assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
+        assertReplicaMetrics(0, "ro", 0, 0, 0);
+        assertReplicaMetrics(1, "ro", 0, 0, 0);
     }
 
     private void assertZeroMetrics(String scope, String clientScope)
@@ -293,17 +295,17 @@ public class AccordMetricsTest extends AccordTestBase
 
     private void assertCoordinatorMetrics(int node, String scope, long fastPaths, long slowPaths, long preempts, long timeouts, long recoveries)
     {
-        DefaultNameFactory nameFactory = new DefaultNameFactory(AccordMetrics.ACCORD_COORDINATOR, scope);
+        DefaultNameFactory nameFactory = new DefaultNameFactory(AccordCoordinatorMetrics.ACCORD_COORDINATOR, scope);
         Map<String, Long> metrics = diff(countingMetrics0).get(node);
         logger.info("Metrics for node {} / {}: {}", node, scope, metrics);
         Function<String, Long> metric = n -> metrics.get(nameFactory.createMetricName(n).getMetricName());
-        assertThat(metric.apply(AccordMetrics.FAST_PATHS)).isEqualTo(fastPaths);
-        assertThat(metric.apply(AccordMetrics.SLOW_PATHS)).isEqualTo(slowPaths);
-        assertThat(metric.apply(AccordMetrics.PREEMPTED)).isEqualTo(preempts);
-        assertThat(metric.apply(AccordMetrics.TIMEOUTS)).isEqualTo(timeouts);
-        assertThat(metric.apply(AccordMetrics.RECOVERY_DELAY)).isEqualTo(recoveries);
-        assertThat(metric.apply(AccordMetrics.RECOVERY_TIME)).isEqualTo(recoveries);
-        assertThat(metric.apply(AccordMetrics.COORDINATOR_DEPENDENCIES)).isEqualTo(fastPaths + slowPaths);
+        assertThat(metric.apply(AccordCoordinatorMetrics.FAST_PATHS)).isEqualTo(fastPaths);
+        assertThat(metric.apply(AccordCoordinatorMetrics.SLOW_PATHS)).isEqualTo(slowPaths);
+        assertThat(metric.apply(AccordCoordinatorMetrics.PREEMPTED)).isEqualTo(preempts);
+        assertThat(metric.apply(AccordCoordinatorMetrics.TIMEOUTS)).isEqualTo(timeouts);
+        assertThat(metric.apply(AccordCoordinatorMetrics.RECOVERY_DELAY)).isEqualTo(recoveries);
+        assertThat(metric.apply(AccordCoordinatorMetrics.RECOVERY_TIME)).isEqualTo(recoveries);
+        assertThat(metric.apply(AccordCoordinatorMetrics.COORDINATOR_DEPENDENCIES)).isEqualTo(fastPaths + slowPaths);
 
         // Verify that coordinator metrics are published to the appropriate virtual table:
         SimpleQueryResult res = SHARED_CLUSTER.get(node + 1)
@@ -317,21 +319,21 @@ public class AccordMetricsTest extends AccordTestBase
 
         if ((fastPaths + slowPaths) > 0)
         {
-            String fastPathToTotalName = nameFactory.createMetricName(AccordMetrics.FAST_PATH_TO_TOTAL + "." + RatioGaugeSet.MEAN_RATIO).getMetricName();
+            String fastPathToTotalName = nameFactory.createMetricName(AccordCoordinatorMetrics.FAST_PATH_TO_TOTAL + "." + RatioGaugeSet.MEAN_RATIO).getMetricName();
             assertThat((double) SHARED_CLUSTER.get(1).metrics().getGauge(fastPathToTotalName)).isEqualTo((double) fastPaths / (double) (fastPaths + slowPaths), Offset.offset(0.01d));
         }
     }
 
     private void assertReplicaMetrics(int node, String scope, long stable, long executions, long applications)
     {
-        DefaultNameFactory nameFactory = new DefaultNameFactory(AccordMetrics.ACCORD_REPLICA, scope);
+        DefaultNameFactory nameFactory = new DefaultNameFactory(AccordReplicaMetrics.ACCORD_REPLICA, scope);
         Map<String, Long> metrics = diff(countingMetrics0).get(node);
         Function<String, Long> metric = n -> metrics.get(nameFactory.createMetricName(n).getMetricName());
-        assertThat(metric.apply(AccordMetrics.REPLICA_STABLE_LATENCY)).isLessThanOrEqualTo(stable);
-        assertThat(metric.apply(AccordMetrics.REPLICA_PREAPPLY_LATENCY)).isEqualTo(executions);
-        assertThat(metric.apply(AccordMetrics.REPLICA_APPLY_LATENCY)).isEqualTo(applications);
-        assertThat(metric.apply(AccordMetrics.REPLICA_APPLY_DURATION)).isEqualTo(scope.equals("rw") ? applications : 0);
-        assertThat(metric.apply(AccordMetrics.REPLICA_DEPENDENCIES)).isEqualTo(executions);
+        assertThat(metric.apply(AccordReplicaMetrics.REPLICA_STABLE_LATENCY)).isLessThanOrEqualTo(stable);
+        assertThat(metric.apply(AccordReplicaMetrics.REPLICA_PREAPPLY_LATENCY)).isEqualTo(executions);
+        assertThat(metric.apply(AccordReplicaMetrics.REPLICA_APPLY_LATENCY)).isEqualTo(applications);
+        assertThat(metric.apply(AccordReplicaMetrics.REPLICA_APPLY_DURATION)).isEqualTo(scope.equals("rw") ? applications : 0);
+        assertThat(metric.apply(AccordReplicaMetrics.REPLICA_DEPENDENCIES)).isEqualTo(executions);
 
         // Verify that replica metrics are published to the appropriate virtual table:
         SimpleQueryResult vtableResults = SHARED_CLUSTER.get(node + 1)
@@ -356,8 +358,8 @@ public class AccordMetricsTest extends AccordTestBase
         for (int i = 0; i < SHARED_CLUSTER.size(); i++)
         {
             Map<String, Long> map = SHARED_CLUSTER.get(i + 1).metrics().getCounters(name -> name.startsWith("org.apache.cassandra.metrics.Accord") || (name.startsWith("org.apache.cassandra.metrics.ClientRequest") && (name.endsWith("AccordRead") || name.endsWith("AccordWrite"))));
-            SHARED_CLUSTER.get(i + 1).metrics().getGauges(name -> name.startsWith("org.apache.cassandra.metrics.AccordReplica"))
-                                               .forEach((key, value) -> map.put(key, (Long)value));
+            SHARED_CLUSTER.get(i + 1).metrics().getGauges(name -> name.startsWith("org.apache.cassandra.metrics.Accord"))
+                                               .forEach((key, value) -> map.put(key, ((Number)value).longValue()));
             metrics.put(i, map);
         }
         return metrics;

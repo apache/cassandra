@@ -38,6 +38,7 @@ import accord.messages.Reply;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
 import accord.primitives.TxnId;
+import accord.utils.async.Cancellable;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -180,7 +181,7 @@ public class AccordMessageSink implements MessageSink
 
     // TODO (expected): permit bulk send to save esp. on callback registration (and combine records)
     @Override
-    public void send(Node.Id to, Request request, int attempt, AsyncExecutor executor, Callback callback)
+    public Cancellable send(Node.Id to, Request request, int attempt, AsyncExecutor executor, Callback callback)
     {
         Verb verb = VerbMapping.getVerb(request);
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
@@ -214,8 +215,9 @@ public class AccordMessageSink implements MessageSink
         Message<Request> message = Message.out(verb, request, expiresAtNanos);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
         logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
-        callbacks.registerAt(message.id(), executor, callback, to, nowNanos, slowAtNanos, expiresAtNanos, NANOSECONDS);
+        Cancellable cancellable = callbacks.registerAt(message.id(), executor, callback, to, nowNanos, slowAtNanos, expiresAtNanos, NANOSECONDS);
         messaging.send(message, endpoint);
+        return cancellable;
     }
 
     @Override

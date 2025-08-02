@@ -106,6 +106,7 @@ public interface IAccordService
         IAccordResult<V> addCallback(BiConsumer<? super V, Throwable> callback);
     }
 
+    boolean isEnabled();
     long currentEpoch();
 
     void setCacheSize(long kb);
@@ -249,6 +250,12 @@ public interface IAccordService
         }
 
         @Override
+        public boolean isEnabled()
+        {
+            return false;
+        }
+
+        @Override
         public long currentEpoch()
         {
             throw new UnsupportedOperationException("Cannot return epoch when accord.enabled = false in cassandra.yaml");
@@ -383,7 +390,7 @@ public interface IAccordService
 
     class DelegatingAccordService implements IAccordService
     {
-        protected final IAccordService delegate;
+        protected IAccordService delegate;
 
         public DelegatingAccordService(IAccordService delegate)
         {
@@ -437,6 +444,12 @@ public interface IAccordService
         public List<AccordExecutor> executors()
         {
             return delegate.executors();
+        }
+
+        @Override
+        public boolean isEnabled()
+        {
+            return delegate.isEnabled();
         }
 
         @Nonnull

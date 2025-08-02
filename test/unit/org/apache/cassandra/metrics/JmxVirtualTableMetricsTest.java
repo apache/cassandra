@@ -67,7 +67,7 @@ public class JmxVirtualTableMetricsTest extends CQLTester
 
         metricToNameMap.put(MetricType.METER, registry.meter("meter"));
         metricToNameMap.put(MetricType.COUNTER, registry.counter("counter"));
-        metricToNameMap.put(MetricType.HISTOGRAM, registry.histogram("histogram"));
+        metricToNameMap.put(MetricType.HISTOGRAM, registry.histogram("histogram", () -> new CassandraHistogram(new DecayingEstimatedHistogramReservoir(true))));
         metricToNameMap.put(MetricType.TIMER, registry.timer("timer"));
         metricToNameMap.put(MetricType.GAUGE, registry.gauge("gauge", () -> gaugeValue::get));
 

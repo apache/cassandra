@@ -17,17 +17,19 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.util.function.LongUnaryOperator;
+
 import com.codahale.metrics.Snapshot;
 
 /**
  * A reservoir that scales the values before updating.
  */
-public class ScalingReservoir implements SnapshottingReservoir
+public class ScalingReservoir implements CassandraReservoir
 {
-    private final SnapshottingReservoir delegate;
-    private final ScaleFunction scaleFunc;
+    private final CassandraReservoir delegate;
+    private final LongUnaryOperator scaleFunc;
 
-    public ScalingReservoir(SnapshottingReservoir reservoir, ScaleFunction scaleFunc)
+    public ScalingReservoir(CassandraReservoir reservoir, LongUnaryOperator scaleFunc)
     {
         this.delegate = reservoir;
         this.scaleFunc = scaleFunc;
@@ -42,7 +44,7 @@ public class ScalingReservoir implements SnapshottingReservoir
     @Override
     public void update(long value)
     {
-        delegate.update(scaleFunc.apply(value));
+        delegate.update(scaleFunc.applyAsLong(value));
     }
 
     @Override
@@ -57,14 +59,15 @@ public class ScalingReservoir implements SnapshottingReservoir
         return delegate.getPercentileSnapshot();
     }
 
-    /**
-     * Scale the input value.
-     *
-     * Not using {@code java.util.function.Function<Long, Long>} to avoid auto-boxing.
-     */
-    @FunctionalInterface
-    public static interface ScaleFunction
+    @Override
+    public BucketStrategy bucketStrategy()
     {
-        long apply(long value);
+        return delegate.bucketStrategy();
+    }
+
+    @Override
+    public long[] buckets(int length)
+    {
+        return delegate.buckets(length);
     }
 }

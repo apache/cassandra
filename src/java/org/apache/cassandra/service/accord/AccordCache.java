@@ -59,7 +59,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
-import org.apache.cassandra.metrics.CacheAccessMetrics;
+import org.apache.cassandra.metrics.LogLinearHistogram;
+import org.apache.cassandra.metrics.ShardedHitRate;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.events.CacheEvents;
@@ -73,8 +74,6 @@ import static accord.utils.Invariants.require;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.LOADED;
 import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.MODIFIED;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.SAVING;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.WAITING_TO_SAVE;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
@@ -122,20 +121,17 @@ public class AccordCache implements CacheSize
 
     static class Stats
     {
-        long queries;
         long hits;
         long misses;
     }
 
     public static final class ImmutableStats
     {
-        public final long queries;
         public final long hits;
         public final long misses;
         
         public ImmutableStats(Stats stats)
         {
-            queries = stats.queries;
             hits = stats.hits;
             misses = stats.misses;
         }
@@ -146,22 +142,17 @@ public class AccordCache implements CacheSize
     private final IntrusiveLinkedList<AccordCacheEntry<?,?>> evictQueue = new IntrusiveLinkedList<>();
     private final IntrusiveLinkedList<AccordCacheEntry<?,?>> noEvictQueue = new IntrusiveLinkedList<>();
 
-    private int unreferencedBytes;
+    private long unreferencedBytes;
     private int unreferenced;
     private long maxSizeInBytes;
     private long bytesCached;
     private int noEvictGeneration;
     private boolean shrinkingOn = true;
 
-    @VisibleForTesting
-    final AccordCacheMetrics metrics;
-    final Stats stats = new Stats();
-
-    public AccordCache(AccordCacheEntry.SaveExecutor saveExecutor, long maxSizeInBytes, AccordCacheMetrics metrics)
+    public AccordCache(AccordCacheEntry.SaveExecutor saveExecutor, long maxSizeInBytes)
     {
         this.saveExecutor = saveExecutor;
         this.maxSizeInBytes = maxSizeInBytes;
-        this.metrics = metrics;
     }
 
     @Override
@@ -299,6 +290,7 @@ public class AccordCache implements CacheSize
         Type<?, ?, ?>.Instance owner = node.owner;
         Type<?, ?, ?> parent = owner.parent();
         parent.bytesCached -= node.sizeOnHeap;
+        parent.objectSize.decrement(node.sizeOnHeap);
         --parent.size;
 
         // TODO (expected): use listeners
@@ -348,14 +340,9 @@ public class AccordCache implements CacheSize
         safeRef.global().owner.release(safeRef, owner);
     }
 
-    public ImmutableStats stats()
+    public <K, V, S extends AccordSafeState<K, V>> Type<K, V, S> newType(Class<K> keyClass, Adapter<K, V, S> adapter, AccordCacheMetrics.Shard metrics)
     {
-        return new ImmutableStats(stats);
-    }
-
-    public <K, V, S extends AccordSafeState<K, V>> Type<K, V, S> newType(Class<K> keyClass, Adapter<K, V, S> adapter)
-    {
-        Type<K, V, S> instance = new Type<>(keyClass, adapter);
+        Type<K, V, S> instance = new Type<>(keyClass, adapter, metrics);
         types.add(instance);
         return instance;
     }
@@ -367,9 +354,10 @@ public class AccordCache implements CacheSize
         Function<V, V> quickShrink,
         TriFunction<AccordCommandStore, K, V, Boolean> validateFunction,
         ToLongFunction<V> heapEstimator,
-        Function<AccordCacheEntry<K, V>, S> safeRefFactory)
+        Function<AccordCacheEntry<K, V>, S> safeRefFactory,
+        AccordCacheMetrics.Shard metrics)
     {
-        return newType(keyClass, loadFunction, saveFunction, quickShrink, (i, j) -> j, (c, i, j) -> (V)j, validateFunction, heapEstimator, i -> 0, safeRefFactory);
+        return newType(keyClass, loadFunction, saveFunction, quickShrink, (i, j) -> j, (c, i, j) -> (V)j, validateFunction, heapEstimator, i -> 0, safeRefFactory, metrics);
     }
 
     public <K, V, S extends AccordSafeState<K, V>> Type<K, V, S> newType(
@@ -382,12 +370,14 @@ public class AccordCache implements CacheSize
         TriFunction<AccordCommandStore, K, V, Boolean> validateFunction,
         ToLongFunction<V> heapEstimator,
         ToLongFunction<Object> shrunkHeapEstimator,
-        Function<AccordCacheEntry<K, V>, S> safeRefFactory)
+        Function<AccordCacheEntry<K, V>, S> safeRefFactory,
+        AccordCacheMetrics.Shard metrics)
     {
         return newType(keyClass, new FunctionalAdapter<>(loadFunction, saveFunction, quickShrink,
                                                          fullShrink, inflate,
                                                          validateFunction, heapEstimator, shrunkHeapEstimator,
-                                                         safeRefFactory, AccordCacheEntry::createReadyToLoad));
+                                                         safeRefFactory, AccordCacheEntry::createReadyToLoad),
+                       metrics);
     }
 
     public Collection<Type<?, ? ,? >> types()
@@ -445,7 +435,6 @@ public class AccordCache implements CacheSize
 
             private AccordCacheEntry<K, V> acquire(K key, boolean onlyIfLoaded)
             {
-                incrementCacheQueries();
                 @SuppressWarnings("unchecked")
                 AccordCacheEntry<K, V> node = cache.get(key);
                 return node == null
@@ -691,25 +680,24 @@ public class AccordCache implements CacheSize
         private int size;
 
         @VisibleForTesting
-        final CacheAccessMetrics typeMetrics;
+        final LogLinearHistogram objectSize;
+        final ShardedHitRate.HitRateShard hitRate;
         private final Stats stats = new Stats();
         private List<Listener<K, V>> typeListeners = null;
 
-        public Type(
-            Class<K> keyClass,
-            Adapter<K, V, S> adapter)
+        public Type(Class<K> keyClass, Adapter<K, V, S> adapter, AccordCacheMetrics.Shard metrics)
         {
             this.keyClass = keyClass;
             this.adapter = adapter;
-            this.typeMetrics = metrics.forInstance(keyClass);
+            this.objectSize = metrics.objectSize;
+            this.hitRate = metrics.hitRate;
         }
 
         void updateSize(long newSize, long delta, boolean isUnreferenced, boolean updateHistogram)
         {
-            // TODO (expected): deprecate this in favour of a histogram snapshot of any point in time
             bytesCached += delta;
             AccordCache.this.bytesCached += delta;
-            if (updateHistogram) metrics.objectSize.update(newSize);
+            if (updateHistogram) objectSize.replace(newSize - delta, newSize);
             if (isUnreferenced) AccordCache.this.unreferencedBytes += delta;
         }
 
@@ -719,28 +707,16 @@ public class AccordCache implements CacheSize
             return new Instance(commandStore);
         }
 
-        private void incrementCacheQueries()
-        {
-            typeMetrics.requests.mark();
-            metrics.requests.mark();
-            stats.queries++;
-            AccordCache.this.stats.queries++;
-        }
-
         private void incrementCacheHits()
         {
-            typeMetrics.hits.mark();
-            metrics.hits.mark();
+            hitRate.markHitExclusive();
             stats.hits++;
-            AccordCache.this.stats.hits++;
         }
 
         private void incrementCacheMisses()
         {
-            typeMetrics.misses.mark();
-            metrics.misses.mark();
+            hitRate.markMissExclusive();
             stats.misses++;
-            AccordCache.this.stats.misses++;
         }
 
         final AccordCache parent()
@@ -756,11 +732,6 @@ public class AccordCache implements CacheSize
         public ImmutableStats statsSnapshot()
         {
             return new ImmutableStats(stats);
-        }
-
-        public Stats globalStats()
-        {
-            return AccordCache.this.stats;
         }
 
         @VisibleForTesting
@@ -896,7 +867,7 @@ public class AccordCache implements CacheSize
     }
 
     @VisibleForTesting
-    int unreferencedBytes()
+    public long unreferencedBytes()
     {
         return unreferencedBytes;
     }
@@ -957,7 +928,6 @@ public class AccordCache implements CacheSize
 
         event.instanceAllocated = type.weightedSize();
         AccordCache.Stats stats = type.stats();
-        event.instanceStatsQueries = stats.queries;
         event.instanceStatsHits = stats.hits;
         event.instanceStatsMisses = stats.misses;
 
@@ -966,11 +936,6 @@ public class AccordCache implements CacheSize
         event.globalUnreferenced = type.globalUnreferencedEntries();
         event.globalCapacity = type.capacity();
         event.globalAllocated = type.globalAllocated();
-
-        stats = type.globalStats();
-        event.globalStatsQueries = stats.queries;
-        event.globalStatsHits = stats.hits;
-        event.globalStatsMisses = stats.misses;
 
         event.update();
     }
