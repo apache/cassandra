@@ -39,6 +39,7 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
@@ -243,7 +244,9 @@ public class AccordService implements IAccordService, Shutdownable
 
     private static final IAccordService NOOP_SERVICE = new NoOpAccordService();
 
-    private static volatile IAccordService instance = null;
+    // TODO (expected): wrap this in an inner class that is statically initialised and final
+    //  tests can specify a DelegatingService if they want to override
+    private static IAccordService instance;
 
     @VisibleForTesting
     public static void unsafeSetNewAccordService(IAccordService service)
@@ -296,6 +299,8 @@ public class AccordService implements IAccordService, Shutdownable
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
         as.startup();
         instance = as;
+
+        AccordReplicaMetrics.touch();
 
         replayJournal(as);
 
@@ -699,6 +704,12 @@ public class AccordService implements IAccordService, Shutdownable
     public List<AccordExecutor> executors()
     {
         return ((AccordCommandStores)node.commandStores()).executors();
+    }
+
+    @Override
+    public boolean isEnabled()
+    {
+        return true;
     }
 
     @Override

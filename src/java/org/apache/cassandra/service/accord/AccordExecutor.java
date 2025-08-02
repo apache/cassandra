@@ -43,6 +43,7 @@ import accord.api.Agent;
 import accord.api.AsyncExecutor;
 import accord.api.RoutingKey;
 import accord.local.Command;
+import accord.local.PreLoadContext;
 import accord.local.SequentialAsyncExecutor;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.TxnId;
@@ -88,13 +89,14 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RU
 
 /**
  * NOTE: We assume that NO BLOCKING TASKS are submitted to this executor AND WAITED ON by another task executing on this executor.
+ *  (as we do not immediately schedule additional threads for submitted tasks, but schedule new threads only if necessary when the submitting execution completes)
  */
 public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTask<?>, Boolean>, SaveExecutor, Shutdownable, AsyncExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordExecutor.class);
     public interface AccordExecutorFactory
     {
-        AccordExecutor get(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent);
+        AccordExecutor get(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent);
     }
 
     public enum Mode { RUN_WITH_LOCK, RUN_WITHOUT_LOCK }
@@ -190,19 +192,19 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     int tasks;
     int runningThreads;
 
-    AccordExecutor(Lock lock, int executorId, AccordCacheMetrics metrics, Agent agent)
+    AccordExecutor(Lock lock, int executorId, Agent agent)
     {
         this.lock = lock;
         this.executorId = executorId;
-        this.cache = new AccordCache(this, 0, metrics);
+        this.cache = new AccordCache(this, 0);
         this.agent = agent;
 
         final AccordCache.Type<TxnId, Command, AccordSafeCommand> commands;
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey;
-        commands = cache.newType(TxnId.class, COMMAND_ADAPTER);
+        commands = cache.newType(TxnId.class, COMMAND_ADAPTER, AccordCacheMetrics.CommandsCacheMetrics.newShard(lock));
         registerJfrListener(executorId, commands, "Command");
 
-        commandsForKey = cache.newType(RoutingKey.class, CFK_ADAPTER);
+        commandsForKey = cache.newType(RoutingKey.class, CFK_ADAPTER, AccordCacheMetrics.CommandsForKeyCacheMetrics.newShard(lock));
         registerJfrListener(executorId, commandsForKey, "CommandsForKey");
 
         this.caches = new ExclusiveGlobalCaches(this, cache, commands, commandsForKey);
@@ -509,6 +511,11 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     public SequentialExecutor executor()
     {
         return new SequentialExecutor();
+    }
+
+    public SequentialExecutor executor(int commandStoreId)
+    {
+        return new SequentialExecutor(commandStoreId);
     }
 
     public SequentialAsyncExecutor newSequentialExecutor()
@@ -962,6 +969,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     private static final AtomicReferenceFieldUpdater<SequentialExecutor, Thread> ownerUpdater = AtomicReferenceFieldUpdater.newUpdater(SequentialExecutor.class, Thread.class, "owner");
     public class SequentialExecutor extends TaskQueue<Task> implements SequentialAsyncExecutor
     {
+        final int commandStoreId;
         final SequentialQueueTask selfTask;
         private Task task;
         private volatile Thread owner, waiting;
@@ -969,7 +977,13 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
         SequentialExecutor()
         {
+            this(-1);
+        }
+
+        SequentialExecutor(int commandStoreId)
+        {
             super(WAITING_TO_RUN);
+            this.commandStoreId = commandStoreId;
             this.selfTask = new SequentialQueueTask(this);
         }
 
@@ -1178,6 +1192,11 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         {
             ensureHeapified();
             return peekNode();
+        }
+
+        protected T get(int index)
+        {
+            return super.get(index);
         }
 
         protected void remove(T remove)
@@ -1600,4 +1619,113 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             return this;
         }
     }
+
+
+    public static class TaskInfo implements Comparable<TaskInfo>
+    {
+        public enum Status { WAITING_TO_LOAD, SCANNING_RANGES, LOADING, WAITING_TO_RUN, RUNNING }
+
+        final Status status;
+        final int commandStoreId;
+
+        final Task task;
+
+        public TaskInfo(Status status, int commandStoreId, Task task)
+        {
+            this.status = status;
+            this.commandStoreId = commandStoreId;
+            this.task = task;
+        }
+
+        public Status status()
+        {
+            return status;
+        }
+
+        public Integer commandStoreId()
+        {
+            return commandStoreId >= 0 ? commandStoreId : null;
+        }
+
+        public int position()
+        {
+            return task.queuePosition;
+        }
+
+        public @Nullable String describe()
+        {
+            if (task instanceof AccordTask)
+                return ((AccordTask<?>) task).preLoadContext().reason();
+
+            if (task instanceof DebuggableTask)
+                return ((DebuggableTask) task).description();
+
+            return null;
+        }
+
+        public @Nullable PreLoadContext preLoadContext()
+        {
+            if (task instanceof AccordTask)
+                return ((AccordTask<?>) task).preLoadContext();
+            return null;
+        }
+
+        @Override
+        public int compareTo(TaskInfo that)
+        {
+            int c = this.status.compareTo(that.status);
+            if (c == 0) c = this.position() - that.position();
+            return c;
+        }
+    }
+
+    public List<TaskInfo> taskSnapshot()
+    {
+        List<TaskInfo> result = new ArrayList<>();
+        lock.lock();
+        try
+        {
+            addToSnapshot(result, waitingToLoad, TaskInfo.Status.WAITING_TO_LOAD, TaskInfo.Status.WAITING_TO_LOAD);
+            addToSnapshot(result, waitingToLoadRangeTxns, TaskInfo.Status.WAITING_TO_LOAD, TaskInfo.Status.WAITING_TO_LOAD);
+            addToSnapshot(result, scanningRanges, TaskInfo.Status.SCANNING_RANGES, TaskInfo.Status.SCANNING_RANGES);
+            addToSnapshot(result, loading, TaskInfo.Status.LOADING, TaskInfo.Status.LOADING);
+            addToSnapshot(result, waitingToRun, TaskInfo.Status.WAITING_TO_RUN, TaskInfo.Status.WAITING_TO_RUN);
+            addToSnapshot(result, running, TaskInfo.Status.RUNNING, TaskInfo.Status.WAITING_TO_RUN);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+        result.sort(TaskInfo::compareTo);
+        return result;
+    }
+
+    private static List<Task> toSimpleSnapshotList(TaskQueue<?> queue)
+    {
+        List<Task> list = new ArrayList<>();
+        for (int i = 0 ; i < queue.size() ; i++)
+            list.add(queue.get(i));
+        return list;
+    }
+
+    private static void addToSnapshot(List<TaskInfo> snapshot, TaskQueue<?> queue, TaskInfo.Status ifCurrent, TaskInfo.Status ifQueued)
+    {
+        for (int i = 0 ; i < queue.size() ; ++i)
+        {
+            Task t = queue.get(i);
+            if (t instanceof SequentialQueueTask)
+            {
+                SequentialExecutor q = ((SequentialQueueTask) t).queue;
+                snapshot.add(new TaskInfo(ifCurrent, q.commandStoreId, q.task));
+                for (int j = 0 ; j < q.size() ; ++j)
+                    snapshot.add(new TaskInfo(ifQueued, q.commandStoreId, q.get(j)));
+            }
+            else
+            {
+                int commmandStoreId = t instanceof AccordTask ? ((AccordTask<?>) t).commandStore.id() : -1;
+                snapshot.add(new TaskInfo(ifCurrent, commmandStoreId, t));
+            }
+        }
+    }
+
 }

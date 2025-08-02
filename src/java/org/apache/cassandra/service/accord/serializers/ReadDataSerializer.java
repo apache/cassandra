@@ -293,7 +293,6 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
 
     public static final class ReplySerializer<D extends Data> implements IVersionedSerializer<ReadReply>
     {
-        final CommitOrReadNack[] nacks = CommitOrReadNack.values();
         private final VersionedSerializer<D, Version> dataSerializer;
 
         public ReplySerializer(VersionedSerializer<D, Version> dataSerializer)
@@ -306,7 +305,10 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
         {
             if (!reply.isOk())
             {
-                out.writeByte(3 + ((CommitOrReadNack) reply).ordinal());
+                CommitOrReadNack nack = (CommitOrReadNack) reply;
+                out.writeByte(3 + nack.kind.ordinal());
+                if (nack.kind == CommitOrReadNack.Kind.InsufficientEpochs)
+                    out.writeUnsignedVInt(nack.minEpoch());
                 return;
             }
 
@@ -327,7 +329,13 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
         {
             int flags = in.readByte();
             if (flags > 2)
-                return nacks[flags - 3];
+            {
+                CommitOrReadNack.Kind kind = CommitOrReadNack.Kind.lookupByOrdinal(flags - 3);
+                CommitOrReadNack nack = CommitOrReadNack.lookupByKind(kind);
+                if (nack != null)
+                    return nack;
+                return new CommitOrReadNack(kind, in.readUnsignedVInt());
+            }
 
             Ranges unavailable = deserializeNullable(in, KeySerializers.ranges);
             D data = dataSerializer.deserialize(in, version);
@@ -342,7 +350,12 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
         public long serializedSize(ReadReply reply, Version version)
         {
             if (!reply.isOk())
+            {
+                CommitOrReadNack nack = (CommitOrReadNack) reply;
+                if (nack.kind == CommitOrReadNack.Kind.InsufficientEpochs)
+                    return TypeSizes.BYTE_SIZE + VIntCoding.computeUnsignedVIntSize(nack.minEpoch());
                 return TypeSizes.BYTE_SIZE;
+            }
 
             ReadOk readOk = (ReadOk) reply;
             long size = TypeSizes.BYTE_SIZE

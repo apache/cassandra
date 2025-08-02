@@ -133,12 +133,13 @@ public final class RemoteProcessor implements Processor
         if (waitFor == null)
             return fetchLogAndWait(new CandidateIterator(candidates(true), false), log);
 
+        Future<ClusterMetadata> cmFuture = null;
         try
         {
             Supplier<Future<ClusterMetadata>> fetchFunction = () -> fetchLogAndWaitInternal(new CandidateIterator(candidates(true), false),
                                                                                             log);
 
-            Future<ClusterMetadata> cmFuture = EpochAwareDebounce.instance.getAsync(fetchFunction, waitFor);
+            cmFuture = EpochAwareDebounce.instance.getAsync(fetchFunction, waitFor);
             return cmFuture.get(retryPolicy.remainingNanos(), TimeUnit.NANOSECONDS);
         }
         catch (InterruptedException e)

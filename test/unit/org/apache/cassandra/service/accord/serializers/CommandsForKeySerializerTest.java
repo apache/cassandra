@@ -108,7 +108,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
@@ -181,7 +180,8 @@ public class CommandsForKeySerializerTest
             if (saveStatus.known.isDefinitionKnown())
                 builder.partialTxn(txn);
 
-            builder.setParticipants(StoreParticipants.all(txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null))));
+            StoreParticipants participants = StoreParticipants.all(txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null)));
+            builder.setParticipants(participants);
             builder.durability(isDurable ? AllQuorums : NotDurable);
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
             {
@@ -189,7 +189,7 @@ public class CommandsForKeySerializerTest
                 {
                     for (TxnId id : deps)
                         keyBuilder.add(((Key)txn.keys().get(0)).toUnseekable(), id);
-                    builder.partialDeps(new PartialDeps(AccordTestUtils.fullRange(txn), keyBuilder.build(), RangeDeps.NONE));
+                    builder.partialDeps(new PartialDeps(participants.touches(), keyBuilder.build(), RangeDeps.NONE));
                 }
             }
 
@@ -669,6 +669,7 @@ public class CommandsForKeySerializerTest
         @Override public long maxConflictsPruneInterval() { return 0; }
         @Override public Txn emptySystemTxn(Kind kind, Routable.Domain domain) { throw new UnsupportedOperationException(); }
         @Override public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount) { return 0; }
+        @Override public boolean isSlowCoordinator(long elapsed, TimeUnit units, TxnId txnId, int attempt) { return false; }
         @Override public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil blockedUntil, TimeUnit units) { return 0; }
         @Override public long slowAwaitDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int retryCount, ProgressLog.BlockedUntil retrying, TimeUnit units) { return 0; }
         @Override public long retrySyncPointDelay(Node node, int attempt, TimeUnit units) { return 0; }

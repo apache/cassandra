@@ -1049,7 +1049,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             {
                 // Since we are iterating in reverse order, we skip the fields that were
                 // set by entries written later (i.e. already read ones).
-                if (isChanged(field, flags) && field != CLEANUP)
+                if (isChanged(field, flags | mask) && field != CLEANUP)
                     skip(txnId, field, in, userVersion);
                 else
                     deserialize(field, in, userVersion);

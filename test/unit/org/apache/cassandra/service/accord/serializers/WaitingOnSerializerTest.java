@@ -33,7 +33,7 @@ import accord.primitives.RoutingKeys;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
-import accord.utils.SimpleBitSet;
+import accord.utils.LargeBitSet;
 import accord.utils.Utils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -95,8 +95,8 @@ public class WaitingOnSerializerTest
             int txnIdCount = deps.rangeDeps.txnIdCount();
             int keyCount = deps.keyDeps.keys().size();
             int[] selected = Gens.arrays(Gens.ints().between(0, txnIdCount + keyCount - 1)).unique().ofSizeBetween(0, txnIdCount + keyCount).next(rs);
-            SimpleBitSet waitingOn = new SimpleBitSet(txnIdCount + keyCount, false);
-            SimpleBitSet appliedOrInvalidated = rs.nextBoolean() ? null : new SimpleBitSet(txnIdCount, false);
+            LargeBitSet waitingOn = new LargeBitSet(txnIdCount + keyCount, false);
+            LargeBitSet appliedOrInvalidated = rs.nextBoolean() ? null : new LargeBitSet(txnIdCount, false);
             for (int i : selected)
             {
                 WaitingOnSets set = appliedOrInvalidated == null || i >= txnIdCount ? WaitingOnSets.APPLY : sets.next(rs);

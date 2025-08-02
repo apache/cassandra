@@ -40,7 +40,7 @@ public abstract class CacheEvents extends Event
     // instance
     @DataAmount(DataAmount.BYTES)
     public long instanceAllocated;
-    public long instanceStatsQueries, instanceStatsHits, instanceStatsMisses;
+    public long instanceStatsHits, instanceStatsMisses;
 
     @Percentage
     public double instanceStatsHitRate;
@@ -50,17 +50,11 @@ public abstract class CacheEvents extends Event
     public long globalCapacity, globalAllocated;
     public int globalSize, globalReferenced, globalUnreferenced;
 
-    public long globalStatsQueries, globalStatsHits, globalStatsMisses;
-
-    @Percentage
-    public double globalStatsHitRate;
-
     @Percentage
     public double globalFree;
     public void update()
     {
-        instanceStatsHitRate =  1D - (instanceStatsHits / (double) instanceStatsQueries);
-        globalStatsHitRate =  1D - (globalStatsHits / (double) globalStatsQueries);
+        instanceStatsHitRate =  1D - (instanceStatsHits / (double) (instanceStatsHits + instanceStatsMisses));
         globalFree =  1.0D - (globalAllocated / (double) globalCapacity);
     }
 

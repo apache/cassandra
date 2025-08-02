@@ -258,6 +258,7 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         // TODO (expected): we aren't weighing the keys
         sizeOnHeap = Ints.saturatedCast(EMPTY_SIZE);
         parent.updateSize(sizeOnHeap, sizeOnHeap, false, false);
+        parent.objectSize.increment(EMPTY_SIZE);
     }
 
     @Override

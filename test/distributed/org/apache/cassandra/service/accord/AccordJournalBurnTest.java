@@ -180,7 +180,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                  5 + random.nextInt(15),
                  operations,
                  10 + random.nextInt(30),
-                 new RandomDelayQueue.Factory(random).get(),
+                 RandomDelayQueue::new,
                  (nodeId, randomSource) -> {
                      try
                      {

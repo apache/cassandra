@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
@@ -47,7 +48,10 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.coordinate.Coordination;
+import accord.coordinate.Coordination.CoordinationKind;
 import accord.primitives.Ranges;
+import accord.utils.TinyEnumSet;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -493,8 +497,11 @@ public abstract class AccordMigrationReadRaceTestBase extends AccordTestBase
                      // Accord will block until we unpause enactment so to test the routing we wait until the transaction
                      // has started so the epoch it is created in is the old one
                      Util.spinUntilTrue(() -> outOfSyncInstance.callOnInstance(() -> {
-                         logger.info("Coordinating {}", AccordService.instance().node().coordinating());
-                         return AccordService.instance().node().coordinating().size() == expectedTransactions;
+                         logger.info("Fetching coordinations...");
+                         TinyEnumSet<CoordinationKind> txnKinds = TinyEnumSet.of(CoordinationKind.PreAccept, CoordinationKind.Propose, CoordinationKind.Stabilise, CoordinationKind.Execute, CoordinationKind.Persist, CoordinationKind.BeginRecovery);
+                         List<Coordination> coordinations = AccordService.instance().node().coordinations().stream().filter(c -> txnKinds.test(c.kind())).collect(Collectors.toList());
+                         logger.info("Coordinating {}", coordinations);
+                         return coordinations.size() == expectedTransactions;
                      }));
 
                      logger.info("Accord node is now coordinating something, unpausing so it can continue to execute");

@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.test.accord;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -30,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
@@ -43,14 +43,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
-import accord.coordinate.Outcome;
+import accord.coordinate.Coordination;
+import accord.coordinate.Coordination.CoordinationKind;
 import accord.messages.PreAccept;
 import accord.primitives.KeyRoute;
 import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
-import accord.primitives.TxnId;
-import accord.utils.async.AsyncResult;
+import accord.utils.TinyEnumSet;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -104,6 +104,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
+import org.assertj.core.api.Assertions;
 import org.eclipse.jetty.util.ConcurrentHashSet;
 
 import static java.lang.String.format;
@@ -564,10 +565,11 @@ public abstract class AccordMigrationWriteRaceTestBase extends AccordTestBase
                                          // otherwise it will just be routed straight to non-Accord.
                                          logger.info("Spinning waiting on a transaction");
                                          Util.spinUntilTrue(() -> {
-                                             Map<TxnId, AsyncResult<? extends Outcome>> txns = AccordService.instance().node().coordinating();
-                                             if (!txns.isEmpty())
+                                             TinyEnumSet<CoordinationKind> txnKinds = TinyEnumSet.of(CoordinationKind.PreAccept, CoordinationKind.Propose, CoordinationKind.Stabilise, CoordinationKind.Execute, CoordinationKind.BeginRecovery);
+                                             List<Coordination> coordinations = AccordService.instance().node().coordinations().stream().filter(c -> txnKinds.test(c.kind())).collect(Collectors.toList());
+                                             if (!coordinations.isEmpty())
                                              {
-                                                 logger.info("Found txns {}", txns);
+                                                 logger.info("Found txns {}", coordinations);
                                                  return true;
                                              }
                                              return false;
@@ -605,20 +607,22 @@ public abstract class AccordMigrationWriteRaceTestBase extends AccordTestBase
                          // Accord will block until we unpause enactment so to test the routing we wait until the transaction
                          // has started so the epoch it is created in is the old one
                          Util.spinUntilTrue(() -> outOfSyncInstance.callOnInstance(() -> {
-                             Map<TxnId, AsyncResult<? extends Outcome>> coordinating = AccordService.instance().node().coordinating();
-                             if (!coordinating.isEmpty())
-                                 logger.info("Accord coordinating: " + coordinating);
-                             return !coordinating.isEmpty();
+                             TinyEnumSet<CoordinationKind> txnKinds = TinyEnumSet.of(CoordinationKind.PreAccept, CoordinationKind.Propose, CoordinationKind.Stabilise, CoordinationKind.Execute, CoordinationKind.BeginRecovery);
+                             List<Coordination> coordinations = AccordService.instance().node().coordinations().stream().filter(c -> txnKinds.test(c.kind())).collect(Collectors.toList());
+                             if (!coordinations.isEmpty())
+                                 logger.info("Accord coordinating: " + coordinations);
+                             return !coordinations.isEmpty();
                          }), 20);
+                         boolean failed = false;
                          try
                          {
                              validation.accept(cluster);
-                             throw new AssertionError("Expected validation to fail");
                          }
                          catch (AssertionError e)
                          {
-                             //ignored
+                             failed = true;
                          }
+                         Assertions.assertThat(failed).isTrue();
                      }
                      else
                      {

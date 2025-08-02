@@ -24,11 +24,12 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.metrics.CassandraReservoir;
 import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
@@ -117,24 +118,17 @@ public class ClientResourceLimits
      * This will recompute the ip usage histo on each query of the snapshot when requested instead of trying to keep
      * a histogram up to date with each request
      */
-    public static Reservoir ipUsageReservoir()
+    public static CassandraReservoir ipUsageReservoir()
     {
-        return new Reservoir()
+        return new CassandraReservoir()
         {
-            public int size()
-            {
-                return PER_ENDPOINT_ALLOCATORS.size();
-            }
+            @Override public Snapshot getPercentileSnapshot() { throw new UnsupportedOperationException(); }
+            @Override public long[] buckets(int length) { throw new UnsupportedOperationException(); }
+            @Override public BucketStrategy bucketStrategy() { return BucketStrategy.none; }
+            @Override public void update(long l) { throw new UnsupportedOperationException(); }
 
-            public void update(long l)
-            {
-                throw new IllegalStateException();
-            }
-
-            public Snapshot getSnapshot()
-            {
-                return getCurrentIpUsage();
-            }
+            @Override public int size() { return PER_ENDPOINT_ALLOCATORS.size(); }
+            @Override public Snapshot getSnapshot() { return getCurrentIpUsage(); }
         };
     }
 

@@ -94,7 +94,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -348,7 +347,7 @@ public class AccordTestUtils
     public static AccordCommandStore createAccordCommandStore(
         Node.Id node, LongSupplier now, Topology topology)
     {
-        AccordExecutor executor = new AccordExecutorSyncSubmit(0, RUN_WITH_LOCK, CommandStore.class.getSimpleName() + '[' + 0 + ']', new AccordCacheMetrics("test"), new AccordAgent());
+        AccordExecutor executor = new AccordExecutorSyncSubmit(0, RUN_WITH_LOCK, CommandStore.class.getSimpleName() + '[' + 0 + ']', new AccordAgent());
         return createAccordCommandStore(node, now, topology, executor);
     }
 

@@ -31,7 +31,6 @@ import accord.api.Data;
 import accord.api.Result;
 import accord.coordinate.CoordinationAdapter;
 import accord.coordinate.ExecuteFlag.CoordinationFlags;
-import accord.coordinate.Timeout;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.SequentialAsyncExecutor;
@@ -67,8 +66,6 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ReadFailureException;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -391,26 +388,9 @@ public class AccordInteropExecution implements ReadCoordinator
             }
             else
             {
-                callback.accept(null, maybeWrapRequestFailureException(failure));
+                callback.accept(null, failure);
             }
         });
-    }
-
-    /**
-     * Interop should expose these exceptions as the appropriate Accord types so AccordService
-     * knows how to handle them
-     */
-    private Throwable maybeWrapRequestFailureException(Throwable failure)
-    {
-        Throwable toCheck = failure;
-        do
-        {
-            // TODO (required): There are probably more exceptions that will have this issue of wanting
-            // to be turned into the top level exception sent back to the client
-            if (toCheck instanceof ReadTimeoutException || toCheck instanceof ReadFailureException)
-                return new Timeout(txnId, route.homeKey(), failure);
-        } while ((toCheck = toCheck.getCause()) != null);
-        return failure;
     }
 
     private AsyncChain<Data> executeUnrecoverableRepairUpdate()

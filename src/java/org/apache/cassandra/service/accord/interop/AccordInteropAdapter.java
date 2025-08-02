@@ -119,8 +119,8 @@ public class AccordInteropAdapter extends TxnAdapter
             return false;
 
         Topologies all = execution(node, any, sendTo, selectSendTo, fullRoute, txnId, executeAt);
-        new AccordInteropPersist(node, executor, all, txnId, require, ballot, txn, executeAt, deps, writes, result, fullRoute, consistencyLevel, CoordinationFlags.none(), informDurableOnDone, callback)
-            .start(Minimal, any, writes, result);
+        new AccordInteropPersist(node, executor, all, txnId, require, ballot, txn, executeAt, deps, writes, result, fullRoute, consistencyLevel, CoordinationFlags.none(), informDurableOnDone, Minimal, callback)
+            .start();
         return true;
     }
 }

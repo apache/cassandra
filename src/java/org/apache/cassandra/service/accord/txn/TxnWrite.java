@@ -42,7 +42,6 @@ import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
-import accord.primitives.Writes;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cql3.UpdateParameters;
@@ -456,7 +455,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         // Accord should skip the Update for a read transaction, but handle it here anyways
         TxnUpdate txnUpdate = ((TxnUpdate)txn.update());
         if (txnUpdate == null)
-            return Writes.SUCCESS;
+            return AsyncChains.success(null);
 
         long timestamp = executeAt.uniqueHlc();
 
@@ -477,12 +476,12 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         }
 
         if (results.isEmpty())
-            return Writes.SUCCESS;
+            return AsyncChains.success(null);
 
         if (results.size() == 1)
-            return results.get(0).flatMap(o -> Writes.SUCCESS);
+            return results.get(0).map(o -> null);
 
-        return AsyncChains.reduce(results, (i1, i2) -> null, (Void)null).flatMap(ignore -> Writes.SUCCESS);
+        return AsyncChains.reduce(results, (i1, i2) -> null, (Void)null).map(ignore -> null);
     }
 
     public long estimatedSizeOnHeap()

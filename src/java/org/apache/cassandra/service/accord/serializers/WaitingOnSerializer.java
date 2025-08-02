@@ -30,7 +30,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.ImmutableBitSet;
 import accord.utils.Invariants;
-import accord.utils.SimpleBitSet;
+import accord.utils.LargeBitSet;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -121,9 +121,9 @@ public class WaitingOnSerializer
         }
     }
 
-    private static void serialize(int length, SimpleBitSet write, DataOutputPlus out) throws IOException
+    private static void serialize(int length, LargeBitSet write, DataOutputPlus out) throws IOException
     {
-        long[] bits = SimpleBitSet.SerializationSupport.getArray(write);
+        long[] bits = LargeBitSet.SerializationSupport.getArray(write);
         Invariants.require(length == bits.length);
         for (int i = 0; i < length; i++)
             out.writeLong(bits[i]);
@@ -137,9 +137,9 @@ public class WaitingOnSerializer
         return ImmutableBitSet.SerializationSupport.construct(bits);
     }
 
-    public static long serializedSize(int length, SimpleBitSet write)
+    public static long serializedSize(int length, LargeBitSet write)
     {
-        long[] bits = SimpleBitSet.SerializationSupport.getArray(write);
+        long[] bits = LargeBitSet.SerializationSupport.getArray(write);
         Invariants.require(length == bits.length, "Expected length %d != %d", length, bits.length);
         return (long) TypeSizes.LONG_SIZE * length;
     }

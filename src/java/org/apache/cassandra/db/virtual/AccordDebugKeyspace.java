@@ -41,6 +41,13 @@ import javax.annotation.Nullable;
 import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
 import com.google.common.collect.Sets;
+
+import accord.coordinate.AbstractCoordination;
+import accord.coordinate.Coordination;
+import accord.coordinate.Coordinations;
+import accord.coordinate.PrepareRecovery;
+import accord.coordinate.tracking.AbstractTracker;
+import accord.utils.SortedListMap;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
@@ -57,7 +64,6 @@ import accord.api.TraceEventType;
 import accord.coordinate.FetchData;
 import accord.coordinate.FetchRoute;
 import accord.coordinate.MaybeRecover;
-import accord.coordinate.RecoverWithRoute;
 import accord.impl.CommandChange;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.TxnStateKind;
@@ -151,6 +157,8 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class AccordDebugKeyspace extends VirtualKeyspace
 {
+    public static final String COORDINATIONS      = "coordinations";
+    public static final String EXECUTORS          = "executors";
     public static final String COMMANDS_FOR_KEY   = "commands_for_key";
     public static final String COMMANDS_FOR_KEY_UNMANAGED = "commands_for_key_unmanaged";
     public static final String DURABILITY_SERVICE = "durability_service";
@@ -173,6 +181,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     private AccordDebugKeyspace()
     {
         super(VIRTUAL_ACCORD_DEBUG, List.of(
+            new ExecutorsTable(),
+            new CoordinationsTable(),
             new CommandsForKeyTable(),
             new CommandsForKeyUnmanagedTable(),
             new DurabilityServiceTable(),
@@ -191,6 +201,118 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             new TxnOpsTable()
         ));
     }
+
+    // TODO (desired): human readable packed key tracker (but requires loading Txn, so might be preferable to only do conditionally)
+    public static final class ExecutorsTable extends AbstractVirtualTable
+    {
+        private ExecutorsTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, EXECUTORS,
+                        "Accord Executor State",
+                        "CREATE TABLE %s (\n" +
+                        "  executor_id int,\n" +
+                        "  status text,\n" +
+                        "  position int,\n" +
+                        "  unique_position int,\n" +
+                        "  description text,\n" +
+                        "  command_store_id int,\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
+                        "  txn_id_additional 'TxnIdUtf8Type',\n" +
+                        "  keys text,\n" +
+                        "  keysLoad text,\n" +
+                        "  keysLoadFor text,\n" +
+                        "  PRIMARY KEY (executor_id, status, position, unique_position)" +
+                        ')', UTF8Type.instance));
+        }
+
+        @Override
+        public DataSet data()
+        {
+            AccordCommandStores commandStores = (AccordCommandStores) AccordService.instance().node().commandStores();
+            SimpleDataSet ds = new SimpleDataSet(metadata());
+
+            for (AccordExecutor executor : commandStores.executors())
+            {
+                int uniquePos = 0;
+                int executorId = executor.executorId();
+                AccordExecutor.TaskInfo prev = null;
+                for (AccordExecutor.TaskInfo info : executor.taskSnapshot())
+                {
+                    if (prev != null && info.status() == prev.status() && info.position() == prev.position()) ++uniquePos;
+                    else uniquePos = 0;
+                    prev = info;
+                    PreLoadContext preLoadContext = info.preLoadContext();
+                    ds.row(executorId, info.status(), info.position(), uniquePos)
+                      .column("description", info.describe())
+                      .column("command_store_id", info.commandStoreId())
+                      .column("txn_id", preLoadContext == null ? null : preLoadContext.primaryTxnId())
+                      .column("txn_id_additional", preLoadContext == null ? null : preLoadContext.additionalTxnId())
+                      .column("keys", preLoadContext == null ? null : preLoadContext.keys())
+                      .column("keysLoad", preLoadContext == null ? null : preLoadContext.loadKeys())
+                      .column("keysLoadFor", preLoadContext == null ? null : preLoadContext.loadKeysFor())
+                    ;
+                }
+            }
+            return ds;
+        }
+    }
+
+    // TODO (desired): human readable packed key tracker (but requires loading Txn, so might be preferable to only do conditionally)
+    public static final class CoordinationsTable extends AbstractVirtualTable
+    {
+        private CoordinationsTable()
+        {
+            super(parse(VIRTUAL_ACCORD_DEBUG, COORDINATIONS,
+                        "Accord Coordination State",
+                        "CREATE TABLE %s (\n" +
+                        "  txn_id int,\n" +
+                        "  kind text,\n" +
+                        "  coordination_id int,\n" +
+                        "  description text,\n" +
+                        "  nodes text,\n" +
+                        "  nodes_inflight text,\n" +
+                        "  nodes_contacted text,\n" +
+                        "  participants text,\n" +
+                        "  replies text,\n" +
+                        "  tracker text,\n" +
+                        "  PRIMARY KEY (txn_id, kind, coordination_id)" +
+                        ')', UTF8Type.instance));
+        }
+
+        @Override
+        public DataSet data()
+        {
+            Coordinations coordinations = AccordService.instance().node().coordinations();
+            SimpleDataSet ds = new SimpleDataSet(metadata());
+            for (Coordination c : coordinations)
+            {
+                ds.row(c.txnId(), c.kind().toString(), c.coordinationId())
+                  .column("nodes", toStringOrNull(c.nodes()))
+                  .column("nodes_inflight", toStringOrNull(c.inflight()))
+                  .column("nodes_contacted", toStringOrNull(c.contacted()))
+                  .column("description", c.describe())
+                  .column("participants", toStringOrNull(c.scope()))
+                  .column("replies", summarise(c.replies()))
+                  .column("tracker", summarise(c.tracker()));
+            }
+            return ds;
+        }
+
+        private static String summarise(@Nullable SortedListMap<Node.Id, ?> replies)
+        {
+            if (replies == null)
+                return null;
+            return AbstractCoordination.summariseReplies(replies, 60);
+        }
+
+        private static String summarise(@Nullable AbstractTracker<?> tracker)
+        {
+            if (tracker == null)
+                return null;
+            return tracker.summariseTracker();
+        }
+    }
+
 
     // TODO (desired): don't report null as "null"
     public static final class CommandsForKeyTable extends AbstractVirtualTable implements AbstractVirtualTable.DataSet
@@ -529,7 +651,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         private static void addRow(SimpleDataSet ds, int executorId, String scope, AccordCache.ImmutableStats stats)
         {
             ds.row(executorId, scope)
-              .column("queries", stats.queries)
+              .column("queries", stats.hits + stats.misses)
               .column("hits", stats.hits)
               .column("misses", stats.misses);
         }
@@ -1365,7 +1487,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             Node node = AccordService.instance().node();
             if (Route.isFullRoute(route))
             {
-                RecoverWithRoute.recover(node, node.someSequentialExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
+                PrepareRecovery.recover(node, node.someSequentialExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
                     if (fail != null) result.setFailure(fail);
                     else result.setSuccess(null);
                 }, node.agent().trace(txnId, RECOVER));

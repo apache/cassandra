@@ -89,7 +89,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -273,7 +272,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                                    }),
                                                    updateHolder,
                                                    journal,
-                                                   new AccordExecutorSimple(0, CommandStore.class.getSimpleName() + '[' + 0 + ']', new AccordCacheMetrics("test"), agent));
+                                                   new AccordExecutorSimple(0, CommandStore.class.getSimpleName() + '[' + 0 + ']', agent));
         this.commandStore.executor().executeDirectlyWithLock(() -> {
             commandStore.executor().setCapacity(8 << 20);
             commandStore.executor().setWorkingSetSize(4 << 20);

@@ -27,7 +27,6 @@ import accord.utils.Invariants;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.metrics.AccordCacheMetrics;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -37,26 +36,26 @@ class AccordExecutorSimple extends AccordExecutor
     final ReentrantLock lock;
     private Task active;
 
-    public AccordExecutorSimple(int executorId, String name, AccordCacheMetrics metrics, Agent agent)
+    public AccordExecutorSimple(int executorId, String name, Agent agent)
     {
-        this(new ReentrantLock(), executorId, name, metrics, agent);
+        this(new ReentrantLock(), executorId, name, agent);
     }
 
-    public AccordExecutorSimple(int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
+    public AccordExecutorSimple(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
-        this(new ReentrantLock(), executorId, mode, threads, name, metrics, agent);
+        this(new ReentrantLock(), executorId, mode, threads, name, agent);
     }
 
-    private AccordExecutorSimple(ReentrantLock lock, int executorId, String name, AccordCacheMetrics metrics, Agent agent)
+    private AccordExecutorSimple(ReentrantLock lock, int executorId, String name, Agent agent)
     {
-        super(lock, executorId, metrics, agent);
+        super(lock, executorId, agent);
         this.lock = lock;
         this.executor = executorFactory().sequential(name);
     }
 
-    public AccordExecutorSimple(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, AccordCacheMetrics metrics, Agent agent)
+    public AccordExecutorSimple(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
-        super(lock, executorId, metrics, agent);
+        super(lock, executorId, agent);
         Invariants.requireArgument(threads == 1);
         this.lock = lock;
         this.executor = executorFactory().sequential(name.apply(0));

@@ -120,6 +120,15 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         {
             return localSyncNotified;
         }
+
+        public void addDebugString(StringBuilder sb)
+        {
+            sb.append(" syncStatus ")
+              .append(syncStatus)
+              .append(" localSyncNotified ")
+              .append(localSyncNotified);
+            super.addDebugString(sb);
+        }
     }
 
     static class EpochHistory extends AbstractConfigurationService.AbstractEpochHistory<EpochState>
