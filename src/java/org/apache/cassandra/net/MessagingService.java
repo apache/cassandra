@@ -20,7 +20,6 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -29,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
@@ -254,16 +252,6 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
             return Collections.unmodifiableList(versions);
         }
 
-        public List<Version> greaterThanOrEqual()
-        {
-            Version[] all = Version.values();
-            if (ordinal() == all.length - 1)
-                return Collections.singletonList(this);
-            List<Version> values = new ArrayList<>(all.length - ordinal());
-            for (int i = ordinal(); i < all.length; i++)
-                values.add(all[i]);
-            return values;
-        }
     }
     // Maintance Note:
     // Try to keep Version enum in-sync for testing.  By having the versions in the enum tests can get access without forcing this class
@@ -299,22 +287,23 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
             accept_streaming = new AcceptVersions(current_version, current_version);
         }
     }
-    static Map<Integer, Integer> versionOrdinalMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
+    static final int minVersion = Version.values()[0].value;
+    static final int maxVersion = Version.values()[Version.values().length - 1].value;
 
     /**
      * This is an optimisation to speed up the translation of the serialization
      * version to the {@link Version} enum ordinal.
+     * We expect values for new versions to be incremented sequentally
      *
      * @param version the serialization version
      * @return a {@link Version} ordinal value
      */
     public static int getVersionOrdinal(int version)
     {
-        Integer ordinal = versionOrdinalMap.get(version);
-        if (ordinal == null)
+        int result = version - minVersion;
+        if (result < 0 || result > maxVersion)
             throw new IllegalStateException("Unkown serialization version: " + version);
-
-        return ordinal;
+        return result;
     }
 
     private static Version currentVersion()
