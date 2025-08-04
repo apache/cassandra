@@ -191,22 +191,21 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
          */
         boolean acceptLocalSummary(MutationSummary summary)
         {
-            // send the summary to all peers, so that they can initiate reconciling their gaps ASAP
-            TrackedSummaryResponse response = new TrackedSummaryResponse(id, summary, dataNode, summaryNodes);
-            Message<TrackedSummaryResponse> message = Message.out(Verb.TRACKED_SUMMARY_RSP, response);
-            if (dataNode != LOCAL_NODE)
-                MessagingService.instance().send(message, host(dataNode));
-            for (int node : summaryNodes)
-                if (node != LOCAL_NODE)
-                    MessagingService.instance().send(message, host(node));
-
-            // act on missing offsets
             IntArrayList remoteNodes = new IntArrayList(summaryNodes.length, Integer.MIN_VALUE);
             if (dataNode != LOCAL_NODE)
                 remoteNodes.addInt(dataNode);
             for (int node : summaryNodes)
                 if (node != LOCAL_NODE)
                     remoteNodes.addInt(node);
+
+            if (!remoteNodes.isEmpty())
+            {
+                // send the summary to all peers, so that they can initiate reconciling their gaps ASAP
+                TrackedSummaryResponse response = new TrackedSummaryResponse(id, summary, dataNode, summaryNodes);
+                Message<TrackedSummaryResponse> message = Message.out(Verb.TRACKED_SUMMARY_RSP, response);
+                for (int node : remoteNodes)
+                    MessagingService.instance().send(message, host(node));
+            }
 
             Iterator<Offsets> iter = summary.onlyUnreconciled();
             Node2OffsetsMap missingOffsets = new Node2OffsetsMap();
