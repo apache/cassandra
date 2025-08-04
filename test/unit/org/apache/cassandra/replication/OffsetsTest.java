@@ -105,7 +105,7 @@ public class OffsetsTest
 
         public TestConsumer assertOffsetsConsumed(int... expected)
         {
-            Assert.assertTrue(expected.length % 2 == 0);
+            assertEquals(0, expected.length % 2);
             TestConsumer expectedConsumer = new TestConsumer();
             for (int i = 0; i < expected.length; i+=2)
                 expectedConsumer.consumerOffsets(expected[i], expected[i+1]);
@@ -134,7 +134,7 @@ public class OffsetsTest
 
     private static Offsets.Mutable offsets(int... bounds)
     {
-        Assert.assertTrue(bounds.length % 2 == 0);
+        assertEquals(0, bounds.length % 2);
         Offsets.Mutable ids = new Offsets.Mutable(LOG_ID);
         int keys = 0;
         int last = 0;
@@ -746,5 +746,53 @@ public class OffsetsTest
         Assert.assertEquals(ids(), ids(offsets()));
         Assert.assertEquals(ids(1, 2, 3), ids(offsets(1, 3)));
         Assert.assertEquals(ids(1, 2, 3, 5, 6, 7), ids(offsets(1, 3, 5, 7)));
+    }
+
+    @Test
+    public void testRemoveFromEmpty()
+    {
+        testRemove(offsets(), 5, offsets());
+    }
+
+    @Test
+    public void testRemoveFromSingleRange()
+    {
+        // before all ranges
+        testRemove(offsets(5, 7), 4, offsets(5, 7));
+        // after all ranges
+        testRemove(offsets(5, 7), 8, offsets(5, 7));
+        // start of range
+        testRemove(offsets(5, 7), 5, offsets(6, 7));
+        // end of range
+        testRemove(offsets(5, 7), 7, offsets(5, 6));
+        // middle of range
+        testRemove(offsets(5, 7), 6, offsets(5, 5, 7, 7));
+        // single element range
+        testRemove(offsets(5, 5), 5, offsets());
+    }
+
+    @Test
+    public void testRemoveGeneric()
+    {
+        // before all ranges
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 4, offsets(5, 7, 9, 9, 11, 13));
+        // after all ranges
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 14, offsets(5, 7, 9, 9, 11, 13));
+        // between two ranges
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 8, offsets(5, 7, 9, 9, 11, 13));
+        // start of a range
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 11, offsets(5, 7, 9, 9, 12, 13));
+        // end of a range
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 7, offsets(5, 6, 9, 9, 11, 13));
+        // middle of a range
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 12, offsets(5, 7, 9, 9, 11, 11, 13, 13));
+        // single element range
+        testRemove(offsets(5, 7, 9, 9, 11, 13), 9, offsets(5, 7, 11, 13));
+    }
+
+    private void testRemove(Offsets.Mutable from, int toRemove, Offsets.Mutable expectedAfter)
+    {
+        from.remove(toRemove);
+        assertOffsetsEqual(expectedAfter, from);
     }
 }
