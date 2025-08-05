@@ -126,7 +126,11 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 initializeAsNonCmsNode(wrapProcessor);
                 UUID localHostId = SystemKeyspace.getLocalHostId();
                 // If null, this node has not yet registered so there will be more nothing to do here
-                if (localHostId != null)
+                if (localHostId == null)
+                {
+                    initMessaging.run();
+                }
+                else
                 {
                     NodeId nodeId = NodeId.fromUUID(localHostId);
                     ClusterMetadata replayed = ClusterMetadata.current();
@@ -155,13 +159,13 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                             TimeUnit.MILLISECONDS.sleep(1000);  // TODO make configurable?
                             replayed = ClusterMetadata.current();
                         }
+                        logger.info("Any in flight CMS address changes have been processed, current epoch is {}", replayed.epoch.getEpoch());
                     }
-                    logger.info("CMS address changes complete, current epoch is {}", replayed.epoch.getEpoch());
-                }
-                else
-                {
-                    // nothing to do, so just initialise messaging
-                    initMessaging.run();
+                    else
+                    {
+                        // nothing more to do, so just initialize messaging
+                        initMessaging.run();
+                    }
                 }
                 break;
             case VOTE:
