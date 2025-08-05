@@ -31,7 +31,9 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
                                           "the target node so if anyone tries to bring the node up, the node will crash because it is" +
                                           "marked as force shutdown. To remove the target node from force shutdown, run this command without" +
                                           " -f so the node will be marked as normal shutdown and the node should be able to get up. Only use " +
-                                          "this command if there is no other way to shutdown the target node.")
+                                          "this command if there is no other way to shutdown the target node. If the given node is not part of " +
+                                          "the ring, this command will return error. This means this command can only shutdown a node that has" +
+                                          "successfully joined the ring before.")
 public class Shutdown extends NodeToolCmd
 {
     @Arguments(title = "ip address", usage = "<ip_address>", description = "IP address of the endpoint to shutdown", required = true)

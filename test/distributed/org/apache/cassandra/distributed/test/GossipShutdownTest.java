@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -34,15 +35,21 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.GossipShutdown;
 import org.apache.cassandra.gms.GossipShutdownVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.concurrent.Condition;
+
 import org.junit.Test;
 
+import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
+import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -240,5 +247,39 @@ public class GossipShutdownTest extends TestBaseImpl
             }
         }
         return "";
+    }
+
+    @Test
+    public void forceShutdownNodeTest() throws IOException, TimeoutException, InterruptedException
+    {
+        int originalNodeCount = 2;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start())
+        {
+            IInstanceConfig config = cluster.newInstanceConfig();
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            withProperty("cassandra.join_ring", false,
+                         () -> newInstance.startup(cluster));
+
+            cluster.forEach(statusToBootstrap(newInstance));
+            cluster.setUncaughtExceptionsFilter(t ->
+                                                t.getMessage().contains("is in silient shutdown state(e.g. the node is joining) or endpoint is not an owner of the token ring")
+            || t.getMessage().contains("Not able to find endpoint state from gossip endpoint state map for endpoint"));
+
+            // test force shutdown a bootstrapping node should fail
+            IInvokableInstance node1 = cluster.get(1);
+            IInvokableInstance node2 = cluster.get(2);
+            NodeToolResult result =  node1.nodetoolResult("shutdown", newInstance.broadcastAddress().getHostString() + ':' + newInstance.broadcastAddress().getPort(), "-f");
+            result.asserts().errorContains("is in silient shutdown state(e.g. the node is joining) or endpoint is not an owner of the token ring");
+
+            // test force shutdown a non-existing node should fail
+            result = node1.nodetoolResult("shutdown", "2.2.2.2", "-f");
+            result.asserts().errorContains("Not able to find endpoint state from gossip endpoint state map for endpoint");
+        }
     }
 }

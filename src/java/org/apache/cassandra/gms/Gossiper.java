@@ -1000,6 +1000,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 throw new RuntimeException("Not able to find endpoint state from gossip endpoint state map for endpoint: " + endpoint);
             }
+
+            if (isSilentShutdownState(epState) || !StorageService.instance.getTokenMetadata().isMember(endpoint))
+            {
+                throw new RuntimeException("Endpoint " + endpoint + " is in silient shutdown state(e.g. the node is joining) or endpoint is not an owner of the token ring");
+            }
+
             VersionedValue value = forceShutdown ? StorageService.instance.valueFactory.forceShutdown() : StorageService.instance.valueFactory.shutdown(true);
             epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, value);
             epState.updateTimestamp(); // make sure we don't evict it too soon
