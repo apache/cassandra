@@ -30,6 +30,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.*;
+import org.apache.cassandra.tracing.Tracing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +55,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
  * For a forwarded write there are 2 nodes involved in coordination, a coordinator and a leader. The coordinator is the
@@ -213,7 +216,7 @@ public class ForwardedWrite
         AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
 
         // Add callbacks for replicas to respond directly to coordinator
-        Message<MutationRequest> toLeader = Message.out(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan));
+        Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan), requestTime);
         for (Replica endpoint : endpoints)
         {
             logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
@@ -260,6 +263,12 @@ public class ForwardedWrite
 
     public static final IVerbHandler<MutationRequest> verbHandler = incoming ->
     {
+        if (approxTime.now() > incoming.expiresAtNanos())
+        {
+            Tracing.trace("Discarding mutation from {} (timed out)", incoming.from());
+            MessagingService.instance().metrics.recordDroppedMessage(incoming, incoming.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+            return;
+        }
         logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
         CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());
         MutationRequest request = incoming.payload;
