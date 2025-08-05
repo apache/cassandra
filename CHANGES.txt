@@ -1,3 +1,6 @@
+5.0.6
+
+
 5.0.5
  * Do not source cassandra-env.sh unnecessarily in nodetool and other tooling (CASSANDRA-20745)
  * Make source distribution buildable by ant artifacts as doc/scripts/process-native-protocol-specs-in-docker.sh was not executable (CASSANDRA-20802)
