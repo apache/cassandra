@@ -177,13 +177,13 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
 
     private static File writeFile(int seed, int length)
     {
-        String fileName = JAVA_IO_TMPDIR.getString() + "data+" + length + ".bin";
+        String fileName = "data+" + length + ".bin";
 
         byte[] dataChunk = new byte[4096 * 8];
         java.util.Random random = new Random(seed);
         int writtenData = 0;
 
-        File file = new File(fileName);
+        File file = new File(JAVA_IO_TMPDIR.getString(), fileName);
         try (FileOutputStream fos = new FileOutputStream(file.toJavaIOFile()))
         {
             while (writtenData < length)
