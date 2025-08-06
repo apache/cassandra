@@ -208,6 +208,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Sort SSTable TOC entries for determinism (CASSANDRA-20494)
  * Do not source cassandra-env.sh unnecessarily in nodetool and other tooling (CASSANDRA-20745)
  * Make source distribution buildable by ant artifacts as doc/scripts/process-native-protocol-specs-in-docker.sh was not executable (CASSANDRA-20802)
  * SSTableIndexWriter#abort() should log more quietly in cases where an exception is not provided (CASSANDRA-20695)
