@@ -158,7 +158,7 @@ for connecting to the native or the storage port.
 It is noteworthy that while the sstableloader tool is essentially a client to the Cassandra nodes, overloaded usage of
 the server side encryption options mentioned above is a reasonable compromise to avoid the need for additional
 specific configuration options just for this tool. This also means that there is no significance of the
-`require_client_auth` configuration option used in the client_encryption_options section of the cassandra.yaml file
+`require_client_auth` configuration option used in the `client_encryption_options` section of the cassandra.yaml file
 used in this context as only the server can enforce client authentication.
 
 Example:
