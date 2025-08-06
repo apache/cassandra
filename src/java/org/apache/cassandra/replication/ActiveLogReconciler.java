@@ -101,7 +101,7 @@ public final class ActiveLogReconciler implements Shutdownable
         @Override
         public void run(Interruptible.State state) throws InterruptedException
         {
-            if (isPaused) return;
+            if (isPaused || isShutdown) return;
 
             // TODO (expected): backoff, rate limits, per host and total
             Task task;
@@ -156,6 +156,7 @@ public final class ActiveLogReconciler implements Shutdownable
         }
     }
 
+    private volatile boolean isShutdown = false;
     private volatile boolean isPaused = false;
 
     @Override
@@ -184,6 +185,7 @@ public final class ActiveLogReconciler implements Shutdownable
 
     public void shutdownBlocking() throws InterruptedException
     {
+        isShutdown = true;
         if (!executor.isTerminated())
         {
             executor.shutdown();
