@@ -244,8 +244,26 @@ public abstract class Offsets implements Iterable<ShortMutationId>
 
         public void addAll(Offsets other, RangeConsumer onAdded)
         {
-            for (int i = 0; i < other.size; i += 2)
-                add(other.bounds[i], other.bounds[i + 1], onAdded);
+            if (size == 0)
+            {
+                int minLength = Math.max(other.size, INITIAL_CAPACITY);
+                if (bounds.length < minLength)
+                    bounds = new int[minLength];
+
+                System.arraycopy(other.bounds, 0, bounds, 0, other.size);
+                this.size = other.size;
+
+                if (onAdded != RangeConsumer.NONE)
+                {
+                    for (int i = 0; i < size; i += 2)
+                        onAdded.consume(logId, bounds[i], bounds[i + 1]);
+                }
+            }
+            else
+            {
+                for (int i = 0; i < other.size; i += 2)
+                    add(other.bounds[i], other.bounds[i + 1], onAdded);
+            }
         }
 
         public void addAll(Offsets other)
