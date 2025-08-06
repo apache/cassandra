@@ -34,13 +34,14 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.replication.Log2OffsetsMap;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.ShortMutationId;
+import org.apache.cassandra.transport.Dispatcher;
 
 public interface PartialTrackedRead
 {
     interface CompletedRead extends AutoCloseable
     {
         TrackedDataResponse response(); // must be called from the read stage
-        Future<TrackedDataResponse> followupRead(TrackedDataResponse initialResponse, ConsistencyLevel consistencyLevel, long expiresAtNanos);
+        Future<TrackedDataResponse> followupRead(TrackedDataResponse initialResponse, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime);
 
         @Override
         void close();
@@ -56,7 +57,7 @@ public interface PartialTrackedRead
                                               command.columnFilter());
         }
 
-        static CompletedRead simple(UnfilteredPartitionIterator partition, ReadCommand command)
+        static CompletedRead simple(UnfilteredPartitionIterator partition, ReadCommand command, long nowInSec)
         {
             return new CompletedRead()
             {
@@ -67,7 +68,7 @@ public interface PartialTrackedRead
                 }
 
                 @Override
-                public Future<TrackedDataResponse> followupRead(TrackedDataResponse initialRead, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+                public Future<TrackedDataResponse> followupRead(TrackedDataResponse initialRead, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
                 {
                     return null;
                 }

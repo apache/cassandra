@@ -2703,7 +2703,7 @@ public class StorageProxy implements StorageProxyMBean
         for (int i=0; i<cmdCount; i++)
         {
             SinglePartitionReadCommand command = commands.get(i);
-            reads[i] = TrackedRead.Partition.create(metadata, command, consistencyLevel, requestTime.computeDeadline(command.getTimeout(NANOSECONDS)));
+            reads[i] = TrackedRead.Partition.create(metadata, command, consistencyLevel, requestTime);
         }
 
         for (TrackedRead.Partition read : reads)

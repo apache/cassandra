@@ -41,6 +41,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.jctools.maps.NonBlockingHashMap;
 
+import org.apache.cassandra.transport.Dispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +70,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         ReadCommand command,
         ConsistencyLevel consistencyLevel,
         int[] summaryNodes,
-        long expiresAtNanos,
+        Dispatcher.RequestTime requestTime,
         Consumer<PartialTrackedRead> partialReadConsumer)
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
@@ -100,7 +101,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         }
         // TODO: confirm all summaryNodes are present in the replica plan
         AsyncPromise<TrackedDataResponse> promise = new AsyncPromise<>();
-        beginReadInternal(readId, command, replicaPlan, summaryNodes, expiresAtNanos, partialReadConsumer, promise);
+        beginReadInternal(readId, command, replicaPlan, summaryNodes, requestTime, partialReadConsumer, promise);
         return promise;
     }
 
@@ -110,7 +111,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         ReadCommand command,
         ReplicaPlan.AbstractForRead<?, ?> replicaPlan,
         int[] summaryNodes,
-        long expiresAtNanos,
+        Dispatcher.RequestTime requestTime,
         Consumer<PartialTrackedRead> partialReadConsumer,
         AsyncPromise<TrackedDataResponse> promise)
     {
@@ -137,7 +138,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         }
 
         Coordinator coordinator =
-            new Coordinator(readId, promise, command.columnFilter(), read, replicaPlan.consistencyLevel(), expiresAtNanos);
+                new Coordinator(readId, promise, command.columnFilter(), read, replicaPlan.consistencyLevel(), requestTime);
         coordinators.put(readId, coordinator);
 
         ReadRepairMetrics.trackedReconcile.mark();
@@ -195,27 +196,28 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         private final ColumnFilter selection;
         private final PartialTrackedRead read;
         private final ConsistencyLevel consistencyLevel;
-        private final long expiresAtNanos;
+        private final Dispatcher.RequestTime requestTime;
 
         Coordinator(
-            TrackedRead.Id readId,
-            AsyncPromise<TrackedDataResponse> promise,
-            ColumnFilter selection,
-            PartialTrackedRead read,
-            ConsistencyLevel consistencyLevel,
-            long expiresAtNanos)
+                TrackedRead.Id readId,
+                AsyncPromise<TrackedDataResponse> promise,
+                ColumnFilter selection,
+                PartialTrackedRead read,
+                ConsistencyLevel consistencyLevel,
+                Dispatcher.RequestTime requestTime)
         {
             this.readId = readId;
             this.promise = promise;
             this.selection = selection;
             this.read = Preconditions.checkNotNull(read);
             this.consistencyLevel = consistencyLevel;
-            this.expiresAtNanos = expiresAtNanos;
+            this.requestTime = requestTime;
         }
 
         boolean isPurgeable(long nanoTime)
         {
-            return nanoTime - expiresAtNanos > 0;
+            long deadline = requestTime.computeDeadline(read.command().verb().expiresAfterNanos());
+            return nanoTime - deadline > 0;
         }
 
         void abort()
@@ -234,7 +236,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
             try (PartialTrackedRead.CompletedRead completedRead = read.complete())
             {
                 TrackedDataResponse response = completedRead.response();
-                Future<TrackedDataResponse> followUp = completedRead.followupRead(response, consistencyLevel, expiresAtNanos);
+                Future<TrackedDataResponse> followUp = completedRead.followupRead(response, consistencyLevel, requestTime);
 
                 if (followUp != null)
                 {

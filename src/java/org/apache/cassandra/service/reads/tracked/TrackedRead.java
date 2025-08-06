@@ -141,7 +141,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     private final ReadCommand command;
     private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
     private final ConsistencyLevel consistencyLevel;
-    private final long expiresAtNanos;
+    private final Dispatcher.RequestTime requestTime;
 
     private static class RequestFailure extends Throwable
     {
@@ -160,12 +160,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
-    public TrackedRead(ReadCommand command, ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+    public TrackedRead(ReadCommand command, ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         this.command = command;
         this.replicaPlan = replicaPlan;
         this.consistencyLevel = consistencyLevel;
-        this.expiresAtNanos = expiresAtNanos;
+        this.requestTime = requestTime;
     }
 
     @Override
@@ -183,12 +183,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public static class Partition extends TrackedRead<EndpointsForToken, ReplicaPlan.ForTokenRead>
     {
-        private Partition(SinglePartitionReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        private Partition(SinglePartitionReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
         {
-            super(command, replicaPlan, consistencyLevel, expiresAtNanos);
+            super(command, replicaPlan, consistencyLevel, requestTime);
         }
 
-        public static Partition create(ClusterMetadata metadata, SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        public static Partition create(ClusterMetadata metadata, SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
         {
             Preconditions.checkArgument(command.metadata().replicationType().isTracked());
             Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
@@ -202,7 +202,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                                                                         consistencyLevel,
                                                                         retry,
                                                                         ReadCoordinator.DEFAULT);
-            return new Partition(command, replicaPlan, consistencyLevel, expiresAtNanos);
+            return new Partition(command, replicaPlan, consistencyLevel, requestTime);
         }
 
         @Override
@@ -214,15 +214,15 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public static class Range extends TrackedRead<EndpointsForRange, ReplicaPlan.ForRangeRead>
     {
-        private Range(PartitionRangeReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForRange, ReplicaPlan.ForRangeRead> replicaPlan, ConsistencyLevel consistencyLevel, long expiresAtNanos)
+        private Range(PartitionRangeReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForRange, ReplicaPlan.ForRangeRead> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
         {
-            super(command, replicaPlan, consistencyLevel, expiresAtNanos);
+            super(command, replicaPlan, consistencyLevel, requestTime);
         }
 
-        public static TrackedRead.Range create(PartitionRangeReadCommand command, ReplicaPlan.ForRangeRead replicaPlan, long expiresAtNanos)
+        public static TrackedRead.Range create(PartitionRangeReadCommand command, ReplicaPlan.ForRangeRead replicaPlan, Dispatcher.RequestTime requestTime)
         {
             Preconditions.checkArgument(command.metadata().replicationType().isTracked());
-            return new Range(command, replicaPlan, replicaPlan.consistencyLevel(), expiresAtNanos);
+            return new Range(command, replicaPlan, replicaPlan.consistencyLevel(), requestTime);
         }
 
         @Override
@@ -248,7 +248,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         return metadata.directory.peerId(replica.endpoint()).id();
     }
 
-    private void start(long expiresAt, Consumer<PartialTrackedRead> partialReadConsumer)
+    private void start(Dispatcher.RequestTime requestTime, Consumer<PartialTrackedRead> partialReadConsumer)
     {
         // TODO: skip local coordination if this node knows its recovering from an outage
         // TODO: read speculation
@@ -275,7 +275,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             logger.trace("Locally coordinating {}", readId);
             Stage.READ.submit(() -> {
                 AsyncPromise<TrackedDataResponse> promise =
-                    MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, expiresAt, partialReadConsumer);
+                    MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, partialReadConsumer);
                 promise.addCallback((response, error) -> {
                     if (error != null)
                     {
@@ -293,7 +293,10 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             logger.trace("Sending data request for {} to {}", readId, dataReplica.endpoint());
             Preconditions.checkArgument(partialReadConsumer == null, "Cannot supply read consumer for nonlocal reads");
             DataRequest dataRequest = new DataRequest(readId, command, dataNode, summaryNodes, consistencyLevel);
-            Message<DataRequest> dataMessage = Message.outWithFlag(verb(), dataRequest, MessageFlag.CALL_BACK_ON_FAILURE);
+            Message<DataRequest> dataMessage = Message.builder(verb(), dataRequest)
+                                                      .withRequestTime(requestTime)
+                                                      .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
+                                                      .build();
             MessagingService.instance().sendWithCallback(dataMessage, dataReplica.endpoint(), this);
         }
 
@@ -301,7 +304,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             return;
 
         SummaryRequest summaryRequest = new SummaryRequest(readId, command, dataNode, summaryNodes);
-        Message<SummaryRequest> summaryMessage = Message.out(Verb.TRACKED_SUMMARY_REQ, summaryRequest);
+        Message<SummaryRequest> summaryMessage = Message.outWithRequestTime(Verb.TRACKED_SUMMARY_REQ, summaryRequest, requestTime);
         for (Replica replica : summaryReplicas)
         {
             if (localReplica == replica)
@@ -317,19 +320,14 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
-    public void start(long expiresAt)
-    {
-        start(expiresAt, null);
-    }
-
-    public void startLocal(long expiresAt, Consumer<PartialTrackedRead> partialReadConsumer)
-    {
-        start(expiresAt, partialReadConsumer);
-    }
-
     public void start(Dispatcher.RequestTime requestTime)
     {
-        start(requestTime.computeDeadline(verb().expiresAfterNanos()));
+        start(requestTime, null);
+    }
+
+    public void startLocal(Dispatcher.RequestTime requestTime, Consumer<PartialTrackedRead> partialReadConsumer)
+    {
+        start(requestTime, partialReadConsumer);
     }
 
     private void onResponse(TrackedDataResponse response)
@@ -364,7 +362,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     {
         try
         {
-            return future.get(Math.max(0, expiresAtNanos - Clock.Global.nanoTime()), NANOSECONDS).makeIterator(command);
+            return future.get(Math.max(0, requestTime.computeDeadline(verb().expiresAfterNanos()) - Clock.Global.nanoTime()), NANOSECONDS).makeIterator(command);
         }
         catch (InterruptedException e)
         {
@@ -444,10 +442,11 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         @Override
         public void executeLocally(Message<? extends Request> message, ClusterMetadata metadata)
         {
+            Dispatcher.RequestTime requestTime = new Dispatcher.RequestTime(message.createdAtNanos());
             AsyncPromise<TrackedDataResponse> promise =
                 MutationTrackingService.instance
                                        .localReads()
-                                       .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, message.expiresAtNanos(), null);
+                                       .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, null);
             promise.addCallback((response, error) -> {
                 if (error != null)
                 {
