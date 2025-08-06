@@ -33,7 +33,7 @@ import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_L
 
 abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
 {
-    final ConcurrentLinkedStack<Object> submitted = new ConcurrentLinkedStack<>();
+    final ConcurrentLinkedStack<Submittable> submitted = new ConcurrentLinkedStack<>();
     boolean isHeldByExecutor;
     boolean shutdown;
 
@@ -47,17 +47,17 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     abstract void awaitExclusive() throws InterruptedException;
     abstract AccordExecutorLoops loops();
     abstract boolean isInLoop();
-    abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
+    abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
 
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         // if we're a loop thread, we will poll the waitingToRun queue when we come around
         // NOTE: this assumes no synchronous blocking tasks are submitted to this executor
-        if (isInLoop()) submitted.push(async.apply(p1a, p2, p3, p4));
+        if (isInLoop() || isOwningThread()) submitted.push(async.apply(p1a, p2, p3, p4));
         else submitExternal(sync, async, p1s, p1a, p2, p3, p4);
     }
 
-    <P1s, P1a, P2, P3, P4> void submitExternalExclusive(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submitExternalExclusive(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         try
         {

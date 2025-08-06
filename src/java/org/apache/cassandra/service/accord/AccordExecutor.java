@@ -36,8 +36,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
-import com.google.common.base.Functions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -463,7 +461,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
-    void consumeExclusive(Object object)
+    void consumeExclusive(Submittable object)
     {
         try
         {
@@ -538,31 +536,31 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         return submitPlainExclusive(null, new SaveRunnable(entry, identity, save));
     }
 
-    private <P1> void submit(BiConsumer<AccordExecutor, P1> sync, Function<P1, ?> async, P1 p1)
+    private <P1> void submit(BiConsumer<AccordExecutor, P1> sync, Function<P1, Submittable> async, P1 p1)
     {
         submit((e, c, p1a, p2a, p3) -> c.accept(e, p1a), (f, p1a, p2a, p3) -> f.apply(p1a), sync, async, p1, null, null);
     }
 
-    private <P1, P2> void submit(TriConsumer<AccordExecutor, P1, P2> sync, BiFunction<P1, P2, ?> async, P1 p1, P2 p2)
+    private <P1, P2> void submit(TriConsumer<AccordExecutor, P1, P2> sync, BiFunction<P1, P2, Submittable> async, P1 p1, P2 p2)
     {
         submit((e, c, p1a, p2a, p3) -> c.accept(e, p1a, p2a), (f, p1a, p2a, p3) -> f.apply(p1a, p2a), sync, async, p1, p2, null);
     }
 
-    private <P1, P2, P3> void submit(QuadConsumer<AccordExecutor, P1, P2, P3> sync, TriFunction<P1, P2, P3, ?> async, P1 p1, P2 p2, P3 p3)
+    private <P1, P2, P3> void submit(QuadConsumer<AccordExecutor, P1, P2, P3> sync, TriFunction<P1, P2, P3, Submittable> async, P1 p1, P2 p2, P3 p3)
     {
         submit((e, c, p1a, p2a, p3a) -> c.accept(e, p1a, p2a, p3a), TriFunction::apply, sync, async, p1, p2, p3);
     }
 
-    private <P1, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1, P2, P3, P4> sync, QuadFunction<P1, P2, P3, P4, Object> async, P1 p1, P2 p2, P3 p3, P4 p4)
+    private <P1, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1, P2, P3, P4> sync, QuadFunction<P1, P2, P3, P4, Submittable> async, P1 p1, P2 p2, P3 p3, P4 p4)
     {
         submit(sync, async, p1, p1, p2, p3, p4);
     }
 
-    abstract <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
+    abstract <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
 
     <R> void submit(AccordTask<R> operation)
     {
-        submit(AccordExecutor::submitExclusive, Function.identity(), operation);
+        submit(AccordExecutor::submitExclusive, i -> i, operation);
     }
 
     void submitExclusive(AccordTask<?> task)
@@ -775,7 +773,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     private Cancellable submit(Plain task)
     {
-        submit(AccordExecutor::submitPlainExclusive, Functions.identity(), task);
+        submit(AccordExecutor::submitPlainExclusive, i -> i, task);
         return task;
     }
 
@@ -898,10 +896,16 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
          */
         abstract protected void cleanupExclusive();
 
+        void cancelExclusive(AccordExecutor owner) {}
+
         abstract protected void addToQueue(TaskQueue queue);
     }
 
-    static abstract class SubmittableTask extends Task
+    interface Submittable
+    {
+    }
+
+    static abstract class SubmittableTask extends Task implements Submittable
     {
         final WithResources locals = ExecutorLocals.propagate();
         abstract void submitExclusive(AccordExecutor owner);
@@ -990,15 +994,18 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
         void cleanupTask()
         {
-            task.cleanupExclusive();
-            running = false;
-            owner = null;
-            task = super.poll();
-            if (task != null)
+            try { task.cleanupExclusive(); }
+            finally
             {
-                AccordExecutor.this.running.remove(selfTask);
-                selfTask.queuePosition = task.queuePosition;
-                waitingToRun.append(selfTask);
+                owner = null;
+                running = false;
+                task = super.poll();
+                if (task != null)
+                {
+                    AccordExecutor.this.running.remove(selfTask);
+                    selfTask.queuePosition = task.queuePosition;
+                    waitingToRun.append(selfTask);
+                }
             }
         }
 
@@ -1178,16 +1185,16 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
-    private abstract static class SubmitAsync
+    private abstract static class SubmitAsync implements Submittable
     {
         abstract void submitExclusive(AccordExecutor executor);
     }
 
-    private static class CancelAsync<R> extends SubmitAsync
+    private static class CancelAsync extends SubmitAsync
     {
-        final AccordTask<R> cancel;
+        final Task cancel;
 
-        private CancelAsync(AccordTask<R> cancel)
+        private CancelAsync(Task cancel)
         {
             this.cancel = cancel;
         }
@@ -1195,7 +1202,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         void submitExclusive(AccordExecutor executor)
         {
-            executor.cancelExclusive(cancel);
+            cancel.cancelExclusive(executor);
         }
     }
 
@@ -1224,17 +1231,20 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         public void cancel()
         {
-            executeDirectlyWithLock(() -> {
-                SequentialExecutor executor = executor();
-                TaskQueue queue = executor == null ? waitingToRun : executor;
-                if (queue.contains(this))
-                {
-                    queue.remove(this);
-                    try { fail(new CancellationException()); }
-                    catch (Throwable t) { agent.onUncaughtException(t); }
-                    completeTaskExclusive(this, true);
-                }
-            });
+            submit((e, c) -> c.cancelExclusive(e), CancelAsync::new, this);
+        }
+
+        void cancelExclusive(AccordExecutor owner)
+        {
+            SequentialExecutor executor = executor();
+            TaskQueue queue = executor == null ? waitingToRun : executor;
+            if (queue.contains(this))
+            {
+                queue.remove(this);
+                completeTaskExclusive(this, true);
+                try { fail(new CancellationException()); }
+                catch (Throwable t) { agent.onUncaughtException(t); }
+            }
         }
 
         @Override

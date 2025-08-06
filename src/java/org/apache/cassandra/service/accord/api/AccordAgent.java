@@ -246,13 +246,13 @@ public class AccordAgent implements Agent
         Shard shard = node.topology().forEpochIfKnown(homeKey, command.txnId().epoch());
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
+        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         long oneSecond = SECONDS.toMicros(1L);
         long promisedHlc = command.promised().hlc();
-        if (promisedHlc == Long.MAX_VALUE)
+        if (promisedHlc > nowMicros + TimeUnit.MINUTES.toMicros(1))
             promisedHlc = 0;
         long mostRecentStart = Math.max(command.txnId().hlc(), promisedHlc);
         long waitMicros = recover(txnId).computeWait(retryCount, MICROSECONDS);
-        long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         if (mostRecentStart > nowMicros + SECONDS.toMicros(1L))
             logger.warn("max({},{})>{}", command.txnId(), command.promised(), nowMicros);
         long startTime = mostRecentStart + waitMicros;
