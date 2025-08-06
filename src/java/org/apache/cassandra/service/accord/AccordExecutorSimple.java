@@ -111,7 +111,7 @@ class AccordExecutorSimple extends AccordExecutor
     }
 
     @Override
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Object> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         lock.lock();
         try

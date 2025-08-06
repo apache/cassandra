@@ -52,6 +52,7 @@ import accord.utils.IntrusiveLinkedList;
 import accord.utils.Invariants;
 import accord.utils.QuadFunction;
 import accord.utils.TriFunction;
+import accord.utils.UnhandledEnum;
 import org.agrona.collections.Object2ObjectHashMap;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -255,7 +256,7 @@ public class AccordCache implements CacheSize
         Status status = node.status();
         switch (status)
         {
-            default: throw new IllegalStateException("Unhandled status " + status);
+            default: throw new UnhandledEnum(status);
             case LOADING:
                 node.loading().loading.cancel();
             case WAITING_TO_LOAD:

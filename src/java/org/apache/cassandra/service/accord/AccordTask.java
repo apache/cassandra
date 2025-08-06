@@ -784,6 +784,11 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             callback.accept(null, new CancellationException());
     }
 
+    void cancelExclusive(AccordExecutor owner)
+    {
+        owner.cancel(this);
+    }
+
     public State state()
     {
         return state;
