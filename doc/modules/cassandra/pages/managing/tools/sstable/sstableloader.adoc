@@ -148,7 +148,7 @@ necessary SSL options directly via the command line. However, if SSL encryption 
 internode (storage) ports, it is recommended to use the --conf-path option with sstableloader to specify a
 cassandra.yaml file that includes the appropriate client_encryption_options for the native port and
 server_encryption_options for the storage port. This approach is necessary because there are no command-line options to
-configure internode SSL settings directly. In case, command line options are provided for the native port connection,
+configure internode SSL settings directly. In case command line options are provided for the native port connection,
 they will override the settings in the cassandra.yaml file for the native port, but the storage port will still use the
 server_encryption_options from the cassandra.yaml file.
 
