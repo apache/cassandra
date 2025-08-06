@@ -150,7 +150,7 @@ cassandra.yaml file that includes the appropriate `client_encryption_options` fo
 `server_encryption_options` for the storage port. This approach is necessary because there are no command-line options to
 configure internode SSL settings directly. In case command line options are provided for the native port connection,
 they will override the settings in the cassandra.yaml file for the native port, but the storage port will still use the
-server_encryption_options from the cassandra.yaml file.
+`server_encryption_options` from the cassandra.yaml file.
 
 Also, as the client to the Cassandra nodes, the same key and/or trust stores must be configured for the sstableloader tool
 for connecting to the native or the storage port.
