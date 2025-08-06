@@ -145,7 +145,7 @@ Initial hosts must be specified (-d)
 The sstableloader tool connects to the Cassandra server's native port to fetch cluster metadata and to the storage
 (internode) port to stream SSTables. If SSL encryption is required only for the native port, you can provide the
 necessary SSL options directly via the command line. However, if SSL encryption is required for both native and
-internode (storage) ports, it is recommended to use the --conf-path option with sstableloader to specify a
+internode (storage) ports, it is recommended to use the `--conf-path` option with sstableloader to specify a
 cassandra.yaml file that includes the appropriate client_encryption_options for the native port and
 server_encryption_options for the storage port. This approach is necessary because there are no command-line options to
 configure internode SSL settings directly. In case command line options are provided for the native port connection,
