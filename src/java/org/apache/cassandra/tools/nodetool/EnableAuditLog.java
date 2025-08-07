@@ -94,21 +94,8 @@ public class EnableAuditLog extends NodeToolCmd
             parsedParameters = parseParametersArray();
         }
 
-        // TODO: remove once conf.audit_user_cache_enabled is deprecated and removed
-        handleLegacySettings(probe, disable_role_filtering);
-
         probe.enableAuditLog(!disable_role_filtering, logger, parsedParameters, included_keyspaces, excluded_keyspaces, included_categories, excluded_categories, included_users, excluded_users,
                              archiveRetries, bblocking, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
-    }
-
-    private void handleLegacySettings(NodeProbe probe, boolean disableRoleFiltering) {
-        if (disableRoleFiltering)
-        {
-            probe.setValueForConfig("audit_user_cache_enabled", "false");
-        } else
-        {
-            probe.setValueForConfig("audit_user_cache_enabled", "true");
-        }
     }
 
     private Map<String, String> parseParametersArray()

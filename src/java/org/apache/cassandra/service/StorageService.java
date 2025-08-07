@@ -1450,11 +1450,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void doAuditLogRoleFilteringServiceInit()
     {
-        // TODO: remove DatabaseDescriptor.getAuditUserCacheEnabled()
-        //  once conf.audit_user_cache_enabled is deprecated and removed
         if (DatabaseDescriptor.getAuditLoggingOptions().enabled &&
-            DatabaseDescriptor.getAuditLoggingOptions().role_filtering &&
-            DatabaseDescriptor.getAuditUserCacheEnabled())
+            DatabaseDescriptor.getAuditLoggingOptions().role_filtering)
         {
             AuditLogRoleFilteringService.instance.initialize();
         }
@@ -1462,11 +1459,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void doAuditLogRoleFilteringServiceSetup()
     {
-        // TODO: remove DatabaseDescriptor.getAuditUserCacheEnabled()
-        //  once conf.audit_user_cache_enabled is deprecated and removed
         if (DatabaseDescriptor.getAuditLoggingOptions().enabled &&
-            DatabaseDescriptor.getAuditLoggingOptions().role_filtering &&
-            DatabaseDescriptor.getAuditUserCacheEnabled())
+            DatabaseDescriptor.getAuditLoggingOptions().role_filtering)
         {
                 AuditLogRoleFilteringService.instance.setup();
         }
@@ -7035,9 +7029,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                         .withArchiveCommand(archiveCommand)
                                         .build();
 
-        // TODO: Remove "DatabaseDescriptor.getAuditUserCacheEnabled" once conf.audit_user_cache_enabled is deprecated and removed
         // first, enable dependencies
-        if (options.role_filtering && DatabaseDescriptor.getAuditUserCacheEnabled())
+        if (options.role_filtering)
         {
             doAuditLogRoleFilteringServiceInit();
             doAuditLogRoleFilteringServiceSetup();

@@ -485,11 +485,6 @@ public class AuditLogRoleFilteringService
      */
     public boolean shouldLog(String role)
     {
-        // TODO: remove once conf.audit_user_cache_enabled is deprecated and removed
-        if (!DatabaseDescriptor.getAuditUserCacheEnabled()) {
-            return true;
-        }
-
         // TODO: while the cache is not ready, fail open for specific event types
         if (state != State.READY || role == null)
             return false;

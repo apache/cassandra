@@ -4248,16 +4248,6 @@ public class DatabaseDescriptor
             logger.warn("max_concurrent_automatic_sstable_upgrades ({}) is larger than concurrent_compactors ({})", value, getConcurrentCompactors());
     }
 
-    public static boolean getAuditUserCacheEnabled()
-    {
-        return conf.audit_user_cache_enabled;
-    }
-
-    public static void setAuditUserCacheEnabled(boolean enabled)
-    {
-        conf.audit_user_cache_enabled = enabled;
-    }
-
     public static AuditLogOptions getAuditLoggingOptions()
     {
         return conf.audit_logging_options;
