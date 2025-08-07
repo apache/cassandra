@@ -709,7 +709,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
     public final Cluster cluster;
     private final ListenableFileSystem fs;
     protected final Map<Integer, List<Closeable>> onUnexpectedShutdown = new TreeMap<>();
-    protected final List<Callable<Void>> onShutdown = new CopyOnWriteArrayList<>();
+    protected final List<Callable<Void>> onPreShutdown = new CopyOnWriteArrayList<>();
+    protected final List<Callable<Void>> onPostShutdown = new CopyOnWriteArrayList<>();
     protected final ThreadLocalRandomCheck threadLocalRandomCheck;
 
     private final RunnableActionScheduler scheduler;
@@ -895,7 +896,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              }
                          }).withClassTransformer(interceptClasses)
                            .withShutdownExecutor((name, classLoader, shuttingDown, call) -> {
-                               onShutdown.add(call);
+                               onPostShutdown.add(call);
                                return null;
                            })
         ).createWithoutStarting();
@@ -919,6 +920,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                              Choices.random(random, builder.consensusChanges),
                                              minRf, initialRf, maxRf, null);
         this.factory = factory;
+
+        // during cluster shutdown ignore all failures as there is no reason to track them
+        onPreShutdown.add(() -> {simulated.failures.ignoreFailures(); return null;});
     }
 
     public S simulation()
@@ -958,6 +962,18 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             }
         }
 
+        for (Callable<Void> call : onPreShutdown)
+        {
+            try
+            {
+                call.call();
+            }
+            catch (Throwable t)
+            {
+                fail = Throwables.merge(fail, t);
+            }
+        }
+
         try
         {
             cluster.close();
@@ -966,7 +982,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         {
             fail = Throwables.merge(fail, t);
         }
-        for (Callable<Void> call : onShutdown)
+        for (Callable<Void> call : onPostShutdown)
         {
             try
             {
