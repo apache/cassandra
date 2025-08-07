@@ -20,6 +20,9 @@ package org.apache.cassandra.replication;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.Clock;
 import org.jctools.maps.NonBlockingHashMap;
@@ -36,6 +39,8 @@ import org.jctools.maps.NonBlockingHashMap;
  */
 public class IncomingMutations implements ExpiredStatePurger.Expireable
 {
+    private static final Logger logger = LoggerFactory.getLogger(IncomingMutations.class);
+
     private final NonBlockingHashMap<ShortMutationId, Listeners> listenersMap = new NonBlockingHashMap<>();
 
     /**
@@ -70,7 +75,7 @@ public class IncomingMutations implements ExpiredStatePurger.Expireable
             Listeners listeners = entry.getValue();
             if (listeners.isExpired(nanoTime) && listenersMap.remove(id, listeners))
             {
-                listeners.expireListeners();
+                listeners.expireListeners(id);
                 n++;
             }
         }
@@ -109,13 +114,31 @@ public class IncomingMutations implements ExpiredStatePurger.Expireable
         void invokeListeners(ShortMutationId mutationId)
         {
             for (Callback callback : callbacks)
-                callback.onSuccess(mutationId);
+            {
+                try
+                {
+                    callback.onSuccess(mutationId);
+                }
+                catch (Throwable e)
+                {
+                    logger.error("Caught an error while processing onSuccess() callback for {}: {}", e, mutationId);
+                }
+            }
         }
 
-        void expireListeners()
+        void expireListeners(ShortMutationId mutationId)
         {
             for (Callback callback : callbacks)
-                callback.onTimeout();
+            {
+                try
+                {
+                    callback.onTimeout(mutationId);
+                }
+                catch (Throwable e)
+                {
+                    logger.error("Caught an error while processing onTimeout() callback for {}: {}", e, mutationId);
+                }
+            }
         }
 
         boolean isExpired(long nanoTime)
@@ -127,6 +150,9 @@ public class IncomingMutations implements ExpiredStatePurger.Expireable
     public interface Callback
     {
         void onSuccess(ShortMutationId mutationId);
-        default void onTimeout() {}
+
+        default void onTimeout(ShortMutationId mutationId)
+        {
+        }
     }
 }

@@ -241,6 +241,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             missingMutations.forEach(requested::add);
             int missingCount = missingMutations.idCount();
 
+            // TODO (expected, low priority): handle timeouts here to stop earlier
             IncomingMutations.Callback callback =
                 (mutationId) -> ReadReconciliations.instance.acceptMutation(id, mutationId);
             for (Offsets offsets : missingMutations.offsets())
