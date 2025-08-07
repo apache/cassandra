@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -348,6 +349,57 @@ public class StandaloneJournalUtil implements Runnable
                     throw t;
 
                 throw new RuntimeException(String.format("Error reading key %s: %s", key, t.getMessage()), t);
+            }
+        }
+    }
+
+    @Command(name = "load", description = "Load item from journal")
+    public static class Load implements Runnable
+    {
+        @Option(names = {"-s", "--sstables"}, description = "Path to sstables")
+        public String sstables;
+
+        @Option(names = {"-j", "--journal-segments"}, description = "Path to journal segments")
+        public String journalSegments;
+
+        @Option(names = {"-k", "--kind"}, description = "Kind to filter by")
+        public String kind;
+
+        @Option(names = {"-c", "--command-store-id"}, description = "Command Store id")
+        public String commandStoreId;
+
+        public void run()
+        {
+            if (sstables == null && journalSegments == null)
+                throw new IllegalArgumentException("Either --sstables or --journal-segments must be provided");
+
+            if (journalSegments == null)
+            {
+                try
+                {
+                    journalSegments = Files.createTempDirectory("dump_journal").getFileName().toString();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            setAccordJournalDirectory(journalSegments);
+            Keyspace.setInitialized();
+            AccordJournal journal = new AccordJournal(new AccordSpec.JournalSpec().setFlushPeriod(new DurationSpec.IntMillisecondsBound("1500ms")), new File(journalSegments).parent(), Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL));
+
+            Keyspace ks = Schema.instance.getKeyspaceInstance("system_accord");
+            ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal");
+            if (sstables != null)
+                cfs.importNewSSTables(Collections.singleton(sstables), false, false, false, false, false, false, true);
+
+            journal.start(null);
+            if (kind.toString().equals(JournalKey.Type.REDUNDANT_BEFORE.toString()))
+            {
+                Invariants.require(commandStoreId != null);
+                int commandStoreId = Integer.parseInt(this.commandStoreId);
+                output.out.println(journal.loadRedundantBefore(commandStoreId));
             }
         }
     }

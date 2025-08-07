@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import ch.qos.logback.classic.LoggerContext;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
@@ -274,8 +273,6 @@ public final class JVMStabilityInspector
 
             if (doExit && killing.compareAndSet(false, true))
             {
-                if (LoggerFactory.getILoggerFactory() instanceof LoggerContext)
-                    ((LoggerContext) LoggerFactory.getILoggerFactory()).stop();
                 StorageService.instance.removeShutdownHook();
                 System.exit(100);
             }

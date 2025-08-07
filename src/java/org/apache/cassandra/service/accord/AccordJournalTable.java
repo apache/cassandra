@@ -36,7 +36,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.UncheckedInterruptedException;
-import org.agrona.collections.LongHashSet;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -61,7 +60,6 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.Bounds;
@@ -73,7 +71,6 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.journal.EntrySerializer.EntryHolder;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
@@ -83,10 +80,12 @@ import org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
@@ -221,63 +220,6 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
     }
 
-    // TODO (expected): this can be removed entirely when we "flush" segments directly to sstables (but we perhaps need to be careful about the active segment)
-    private class TableRecordConsumer implements RecordConsumer<K>
-    {
-        final LongHashSet visited;
-        final RecordConsumer<K> delegate;
-
-        TableRecordConsumer(LongHashSet visited, RecordConsumer<K> delegate)
-        {
-            this.visited = visited;
-            this.delegate = delegate;
-        }
-
-        boolean visited(long segment)
-        {
-            return visited != null && visited.contains(segment);
-        }
-
-        @Override
-        public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
-        {
-            if (!visited(segment))
-                delegate.accept(segment, position, key, buffer, userVersion);
-        }
-    }
-
-    private class JournalAndTableRecordConsumer implements RecordConsumer<K>
-    {
-        private final K key;
-        private final RecordConsumer<K> delegate;
-        private LongHashSet visited;
-
-        void visit(long segment)
-        {
-            if (visited == null)
-                visited = new LongHashSet();
-            visited.add(segment);
-        }
-
-        JournalAndTableRecordConsumer(K key, RecordConsumer<K> reader)
-        {
-            this.key = key;
-            this.delegate = reader;
-        }
-
-        void readTable()
-        {
-            readAllFromTable(key, new TableRecordConsumer(visited, delegate));
-        }
-
-        @Override
-        public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
-        {
-            visit(segment);
-            delegate.accept(segment, position, key, buffer, userVersion);
-        }
-    }
-
     /**
      * When using {@link PartitionRangeReadCommand} we need to work with {@link RowFilter} which works with columns.
      * But the index doesn't care about table based queries and needs to be queried using the fields in the index, to
@@ -405,71 +347,119 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
      */
     public void readAll(K key, Reader reader)
     {
-        readAll(key, new RecordConsumerAdapter(reader));
+        readAll(key, new RecordConsumerAdapter<>(reader));
     }
 
     public void readAll(K key, RecordConsumer<K> reader)
     {
-        JournalAndTableRecordConsumer consumer = new JournalAndTableRecordConsumer(key, reader);
-        journal.readAll(key, consumer);
-        consumer.readTable();
-    }
-
-    private void readAllFromTable(K key, TableRecordConsumer onEntry)
-    {
-        DecoratedKey pk = JournalColumns.decorate(key);
-        try (RefViewFragment view = cfs.selectAndReference(View.select(SSTableSet.LIVE, pk)))
+        try (TableKeyIterator table = readAllFromTable(key))
         {
-            if (view.sstables.isEmpty())
-                return;
+            boolean hasTableData = table.advance();
+            long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
+            // First, read all journal entries newer than anything flushed into sstables
+            journal.readAll(key, (segment, position, key1, buffer, userVersion) -> {
+                if (segment > minSegment)
+                    reader.accept(segment, position, key1, buffer, userVersion);
+            });
 
-            List<UnfilteredRowIterator> iters = new ArrayList<>(Math.min(4, view.sstables.size()));
-            try
+            // Then, read SSTables
+            while (hasTableData)
             {
-                for (SSTableReader sstable : view.sstables)
-                {
-                    if (!sstable.mayContainAssumingKeyIsInRange(pk))
-                        continue;
-
-                    UnfilteredRowIterator iter = StorageHook.instance.makeRowIterator(cfs, sstable, pk, Slices.ALL, ColumnFilter.all(cfs.metadata()), false, NOOP_LISTENER);
-                    if (iter.getClass() != EmptyIterators.EmptyUnfilteredRowIterator.class)
-                        iters.add(iter);
-                }
-
-                if (!iters.isEmpty())
-                {
-                    EntryHolder<K> into = new EntryHolder<>();
-                    try (UnfilteredRowIterator iter = UnfilteredRowIterators.merge(iters))
-                    {
-                        while (iter.hasNext()) readRow(key, iter.next(), into, onEntry);
-                    }
-                }
-            }
-            catch (Throwable t)
-            {
-                String message = "Failed to read from " + iters;
-                for (UnfilteredRowIterator iter : iters)
-                {
-                    try { iter.close(); }
-                    catch (Throwable t2) { t.addSuppressed(t2); }
-                }
-                throw new FSReadError(message, t);
+                reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
+                hasTableData = table.advance();
             }
         }
     }
-
-    private void readRow(K key, Unfiltered unfiltered, EntryHolder<K> into, RecordConsumer<K> onEntry)
+    
+    // TODO (expected): why are recordColumn and versionColumn instance fields, so that this cannot be a static class?
+    class TableKeyIterator implements Closeable, RecordConsumer<K>
     {
-        Invariants.require(unfiltered.isRow());
-        Row row = (Row) unfiltered;
+        final K key;
+        final List<UnfilteredRowIterator> unmerged;
+        final UnfilteredRowIterator merged;
+        final OpOrder.Group readOrder;
 
-        long descriptor = LongType.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(0)));
-        int position = Int32Type.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(1)));
-        into.key = key;
-        into.value = row.getCell(recordColumn).buffer();
-        into.userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
+        long segment;
+        int offset;
+        ByteBuffer value;
+        int userVersion;
 
-        onEntry.accept(descriptor, position, into.key, into.value, into.userVersion);
+        TableKeyIterator(K key, List<UnfilteredRowIterator> unmerged, UnfilteredRowIterator merged, OpOrder.Group readOrder)
+        {
+            this.key = key;
+            this.unmerged = unmerged;
+            this.merged = merged;
+            this.readOrder = readOrder;
+        }
+
+        @Override
+        public void accept(long segment, int offset, K key, ByteBuffer buffer, int userVersion)
+        {
+            this.segment = segment;
+            this.offset = offset;
+            this.value = buffer;
+            this.userVersion = userVersion;
+        }
+
+        boolean advance()
+        {
+            if (merged == null || !merged.hasNext())
+                return false;
+
+            try
+            {
+                Row row = (Row) merged.next();
+                segment = LongType.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(0)));
+                offset = Int32Type.instance.compose(ByteBuffer.wrap((byte[]) row.clustering().get(1)));
+                value = row.getCell(recordColumn).buffer();
+                userVersion = Int32Type.instance.compose(row.getCell(versionColumn).buffer());
+                return true;
+            }
+            catch (Throwable t)
+            {
+                throw new FSReadError("Failed to read from " + unmerged, t);
+            }
+        }
+
+        @Override
+        public void close()
+        {
+            readOrder.close();
+            if (merged != null)
+                merged.close();
+        }
+    }
+
+    private TableKeyIterator readAllFromTable(K key)
+    {
+        DecoratedKey pk = JournalColumns.decorate(key);
+        OpOrder.Group readOrder = cfs.readOrdering.start();
+        List<UnfilteredRowIterator> iters = new ArrayList<>(3);
+        try
+        {
+            ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, pk));
+            for (SSTableReader sstable : view.sstables)
+            {
+                if (!sstable.mayContainAssumingKeyIsInRange(pk))
+                    continue;
+
+                UnfilteredRowIterator iter = StorageHook.instance.makeRowIterator(cfs, sstable, pk, Slices.ALL, ColumnFilter.all(cfs.metadata()), false, NOOP_LISTENER);
+                if (iter.getClass() != EmptyIterators.EmptyUnfilteredRowIterator.class)
+                    iters.add(iter);
+            }
+
+            return new TableKeyIterator(key, iters, iters.isEmpty() ? null : UnfilteredRowIterators.merge(iters), readOrder);
+        }
+        catch (Throwable t)
+        {
+            readOrder.close();
+            for (UnfilteredRowIterator iter : iters)
+            {
+                try { iter.close(); }
+                catch (Throwable t2) { t.addSuppressed(t2); }
+            }
+            throw t;
+        }
     }
 
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
