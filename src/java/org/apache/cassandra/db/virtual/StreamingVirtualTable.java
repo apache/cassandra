@@ -90,7 +90,7 @@ public class StreamingVirtualTable extends AbstractVirtualTable
         ds.column("last_updated_at", new Date(state.lastUpdatedAtMillis())); // read early to see latest state
         ds.column("follower", state.follower());
         ds.column("operation", state.operation().getDescription());
-        ds.column("peers", state.peers().stream().map(Object::toString).collect(Collectors.toList()));
+        ds.column("peers", state.peers().stream().map(Object::toString).sorted().collect(Collectors.toList()));
         ds.column("status", state.status().name().toLowerCase());
         ds.column("progress_percentage", round(state.progress() * 100));
         ds.column("duration_millis", state.durationMillis());
