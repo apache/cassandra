@@ -180,6 +180,9 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
     @Override
     public Data without(Ranges ranges)
     {
+        if (ranges.isEmpty())
+            return this;
+
         TxnData result = null;
         for (Map.Entry<Integer, TxnDataValue> e : entrySet())
         {
