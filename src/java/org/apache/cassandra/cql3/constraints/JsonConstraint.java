@@ -36,9 +36,14 @@ public class JsonConstraint extends UnaryConstraintFunction
 
     public static final String FUNCTION_NAME = "JSON";
 
+    public JsonConstraint(String name, List<String> args)
+    {
+        super(name, args);
+    }
+
     public JsonConstraint(List<String> args)
     {
-        super(FUNCTION_NAME, args);
+        this(FUNCTION_NAME, args);
     }
 
     @Override

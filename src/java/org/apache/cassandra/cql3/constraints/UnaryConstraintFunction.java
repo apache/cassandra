@@ -21,8 +21,9 @@ package org.apache.cassandra.cql3.constraints;
 import java.util.List;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.constraints.SatisfiabilityChecker.UnaryFunctionSatisfiabilityChecker;
 
-public abstract class UnaryConstraintFunction extends ConstraintFunction
+public abstract class UnaryConstraintFunction extends ConstraintFunction implements UnaryFunctionSatisfiabilityChecker
 {
     public UnaryConstraintFunction(String name, List<String> args)
     {
