@@ -192,7 +192,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                         requireAllEndpoints = true;
                 }
                 logger.info("{} {}.{} starting accord repair, require all endpoints {}", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily, requireAllEndpoints);
-                AccordRepair repair = new AccordRepair(ctx, cfs, desc.sessionId, desc.keyspace, desc.ranges, requireAllEndpoints, allEndpoints);
+                AccordRepair repair = new AccordRepair(ctx, cfs, desc.sessionId, desc.keyspace, desc.ranges, requireAllEndpoints);
                 return repair.repair(taskExecutor).flatMap(accordRepairResult -> {
                     // Propagate the HLC discovered during Accord repair to Paxos so Paxos doesn't use ballots < Accord has already used
                     if (accordRepairResult.maxHlc != IAccordService.NO_HLC)

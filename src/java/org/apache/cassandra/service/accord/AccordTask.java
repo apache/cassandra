@@ -754,9 +754,9 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     protected void cleanupExclusive()
     {
-        releaseResources(commandStore.cachesExclusive());
         if (state == FAILING)
             state(FAILED);
+        releaseResources(commandStore.cachesExclusive());
     }
 
     @Nullable
@@ -778,7 +778,6 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     public void cancelExclusive()
     {
-        releaseResources(commandStore.cachesExclusive());
         state(CANCELLED);
         if (callback != null)
             callback.accept(null, new CancellationException());
@@ -786,7 +785,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     void cancelExclusive(AccordExecutor owner)
     {
-        owner.cancel(this);
+        owner.cancelExclusive(this);
     }
 
     public State state()
@@ -839,7 +838,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         catch (Throwable t)
         {
             releaseResourcesSlow(caches, t);
-            throw t;
+            commandStore.agent().onUncaughtException(t);
         }
     }
 

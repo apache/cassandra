@@ -816,7 +816,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         out.writeByte(command.saveStatus().ordinal());
                         break;
                     case DURABILITY:
-                        out.writeByte(command.durability().ordinal());
+                        out.writeByte(command.durability().encoded());
                         break;
                     case ACCEPTED:
                         CommandSerializers.ballot.serialize(command.acceptedOrCommitted(), out);
@@ -954,7 +954,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         break;
                     case DURABILITY:
                         Invariants.require(durability != null, "%s", this);
-                        out.writeByte(durability.ordinal());
+                        out.writeByte(durability.encoded());
                         break;
                     case ACCEPTED:
                         Invariants.require(acceptedOrCommitted != null, "%s", this);
@@ -1035,7 +1035,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     saveStatus = SaveStatus.values()[in.readByte()];
                     break;
                 case DURABILITY:
-                    durability = Durability.values()[in.readByte()];
+                    durability = Durability.forEncoded(in.readUnsignedByte());
                     break;
                 case ACCEPTED:
                     acceptedOrCommitted = CommandSerializers.ballot.deserialize(in);

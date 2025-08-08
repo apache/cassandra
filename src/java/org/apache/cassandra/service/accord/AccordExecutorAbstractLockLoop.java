@@ -180,7 +180,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                                 }
                                 finally
                                 {
-                                    completeTaskExclusive(task, true);
+                                    completeTaskExclusive(task);
                                     clearRunning();
                                 }
                             }
@@ -234,7 +234,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                         {
                             Task tmp = task;
                             task = null;
-                            completeTaskExclusive(tmp, true);
+                            completeTaskExclusive(tmp);
                             clearRunning();
                         }
                         else resumeExclusive();
@@ -270,7 +270,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                         {
                             try { task.fail(t); }
                             catch (Throwable t2) { t.addSuppressed(t2); }
-                            try { completeTaskExclusive(task, true); }
+                            try { completeTaskExclusive(task); }
                             catch (Throwable t2) { t.addSuppressed(t2); }
                             try { agent.onUncaughtException(t); }
                             catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }

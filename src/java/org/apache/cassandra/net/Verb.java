@@ -340,7 +340,6 @@ public enum Verb
     ACCORD_RECOVER_AWAIT_RSP        (141, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AwaitSerializers.recoverReply),        AccordService::responseHandlerOrNoop                                           ),
     ACCORD_RECOVER_AWAIT_REQ        (142, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(AwaitSerializers.recoverRequest),      AccordService::requestHandlerOrNoop, ACCORD_RECOVER_AWAIT_RSP),
     ACCORD_INFORM_DURABLE_REQ       (143, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(InformSerializers.durable),            AccordService::requestHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
-    ACCORD_INFORM_DECIDED_REQ       (171, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(InformSerializers.decided),            AccordService::requestHandlerOrNoop                                            ),
     ACCORD_CHECK_STATUS_RSP         (144, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(CheckStatusSerializers.reply),         AccordService::responseHandlerOrNoop                                           ),
     ACCORD_CHECK_STATUS_REQ         (145, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(CheckStatusSerializers.request),       AccordService::requestHandlerOrNoop, ACCORD_CHECK_STATUS_RSP                   ),
     ACCORD_FETCH_DATA_RSP           (146, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(FetchSerializers.reply),               AccordService::responseHandlerOrNoop                                           ),

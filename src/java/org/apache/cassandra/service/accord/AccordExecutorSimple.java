@@ -96,7 +96,7 @@ class AccordExecutorSimple extends AccordExecutor
                 catch (Throwable t) { task.fail(t); }
                 finally
                 {
-                    completeTaskExclusive(task, true);
+                    completeTaskExclusive(task);
                     active = null;
                 }
             }

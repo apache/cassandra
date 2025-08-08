@@ -39,21 +39,21 @@ public class SetDurableSerializers
         public void serialize(SetShardDurable msg, DataOutputPlus out) throws IOException
         {
             syncPoint.serialize(msg.exclusiveSyncPoint, out);
-            CommandSerializers.durability.serialize(msg.durability, out);
+            CommandSerializers.outcomeDurability.serialize(msg.durability, out);
         }
 
         @Override
         public SetShardDurable deserialize(DataInputPlus in) throws IOException
         {
             return new SetShardDurable(syncPoint.deserialize(in),
-                                       CommandSerializers.durability.deserialize(in));
+                                       CommandSerializers.outcomeDurability.deserialize(in));
         }
 
         @Override
         public long serializedSize(SetShardDurable msg)
         {
             return syncPoint.serializedSize(msg.exclusiveSyncPoint)
-                + CommandSerializers.durability.serializedSize(msg.durability);
+                + CommandSerializers.outcomeDurability.serializedSize(msg.durability);
         }
     };
 

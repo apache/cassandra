@@ -267,9 +267,11 @@ public class AccordCache implements CacheSize
                 break;
             case MODIFIED:
                 node.save();
+            case SAVING: // we can be in evict queue and already be saving if save was requested for durability rather than eviction
                 boolean evict = node.status() == LOADED;
                 node.unlink();
                 if (evict) evict(node, true);
+                break;
         }
     }
 

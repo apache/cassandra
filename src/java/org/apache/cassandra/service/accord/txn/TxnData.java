@@ -193,7 +193,14 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
             else
             {
                 if (result == null)
+                {
                     result = new TxnData();
+                    for (Map.Entry<Integer, TxnDataValue> e2 : entrySet())
+                    {
+                        if (e2.getKey() == e.getKey()) break;
+                        result.put(e2.getKey(), e2.getValue());
+                    }
+                }
                 if (newValue != null)
                     result.put(e.getKey(), newValue);
             }

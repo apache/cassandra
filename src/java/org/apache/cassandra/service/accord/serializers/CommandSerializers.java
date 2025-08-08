@@ -913,7 +913,8 @@ public class CommandSerializers
 
     public static final UnversionedSerializer<SaveStatus> saveStatus = EncodeAsVInt32.of(SaveStatus.class);
     public static final UnversionedSerializer<Status> status = EncodeAsVInt32.of(Status.class);
-    public static final UnversionedSerializer<Durability> durability = EncodeAsVInt32.of(Durability.class);
+    public static final UnversionedSerializer<Durability> durability = EncodeAsVInt32.withoutNulls(Durability::encoded, Durability::forEncoded);
+    public static final UnversionedSerializer<Durability.HasOutcome> outcomeDurability = EncodeAsVInt32.of(Durability.HasOutcome.class);
 
     public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<>()
     {

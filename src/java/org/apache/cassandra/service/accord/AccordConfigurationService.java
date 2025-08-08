@@ -452,13 +452,11 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     {
         long epoch = topology.epoch();
         EpochState epochState = getOrCreateEpochState(epoch);
-        if (!startSync || epochState.syncStatus != SyncStatus.NOT_STARTED)
-            return;
-
         synchronized (this)
         {
-            if (epochState.syncStatus != SyncStatus.NOT_STARTED)
+            if (!startSync || epochState.syncStatus != SyncStatus.NOT_STARTED)
                 return;
+
             epochState.setSyncStatus(SyncStatus.NOTIFYING);
         }
 
@@ -651,7 +649,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     public Future<Void> unsafeLocalSyncNotified(long epoch)
     {
         AsyncPromise<Void> promise = new AsyncPromise<>();
-        getOrCreateEpochState(epoch).localSyncNotified().invoke((result, failure) -> {
+        getOrCreateEpochState(epoch).localSyncNotified().begin((result, failure) -> {
             if (failure != null) promise.tryFailure(failure);
             else promise.trySuccess(result);
         });

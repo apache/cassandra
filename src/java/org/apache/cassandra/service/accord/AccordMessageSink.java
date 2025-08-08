@@ -120,7 +120,6 @@ public class AccordMessageSink implements MessageSink
             builder.put(WAIT_UNTIL_APPLIED_REQ,                   Verb.ACCORD_WAIT_UNTIL_APPLIED_REQ);
             builder.put(APPLY_THEN_WAIT_UNTIL_APPLIED_REQ,        Verb.ACCORD_APPLY_AND_WAIT_REQ);
             builder.put(INFORM_DURABLE_REQ,                       Verb.ACCORD_INFORM_DURABLE_REQ);
-            builder.put(INFORM_DECIDED_REQ,                       Verb.ACCORD_INFORM_DECIDED_REQ);
             builder.put(CHECK_STATUS_REQ,                         Verb.ACCORD_CHECK_STATUS_REQ);
             builder.put(CHECK_STATUS_RSP,                         Verb.ACCORD_CHECK_STATUS_RSP);
             builder.put(FETCH_DATA_REQ,                           Verb.ACCORD_FETCH_DATA_REQ);

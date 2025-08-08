@@ -221,7 +221,7 @@ public class AccordObjectSizes
         }
     }
 
-    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
+    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(Kind.Read, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
     public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;
@@ -316,7 +316,7 @@ public class AccordObjectSizes
                 builder.partialDeps(PartialDeps.NONE);
 
             if (hasTxn)
-                builder.partialTxn(new PartialTxn.InMemory(null, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
+                builder.partialTxn(new PartialTxn.InMemory(Kind.Read, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
 
             if (executes)
             {

@@ -22,21 +22,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import accord.local.Node;
-import accord.local.durability.DurabilityService;
+import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.LatencyMetrics;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
@@ -68,29 +62,25 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordRepairTime
  */
 public class AccordRepair
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordRepair.class);
-
     private final SharedContext ctx;
     private final ColumnFamilyStore cfs;
     private final TimeUUID repairId;
 
     private final Ranges ranges;
 
-    private final boolean requireAllEndpoints;
-    private final List<InetAddressAndPort> endpoints;
+    private final SyncRemote syncRemote;
 
     private final Epoch minEpoch = ClusterMetadata.current().epoch;
 
     private volatile Throwable shouldAbort = null;
     private volatile Thread waiting;
 
-    public AccordRepair(SharedContext ctx, ColumnFamilyStore cfs, TimeUUID repairId, String keyspace, Collection<Range<Token>> ranges, boolean requireAllEndpoints, List<InetAddressAndPort> endpoints)
+    public AccordRepair(SharedContext ctx, ColumnFamilyStore cfs, TimeUUID repairId, String keyspace, Collection<Range<Token>> ranges, boolean requireAllEndpoints)
     {
         this.ctx = ctx;
         this.cfs = cfs;
         this.repairId = repairId;
-        this.requireAllEndpoints = requireAllEndpoints;
-        this.endpoints = endpoints;
+        this.syncRemote = requireAllEndpoints ? All : Quorum;
         this.ranges = AccordTopology.toAccordRanges(keyspace, ranges);
     }
 
@@ -151,9 +141,6 @@ public class AccordRepair
     private Pair<List<accord.primitives.Range>, Long> repairRange(TokenRange range) throws Throwable
     {
         List<accord.primitives.Range> repairedRanges = new ArrayList<>();
-        List<Node.Id> ids = endpoints == null ? null : endpoints.stream().map(AccordService.instance().configService()::mappedId).collect(Collectors.toList());
-        DurabilityService.SyncRemote syncRemote = requireAllEndpoints ? All : Quorum;
-
         if (shouldAbort != null)
             throw shouldAbort;
 
@@ -177,7 +164,7 @@ public class AccordRepair
             long timeoutNanos = getAccordRepairTimeoutNanos();
             long maxHlc = AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
                 Timestamp conflictMax = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
-                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), ids, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc());
+                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), null, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc());
             }), ranges, bookkeeping, start, start + timeoutNanos);
             waiting = null;
 
