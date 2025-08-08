@@ -22,13 +22,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.constraints.SatisfiabilityChecker.UnaryFunctionSatisfiabilityChecker;
+import org.apache.cassandra.cql3.constraints.ConstraintResolver.UnaryFunctions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -56,36 +55,18 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
 
         public Raw(ColumnIdentifier functionName, List<String> arguments)
         {
-            function = createConstraintFunction(functionName.toString(), arguments);
+            function = ConstraintResolver.getUnaryConstraintFunction(functionName.toString(), arguments);
         }
 
         public Raw(ColumnIdentifier functionName)
         {
-            function = createConstraintFunction(functionName.toString(), List.of());
+            function = ConstraintResolver.getUnaryConstraintFunction(functionName.toString(), List.of());
         }
 
         public UnaryFunctionColumnConstraint prepare()
         {
             return new UnaryFunctionColumnConstraint(function);
         }
-    }
-
-    public enum Functions implements UnaryFunctionSatisfiabilityChecker
-    {
-        NOT_NULL(NotNullConstraint::new),
-        JSON(JsonConstraint::new);
-
-        private final Function<List<String>, ConstraintFunction> functionCreator;
-
-        Functions(Function<List<String>, ConstraintFunction> functionCreator)
-        {
-            this.functionCreator = functionCreator;
-        }
-    }
-
-    private static ConstraintFunction createConstraintFunction(String functionName, List<String> arguments)
-    {
-        return getEnum(Functions.class, functionName).functionCreator.apply(arguments);
     }
 
     public UnaryFunctionColumnConstraint(ConstraintFunction function)
@@ -134,7 +115,7 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
     @Override
     public boolean enablesDuplicateDefinitions(String name)
     {
-        return Functions.valueOf(name).enableDuplicateDefinitions();
+        return UnaryFunctions.valueOf(name).enableDuplicateDefinitions();
     }
 
     @Override
@@ -209,7 +190,7 @@ public class UnaryFunctionColumnConstraint extends AbstractFunctionConstraint<Un
         @VisibleForTesting
         public ConstraintFunction getConstraintFunction(String functionName, List<String> args)
         {
-            return createConstraintFunction(functionName, args);
+            return ConstraintResolver.getUnaryConstraintFunction(functionName, args);
         }
 
         @Override

@@ -47,6 +47,21 @@ ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> DROP CHECK;
 There is no way how to drop individual check when multiple checks are specified on a column. After dropping checks, you
 are required to re-define all necessary checks again.
 
+== Constraints are pluggable
+
+On top of in-built constraints enumerated below, since https://issues.apache.org/jira/browse/CASSANDRA-20824[CASSANDRA-20824],
+it is possible to provide your own implementation of a constraint and use it in Cassandra. This is possible
+thanks to Java SPI, where you need to implement `ConstraintProvider` interface. There is an example of a custom constraint implementation in `examples/constraints` in the source distribution you can follow  to implement your own constraints.
+
+The advantage of this approach is that you can use an official release while you can just "patch" Cassandra by
+providing your additional constraints specific to your business / needs. Feel free to reach us if you want
+to make your constraint in-built!
+
+If you start to use custom constraints, your nodes will fail to start if there isn't appropriate JAR these
+constraints are implemented in. If constraints specified in JAR via SPI were not present, we skipped them and
+a user didn't notice, then it might be possible to insert invalid data (per constraint) which we consider
+is not desired behavior.
+
 == AVAILABLE CONSTRAINTS
 
 === SCALAR CONSTRAINT

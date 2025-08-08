@@ -22,10 +22,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.constraints.ConstraintResolver.Functions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -55,7 +55,7 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
             this.term = term;
             if (arguments == null)
                 arguments = new ArrayList<>();
-            function = createConstraintFunction(functionName.toCQLString(), arguments);
+            function = ConstraintResolver.getConstraintFunction(functionName.toCQLString(), arguments);
         }
 
         public FunctionColumnConstraint prepare()
@@ -74,25 +74,6 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
         }
 
         return satisfiabilityCheckers;
-    }
-
-    public enum Functions
-    {
-        LENGTH(LengthConstraint::new),
-        OCTET_LENGTH(OctetLengthConstraint::new),
-        REGEXP(RegexpConstraint::new);
-
-        private final Function<List<String>, ConstraintFunction> functionCreator;
-
-        Functions(Function<List<String>, ConstraintFunction> functionCreator)
-        {
-            this.functionCreator = functionCreator;
-        }
-    }
-
-    private static ConstraintFunction createConstraintFunction(String functionName, List<String> args)
-    {
-        return getEnum(Functions.class, functionName).functionCreator.apply(args);
     }
 
     private FunctionColumnConstraint(ConstraintFunction function, Operator relationType, String term)
@@ -211,7 +192,7 @@ public class FunctionColumnConstraint extends AbstractFunctionConstraint<Functio
             ConstraintFunction function;
             try
             {
-                function = createConstraintFunction(functionName, args);
+                function = ConstraintResolver.getConstraintFunction(functionName, args);
             }
             catch (Exception e)
             {
