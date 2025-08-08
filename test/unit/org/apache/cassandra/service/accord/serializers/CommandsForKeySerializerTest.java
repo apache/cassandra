@@ -120,7 +120,7 @@ import static accord.api.ProtocolModifiers.Toggles.setTransitiveDependenciesAreV
 import static accord.local.cfk.CommandsForKey.NO_BOUNDS_INFO;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtErased;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtUnknown;
-import static accord.primitives.Status.Durability.Majority;
+import static accord.primitives.Status.Durability.AllQuorums;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.utils.Property.qt;
 import static accord.utils.SortedArrays.Search.FAST;
@@ -182,7 +182,7 @@ public class CommandsForKeySerializerTest
                 builder.partialTxn(txn);
 
             builder.setParticipants(StoreParticipants.all(txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null))));
-            builder.durability(isDurable ? Majority : NotDurable);
+            builder.durability(isDurable ? AllQuorums : NotDurable);
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
             {
                 try (KeyDeps.Builder keyBuilder = KeyDeps.builder();)
@@ -196,7 +196,7 @@ public class CommandsForKeySerializerTest
             builder.executeAt(executeAt);
             builder.promised(ballot);
             builder.acceptedOrCommitted(ballot);
-            builder.durability(isDurable ? Majority : NotDurable);
+            builder.durability(isDurable ? AllQuorums : NotDurable);
             if (saveStatus.compareTo(SaveStatus.Stable) >= 0 && !saveStatus.hasBeen(Status.Truncated))
                 builder.waitingOn(Command.WaitingOn.empty(txnId.domain()));
 
@@ -424,7 +424,7 @@ public class CommandsForKeySerializerTest
     @Test
     public void serde()
     {
-        testOne(-4567266914751633833L);
+        testOne(7082228630293368049L);
         Random random = new Random();
         for (int i = 0 ; i < 10000 ; ++i)
         {
@@ -610,7 +610,7 @@ public class CommandsForKeySerializerTest
             else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
 
             long maxUniqueHlc = rs.nextLong(0, Long.MAX_VALUE);
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, maxUniqueHlc, unmanaged, TxnId.NONE, NO_BOUNDS_INFO);
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, maxUniqueHlc, unmanaged, TxnId.NONE, NO_BOUNDS_INFO, true);
 
             ByteBuffer buffer = Serialize.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = Serialize.fromBytes(pk, buffer);
@@ -627,7 +627,7 @@ public class CommandsForKeySerializerTest
         TxnId txnId = TxnId.fromValues(11,34052499,2,1);
         CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk,
                                                      new TxnInfo[] { TxnInfo.create(txnId, InternalStatus.PREACCEPTED_WITHOUT_DEPS, true, txnId, TxnId.NO_TXNIDS, Ballot.ZERO) },
-                                                                          0, CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, NO_BOUNDS_INFO);
+                                                                          0, CommandsForKey.NO_PENDING_UNMANAGED, TxnId.NONE, NO_BOUNDS_INFO, true);
 
         ByteBuffer buffer = Serialize.toBytesWithoutKey(expected);
         CommandsForKey roundTrip = Serialize.fromBytes(pk, buffer);

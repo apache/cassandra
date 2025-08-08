@@ -70,7 +70,7 @@ import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Pair;
 
-import static accord.primitives.Status.Durability.Majority;
+import static accord.primitives.Status.Durability.AllQuorums;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.preaccepted;
@@ -135,7 +135,7 @@ public class AccordCommandStoreTest
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
         Pair<Writes, Result> result = AsyncChains.getBlocking(AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt));
 
-        Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, Majority, StoreParticipants.all(route),
+        Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, AllQuorums, StoreParticipants.all(route),
                                                      promised, executeAt, txn, dependencies, accepted,
                                                      waitingOn, result.left, ResultSerializers.APPLIED);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));

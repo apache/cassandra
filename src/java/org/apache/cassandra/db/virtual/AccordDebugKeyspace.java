@@ -129,7 +129,7 @@ import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STOR
 import static accord.local.RedundantStatus.Property.LOCALLY_REDUNDANT;
 import static accord.local.RedundantStatus.Property.LOCALLY_SYNCED;
 import static accord.local.RedundantStatus.Property.LOCALLY_WITNESSED;
-import static accord.local.RedundantStatus.Property.MAJORITY_APPLIED;
+import static accord.local.RedundantStatus.Property.QUORUM_APPLIED;
 import static accord.local.RedundantStatus.Property.PRE_BOOTSTRAP;
 import static accord.local.RedundantStatus.Property.SHARD_APPLIED;
 import static accord.utils.async.AsyncChains.getBlockingAndRethrow;
@@ -459,8 +459,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  table_name text,\n" +
                         "  token_start 'TokenUtf8Type',\n" +
                         "  token_end 'TokenUtf8Type',\n" +
-                        "  majority_before text,\n" +
-                        "  universal_before text,\n" +
+                        "  quorum 'TxnIdUtf8Type',\n" +
+                        "  universal 'TxnIdUtf8Type',\n" +
                         "  PRIMARY KEY (keyspace_name, table_name, token_start)" +
                         ')', UTF8Type.instance));
         }
@@ -475,8 +475,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     TableMetadata tableMetadata = tableMetadata(tableId);
                     ds.row(keyspace(tableMetadata), table(tableId, tableMetadata), printToken(start))
                       .column("token_end", printToken(end))
-                      .column("majority_before", entry.majorityBefore.toString())
-                      .column("universal_before", entry.universalBefore.toString());
+                      .column("quorum", entry.quorumBefore.toString())
+                      .column("universal", entry.universalBefore.toString());
                     return ds;
                 },
                 new SimpleDataSet(metadata()),
@@ -751,7 +751,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  end_epoch bigint,\n" +
                         "  gc_before 'TxnIdUtf8Type',\n" +
                         "  shard_applied 'TxnIdUtf8Type',\n" +
-                        "  majority_applied 'TxnIdUtf8Type',\n" +
+                        "  quorum_applied 'TxnIdUtf8Type',\n" +
                         "  locally_applied 'TxnIdUtf8Type',\n" +
                         "  locally_durable_to_command_store 'TxnIdUtf8Type',\n" +
                         "  locally_durable_to_data_store 'TxnIdUtf8Type',\n" +
@@ -786,7 +786,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                           .column("end_epoch", entry.endEpoch)
                           .column("gc_before", entry.maxBound(GC_BEFORE).toString())
                           .column("shard_applied", entry.maxBound(SHARD_APPLIED).toString())
-                          .column("majority_applied", entry.maxBound(MAJORITY_APPLIED).toString())
+                          .column("quorum_applied", entry.maxBound(QUORUM_APPLIED).toString())
                           .column("locally_applied", entry.maxBound(LOCALLY_APPLIED).toString())
                           .column("locally_durable_to_command_store", entry.maxBound(LOCALLY_DURABLE_TO_COMMAND_STORE).toString())
                           .column("locally_durable_to_data_store", entry.maxBound(LOCALLY_DURABLE_TO_DATA_STORE).toString())

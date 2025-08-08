@@ -566,8 +566,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     void submitExclusive(AccordTask<?> task)
     {
         assignQueuePosition(task);
-        ++tasks;
         task.setupExclusive();
+        ++tasks;
         updateQueue(task);
         enqueueLoadsExclusive();
     }
@@ -616,21 +616,26 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         task.queuePosition = parent.queuePosition;
     }
 
-    void completeTaskExclusive(Task task, boolean cleanupTask)
+    void completeTaskExclusive(Task task)
     {
-        --tasks;
-
         // for integration with SequentialExecutor, we must :
         //  - first take the position so that represents the just-executed task
         //  - call cleanup to submit any following task on the relevant sub-queue
         //  - remove the previous task from the running collection only if still present (SequentialExecutor will have removed it)
         int position = task.queuePosition;
-        if (cleanupTask) task.cleanupExclusive();
-        if (running.contains(task))
-            running.remove(task);
+        try
+        {
+            task.cleanupExclusive();
+        }
+        finally
+        {
+            --tasks;
+            if (running.contains(task))
+                running.remove(task);
 
-        if (waitingForCompletion != null && waitingForCompletion.peek().maybeNotify - position >= 0)
-            maybeNotifyWaitingForCompletion();
+            if (waitingForCompletion != null && waitingForCompletion.peek().maybeNotify - position >= 0)
+                maybeNotifyWaitingForCompletion();
+        }
     }
 
     private void maybeNotifyWaitingForCompletion()
@@ -655,14 +660,15 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         return task == null ? min : Integer.min(task.queuePosition, min);
     }
 
-    private void cancelExclusive(AccordTask<?> task)
+    void cancelExclusive(AccordTask<?> task)
     {
         switch (task.state())
         {
             default: throw new UnhandledEnum(task.state());
             case INITIALIZED:
                 // we could be cancelled before we even reach the queue
-                task.cancelExclusive();
+                try { task.cancelExclusive(); }
+                finally { task.cleanupExclusive(); }
                 break;
 
             case SCANNING_RANGES:
@@ -671,8 +677,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             case WAITING_TO_SCAN_RANGES:
             case WAITING_TO_RUN:
                 task.unqueueIfQueued();
-                task.cancelExclusive();
-                completeTaskExclusive(task, false);
+                try { task.cancelExclusive(); }
+                finally { completeTaskExclusive(task); }
                 break;
 
             case FAILING:
@@ -715,7 +721,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         finally
         {
             task.unqueueIfQueued();
-            completeTaskExclusive(task, true);
+            completeTaskExclusive(task);
         }
     }
 
@@ -1000,9 +1006,9 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 owner = null;
                 running = false;
                 task = super.poll();
+                AccordExecutor.this.running.remove(selfTask);
                 if (task != null)
                 {
-                    AccordExecutor.this.running.remove(selfTask);
                     selfTask.queuePosition = task.queuePosition;
                     waitingToRun.append(selfTask);
                 }
@@ -1241,7 +1247,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             if (queue.contains(this))
             {
                 queue.remove(this);
-                completeTaskExclusive(this, true);
+                completeTaskExclusive(this);
                 try { fail(new CancellationException()); }
                 catch (Throwable t) { agent.onUncaughtException(t); }
             }

@@ -38,7 +38,7 @@ import accord.messages.TxnRequest;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.SaveStatus;
-import accord.primitives.Status;
+import accord.primitives.Status.Durability.HasOutcome;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
@@ -111,8 +111,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
     private static final String QUERY_REDUNDANT_BEFORE =
         String.format("SELECT * FROM %s.%s", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
-    private static final String QUERY_REDUNDANT_BEFORE_FILTER_MAJORITY_APPLIED_GEQ =
-        String.format("SELECT * FROM %s.%s WHERE majority_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
+    private static final String QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ =
+        String.format("SELECT * FROM %s.%s WHERE quorum_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
 
     private static final String QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ =
         String.format("SELECT * FROM %s.%s WHERE shard_applied >= ?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.REDUNDANT_BEFORE);
@@ -199,13 +199,13 @@ public class AccordDebugKeyspaceTest extends CQLTester
         Ranges ranges1 = Ranges.of(TokenRange.create(new TokenKey(tableId, new LongToken(1)), new TokenKey(tableId, new LongToken(100))));
         Ranges ranges2 = Ranges.of(TokenRange.create(new TokenKey(tableId, new LongToken(100)), new TokenKey(tableId, new LongToken(200))));
         AsyncChains.getBlocking(accord.node().commandStores().forEach((PreLoadContext.Empty)() -> "Test", safeStore -> {
-            safeStore.commandStore().markShardDurable(safeStore, syncId1, ranges1, Status.Durability.Universal);
-            safeStore.commandStore().markShardDurable(safeStore, syncId2, ranges2, Status.Durability.Majority);
+            safeStore.commandStore().markShardDurable(safeStore, syncId1, ranges1, HasOutcome.Universal);
+            safeStore.commandStore().markShardDurable(safeStore, syncId2, ranges2, HasOutcome.Quorum);
         }));
 
         Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE).size()).isGreaterThan(0);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_MAJORITY_APPLIED_GEQ, syncId1.toString()).size()).isEqualTo(2);
-        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_MAJORITY_APPLIED_GEQ, syncId2.toString()).size()).isEqualTo(1);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ, syncId1.toString()).size()).isEqualTo(2);
+        Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_QUORUM_APPLIED_GEQ, syncId2.toString()).size()).isEqualTo(1);
         Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ, syncId1.toString()).size()).isEqualTo(1);
         Assertions.assertThat(execute(QUERY_REDUNDANT_BEFORE_FILTER_SHARD_APPLIED_GEQ, syncId2.toString()).size()).isEqualTo(0);
     }

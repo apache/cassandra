@@ -117,22 +117,22 @@ public class CommandStoreSerializers
         @Override
         public void serialize(DurableBefore.Entry t, DataOutputPlus out) throws IOException
         {
-            CommandSerializers.txnId.serialize(t.majorityBefore, out);
+            CommandSerializers.txnId.serialize(t.quorumBefore, out);
             CommandSerializers.txnId.serialize(t.universalBefore, out);
         }
 
         @Override
         public DurableBefore.Entry deserialize(DataInputPlus in) throws IOException
         {
-            TxnId majorityBefore = CommandSerializers.txnId.deserialize(in);
+            TxnId quorumBefore = CommandSerializers.txnId.deserialize(in);
             TxnId universalBefore = CommandSerializers.txnId.deserialize(in);
-            return new DurableBefore.Entry(majorityBefore, universalBefore);
+            return new DurableBefore.Entry(quorumBefore, universalBefore);
         }
 
         @Override
         public long serializedSize(DurableBefore.Entry t)
         {
-            return   CommandSerializers.txnId.serializedSize(t.majorityBefore)
+            return   CommandSerializers.txnId.serializedSize(t.quorumBefore)
                    + CommandSerializers.txnId.serializedSize(t.universalBefore);
         }
     }), DurableBefore.Entry[]::new, DurableBefore.SerializerSupport::create);
@@ -153,8 +153,11 @@ public class CommandStoreSerializers
             {
                 CommandSerializers.txnId.serialize(bound, out);
             }
-            for (int status : b.statuses)
-                out.writeShort(status);
+            for (int i = 0 ; i < b.bounds.length ; ++i)
+            {
+                out.writeShort(b.status(i * 2));
+                out.writeShort(b.status(i * 2 + 1));
+            }
         }
 
         @Override
@@ -190,7 +193,7 @@ public class CommandStoreSerializers
             {
                 size += CommandSerializers.txnId.serializedSize(bound);
             }
-            size += 2L * b.statuses.length;
+            size += 2L * 2 * b.bounds.length;
             return size;
         }
     };

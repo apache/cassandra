@@ -20,8 +20,6 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.api.RoutingKey;
-import accord.messages.InformDecided;
 import accord.messages.InformDurable;
 import accord.primitives.Route;
 import accord.primitives.Status;
@@ -33,31 +31,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class InformSerializers
 {
-    public static final IVersionedSerializer<InformDecided> decided = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(InformDecided t, DataOutputPlus out, Version version) throws IOException
-        {
-            CommandSerializers.txnId.serialize(t.txnId, out);
-            KeySerializers.routingKey.serialize(t.homeKey, out);
-        }
-
-        @Override
-        public InformDecided deserialize(DataInputPlus in, Version version) throws IOException
-        {
-            TxnId txnId = CommandSerializers.txnId.deserialize(in);
-            RoutingKey homeKey = KeySerializers.routingKey.deserialize(in);
-            return new InformDecided(txnId, homeKey);
-        }
-
-        @Override
-        public long serializedSize(InformDecided t, Version version)
-        {
-            return CommandSerializers.txnId.serializedSize(t.txnId)
-                   + KeySerializers.routingKey.serializedSize(t.homeKey);
-        }
-    };
-
     public static final IVersionedSerializer<InformDurable> durable = new TxnRequestSerializer<>()
     {
         @Override
