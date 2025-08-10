@@ -26,7 +26,10 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 /**
  * This message is sent back the truncate operation and basically specifies if
  * the truncate succeeded.
+ *
+ * @deprecated See CASSANDRA-19130
  */
+@Deprecated(since = "5.1")
 public class TruncateResponse
 {
     public static final TruncateResponseSerializer serializer = new TruncateResponseSerializer();

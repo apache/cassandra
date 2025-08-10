@@ -68,6 +68,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.Truncations;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.service.accord.AccordFastPath;
@@ -161,7 +162,8 @@ public class ClusterMetadataTestHelper
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY);
+                                   AccordStaleReplicas.EMPTY,
+                                   Truncations.EMPTY);
     }
 
     public static ClusterMetadata minimalForTesting(IPartitioner partitioner)

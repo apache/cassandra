@@ -303,15 +303,15 @@ public class ClusterMetadataService
                                                     DatabaseDescriptor.getPartitioner(),
                                                     new DistributedSchema(keyspaces),
                                                     Directory.EMPTY,
-                                   new TokenMap(DatabaseDescriptor.getPartitioner()),
-                                   DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
-                                   LockedRanges.EMPTY,
-                                   InProgressSequences.EMPTY,
-                                   ConsensusMigrationState.EMPTY,
-                                   Collections.emptyMap(),
-                                   AccordStaleReplicas.EMPTY);
-
+                                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
+                                                    DataPlacements.empty(),
+                                                    AccordFastPath.EMPTY,
+                                                    LockedRanges.EMPTY,
+                                                    InProgressSequences.EMPTY,
+                                                    ConsensusMigrationState.EMPTY,
+                                                    Collections.emptyMap(),
+                                                    AccordStaleReplicas.EMPTY,
+                                                    Truncations.EMPTY);
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                 .withInitialState(empty)

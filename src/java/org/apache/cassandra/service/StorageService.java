@@ -117,7 +117,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
@@ -211,9 +210,11 @@ import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
+import org.apache.cassandra.tcm.transformations.TableTruncation;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -4066,14 +4067,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Keyspace.verifyKeyspaceIsValid(keyspace);
 
-        try
-        {
-            StorageProxy.truncateBlocking(keyspace, table);
-        }
-        catch (UnavailableException e)
-        {
-            throw new IOException(e.getMessage());
-        }
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        ClusterMetadataService.instance().commit(new TableTruncation(cfs.metadata.id, Clock.Global.currentTimeMillis()));
     }
 
     public Map<InetAddress, Float> getOwnership()

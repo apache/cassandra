@@ -57,6 +57,7 @@ import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.ReconfigureAccordFastPath;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
+import org.apache.cassandra.tcm.transformations.TableTruncation;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
@@ -250,6 +251,8 @@ public interface Transformation
         ACCORD_MARK_REJOINING(40, () -> AccordMarkRejoining.serializer),
         PREPARE_DROP_ACCORD_TABLE(41, () -> PrepareDropAccordTable.serializer),
         FINISH_DROP_ACCORD_TABLE(42, () -> FinishDropAccordTable.serializer),
+
+        TRUNCATE_TABLE(43, () -> TableTruncation.serializer)
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

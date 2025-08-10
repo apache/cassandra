@@ -54,6 +54,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.tcm.Truncations;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -1914,7 +1915,8 @@ public final class CassandraGenerators
                 ConsensusMigrationState consensusMigrationState = ConsensusMigrationState.EMPTY;
                 Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = ImmutableMap.of();
                 AccordStaleReplicas accordStaleReplicas = accordStaleReplicasGen.generate(rnd);
-                return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions, accordStaleReplicas);
+                Truncations truncations = Truncations.EMPTY;
+                return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions, accordStaleReplicas, truncations);
             };
         }
     }
