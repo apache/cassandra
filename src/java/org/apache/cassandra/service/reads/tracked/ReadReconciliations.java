@@ -372,8 +372,11 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             if (MutationTrackingService.instance.registerMutationCallback(id, callback))
                 toPull.add(id.offset());
 
-        PullMutationsRequest pull = new PullMutationsRequest(Offsets.Immutable.copy(toPull));
-        MessagingService.instance().send(Message.out(Verb.PULL_MUTATIONS_REQ, pull), pullFrom);
+        if (!toPull.isEmpty())
+        {
+            PullMutationsRequest pull = new PullMutationsRequest(Offsets.Immutable.copy(toPull));
+            MessagingService.instance().send(Message.out(Verb.PULL_MUTATIONS_REQ, pull), pullFrom);
+        }
     }
 
     private static void push(int node, Offsets offsets)
