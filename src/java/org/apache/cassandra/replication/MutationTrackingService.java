@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,6 +46,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
@@ -55,6 +59,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
@@ -68,6 +74,13 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics
 // TODO (expected): handle topology changes
 public class MutationTrackingService
 {
+    /**
+     * Split ranges into this many shards.
+     *
+     * TODO (expected): ability to rebalance / change this constant
+     */
+    private static final int SHARD_MULTIPLIER = 8;
+
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingService.class);
     public static final MutationTrackingService instance = new MutationTrackingService();
 
@@ -272,6 +285,7 @@ public class MutationTrackingService
     {
         private final String keyspace;
         private final Map<Range<Token>, Shard> shards;
+        private final ReplicaGroups groups;
         private final BiConsumer<Shard, CoordinatorLog> onNewLog;
 
         private transient final Map<Range<PartitionPosition>, Shard> ppShards;
@@ -279,39 +293,48 @@ public class MutationTrackingService
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, IntSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
             Preconditions.checkArgument(keyspace.params.replicationType.isTracked());
+
             Map<Range<Token>, Shard> shards = new HashMap<>();
-            cluster.placements.get(keyspace.params.replication).writes.forEach((tokenRange, forRange) -> {
+            Map<Range<Token>, VersionedEndpoints.ForRange> groups = new HashMap<>();
+
+            cluster.placements.get(keyspace.params.replication).writes.forEach((fullTokenRange, forRange) -> {
                 if (!forRange.endpoints().contains(FBUtilities.getBroadcastAddressAndPort()))
                     return;
-                IntArrayList participants = new IntArrayList(forRange.size(), IntArrayList.DEFAULT_NULL_VALUE);
+
+                IntArrayList participantList = new IntArrayList(forRange.size(), IntArrayList.DEFAULT_NULL_VALUE);
                 for (InetAddressAndPort endpoint : forRange.endpoints())
-                    participants.add(cluster.directory.peerId(endpoint).id());
-                Shard shard =
-                    new Shard(keyspace.name, tokenRange, cluster.myNodeId().id(), new Participants(participants),
-                                forRange.lastModified(), logIdProvider, onNewLog);
-                shards.put(tokenRange, shard);
+                    participantList.add(cluster.directory.peerId(endpoint).id());
+                Participants participants = new Participants(participantList);
+
+                Optional<Splitter> splitter = fullTokenRange.left.getPartitioner().splitter();
+                Set<Range<Token>> ranges = splitter.isPresent() && SHARD_MULTIPLIER > 1
+                                         ? splitter.get().split(fullTokenRange, SHARD_MULTIPLIER)
+                                         : Collections.singleton(fullTokenRange);
+
+                for (Range<Token> tokenRange : ranges)
+                {
+                    shards.put(tokenRange, new Shard(keyspace.name, tokenRange, cluster.myNodeId().id(), participants, forRange.lastModified(), logIdProvider, onNewLog));
+                    groups.put(tokenRange, forRange.map(original -> original.withRange(tokenRange)));
+                }
             });
-            return new KeyspaceShards(keyspace.name, shards, onNewLog);
+            return new KeyspaceShards(keyspace.name, shards, new ReplicaGroups(groups), onNewLog);
         }
 
-        KeyspaceShards(String keyspace, Map<Range<Token>, Shard> shards, BiConsumer<Shard, CoordinatorLog> onNewLog)
+        KeyspaceShards(String keyspace, Map<Range<Token>, Shard> shards, ReplicaGroups groups, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
             this.keyspace = keyspace;
             this.shards = shards;
+            this.groups = groups;
             this.onNewLog = onNewLog;
 
-            this.ppShards = new HashMap<>();
+            HashMap<Range<PartitionPosition>, Shard> ppShards = new HashMap<>();
             shards.forEach((range, shard) -> ppShards.put(Range.makeRowRange(range), shard));
+            this.ppShards = ppShards;
         }
 
         MutationId nextMutationId(Token token)
         {
             return lookUp(token).nextId();
-        }
-
-        void receivedWriteResponse(Token token, MutationId mutationId, InetAddressAndPort fromHost)
-        {
-            lookUp(token).receivedWriteResponse(mutationId, fromHost);
         }
 
         void updateReplicatedOffsets(Range<Token> range, List<? extends Offsets> offsets, InetAddressAndPort onHost)
@@ -372,10 +395,7 @@ public class MutationTrackingService
 
         Shard lookUp(Token token)
         {
-            ClusterMetadata csm = ClusterMetadata.current();
-            KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
-            Range<Token> range = ClusterMetadata.current().placements.get(ksm.params.replication).writes.forRange(token).range();
-            return shards.get(range);
+            return shards.get(groups.forRange(token).range());
         }
     }
 
