@@ -21,6 +21,7 @@ package org.apache.cassandra.simulator.systems;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import org.apache.cassandra.simulator.ActionList;
@@ -41,6 +42,7 @@ import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.TASK;
 
 public class SimulatedExecution implements InterceptorOfExecution
 {
+    private final AtomicLong idSupplier = new AtomicLong(0);
     static class NoExecutorMarker implements InterceptingExecutor
     {
         static final NoExecutorMarker INFINITE_LOOP = new NoExecutorMarker();
@@ -160,7 +162,7 @@ public class SimulatedExecution implements InterceptorOfExecution
 
     public InterceptingExecutorFactory factory(InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup)
     {
-        return new InterceptingExecutorFactory(this, interceptorOfGlobalMethods, classLoader, threadGroup);
+        return new InterceptingExecutorFactory(this, interceptorOfGlobalMethods, classLoader, threadGroup, idSupplier::incrementAndGet);
     }
 
     public InterceptExecution intercept()

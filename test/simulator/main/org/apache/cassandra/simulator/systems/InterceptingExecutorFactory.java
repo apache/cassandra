@@ -27,6 +27,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -187,15 +188,17 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
     final ClassLoader classLoader;
     final ThreadGroup threadGroup;
     final IIsolatedExecutor.DynamicFunction<Serializable> transferToInstance;
+    final Supplier<Long> idSupplier;
     volatile boolean isClosed;
 
-    InterceptingExecutorFactory(SimulatedExecution simulatedExecution, InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup)
+    InterceptingExecutorFactory(SimulatedExecution simulatedExecution, InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup, Supplier<Long> idSupplier)
     {
         this.simulatedExecution = simulatedExecution;
         this.interceptorOfGlobalMethods = interceptorOfGlobalMethods;
         this.classLoader = classLoader;
         this.threadGroup = threadGroup;
         this.transferToInstance = IsolatedExecutor.transferTo(classLoader);
+        this.idSupplier = idSupplier;
     }
 
     public InterceptibleThreadFactory factory(String name)
@@ -232,7 +235,7 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
         else if (!this.threadGroup.parentOf(threadGroup)) throw new IllegalArgumentException();
         Runnable onTermination = transferToInstance.apply((SerializableRunnable)FastThreadLocal::removeAll);
         LocalTime time = transferToInstance.apply((SerializableCallable<LocalTime>) SimulatedTime.Global::current).call();
-        return factory.create(name, Thread.NORM_PRIORITY, classLoader, uncaughtExceptionHandler, threadGroup, onTermination, time, this, extraInfo);
+        return factory.create(name, Thread.NORM_PRIORITY, classLoader, uncaughtExceptionHandler, threadGroup, onTermination, time, this, extraInfo, idSupplier);
     }
 
     @Override
