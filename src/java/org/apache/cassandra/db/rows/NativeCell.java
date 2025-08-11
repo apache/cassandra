@@ -204,6 +204,12 @@ public class NativeCell extends AbstractCell<NativeData> implements NativeData
         return new BufferCell(column, timestamp(), ttl(), localDeletionTimeAsUnsignedInt(), byteBufferValue(), path());
     }
 
+    @Override
+    public Cell<?> withUpdatedPath(CellPath path)
+    {
+        return new BufferCell(column, timestamp(), ttl(), localDeletionTimeAsUnsignedInt(), byteBufferValue(), path);
+    }
+
     public Cell<?> withSkippedValue()
     {
         return new BufferCell(column, timestamp(), ttl(), localDeletionTimeAsUnsignedInt(), ByteBufferUtil.EMPTY_BYTE_BUFFER, path());

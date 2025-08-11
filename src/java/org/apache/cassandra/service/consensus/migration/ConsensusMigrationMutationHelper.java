@@ -113,20 +113,27 @@ public class ConsensusMigrationMutationHelper
 
         for (IMutation mutation : mutations)
         {
+            Token token = mutation.key().getToken();
             for (TableId tableId : mutation.getTableIds())
             {
-                TableParams tableParams = getTableMetadata(cm, tableId).params;
-                TransactionalMode mode = tableParams.transactionalMode;
-                TransactionalMigrationFromMode migrationFromMode = tableParams.transactionalMigrationFrom;
-                // commitCLForMode should return either null or the supplied consistency level
-                // in which case we will commit everything at that CL since Accord doesn't support per table
-                // commit consistency
-                ConsistencyLevel commitCL = mode.commitCLForMode(migrationFromMode, consistencyLevel, cm, tableId, mutation.key().getToken());
+                ConsistencyLevel commitCL = consistencyLevelForCommit(cm, consistencyLevel, tableId, token);
                 if (commitCL != null)
                     return commitCL;
             }
         }
         return null;
+    }
+
+    @Nullable
+    public static ConsistencyLevel consistencyLevelForCommit(ClusterMetadata cm, ConsistencyLevel consistencyLevel, TableId tableId, Token token)
+    {
+        TableParams tableParams = getTableMetadata(cm, tableId).params;
+        TransactionalMode mode = tableParams.transactionalMode;
+        TransactionalMigrationFromMode migrationFromMode = tableParams.transactionalMigrationFrom;
+        // commitCLForMode should return either null or the supplied consistency level
+        // in which case we will commit everything at that CL since Accord doesn't support per table
+        // commit consistency
+        return mode.commitCLForMode(migrationFromMode, consistencyLevel, cm, tableId, token);
     }
 
     /**

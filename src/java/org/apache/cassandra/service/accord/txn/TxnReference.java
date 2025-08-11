@@ -592,6 +592,12 @@ public abstract class TxnReference
         }
 
         @Override
+        public Cell<?> withUpdatedPath(CellPath path)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Cell<?> withUpdatedValue(ByteBuffer newValue)
         {
             throw new UnsupportedOperationException();

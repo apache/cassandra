@@ -18,24 +18,23 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import accord.utils.Property;
-import org.apache.cassandra.distributed.Cluster;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-public class MixedReadsAccordInteropMultiNodeTokenConflictTest extends AccordInteropMultiNodeTokenConflictBase
+public class MultipleClusteringKeysAccordFullTest extends MultipleClusteringKeysAccordTestBase
 {
-    public MixedReadsAccordInteropMultiNodeTokenConflictTest()
+    private static final Logger logger = LoggerFactory.getLogger(MultipleClusteringKeysAccordFullTest.class);
+
+    public MultipleClusteringKeysAccordFullTest()
     {
-        super(TransactionalMode.mixed_reads);
+        super(TransactionalMode.full);
     }
 
     @Override
-    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
+    protected Logger logger()
     {
-        super.preCheck(cluster, builder);
-        // if a failing seed is detected, populate here
-        // Example: builder.withSeed(42L);
-        // CQL operations may have operators such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
-        // CQL_DEBUG_APPLY_OPERATOR = true;
+        return logger;
     }
 }

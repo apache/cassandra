@@ -19,9 +19,6 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
-import javax.annotation.Nonnull;
-
-import com.google.common.base.Function;
 
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.Digest;
@@ -132,20 +129,6 @@ public abstract class AbstractCell<V> extends Cell<V>
         return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), buffer(), path());
     }
 
-    @Override
-    public ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, long newLocalDeletionTime)
-    {
-        long localDeletionTime = localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
-        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime, buffer(), path());
-    }
-
-    @Override
-    public Cell<?> updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, long newLocalDeletionTime)
-    {
-        long localDeletionTime = localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
-        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime, buffer(), maybeNewPath);
-    }
-
     public int dataSize()
     {
         CellPath path = path();
@@ -179,7 +162,7 @@ public abstract class AbstractCell<V> extends Cell<V>
         if (localDeletionTime() == INVALID_DELETION_TIME)
             throw new MarshalException("A local deletion time should not be a legacy overflowed value");
         if (isExpiring() && localDeletionTime() == NO_DELETION_TIME)
-            throw new MarshalException("Shoud not have a TTL without an associated local deletion time");
+            throw new MarshalException("Should not have a TTL without an associated local deletion time");
 
         // non-frozen UDTs require both the cell path & value to validate,
         // so that logic is pushed down into ColumnMetadata. Tombstone
