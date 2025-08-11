@@ -159,6 +159,7 @@ public class YamlConfigurationLoaderTest
                                            SYSTEM_PROPERTY_PREFIX + "client_encryption_options.cipher_suites", "[\"FakeCipher\"]",
                                            SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", Boolean.FALSE.toString(),
                                            SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", Boolean.TRUE.toString(),
+                                           SYSTEM_PROPERTY_PREFIX + "sai.options", "{\"prioritize_over_legacy_index\": \"true\", \"segment_write_buffer_size\": \"100MiB\"}",
                                            SYSTEM_PROPERTY_PREFIX + "crypto_provider", "{\"class_name\": \"MyClass\", \"parameters\": {\"fail_on_missing_provider\": \"false\"}}",
                                            SYSTEM_PROPERTY_PREFIX + "table_properties_warned", "[\"bloom_filter_fp_chance\", \"default_time_to_live\"]",
                                            SYSTEM_PROPERTY_PREFIX + "paxos_variant", "v2",
@@ -175,6 +176,8 @@ public class YamlConfigurationLoaderTest
             assertThat(config.client_encryption_options.cipher_suites).isEqualTo(Collections.singletonList("FakeCipher"));
             assertThat(config.client_encryption_options.optional).isFalse();
             assertThat(config.client_encryption_options.enabled).isTrue();
+            assertThat(config.sai_options.prioritize_over_legacy_index).isTrue();
+            assertThat(config.sai_options.segment_write_buffer_size).isEqualTo(new DataStorageSpec.IntMebibytesBound("100MiB"));
             assertThat(config.crypto_provider.class_name).isEqualTo("MyClass");
             assertThat(config.crypto_provider.parameters.get("fail_on_missing_provider")).isEqualTo(Boolean.FALSE.toString());
             assertThat(config.table_properties_warned).isEqualTo(Set.of("bloom_filter_fp_chance", "default_time_to_live"));
@@ -203,6 +206,7 @@ public class YamlConfigurationLoaderTest
                                                            ENVIRONMENT_VARIABLE_PREFIX + "CLIENT_ENCRYPTION_OPTIONS__cipher_suites", "[\"FakeCipher\"]",
                                                            ENVIRONMENT_VARIABLE_PREFIX + "CLIENT_ENCRYPTION_OPTIONS__optional", "false",
                                                            ENVIRONMENT_VARIABLE_PREFIX + "CLIENT_ENCRYPTION_OPTIONS__enabled", "true",
+                                                           ENVIRONMENT_VARIABLE_PREFIX + "SAI_OPTIONS", "{\"prioritize_over_legacy_index\": \"true\", \"segment_write_buffer_size\": \"100MiB\"}",
                                                            ENVIRONMENT_VARIABLE_PREFIX + "crypto_provider", "{\"class_name\": \"MyClass\", \"parameters\": {\"fail_on_missing_provider\": \"false\"}}",
                                                            ENVIRONMENT_VARIABLE_PREFIX + "TABLE_PROPERTIES_WARNED", "[\"bloom_filter_fp_chance\", \"default_time_to_live\"]",
                                                            ENVIRONMENT_VARIABLE_PREFIX + "PAXOS_VARIANT", "v2",
@@ -220,6 +224,8 @@ public class YamlConfigurationLoaderTest
             assertThat(config.client_encryption_options.cipher_suites).isEqualTo(Collections.singletonList("FakeCipher"));
             assertThat(config.client_encryption_options.optional).isFalse();
             assertThat(config.client_encryption_options.enabled).isTrue();
+            assertThat(config.sai_options.prioritize_over_legacy_index).isTrue();
+            assertThat(config.sai_options.segment_write_buffer_size).isEqualTo(new DataStorageSpec.IntMebibytesBound("100MiB"));
             assertThat(config.crypto_provider.class_name).isEqualTo("MyClass");
             assertThat(config.crypto_provider.parameters.get("fail_on_missing_provider")).isEqualTo(Boolean.FALSE.toString());
             assertThat(config.table_properties_warned).isEqualTo(Set.of("bloom_filter_fp_chance", "default_time_to_live"));
