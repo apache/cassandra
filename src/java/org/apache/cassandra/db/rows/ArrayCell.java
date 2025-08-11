@@ -89,6 +89,12 @@ public class ArrayCell extends AbstractCell<byte[]>
         return new ArrayCell(newColumn, timestamp, ttl, localDeletionTimeUnsignedInteger, value, path);
     }
 
+    @Override
+    public Cell<?> withUpdatedPath(CellPath path)
+    {
+        return new ArrayCell(column, timestamp, ttl, localDeletionTimeUnsignedInteger, value, path);
+    }
+
     public Cell<?> withUpdatedValue(ByteBuffer newValue)
     {
         return new ArrayCell(column, timestamp, ttl, localDeletionTimeUnsignedInteger, ByteBufferUtil.getArray(newValue), path);

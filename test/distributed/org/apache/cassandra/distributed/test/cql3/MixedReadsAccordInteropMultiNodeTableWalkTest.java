@@ -30,12 +30,12 @@ public class MixedReadsAccordInteropMultiNodeTableWalkTest extends AccordInterop
     }
 
     @Override
-    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder, Property.CommandsBuilder<State, Void> commandBuilder)
     {
-        super.preCheck(cluster, builder);
+        super.preCheck(cluster, builder, commandBuilder);
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+        // CQL operations may have operators such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
     }
 }

@@ -182,6 +182,8 @@ public abstract class Cell<V> extends ColumnData
 
     public abstract Cell<?> withUpdatedColumn(ColumnMetadata newColumn);
 
+    public abstract Cell<?> withUpdatedPath(CellPath path);
+
     public abstract Cell<?> withUpdatedValue(ByteBuffer newValue);
 
     public abstract Cell<?> withUpdatedTimestamp(long newTimestamp);

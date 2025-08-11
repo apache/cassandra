@@ -34,6 +34,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,14 +45,19 @@ import accord.utils.Property;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
+import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
+import org.apache.cassandra.cql3.ast.CreateIndexDDL.IndexedColumn;
+import org.apache.cassandra.cql3.ast.Expression;
 import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Reference;
 import org.apache.cassandra.cql3.ast.ReferenceExpression;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.TableReference;
+import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -60,11 +66,12 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
+import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.LoggingCommand;
 import org.apache.cassandra.harry.model.BytesPartitionState;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.ASTGenerators;
+import org.apache.cassandra.utils.ASTGenerators.MutationGenBuilder;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind;
@@ -99,14 +106,32 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
     {
     }
 
-    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder)
+    protected void preCheck(Cluster cluster, Property.StatefulBuilder builder, Property.CommandsBuilder<State, Void> commandBuilder)
     {
         // if a failing seed is detected, populate here
-        // Example: builder.withSeed(42L);
-        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+        // Example: builder.withOnlySeed(42L);
+        // CQL operations may have operators such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
         // When mutations look to be lost as seen by more complex SELECTs, it can be useful to just SELECT the partition/row right after to write to see if it was safe at the time.
         // READ_AFTER_WRITE = true;
+
+//        builder.withOnlySeed(3448525197589894686L); // non-existing partition reject c[0] = 42
+//        builder.withOnlySeed(3448518601867716933L); // multiple parttiions
+//        builder.withOnlySeed(-9157454301128639214L); // List index 5 out of bound, list has size 1
+//        builder.withOnlySeed(8595947945589174321L); // multiple rows / non-existing row
+//        builder.withOnlySeed(2825003422882990218L); // one list is null one hits out of bounds
+//        builder.withOnlySeed(2825003422882990218L); // successful update not updated in model
+//        builder.withOnlySeed(-2930871346025495204L); // expected to bit see tge kustm byt was index out of bounds ; forgot <= and used < so trying to go 1 element past the list failed
+//        builder.withOnlySeed(8445109810499797990L); // non-deterministic error: java.lang.AssertionError // when update is rejected we leak the builder reference
+        /*
+    java.lang.AssertionError: null
+        at org.apache.cassandra.db.rows.BTreeRow$Builder.newRow(BTreeRow.java:872)
+        at org.apache.cassandra.cql3.UpdateParameters.newRow(UpdateParameters.java:125)
+        at org.apache.cassandra.cql3.statements.UpdateStatement.addUpdateForKey(UpdateStatement.java:102)
+        at org.apache.cassandra.cql3.statements.ModificationStatement.addUpdates(ModificationStatement.java:1121)
+        at org.apache.cassandra.cql3.statements.ModificationStatement.getMutations(ModificationStatement.java:954)
+        at org.apache.cassandra.cql3.statements.ModificationStatement.executeWithoutCondition(ModificationStatement.java:688)
+         */
     }
 
     protected TypeGenBuilder supportedTypes(RandomSource rs)
@@ -131,7 +156,19 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return Collections.singletonList(CreateIndexDDL.SAI);
     }
 
-    public Property.Command<State, Void, ?> selectExisting(RandomSource rs, State state)
+    private static class AnnotatedSelect
+    {
+        final Select select;
+        final String annotation;
+
+        private AnnotatedSelect(Select select, String annotation)
+        {
+            this.select = select;
+            this.annotation = annotation;
+        }
+    }
+
+    static AnnotatedSelect selectPartitionOrRow(RandomSource rs, State state)
     {
         NavigableSet<BytesPartitionState.Ref> keys = state.model.partitionKeys();
         BytesPartitionState.Ref ref = rs.pickOrderedSet(keys);
@@ -161,7 +198,13 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             }
         }
         Select select = builder.build();
-        return state.command(rs, select, (wholePartition ? "By Partition Key" : "By Primary Key"));
+        return new AnnotatedSelect(select, (wholePartition ? "By Partition Key" : "By Primary Key"));
+    }
+
+    public Property.Command<State, Void, ?> selectExisting(RandomSource rs, State state)
+    {
+        var select = selectPartitionOrRow(rs, state);
+        return state.command(rs, select.select, select.annotation);
     }
 
     public Property.Command<State, Void, ?> selectToken(RandomSource rs, State state)
@@ -347,6 +390,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return state.command(rs, select, symbol.detailedName() + (indexed == null ? "" : ", indexed with " + indexed.indexDDL.indexer.name()));
     }
 
+    protected <S extends State> Property.Command<S, Void, ?> txn(RandomSource rs, S state)
+    {
+        ++state.operations; // txn own the timestamp, but non-txn still avoid conflicting; so bump this counter
+        return state.command(rs, state.txnGen().next(rs));
+    }
+
     protected State createState(RandomSource rs, Cluster cluster)
     {
         return new State(rs, cluster);
@@ -363,28 +412,29 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         try (Cluster cluster = createCluster())
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
-            preCheck(cluster, statefulBuilder);
-            statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
-                                  .add(StatefulASTBase::insert)
-                                  .add(StatefulASTBase::fullTableScan)
-                                  .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
-                                  .addIf(State::hasPartitions, this::selectExisting)
-                                  .addAllIf(State::supportTokens,
-                                            this::selectToken,
-                                            this::selectTokenRange,
-                                            StatefulASTBase::selectMinTokenRange)
-                                  .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
-                                  .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                  .addAllIf(BaseState::allowRepair,
-                                            StatefulASTBase::incrementalRepair,
-                                            StatefulASTBase::previewRepair)
-                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
-                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
-                                  .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
-                                  .destroyState(State::close)
-                                  .commandsTransformer(LoggingCommand.factory())
-                                  .onSuccess(onSuccess(logger))
-                                  .build());
+            Property.CommandsBuilder<State, Void> commandBuilder = commands(() -> rs -> createState(rs, cluster))
+                                                                             .add(StatefulASTBase::insert)
+                                                                             .add(StatefulASTBase::fullTableScan)
+                                                                             .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
+                                                                             .addIf(State::allowTxn, this::txn)
+                                                                             .addIf(State::hasPartitions, this::selectExisting)
+                                                                             .addAllIf(State::supportTokens,
+                                                                                       this::selectToken,
+                                                                                       this::selectTokenRange,
+                                                                                       StatefulASTBase::selectMinTokenRange)
+                                                                             .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
+                                                                             .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
+                                                                             .addAllIf(BaseState::allowRepair,
+                                                                                       StatefulASTBase::incrementalRepair,
+                                                                                       StatefulASTBase::previewRepair)
+                                                                             .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+                                                                             .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
+                                                                             .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
+                                                                             .destroyState(State::close)
+                                                                             .commandsTransformer(LoggingCommand.factory())
+                                                                             .onSuccess(onSuccess(logger));
+            preCheck(cluster, statefulBuilder, commandBuilder);
+            statefulBuilder.check(commandBuilder.build());
         }
     }
 
@@ -404,6 +454,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                      .withDefaultTypeGen(supportedTypes(rs))
                      .withPrimaryColumnTypeGen(supportedPrimaryColumnTypes(rs))
                      .withPartitioner(Murmur3Partitioner.instance)
+                .withRegularColumnTypeGen(new TypeGenBuilder().withMaxDepth(1).withTypeKinds(TypeKind.LIST).withPrimitives(Int32Type.instance))
+                .withStaticColumnTypeGen(new TypeGenBuilder().withMaxDepth(1).withTypeKinds(TypeKind.LIST).withPrimitives(Int32Type.instance))
                      .build())
                .next(rs);
     }
@@ -435,6 +487,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private final List<Symbol> searchableNonPartitionColumns;
         private final List<Symbol> searchableColumns;
         private final List<Symbol> nonPkIndexedColumns;
+        private final Gen<LinkedHashMap<Symbol, Object>> partitionKeyValuesGen;
+        private final float txnWithLetFrequency;
 
         public State(RandomSource rs, Cluster cluster)
         {
@@ -444,47 +498,43 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
             cluster.forEach(i -> i.nodetoolResult("disableautocompaction", metadata.keyspace, this.metadata.name).asserts().success());
 
-            ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
-                                                                  .withTxnSafe()
-                                                                  .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
-                                                                  .withListElementAccessForUpdateSet(allowListElementAccessForUpdateSet())
-                                                                  .withIgnoreIssues(IGNORED_ISSUES);
+            Gen<LinkedHashMap<Symbol, Object>> partitionGen = new Gen<>()
+            {
+                final List<Gen<?>> gens;
 
+                {
+                    gens = new ArrayList<>(model.factory.partitionColumns.size());
+                    for (int i = 0; i < model.factory.partitionColumns.size(); i++)
+                        gens.add(toGen(getTypeSupport(model.factory.partitionColumns.get(i).type()).valueGen));
+                }
+
+                @Override
+                public LinkedHashMap<Symbol, Object> next(RandomSource r2)
+                {
+                    LinkedHashMap<Symbol, Object> vs = new LinkedHashMap<>();
+                    for (int i = 0; i < model.factory.partitionColumns.size(); i++)
+                        vs.put(model.factory.partitionColumns.get(i), gens.get(i).next(r2));
+                    return vs;
+                }
+            };
+            List<LinkedHashMap<Symbol, Object>> uniquePartitions;
             // Run the test with and without bound partitions
             // When using fixed partitions, each mutation will be for a single partition and will use pk=? syntax
             // When using unbounded partitions then IN clause is used on partition keys, leading to mutations touching multiple partitions
             if (rs.nextBoolean())
             {
-                List<LinkedHashMap<Symbol, Object>> uniquePartitions;
-                {
-                    int unique = rs.nextInt(1, 10);
-                    List<Symbol> columns = model.factory.partitionColumns;
-                    List<Gen<?>> gens = new ArrayList<>(columns.size());
-                    for (int i = 0; i < columns.size(); i++)
-                        gens.add(toGen(getTypeSupport(columns.get(i).type()).valueGen));
-                    uniquePartitions = Gens.lists(r2 -> {
-                        LinkedHashMap<Symbol, Object> vs = new LinkedHashMap<>();
-                        for (int i = 0; i < columns.size(); i++)
-                            vs.put(columns.get(i), gens.get(i).next(r2));
-                        return vs;
-                    }).uniqueBestEffort().ofSize(unique).next(rs);
-                }
-                mutationGenBuilder.withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
-            }
 
-            if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
-            {
-                model.factory.regularAndStaticColumns.stream()
-                                                     // exclude SAI indexed columns
-                                                     .filter(s -> !indexes.containsKey(s) || indexes.get(s).indexDDL.indexer != CreateIndexDDL.SAI)
-                                                     .forEach(mutationGenBuilder::allowEmpty);
+                int unique = rs.nextInt(1, 10);
+                uniquePartitions = Gens.lists(partitionGen).uniqueBestEffort().ofSize(unique).next(rs);
             }
             else
             {
-                model.factory.regularAndStaticColumns.forEach(mutationGenBuilder::allowEmpty);
+                uniquePartitions = Collections.emptyList();
             }
-            model.factory.regularAndStaticColumns.forEach(mutationGenBuilder::allowNull);
-            this.mutationGen = toMutationGen(mutationGenBuilder);
+
+            this.partitionKeyValuesGen = uniquePartitions.isEmpty() ? partitionGen : Gens.mixedDistribution(uniquePartitions).next(rs);
+
+            this.mutationGen = toMutationGen(mutationBuilder(uniquePartitions));
 
             var nonPartitionColumns = ImmutableList.<Symbol>builder()
                                                    .addAll(model.factory.clusteringColumns)
@@ -502,6 +552,14 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                 .stream()
                                 .filter(this::isSearchable)
                                 .collect(Collectors.toList());
+
+            txnWithLetFrequency = rs.nextFloat();
+        }
+
+        protected MutationGenBuilder mutationBuilder(List<LinkedHashMap<Symbol, Object>> uniquePartitions)
+        {
+            return ASTGenerators.mutationBuilder(IGNORED_ISSUES, rs, model, uniquePartitions, indexes::get)
+                                .withListElementAccessForUpdateSet(allowListElementAccessForUpdateSet());
         }
 
         @Override
@@ -510,7 +568,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             return READ_AFTER_WRITE;
         }
 
-        protected Gen<Mutation> toMutationGen(ASTGenerators.MutationGenBuilder mutationGenBuilder)
+        protected Gen<Mutation> toMutationGen(MutationGenBuilder mutationGenBuilder)
         {
             return toGen(mutationGenBuilder.build());
         }
@@ -527,6 +585,57 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         protected Gen<Mutation> mutationGen()
         {
             return mutationGen;
+        }
+
+        protected Gen<Txn> txnGen()
+        {
+            return rs -> {
+                if (rs.decide(txnWithLetFrequency))
+                {
+                    var pk = partitionKeyValuesGen.next(rs);
+                    Mutation mutation = toMutationGen(mutationBuilder(List.of(pk))
+                                                      .withTxnSafe()
+                                                      .disallowUpdateMultiplePartitionKeys()).next(rs);
+                    Select select = ASTGenerators.select(metadata, pk).withLimit(1);
+                    var columns = model.columns(select);
+                    Txn.Builder builder = Txn.builder();
+                    builder.addLet("r1", select);
+                    Reference ref = Reference.of(Symbol.unknownType("r1"));
+
+                    builder.addReturn(ASTGenerators.select(metadata, pk));
+
+                    Conditional.Builder condition = Conditional.builder();
+                    for (var col : columns)
+                    {
+                        if (rs.nextBoolean()) continue;
+                        Reference colRef = ref.add(col);
+                        if (rs.nextBoolean())
+                            condition.is(colRef, rs.pick(Conditional.Is.Kind.values()));
+                        if (rs.nextBoolean())
+                        {
+                            Expression lhs = colRef;
+                            Expression rhs = value(rs, Generators.toGen(AbstractTypeGenerators.getTypeSupport(lhs.type()).bytesGen()).next(rs), lhs.type());
+                            if (rs.nextBoolean())
+                            {
+                                var tmp = lhs;
+                                lhs = rhs;
+                                rhs = tmp;
+                            }
+                            Conditional.Where.Inequality inequality = rs.pick(Conditional.Where.Inequality.values());
+                            condition.where(lhs, inequality, rhs);
+                        }
+                    }
+                    if (condition.isEmpty())
+                        condition.is("r1", Conditional.Is.Kind.NotNull);
+                    builder.addIf(condition.build(), mutation);
+
+                    return builder.build();
+                }
+                if (model.isEmpty()) return Txn.wrap(mutationGen.next(rs));
+                return rs.nextBoolean()
+                       ? Txn.wrap(mutationGen.next(rs))
+                       : Txn.wrap(selectPartitionOrRow(rs, this).select);
+            };
         }
 
         private LinkedHashMap<Symbol, IndexedColumn> createIndexes(RandomSource rs, TableMetadata metadata)
@@ -614,23 +723,6 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             toString(sb);
             indexes.values().forEach(c -> sb.append('\n').append(c.indexDDL.toCQL()).append(';'));
             return sb.toString();
-        }
-    }
-
-    public static class IndexedColumn
-    {
-        public final Symbol symbol;
-        public final CreateIndexDDL indexDDL;
-
-        public IndexedColumn(Symbol symbol, CreateIndexDDL indexDDL)
-        {
-            this.symbol = symbol;
-            this.indexDDL = indexDDL;
-        }
-
-        public EnumSet<CreateIndexDDL.QueryType> supportedQueries()
-        {
-            return indexDDL.indexer.supportedQueries(symbol.type());
         }
     }
 }
