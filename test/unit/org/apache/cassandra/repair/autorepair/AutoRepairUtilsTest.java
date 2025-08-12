@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -25,6 +26,9 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.gms.*;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,7 +40,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
@@ -252,6 +255,81 @@ public class AutoRepairUtilsTest extends CQLTester
         assertNotNull(hosts);
         assertEquals(1, hosts.size());
         assertTrue(hosts.contains(hostId));
+    }
+
+    @Test
+    public void testHasMultipleLiveMajorVersionsWithSingleNode()
+    {
+        boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
+        assertFalse(result);
+    }
+
+    @Test
+    public void testHasMultipleLiveMajorVersionsWithMultipleNodesOfSameVersion() throws UnknownHostException
+    {
+        Gossiper.instance.start(0);
+        Gossiper.instance.expireUpgradeFromVersion();
+
+        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
+        EndpointState es = new EndpointState((HeartBeatState) null);
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("4.1"));
+
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.100"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.100"));
+
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.200"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.200"));
+
+
+        boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
+        assertFalse(result);
+    }
+
+
+    @Test
+    public void testHasMultipleLiveMajorVersionsWithMultipleNodesOfSameMajorVersionDifferentMinorVersions() throws UnknownHostException
+    {
+        Gossiper.instance.start(0);
+        Gossiper.instance.expireUpgradeFromVersion();
+
+        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
+        EndpointState es = new EndpointState((HeartBeatState) null);
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("4.1"));
+
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.100"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.100"));
+
+        EndpointState es1 = new EndpointState((HeartBeatState) null);
+        es1.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("4.2"));
+
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.200"), es1);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.200"));
+
+        boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
+        assertFalse(result);
+    }
+
+    @Test
+    public void testHasMultipleLiveMajorVersionsWithMultipleNodesOfDifferentMajorVersions() throws UnknownHostException
+    {
+        Gossiper.instance.start(0);
+        Gossiper.instance.expireUpgradeFromVersion();
+
+        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
+        EndpointState es = new EndpointState((HeartBeatState) null);
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("4.1"));
+
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.100"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.100"));
+
+        EndpointState es1 = new EndpointState((HeartBeatState) null);
+        es1.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("5.1"));
+
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.200"), es1);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.200"));
+
+        boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
+        assertTrue(result);
     }
 
     @Test

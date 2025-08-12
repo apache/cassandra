@@ -50,6 +50,7 @@ import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.LocalStrategy;
 
+import org.apache.cassandra.utils.CassandraVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -418,6 +419,28 @@ public class AutoRepairUtils
             return new CurrentRepairStatus(autoRepairHistories, getPriorityHostIds(repairType), myId);
         }
         return null;
+    }
+
+    /**
+     * Checks whether the cluster has multiple major versions
+     * @return
+     *  true if more than one major versions are detected
+     *  false if only one major version is detected
+     *
+     */
+    public static boolean hasMultipleLiveMajorVersions()
+    {
+        Set<InetAddressAndPort> liveEndpoints = Gossiper.instance.getLiveMembers();
+        Set<Integer> majorVersions = new HashSet<>();
+        for (InetAddressAndPort endpoint : liveEndpoints)
+        {
+            CassandraVersion releaseVersion = Gossiper.instance.getReleaseVersion(endpoint);
+            if (releaseVersion != null)
+            {
+                majorVersions.add(releaseVersion.major);
+            }
+        }
+        return majorVersions.size() > 1;
     }
 
     @VisibleForTesting
