@@ -601,11 +601,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return true;
     }
 
-    public static boolean verifyDiskHeadroomThreshold(TimeUUID parentRepairSession, PreviewKind previewKind, boolean isIncremental)
+    public static boolean verifyDiskHeadroomThreshold(TimeUUID parentRepairSession, PreviewKind previewKind)
     {
-        if (!isIncremental) // disk headroom is required for anti-compaction which is only performed by incremental repair
-            return true;
-
         double diskUsage = DiskUsageMonitor.instance.getDiskUsage();
         double rejectRatio = ActiveRepairService.instance.getIncrementalRepairDiskHeadroomRejectRatio();
 
@@ -621,7 +618,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public TimeUUID prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
-        if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind(), options.isIncremental()))
+        if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind()))
             failRepair(parentRepairSession, "Rejecting incoming repair, disk usage above threshold"); // failRepair throws exception
 
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
@@ -1008,12 +1005,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public double getIncrementalRepairDiskHeadroomRejectRatio()
     {
-        return DatabaseDescriptor.getIncrementalRepairDiskHeadroomRejectRatio();
+        return DatabaseDescriptor.getRepairDiskHeadroomRejectRatio();
     }
 
     public void setIncrementalRepairDiskHeadroomRejectRatio(double value)
     {
-        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(value);
+        DatabaseDescriptor.setRepairDiskHeadroomRejectRatio(value);
     }
 
     /**

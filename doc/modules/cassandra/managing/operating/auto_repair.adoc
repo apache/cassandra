@@ -318,9 +318,9 @@ When enabling auto_repair, it is advisable to configure the top level `reject_re
 configuration in cassandra.yaml as a backpressure mechanism to reject new repairs on instances that have many
 pending compactions.
 
-==== Tune `incremental_repair_disk_headroom_reject_ratio`
+==== Tune `repair_disk_headroom_reject_ratio`
 
-By default, incremental repairs will be rejected if less than 20% of disk is available.  If one wishes to be
+By default, repairs will be rejected if less than 20% of disk is available.  If one wishes to be
 conservative this top level configuration could be increased to a larger value to prevent filling your data directories.
 
 == Table configuration
