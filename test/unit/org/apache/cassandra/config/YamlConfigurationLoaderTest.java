@@ -159,7 +159,7 @@ public class YamlConfigurationLoaderTest
                                            SYSTEM_PROPERTY_PREFIX + "client_encryption_options.cipher_suites", "[\"FakeCipher\"]",
                                            SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", Boolean.FALSE.toString(),
                                            SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", Boolean.TRUE.toString(),
-                                           SYSTEM_PROPERTY_PREFIX + "sai.options", "{\"prioritize_over_legacy_index\": \"true\", \"segment_write_buffer_size\": \"100MiB\"}",
+                                           SYSTEM_PROPERTY_PREFIX + "sai_options", "{\"prioritize_over_legacy_index\": \"true\", \"segment_write_buffer_size\": \"100MiB\"}",
                                            SYSTEM_PROPERTY_PREFIX + "crypto_provider", "{\"class_name\": \"MyClass\", \"parameters\": {\"fail_on_missing_provider\": \"false\"}}",
                                            SYSTEM_PROPERTY_PREFIX + "table_properties_warned", "[\"bloom_filter_fp_chance\", \"default_time_to_live\"]",
                                            SYSTEM_PROPERTY_PREFIX + "paxos_variant", "v2",
