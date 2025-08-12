@@ -32,7 +32,6 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.replication.ExpiredStatePurger;
 import org.apache.cassandra.replication.Log2OffsetsMap;
-import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
@@ -157,12 +156,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         // Compute any mutations that we could've missed during initial read execution.
         ArrayList<ShortMutationId> delta = new ArrayList<>();
         MutationSummary.difference(secondarySummary, initialSummary, delta);
-
-        delta.forEach(mutationId -> {
-            Mutation mutation = MutationJournal.instance.read(mutationId);
-            Preconditions.checkNotNull(mutation);
-            read.augment(mutation);
-        });
+        delta.forEach(read::augment);
     }
 
     public void acknowledgeReconcile(TrackedRead.Id readId, Log2OffsetsMap<?> augmentingOffsets)

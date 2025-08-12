@@ -222,7 +222,7 @@ public class StatefulASTBase extends TestBaseImpl
         ByteBuffer upperboundTimestamp = LongType.instance.decompose((long) state.operations);
         var select = builder.build();
         var inst = state.selectInstance(rs);
-        return new Property.SimpleCommand<>(state.humanReadable(select, null), s -> {
+        return new Property.SimpleCommand<>(state.humanReadable(select, "on " + inst.toString()), s -> {
             var result = s.executeQuery(inst, Integer.MAX_VALUE, s.selectCl(), select);
             for (var row : result)
             {
@@ -463,15 +463,17 @@ public class StatefulASTBase extends TestBaseImpl
 
         protected void createTable(TableMetadata metadata)
         {
-            cluster.schemaChange(createKeyspaceCQL(metadata.keyspace));
+            cluster.schemaChange(createKeyspaceCQL(metadata));
 
             CassandraGenerators.visitUDTs(metadata, next -> cluster.schemaChange(next.toCqlString(false, false, true)));
             cluster.schemaChange(metadata.toCqlString(false, false, false));
         }
 
-        private String createKeyspaceCQL(String ks)
+        private String createKeyspaceCQL(TableMetadata metadata)
         {
-            return "CREATE KEYSPACE IF NOT EXISTS " + ks + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + Math.min(3, cluster.size()) + "};";
+            return "CREATE KEYSPACE IF NOT EXISTS " + metadata.keyspace + 
+                   " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + Math.min(3, cluster.size()) + '}' +
+                   " AND replication_type='" + metadata.keyspaceReplicationType + "';";
         }
 
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select)
@@ -742,7 +744,7 @@ public class StatefulASTBase extends TestBaseImpl
         protected void toString(StringBuilder sb)
         {
             sb.append("Config:\nsstable:\n\tselected_format: ").append(sstableFormatName);
-            sb.append('\n').append(createKeyspaceCQL(metadata.keyspace));
+            sb.append('\n').append(createKeyspaceCQL(metadata));
             CassandraGenerators.visitUDTs(metadata, udt -> sb.append('\n').append(udt.toCqlString(false, false, true)).append(';'));
             sb.append('\n').append(metadata.toCqlString(false, false, false));
         }
