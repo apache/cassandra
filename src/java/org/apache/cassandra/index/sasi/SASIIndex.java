@@ -255,6 +255,12 @@ public class SASIIndex implements Index, INotificationConsumer
         return false;
     }
 
+    @Override
+    public boolean notifyIndexerAboutRowsInFullyExpiredSSTables()
+    {
+        return false;
+    }
+
     public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext context, IndexTransaction.Type transactionType)
     {
         return new Indexer()

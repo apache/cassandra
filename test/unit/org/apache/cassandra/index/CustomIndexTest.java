@@ -28,6 +28,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
@@ -604,6 +606,64 @@ public class CustomIndexTest extends CQLTester
         assertEquals(1, index.rowsDeleted.size());
         Integer deletedClustering = Int32Type.instance.compose(index.rowsDeleted.get(0).clustering().bufferAt(0));
         assertEquals(0, deletedClustering.intValue());
+    }
+
+
+    // two stub indexes just to track number of row deletions
+    // when we have fully-expired tables and indexes on different columns
+    public static class StubIndex1 extends StubIndex
+    {
+        public StubIndex1(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+    }
+
+    public static class StubIndex2 extends StubIndex
+    {
+
+        public StubIndex2(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+    }
+
+    @Test
+    public void notifyIndexesOfFullyExpiredSSTablesDuringCompaction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int primary key, col1 int, col2 int) " +
+                    "WITH compaction = {'class': 'TimeWindowCompactionStrategy', " +
+                    "                   'compaction_window_size': 1," +
+                    "                   'compaction_window_unit': 'MINUTES'," +
+                    "                   'expired_sstable_check_frequency_seconds': 10} " +
+                    "AND gc_grace_seconds = 0");
+
+        createIndex(String.format("CREATE CUSTOM INDEX row_ttl_test_index_1 ON %%s(col1) USING '%s'", StubIndex1.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX row_ttl_test_index_2 ON %%s(col2) USING '%s'", StubIndex2.class.getName()));
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        StubIndex index1  = (StubIndex1)cfs.indexManager.getIndexByName("row_ttl_test_index_1");
+        StubIndex index2  = (StubIndex2)cfs.indexManager.getIndexByName("row_ttl_test_index_2");
+
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 0, 0);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 1, 1);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 2, 2);
+
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 0, 0);
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 1, 1);
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 2, 2);
+
+        flush();
+
+        Uninterruptibles.sleepUninterruptibly(60, TimeUnit.SECONDS);
+
+        compact();
+
+        Assert.assertFalse(index1.rowsDeleted.isEmpty());
+        Assert.assertEquals(3, index1.rowsDeleted.size());
+
+        Assert.assertFalse(index2.rowsDeleted.isEmpty());
+        Assert.assertEquals(3, index2.rowsDeleted.size());
     }
 
     @Test

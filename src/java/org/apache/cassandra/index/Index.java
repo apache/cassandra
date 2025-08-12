@@ -401,6 +401,28 @@ public interface Index
      */
     public void validate(PartitionUpdate update) throws InvalidRequestException;
 
+
+    /**
+     * When a secondary index is created on a column for a table with e.g. TWCS strategy,
+     * when this table contains SSTables which are evaluated as fully expired upon compaction,
+     * they are by default filtered out as they can be dropped in their entirety. However, once dropped like that,
+     * the index implementation is not notified about this fact via IndexGCTransaction as compaction on
+     * non-fully expired tables would do. This in turn means that custom index will never know that some data have
+     * been removed hence data custom index implementation is responsible for will grow beyond any limit.
+     *
+     * Override this method and return false in index implementation only in case you do not want to be notified about
+     * dropped fully-expired data. This will eventually mean that {@link Indexer#removeRow(Row)} will not be called
+     * for rows contained in fully expired table. Return true if you do want to be notified about that fact.
+     *
+     * This method returns true by default.
+     *
+     * @return true when fully expired tables should be included in compaction process, false otherwise.
+     */
+    public default boolean notifyIndexerAboutRowsInFullyExpiredSSTables()
+    {
+        return true;
+    }
+
     /*
      * Update processing
      */
