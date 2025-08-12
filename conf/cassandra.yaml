@@ -2683,10 +2683,14 @@ storage_compatibility_mode: NONE
 # the given value.  Defaults to disabled.
 # reject_repair_compaction_threshold: 1024
 
-# At least 20% of disk must be unused to run incremental repair. It is useful to avoid disks filling up during
-# incremental repair as anti-compaction during incremental repair may contribute to additional space temporarily.
+# At least 20% of disk must be unused to run repair. It is useful to avoid disks filling up during
+# repair as anti-compaction during repair may contribute to additional space temporarily.
 # if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason)
 # then set the ratio to 0.0
+# repair_disk_headroom_reject_ratio: 0.2;
+
+# This is the deprecated config which was used to safeguard incremental repairs. Use repair_disk_headroom_reject_ratio
+# instead as it safeguards against all repairs.
 # incremental_repair_disk_headroom_reject_ratio: 0.2;
 
 # Configuration for Auto Repair Scheduler.

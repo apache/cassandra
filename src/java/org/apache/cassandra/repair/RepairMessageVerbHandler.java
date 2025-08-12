@@ -123,7 +123,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         sendFailureResponse(message);
                         return;
                     }
-                    if (!ActiveRepairService.verifyDiskHeadroomThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind, prepareMessage.isIncremental))
+                    if (!ActiveRepairService.verifyDiskHeadroomThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind))
                     {
                         // error is logged in verifyDiskHeadroomThreshold
                         state.phase.fail("Not enough disk headroom to perform incremental repair");

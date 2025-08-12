@@ -5955,18 +5955,18 @@ public class DatabaseDescriptor
         return conf.auto_repair;
     }
 
-    public static double getIncrementalRepairDiskHeadroomRejectRatio()
+    public static double getRepairDiskHeadroomRejectRatio()
     {
-        return conf.incremental_repair_disk_headroom_reject_ratio;
+        return conf.repair_disk_headroom_reject_ratio;
     }
 
-    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    public static void setRepairDiskHeadroomRejectRatio(double value)
     {
         if (value < 0.0 || value > 1.0)
         {
-            throw new IllegalArgumentException("Value must be >= 0 and <= 1 for incremental_repair_disk_headroom_reject_ratio");
+            throw new IllegalArgumentException("Value must be >= 0 and <= 1 for repair_disk_headroom_reject_ratio");
         }
-        conf.incremental_repair_disk_headroom_reject_ratio = value;
+        conf.repair_disk_headroom_reject_ratio = value;
     }
 
     @VisibleForTesting
