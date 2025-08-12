@@ -798,9 +798,14 @@ public class ClusterMetadataTestHelper
 
     public static void addEndpoint(int i)
     {
+        addEndpoint(i, NodeVersion.CURRENT);
+    }
+
+    public static void addEndpoint(int i, NodeVersion nodeVersion)
+    {
         try
         {
-            addEndpoint(InetAddressAndPort.getByName("127.0.0." + i), new Murmur3Partitioner.LongToken(i));
+            addEndpoint(InetAddressAndPort.getByName("127.0.0." + i), new Murmur3Partitioner.LongToken(i), nodeVersion);
         }
         catch (UnknownHostException e)
         {
@@ -810,7 +815,12 @@ public class ClusterMetadataTestHelper
 
     public static void addEndpoint(InetAddressAndPort endpoint, Token t)
     {
-        addEndpoint(endpoint, t, "dc1", "rack1");
+        addEndpoint(endpoint, t, NodeVersion.CURRENT);
+    }
+
+    public static void addEndpoint(InetAddressAndPort endpoint, Token t, NodeVersion nodeVersion)
+    {
+        addEndpoint(endpoint, t, "dc1", "rack1", nodeVersion);
     }
 
     public static void addEndpoint(InetAddressAndPort endpoint, Collection<Token> tokens)
@@ -830,15 +840,26 @@ public class ClusterMetadataTestHelper
 
     public static void addEndpoint(InetAddressAndPort endpoint, Token t, String dc, String rack)
     {
-        addEndpoint(endpoint, Collections.singleton(t), dc, rack);
+        addEndpoint(endpoint, Collections.singleton(t), dc, rack, NodeVersion.CURRENT);
+    }
+
+    public static void addEndpoint(InetAddressAndPort endpoint, Token t, String dc, String rack, NodeVersion nodeVersion)
+    {
+        addEndpoint(endpoint, Collections.singleton(t), dc, rack, nodeVersion);
     }
 
     public static void addEndpoint(InetAddressAndPort endpoint, Collection<Token> t, String dc, String rack)
     {
+        addEndpoint(endpoint, t, dc, rack, NodeVersion.CURRENT);
+    }
+
+    public static void addEndpoint(InetAddressAndPort endpoint, Collection<Token> t, String dc, String rack,
+                                   NodeVersion nodeVersion)
+    {
         try
         {
             Location l = new Location(dc, rack);
-            commit(new Register(addr(endpoint), l, NodeVersion.CURRENT));
+            commit(new Register(addr(endpoint), l, nodeVersion));
             if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 RegistrationStatus.instance.onRegistration();
             lazyJoin(endpoint, new HashSet<>(t)).prepareJoin()

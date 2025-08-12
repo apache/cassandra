@@ -425,6 +425,21 @@ public class AutoRepairUtils
         return null;
     }
 
+    /**
+     * Checks whether the cluster has multiple major versions
+     * @return
+     *  true if more than one major versions are detected
+     *  false if only one major version is detected
+     *
+     */
+    public static boolean hasMultipleLiveMajorVersions()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        int maxMajorVersion = ClusterMetadata.current().directory.clusterMaxVersion.cassandraVersion.major;
+        int minMajorVersion = ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion.major;
+        return maxMajorVersion != minMajorVersion;
+    }
+
     @VisibleForTesting
     protected static TreeSet<UUID> getHostIdsInCurrentRing(RepairType repairType, Collection<NodeAddresses> allNodesInRing)
     {
