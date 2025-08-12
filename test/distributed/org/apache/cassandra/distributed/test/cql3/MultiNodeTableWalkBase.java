@@ -28,6 +28,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.Shared;
@@ -44,17 +45,24 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
     private static final boolean mockMultiNode = false;
 
     private final ReadRepairStrategy readRepair;
+    private final ReplicationType replicationType;
 
     protected MultiNodeTableWalkBase(ReadRepairStrategy readRepair)
     {
+        this(readRepair, ReplicationType.untracked);
+    }
+
+    protected MultiNodeTableWalkBase(ReadRepairStrategy readRepair, ReplicationType replicationType)
+    {
         this.readRepair = readRepair;
+        this.replicationType = replicationType;
     }
 
     @Override
     protected TableMetadata defineTable(RandomSource rs, String ks)
     {
         TableMetadata tbl = super.defineTable(rs, ks);
-        return tbl.unbuild().params(tbl.params.unbuild().readRepair(readRepair).build()).build();
+        return tbl.unbuild().params(tbl.params.unbuild().readRepair(readRepair).build()).keyspaceReplicationType(replicationType).build();
     }
 
     @Override
@@ -96,7 +104,7 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
         @Override
         protected boolean isMultiNode()
         {
-            // When a seed fails its useful to rerun the test as a single node to see if the issue persists... but doing so corrupts the random history!
+            // When a seed fails it's useful to rerun the test as a single node to see if the issue persists... but doing so corrupts the random history!
             // To avoid that, this method hard codes that the test is multi node...
             return true;
         }
@@ -104,7 +112,7 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
         @Override
         protected boolean allowRepair()
         {
-            return hasEnoughMemtableForRepair() || hasEnoughSSTablesForRepair();
+            return replicationType == ReplicationType.untracked && (hasEnoughMemtableForRepair() || hasEnoughSSTablesForRepair());
         }
 
         @Override
