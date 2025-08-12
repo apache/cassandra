@@ -24,6 +24,8 @@ import java.util.TreeSet;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -44,6 +46,8 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
@@ -230,6 +234,52 @@ public class AutoRepairUtilsTest extends CQLTester
         assertNotNull(hosts);
         assertEquals(1, hosts.size());
         assertTrue(hosts.contains(hostId));
+    }
+
+    @Test
+    public void testHasMultipleLiveMajorVersionsWithSingleNode()
+    {
+        boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
+        assertFalse(result);
+    }
+
+    @Test
+    public void testHasMultipleLiveMajorVersionsWithMultipleNodesOfSameVersion()
+    {
+        ClusterMetadataTestHelper.addEndpoint(2);
+        // Test the current behavior with the existing cluster setup
+        // In a single-node test environment, this should return false
+        boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
+        assertFalse(result);
+    }
+
+    @Test
+    public void testHasMultipleLiveMajorVersionsWithMultipleNodesOfSameMajorVersionDifferentMinorVersions()
+    {
+        // add two nodes with the current cassandra major version, but different minor version
+        CassandraVersion differentCassandraVersion = new CassandraVersion(
+            String.format("%d.%d",
+                          NodeVersion.CURRENT.cassandraVersion.major,
+                          NodeVersion.CURRENT.cassandraVersion.minor+1));
+        ClusterMetadataTestHelper.addEndpoint(2, new NodeVersion(
+             differentCassandraVersion,
+             NodeVersion.CURRENT_METADATA_VERSION));
+        // With the same major versions, but different minor versions, we should still see this function return true
+        boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
+        assertFalse(result);
+    }
+
+    @Test
+    public void testHasMultipleLiveMajorVersionsWithMultipleNodesOfDifferentMajorVersions()
+    {
+        // add two nodes with different cassandra major versions
+        CassandraVersion differentCassandraVersion = new CassandraVersion(
+            String.format("%d.%d", NodeVersion.CURRENT.cassandraVersion.major - 1, 0));
+        ClusterMetadataTestHelper.addEndpoint(2, new NodeVersion(differentCassandraVersion,
+                                                                 NodeVersion.CURRENT_METADATA_VERSION));
+        // With different major versions, we should see this function return true
+        boolean result = AutoRepairUtils.hasMultipleLiveMajorVersions();
+        assertTrue(result);
     }
 
     @Test

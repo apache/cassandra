@@ -2782,6 +2782,9 @@ storage_compatibility_mode: NONE
 #   # The scheduler needs to adjust its order when nodes leave the ring. Deleted hosts are tracked in metadata
 #   # for a specified duration to ensure they are indeed removed before adjustments are made to the schedule.
 #   history_clear_delete_hosts_buffer_interval: 2h
+#   # By default repair is disabled if there are mixed major versions detected - which would happen
+#   # if a major version upgrade is being performed on the cluster, but a user can enable it using this flag
+#   mixed_major_version_repair_enabled: false
 #   # NOTE: Each of the below settings can be overridden per repair type under repair_type_overrides
 #   global_settings:
 #     # If true, attempts to group tables in the same keyspace into one repair; otherwise, each table is repaired

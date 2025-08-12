@@ -59,6 +59,8 @@ public class AutoRepairConfig implements Serializable
     // Minimum duration for the execution of a single repair task. This prevents the scheduler from overwhelming
     // the node by scheduling too many repair tasks in a short period of time.
     public volatile DurationSpec.LongSecondsBound repair_task_min_duration = new DurationSpec.LongSecondsBound("5s");
+    // by default repair is disabled if there are mixed major versions detected, but you can enable it using this flag
+    public volatile boolean mixed_major_version_repair_enabled = false;
 
     // global_settings overides Options.defaultOptions for all repair types
     public volatile Options global_settings;
@@ -147,6 +149,11 @@ public class AutoRepairConfig implements Serializable
     public void setAutoRepairSchedulingEnabled(boolean enabled)
     {
         this.enabled = enabled;
+    }
+
+    public boolean isMixedMajorVersionRepairEnabled()
+    {
+        return mixed_major_version_repair_enabled;
     }
 
     public DurationSpec.IntSecondsBound getAutoRepairHistoryClearDeleteHostsBufferInterval()
@@ -364,6 +371,16 @@ public class AutoRepairConfig implements Serializable
     public void setRepairRetryBackoff(RepairType repairType, String interval)
     {
         getOptions(repairType).repair_retry_backoff = new DurationSpec.LongSecondsBound(interval);
+    }
+
+    public boolean getMixedMajorVersionRepairEnabled()
+    {
+        return this.mixed_major_version_repair_enabled;
+    }
+
+    public void setMixedMajorVersionRepairEnabled(boolean enabled)
+    {
+        this.mixed_major_version_repair_enabled = enabled;
     }
 
     @VisibleForTesting

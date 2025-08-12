@@ -2677,6 +2677,11 @@ public class NodeProbe implements AutoCloseable
     {
         return grProxy;
     }
+
+    public void setMixedMajorVersionRepairEnabled(boolean enabled)
+    {
+        autoRepairProxy.setMixedMajorVersionRepairEnabled(enabled);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
