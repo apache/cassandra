@@ -2689,6 +2689,10 @@ storage_compatibility_mode: NONE
 # then set the ratio to 0.0
 # incremental_repair_disk_headroom_reject_ratio: 0.2;
 
+# by default repair is disabled if there are mixed major versions detected - which would happen
+# if a major version upgrade is being perormed on the cluster, but a user can enable it using this flag
+# mixed_major_version_repair_enabled = false;
+
 # Configuration for Auto Repair Scheduler.
 #
 # This feature is disabled by default.

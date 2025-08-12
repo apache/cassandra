@@ -38,6 +38,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DurationSpec;
@@ -163,6 +164,11 @@ public class AutoRepair
         if (!config.isAutoRepairEnabled(repairType))
         {
             logger.debug("Auto-repair is disabled for repair type {}", repairType);
+            return;
+        }
+        if (!DatabaseDescriptor.getMixedMajorVersionRepairEnabled() &&
+            Gossiper.instance.hasMultipleLiveMajorVersions()) {
+            logger.info("Auto-repair is disabled when nodes in the cluster have different major versions");
             return;
         }
         AutoRepairService.instance.checkCanRun(repairType);

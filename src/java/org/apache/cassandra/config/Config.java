@@ -374,6 +374,9 @@ public class Config
     // if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason) then set the ratio to 0.0
     public volatile double incremental_repair_disk_headroom_reject_ratio = 0.2;
 
+    // by default repair is disabled if there are mixed major versions detected, but you can enable it using this flag
+    public volatile boolean mixed_major_version_repair_enabled = false;
+
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */

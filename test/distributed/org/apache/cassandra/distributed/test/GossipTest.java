@@ -38,7 +38,10 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
@@ -283,6 +286,42 @@ public class GossipTest extends TestBaseImpl
                 Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
             }
             assertTrue(removed);
+        }
+    }
+
+    @Test
+    public void testMultipleMajorVersionsWithMultipleMajorVersions() throws Exception
+    {
+        try (Cluster cluster = builder()
+                               .withNodes(2)
+                               .withConfig(config -> config.with(GOSSIP))
+                               .start())
+        {
+            InetSocketAddress peer1 = cluster.get(1).broadcastAddress();
+            String version1 = "4.0.1920";
+            cluster.get(1).runOnInstance(() -> {
+                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(InetAddressAndPort.getByAddress(peer1));
+                VersionedValue value = StorageService.instance.valueFactory.rack(version1);
+                epState.addApplicationState(ApplicationState.RELEASE_VERSION, value);
+                Assert.assertTrue(Gossiper.instance.hasMultipleLiveMajorVersions());
+            });
+        }
+    }
+
+    @Test
+    public void testMultipleMajorVersionsWithSameMajorVersions() throws Exception
+    {
+        try (Cluster cluster = builder()
+                               .withNodes(2)
+                               .withConfig(config -> config.with(GOSSIP))
+                               .start())
+        {
+            cluster.get(1).runOnInstance(() -> {
+                Assert.assertFalse(Gossiper.instance.hasMultipleLiveMajorVersions());
+            });
+            cluster.get(2).runOnInstance(() -> {
+                Assert.assertFalse(Gossiper.instance.hasMultipleLiveMajorVersions());
+            });
         }
     }
 }
