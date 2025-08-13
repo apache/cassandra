@@ -19,22 +19,10 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.util.Collection;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
-
-import com.google.common.collect.Iterables;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
@@ -49,14 +37,18 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
+import com.google.common.collect.Iterables;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -68,14 +60,20 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.READ_WRITE;
 import static java.lang.String.format;
+import static org.apache.cassandra.distributed.test.accord.AccordTestBase.executeWithRetry;
 
-public class AccordIncrementalRepairTest extends AccordTestBase
+public class AccordIncrementalRepairTest extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordIncrementalRepairTest.class);
 
@@ -122,7 +120,6 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         return AccordService.instance();
     }
 
-    @Override
     protected Logger logger()
     {
         return logger;
@@ -131,24 +128,40 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws Throwable
     {
-        setupCluster(opt -> opt.withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP)
-                                                       .set("accord.recover_txn", "1s")
-                                                       .set("accord.retry_syncpoint", "1s*attempts")
-                                                       .set("accord.retry_durability", "1s*attempts")
-                                                       .set("accord.shard_durability_target_splits", 4)
-        ), 3);
-        for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> AccordService.unsafeSetNewAccordService(new BarrierRecordingService(AccordService.instance())));
-//        setupCluster(opt -> opt, 3);
+
+
     }
 
-    @After
-    public void tearDown()
+    private static Cluster createCluster() throws Throwable
     {
-        for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start()));
-        SHARED_CLUSTER.filters().reset();
+        Cluster cluster = AccordTestBase.createCluster(3, opt -> opt.withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP)
+                                                           .set("accord.recover_txn", "1s")
+                                                           .set("accord.retry_syncpoint", "1s*attempts")
+                                                           .set("accord.retry_durability", "1s*attempts")
+                                                           .set("accord.shard_durability_target_splits", 4)));
+        for (IInvokableInstance instance : cluster)
+            instance.runOnInstance(() -> AccordService.unsafeSetNewAccordService(new BarrierRecordingService(AccordService.instance())));
+
+        return cluster;
     }
+
+    private static void withCluster(ModelChecker.ThrowingConsumer<Cluster> run) throws Throwable
+    {
+        try (Cluster cluster = createCluster())
+        {
+            try
+            {
+                run.accept(cluster);
+            }
+            catch (Throwable t)
+            {
+                cluster.filters().reset();
+                for (IInvokableInstance instance : cluster)
+                    instance.runOnInstance(() -> AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().start()));
+            }
+        }
+    }
+
 
     private static void await(IInvokableInstance instance, IIsolatedExecutor.SerializableCallable<Boolean> check, long duration, TimeUnit unit)
     {
@@ -182,27 +195,6 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     {
         InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(waitOn.broadcastAddress());
         await(instance, () -> !FailureDetector.instance.isAlive(endpoint), 1, TimeUnit.MINUTES);
-    }
-
-    private static <V> V getUninterruptibly(Future<V> future, long timeout, TimeUnit units)
-    {
-        try
-        {
-            return future.get(timeout, units);
-        }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException | TimeoutException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static <V> V getUninterruptibly(Future<V> future)
-    {
-        return getUninterruptibly(future, 1, TimeUnit.MINUTES);
     }
 
     private static TxnId awaitLocalApplyOnKey(TableMetadata metadata, int k)
@@ -254,25 +246,31 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     @Test
     public void txnRepairTest() throws Throwable
     {
-        SHARED_CLUSTER.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='full' AND fast_path={'size':2};", KEYSPACE, accordTableName));
+        withCluster(this::txnRepairTest);
+    }
+
+    public void txnRepairTest(Cluster cluster) throws Throwable
+    {
         final String keyspace = KEYSPACE;
-        final String table = accordTableName;
+        final String table = "accord_table";
+        final String qualifiedTable = String.format("%s.%s", keyspace, table);
+        cluster.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='full' AND fast_path={'size':2};", keyspace, table));
 
-        SHARED_CLUSTER.filters().allVerbs().to(3).drop();
-        awaitEndpointDown(SHARED_CLUSTER.get(1), SHARED_CLUSTER.get(3));
+        cluster.filters().allVerbs().to(3).drop();
+        awaitEndpointDown(cluster.get(1), cluster.get(3));
 
-        executeWithRetry(SHARED_CLUSTER, format("BEGIN TRANSACTION\n" +
-                                                "INSERT INTO %s (k, v) VALUES (1, 1);\n" +
-                                                "COMMIT TRANSACTION", qualifiedAccordTableName));
+        executeWithRetry(cluster, format("BEGIN TRANSACTION\n" +
+                                                        "INSERT INTO %s (k, v) VALUES (1, 1);\n" +
+                                                        "COMMIT TRANSACTION", qualifiedTable));
 
-        SHARED_CLUSTER.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
+        cluster.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
             TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
             awaitLocalApplyOnKey(metadata, 1);
         }));
 
-        SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> barrierRecordingService().reset()));
+        cluster.forEach(instance -> instance.runOnInstance(() -> barrierRecordingService().reset()));
 
-        SHARED_CLUSTER.get(1, 2).forEach(instance -> {
+        cluster.get(1, 2).forEach(instance -> {
             instance.runOnInstance(() -> {
                 ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
                 cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
@@ -283,23 +281,23 @@ public class AccordIncrementalRepairTest extends AccordTestBase
                 });
             });
         });
-        SHARED_CLUSTER.get(3).runOnInstance(() -> {
+        cluster.get(3).runOnInstance(() -> {
             ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
             Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
         });
 
         // heal partition and wait for node 1 to see node 3 again
-        for (IInvokableInstance instance : SHARED_CLUSTER)
+        for (IInvokableInstance instance : cluster)
             instance.runOnInstance(() -> {
                 AccordService.instance().node().commandStores().forEachCommandStore(cs -> cs.unsafeProgressLog().stop());
                 Assert.assertFalse(barrierRecordingService().executedBarriers);
             });
-        SHARED_CLUSTER.filters().reset();
-        awaitEndpointUp(SHARED_CLUSTER.get(1), SHARED_CLUSTER.get(3));
-        nodetool(SHARED_CLUSTER.get(1), "repair", KEYSPACE);
+        cluster.filters().reset();
+        awaitEndpointUp(cluster.get(1), cluster.get(3));
+        nodetool(cluster.get(1), "repair", keyspace);
 
-        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+        cluster.get(1).runOnInstance(() -> {
             Assert.assertTrue(barrierRecordingService().executedBarriers);
             ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
@@ -309,17 +307,17 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         });
     }
 
-    private void testSingleNodeWrite(TransactionalMode mode)
+    private void testSingleNodeWrite(Cluster cluster, TransactionalMode mode)
     {
-        SHARED_CLUSTER.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='%s';", KEYSPACE, accordTableName, mode));
         final String keyspace = KEYSPACE;
-        final String table = accordTableName;
+        final String table = "accord_table";
+        cluster.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='%s';", keyspace, table, mode));
 
-        SHARED_CLUSTER.get(3).runOnInstance(() -> {
+        cluster.get(3).runOnInstance(() -> {
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (1, 2);", keyspace, table));
         });
 
-        SHARED_CLUSTER.get(3).runOnInstance(() -> {
+        cluster.get(3).runOnInstance(() -> {
             UntypedResultSet result = QueryProcessor.executeInternal(format("SELECT * FROM %s.%s WHERE k=1", keyspace, table));
             Assert.assertFalse(result.isEmpty());
             UntypedResultSet.Row row = Iterables.getOnlyElement(result);
@@ -336,7 +334,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
                 Assert.assertFalse(sstable.isPendingRepair());
             });
         });
-        SHARED_CLUSTER.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
+        cluster.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
             UntypedResultSet result = QueryProcessor.executeInternal(format("SELECT * FROM %s.%s WHERE k=1", keyspace, table));
             Assert.assertTrue(result.isEmpty());
 
@@ -344,12 +342,12 @@ public class AccordIncrementalRepairTest extends AccordTestBase
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
             Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
         }));
-        SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> {
+        cluster.forEach(instance -> instance.runOnInstance(() -> {
             barrierRecordingService().reset();
         }));
 
-        nodetool(SHARED_CLUSTER.get(1), "repair", KEYSPACE);
-        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+        nodetool(cluster.get(1), "repair", KEYSPACE);
+        cluster.get(1).runOnInstance(() -> {
             Assert.assertTrue(barrierRecordingService().executedBarriers);
             ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
@@ -369,74 +367,90 @@ public class AccordIncrementalRepairTest extends AccordTestBase
      * a failed write at txn mode unsafe should be made visible by repair
      */
     @Test
-    public void unsafeRepairTest()
+    public void unsafeRepairTest() throws Throwable
     {
-        testSingleNodeWrite(TransactionalMode.test_unsafe);
+        withCluster(cluster -> {
+            testSingleNodeWrite(cluster, TransactionalMode.test_unsafe);
+        });
     }
 
     /**
      * Repair should repair (fully replicate _some_ state) any divergent state between replicas
      */
     @Test
-    public void fullRepairTest()
+    public void fullRepairTest() throws Throwable
     {
-        testSingleNodeWrite(TransactionalMode.full);
+        withCluster(cluster -> {
+            testSingleNodeWrite(cluster, TransactionalMode.full);
+        });
     }
 
     @Test
-    public void onlyAccordTest()
+    public void onlyAccordTest() throws Throwable
     {
-        SHARED_CLUSTER.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='full' AND fast_path={'size':2};", KEYSPACE, accordTableName));
+        withCluster(this::onlyAccordTest);
+    }
+
+    public void onlyAccordTest(Cluster cluster)
+    {
         final String keyspace = KEYSPACE;
-        final String table = accordTableName;
+        final String table = "accord_table";
+        final String qualifiedTable = String.format("%s.%s", keyspace, table);
+        cluster.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='full' AND fast_path={'size':2};", KEYSPACE, table));
 
-        executeWithRetry(SHARED_CLUSTER, format("BEGIN TRANSACTION\n" +
+        executeWithRetry(cluster, format("BEGIN TRANSACTION\n" +
                                                 "INSERT INTO %s (k, v) VALUES (1, 1);\n" +
-                                                "COMMIT TRANSACTION", qualifiedAccordTableName));
+                                                "COMMIT TRANSACTION", qualifiedTable));
 
-        SHARED_CLUSTER.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
+        cluster.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
             TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
             awaitLocalApplyOnKey(metadata, 1);
         }));
 
-        SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> barrierRecordingService().reset()));
+        cluster.forEach(instance -> instance.runOnInstance(() -> barrierRecordingService().reset()));
 
-        SHARED_CLUSTER.filters().reset();
-        awaitEndpointUp(SHARED_CLUSTER.get(1), SHARED_CLUSTER.get(3));
-        nodetool(SHARED_CLUSTER.get(1), "repair", "--accord-only", KEYSPACE);
+        cluster.filters().reset();
+        awaitEndpointUp(cluster.get(1), cluster.get(3));
+        nodetool(cluster.get(1), "repair", "--accord-only", KEYSPACE);
 
-        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+        cluster.get(1).runOnInstance(() -> {
             Assert.assertTrue(barrierRecordingService().executedBarriers);
         });
     }
 
     @Test
-    public void onlyAccordWithForceTest()
+    public void onlyAccordWithForceTest() throws Throwable
     {
-        SHARED_CLUSTER.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='full' AND fast_path={'size':2};", KEYSPACE, accordTableName));
+        withCluster(this::onlyAccordWithForceTest);
+    }
+
+    public void onlyAccordWithForceTest(Cluster cluster)
+    {
         final String keyspace = KEYSPACE;
-        final String table = accordTableName;
+        final String table = "accord_table";
+        final String qualifiedTable = String.format("%s.%s", keyspace, table);
+        cluster.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='full' AND fast_path={'size':2};", KEYSPACE, table));
 
-        SHARED_CLUSTER.filters().allVerbs().to(3).drop();
-        awaitEndpointDown(SHARED_CLUSTER.get(1), SHARED_CLUSTER.get(3));
-        awaitEndpointDown(SHARED_CLUSTER.get(2), SHARED_CLUSTER.get(3));
+        cluster.filters().allVerbs().to(3).drop();
+        awaitEndpointDown(cluster.get(1), cluster.get(3));
+        awaitEndpointDown(cluster.get(2), cluster.get(3));
 
-        executeWithRetry(SHARED_CLUSTER, format("BEGIN TRANSACTION\n" +
+        executeWithRetry(cluster, format("BEGIN TRANSACTION\n" +
                                                 "INSERT INTO %s (k, v) VALUES (1, 1);\n" +
-                                                "COMMIT TRANSACTION", qualifiedAccordTableName));
+                                                "COMMIT TRANSACTION", qualifiedTable));
 
-        SHARED_CLUSTER.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
+        cluster.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
             TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
             awaitLocalApplyOnKey(metadata, 1);
         }));
 
-        SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> barrierRecordingService().reset()));
+        cluster.forEach(instance -> instance.runOnInstance(() -> barrierRecordingService().reset()));
 
-        SHARED_CLUSTER.filters().reset();
-        awaitEndpointUp(SHARED_CLUSTER.get(1), SHARED_CLUSTER.get(3));
-        nodetool(SHARED_CLUSTER.get(1), "repair", "--force", "--accord-only", KEYSPACE);
+        cluster.filters().reset();
+        awaitEndpointUp(cluster.get(1), cluster.get(3));
+        nodetool(cluster.get(1), "repair", "--force", "--accord-only", KEYSPACE);
 
-        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+        cluster.get(1).runOnInstance(() -> {
             Assert.assertTrue(barrierRecordingService().executedBarriers);
         });
     }

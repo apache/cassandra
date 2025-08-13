@@ -257,8 +257,10 @@ public class Move extends MultiStepOperation<Epoch>
                     }
 
                     StreamResultFuture streamResult = streamPlan.execute();
-                    Future<Void> accordReady = AccordService.instance().epochReady(metadata.epoch);
-                    FutureCombiner.allOf(streamResult, accordReady).get();
+
+                    Future<?> accordReady = AccordService.instance().epochReadyFor(metadata);
+                    Future<?> ready = FutureCombiner.allOf(streamResult, accordReady);
+                    ready.get();
                     StorageService.instance.repairPaxosForTopologyChange("move");
                 }
                 catch (InterruptedException e)

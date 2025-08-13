@@ -238,7 +238,7 @@ public class StreamPlan
     public static String[] nonAccordTablesForKeyspace(KeyspaceMetadata ksm)
     {
         String[] result = ksm.tables.stream()
-                                    .filter(tbl -> !tbl.isAccordEnabled())
+                                    .filter(tbl -> !tbl.requiresAccordSupport())
                                     .map(tbl -> tbl.name)
                                     .toArray(String[]::new);
 
@@ -247,11 +247,11 @@ public class StreamPlan
 
     public static boolean hasNonAccordTables(KeyspaceMetadata ksm)
     {
-        return ksm.tables.stream().anyMatch(tbl -> !tbl.isAccordEnabled());
+        return ksm.tables.stream().anyMatch(tbl -> !tbl.requiresAccordSupport());
     }
 
     public static boolean hasAccordTables(KeyspaceMetadata ksm)
     {
-        return ksm.tables.stream().anyMatch(TableMetadata::isAccordEnabled);
+        return ksm.tables.stream().anyMatch(TableMetadata::requiresAccordSupport);
     }
 }

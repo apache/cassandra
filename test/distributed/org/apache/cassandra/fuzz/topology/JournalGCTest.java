@@ -127,7 +127,7 @@ public class JournalGCTest extends FuzzTestBase
                 }, maximumId);
 
                 int after =-1;
-                int maxCycles = 3;
+                int maxCycles = 10;
                 for (int i = 0; i < maxCycles; i++)
                 {
                     cluster.get(1).acceptOnInstance((ks, tbl) -> {
