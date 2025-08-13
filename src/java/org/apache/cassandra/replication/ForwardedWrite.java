@@ -208,7 +208,13 @@ public class ForwardedWrite
         logger.trace("Finding best leader from replicas {}", endpoints);
 
         // TODO: Should match ReplicaPlans.findCounterLeaderReplica, including DC-local priority, current health, severity, etc.
-        Replica leader = proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints).get(0);
+        Replica leader = null;
+        for (Replica replica : proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints))
+        {
+            if (plan.isAlive(replica))
+                leader = replica;
+        }
+        Preconditions.checkState(leader != null, "Could not find leader for %s", mutation);
 
         // create callback and forward to leader
         logger.trace("Selected {} as leader for mutation with key {}", leader.endpoint(), mutation.key());
@@ -219,8 +225,15 @@ public class ForwardedWrite
         Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan), requestTime);
         for (Replica endpoint : endpoints)
         {
-            logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
-            MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
+            if (plan.isAlive(endpoint))
+            {
+                logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
+                MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
+            }
+            else
+            {
+                handler.expired();
+            }
         }
 
         MessagingService.instance().send(toLeader, leader.endpoint());
