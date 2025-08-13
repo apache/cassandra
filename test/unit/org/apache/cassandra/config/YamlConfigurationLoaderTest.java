@@ -147,8 +147,8 @@ public class YamlConfigurationLoaderTest
         // if the type is a collection, then the string format doesn't make sense and will fail with an error such as
         //   Cannot create property=client_encryption_options.cipher_suites for JavaBean=org.apache.cassandra.config.Config@1f59a598
         //   No single argument constructor found for interface java.util.List : null
-        // the reason is that its not a scalar but a complex type (collection type), so the map we use needs to have a collection to match.
-        // It is possible that we define a common string representation for these types so they can be written to; this
+        // the reason is that it's not a scalar but a complex type (collection type), so the map we use needs to have a collection to match.
+        // It is possible that we define a common string representation for these types, so they can be written to; this
         // is an issue that SettingsTable may need to worry about.
         try (WithProperties ignore = new WithProperties()
                                      .set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)

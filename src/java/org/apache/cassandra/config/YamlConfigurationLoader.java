@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -65,6 +66,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPL
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_OLD_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
 import static org.apache.cassandra.config.Replacements.getNameReplacements;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
@@ -181,26 +183,29 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     private static void maybeAddSystemProperties(Object obj)
     {
-        if (CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES.getBoolean())
+        if (CONFIG_ALLOW_SYSTEM_PROPERTIES.getBoolean())
         {
+            Map<String, String> orderedPropertiesMap = new TreeMap<>();
             java.util.Properties props = System.getProperties();
-            Map<String, Object> map = new HashMap<>();
-            for (String originalKey : props.stringPropertyNames())
+            props.stringPropertyNames().forEach(key -> orderedPropertiesMap.put(key, props.getProperty(key)));
+
+            Map<String, Object> overridingProperties = new HashMap<>();
+            for (String originalKey : orderedPropertiesMap.keySet())
             {
                 if (originalKey.startsWith(SYSTEM_PROPERTY_PREFIX))
                 {
                     String value = props.getProperty(originalKey);
                     String configKey = originalKey.replace(SYSTEM_PROPERTY_PREFIX, "");
-                    if (OVERRIDABLE_CONFIG_NAMES.contains(configKey) && value != null && !map.containsKey(configKey))
+                    if (OVERRIDABLE_CONFIG_NAMES.contains(configKey) && value != null && !overridingProperties.containsKey(configKey))
                     {
                         if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
                             logger.warn("Detected JVM property {}={} override for cassandra configuration '{}'.", originalKey, value, configKey);
-                        map.put(configKey, getScalarValueOrJsonObject(value));
+                        overridingProperties.put(configKey, getScalarValueOrJsonObject(value));
                     }
                 }
             }
-            if (!map.isEmpty())
-                updateFromMap(map, false, obj);
+            if (!overridingProperties.isEmpty())
+                updateFromMap(overridingProperties, false, obj);
         }
     }
 
@@ -208,9 +213,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         if (CONFIG_ALLOW_ENVIRONMENT_VARIABLES.getBoolean(CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getBooleanOrDefault(false)))
         {
-            Map<String, String> environment = System.getenv(); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+            Map<String, String> orderedEnvironmentMap = new TreeMap<>(System.getenv()); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
             Map<String, Object> configOverrides = new HashMap<>();
-            for (Map.Entry<String, String> env : environment.entrySet())
+            for (Map.Entry<String, String> env : orderedEnvironmentMap.entrySet())
             {
                 String originalKey = env.getKey();
                 if (env.getKey().startsWith(ENVIRONMENT_VARIABLE_PREFIX))
@@ -236,7 +241,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         try
         {
             return JsonUtils.JSON_OBJECT_MAPPER.readValue(value, Object.class);
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             return value;
         }
@@ -436,7 +442,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             {
                 Replacement replacement = typeReplacements.get(name);
                 result = replacement.toProperty(getProperty0(type, replacement.newName));
-                
+
                 if (replacement.deprecated)
                     deprecationWarnings.add(replacement.oldName);
             }
@@ -526,4 +532,3 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return loaderOptions;
     }
 }
-
