@@ -66,7 +66,7 @@ public enum CassandraRelevantEnv
         return Boolean.parseBoolean(System.getenv(key));
     }
 
-    public boolean getBooleanOrDefault(Boolean defaultValue)
+    public boolean getBooleanOrDefault(boolean defaultValue)
     {
         return Optional.ofNullable(System.getenv(key)).map(Boolean::parseBoolean).orElse(defaultValue);
     }
