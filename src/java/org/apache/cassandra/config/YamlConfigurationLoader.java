@@ -196,11 +196,18 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 {
                     String value = props.getProperty(originalKey);
                     String configKey = originalKey.replace(SYSTEM_PROPERTY_PREFIX, "");
-                    if (OVERRIDABLE_CONFIG_NAMES.contains(configKey) && value != null && !overridingProperties.containsKey(configKey))
+                    if (OVERRIDABLE_CONFIG_NAMES.contains(configKey))
                     {
-                        if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
-                            logger.warn("Detected JVM property {}={} override for cassandra configuration '{}'.", originalKey, value, configKey);
-                        overridingProperties.put(configKey, getScalarValueOrJsonObject(value));
+                        if (value != null && !overridingProperties.containsKey(configKey))
+                        {
+                            if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
+                                logger.warn("Detected JVM property {}={} override for Cassandra configuration '{}'.", originalKey, value, configKey);
+                            overridingProperties.put(configKey, getScalarValueOrJsonObject(value));
+                        }
+                    }
+                    else
+                    {
+                        logger.warn("Used sytem property variable {} to override Cassandra configuration but there is no such system property counter-part to react to.", originalKey);
                     }
                 }
             }
@@ -223,11 +230,18 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     String configKey = LocalizeString.toLowerCaseLocalized(originalKey.replace(ENVIRONMENT_VARIABLE_PREFIX, "")
                                                                                       .replace(NESTED_CONFIG_SEPARATOR_ENVIRONMENT, NESTED_CONFIG_SEPARATOR));
                     String configValue = env.getValue();
-                    if (OVERRIDABLE_CONFIG_NAMES.contains(configKey) && configValue != null && !configOverrides.containsKey(configKey))
+                    if (OVERRIDABLE_CONFIG_NAMES.contains(configKey))
                     {
-                        if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
-                            logger.warn("Detected environment variable {}={} override for cassandra configuration '{}'.", originalKey, configValue, configKey);
-                        configOverrides.put(configKey, getScalarValueOrJsonObject(configValue));
+                        if (configValue != null && !configOverrides.containsKey(configKey))
+                        {
+                            if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
+                                logger.warn("Detected environment variable {}={} override for Cassandra configuration '{}'.", originalKey, configValue, configKey);
+                            configOverrides.put(configKey, getScalarValueOrJsonObject(configValue));
+                        }
+                    }
+                    else
+                    {
+                        logger.warn("Used environment property variable {} to override Cassandra configuration but there is no such environment property counter-part to react to.", originalKey);
                     }
                 }
             }
