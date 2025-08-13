@@ -879,6 +879,11 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder strictMVConsistency(boolean val)
+        {
+            params.strictMVConsistency(val);
+            return this;
+        }
 
         public Builder isCounter(boolean val)
         {

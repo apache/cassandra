@@ -1190,6 +1190,8 @@ public class Config
      */
     public volatile boolean skip_paxos_repair_on_topology_change = Boolean.getBoolean("cassandra.skip_paxos_repair_on_topology_change");
 
+    public volatile boolean skip_paxos_repair_on_topology_change_for_strict_mv = false;
+
     /**
      * A safety margin when purging paxos state information that has been safely replicated to a quorum.
      * Data for transactions initiated within this grace period will not be expunged.

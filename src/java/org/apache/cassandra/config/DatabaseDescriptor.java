@@ -3084,6 +3084,16 @@ public class DatabaseDescriptor
         conf.skip_paxos_repair_on_topology_change = value;
     }
 
+    public static boolean getSkipPaxosRepairOnTopologyChangeForStrictMV()
+    {
+        return conf.skip_paxos_repair_on_topology_change_for_strict_mv;
+    }
+
+    public static void setSkipPaxosRepairOnTopologyChangeForStrictMV(boolean value)
+    {
+        conf.skip_paxos_repair_on_topology_change_for_strict_mv = value;
+    }
+
     public static long getPaxosPurgeGrace(TimeUnit units)
     {
         return conf.paxos_purge_grace_period.to(units);

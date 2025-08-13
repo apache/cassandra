@@ -4910,34 +4910,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return new FutureTask<>(task);
     }
 
-    private void tryRepairPaxosForTopologyChange(String reason)
+    @VisibleForTesting
+    public void tryRepairPaxosForTopologyChange(String reason, java.util.function.Predicate<TableMetadata> tableFilter)
     {
-        try
-        {
-            startRepairPaxosForTopologyChange(reason).get();
-        }
-        catch (InterruptedException e)
-        {
-            logger.error("Error during paxos repair", e);
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            logger.error("Error during paxos repair", e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void repairPaxosForTopologyChange(String reason)
-    {
-        if (getSkipPaxosRepairOnTopologyChange() || !Paxos.useV2())
-        {
-            logger.info("skipping paxos repair for {}. skip_paxos_repair_on_topology_change is set, or v2 paxos variant is not being used", reason);
-            return;
-        }
-
-        logger.info("repairing paxos for {}", reason);
-
         int retries = 0;
         int maxRetries = Integer.getInteger("cassandra.paxos_repair_on_topology_change_retries", 10);
         int delaySec = Integer.getInteger("cassandra.paxos_repair_on_topology_change_retry_delay_seconds", 10);
@@ -4947,7 +4922,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             try
             {
-                tryRepairPaxosForTopologyChange(reason);
+                // TODO: Better strategy for rate-limiting other than do it by keyspace
+                startRepairPaxosForTopologyChangeByKeyspace(reason, tableFilter);
                 completed = true;
             }
             catch (Exception e)
@@ -4962,8 +4938,62 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.info("Retrying paxos repair for {}. Retry {}/{}", reason, retries, maxRetries);
             }
         }
-
         logger.info("paxos repair for {} complete", reason);
+    }
+
+    /**
+     * Repair Paxos tables by keyspace. Note that this method will repair one keyspace at a time.
+     * @param reason
+     */
+    @VisibleForTesting
+    public void startRepairPaxosForTopologyChangeByKeyspace(String reason, java.util.function.Predicate<TableMetadata> tableFilter)
+    {
+        try
+        {
+            Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+            for (String ksName : keyspaces.names())
+            {
+                if (SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ksName))
+                    continue;
+
+                if (DatabaseDescriptor.skipPaxosRepairOnTopologyChangeKeyspaces().contains(ksName))
+                    continue;
+
+                List<Range<Token>> ranges = getLocalAndPendingRanges(ksName);
+                // blocking wait here
+                logger.info("repairing paxos for keyspace {}, reason: {}", ksName, reason);
+                ActiveRepairService.instance.repairPaxosForTopologyChange(ksName, ranges, reason, tableFilter).get();
+            }
+        }
+        catch (InterruptedException e)
+        {
+            logger.error("Error during paxos repair", e);
+            throw new AssertionError(e);
+        }
+        catch (ExecutionException e)
+        {
+            logger.error("Error during paxos repair", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected void repairPaxosForTopologyChange(String reason)
+    {
+        if (!Paxos.useV2())
+        {
+            logger.info("skipping paxos repair for {}: v2 paxos variant is not being used", reason);
+            return;
+        }
+
+        logger.info("repairing paxos for {}", reason);
+
+        if (getSkipPaxosRepairOnTopologyChange())
+            if (DatabaseDescriptor.getSkipPaxosRepairOnTopologyChangeForStrictMV())
+                logger.info("skipping paxos repair for {}: skip_paxos_repair_on_topology_change and skip_paxos_repair_on_topology_change_for_strict_mv are set", reason);
+            else
+                tryRepairPaxosForTopologyChange(reason, TableMetadata::strictMVEnabled);
+        else
+            tryRepairPaxosForTopologyChange(reason, t -> true);
     }
 
     @VisibleForTesting
@@ -4983,7 +5013,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 continue;
 
             List<Range<Token>> ranges = getLocalAndPendingRanges(ksName);
-            futures.add(ActiveRepairService.instance.repairPaxosForTopologyChange(ksName, ranges, reason));
+            futures.add(ActiveRepairService.instance.repairPaxosForTopologyChange(ksName, ranges, reason, t -> true));
         }
 
         return FutureCombiner.allOf(futures);

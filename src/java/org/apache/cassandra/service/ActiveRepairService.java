@@ -1054,7 +1054,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return sessions.size();
     }
 
-    public Future<?> repairPaxosForTopologyChange(String ksName, Collection<Range<Token>> ranges, String reason)
+    public Future<?> repairPaxosForTopologyChange(String ksName, Collection<Range<Token>> ranges, String reason, Predicate<TableMetadata> tableFilter)
     {
         if (!paxosRepairEnabled())
         {
@@ -1075,6 +1075,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         {
             for (TableMetadata table : tables)
             {
+                if (!tableFilter.test(table))
+                    continue;
                 Set<InetAddressAndPort> endpoints = replication.getNaturalReplicas(range.right).filter(FailureDetector.isReplicaAlive).endpoints();
                 if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, endpoints))
                 {
@@ -1101,6 +1103,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                              range, table.keyspace, table.name, pending));
 
                 }
+                logger.info("scheduling paxos cleanup for table {}.{}", table.keyspace ,table.name);
                 Future<Void> future = PaxosCleanup.cleanup(endpoints, table, Collections.singleton(range), false, repairCommandExecutor());
                 futures.add(future);
             }

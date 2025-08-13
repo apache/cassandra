@@ -18,18 +18,28 @@
 
 package org.apache.cassandra.service;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMultimap;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -44,6 +54,16 @@ import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.paxos.Paxos;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.mockito.Mockito;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -53,6 +73,16 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class StorageServiceTest
 {
@@ -84,6 +114,22 @@ public class StorageServiceTest
     Range<Token> dRange = new Range<>(nineToken, elevenToken);
     Range<Token> eRange = new Range<>(elevenToken, oneToken);
 
+    boolean defaultSkipPaxosRepairOnTopologyChange = Boolean.getBoolean("cassandra.skip_paxos_repair_on_topology_change");
+    boolean defaultSkipPaxosRepairOnTopologyForStrictMV = false;
+    boolean defaultStrictMVEnabled = false;
+    Config.PaxosVariant defaultPaxosVariant = Config.PaxosVariant.v1;
+    ActiveRepairService originalActiveRepairService;
+    Schema originalSchema;
+    TableMetadata dummyStrictMVTable = TableMetadata.builder("ks", "strictmv")
+                                                    .addPartitionKeyColumn("k", AsciiType.instance)
+                                                    .addRegularColumn("c", AsciiType.instance)
+                                                    .strictMVConsistency(true)
+                                                    .build();
+    TableMetadata dummyTable = TableMetadata.builder("ks", "regulartb").addPartitionKeyColumn("k", AsciiType.instance)
+                                            .addRegularColumn("c", AsciiType.instance)
+                                            .strictMVConsistency(false)
+                                            .build();
+
     @Before
     public void setUp()
     {
@@ -109,6 +155,22 @@ public class StorageServiceTest
 
         DatabaseDescriptor.setEndpointSnitch(snitch);
         CommitLog.instance.start();
+    }
+
+    @After
+    public void reset() throws Exception
+    {
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChange(defaultSkipPaxosRepairOnTopologyChange);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeForStrictMV(defaultSkipPaxosRepairOnTopologyForStrictMV);
+        DatabaseDescriptor.setMaterializedViewStrictConsistencyEnabled(defaultStrictMVEnabled);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeKeyspaces("");
+        Paxos.setPaxosVariant(defaultPaxosVariant);
+        System.clearProperty("cassandra.paxos_repair_on_topology_change_retries");
+        System.clearProperty("cassandra.paxos_repair_on_topology_change_retry_delay_seconds");
+        if (originalActiveRepairService != null)
+            replaceStaticField(ActiveRepairService.class, "instance", originalActiveRepairService);
+        if (originalSchema != null)
+            replaceStaticField(Schema.class, "instance", originalSchema);
     }
 
     private AbstractReplicationStrategy simpleStrategy(TokenMetadata tmd)
@@ -236,22 +298,206 @@ public class StorageServiceTest
         }
     }
 
+    @Test
+    public void testRepairPaxosForTopologyChangeAllSkipped() throws Exception
+    {
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChange(true);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeForStrictMV(true);
+        Paxos.setPaxosVariant(Config.PaxosVariant.v2);
+        StorageService storageService = getStorageService();
+
+        doNothing().when(storageService).startRepairPaxosForTopologyChangeByKeyspace(any(), any());
+        doCallRealMethod().when(storageService).repairPaxosForTopologyChange(any());
+
+        storageService.repairPaxosForTopologyChange("StorageServiceTest");
+        verify(storageService, times(0)).startRepairPaxosForTopologyChangeByKeyspace(eq("StorageServiceTest"), any());
+    }
+
+    @Test
+    public void testRepairPaxosForTopologyLimitedRetry()
+    {
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChange(false);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeForStrictMV(false);
+        Paxos.setPaxosVariant(Config.PaxosVariant.v2);
+        System.setProperty("cassandra.paxos_repair_on_topology_change_retries", "5");
+        System.setProperty("cassandra.paxos_repair_on_topology_change_retry_delay_seconds", "0");
+        StorageService storageService = getStorageService();
+
+        doThrow(RuntimeException.class).when(storageService).startRepairPaxosForTopologyChangeByKeyspace(any(), any());
+        doCallRealMethod().when(storageService).repairPaxosForTopologyChange(any());
+
+        try
+        {
+            storageService.repairPaxosForTopologyChange("StorageServiceTest");
+            fail("Expected failure due to retries exhausted");
+        }
+        catch (RuntimeException e)
+        {
+            // expected
+        }
+        verify(storageService, times(6)).startRepairPaxosForTopologyChangeByKeyspace(eq("StorageServiceTest"),
+                                                                                     argThat(p -> p != null &&
+                                                                                                  p.test(dummyStrictMVTable) &&
+                                                                                                  p.test(dummyTable)));
+    }
+
+    @Test
+    public void testRepairPaxosForTopologyChangeRegularSkipped() throws Exception
+    {
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChange(true);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeForStrictMV(false);
+        DatabaseDescriptor.setMaterializedViewStrictConsistencyEnabled(true);
+        Paxos.setPaxosVariant(Config.PaxosVariant.v2);
+        StorageService storageService = getStorageService();
+
+        doNothing().when(storageService).startRepairPaxosForTopologyChangeByKeyspace(any(), any());
+        doCallRealMethod().when(storageService).repairPaxosForTopologyChange(any());
+
+        storageService.repairPaxosForTopologyChange("StorageServiceTest");
+        verify(storageService, times(1)).startRepairPaxosForTopologyChangeByKeyspace(eq("StorageServiceTest"),
+                                                                                     argThat(p -> p != null &&
+                                                                                                  p.test(dummyStrictMVTable) &&
+                                                                                                  !p.test(dummyTable)));
+    }
+
+    @Test
+    public void testStartRepairPaxosForTopologyChangeByKeyspace() throws Exception
+    {
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChange(true);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeForStrictMV(false);
+        DatabaseDescriptor.setMaterializedViewStrictConsistencyEnabled(true);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeKeyspaces("ks2");
+        Paxos.setPaxosVariant(Config.PaxosVariant.v2);
+        StorageService storageService = getStorageService();
+        doCallRealMethod().when(storageService).repairPaxosForTopologyChange(any());
+
+        ActiveRepairService activeRepairService = getActiveRepairService();
+        Schema schema = getSchema();
+        Map<String, String> configOptions = new HashMap<>();
+        configOptions.put("DC1", "2");
+        configOptions.put("DC2", "2");
+        configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
+
+        doReturn(Keyspaces.of(KeyspaceMetadata.create("ks1", KeyspaceParams.create(true, configOptions)),
+                              KeyspaceMetadata.create("ks2", KeyspaceParams.create(true, configOptions)),
+                              KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.create(true, configOptions))))
+        .when(schema).getNonLocalStrategyKeyspaces();
+        List<Range<Token>> dummyRanges = new ArrayList<>();
+        doReturn(dummyRanges).when(storageService).getLocalAndPendingRanges(any());
+        doReturn(ImmediateFuture.success(null)).when(activeRepairService).repairPaxosForTopologyChange(any(), any(), any(), any());
+
+        storageService.repairPaxosForTopologyChange("StorageServiceTest");
+
+        verify(activeRepairService, times(1)).repairPaxosForTopologyChange(eq("ks1"), any(), any(), any());
+    }
+
+    @Test
+    public void testStartRepairPaxosForTopologyChangeByKeyspaceExceptions() throws Exception
+    {
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChange(true);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeForStrictMV(false);
+        DatabaseDescriptor.setMaterializedViewStrictConsistencyEnabled(true);
+        DatabaseDescriptor.setSkipPaxosRepairOnTopologyChangeKeyspaces("ks2");
+        System.setProperty("cassandra.paxos_repair_on_topology_change_retries", "0");
+        System.setProperty("cassandra.paxos_repair_on_topology_change_retry_delay_seconds", "0");
+        Paxos.setPaxosVariant(Config.PaxosVariant.v2);
+        StorageService storageService = getStorageService();
+        doCallRealMethod().when(storageService).repairPaxosForTopologyChange(any());
+
+        ActiveRepairService activeRepairService = getActiveRepairService();
+        Schema schema = getSchema();
+        Map<String, String> configOptions = new HashMap<>();
+        configOptions.put("DC1", "2");
+        configOptions.put("DC2", "2");
+        configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
+
+        doReturn(Keyspaces.of(KeyspaceMetadata.create("ks1", KeyspaceParams.create(true, configOptions)),
+                              KeyspaceMetadata.create("ks2", KeyspaceParams.create(true, configOptions)),
+                              KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.create(true, configOptions))))
+        .when(schema).getNonLocalStrategyKeyspaces();
+        List<Range<Token>> dummyRanges = new ArrayList<>();
+        doReturn(dummyRanges).when(storageService).getLocalAndPendingRanges(any());
+        // throw ExecutionException
+        Future<?> mockFut = Mockito.mock(Future.class);
+        doThrow(ExecutionException.class).when(mockFut).get();
+        doReturn(mockFut).when(activeRepairService).repairPaxosForTopologyChange(any(), any(), any(), any());
+        try
+        {
+            storageService.repairPaxosForTopologyChange("StorageServiceTest");
+            fail("Expected RuntimeException due to ExecutionException in repairPaxosForTopologyChange");
+        }
+        catch (RuntimeException e)
+        {
+            // expected
+        }
+        verify(activeRepairService, times(1)).repairPaxosForTopologyChange(eq("ks1"), any(), any(), any());
+
+        // throw InterruptedException
+        Future<?> mockFut2 = Mockito.mock(Future.class);
+        doThrow(InterruptedException.class).when(mockFut2).get();
+        doReturn(mockFut2).when(activeRepairService).repairPaxosForTopologyChange(any(), any(), any(), any());
+        try
+        {
+            storageService.repairPaxosForTopologyChange("StorageServiceTest");
+            fail("Expected AssertionError due to InterruptedException in repairPaxosForTopologyChange");
+        }
+        catch (AssertionError e)
+        {
+            // expected
+        }
+        verify(activeRepairService, times(2)).repairPaxosForTopologyChange(eq("ks1"), any(), any(), any());
+    }
+
+    private ActiveRepairService getActiveRepairService() throws Exception
+    {
+        ActiveRepairService activeRepairService = Mockito.mock(ActiveRepairService.class);
+        originalActiveRepairService = replaceStaticField(ActiveRepairService.class, "instance", activeRepairService);
+        return activeRepairService;
+    }
+
+    private Schema getSchema() throws Exception
+    {
+        Schema schema = Mockito.mock(Schema.class);
+        originalSchema = replaceStaticField(Schema.class, "instance", schema);
+        return schema;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T replaceStaticField(Class<?> clazz, String fieldName, T newValue) throws Exception
+    {
+        Field field = clazz.getDeclaredField(fieldName);
+        field.setAccessible(true);
+
+        try {
+            Field modifiersField = Field.class.getDeclaredField("modifiers");
+            modifiersField.setAccessible(true);
+            modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+        } catch (Exception e) {
+            // ignore
+        }
+
+        T originalValue = (T) field.get(null);
+        field.set(null, newValue);
+
+        return originalValue;
+    }
+
     private StorageService getStorageService()
     {
         ImmutableMultimap.Builder<String, InetAddressAndPort> builder = ImmutableMultimap.builder();
         builder.put(SimpleSnitch.DATA_CENTER_NAME, aAddress);
 
         TokenMetadata.Topology tokenMetadataTopology = Mockito.mock(TokenMetadata.Topology.class);
-        Mockito.when(tokenMetadataTopology.getDatacenterEndpoints()).thenReturn(builder.build());
+        when(tokenMetadataTopology.getDatacenterEndpoints()).thenReturn(builder.build());
 
         TokenMetadata metadata = new TokenMetadata(new SimpleSnitch());
         TokenMetadata spiedMetadata = Mockito.spy(metadata);
 
-        Mockito.when(spiedMetadata.getTopology()).thenReturn(tokenMetadataTopology);
+        when(spiedMetadata.getTopology()).thenReturn(tokenMetadataTopology);
 
         StorageService spiedStorageService = Mockito.spy(StorageService.instance);
-        Mockito.when(spiedStorageService.getTokenMetadata()).thenReturn(spiedMetadata);
-        Mockito.when(spiedMetadata.cloneOnlyTokenMap()).thenReturn(spiedMetadata);
+        when(spiedStorageService.getTokenMetadata()).thenReturn(spiedMetadata);
+        when(spiedMetadata.cloneOnlyTokenMap()).thenReturn(spiedMetadata);
 
         return spiedStorageService;
     }
