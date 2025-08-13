@@ -92,6 +92,21 @@ public final class Properties
      */
     public static Map<String, Property> flatten(Loader loader, Map<String, Property> input, String delimiter)
     {
+        return flatten(loader, input, delimiter, false);
+    }
+
+    /**
+     * Given a map of Properties, takes any "nested" property (non primitive, value-type, or collection), and
+     * expands them, producing 1 or more Properties.
+     *
+     * @param loader for mapping type to map of properties
+     * @param input map to flatten
+     * @param delimiter for joining names
+     * @param withInnerProperties also adds intermediate properties among flattened ones.
+     * @return map of all flattened properties
+     */
+    public static Map<String, Property> flatten(Loader loader, Map<String, Property> input, String delimiter, boolean withInnerProperties)
+    {
         Queue<Property> queue = new ArrayDeque<>(input.values());
 
         Map<String, Property> output = Maps.newHashMapWithExpectedSize(input.size());
@@ -106,6 +121,9 @@ public final class Properties
             }
             else
             {
+                if (withInnerProperties)
+                    output.put(prop.getName(), prop);
+
                 children.values().stream().map(p -> andThen(prop, p, delimiter)).forEach(queue::add);
             }
         }

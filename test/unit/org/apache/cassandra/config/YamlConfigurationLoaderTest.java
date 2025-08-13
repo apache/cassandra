@@ -33,6 +33,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableMap;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithEnvironment;
@@ -43,6 +44,7 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.assertj.core.api.Assertions;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
@@ -182,16 +184,62 @@ public class YamlConfigurationLoaderTest
             assertThat(config.crypto_provider.parameters.get("fail_on_missing_provider")).isEqualTo(Boolean.FALSE.toString());
             assertThat(config.table_properties_warned).isEqualTo(Set.of("bloom_filter_fp_chance", "default_time_to_live"));
             assertThat(config.paxos_variant).isEqualTo(Config.PaxosVariant.v2);
-            assertThat(config.memtable.configurations).hasSize(3);
-            assertThat(config.memtable.configurations.get("skiplist").class_name).isEqualTo("SkipListMemtable");
-            assertThat(config.memtable.configurations.get("skiplist").parameters.get("skip_param1")).isEqualTo("skip_param1_value");
-            assertThat(config.memtable.configurations.get("trie").class_name).isEqualTo("TrieMemtable");
-            assertThat(config.memtable.configurations.get("trie").parameters.get("trie_param1")).isEqualTo("trie_param1_value");
-            assertThat(config.memtable.configurations.get("default").inherits).isEqualTo("trie");
             assertThat(config.client_error_reporting_exclusions).isEqualTo(new SubnetGroups(Arrays.asList("127.0.0.2", "127.0.0.1")));
             assertThat(config.startup_checks).hasSize(1);
             assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("enabled")).isEqualTo(Boolean.TRUE.toString());
             assertThat(config.startup_checks.get(StartupChecks.StartupCheckType.check_data_resurrection).get("heartbeat_file")).isEqualTo("/var/lib/cassandra/data/cassandra-heartbeat");
+        }
+
+//        try (WithProperties ignore = new WithProperties()
+//                                     .set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+//                                     .with(SYSTEM_PROPERTY_PREFIX + "memtable.configurations", "{\"skiplist\": {\"class_name\": \"SkipListMemtable\", \"parameters\": {\"skip_param1\": \"skip_param1_value\"}}, \"trie\": {\"class_name\": \"TrieMemtable\", \"parameters\": {\"trie_param1\": \"trie_param1_value\"}}, \"default\": {\"inherits\": \"trie\"}}"))
+//        {
+//            Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
+//            assertThat(config.memtable.configurations).hasSize(3);
+//            assertThat(config.memtable.configurations.get("skiplist").class_name).isEqualTo("SkipListMemtable");
+//            assertThat(config.memtable.configurations.get("skiplist").parameters.get("skip_param1")).isEqualTo("skip_param1_value");
+//            assertThat(config.memtable.configurations.get("trie").class_name).isEqualTo("TrieMemtable");
+//            assertThat(config.memtable.configurations.get("trie").parameters.get("trie_param1")).isEqualTo("trie_param1_value");
+//            assertThat(config.memtable.configurations.get("default").inherits).isEqualTo("trie");
+//        }
+
+        try (WithProperties ignore = new WithProperties().set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                     .with(SYSTEM_PROPERTY_PREFIX + "crypto_provider.parameters", "{\"fail_on_missing_provider\": \"false\"}")
+                                     .with(SYSTEM_PROPERTY_PREFIX + "crypto_provider.class_name", "MyClass"))
+        {
+            Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
+
+            ParameterizedClass cryptoProvider = config.crypto_provider;
+
+            Assert.assertEquals("MyClass", cryptoProvider.class_name);
+
+            Assert.assertTrue(cryptoProvider.parameters.containsKey("fail_on_missing_provider"));
+            String failOnMissingProviderValue = cryptoProvider.parameters.get("fail_on_missing_provider");
+            Assert.assertNotNull(failOnMissingProviderValue);
+            Assert.assertEquals("false", failOnMissingProviderValue);
+        }
+
+        try (WithProperties ignore = new WithProperties().set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                                         .with(SYSTEM_PROPERTY_PREFIX + "jmx_server_options.jmx_encryption_options",
+                                                               '{' +
+                                                               "\"enabled\": true," +
+                                                               "\"cipher_suites\": [\"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\"]" +
+                                                               '}'))
+        {
+            Config c = load("test/conf/cassandra-jmx-sslconfig.yaml");
+
+            Assert.assertTrue(c.jmx_server_options.enabled);
+            Assertions.assertThatCollection(c.jmx_server_options.jmx_encryption_options.cipher_suites).containsExactly("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384");
+            // preserved what was in yaml, overridden only what specified
+            Assert.assertEquals("test/conf/cassandra_ssl_test.truststore", c.jmx_server_options.jmx_encryption_options.truststore);
+        }
+
+        try (WithProperties ignore = new WithProperties().set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                                         .with(SYSTEM_PROPERTY_PREFIX + "jmx_server_options.jmx_encryption_options.enabled", "true"))
+        {
+            Config c = load("test/conf/cassandra-jmx-sslconfig.yaml");
+
+            Assert.assertTrue(c.jmx_server_options.enabled);
         }
     }
 

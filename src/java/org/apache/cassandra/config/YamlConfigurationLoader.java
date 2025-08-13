@@ -40,6 +40,7 @@ import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.JsonUtils;
@@ -67,6 +68,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.values;
 import static org.apache.cassandra.config.Replacements.getNameReplacements;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
@@ -80,7 +82,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         //              sai_options: {prioritize_over_legacy_index=true, segment_write_buffer_size=100MiB}
         Loader loader = Properties.defaultLoader();
         Map<String, Property> topLevelConfigs = loader.getProperties(Config.class);
-        Map<String, Property> flattenedConfigs = loader.flatten(Config.class);
+        Map<String, Property> flattenedConfigs = Properties.flatten(loader, loader.getProperties(Config.class), Properties.DELIMITER, true);
         OVERRIDABLE_CONFIG_NAMES = Collections.unmodifiableSet(Sets.union(topLevelConfigs.keySet(), flattenedConfigs.keySet()));
     }
 
@@ -202,7 +204,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                         {
                             if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
                                 logger.warn("Detected JVM property {}={} override for Cassandra configuration '{}'.", originalKey, value, configKey);
-                            overridingProperties.put(configKey, getScalarValueOrJsonObject(value));
+                            overridingProperties.put(configKey, getScalarOrJsonTree(value));
                         }
                     }
                     else
@@ -212,7 +214,29 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 }
             }
             if (!overridingProperties.isEmpty())
-                updateFromMap(overridingProperties, false, obj);
+            {
+                Map<String, Object> copyOfProperties = new HashMap<>(overridingProperties);
+                for (Map.Entry<String, Object> entry : overridingProperties.entrySet())
+                {
+                    String[] parts = entry.getKey().split("\\.");
+                    if (parts.length > 1 && !parts[parts.length -1].equals("parameters"))
+                    {
+                        if (entry.getValue() instanceof Map)
+                        {
+                            copyOfProperties.remove(entry.getKey());
+
+                            for (Map.Entry<String, Object> mapEntry : ((Map<String, Object>) entry.getValue()).entrySet())
+                            {
+                                String newKey = entry.getKey() + "." + mapEntry.getKey();
+                                Object newValue = mapEntry.getValue();
+                                copyOfProperties.put(newKey, newValue);
+                            }
+                        }
+                    }
+                }
+
+                updateFromMap(copyOfProperties, false, obj);
+            }
         }
     }
 
@@ -255,6 +279,18 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         try
         {
             return JsonUtils.JSON_OBJECT_MAPPER.readValue(value, Object.class);
+        }
+        catch (Exception e)
+        {
+            return value;
+        }
+    }
+
+    private static Object getScalarOrJsonTree(String value)
+    {
+        try
+        {
+            return JsonUtils.decodeJson(value);
         }
         catch (Exception e)
         {
