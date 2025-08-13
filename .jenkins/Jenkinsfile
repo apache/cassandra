@@ -395,6 +395,13 @@ def test(command, cell) {
                 archiveArtifacts artifacts: "${logfile}", fingerprint: true
               }
               if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
+            } catch (exc) {
+              if (exc.getClass().getName() == "org.jenkinsci.plugins.workflow.steps.FlowInterruptedException") {
+                for (def causeOfInterruption in exc.getCauses()) {
+                  echo "CauseOfInterruption: ${causeOfInterruption.getClass().getName()} - ${causeOfInterruption.getShortDescription()}"
+                }
+              }
+              throw exc
             } finally {
                 def duration = System.currentTimeMillis() - timer
                 def formattedTime = String.format("%tT.%tL", duration, duration)
