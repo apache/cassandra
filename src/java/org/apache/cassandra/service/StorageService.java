@@ -459,6 +459,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private final AtomicBoolean isDecommissioning = new AtomicBoolean();
 
     private volatile boolean initialized = false;
+    private volatile long initializedTimestamp;
     private volatile boolean joined = false;
     private volatile boolean gossipActive = false;
     private final AtomicBoolean authSetupCalled = new AtomicBoolean(false);
@@ -703,6 +704,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean isInitialized()
     {
         return initialized;
+    }
+
+    public long getInitializedTimestamp()
+    {
+        return initializedTimestamp;
     }
 
     public boolean isGossipActive()
@@ -1046,6 +1052,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ignoreRepairedatEnabled = DatabaseDescriptor.getIgnoreRepairedatEnabled();
 
         initialized = true;
+        initializedTimestamp = System.currentTimeMillis();
     }
 
     public void populateTokenMetadata()

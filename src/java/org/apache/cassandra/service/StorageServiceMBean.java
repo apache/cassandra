@@ -623,6 +623,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     // to determine if initialization has completed
     public boolean isInitialized();
 
+    // to get the timestamp when the server initializion has completed
+    public long getInitializedTimestamp();
+
     public void stopNativeTransport();
     public void startNativeTransport();
     public boolean isNativeTransportRunning();
