@@ -5942,12 +5942,12 @@ public class DatabaseDescriptor
 
     public static boolean getMixedMajorVersionRepairEnabled()
     {
-        return conf.mixed_major_version_repair_enabled;
+        return conf.auto_repair.mixed_major_version_repair_enabled;
     }
 
     public static void setMixedMajorVersionRepairEnabled(boolean mixed_major_version_repair_enabled)
     {
-        conf.mixed_major_version_repair_enabled = mixed_major_version_repair_enabled;
+        conf.auto_repair.mixed_major_version_repair_enabled = mixed_major_version_repair_enabled;
     }
 
     @VisibleForTesting

@@ -167,7 +167,7 @@ public class AutoRepair
             return;
         }
         if (!DatabaseDescriptor.getMixedMajorVersionRepairEnabled() &&
-            Gossiper.instance.hasMultipleLiveMajorVersions()) {
+            AutoRepairUtils.hasMultipleLiveMajorVersions()) {
             logger.info("Auto-repair is disabled when nodes in the cluster have different major versions");
             return;
         }

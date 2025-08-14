@@ -2689,10 +2689,6 @@ storage_compatibility_mode: NONE
 # then set the ratio to 0.0
 # incremental_repair_disk_headroom_reject_ratio: 0.2;
 
-# by default repair is disabled if there are mixed major versions detected - which would happen
-# if a major version upgrade is being perormed on the cluster, but a user can enable it using this flag
-# mixed_major_version_repair_enabled = false;
-
 # Configuration for Auto Repair Scheduler.
 #
 # This feature is disabled by default.
@@ -2783,6 +2779,9 @@ storage_compatibility_mode: NONE
 #   # for a specified duration to ensure they are indeed removed before adjustments are made to the schedule.
 #   history_clear_delete_hosts_buffer_interval: 2h
 #   # NOTE: Each of the below settings can be overridden per repair type under repair_type_overrides
+#   # by default repair is disabled if there are mixed major versions detected - which would happen
+#   # if a major version upgrade is being performed on the cluster, but a user can enable it using this flag
+#   # mixed_major_version_repair_enabled = false;
 #   global_settings:
 #     # If true, attempts to group tables in the same keyspace into one repair; otherwise, each table is repaired
 #     # individually.

@@ -2034,23 +2034,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return true;
     }
 
-    public boolean hasMultipleLiveMajorVersions()
-    {
-        Set<InetAddressAndPort> members = getLiveTokenOwners();
-        Set<Integer> versions = new HashSet<>();
-        for (InetAddressAndPort member : members)
-        {
-            CassandraVersion version = getReleaseVersion(member);
-            logger.info("Detected version {} for member {}", version, member);
-            if (version == null)
-                continue;
-            versions.add(version.major);
-            if (versions.size() > 1)
-                return true;
-        }
-        return false;
-    }
-
     @VisibleForTesting
     public void stopShutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
