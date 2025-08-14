@@ -188,6 +188,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       command.isDigestQuery(),
                       command.digestVersion(),
                       command.acceptsTransient(),
+                      command.potentialTxnConflicts(),
                       command.metadata(),
                       command.nowInSec(),
                       command.columnFilter(),

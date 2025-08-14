@@ -37,6 +37,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.virtual.VirtualMutation;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 
@@ -122,7 +123,7 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
         else if (metadata.isCounter())
             mutation = new CounterMutation(new Mutation(builder.build()), counterConsistencyLevel);
         else
-            mutation = new Mutation(builder.build(), potentialTxnConflicts);
+            mutation = new Mutation(MutationId.fixme(), builder.build(), potentialTxnConflicts);
 
         mutation.validateIndexedColumns(state);
         mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);

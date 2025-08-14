@@ -72,6 +72,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -492,7 +493,7 @@ public class AccordMigrationTest extends AccordTestBase
               Integer clusteringValue = CLUSTERING_VALUE;
               String mutationTableName = accordTableName;
               Consumer<Integer> makeCASApply = key -> cluster.forEach(instance -> instance.runOnInstance(() -> {
-                  SimpleBuilder mutationBuilder = Mutation.simpleBuilder(keyspace, dk(key)).allowPotentialTxnConflicts();
+                  SimpleBuilder mutationBuilder = Mutation.simpleBuilder(MutationId.fixme(), keyspace, dk(key)).allowPotentialTxnConflicts();
                   mutationBuilder.update(mutationTableName).row(clusteringValue).add("v", 42);
                   Mutation m = mutationBuilder.build();
                   m.applyUnsafe();

@@ -25,6 +25,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
@@ -100,15 +101,18 @@ public class TrackedLocalReads implements Shutdownable
         {
             replicaPlan = ReplicaPlans.forRead(metadata,
                                                keyspace,
+                                               command.metadata().id,
                                                ((SinglePartitionReadCommand) command).partitionKey().getToken(),
                                                command.indexQueryPlan(),
                                                consistencyLevel,
-                                               retry);
+                                               retry,
+                                               ReadCoordinator.DEFAULT);
         }
         else
         {
             // TODO: confirm range we're reading doesn't span multiple replica sets
             replicaPlan = ReplicaPlans.forRangeRead(keyspace,
+                                                    command.metadata().id,
                                                     command.indexQueryPlan(),
                                                     consistencyLevel,
                                                     command.dataRange().keyRange(),

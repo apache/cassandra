@@ -122,6 +122,12 @@ public class MutationJournal
         }
 
         @Override
+        public ReplayMode replayMode()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public boolean enableCompaction()
         {
             return false;

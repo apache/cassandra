@@ -88,6 +88,7 @@ import org.apache.cassandra.index.accord.RouteJournalIndex;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
@@ -354,7 +355,7 @@ public class AccordKeyspace
                 ColumnFamilyStore cfs = AccordColumnFamilyStores.commandsForKey;
                 try (OpOrder.Group group = Keyspace.writeOrder.start())
                 {
-                    cfs.getCurrentMemtable().put(upd, UpdateTransaction.NO_OP, group, true);
+                    cfs.getCurrentMemtable().put(MutationId.fixme(), upd, UpdateTransaction.NO_OP, group, true);
                 }
             };
         }

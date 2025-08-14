@@ -44,6 +44,7 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
@@ -170,7 +171,7 @@ public class AccordTimestampPreservationTest extends AccordTestBase
             cluster.get(1).runOnInstance(() -> {
                 ByteBuffer keyBuf = Int32Type.instance.fromString(Integer.toString(pkey1));
                 DecoratedKey dk = DatabaseDescriptor.getPartitioner().decorateKey(keyBuf);
-                MutationBuilder mutationBuilder = new MutationBuilder(KEYSPACE, dk);
+                MutationBuilder mutationBuilder = new MutationBuilder(MutationId.fixme(), KEYSPACE, dk);
                 mutationBuilder.timestamp(timestamp);
                 mutationBuilder.update(tableName).row(clustering).add("v", VALUE);
                 Mutation m = mutationBuilder.build();

@@ -62,6 +62,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordExecutor;
@@ -144,7 +145,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             PartitionUpdate update = deserialize(tables);
             if (!preserveTimestamps)
                 update = new PartitionUpdate.Builder(update, 0).updateAllTimestamp(timestamp).build();
-            Mutation mutation = new Mutation(update, PotentialTxnConflicts.ALLOW);
+            Mutation mutation = new Mutation(MutationId.fixme(), update, PotentialTxnConflicts.ALLOW);
             return executor.chain(() -> mutation.apply(false, false));
         }
 

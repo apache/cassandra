@@ -29,6 +29,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.replication.CoordinatorLogOffsets;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 /**
@@ -70,7 +71,7 @@ public class NemesisAccordSegmentCompactor<V> extends AbstractAccordSegmentCompa
         {
             Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
             SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
-            writers[i] = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, header);
+            writers[i] = SSTableTxnWriter.create(cfs, descriptor, 0, 0, null, false, CoordinatorLogOffsets.NONE, header);
         }
     }
 
