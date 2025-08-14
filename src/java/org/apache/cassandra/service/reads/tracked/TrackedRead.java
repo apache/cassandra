@@ -29,6 +29,8 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -261,7 +263,10 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         // create an id
         // select data node
         // select summary nodes
-        E selected = replicaPlan.contacts();
+        E selected = replicaPlan.contacts().filter(r -> FailureDetector.instance.isAlive(r.endpoint()));
+        if (selected.size() < replicaPlan.readQuorum())
+            throw new UnavailableException(String.format("Insufficient replicas available for read (%d < %d)", selected.size(), replicaPlan.readQuorum()),
+                                           replicaPlan.consistencyLevel(), selected.size(), replicaPlan.readQuorum());
         Replica dataReplica = localReplica != null && localReplica.isFull()
                             ? localReplica
                             : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
