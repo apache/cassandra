@@ -37,7 +37,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -239,7 +239,7 @@ public class TrackedWriteRequest
             {
                 if (!(ex instanceof WriteTimeoutException))
                     logger.error("Failed to apply mutation locally : ", ex);
-                handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.forException(ex));
+                handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
             }
         }
 

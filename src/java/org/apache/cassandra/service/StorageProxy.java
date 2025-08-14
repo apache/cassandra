@@ -2802,7 +2802,7 @@ public class StorageProxy implements StorageProxyMBean
         return concatAndBlockOnRepair(results, repairs);
     }
 
-    private static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands,
+    public static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands,
                                                ConsistencyLevel consistencyLevel,
                                                ReadCoordinator coordinator,
                                                Dispatcher.RequestTime requestTime)

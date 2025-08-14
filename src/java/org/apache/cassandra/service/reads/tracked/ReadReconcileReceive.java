@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.reads.tracked;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -36,7 +35,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.utils.CollectionSerializer;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
@@ -112,7 +111,7 @@ public class ReadReconcileReceive
             TrackedRead.Id.serializer.serialize(rcv.readId, out, version);
             out.writeInt(rcv.syncId);
             inetAddressAndPortSerializer.serialize(rcv.coordinator, out, version);
-            CollectionSerializer.serializeCollection(Mutation.serializer, rcv.mutations, out, version);
+            CollectionSerializers.serializeCollection(rcv.mutations, out, version, Mutation.serializer);
 
         }
 
@@ -122,7 +121,7 @@ public class ReadReconcileReceive
             TrackedRead.Id readId = TrackedRead.Id.serializer.deserialize(in, version);
             int syncId = in.readInt();
             InetAddressAndPort coordinator = inetAddressAndPortSerializer.deserialize(in, version);
-            List<Mutation> mutations = CollectionSerializer.deserializeCollection(Mutation.serializer, ArrayList::new, in, version);
+            List<Mutation> mutations = CollectionSerializers.deserializeList(in, version, Mutation.serializer);
             return new ReadReconcileReceive(readId, syncId, coordinator, mutations);
         }
 
@@ -132,7 +131,7 @@ public class ReadReconcileReceive
             return TrackedRead.Id.serializer.serializedSize(t.readId, version)
                    + TypeSizes.sizeof(t.syncId)
                    + inetAddressAndPortSerializer.serializedSize(t.coordinator, version)
-                   + CollectionSerializer.serializedSizeCollection(Mutation.serializer, t.mutations, version);
+                   + CollectionSerializers.serializedCollectionSize(t.mutations, version, Mutation.serializer);
         }
     };
 }

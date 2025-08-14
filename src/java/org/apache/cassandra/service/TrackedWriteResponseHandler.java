@@ -18,7 +18,7 @@
 package org.apache.cassandra.service;
 
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -61,9 +61,9 @@ public class TrackedWriteResponseHandler extends AbstractWriteResponseHandler<No
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
-        wrapped.onFailure(from, failureReason);
+        wrapped.onFailure(from, failure);
     }
 
     @Override

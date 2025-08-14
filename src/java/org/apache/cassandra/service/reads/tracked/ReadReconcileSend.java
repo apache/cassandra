@@ -38,7 +38,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.Log2OffsetsMap;
 import org.apache.cassandra.replication.MutationJournal;
-import org.apache.cassandra.utils.CollectionSerializer;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 /**
  * Instructs a node to send mutations to other node
@@ -146,21 +146,21 @@ public class ReadReconcileSend
         public void serialize(ReadReconcileSend send, DataOutputPlus out, int version) throws IOException
         {
             TrackedRead.Id.serializer.serialize(send.reconcileId, out, version);
-            CollectionSerializer.serializeList(PeerSync.serializer, send.syncTasks, out, version);
+            CollectionSerializers.serializeList(send.syncTasks, out, version, PeerSync.serializer);
         }
 
         @Override
         public ReadReconcileSend deserialize(DataInputPlus in, int version) throws IOException
         {
             TrackedRead.Id readId = TrackedRead.Id.serializer.deserialize(in, version);
-            List<PeerSync> syncTasks = CollectionSerializer.deserializeCollection(PeerSync.serializer, ArrayList::new, in, version);
+            List<PeerSync> syncTasks = CollectionSerializers.deserializeList(in, version, PeerSync.serializer);
             return new ReadReconcileSend(readId, syncTasks);
         }
 
         @Override
         public long serializedSize(ReadReconcileSend send, int version)
         {
-            return TrackedRead.Id.serializer.serializedSize(send.reconcileId, version) + CollectionSerializer.serializedSizeCollection(PeerSync.serializer, send.syncTasks, version);
+            return TrackedRead.Id.serializer.serializedSize(send.reconcileId, version) + CollectionSerializers.serializedCollectionSize(send.syncTasks, version, PeerSync.serializer);
         }
     };
 }

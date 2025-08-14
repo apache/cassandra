@@ -29,6 +29,7 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -416,9 +417,9 @@ public class ForwardedWrite
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
-            logger.error("Got failure from {} reason {}", from, failureReason);
+            logger.error("Got failure from {} reason {}", from, failure.reason);
         }
 
         @Override

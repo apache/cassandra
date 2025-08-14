@@ -363,6 +363,7 @@ public abstract class PartialTrackedRangeRead extends AbstractPartialTrackedRead
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         PartitionRangeReadCommand followUpCmd = command.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
         ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forRangeRead(keyspace,
+                                                                         command.metadata().id,
                                                                          followUpCmd.indexQueryPlan(),
                                                                          consistencyLevel,
                                                                          followUpCmd.dataRange().keyRange(),

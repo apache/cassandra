@@ -22,6 +22,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 /**
@@ -42,7 +43,8 @@ public class AccordSegmentCompactor<V> extends AbstractAccordSegmentCompactor<V>
         Descriptor descriptor = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables());
         SerializationHeader header = new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS);
 
-        this.writer = SSTableTxnWriter.create(cfs, descriptor, estimatedKeyCount, 0, null, false, header);
+        // TODO: Is ImmutableCoordinatorLogOffsets.NONE correct/reasonable here?
+        this.writer = SSTableTxnWriter.create(cfs, descriptor, estimatedKeyCount, 0, null, false, ImmutableCoordinatorLogOffsets.NONE, header);
     }
 
     @Override
