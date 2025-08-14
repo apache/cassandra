@@ -371,7 +371,7 @@ public class AutoRepairConfig implements Serializable
                     break;
                 case paxos_cleanup:
                     // don't skip staging/test keyspaces for paxos cleanup
-                    opts.ignore_keyspaces = "\\b(?!system_(auth|distributed|auto_repair)\\b)system($|_.*)|health|pingless";
+                    opts.ignore_keyspaces = "\\b(?!system_(auth|distributed|auto_repair)\\b)system($|_.*)|health";
                     // avoid scheduling overhead
                     opts.repair_by_keyspace = true;
                     break;
