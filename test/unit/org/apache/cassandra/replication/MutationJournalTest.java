@@ -66,7 +66,7 @@ public class MutationJournalTest
         File directory = new File(Files.createTempDirectory("mutation-journal-test-simple"));
         directory.deleteRecursiveOnExit();
 
-        journal = new MutationJournal(directory, TestParams.INSTANCE);
+        journal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
         journal.start();
     }
 
