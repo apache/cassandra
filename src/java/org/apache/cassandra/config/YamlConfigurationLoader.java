@@ -40,7 +40,6 @@ import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.JsonUtils;
@@ -68,7 +67,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
-import static org.apache.cassandra.config.CassandraRelevantProperties.values;
 import static org.apache.cassandra.config.Replacements.getNameReplacements;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
@@ -209,35 +207,35 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     }
                     else
                     {
-                        logger.warn("Used sytem property variable {} to override Cassandra configuration but there is no such system property counter-part to react to.", originalKey);
+                        logger.warn("Used sytem property variable {} to override Cassandra configuration but there is no such system property counter-part to override.", originalKey);
                     }
                 }
             }
             if (!overridingProperties.isEmpty())
-            {
-                Map<String, Object> copyOfProperties = new HashMap<>(overridingProperties);
-                for (Map.Entry<String, Object> entry : overridingProperties.entrySet())
-                {
-                    String[] parts = entry.getKey().split("\\.");
-                    if (parts.length > 1 && !parts[parts.length -1].equals("parameters"))
-                    {
-                        if (entry.getValue() instanceof Map)
-                        {
-                            copyOfProperties.remove(entry.getKey());
+                updateFromMap(maybeFlattenNestedProperties(overridingProperties), false, obj);
+        }
+    }
 
-                            for (Map.Entry<String, Object> mapEntry : ((Map<String, Object>) entry.getValue()).entrySet())
-                            {
-                                String newKey = entry.getKey() + "." + mapEntry.getKey();
-                                Object newValue = mapEntry.getValue();
-                                copyOfProperties.put(newKey, newValue);
-                            }
-                        }
+    private static Map<String, Object> maybeFlattenNestedProperties(Map<String, Object> overridingProperties) {
+        Map<String, Object> copyOfProperties = new HashMap<>(overridingProperties);
+        for (Map.Entry<String, Object> entry : overridingProperties.entrySet())
+        {
+            String[] parts = entry.getKey().split("\\.");
+            if (parts.length > 1 && !parts[parts.length - 1].equals("parameters") && !parts[parts.length - 1].equals("configurations"))
+            {
+                if (entry.getValue() instanceof Map)
+                {
+                    copyOfProperties.remove(entry.getKey());
+                    for (Map.Entry<String, Object> mapEntry : ((Map<String, Object>) entry.getValue()).entrySet())
+                    {
+                        String newKey = entry.getKey() + '.' + mapEntry.getKey();
+                        Object newValue = mapEntry.getValue();
+                        copyOfProperties.put(newKey, newValue);
                     }
                 }
-
-                updateFromMap(copyOfProperties, false, obj);
             }
         }
+        return copyOfProperties;
     }
 
     private static void maybeAddEnvironmentVariables(Object obj)
@@ -245,7 +243,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         if (CONFIG_ALLOW_ENVIRONMENT_VARIABLES.getBoolean(CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getBooleanOrDefault(false)))
         {
             Map<String, String> orderedEnvironmentMap = new TreeMap<>(System.getenv()); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
-            Map<String, Object> configOverrides = new HashMap<>();
+            Map<String, Object> overridingProperties = new HashMap<>();
             for (Map.Entry<String, String> env : orderedEnvironmentMap.entrySet())
             {
                 String originalKey = env.getKey();
@@ -256,33 +254,21 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     String configValue = env.getValue();
                     if (OVERRIDABLE_CONFIG_NAMES.contains(configKey))
                     {
-                        if (configValue != null && !configOverrides.containsKey(configKey))
+                        if (configValue != null && !overridingProperties.containsKey(configKey))
                         {
                             if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
                                 logger.warn("Detected environment variable {}={} override for Cassandra configuration '{}'.", originalKey, configValue, configKey);
-                            configOverrides.put(configKey, getScalarValueOrJsonObject(configValue));
+                            overridingProperties.put(configKey, getScalarOrJsonTree(configValue));
                         }
                     }
                     else
                     {
-                        logger.warn("Used environment property variable {} to override Cassandra configuration but there is no such environment property counter-part to react to.", originalKey);
+                        logger.warn("Used environment property variable {} to override Cassandra configuration but there is no such environment property counter-part to override.", originalKey);
                     }
                 }
             }
-            if (!configOverrides.isEmpty())
-                updateFromMap(configOverrides, false, obj);
-        }
-    }
-
-    private static Object getScalarValueOrJsonObject(String value)
-    {
-        try
-        {
-            return JsonUtils.JSON_OBJECT_MAPPER.readValue(value, Object.class);
-        }
-        catch (Exception e)
-        {
-            return value;
+            if (!overridingProperties.isEmpty())
+                updateFromMap(maybeFlattenNestedProperties(overridingProperties), false, obj);
         }
     }
 
