@@ -190,7 +190,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                          directory.deleteRecursiveOnExit();
                          ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal_" + nodeId);
                          cfs.disableAutoCompaction();
-                         AccordJournal journal = new AccordJournal(new TestParams()
+                         AccordJournal journal = new AccordJournal(new TestParams(Version.LATEST.version)
                          {
                              @Override
                              public int segmentSize()

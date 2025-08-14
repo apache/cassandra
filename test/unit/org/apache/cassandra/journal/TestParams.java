@@ -19,11 +19,20 @@ package org.apache.cassandra.journal;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 public class TestParams implements Params
 {
-    public static final TestParams INSTANCE = new TestParams();
+    public static final TestParams ACCORD = new TestParams(Version.LATEST.version);
+    public static final TestParams MUTATION_JOURNAL = new TestParams(MessagingService.current_version);
+    
+    private final int userVersion;
+
+    public TestParams(int userVersion)
+    {
+        this.userVersion = userVersion;
+    }
 
     @Override
     public int segmentSize()
@@ -82,6 +91,6 @@ public class TestParams implements Params
     @Override
     public int userVersion()
     {
-        return Version.LATEST.version;
+        return userVersion;
     }
 }

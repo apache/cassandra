@@ -269,7 +269,7 @@ public class CompactionAccordIteratorsTest
         compactionInfos.put(commandStore.id(), compactionInfo);
         when(mockAccordService.agent()).thenReturn(mock(Agent.class));
         when(mockAccordService.getCompactionInfo()).thenReturn(compactionInfos);
-        when(mockAccordService.journalConfiguration()).thenReturn(new TestParams());
+        when(mockAccordService.journalConfiguration()).thenReturn(TestParams.ACCORD);
         return mockAccordService;
     }
 

@@ -204,6 +204,6 @@ public class SegmentTest
 
     private static Params params()
     {
-        return TestParams.INSTANCE;
+        return TestParams.ACCORD;
     }
 }
