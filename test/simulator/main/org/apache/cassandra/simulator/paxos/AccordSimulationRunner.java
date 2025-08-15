@@ -33,7 +33,6 @@ import picocli.CommandLine.Command;
 
 @Command(name = "accord",
          description = "Run an Accord simulation",
-         helpCommand = true,
          subcommands = { CommandLine.HelpCommand.class,
                          AccordSimulationRunner.Run.class,
                          AccordSimulationRunner.Record.class,
@@ -94,16 +93,22 @@ public class AccordSimulationRunner extends SimulationRunner
     // for simple unit tests so we can simply invoke main()
     private static final AtomicInteger uniqueNum = new AtomicInteger();
 
+    private static CommandLine.IFactory simulationFactory()
+    {
+        return new PaxosSimulationRunner.InjectPaxosClusterSimulationFactory(new AccordClusterSimulation.Builder()
+                                                                             .unique(uniqueNum.getAndIncrement()));
+    }
+
+    public static void executeWithExceptionThrowing(String[] args)
+    {
+        SimulatorUtils.executeWithExceptionThrowing(AccordSimulationRunner.class, simulationFactory(), args);
+    }
+
     /**
      * See {@link org.apache.cassandra.simulator} package info for execution tips
      */
     public static void main(String[] args) throws IOException
     {
-        SimulatorUtils.verifyAndlogSimulatorArgs(args);
-        AccordClusterSimulation.Builder builder = new AccordClusterSimulation.Builder();
-        builder.unique(uniqueNum.getAndIncrement());
-
-        CommandLine commandLine = new CommandLine(AccordSimulationRunner.class, new PaxosSimulationRunner.InjectPaxosClusterSimulationFactory(builder));
-        commandLine.execute(args);
+        System.exit(SimulatorUtils.prepareRunner(AccordSimulationRunner.class, simulationFactory(), null).execute(args));
     }
 }

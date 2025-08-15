@@ -1,4 +1,5 @@
 5.1
+ * Fix ShortPaxosSimulationTest and AccordSimulationRunner do not execute from the cli (CASSANDRA-20805)
  * Allow overriding arbitrary settings via environment variables (CASSANDRA-20749)
  * Optimize MessagingService.getVersionOrdinal (CASSANDRA-20816)
  * Optimize TrieMemtable#getFlushSet (CASSANDRA-20760)
