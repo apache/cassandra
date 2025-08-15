@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,8 @@ import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.JsonUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.introspector.Property;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
@@ -51,6 +54,7 @@ import static java.util.stream.Collectors.toMap;
 
 public class SettingsTableTest extends CQLTester
 {
+    private static final Logger logger = LoggerFactory.getLogger(SettingsTableTest.class);
     private static final String KS_NAME = "vts";
 
     private Config config;
@@ -359,5 +363,26 @@ public class SettingsTableTest extends CQLTester
 
         Assert.assertEquals(settingName, name);
         Assert.assertEquals(expectedValue, value);
+    }
+
+    @Test
+    public void testMapSerialization() throws Throwable
+    {
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("seeds", "127.0.0.1:7000");
+        parameters.put("timeout", "30000");
+        ParameterizedClass seedProvider = new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", parameters);
+        
+        config.seed_provider = seedProvider;
+        
+        try
+        {
+            String expectedJson = JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(parameters);
+            check("seed_provider.parameters", expectedJson);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to serialize seed provider parameters as JSON", e);
+        }
     }
 }
