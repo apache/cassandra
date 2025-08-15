@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -36,6 +37,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.service.ClientWarn;
 import org.yaml.snakeyaml.introspector.Property;
 
@@ -98,8 +100,17 @@ final class SettingsTable extends AbstractVirtualTable
         if (value == null)
             return null;
 
-        if (value.getClass().isArray())
-            return Arrays.asList((Object[]) value).toString();
+        if (value.getClass().isArray() || value instanceof Collection || value instanceof Map)
+        {
+            try {
+                if (value.getClass().isArray())
+                    value = Arrays.asList((Object[]) value);
+            
+                return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(value);
+            } catch (Exception e) {
+                return value.toString();
+            }
+        }
 
         if (value instanceof Map)
         {
