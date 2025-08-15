@@ -65,6 +65,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.TypeSizes.BOOL_SIZE;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofVInt;
 
 @Unmetered
 public final class ColumnMetadata extends ColumnSpecification implements Selectable, Comparable<ColumnMetadata>
@@ -737,7 +738,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                     ColumnConstraints.serializer.serialize(t.columnConstraints, out, version);
             }
             if (version.isAtLeast(Version.V7))
-                out.writeInt(t.uniqueId);
+                out.writeVInt32(t.uniqueId);
         }
 
         public ColumnMetadata deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
@@ -763,7 +764,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                 constraints = ColumnConstraints.NO_OP;
             int uniqueId = NO_UNIQUE_ID;
             if (version.isAtLeast(Version.V7))
-                uniqueId = in.readInt();
+                uniqueId = in.readVInt32();
             return new ColumnMetadata(ksName, tableName, new ColumnIdentifier(nameBB, name), type, uniqueId, position, kind, mask, constraints);
         }
 
@@ -787,7 +788,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                    BOOL_SIZE +
                    ((t.mask == null) ? 0 : ColumnMask.serializer.serializedSize(t.mask, version)) +
                    constraintsSize +
-                   (version.isAtLeast(Version.V7) ? 4 : 0);
+                   (version.isAtLeast(Version.V7) ? sizeofVInt(t.uniqueId) : 0);
         }
     }
 }

@@ -221,7 +221,7 @@ public class ParameterizedFastPathStrategy implements FastPathStrategy
         sorters.sort(Comparator.naturalOrder());
 
         int slowQuorum = Shard.slowQuorumSize(nodes.size());
-        int fpSize = Math.max(size, slowQuorum);
+        int fpSize = Math.max(Math.min(size, nodes.size()), slowQuorum);
         Node.Id[] array = new Node.Id[fpSize];
         for (int i=0; i<fpSize; i++)
             array[i] = sorters.get(i).id;
@@ -256,9 +256,8 @@ public class ParameterizedFastPathStrategy implements FastPathStrategy
             throw cfe("%s must be greater than zero", SIZE);
 
         ImmutableMap<String, WeightedDc> dcMap;
-        if (map.containsKey(DCS))
+        if (map.containsKey(DCS) && !map.get(DCS).isEmpty())
         {
-
             Map<String, WeightedDc> mutableDcs = new HashMap<>();
             String dcsString = map.get(DCS);
             if (dcsString.trim().isEmpty())
