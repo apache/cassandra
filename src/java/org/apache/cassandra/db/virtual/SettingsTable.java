@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -25,6 +26,7 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -36,6 +38,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.service.ClientWarn;
 import org.yaml.snakeyaml.introspector.Property;
 
@@ -48,6 +51,7 @@ final class SettingsTable extends AbstractVirtualTable
     protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
 
     private final Config config;
+    private final boolean useJsonFormat;
 
     SettingsTable(String keyspace)
     {
@@ -64,6 +68,7 @@ final class SettingsTable extends AbstractVirtualTable
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
         this.config = config;
+        this.useJsonFormat = CassandraRelevantProperties.VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON.getBoolean();
     }
 
     @Override
@@ -99,9 +104,10 @@ final class SettingsTable extends AbstractVirtualTable
             return null;
 
         if (value.getClass().isArray())
-            return Arrays.asList((Object[]) value).toString();
-
-        if (value instanceof Map)
+            return tryConstructJson(Arrays.asList((Object[]) value));
+        else if (value instanceof Collection)
+            return tryConstructJson(value);
+        else if (value instanceof Map)
         {
             Map<String, Object> map = new HashMap<>();
             for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet())
@@ -115,10 +121,29 @@ final class SettingsTable extends AbstractVirtualTable
                     map.put(entry.getKey(), entry.getValue());
             }
 
-            return map.toString();
+            return tryConstructJson(map);
         }
 
         return value.toString();
+    }
+
+    private String tryConstructJson(Object o)
+    {
+        if (useJsonFormat)
+        {
+            try
+            {
+                return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(o);
+            }
+            catch (Exception e)
+            {
+                return o.toString();
+            }
+        }
+        else
+        {
+            return o.toString();
+        }
     }
 
     private static Map<String, Property> getProperties()

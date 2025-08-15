@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.DefaultLoader;
@@ -41,13 +43,17 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Int
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.security.SSLFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.introspector.Property;
 
 import static java.util.stream.Collectors.toMap;
 
 public class SettingsTableTest extends CQLTester
 {
+    private static final Logger logger = LoggerFactory.getLogger(SettingsTableTest.class);
     private static final String KS_NAME = "vts";
 
     private Config config;
@@ -172,17 +178,22 @@ public class SettingsTableTest extends CQLTester
         assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval_in_ms", "-1"});
     }
 
-    private void check(String setting, String expected) throws Throwable
+    private void check(String keyspaceTable, String setting, String expected)
     {
-        String q = "SELECT * FROM vts.settings WHERE name = '"+setting+'\'';
+        String q = "SELECT * FROM " + keyspaceTable + " WHERE name = '" + setting + '\'';
         try
         {
-            assertRowsNet(executeNet(q), new Object[] {setting, expected});
+            assertRowsNet(executeNet(q), new Object[]{ setting, expected });
         }
         catch (AssertionError e)
         {
             throw new AssertionError(e.getMessage() + " for query " + q);
         }
+    }
+
+    private void check(String setting, String expected)
+    {
+        check("vts.settings", setting, expected);
     }
 
     @Test
@@ -352,5 +363,39 @@ public class SettingsTableTest extends CQLTester
 
         Assert.assertEquals(settingName, name);
         Assert.assertEquals(expectedValue, value);
+    }
+
+    @Test
+    public void testComplexSettingsFormatProperty()
+    {
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("seeds", "127.0.0.1:7000");
+        config.seed_provider = new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", parameters);
+
+        // Test set property to true (collection as json)
+        try (WithProperties properties = new WithProperties().set(CassandraRelevantProperties.VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON, "true"))
+        {
+            table = new SettingsTable("json_true", config);
+            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace("json_true", ImmutableList.of(table)));
+
+            check("json_true.settings", "data_file_directories", "[\"/my/data/directory\",\"/another/data/directory\"]");
+            check("json_true.settings", "seed_provider.parameters", "{\"seeds\":\"127.0.0.1:7000\"}");
+        }
+    }
+
+    @Test
+    public void testOldBehaviourForComplexSettingsFormatProperty()
+    {
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("seeds", "127.0.0.1:7000");
+        config.seed_provider = new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", parameters);
+
+        // we are not setting property here to false, we expect it to be false by default
+
+        table = new SettingsTable("json_false", config);
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace("json_false", ImmutableList.of(table)));
+
+        check("json_false.settings", "data_file_directories", "[/my/data/directory, /another/data/directory]");
+        check("json_false.settings", "seed_provider.parameters", "{seeds=127.0.0.1:7000}");
     }
 }
