@@ -43,6 +43,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.utils.JsonUtils;
 import org.yaml.snakeyaml.introspector.Property;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
@@ -88,7 +89,7 @@ public class SettingsTableTest extends CQLTester
     public void testArray() throws Throwable
     {
         Row one = executeNet("SELECT value FROM vts.settings WHERE name = 'data_file_directories'").one();
-        Assert.assertEquals("[\"/my/data/directory\", \"/another/data/directory\"]", one.getString("value"));
+        Assert.assertEquals("[\"/my/data/directory\",\"/another/data/directory\"]", one.getString("value"));
     }
 
     @Test
@@ -201,7 +202,7 @@ public class SettingsTableTest extends CQLTester
 
         check(pre + "cipher_suites", null);
         config.server_encryption_options = serverEncryptionOptionsBuilder.withCipherSuites("c1", "c2").build();
-        check(pre + "cipher_suites", "[\"c1\", \"c2\"]");
+        check(pre + "cipher_suites", "[\"c1\",\"c2\"]");
 
         // name doesn't match yaml
         check(pre + "protocol", null);
@@ -209,15 +210,22 @@ public class SettingsTableTest extends CQLTester
         check(pre + "protocol", "[\"TLSv5\"]");
 
         config.server_encryption_options = serverEncryptionOptionsBuilder.withProtocol("TLS").build();
-        check(pre + "protocol", SSLFactory.tlsInstanceProtocolSubstitution().toString());
+        try
+        {
+            check(pre + "protocol", JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(SSLFactory.tlsInstanceProtocolSubstitution()));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to serialize TLS protocols as JSON", e);
+        }
 
         config.server_encryption_options = serverEncryptionOptionsBuilder.withProtocol("TLS").build();
         config.server_encryption_options = serverEncryptionOptionsBuilder.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1")).build();
-        check(pre + "protocol", "[\"TLSv1.2\", \"TLSv1.1\"]");
+        check(pre + "protocol", "[\"TLSv1.2\",\"TLSv1.1\"]");
 
         config.server_encryption_options = serverEncryptionOptionsBuilder.withProtocol("TLSv2").build();
         config.server_encryption_options = serverEncryptionOptionsBuilder.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1")).build();
-        check(pre + "protocol", "[\"TLSv1.2\", \"TLSv1.1\", \"TLSv2\"]"); // protocol goes after the explicit accept list if non-TLS
+        check(pre + "protocol", "[\"TLSv1.2\",\"TLSv1.1\",\"TLSv2\"]"); // protocol goes after the explicit accept list if non-TLS
 
         check(pre + "optional", "false");
         config.server_encryption_options = serverEncryptionOptionsBuilder.withOptional(true).build();
