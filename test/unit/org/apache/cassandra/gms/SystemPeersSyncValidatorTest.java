@@ -20,6 +20,7 @@ package org.apache.cassandra.gms;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
 import org.junit.After;
@@ -31,11 +32,13 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.GossipMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.Collections.singleton;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -130,6 +133,29 @@ public class SystemPeersSyncValidatorTest
 
         assertEquals(0, GossipMetrics.orphanPeerInSystemTable.getCount());
         assertEquals(1, GossipMetrics.missingPeerInGossip.getCount());
+    }
+
+    @Test
+    public void testMissingPeersSkipCheckingLeftEndpoint()
+    {
+        Gossiper.instance.addSavedEndpoint(myself);
+        Gossiper.instance.addSavedEndpoint(peerOrphan);
+        SystemKeyspace.updatePeerInfo(peerOrphan, "release_version", "4.1.3");
+        Gossiper.instance.addSavedEndpoint(peerMissing);
+        SystemKeyspace.updatePeerInfo(peerMissing, "release_version", "4.1.3");
+
+        // LEFT status should be skipped
+        EndpointState hostState = Gossiper.instance.getEndpointStateForEndpoint(peerMissing);
+        hostState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(singleton(DatabaseDescriptor.getPartitioner().getRandomToken()), Gossiper.computeExpireTime()));
+        Gossiper.instance.applyStateLocally(Map.of(peerMissing, hostState));
+
+        // remove a peer from peers table
+        SystemKeyspace.removeEndpoint(peerMissing);
+
+        validator.run();
+
+        assertEquals(0, GossipMetrics.orphanPeerInSystemTable.getCount());
+        assertEquals(0, GossipMetrics.missingPeerInGossip.getCount());
     }
 
     @Test

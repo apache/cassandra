@@ -19,6 +19,7 @@
 package org.apache.cassandra.gms;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +66,8 @@ public class SystemPeersSyncValidator implements Runnable
         // Note: here we're not acquiring lock on either endpointStateMap or system table, it's possible that some
         // updates happens between the time we read the system table and the time we read the endpointStateMap.
         Set<InetAddressAndPort> peers = SystemKeyspace.loadPeers();
-        Set<InetAddressAndPort> endpointStates = Gossiper.instance.getEndpointStateMap().keySet();
+        Map<InetAddressAndPort, EndpointState> endpointStatesMap = Gossiper.instance.getEndpointStateMap();
+        Set<InetAddressAndPort> endpointStates = endpointStatesMap.keySet();
 
         // Orphan endpoint exists in system.peers_v2 but missing in Gossiper state
         Set<InetAddressAndPort> orphanPeers = new HashSet<>(peers);
@@ -82,9 +84,11 @@ public class SystemPeersSyncValidator implements Runnable
         missingPeers.removeAll(peers);
         // remove myself
         missingPeers.remove(FBUtilities.getBroadcastAddressAndPort());
+        // remove endpoints that are "AdministrativelyInactive" (LEFT/TOKEN_REMOVED/HIBERNATE)
+        missingPeers.removeIf(e -> Gossiper.instance.isAdministrativelyInactiveState(endpointStatesMap.get(e)));
         if (!missingPeers.isEmpty())
         {
-            logger.warn("Detected {} missing entries in system.peers_v2 that are present in Gossiper state: {}.",
+            logger.warn("Detected {} missing entries in system.peers_v2 that are present and !(LEFT/TOKEN_REMOVED/HIBERNATE) in Gossiper state: {}.",
                         missingPeers.size(), missingPeers);
             GossipMetrics.missingPeerInGossip.inc();
         }
