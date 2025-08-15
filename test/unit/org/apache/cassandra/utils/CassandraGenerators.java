@@ -861,7 +861,8 @@ public final class CassandraGenerators
                                                        // Names are used for DCs and those are seperated by ,
                                                        .map(s -> s.replace(",", "_"))
                                                        .assuming(s -> !s.trim().isEmpty());
-                        int numNames = SourceDSL.integers().between(1, 10).generate(rnd);
+                        // DCs is optional, allow 0 dcs:
+                        int numNames = SourceDSL.integers().between(0, 10).generate(rnd);
                         for (int i = 0; i < numNames; i++)
                         {
                             while (!names.add(nameGen.generate(rnd)))
@@ -888,7 +889,8 @@ public final class CassandraGenerators
                         //      dcFormat: name | weight
                         //      weight: int: >= 0
                         //      note: can't mix auto and user defined weight; need one or the other.  Names must be unique
-                        map.put(ParameterizedFastPathStrategy.DCS, String.join(",", dcs));
+                        if (!dcs.isEmpty())
+                            map.put(ParameterizedFastPathStrategy.DCS, String.join(",", dcs));
                         return ParameterizedFastPathStrategy.fromMap(map);
                     }
                     default:

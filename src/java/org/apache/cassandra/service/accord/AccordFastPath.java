@@ -249,7 +249,7 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
     {
         private void serializeMap(Map<Node.Id, NodeInfo> map, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeInt(map.size());
+            out.writeUnsignedVInt32(map.size());
             for (Map.Entry<Node.Id, NodeInfo> entry : map.entrySet())
             {
                 TopologySerializers.nodeId.serialize(entry.getKey(), out);
@@ -265,7 +265,7 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
 
         private ImmutableMap<Node.Id, NodeInfo> deserializeMap(DataInputPlus in, Version version) throws IOException
         {
-            int size = in.readInt();
+            int size = in.readUnsignedVInt32();
             if (size == 0)
                 return ImmutableMap.of();
 
@@ -284,7 +284,7 @@ public class AccordFastPath implements MetadataValue<AccordFastPath>
 
         private long serializedMapSize(Map<Node.Id, NodeInfo> map, Version version)
         {
-            long size = TypeSizes.INT_SIZE;
+            long size = TypeSizes.sizeofUnsignedVInt(map.size());
             for (Map.Entry<Node.Id, NodeInfo> entry : map.entrySet())
             {
                 size += TopologySerializers.nodeId.serializedSize(entry.getKey());

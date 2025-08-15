@@ -49,6 +49,7 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
 import static org.apache.cassandra.schema.TableParams.Option.ALLOW_AUTO_SNAPSHOT;
 import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
@@ -638,8 +639,8 @@ public final class TableParams
             if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
             {
                 FastPathStrategy.serializer.serialize(t.fastPath, out, version);
-                out.writeInt(t.transactionalMode.ordinal());
-                out.writeInt(t.transactionalMigrationFrom.ordinal());
+                out.writeUnsignedVInt32(t.transactionalMode.ordinal());
+                out.writeUnsignedVInt32(t.transactionalMigrationFrom.ordinal());
                 out.writeBoolean(t.pendingDrop);
             }
         }
@@ -669,8 +670,8 @@ public final class TableParams
             if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
             {
                 builder.fastPath(FastPathStrategy.serializer.deserialize(in, version))
-                       .transactionalMode(TransactionalMode.fromOrdinal(in.readInt()))
-                       .transactionalMigrationFrom(TransactionalMigrationFromMode.fromOrdinal(in.readInt()))
+                       .transactionalMode(TransactionalMode.fromOrdinal(in.readUnsignedVInt32()))
+                       .transactionalMigrationFrom(TransactionalMigrationFromMode.fromOrdinal(in.readUnsignedVInt32()))
                        .pendingDrop(in.readBoolean());
             }
             return builder.build();
@@ -700,8 +701,8 @@ public final class TableParams
             if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
             {
                 size += FastPathStrategy.serializer.serializedSize(t.fastPath, version) +
-                        sizeof(t.transactionalMode.ordinal()) +
-                        sizeof(t.transactionalMigrationFrom.ordinal()) +
+                        sizeofUnsignedVInt(t.transactionalMode.ordinal()) +
+                        sizeofUnsignedVInt(t.transactionalMigrationFrom.ordinal()) +
                         sizeof(t.pendingDrop);
             }
             return size;
