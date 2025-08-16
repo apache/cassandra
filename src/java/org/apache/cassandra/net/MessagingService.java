@@ -287,7 +287,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         }
     }
     static final int minVersion = Version.values()[0].value;
-    static final int maxVersion = Version.values()[Version.values().length - 1].value;
+    static final int maxOrdinalVersion = Version.values().length - 1;
 
     /**
      * This is an optimisation to speed up the translation of the serialization
@@ -300,8 +300,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public static int getVersionOrdinal(int version)
     {
         int result = version - minVersion;
-        if (result < 0 || result > maxVersion)
-            throw new IllegalStateException("Unkown serialization version: " + version);
+        if (result < 0 || result > maxOrdinalVersion)
+            throw new IllegalStateException("Unknown serialization version: " + version);
         return result;
     }
 

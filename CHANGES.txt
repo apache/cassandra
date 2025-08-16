@@ -1,4 +1,5 @@
 5.1
+ * Fix version range check in MessagingService.getVersionOrdinal (CASSANDRA-20842)
  * Allow custom constraints to be loaded via SPI (CASSANDRA-20824)
  * Optimize DataPlacement lookup by ReplicationParams (CASSANDRA-20804)
  * Fix ShortPaxosSimulationTest and AccordSimulationRunner do not execute from the cli (CASSANDRA-20805)

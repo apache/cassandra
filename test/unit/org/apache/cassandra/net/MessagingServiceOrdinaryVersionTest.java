@@ -38,8 +38,15 @@ public class MessagingServiceOrdinaryVersionTest
     }
 
     @Test(expected = IllegalStateException.class)
+    public void checkUnknownSmallVersionJustBeforeTheMinOne()
+    {
+        MessagingService.getVersionOrdinal(MessagingService.minVersion - 1);
+    }
+
+    @Test(expected = IllegalStateException.class)
     public void checkUnknownBigVersion()
     {
-        MessagingService.getVersionOrdinal(Byte.MAX_VALUE + 1);
+        int maxVersion = MessagingService.Version.values()[MessagingService.Version.values().length - 1].value;
+        MessagingService.getVersionOrdinal(maxVersion + 1);
     }
 }
