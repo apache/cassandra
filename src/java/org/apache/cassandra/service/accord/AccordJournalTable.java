@@ -32,6 +32,7 @@ import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.local.MaxDecidedRX;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -230,8 +231,7 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     {
         participants("participants", BytesType.instance),
         store_id("store_id", Int32Type.instance),
-        txn_id("txn_id", BytesType.instance),
-        min_decided_id("min_decided_id", BytesType.instance);
+        txn_id("txn_id", BytesType.instance);
 
         public final ColumnMetadata metadata;
 
@@ -253,22 +253,22 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         }
 
         @Override
-        public Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
+        public Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX)
         {
-            CloseableIterator<TxnId> inMemory = index.search(commandStoreId, range, minTxnId, maxTxnId, minDecidedId).results();
-            CloseableIterator<TxnId> table = tableSearch(commandStoreId, range.start(), range.end(), minTxnId, maxTxnId, minDecidedId);
-            return new DefaultResult(minTxnId, maxTxnId, minDecidedId, MergeIterator.get(Arrays.asList(inMemory, table)));
+            CloseableIterator<TxnId> inMemory = index.search(commandStoreId, range, minTxnId, maxTxnId, decidedRX).results();
+            CloseableIterator<TxnId> table = tableSearch(commandStoreId, range.start(), range.end(), minTxnId, maxTxnId, decidedRX);
+            return new DefaultResult(minTxnId, maxTxnId, decidedRX, MergeIterator.get(Arrays.asList(inMemory, table)));
         }
 
         @Override
-        public Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
+        public Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX)
         {
-            CloseableIterator<TxnId> inMemory = index.search(commandStoreId, key, minTxnId, maxTxnId, minDecidedId).results();
-            CloseableIterator<TxnId> table = tableSearch(commandStoreId, key, minTxnId, maxTxnId, minDecidedId);
-            return new DefaultResult(minTxnId, maxTxnId, minDecidedId, MergeIterator.get(Arrays.asList(inMemory, table)));
+            CloseableIterator<TxnId> inMemory = index.search(commandStoreId, key, minTxnId, maxTxnId, decidedRX).results();
+            CloseableIterator<TxnId> table = tableSearch(commandStoreId, key, minTxnId, maxTxnId);
+            return new DefaultResult(minTxnId, maxTxnId, decidedRX, MergeIterator.get(Arrays.asList(inMemory, table)));
         }
 
-        private CloseableIterator<TxnId> tableSearch(int store, TokenKey start, TokenKey end, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
+        private CloseableIterator<TxnId> tableSearch(int store, TokenKey start, TokenKey end, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX)
         {
             RowFilter rowFilter = RowFilter.create(false);
             rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.GT, OrderedRouteSerializer.serialize(start));
@@ -276,13 +276,10 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             rowFilter.add(AccordJournalTable.SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
             rowFilter.add(AccordJournalTable.SyntheticColumn.txn_id.metadata, Operator.GTE, CommandSerializers.txnId.serialize(minTxnId));
             rowFilter.add(AccordJournalTable.SyntheticColumn.txn_id.metadata, Operator.LTE, CommandSerializers.timestamp.serialize(maxTxnId));
-            if (minDecidedId != null)
-                rowFilter.add(AccordJournalTable.SyntheticColumn.min_decided_id.metadata, Operator.GTE, CommandSerializers.txnId.serialize(minDecidedId));
-
             return process(store, rowFilter);
         }
 
-        private CloseableIterator<TxnId> tableSearch(int store, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
+        private CloseableIterator<TxnId> tableSearch(int store, TokenKey key, TxnId minTxnId, Timestamp maxTxnId)
         {
             RowFilter rowFilter = RowFilter.create(false);
             rowFilter.add(AccordJournalTable.SyntheticColumn.participants.metadata, Operator.GTE, OrderedRouteSerializer.serialize(key));
@@ -290,9 +287,6 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
             rowFilter.add(AccordJournalTable.SyntheticColumn.store_id.metadata, Operator.EQ, Int32Type.instance.decompose(store));
             rowFilter.add(AccordJournalTable.SyntheticColumn.txn_id.metadata, Operator.GTE, CommandSerializers.txnId.serialize(minTxnId));
             rowFilter.add(AccordJournalTable.SyntheticColumn.txn_id.metadata, Operator.LTE, CommandSerializers.timestamp.serialize(maxTxnId));
-            if (minDecidedId != null)
-                rowFilter.add(AccordJournalTable.SyntheticColumn.min_decided_id.metadata, Operator.GTE, CommandSerializers.txnId.serialize(minDecidedId));
-
             return process(store, rowFilter);
         }
 

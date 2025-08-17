@@ -383,6 +383,13 @@ public class AccordCacheEntry<K, V> extends IntrusiveLinkedListNode
         return (V)unwrap();
     }
 
+    public Object getOrShrunkExclusive()
+    {
+        Invariants.require(owner == null || owner.commandStore == null || owner.commandStore.executor().isOwningThread());
+        Invariants.require(isLoaded(), "%s", this);
+        return unwrap();
+    }
+
     public V tryGetExclusive()
     {
         Invariants.require(owner == null || owner.commandStore == null || owner.commandStore.executor().isOwningThread());

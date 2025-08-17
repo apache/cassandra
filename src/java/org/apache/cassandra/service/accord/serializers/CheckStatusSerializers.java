@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import accord.api.Result;
 import accord.api.RoutingKey;
@@ -31,7 +32,7 @@ import accord.messages.CheckStatus.CheckStatusReply;
 import accord.primitives.Ballot;
 import accord.primitives.Known;
 import accord.primitives.KnownMap;
-import accord.primitives.KnownMap.MinMax;
+import accord.primitives.KnownMap.MinAndMaxKnown;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
@@ -63,17 +64,17 @@ public class CheckStatusSerializers
                 KeySerializers.routingKey.serialize(knownMap.startAt(i), out);
             for (int i = 0 ; i < size ; ++i)
             {
-                KnownMap.MinMax minMax = knownMap.valueAt(i);
-                if (minMax == null)
+                MinAndMaxKnown minAndMax = knownMap.valueAt(i);
+                if (minAndMax == null)
                 {
                     out.writeByte(0);
                     continue;
                 }
-                boolean equal = minMax.min.equals(minMax);
+                boolean equal = Objects.equals(minAndMax.minOwned, minAndMax.max);
                 out.writeByte(equal ? 1 : 2);
-                known.serialize(minMax.min, out);
+                known.serialize(minAndMax.minOwned, out);
                 if (!equal)
-                    known.serialize(minMax, out);
+                    known.serialize(minAndMax.max, out);
             }
         }
 
@@ -84,7 +85,7 @@ public class CheckStatusSerializers
             RoutingKey[] starts = new RoutingKey[size + 1];
             for (int i = 0 ; i <= size ; ++i)
                 starts[i] = KeySerializers.routingKey.deserialize(in);
-            MinMax[] values = new MinMax[size];
+            MinAndMaxKnown[] values = new MinAndMaxKnown[size];
             for (int i = 0 ; i < size ; ++i)
             {
                 int kind = in.readByte();
@@ -92,7 +93,7 @@ public class CheckStatusSerializers
                     continue;
                 Known min = known.deserialize(in);
                 Known max = kind == 1 ? min : known.deserialize(in);
-                values[i] = new KnownMap.MinMax(min, max);
+                values[i] = new MinAndMaxKnown(min, max);
             }
             return KnownMap.SerializerSupport.create(true, starts, values);
         }
@@ -106,14 +107,14 @@ public class CheckStatusSerializers
                 result += KeySerializers.routingKey.serializedSize(knownMap.startAt(i));
             for (int i = 0 ; i < size ; ++i)
             {
-                KnownMap.MinMax minMax = knownMap.valueAt(i);
+                MinAndMaxKnown minMax = knownMap.valueAt(i);
                 result += TypeSizes.BYTE_SIZE;
                 if (minMax == null)
                     continue;
-                boolean equal = minMax.min.equals(minMax);
-                result += known.serializedSize(minMax.min);
+                boolean equal = Objects.equals(minMax.minOwned, minMax.max);
+                result += known.serializedSize(minMax.minOwned);
                 if (!equal)
-                    result += known.serializedSize(minMax);
+                    result += known.serializedSize(minMax.max);
             }
             return result;
         }

@@ -453,7 +453,7 @@ public class AccordInteropExecution implements ReadCoordinator
     // Provide request callbacks with a way to send maximal commits on Insufficient responses
     public void sendMaximalCommit(Id to)
     {
-        Commit.stableMaximal(node, to, txn, txnId, executeAt, route, deps);
+        node.send(to, new Commit(Kind.StableWithTxnAndDeps, to, allTopologies, txnId, txn, route, ballot, executeAt, deps));
     }
 
     public void maybeUpdateUniqueHlc(long uniqueHlc)

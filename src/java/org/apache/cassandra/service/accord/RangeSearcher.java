@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
+import accord.local.MaxDecidedRX;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.index.accord.RouteIndexFormat;
@@ -30,8 +31,8 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 public interface RangeSearcher
 {
-    Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId);
-    Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId);
+    Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX);
+    Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX);
 
     static RangeSearcher extractRangeSearcher(Object o)
     {
@@ -55,15 +56,15 @@ public interface RangeSearcher
     {
         private final TxnId minTxnId;
         private final Timestamp maxTxnId;
-        private final @Nullable TxnId minDecidedId;
+        private final @Nullable MaxDecidedRX.DecidedRX decidedRX;
         private final CloseableIterator<TxnId> results;
         private boolean consumed = false;
 
-        public DefaultResult(TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, CloseableIterator<TxnId> results)
+        public DefaultResult(TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX, CloseableIterator<TxnId> results)
         {
             this.minTxnId = minTxnId;
             this.maxTxnId = maxTxnId;
-            this.minDecidedId = minDecidedId;
+            this.decidedRX = decidedRX;
             this.results = results;
         }
 
@@ -84,7 +85,7 @@ public interface RangeSearcher
                 {
                     TxnId next = results.next();
 
-                    if (next.compareTo(minTxnId) >= 0 && next.compareTo(maxTxnId) < 0 && RouteIndexFormat.includeByMinDecidedId(minDecidedId, next))
+                    if (next.compareTo(minTxnId) >= 0 && next.compareTo(maxTxnId) < 0 && RouteIndexFormat.includeByDecidedRX(decidedRX, next))
                         forEach.accept(next);
                 }
             }
@@ -120,13 +121,13 @@ public interface RangeSearcher
         instance;
 
         @Override
-        public Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
+        public Result search(int commandStoreId, TokenRange range, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX)
         {
             return NoopResult.instance;
         }
 
         @Override
-        public Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId)
+        public Result search(int commandStoreId, TokenKey key, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX)
         {
             return NoopResult.instance;
         }

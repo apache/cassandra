@@ -459,7 +459,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
     {
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
         Ballot ballot = Ballot.fromValues(storeService.epoch(), storeService.now(), nodeId);
-        BeginRecovery br = new BeginRecovery(nodeId, topologies, txnId, null, txn, route, ballot);
+        BeginRecovery br = new BeginRecovery(nodeId, topologies, txnId, null, false, txn, route, ballot);
 
         return Pair.create(txnId, processAsync(br, safe -> {
             var reply = br.apply(safe);

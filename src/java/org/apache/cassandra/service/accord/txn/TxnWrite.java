@@ -77,6 +77,7 @@ import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOT
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
+import static org.apache.cassandra.utils.ArraySerializers.skipArray;
 
 public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Write
 {
@@ -213,6 +214,14 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 if (version != Version.LATEST)
                     bytes = reserialize(bytes, tablesAndKeys, version, Version.LATEST);
                 return new Update(key, index, bytes);
+            }
+
+            @Override
+            public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
+            {
+                PartitionKey key = tablesAndKeys.deserializeKey(in);
+                int index = in.readInt();
+                ByteBufferUtil.skipWithVIntLength(in);
             }
 
             @Override
@@ -491,6 +500,14 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             TableMetadatas tables = TableMetadatas.deserializeSelf(in);
             boolean isConditionMet = BooleanSerializer.serializer.deserialize(in);
             return new TxnWrite(tables, deserializeArray(new TableMetadatasAndKeys(tables, keys), in, version, Update.serializer, Update[]::new), isConditionMet);
+        }
+
+        @Override
+        public void skip(Seekables keys, DataInputPlus in, Version version) throws IOException
+        {
+            TableMetadatas tables = TableMetadatas.deserializeSelf(in);
+            BooleanSerializer.serializer.deserialize(in);
+            skipArray(new TableMetadatasAndKeys(tables, keys), in, version, Update.serializer);
         }
 
         @Override

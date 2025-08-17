@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.function.IntFunction;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -47,7 +48,10 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
+import accord.utils.ArrayBuffers;
+import accord.utils.BitUtils;
 import accord.utils.Invariants;
+import accord.utils.VIntCoding;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -62,14 +66,16 @@ import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.NullableSerializer;
 
+import static org.apache.cassandra.service.accord.serializers.SerializePacked.serializedPackedBitsSize;
+
 public class CommandSerializers
 {
     private CommandSerializers()
     {
     }
 
-    public static final VariableWidthTimestampSerializer<TxnId> txnId = new VariableWidthTimestampSerializer<>(TxnId::fromValues);
-    public static final VariableWidthTimestampSerializer<Timestamp> timestamp = new VariableWidthTimestampSerializer<>(Timestamp::fromValues);
+    public static final VariableWidthTimestampSerializer<TxnId> txnId = new VariableWidthTimestampSerializer<>(TxnId::fromValues, TxnId::fromBits, TxnId[]::new);
+    public static final VariableWidthTimestampSerializer<Timestamp> timestamp = new VariableWidthTimestampSerializer<>(Timestamp::fromValues, Timestamp::fromBits, Timestamp[]::new);
     public static final BallotSerializer ballot = new BallotSerializer(); // permits null
     public static final UnversionedSerializer<Txn.Kind> kind = EncodeAsVInt32.of(Txn.Kind.class);
     public static final StoreParticipantsSerializer participants = new StoreParticipantsSerializer();
@@ -490,12 +496,9 @@ public class CommandSerializers
             Invariants.require(EPOCH_SHIFT + Integer.bitCount(EPOCH_MASK) < 8);
         }
 
-        interface Factory<T extends Timestamp>
-        {
-            T create(long epoch, long hlc, int flags, Node.Id node);
-        }
-
-        private final VariableWidthTimestampSerializer.Factory<T> factory;
+        private final Timestamp.ValueFactory<T> factory;
+        private final Timestamp.RawFactory<T> rawFactory;
+        private final IntFunction<T[]> allocator;
 
         T decodeSpecial(int encodingFlags)
         {
@@ -510,9 +513,11 @@ public class CommandSerializers
             return NULL_BYTE;
         }
 
-        private VariableWidthTimestampSerializer(VariableWidthTimestampSerializer.Factory<T> factory)
+        private VariableWidthTimestampSerializer(Timestamp.ValueFactory<T> factory, Timestamp.RawFactory<T> rawFactory, IntFunction<T[]> allocator)
         {
             this.factory = factory;
+            this.rawFactory = rawFactory;
+            this.allocator = allocator;
         }
 
         @Override
@@ -544,6 +549,73 @@ public class CommandSerializers
             out.writeLeastSignificantBytes(hlc, hlcLength);
             out.writeLeastSignificantBytes(flags, flagsLength);
             out.writeLeastSignificantBytes(ts.node.id, nodeLength);
+        }
+
+        public void serializeArray(T[] ts, DataOutputPlus out) throws IOException
+        {
+            out.writeUnsignedVInt32(ts.length);
+            if (ts.length == 0)
+                return;
+
+            long minEpoch = Long.MAX_VALUE, maxEpoch = 0;
+            long minHlc = Long.MAX_VALUE, maxHlc = 0;
+            int minFlags = 0xFFFF, maxFlags = 0;
+            int minNodeId = Integer.MAX_VALUE, maxNodeId = 0;
+            for (int i = 0; i < ts.length; i++)
+            {
+                T t = ts[i];
+                long epoch = t.epoch();
+                minEpoch = Math.min(epoch, minEpoch);
+                maxEpoch = Math.max(epoch, maxEpoch);
+                long hlc = t.hlc();
+                minHlc = Math.min(hlc, minHlc);
+                maxHlc = Math.max(hlc, maxHlc);
+                int flags = t.flags();
+                minFlags = Math.min(flags, minFlags);
+                maxFlags = Math.max(flags, maxFlags);
+                int nodeId = t.node.id;
+                minNodeId = Math.min(nodeId, minNodeId);
+                maxNodeId = Math.max(nodeId, maxNodeId);
+            }
+
+            int epochBits = BitUtils.numberOfBitsToRepresent(maxEpoch - minEpoch);
+            int hlcBits = BitUtils.numberOfBitsToRepresent(maxHlc - minHlc);
+            int flagBits = BitUtils.numberOfBitsToRepresent(maxFlags - minFlags);
+            int nodeBits = BitUtils.numberOfBitsToRepresent(maxNodeId - minNodeId);
+
+            // we could pack these a bit more tightly if we wanted to
+            out.writeUnsignedVInt(minEpoch);
+            out.writeUnsignedVInt(minHlc);
+            out.writeUnsignedVInt32(minFlags);
+            out.writeUnsignedVInt32(minNodeId);
+            out.writeByte(epochBits);
+            out.writeByte(hlcBits);
+            out.writeByte(flagBits);
+            out.writeByte(nodeBits);
+
+            long finalMinEpoch = minEpoch;
+            SerializePacked.serializePacked((in, i) -> in[i].epoch() - finalMinEpoch, ts, 0, ts.length, maxEpoch - minEpoch, out);
+            long finalMinHlc = minHlc;
+            SerializePacked.serializePacked((in, i) -> in[i].hlc() - finalMinHlc, ts, 0, ts.length, maxHlc - minHlc, out);
+            long finalMinFlags = minFlags;
+            SerializePacked.serializePacked((in, i) -> in[i].flags() - finalMinFlags, ts, 0, ts.length, maxFlags - minFlags, out);
+            long finalMinNodeId = minNodeId;
+            SerializePacked.serializePacked((in, i) -> in[i].node.id - finalMinNodeId, ts, 0, ts.length, maxNodeId - minNodeId, out);
+        }
+
+        public int flags(T ts)
+        {
+            long epoch = ts.epoch();
+            long hlc = ts.hlc();
+            int flags = ts.flags();
+            int epochLength = length(epoch, EPOCH_MIN_LENGTH);
+            int hlcLength = length(hlc, HLC_MIN_LENGTH);
+            int flagsLength = length(flags, FLAGS_MIN_LENGTH);
+            int nodeLength = length(ts.node.id, NODE_MIN_LENGTH);
+            return encodeLength(epochLength, EPOCH_SHIFT, EPOCH_MIN_LENGTH, EPOCH_MASK)
+                 | encodeLength(hlcLength,   HLC_SHIFT,   HLC_MIN_LENGTH,   HLC_MASK)
+                 | encodeLength(flagsLength, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK)
+                 | encodeLength(nodeLength,  NODE_SHIFT,  NODE_MIN_LENGTH,  NODE_MASK);
         }
 
         // exactly the same fundamental format as serialize(), only we interleave the length bits with the values, maintaining ordering
@@ -635,11 +707,16 @@ public class CommandSerializers
             int encodingFlags = in.readByte();
             if (encodingFlags < 0)
                 return;
+            in.skipBytesFully(lengthWithFlags(encodingFlags));
+        }
+
+        public int lengthWithFlags(int encodingFlags)
+        {
             int epochLength = decodeLength(encodingFlags, EPOCH_SHIFT, EPOCH_MIN_LENGTH, EPOCH_MASK);
             int hlcLength = decodeLength(encodingFlags, HLC_SHIFT, HLC_MIN_LENGTH, HLC_MASK);
             int flagsLength = decodeLength(encodingFlags, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK);
             int nodeLength = decodeLength(encodingFlags, NODE_SHIFT, NODE_MIN_LENGTH, NODE_MASK);
-            in.skipBytesFully(epochLength + hlcLength + flagsLength + nodeLength);
+            return epochLength + hlcLength + flagsLength + nodeLength;
         }
 
         @Override
@@ -648,10 +725,59 @@ public class CommandSerializers
             int encodingFlags = in.readByte();
             if (encodingFlags < 0)
                 return decodeSpecial(encodingFlags);
+            return deserializeFixed(encodingFlags, in);
+        }
+
+        public T[] deserializeArray(DataInputPlus in) throws IOException
+        {
+            int length = in.readUnsignedVInt32();
+            if (length == 0)
+                return allocator.apply(0);
+
+            // we could pack these a bit more tightly if we wanted to
+            long minEpoch = in.readUnsignedVInt();
+            long minHlc = in.readUnsignedVInt();
+            int minFlags = in.readUnsignedVInt32();
+            int minNodeId = in.readUnsignedVInt32();
+            int epochBits = in.readByte();
+            int hlcBits = in.readByte();
+            int flagBits = in.readByte();
+            int nodeBits = in.readByte();
+
+            long[] bits = ArrayBuffers.cachedLongs().getLongs(length * 2);
+            SerializePacked.deserializePacked((out, i, v) -> out[i*2] = Timestamp.epochMsb(minEpoch + v), bits, 0, length, mask(epochBits), in);
+            SerializePacked.deserializePacked((out, i, v) -> {
+                long hlc = minHlc + v;
+                out[i*2] |= Timestamp.hlcMsb(hlc);
+                out[i*2+1] = Timestamp.hlcLsb(hlc);
+            }, bits, 0, length, mask(hlcBits), in);
+            SerializePacked.deserializePacked((out, i, v) -> out[i*2 + 1] |= minFlags + v, bits, 0, length, mask(flagBits), in);
+            T[] ts = allocator.apply(length);
+            SerializePacked.deserializePacked((out, i, v) -> {
+                Node.Id id = new Node.Id(minNodeId + (int)v);
+                ts[i] = rawFactory.create(bits[i*2], bits[i*2 + 1], id);
+            }, bits, 0, length, mask(nodeBits), in);
+            ArrayBuffers.cachedLongs().forceDiscard(bits);
+            return ts;
+        }
+
+        private static long mask(int bits)
+        {
+            return bits == 0 ? 0 : -1L >>> (64 - bits);
+        }
+
+        public T deserializeFixed(int encodingFlags, DataInputPlus in) throws IOException
+        {
+            Invariants.require(((byte)encodingFlags) >= 0);
             int epochLength = decodeLength(encodingFlags, EPOCH_SHIFT, EPOCH_MIN_LENGTH, EPOCH_MASK);
             int hlcLength = decodeLength(encodingFlags, HLC_SHIFT, HLC_MIN_LENGTH, HLC_MASK);
             int flagsLength = decodeLength(encodingFlags, FLAGS_SHIFT, FLAGS_MIN_LENGTH, FLAGS_MASK);
             int nodeLength = decodeLength(encodingFlags, NODE_SHIFT, NODE_MIN_LENGTH, NODE_MASK);
+            return deserialize(epochLength, hlcLength, flagsLength, nodeLength, in);
+        }
+
+        private T deserialize(int epochLength, int hlcLength, int flagsLength, int nodeLength, DataInputPlus in) throws IOException
+        {
             long epoch = in.readLeastSignificantBytes(epochLength);
             long hlc = in.readLeastSignificantBytes(hlcLength);
             int flags = Math.toIntExact(in.readLeastSignificantBytes(flagsLength));
@@ -728,6 +854,49 @@ public class CommandSerializers
             return 1 + epochLength + hlcLength + flagsLength + nodeLength;
         }
 
+        public long serializedArraySize(T[] ts)
+        {
+            if (ts.length == 0)
+                return 1;
+
+            long minEpoch = Long.MAX_VALUE, maxEpoch = 0;
+            long minHlc = Long.MAX_VALUE, maxHlc = 0;
+            int minFlags = 0xFFFF, maxFlags = 0;
+            int minNodeId = Integer.MAX_VALUE, maxNodeId = 0;
+            for (int i = 0; i < ts.length; i++)
+            {
+                T t = ts[i];
+                long epoch = t.epoch();
+                minEpoch = Math.min(epoch, minEpoch);
+                maxEpoch = Math.max(epoch, maxEpoch);
+                long hlc = t.hlc();
+                minHlc = Math.min(hlc, minHlc);
+                maxHlc = Math.max(hlc, maxHlc);
+                int flags = t.flags();
+                minFlags = Math.min(flags, minFlags);
+                maxFlags = Math.max(flags, maxFlags);
+                int nodeId = t.node.id;
+                minNodeId = Math.min(nodeId, minNodeId);
+                maxNodeId = Math.max(nodeId, maxNodeId);
+            }
+
+            int epochBits = BitUtils.numberOfBitsToRepresent(maxEpoch - minEpoch);
+            int hlcBits = BitUtils.numberOfBitsToRepresent(maxHlc - minHlc);
+            int flagBits = BitUtils.numberOfBitsToRepresent(maxFlags - minFlags);
+            int nodeBits = BitUtils.numberOfBitsToRepresent(maxNodeId - minNodeId);
+
+            return VIntCoding.sizeOfUnsignedVInt(ts.length)
+                   + VIntCoding.sizeOfUnsignedVInt(minEpoch)
+                   + VIntCoding.sizeOfUnsignedVInt(minHlc)
+                   + VIntCoding.sizeOfUnsignedVInt(minFlags)
+                   + VIntCoding.sizeOfUnsignedVInt(minNodeId)
+                   + 4
+                   + serializedPackedBitsSize(ts.length, epochBits)
+                   + serializedPackedBitsSize(ts.length, hlcBits)
+                   + serializedPackedBitsSize(ts.length, flagBits)
+                   + serializedPackedBitsSize(ts.length, nodeBits);
+        }
+
         private static int length(long value, int minLength)
         {
             int length = ((64 + 7) - Long.numberOfLeadingZeros(value))/8;
@@ -747,6 +916,12 @@ public class CommandSerializers
             return encoded << shift;
         }
 
+        private static int reencodePartDecodedLength(int length, int shift, int mask)
+        {
+            Invariants.require(length <= mask);
+            return length << shift;
+        }
+
         private static long packLength(int length, int shift, int minLength, int mask)
         {
             int encoded = length - minLength;
@@ -758,6 +933,11 @@ public class CommandSerializers
         {
             return minLength + ((encodingFlags >>> shift) & mask);
         }
+
+        private static int maxPartDecoded(int flagsa, int flagsb, int shift, int mask)
+        {
+            return Math.max(((flagsa >>> shift) & mask), (flagsb >>> shift) & mask);
+        }
     }
 
     public static class BallotSerializer extends VariableWidthTimestampSerializer<Ballot>
@@ -766,7 +946,7 @@ public class CommandSerializers
         private static final byte MAX_BYTE = (byte) 0x82;
         private BallotSerializer()
         {
-            super(Ballot::fromValues);
+            super(Ballot::fromValues, Ballot::fromBits, Ballot[]::new);
         }
 
         @Override
@@ -923,9 +1103,9 @@ public class CommandSerializers
         {
             txnId.serialize(writes.txnId, out);
             ExecuteAtSerializer.serialize(writes.txnId, writes.executeAt, out);
-            KeySerializers.seekables.serialize(writes.keys, out);
             boolean hasWrite = writes.write != null;
             out.writeBoolean(hasWrite);
+            KeySerializers.seekables.serialize(writes.keys, out);
             if (hasWrite)
                 CommandSerializers.write.serialize(writes.write, writes.keys, out, version);
         }
@@ -935,12 +1115,26 @@ public class CommandSerializers
         {
             TxnId id = txnId.deserialize(in);
             Timestamp executeAt = ExecuteAtSerializer.deserialize(id, in);
-            Seekables seekables = KeySerializers.seekables.deserialize(in);
             boolean hasWrite = in.readBoolean();
+            Seekables seekables = KeySerializers.seekables.deserialize(in);
             Write write = null;
             if (hasWrite)
                 write = CommandSerializers.write.deserialize(seekables, in, version);
             return new Writes(id, executeAt, seekables, write);
+        }
+
+        @Override
+        public void skip(DataInputPlus in, Version version) throws IOException
+        {
+            txnId.skip(in);
+            ExecuteAtSerializer.skip(null, in);
+            boolean hasWrite = in.readBoolean();
+            if (hasWrite)
+            {
+                Seekables seekables = KeySerializers.seekables.deserialize(in);
+                CommandSerializers.write.skip(seekables, in, version);
+            }
+            else KeySerializers.seekables.skip(in);
         }
 
         @Override

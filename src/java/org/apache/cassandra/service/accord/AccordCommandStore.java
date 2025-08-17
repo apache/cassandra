@@ -79,7 +79,6 @@ import org.apache.cassandra.utils.Clock;
 
 import static accord.api.Journal.CommandUpdate;
 import static accord.api.Journal.FieldUpdates;
-import static accord.api.Journal.Load.MINIMAL;
 import static accord.utils.Invariants.require;
 import static org.apache.cassandra.journal.Params.ReplayMode.ONLY_NON_DURABLE;
 
@@ -435,7 +434,12 @@ public class AccordCommandStore extends CommandStore
 
     public Command.Minimal loadMinimal(TxnId txnId)
     {
-        return journal.loadMinimal(id, txnId, MINIMAL, unsafeGetRedundantBefore(), durableBefore());
+        return journal.loadMinimal(id, txnId, unsafeGetRedundantBefore(), durableBefore());
+    }
+
+    public Command.MinimalWithDeps loadMinimalWithDeps(TxnId txnId)
+    {
+        return journal.loadMinimalWithDeps(id, txnId, unsafeGetRedundantBefore(), durableBefore());
     }
 
     public AccordCompactionInfo getCompactionInfo()

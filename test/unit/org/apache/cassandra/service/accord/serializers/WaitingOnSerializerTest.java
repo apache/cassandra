@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.impl.CommandChange;
 import accord.local.Command;
 import accord.primitives.Deps;
 import accord.primitives.KeyDeps;
@@ -68,7 +69,8 @@ public class WaitingOnSerializerTest
             try (DataInputBuffer buf = new DataInputBuffer(bb, true))
             {
                 PartialDeps deps = new PartialDeps(RoutingKeys.EMPTY, KeyDeps.none(waitingOn.keys), waitingOn.directRangeDeps);
-                Command.WaitingOn read = WaitingOnSerializer.deserializeProvider(txnId, buf).provide(txnId, deps, null, 0);
+                CommandChange.WaitingOnBitSets bitSets = WaitingOnSerializer.deserializeBitSets(txnId, buf);
+                Command.WaitingOn read = new Command.WaitingOn(deps.keyDeps.keys(), deps.rangeDeps, bitSets.waitingOn, bitSets.appliedOrInvalidated);
                 Assertions.assertThat(read).isEqualTo(waitingOn);
                 Assertions.assertThat(buf.available()).isEqualTo(0);
             }

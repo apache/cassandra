@@ -50,6 +50,8 @@ import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.primitives.EpochSupplier;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
@@ -67,6 +69,7 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -94,6 +97,9 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 
+import static accord.api.Journal.Load.ALL;
+import static accord.api.Journal.Load.MINIMAL;
+import static accord.api.Journal.Load.MINIMAL_WITH_DEPS;
 import static accord.impl.CommandChange.Field.CLEANUP;
 import static accord.impl.CommandChange.anyFieldChanged;
 import static accord.impl.CommandChange.describeFlags;
@@ -278,10 +284,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return result;
     }
 
-    @Override
-    public Command.Minimal loadMinimal(int commandStoreId, TxnId txnId, Load load, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    // applies cleanup and returns null if no command should be returned
+    public static Builder cleanupAndFilter(Builder builder, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
-        Builder builder = loadDiffs(commandStoreId, txnId, load);
         if (builder.isEmpty())
             return null;
 
@@ -294,7 +299,21 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                 return null;
         }
         Invariants.require(builder.saveStatus() != null, "No saveSatus loaded, but next was called and cleanup was not: %s", builder);
-        return builder.asMinimal();
+        return builder;
+    }
+
+    @Override
+    public Command.Minimal loadMinimal(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    {
+        Builder builder = cleanupAndFilter(loadDiffs(commandStoreId, txnId, MINIMAL), redundantBefore, durableBefore);
+        return builder == null ? null : builder.asMinimal();
+    }
+
+    @Override
+    public Command.MinimalWithDeps loadMinimalWithDeps(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    {
+        Builder builder = cleanupAndFilter(loadDiffs(commandStoreId, txnId, MINIMAL_WITH_DEPS), redundantBefore, durableBefore);
+        return builder == null ? null : builder.asMinimalWithDeps();
     }
 
     @Override
@@ -831,7 +850,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         CommandSerializers.partialTxn.serialize(command.partialTxn(), out, userVersion);
                         break;
                     case PARTIAL_DEPS:
-                        DepsSerializers.partialDeps.serialize(command.partialDeps(), out);
+                        DepsSerializers.partialDepsById.serialize(command.partialDeps(), out);
                         break;
                     case WAITING_ON:
                         Command.WaitingOn waitingOn = command.waitingOn();
@@ -878,6 +897,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     public static class Builder extends CommandChange.Builder implements FlyweightImage
     {
+        private final boolean deserializeDeps;
+
         public Builder()
         {
             this(Load.ALL);
@@ -885,17 +906,35 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
         public Builder(Load load)
         {
-            super(null, load);
+            this(null, load);
         }
 
         public Builder(TxnId txnId)
         {
-            super(txnId, Load.ALL);
+            this(txnId, Load.ALL);
         }
 
         public Builder(TxnId txnId, Load load)
         {
             super(txnId, load);
+            deserializeDeps = load == ALL;
+        }
+
+        @Override
+        public PartialDeps partialDeps()
+        {
+            if (partialDeps instanceof ByteBuffer)
+            {
+                try
+                {
+                    partialDeps = DepsSerializers.partialDepsById.deserialize((ByteBuffer) partialDeps);
+                }
+                catch (IOException e)
+                {
+                    throw new IllegalStateException("Failed to materialise partially deserialised deps", e);
+                }
+            }
+            return (PartialDeps) partialDeps;
         }
 
         public void reset(JournalKey key)
@@ -970,15 +1009,17 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         break;
                     case PARTIAL_TXN:
                         Invariants.require(partialTxn != null, "%s", this);
-                        CommandSerializers.partialTxn.serialize(partialTxn, out, userVersion);
+                        if (partialTxn instanceof ByteBuffer) out.write(((ByteBuffer) partialTxn).duplicate());
+                        else CommandSerializers.partialTxn.serialize((PartialTxn) partialTxn, out, userVersion);
                         break;
                     case PARTIAL_DEPS:
                         Invariants.require(partialDeps != null, "%s", this);
-                        DepsSerializers.partialDeps.serialize(partialDeps, out);
+                        if (partialDeps instanceof ByteBuffer) out.write(((ByteBuffer) partialDeps).duplicate());
+                        else DepsSerializers.partialDepsById.serialize((PartialDeps) partialDeps, out);
                         break;
                     case WAITING_ON:
                         Invariants.require(waitingOn != null, "%s", this);
-                        ((WaitingOnSerializer.Provider)waitingOn).reserialize(out);
+                        ((WaitingOnSerializer.WaitingOnBitSetsAndLength)waitingOn).reserialize(out);
                         break;
                     case WRITES:
                         Invariants.require(writes != null, "%s", this);
@@ -1050,10 +1091,24 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     partialTxn = CommandSerializers.partialTxn.deserialize(in, userVersion);
                     break;
                 case PARTIAL_DEPS:
-                    partialDeps = DepsSerializers.partialDeps.deserialize(in);
+                    // TODO (required): this optimisation will be easily disabled;
+                    //  should either operate natively on ByteBuffer
+                    //  or else use some explicit API for copying bytes while skipping
+                    if (deserializeDeps || !(in instanceof DataInputBuffer))
+                    {
+                        partialDeps = DepsSerializers.partialDepsById.deserialize(in);
+                    }
+                    else
+                    {
+                        ByteBuffer buf = ((DataInputBuffer)in).buffer();
+                        int start = buf.position();
+                        DepsSerializers.partialDepsById.skip(in);
+                        int end = buf.position();
+                        partialDeps = buf.duplicate().position(start).limit(end);
+                    }
                     break;
                 case WAITING_ON:
-                    waitingOn = WaitingOnSerializer.deserializeProvider(txnId, in);
+                    waitingOn = WaitingOnSerializer.deserializeBitSets(txnId, in);
                     break;
                 case WRITES:
                     writes = CommandSerializers.writes.deserialize(in, userVersion);
@@ -1093,25 +1148,24 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                     CommandSerializers.ballot.skip(in);
                     break;
                 case PARTICIPANTS:
-                    CommandSerializers.participants.deserialize(in);
+                    CommandSerializers.participants.skip(in);
                     break;
                 case PARTIAL_TXN:
-                    CommandSerializers.partialTxn.deserialize(in, userVersion);
+                    CommandSerializers.partialTxn.skip(in, userVersion);
                     break;
                 case PARTIAL_DEPS:
-                    // TODO (expected): skip
-                    DepsSerializers.partialDeps.deserialize(in);
+                    DepsSerializers.partialDepsById.skip(in);
                     break;
                 case WAITING_ON:
                     WaitingOnSerializer.skip(txnId, in);
                     break;
                 case WRITES:
                     // TODO (expected): skip
-                    CommandSerializers.writes.deserialize(in, userVersion);
+                    CommandSerializers.writes.skip(in, userVersion);
                     break;
                 case RESULT:
                     // TODO (expected): skip
-                    ResultSerializers.result.deserialize(in);
+                    ResultSerializers.result.skip(in);
                     break;
             }
         }

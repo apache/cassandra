@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.local.MaxDecidedRX.DecidedRX;
 import accord.local.Node;
 import accord.primitives.Routable;
 import accord.primitives.Txn;
@@ -113,13 +114,14 @@ public class RangeMemoryIndexTest
         return TxnRange.next(rs, minKnown, maxKnown, RangeMemoryIndexTest::idFor);
     }
 
-    private static @Nullable TxnId nextMinDecidedId(RandomSource rs, State state)
+    private static @Nullable DecidedRX nextDecidedRX(RandomSource rs, State state)
     {
         if (rs.decide(state.minDecidedIdNull)) return null;
         long maxKnown = state.operations;
         long minKnown = state.model.isEmpty() ? maxKnown : state.model.minTime();
-        if (minKnown == maxKnown) return idFor(maxKnown);
-        return idFor(rs.nextLong(minKnown, maxKnown));
+        TxnId txnId = minKnown == maxKnown ? idFor(maxKnown)
+                                           : idFor(rs.nextLong(minKnown, maxKnown));
+        return new DecidedRX(txnId, txnId);
     }
 
     private static DecoratedKey pk(TxnId txnId)
@@ -159,11 +161,11 @@ public class RangeMemoryIndexTest
             var txnRange = nextTxnRange(rs, state);
             byte[] start = OrderedRouteSerializer.serializeTokenOnly(range.start());
             byte[] end = OrderedRouteSerializer.serializeTokenOnly(range.end());
-            @Nullable TxnId minDecidedId = nextMinDecidedId(rs, state);
-            return new Property.SimpleCommand<>("search(" + normalize(range) + ", " + txnRange + ", " + normalize(minDecidedId) + ')', s2 -> {
+            @Nullable DecidedRX decidedRX = nextDecidedRX(rs, state);
+            return new Property.SimpleCommand<>("search(" + normalize(range) + ", " + txnRange + ", " + decidedRX + ')', s2 -> {
                 TreeSet<TxnId> actual = new TreeSet<>();
-                state.index.search(STORE, TABLE_ID, start, end,  txnRange.minTxnId, txnRange.maxTxnId, minDecidedId, bb -> actual.add(AccordKeyspace.JournalColumns.getJournalKey(bb).id));
-                var expected = state.model.search(range, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId);
+                state.index.search(STORE, TABLE_ID, start, end,  txnRange.minTxnId, txnRange.maxTxnId, decidedRX, bb -> actual.add(AccordKeyspace.JournalColumns.getJournalKey(bb).id));
+                var expected = state.model.search(range, txnRange.minTxnId, txnRange.maxTxnId, decidedRX);
                 Assertions.assertThat(actual).isEqualTo(expected);
             });
         }
@@ -173,11 +175,11 @@ public class RangeMemoryIndexTest
             TokenKey key = tokenKey(rs.nextLong(MIN_TOKEN, MAX_TOKEN + 1));
             var txnRange = nextTxnRange(rs, state);
             var start = OrderedRouteSerializer.serializeTokenOnly(key);
-            @Nullable TxnId minDecidedId = nextMinDecidedId(rs, state);
-            return new Property.SimpleCommand<>("search(" + normalize(key) + ", " + txnRange + ", " + normalize(minDecidedId) + ')', s2 -> {
+            @Nullable DecidedRX decidedRX = nextDecidedRX(rs, state);
+            return new Property.SimpleCommand<>("search(" + normalize(key) + ", " + txnRange + ", " + decidedRX + ')', s2 -> {
                 TreeSet<TxnId> actual = new TreeSet<>();
-                state.index.search(STORE, TABLE_ID, start, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId, bb -> actual.add(AccordKeyspace.JournalColumns.getJournalKey(bb).id));
-                var expected = state.model.search(key, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId);
+                state.index.search(STORE, TABLE_ID, start, txnRange.minTxnId, txnRange.maxTxnId, decidedRX, bb -> actual.add(AccordKeyspace.JournalColumns.getJournalKey(bb).id));
+                var expected = state.model.search(key, txnRange.minTxnId, txnRange.maxTxnId, decidedRX);
                 Assertions.assertThat(actual).isEqualTo(expected);
             });
         }
@@ -219,23 +221,23 @@ public class RangeMemoryIndexTest
             return values.isEmpty();
         }
 
-        public NavigableSet<TxnId> search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
+        public NavigableSet<TxnId> search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
-            return search(r -> r.compareIntersecting(range) == 0, minTxnId, maxTxnId, minDecidedId);
+            return search(r -> r.compareIntersecting(range) == 0, minTxnId, maxTxnId, decidedRX);
         }
 
-        public NavigableSet<TxnId> search(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
+        public NavigableSet<TxnId> search(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
-            return search(r -> r.contains(key), minTxnId, maxTxnId, minDecidedId);
+            return search(r -> r.contains(key), minTxnId, maxTxnId, decidedRX);
         }
 
-        public NavigableSet<TxnId> search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
+        public NavigableSet<TxnId> search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             NavigableSet<TxnId> result = new TreeSet<>();
             for (var value : values)
             {
                 if (value.txnId.compareTo(minTxnId) < 0 || value.txnId.compareTo(maxTxnId) > 0) continue;
-                if (minDecidedId != null && minDecidedId.compareTo(maxRXId) > 0) continue;
+                if (decidedRX != null && decidedRX.excludeDecided(maxRXId)) continue;
                 if (test.test(value.range))
                     result.add(value.txnId);
             }

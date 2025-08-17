@@ -46,23 +46,31 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.serializers.TxnRequestSerializer.WithUnsyncedSerializer;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static accord.messages.BeginRecovery.RecoverReply.Kind.Ok;
-import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public class RecoverySerializers
 {
+    static final int HAS_ROUTE = 0x1;
+    static final int HAS_EXECUTE_AT_EPOCH = 0x2;
+    static final int IS_FAST_PATH_DECIDED = 0x4;
+    static final int SIZE_OF_FLAGS = VIntCoding.computeUnsignedVIntSize(HAS_ROUTE | HAS_EXECUTE_AT_EPOCH | IS_FAST_PATH_DECIDED);
     public static final IVersionedSerializer<BeginRecovery> request = new WithUnsyncedSerializer<BeginRecovery>()
     {
         @Override
         public void serializeBody(BeginRecovery recover, DataOutputPlus out, Version version) throws IOException
         {
             CommandSerializers.partialTxn.serialize(recover.partialTxn, out, version);
+            int flags =   (recover.route != null ? HAS_ROUTE : 0)
+                        | (recover.executeAtOrTxnIdEpoch != recover.txnId.epoch() ? HAS_EXECUTE_AT_EPOCH : 0)
+                        | (recover.isFastPathDecided ? IS_FAST_PATH_DECIDED : 0);
             CommandSerializers.ballot.serialize(recover.ballot, out);
-            serializeNullable(recover.route, out, KeySerializers.fullRoute);
-            out.writeUnsignedVInt(recover.executeAtOrTxnIdEpoch - recover.txnId.epoch());
+            out.writeUnsignedVInt32(flags);
+            if (recover.route != null)
+                KeySerializers.fullRoute.serialize(recover.route, out);
+            if (0 != (flags & HAS_EXECUTE_AT_EPOCH))
+                out.writeUnsignedVInt(recover.executeAtOrTxnIdEpoch - recover.txnId.epoch());
         }
 
         @Override
@@ -70,9 +78,15 @@ public class RecoverySerializers
         {
             PartialTxn partialTxn = CommandSerializers.partialTxn.deserialize(in, version);
             Ballot ballot = CommandSerializers.ballot.deserialize(in);
-            @Nullable FullRoute<?> route = deserializeNullable(in, KeySerializers.fullRoute);
-            long executeAtOrTxnIdEpoch = in.readUnsignedVInt32() + txnId.epoch();
-            return BeginRecovery.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, partialTxn, ballot, route, executeAtOrTxnIdEpoch);
+            int flags = in.readUnsignedVInt32();
+            FullRoute<?> route = null;
+            if (0 != (flags & HAS_ROUTE))
+                route = KeySerializers.fullRoute.deserialize(in);
+            long executeAtOrTxnIdEpoch = txnId.epoch();
+            if (0 != (flags & HAS_EXECUTE_AT_EPOCH))
+                executeAtOrTxnIdEpoch += in.readUnsignedVInt32();
+            boolean isFastPathDecided = 0 != (flags & IS_FAST_PATH_DECIDED);
+            return BeginRecovery.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, partialTxn, ballot, route, executeAtOrTxnIdEpoch, isFastPathDecided);
         }
 
         @Override
@@ -80,8 +94,9 @@ public class RecoverySerializers
         {
             return CommandSerializers.partialTxn.serializedSize(recover.partialTxn, version)
                    + CommandSerializers.ballot.serializedSize(recover.ballot)
-                   + serializedNullableSize(recover.route, KeySerializers.fullRoute)
-                   + TypeSizes.sizeofUnsignedVInt(recover.executeAtOrTxnIdEpoch - recover.txnId.epoch());
+                   + SIZE_OF_FLAGS
+                   + (recover.route == null ? 0 : KeySerializers.fullRoute.serializedSize(recover.route))
+                   + (recover.executeAtOrTxnIdEpoch == recover.txnId.epoch() ? 0 : TypeSizes.sizeofUnsignedVInt(recover.executeAtOrTxnIdEpoch - recover.txnId.epoch()));
         }
     };
 
