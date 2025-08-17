@@ -34,6 +34,7 @@ import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.local.MaxDecidedRX.DecidedRX;
 import accord.primitives.Participants;
 import accord.primitives.Routable;
 import accord.primitives.Timestamp;
@@ -86,12 +87,12 @@ public class RangeMemoryIndex
         }
 
         void search(byte[] start, byte[] end,
-                    TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                    TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
                     Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
         {
             if (this.minTxnId.compareTo(maxTxnId) > 0 || this.maxTxnId.compareTo(minTxnId) < 0)
                 return;
-            if (maxRXId != null && !RouteIndexFormat.includeByMinDecidedId(minDecidedId, maxRXId))
+            if (maxRXId != null && !RouteIndexFormat.includeByDecidedRX(decidedRX, maxRXId))
                 return;
             tree.search(new Range(start, end), e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
@@ -101,12 +102,12 @@ public class RangeMemoryIndex
         }
 
         void searchToken(byte[] key,
-                         TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                         TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
                          Consumer<Map.Entry<RangeMemoryIndex.Range, DecoratedKey>> fn)
         {
             if (this.minTxnId.compareTo(maxTxnId) > 0 || this.maxTxnId.compareTo(minTxnId) < 0)
                 return;
-            if (maxRXId != null && !RouteIndexFormat.includeByMinDecidedId(minDecidedId, maxRXId))
+            if (maxRXId != null && !RouteIndexFormat.includeByDecidedRX(decidedRX, maxRXId))
                 return;
             tree.searchToken(key, e -> {
                 TxnId id = AccordKeyspace.JournalColumns.getJournalKey(e.getValue()).id;
@@ -198,25 +199,25 @@ public class RangeMemoryIndex
 
     public synchronized void search(int storeId, TableId tableId,
                                     byte[] start, byte[] end,
-                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
                                     Consumer<ByteBuffer> onMatch)
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return;
         if (group.tree.isEmpty()) return;
 
-        group.search(start, end, minTxnId, maxTxnId, minDecidedId, e -> onMatch.accept(e.getValue().getKey()));
+        group.search(start, end, minTxnId, maxTxnId, decidedRX, e -> onMatch.accept(e.getValue().getKey()));
     }
 
     public synchronized void search(int storeId, TableId tableId, byte[] key,
-                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
                                     Consumer<ByteBuffer> onMatch)
     {
         Group group = map.get(new Key(storeId, tableId));
         if (group == null) return;
         if (group.tree.isEmpty()) return;
 
-        group.searchToken(key, minTxnId, maxTxnId, minDecidedId, e -> onMatch.accept(e.getValue().getKey()));
+        group.searchToken(key, minTxnId, maxTxnId, decidedRX, e -> onMatch.accept(e.getValue().getKey()));
     }
 
     public synchronized boolean isEmpty()

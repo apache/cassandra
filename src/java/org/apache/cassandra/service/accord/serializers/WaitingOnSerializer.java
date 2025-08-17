@@ -20,7 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.impl.CommandChange.WaitingOnProvider;
+import accord.impl.CommandChange.WaitingOnBitSets;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
 import accord.primitives.PartialDeps;
@@ -57,21 +57,18 @@ public class WaitingOnSerializer
         }
     }
 
-    public static final class Provider implements WaitingOnProvider
+    public static final class WaitingOnBitSetsAndLength extends WaitingOnBitSets
     {
-        final ImmutableBitSet waitingOn, appliedOrInvalidated;
         final int waitingOnLength, appliedOrInvalidatedLength;
 
-        public Provider(ImmutableBitSet waitingOn, ImmutableBitSet appliedOrInvalidated, int waitingOnLength, int appliedOrInvalidatedLength)
+        public WaitingOnBitSetsAndLength(ImmutableBitSet waitingOn, ImmutableBitSet appliedOrInvalidated, int waitingOnLength, int appliedOrInvalidatedLength)
         {
-            this.waitingOn = waitingOn;
-            this.appliedOrInvalidated = appliedOrInvalidated;
+            super(waitingOn, appliedOrInvalidated);
             this.waitingOnLength = waitingOnLength;
             this.appliedOrInvalidatedLength = appliedOrInvalidatedLength;
         }
 
-        @Override
-        public WaitingOn provide(TxnId txnId, PartialDeps deps, Timestamp executeAtLeast, long uniqueHlc)
+        public WaitingOn construct(PartialDeps deps, Timestamp executeAtLeast, long uniqueHlc)
         {
             Invariants.nonNull(deps);
             RoutingKeys keys = deps.keyDeps.keys();
@@ -98,7 +95,7 @@ public class WaitingOnSerializer
         }
     }
 
-    public static WaitingOnProvider deserializeProvider(TxnId txnId, DataInputPlus in) throws IOException
+    public static WaitingOnBitSets deserializeBitSets(TxnId txnId, DataInputPlus in) throws IOException
     {
         ImmutableBitSet waitingOn, appliedOrInvalidated = null;
         int waitingOnLength, appliedOrInvalidatedLength = 0;
@@ -110,7 +107,7 @@ public class WaitingOnSerializer
             appliedOrInvalidated = deserialize(appliedOrInvalidatedLength, in);
         }
 
-        return new Provider(waitingOn, appliedOrInvalidated, waitingOnLength, appliedOrInvalidatedLength);
+        return new WaitingOnBitSetsAndLength(waitingOn, appliedOrInvalidated, waitingOnLength, appliedOrInvalidatedLength);
     }
 
     public static void skip(TxnId txnId, DataInputPlus in) throws IOException

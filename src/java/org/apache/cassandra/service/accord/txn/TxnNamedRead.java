@@ -73,6 +73,7 @@ import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.io.util.DataOutputBuffer.scratchBuffer;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
+import static org.apache.cassandra.utils.ByteBufferUtil.skipWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
 
 public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadCommand, TableMetadatas>
@@ -429,6 +430,14 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
             if (version != Version.LATEST)
                 bytes = serializeUnchecked(deserializeUnchecked(tablesAndKeys, bytes, version), tablesAndKeys, Version.LATEST);
             return new TxnNamedRead(name, key, bytes);
+        }
+
+        @Override
+        public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
+        {
+            in.readInt();
+            tablesAndKeys.skipSeekable(in);
+            if (in.readByte() != 1) skipWithVIntLength(in);
         }
 
         @Override

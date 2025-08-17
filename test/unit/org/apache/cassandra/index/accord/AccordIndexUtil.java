@@ -20,6 +20,7 @@ package org.apache.cassandra.index.accord;
 
 import javax.annotation.Nullable;
 
+import accord.local.MaxDecidedRX;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -39,5 +40,10 @@ public class AccordIndexUtil
     public static String normalize(@Nullable TxnId txnId)
     {
         return "T:" + (txnId == null ? "null" : Long.toString(txnId.hlc()));
+    }
+
+    public static String normalize(@Nullable MaxDecidedRX.DecidedRX decidedRX)
+    {
+        return "T:" + (decidedRX == null ? "null" : Long.toString(decidedRX.any.hlc()));
     }
 }

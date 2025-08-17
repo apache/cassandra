@@ -1031,7 +1031,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         {
             row = null;
             modified = false;
-            builder.clear();
+            builder.reset();
         }
     }
 

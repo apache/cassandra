@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Maps;
 
+import accord.local.MaxDecidedRX;
 import accord.local.StoreParticipants;
 import accord.primitives.Participants;
 import accord.primitives.Txn;
@@ -92,10 +93,10 @@ public class RouteIndexFormat
         return touches.deserialize(bytes);
     }
 
-    public static boolean includeByMinDecidedId(@Nullable TxnId minDecidedId, TxnId txnId)
+    public static boolean includeByDecidedRX(@Nullable MaxDecidedRX.DecidedRX decidedRX, TxnId txnId)
     {
-        if (minDecidedId == null || txnId.equals(TxnId.NONE) || !txnId.is(Txn.Kind.ExclusiveSyncPoint)) return true;
-        return txnId.compareTo(minDecidedId) >= 0;
+        if (decidedRX == null || txnId.equals(TxnId.NONE) || !txnId.is(Txn.Kind.ExclusiveSyncPoint)) return true;
+        return decidedRX.includeDecided(txnId);
     }
 
     public interface Writer extends SSTableFlushObserver

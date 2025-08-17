@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
+import accord.local.MaxDecidedRX.DecidedRX;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.DecoratedKey;
@@ -106,22 +107,22 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
 
     @Override
     public void search(int storeId, TableId tableId, byte[] start, byte[] end,
-                       TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                       TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
                        Consumer<ByteBuffer> onMatch)
     {
         liveMemtableIndexMap.values().forEach(m -> m.search(storeId, tableId,
                                                             start, end,
-                                                            minTxnId, maxTxnId, minDecidedId,
+                                                            minTxnId, maxTxnId, decidedRX,
                                                             onMatch));
     }
 
     @Override
     public void search(int storeId, TableId tableId, byte[] key,
-                       TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                       TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX,
                        Consumer<ByteBuffer> onMatch)
     {
         liveMemtableIndexMap.values().forEach(m -> m.search(storeId, tableId, key,
-                                                            minTxnId, maxTxnId, minDecidedId,
+                                                            minTxnId, maxTxnId, decidedRX,
                                                             onMatch));
     }
 }

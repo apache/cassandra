@@ -29,6 +29,7 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
+import accord.local.MaxDecidedRX;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.FSReadError;
@@ -72,6 +73,7 @@ public class RouteSSTableManager implements SSTableManager
             }
             catch (IOException e)
             {
+                if (notComplete == null) notComplete = new ArrayList<>();
                 notComplete.add(sstable);
             }
         }
@@ -88,7 +90,7 @@ public class RouteSSTableManager implements SSTableManager
     @Override
     public synchronized void search(int storeId, TableId tableId,
                                     byte[] start, byte[] end,
-                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId,
+                                    TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX,
                                     Consumer<ByteBuffer> onMatch)
     {
         Key group = new Key(storeId, tableId);
@@ -96,7 +98,7 @@ public class RouteSSTableManager implements SSTableManager
         {
             try
             {
-                index.search(group, start, end, minTxnId, maxTxnId, minDecidedId, onMatch);
+                index.search(group, start, end, minTxnId, maxTxnId, decidedRX, onMatch);
             }
             catch (Throwable t)
             {
@@ -107,10 +109,10 @@ public class RouteSSTableManager implements SSTableManager
     }
 
     @Override
-    public synchronized void search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, Consumer<ByteBuffer> onMatch)
+    public synchronized void search(int storeId, TableId tableId, byte[] key, TxnId minTxnId, Timestamp maxTxnId, @Nullable MaxDecidedRX.DecidedRX decidedRX, Consumer<ByteBuffer> onMatch)
     {
         Key group = new Key(storeId, tableId);
         for (SSTableIndex index : sstables.values())
-            index.search(group, key, minTxnId, maxTxnId, minDecidedId, onMatch);
+            index.search(group, key, minTxnId, maxTxnId, decidedRX, onMatch);
     }
 }

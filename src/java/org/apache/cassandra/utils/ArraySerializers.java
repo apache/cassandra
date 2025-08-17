@@ -69,6 +69,13 @@ public class ArraySerializers
         return items;
     }
 
+    public static <T, P, Version> void skipArray(DataInputPlus in, UnversionedSerializer<T> serializer) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        for (int i = 0; i < size; i++)
+            serializer.skip(in);
+    }
+
     public static <T> T[] deserializeArray(DataInputPlus in, int version, IVersionedSerializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
     {
         int size = in.readUnsignedVInt32();
@@ -87,6 +94,14 @@ public class ArraySerializers
         return items;
     }
 
+    public static <T, Version> void skipArray(DataInputPlus in, Version version, AsymmetricVersionedSerializer<T, ?, Version> serializer) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        for (int i = 0; i < size; i++)
+            serializer.skip(in, version);
+    }
+
+
     public static <T, P, Version> T[] deserializeArray(P p, DataInputPlus in, Version version, ParameterisedVersionedSerializer<T, P, Version> serializer, IntFunction<T[]> arrayFactory) throws IOException
     {
         int size = in.readUnsignedVInt32();
@@ -94,6 +109,13 @@ public class ArraySerializers
         for (int i = 0; i < size; i++)
             items[i] = serializer.deserialize(p, in, version);
         return items;
+    }
+
+    public static <T, P, Version> void skipArray(P p, DataInputPlus in, Version version, ParameterisedVersionedSerializer<T, P, Version> serializer) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        for (int i = 0; i < size; i++)
+            serializer.skip(p, in, version);
     }
 
     public static <T> long serializedArraySize(T[] array, UnversionedSerializer<T> serializer)

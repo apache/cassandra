@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -31,6 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
+import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandSummaries;
@@ -54,12 +57,17 @@ import accord.utils.Invariants;
 import accord.utils.SymmetricComparator;
 import accord.utils.UnhandledEnum;
 import org.agrona.collections.Object2ObjectHashMap;
+import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.IntervalBTree;
 import org.apache.cassandra.utils.concurrent.IntrusiveStack;
 
+import static accord.api.Journal.Load.MINIMAL;
+import static accord.api.Journal.Load.MINIMAL_WITH_DEPS;
 import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.endWithStart;
 import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.keyEndWithStart;
 import static org.apache.cassandra.utils.btree.IntervalBTree.InclusiveEndHelper.keyStartWithEnd;
@@ -375,11 +383,11 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             {
                 case Range:
                     for (Unseekable range : searchKeysOrRanges)
-                        manager.searcher.search(manager.commandStore.id(), (TokenRange) range, minTxnId, maxTxnId, minDecidedId).consume(forEach);
+                        manager.searcher.search(manager.commandStore.id(), (TokenRange) range, minTxnId, maxTxnId, decidedRx).consume(forEach);
                     break;
                 case Key:
                     for (Unseekable key : searchKeysOrRanges)
-                        manager.searcher.search(manager.commandStore.id(), (TokenKey) key, minTxnId, maxTxnId, minDecidedId).consume(forEach);
+                        manager.searcher.search(manager.commandStore.id(), (TokenKey) key, minTxnId, maxTxnId, decidedRx).consume(forEach);
             }
         }
 
@@ -448,7 +456,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             }
             else
             {
-                Command cmd = manager.commandStore.loadCommand(txnId);
+                Command.MinimalWithDeps cmd = manager.commandStore.loadMinimalWithDeps(txnId);
                 if (cmd != null)
                     return ifRelevant(cmd);
             }
@@ -477,19 +485,38 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             }
 
             TxnId txnId = state.key();
-            if (!txnId.isVisible() || txnId.compareTo(minTxnId) < 0 || txnId.compareTo(maxTxnId) >= 0)
+            if (!isMaybeRelevant(txnId))
                 return null;
 
-            Command command = state.getExclusive();
+            Object command = state.getOrShrunkExclusive();
             if (command == null)
                 return null;
-            return ifRelevant(command);
-        }
 
-        public Summary ifRelevant(Command.Minimal cmd)
-        {
-            Invariants.require(findAsDep == null);
-            return ifRelevant(cmd.txnId, cmd.executeAt, cmd.saveStatus, cmd.durability, cmd.participants, null);
+            if (command instanceof Command)
+                return ifRelevant((Command) command);
+
+            Invariants.require(command instanceof ByteBuffer);
+            AccordJournal.Builder builder = new AccordJournal.Builder(txnId, findAsDep == null ? MINIMAL : MINIMAL_WITH_DEPS);
+            ByteBuffer buffer = (ByteBuffer) command;
+            buffer.mark();
+            try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
+            {
+                builder.deserializeNext(buf, Version.LATEST);
+                if (findAsDep == null) return ifRelevant(builder.asMinimal());
+                else return ifRelevant(builder.asMinimalWithDeps());
+            }
+            catch (UnknownTableException e)
+            {
+                return null;
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            finally
+            {
+                buffer.reset();
+            }
         }
     }
 }

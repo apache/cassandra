@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.local.MaxDecidedRX.DecidedRX;
 import accord.local.Node;
 import accord.primitives.FullRangeRoute;
 import accord.primitives.Range;
@@ -119,13 +120,14 @@ public class RouteInMemoryIndexTest
         return TxnRange.next(rs, minKnown, maxKnown, RouteInMemoryIndexTest::idFor);
     }
 
-    private static @Nullable TxnId nextMinDecidedId(RandomSource rs, State state)
+    private static @Nullable DecidedRX nextDecidedRX(RandomSource rs, State state)
     {
         if (rs.decide(state.minDecidedIdNull)) return null;
         long maxKnown = state.operations;
         long minKnown = state.model.isEmpty() ? maxKnown : state.model.minTime();
-        if (minKnown == maxKnown) return idFor(maxKnown);
-        return idFor(rs.nextLong(minKnown, maxKnown));
+        TxnId txnId = minKnown == maxKnown ? idFor(maxKnown)
+                                           : idFor(rs.nextLong(minKnown, maxKnown));
+        return new DecidedRX(txnId, txnId);
     }
 
     private static class State
@@ -197,33 +199,33 @@ public class RouteInMemoryIndexTest
         {
             var range = nextRange(rs);
             var txnRange = nextTxnRange(rs, state);
-            @Nullable TxnId minDecidedId = nextMinDecidedId(rs, state);
-            return new Property.SimpleCommand<>("Search " + normalize(range) + ", txn_id range " + txnRange + ", minDecidedId " + normalize(minDecidedId), s2 -> s2.assertSearchMatch(range, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId));
+            @Nullable DecidedRX decidedRX = nextDecidedRX(rs, state);
+            return new Property.SimpleCommand<>("Search " + normalize(range) + ", txn_id range " + txnRange + ", minDecidedId " + normalize(decidedRX), s2 -> s2.assertSearchMatch(range, txnRange.minTxnId, txnRange.maxTxnId, decidedRX));
         }
 
         public static Property.Command<State, Void, ?> keySearch(RandomSource rs, State state)
         {
             TokenKey key = tokenKey(rs.nextLong(MIN_TOKEN, MAX_TOKEN + 1));
             var txnRange = nextTxnRange(rs, state);
-            @Nullable TxnId minDecidedId = nextMinDecidedId(rs, state);
-            return new Property.SimpleCommand<>("Search " + normalize(key) + ", txn_id range " + txnRange + ", minDecidedId " + normalize(minDecidedId), s2 -> s2.assertSearchMatch(key, txnRange.minTxnId, txnRange.maxTxnId, minDecidedId));
+            @Nullable DecidedRX decidedRX = nextDecidedRX(rs, state);
+            return new Property.SimpleCommand<>("Search " + normalize(key) + ", txn_id range " + txnRange + ", decidedRX " + normalize(decidedRX), s2 -> s2.assertSearchMatch(key, txnRange.minTxnId, txnRange.maxTxnId, decidedRX));
         }
 
-        private void assertSearchMatch(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
+        private void assertSearchMatch(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             List<TxnId> actual = new ArrayList<>();
-            index.search(0, range, minTxnId, maxTxnId, minDecidedId).consume(actual::add);
+            index.search(0, range, minTxnId, maxTxnId, decidedRX).consume(actual::add);
             List<TxnId> expected = new ArrayList<>();
-            model.search(range, minTxnId, maxTxnId, minDecidedId).consume(expected::add);
+            model.search(range, minTxnId, maxTxnId, decidedRX).consume(expected::add);
             Assertions.assertThat(actual).isEqualTo(expected);
         }
 
-        private void assertSearchMatch(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
+        private void assertSearchMatch(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             List<TxnId> actual = new ArrayList<>();
-            index.search(0, key, minTxnId, maxTxnId, minDecidedId).consume(actual::add);
+            index.search(0, key, minTxnId, maxTxnId, decidedRX).consume(actual::add);
             List<TxnId> expected = new ArrayList<>();
-            model.search(key, minTxnId, maxTxnId, minDecidedId).consume(expected::add);
+            model.search(key, minTxnId, maxTxnId, decidedRX).consume(expected::add);
             Assertions.assertThat(actual).isEqualTo(expected);
         }
     }
@@ -276,22 +278,22 @@ public class RouteInMemoryIndexTest
             segments.computeIfAbsent(segment, i -> new Segment()).add(range, txnId);
         }
 
-        public RangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
+        public RangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
-            return search(vrange -> range.compareIntersecting(vrange) == 0, minTxnId, maxTxnId, minDecidedId);
+            return search(vrange -> range.compareIntersecting(vrange) == 0, minTxnId, maxTxnId, decidedRX);
         }
 
-        public RangeSearcher.Result search(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
+        public RangeSearcher.Result search(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
-            return search(range -> range.contains(key), minTxnId, maxTxnId, minDecidedId);
+            return search(range -> range.contains(key), minTxnId, maxTxnId, decidedRX);
         }
 
-        public RangeSearcher.Result search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId, @Nullable TxnId minDecidedId)
+        public RangeSearcher.Result search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             TreeSet<TxnId> result = new TreeSet<>();
             for (var segment: segments.values())
             {
-                if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, segment.maxRXId)) continue;
+                if (!RouteIndexFormat.includeByDecidedRX(decidedRX, segment.maxRXId)) continue;
                 for (var value : segment.values)
                 {
                     if (value.txnId.compareTo(minTxnId) < 0 || value.txnId.compareTo(maxTxnId) > 0) continue;
@@ -299,7 +301,7 @@ public class RouteInMemoryIndexTest
                         result.add(value.txnId);
                 }
             }
-            return new RangeSearcher.DefaultResult(minTxnId, maxTxnId, minDecidedId, CloseableIterator.wrap(result.iterator()));
+            return new RangeSearcher.DefaultResult(minTxnId, maxTxnId, decidedRX, CloseableIterator.wrap(result.iterator()));
         }
 
         void remove(long segment)

@@ -122,6 +122,13 @@ public abstract class AccordUpdate implements Update
         }
 
         @Override
+        public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
+        {
+            Kind kind = Kind.valueOf(in.readByte());
+            serializerFor(kind).skip(tablesAndKeys, in, version);
+        }
+
+        @Override
         public long serializedSize(AccordUpdate update, TableMetadatasAndKeys tablesAndKeys, Version version)
         {
             return 1 + serializerFor(update).serializedSize(update, tablesAndKeys, version);

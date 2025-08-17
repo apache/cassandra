@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import accord.local.MaxDecidedRX.DecidedRX;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.index.accord.CheckpointIntervalArrayIndex.SegmentSearcher;
@@ -82,14 +83,14 @@ public class SSTableIndex extends SharedCloseableImpl
         return new SSTableIndex(id, files, segments, cleanup);
     }
 
-    public void search(Key group, byte[] key, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, Consumer<ByteBuffer> onMatch)
+    public void search(Key group, byte[] key, TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX, Consumer<ByteBuffer> onMatch)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
                                             if (metadata == null) return false;
                                             if (metadata.maxTxnId.compareTo(minTxnId) < 0 || metadata.minTxnId.compareTo(maxTxnId) > 0)
                                                 return false;
-                                            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, metadata.maxRxId))
+                                            if (!RouteIndexFormat.includeByDecidedRX(decidedRX, metadata.maxRxId))
                                                 return false;
                                             return ByteArrayUtil.compareUnsigned(metadata.minTerm, key) < 0
                                                    && ByteArrayUtil.compareUnsigned(metadata.maxTerm, key) >= 0;
@@ -115,14 +116,14 @@ public class SSTableIndex extends SharedCloseableImpl
         }
     }
 
-    public void search(Key group, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId, @Nullable TxnId minDecidedId, Consumer<ByteBuffer> onMatch)
+    public void search(Key group, byte[] start, byte[] end, TxnId minTxnId, Timestamp maxTxnId, @Nullable DecidedRX decidedRX, Consumer<ByteBuffer> onMatch)
     {
         List<Segment> matches = segments.stream().filter(s -> {
                                             Segment.Metadata metadata = s.groups.get(group);
                                             if (metadata == null) return false;
                                             if (metadata.maxTxnId.compareTo(minTxnId) < 0 || metadata.minTxnId.compareTo(maxTxnId) > 0)
                                                 return false;
-                                            if (!RouteIndexFormat.includeByMinDecidedId(minDecidedId, metadata.maxRxId))
+                                            if (!RouteIndexFormat.includeByDecidedRX(decidedRX, metadata.maxRxId))
                                                 return false;
                                             if (ByteArrayUtil.compareUnsigned(metadata.minTerm, end) >= 0)
                                                 return false;

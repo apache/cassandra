@@ -66,8 +66,10 @@ import static org.apache.cassandra.service.accord.AccordSerializers.consistencyL
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
+import static org.apache.cassandra.utils.ArraySerializers.skipArray;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
+import static org.apache.cassandra.utils.ByteBufferUtil.skipWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
@@ -290,6 +292,16 @@ public class TxnUpdate extends AccordUpdate
             ByteBuffer[] fragments = deserializeArray(in, ByteBufferUtil.byteBufferSerializer, ByteBuffer[]::new);
             ConsistencyLevel consistencyLevel = deserializeNullable(in, consistencyLevelSerializer);
             return new TxnUpdate(tablesAndKeys.tables, keys, fragments, new SerializedTxnCondition(condition), consistencyLevel, preserveTimestamps ? PreserveTimestamp.yes : PreserveTimestamp.no);
+        }
+
+        @Override
+        public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
+        {
+            in.readByte();
+            tablesAndKeys.skipKeys(in);
+            skipWithVIntLength(in);
+            skipArray(in, ByteBufferUtil.byteBufferSerializer);
+            deserializeNullable(in, consistencyLevelSerializer);
         }
 
         @Override
