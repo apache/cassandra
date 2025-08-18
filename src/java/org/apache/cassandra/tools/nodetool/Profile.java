@@ -1,12 +1,12 @@
 package org.apache.cassandra.tools.nodetool;
 
-import org.apache.cassandra.profiler.AsyncProfilerMBean;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.profiler.AsyncProfilerMBean;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "profile", description = "Control async-profiler on this node")
+@Command(name = "profile", description = "Run Async-Profiler on the cassandra process")
 public class Profile extends AbstractCommand {
 
     @Option(names = {"-s", "--start"}, description = "Start profiling")
