@@ -92,6 +92,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -3263,6 +3264,50 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                  .row(0, 0, Collections.singleton(1), 2)
                          .build());
              });
+    }
+
+    @Test
+    public void updateMultipleRows()
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH " + transactionalMode.asCqlParam());
+
+        ICoordinator node = SHARED_CLUSTER.coordinator(1);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 10, 100)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 20, 200)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 30, 300)", ConsistencyLevel.QUORUM);
+
+        node.execute("BEGIN TRANSACTION\n" +
+                            "  UPDATE " + qualifiedAccordTableName + '\n' +
+                            "  SET v = 999\n" +
+                            "  WHERE pk = 1\n" +
+                            "        AND ck IN (10, 20);\n" +
+                            "COMMIT TRANSACTION", ConsistencyLevel.QUORUM);
+
+        assertRows(node.execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1", ConsistencyLevel.QUORUM),
+                   AssertUtils.row(1, 10, 999),
+                   AssertUtils.row(1, 20, 999),
+                   AssertUtils.row(1, 30, 300));
+    }
+
+    @Test
+    public void deleteMultipleRows()
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH " + transactionalMode.asCqlParam());
+
+        ICoordinator node = SHARED_CLUSTER.coordinator(1);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 10, 100)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 20, 200)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 30, 300)", ConsistencyLevel.QUORUM);
+
+        node.execute("BEGIN TRANSACTION\n" +
+                     "  DELETE FROM " + qualifiedAccordTableName + '\n' +
+                     "  WHERE pk = 1\n" +
+                     "        AND ck IN (10, 20);\n" +
+                     "COMMIT TRANSACTION", ConsistencyLevel.QUORUM);
+
+        // Verify the deletes
+        assertRows(node.execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1", ConsistencyLevel.QUORUM),
+                   AssertUtils.row(1, 30, 300));
     }
 
     @Test
