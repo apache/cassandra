@@ -19,11 +19,10 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.TypeSizes;
@@ -40,18 +39,17 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedListSiz
 
 public class TxnReferenceOperations
 {
-    private static final TxnReferenceOperations EMPTY = new TxnReferenceOperations(null, null, Collections.emptyList(), Collections.emptyList());
+    private static final TxnReferenceOperations EMPTY = new TxnReferenceOperations(null, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
 
     private final TableMetadata metadata;
-    final Clustering<?> clustering;
+    final List<Clustering<?>> clusterings;
     final List<TxnReferenceOperation> regulars;
     final List<TxnReferenceOperation> statics;
 
-    public TxnReferenceOperations(TableMetadata metadata, Clustering<?> clustering, List<TxnReferenceOperation> regulars, List<TxnReferenceOperation> statics)
+    public TxnReferenceOperations(TableMetadata metadata, List<Clustering<?>> clusterings, List<TxnReferenceOperation> regulars, List<TxnReferenceOperation> statics)
     {
         this.metadata = metadata;
-        Preconditions.checkArgument(clustering != null || regulars.isEmpty());
-        this.clustering = clustering;
+        this.clusterings = clusterings;
         this.regulars = regulars;
         this.statics = statics;
     }
@@ -62,19 +60,19 @@ public class TxnReferenceOperations
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TxnReferenceOperations that = (TxnReferenceOperations) o;
-        return metadata.equals(that.metadata) && Objects.equals(clustering, that.clustering) && regulars.equals(that.regulars) && statics.equals(that.statics);
+        return metadata.equals(that.metadata) && clusterings.equals(that.clusterings) && regulars.equals(that.regulars) && statics.equals(that.statics);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(metadata, clustering, regulars, statics);
+        return Objects.hash(metadata, clusterings, regulars, statics);
     }
 
     @Override
     public String toString()
     {
-        return "TxnReferenceOperations{metadata=" + metadata + ", clustering=" + clustering + ", regulars=" + regulars + ", statics=" + statics + '}';
+        return "TxnReferenceOperations{metadata=" + metadata + ", clusterings=" + clusterings + ", regulars=" + regulars + ", statics=" + statics + '}';
     }
 
     public static TxnReferenceOperations empty()
@@ -97,9 +95,9 @@ public class TxnReferenceOperations
                 return;
 
             tables.serialize(operations.metadata, out);
-            out.writeBoolean(operations.clustering != null);
-            if (operations.clustering != null)
-                Clustering.serializer.serialize(operations.clustering, out, version.messageVersion(), operations.metadata.comparator.subtypes());
+            out.writeVInt32(operations.clusterings.size());
+            for (Clustering<?> clustering : operations.clusterings)
+                Clustering.serializer.serialize(clustering, out, version.messageVersion(), operations.metadata.comparator.subtypes());
             serializeList(operations.regulars, tables, out, TxnReferenceOperation.serializer);
             serializeList(operations.statics, tables, out, TxnReferenceOperation.serializer);
         }
@@ -111,8 +109,11 @@ public class TxnReferenceOperations
                 return TxnReferenceOperations.empty();
 
             TableMetadata metadata = tables.deserialize(in);
-            Clustering<?> clustering = in.readBoolean() ? Clustering.serializer.deserialize(in, version.messageVersion(), metadata.comparator.subtypes()) : null;
-            return new TxnReferenceOperations(metadata, clustering, deserializeList(tables, in, TxnReferenceOperation.serializer),
+            int clusteringCount = in.readVInt32();
+            List<Clustering<?>> clusterings = new ArrayList<>(clusteringCount);
+            for (int i = 0; i < clusteringCount; i++)
+                clusterings.add(Clustering.serializer.deserialize(in, version.messageVersion(), metadata.comparator.subtypes()));
+            return new TxnReferenceOperations(metadata, clusterings, deserializeList(tables, in, TxnReferenceOperation.serializer),
                                               deserializeList(tables, in, TxnReferenceOperation.serializer));
         }
 
@@ -123,9 +124,9 @@ public class TxnReferenceOperations
             if (operations.isEmpty())
                 return size;
             size += tables.serializedSize(operations.metadata);
-            size += TypeSizes.BOOL_SIZE;
-            if (operations.clustering != null)
-                size += Clustering.serializer.serializedSize(operations.clustering, version.messageVersion(), operations.metadata.comparator.subtypes());
+            size += TypeSizes.sizeofVInt(operations.clusterings.size());
+            for (Clustering<?> clustering : operations.clusterings)
+                size += Clustering.serializer.serializedSize(clustering, version.messageVersion(), operations.metadata.comparator.subtypes());
             size += serializedListSize(operations.regulars, tables, TxnReferenceOperation.serializer);
             size +=  serializedListSize(operations.statics, tables, TxnReferenceOperation.serializer);
             return size;

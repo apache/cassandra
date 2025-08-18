@@ -515,7 +515,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         Txn txn = createTxn(state.getClientState(), options);
 
-        TxnResult txnResult = AccordService.instance().coordinate(minEpoch, txn, options.getConsistency(), requestTime);
+        TxnResult txnResult = AccordService.instance().coordinate(minEpoch, txn, requestTime);
         if (txnResult.kind() == retry_new_protocol)
             throw new InvalidRequestException(UNSUPPORTED_MIGRATION);
         TxnData data = (TxnData)txnResult;

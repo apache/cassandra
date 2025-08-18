@@ -142,7 +142,7 @@ public enum TransactionalMode
     public ConsistencyLevel commitCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
     {
         if (!IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for write/commit, supported are ANY, ONE, QUORUM, and ALL");
+            throw UnsupportedTransactionConsistencyLevel.commit(consistencyLevel);
 
         if (ignoresSuppliedCommitCL())
         {
@@ -172,7 +172,7 @@ public enum TransactionalMode
     public ConsistencyLevel readCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, Token token)
     {
         if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ONE, QUORUM, and SERIAL");
+            throw UnsupportedTransactionConsistencyLevel.read(consistencyLevel);
 
         if (ignoresSuppliedReadCL())
         {
@@ -215,7 +215,7 @@ public enum TransactionalMode
     public ConsistencyLevel readCLForMode(TransactionalMigrationFromMode fromMode, ConsistencyLevel consistencyLevel, ClusterMetadata cm, TableId tableId, AbstractBounds<PartitionPosition> range)
     {
         if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ONE, QUORUM, and SERIAL");
+            throw UnsupportedTransactionConsistencyLevel.read(consistencyLevel);
 
         checkState(range.unwrap().size() == 1);
         if (ignoresSuppliedReadCL())

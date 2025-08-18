@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.cql3.ast;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+
 import org.junit.Test;
 
 import accord.utils.Gen;
@@ -55,7 +59,17 @@ public class ExpressionTest
         Txn txn = Txn.builder()
                      .addLet("a", selectWithBind())
                      .addReturn(selectWithBind())
+                     .addIf(new Conditional.Is(Symbol.unknownType("a"), Conditional.Is.Kind.NotNull),
+                            new Mutation.Insert(new TableReference(Optional.empty(), "tbl"), new LinkedHashMap<>(Map.of(Symbol.unknownType("a"), Bind.of(0))), false, Optional.empty()))
                      .build();
+        assertNoBind(txn.visit(StandardVisitors.BIND_TO_LITERAL));
+
+        txn = Txn.builder()
+                 .addLet("a", selectWithBind())
+                 .addReturn(selectWithBind())
+                     .addIf(Where.create(Where.Inequality.EQUAL, Bind.of(0), Bind.of(42)),
+                        new Mutation.Insert(new TableReference(Optional.empty(), "tbl"), new LinkedHashMap<>(Map.of(Symbol.unknownType("a"), Bind.of(0))), false, Optional.empty()))
+                 .build();
         assertNoBind(txn.visit(StandardVisitors.BIND_TO_LITERAL));
     }
 

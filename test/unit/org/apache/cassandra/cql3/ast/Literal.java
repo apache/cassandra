@@ -25,6 +25,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 
 public class Literal implements Value
 {
@@ -45,6 +46,11 @@ public class Literal implements Value
     public static Literal of(long value)
     {
         return new Literal(value, LongType.instance);
+    }
+
+    public static Literal of(String value)
+    {
+        return new Literal(value, UTF8Type.instance);
     }
 
     @Override

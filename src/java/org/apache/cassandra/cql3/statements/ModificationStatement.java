@@ -912,8 +912,16 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         List<TxnReferenceOperation> regularOps = getTxnReferenceOps(operations.regularSubstitutions(), options);
         List<TxnReferenceOperation> staticOps = getTxnReferenceOps(operations.staticSubstitutions(), options);
-        Clustering<?> clustering = !regularOps.isEmpty() ? Iterables.getOnlyElement(createClustering(options, state)) : null;
-        return new TxnReferenceOperations(metadata, clustering, regularOps, staticOps);
+        List<Clustering<?>> clusterings = txnClusterings(options, state);
+        return new TxnReferenceOperations(metadata, clusterings, regularOps, staticOps);
+    }
+
+    private List<Clustering<?>> txnClusterings(QueryOptions options, ClientState state)
+    {
+        if (restrictions.hasAllPrimaryKeyColumnsRestrictedByEqualities())
+            return new ArrayList<>(restrictions.getClusteringColumns(options, state));
+        // Range/Partition delete, static only
+        return Collections.emptyList();
     }
 
     public ModificationStatement forTxn()
@@ -944,14 +952,16 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         PartitionUpdate baseUpdate = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
-        return new TxnWrite.Fragment(partitionKey, index, baseUpdate, referenceOps);
+        long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
+        return new TxnWrite.Fragment(partitionKey, index, baseUpdate, referenceOps, timestamp);
     }
 
     public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector)
     {
         PartitionUpdate baseUpdate = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
-        return new TxnWrite.Fragment(keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), index, baseUpdate, referenceOps);
+        long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
+        return new TxnWrite.Fragment(keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), index, baseUpdate, referenceOps, timestamp);
     }
 
     final void addUpdates(UpdatesCollector collector,

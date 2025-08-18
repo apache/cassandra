@@ -41,7 +41,6 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -63,6 +62,7 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.UnsupportedTransactionConsistencyLevel;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
@@ -247,7 +247,7 @@ public class ConsensusMigrationMutationHelper
                                                                  PreserveTimestamp preserveTimestamps)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
+            throw UnsupportedTransactionConsistencyLevel.commit(consistencyLevel);
 
         TableMetadatas tables;
         {
@@ -271,7 +271,7 @@ public class ConsensusMigrationMutationHelper
             {
                 PartitionKey pk = keyCollector.collect(update.metadata(), update.partitionKey());
                 minEpoch = Math.max(minEpoch, update.metadata().epoch.getEpoch());
-                fragments.add(new TxnWrite.Fragment(pk, fragmentIndex++, update, TxnReferenceOperations.empty()));
+                fragments.add(new TxnWrite.Fragment(pk, fragmentIndex++, update, TxnReferenceOperations.empty(), TxnWrite.NO_TIMESTAMP));
             }
         }
         // Potentially ignore commit consistency level if the TransactionalMode specifies full
@@ -279,7 +279,7 @@ public class ConsensusMigrationMutationHelper
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, keyCollector.build());
         TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, preserveTimestamps);
         Txn.InMemory txn = new Txn.InMemory(tablesAndKeys.keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, update, tablesAndKeys);
-        return AccordService.instance().coordinateAsync(minEpoch, txn, clForCommit, requestTime);
+        return AccordService.instance().coordinateAsync(minEpoch, txn, requestTime);
     }
 
     public static void validateSafeToExecuteNonTransactionally(IMutation mutation) throws RetryOnDifferentSystemException

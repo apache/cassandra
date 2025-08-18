@@ -410,6 +410,12 @@ public class PartitionState implements Iterable<PartitionState.RowState>
                        ", lts(" + StringUtils.toString(lts) + ")";
             }
         }
+
+        @Override
+        public String toString()
+        {
+            return toString(partitionState.valueGenerators);
+        }
     }
 
     public static long[] arr(int length, long fill)

@@ -857,7 +857,10 @@ public class ASTSingleTableModel
                 SelectResult result = (SelectResult) o;
                 if (result.rows.length == 0)
                     return null;
-                return result.rows[0][result.columns.indexOf(symbol)];
+                ByteBuffer bb = result.rows[0][result.columns.indexOf(symbol)];
+                if (bb != null && symbol.type().isNull(bb))
+                    bb = null;
+                return bb;
             }
             else
             {
@@ -1194,7 +1197,9 @@ public class ASTSingleTableModel
                 sb.append("\n\tDiff (expected over actual):\n");
                 Row eSmall = e.select(smallestDiff);
                 Row aSmall = smallest.select(smallestDiff);
-                sb.append(table(eSmall.columns, Arrays.asList(eSmall, aSmall)));
+                // Symbol.toString is just the column name, it is easier to understand what is going on if the type is included,
+                // which is done in Symbol.detailedName: name type (reversed)?
+                sb.append(table(eSmall.columns.stream().map(Symbol::detailedName).collect(Collectors.toList()), Arrays.asList(eSmall, aSmall)));
             }
         }
         else
@@ -1272,7 +1277,12 @@ public class ASTSingleTableModel
 
     private static String table(ImmutableUniqueList<Symbol> columns, Collection<Row> rows)
     {
-        return TableBuilder.toStringPiped(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()),
+        return table(columns.stream().map(Symbol::toCQL).collect(Collectors.toList()), rows);
+    }
+
+    private static String table(List<String> columns, Collection<Row> rows)
+    {
+        return TableBuilder.toStringPiped(columns,
                                           // intellij or junit can be tripped up by utf control or invisible chars, so this logic tries to normalize to make things more safe
                                           () -> rows.stream()
                                                     .map(r -> r.asCQL().stream().map(StringUtils::escapeControlChars).collect(Collectors.toList()))

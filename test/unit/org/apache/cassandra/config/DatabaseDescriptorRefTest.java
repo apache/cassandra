@@ -115,6 +115,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$CorruptedTombstoneStrategy",
     "org.apache.cassandra.config.Config$BatchlogEndpointStrategy",
     "org.apache.cassandra.config.Config$TombstonesMetricGranularity",
+    "org.apache.cassandra.service.consensus.UnsupportedTransactionConsistencyLevel",
     "org.apache.cassandra.repair.autorepair.AutoRepairConfig",
     "org.apache.cassandra.repair.autorepair.AutoRepairConfig$Options",
     "org.apache.cassandra.repair.autorepair.AutoRepairConfig$RepairType",
