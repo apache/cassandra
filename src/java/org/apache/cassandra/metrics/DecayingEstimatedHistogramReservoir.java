@@ -586,6 +586,9 @@ public class DecayingEstimatedHistogramReservoir implements CassandraReservoir
                 sum += bCount * bucketOffsets[i];
             }
 
+            if (elements == 0)
+                return 0d;
+
             return (double) sum / elements;
         }
 

@@ -298,10 +298,6 @@ public class AccordService implements IAccordService, Shutdownable
 
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
         as.startup();
-        instance = as;
-
-        AccordReplicaMetrics.touch();
-
         replayJournal(as);
 
         as.finishInitialization();
@@ -320,6 +316,8 @@ public class AccordService implements IAccordService, Shutdownable
         as.configService.registerListener(as.node.durability());
         as.node.durability().start();
 
+        instance = as;
+        AccordReplicaMetrics.touch();
         WatermarkCollector.fetchAndReportWatermarksAsync(as.configService);
         return as;
     }
@@ -456,6 +454,27 @@ public class AccordService implements IAccordService, Shutdownable
         // Replay local epochs
         for (ImmutableTopoloyImage image : images)
             configService.reportTopology(image.global);
+
+        // Subscribe to TCM events
+        ChangeListener prevListener = MetadataChangeListener.instance.collector.getAndSet(new ChangeListener()
+        {
+            @Override
+            public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+            {
+                if (state != State.SHUTDOWN)
+                    configService.maybeReportMetadata(next);
+            }
+        });
+
+        Invariants.require((prevListener instanceof MetadataChangeListener.PreInitStateCollector),
+                           "Listener should have been initialized with Accord pre-init state collector, but was " + prevListener.getClass());
+
+        MetadataChangeListener.PreInitStateCollector preinit = (MetadataChangeListener.PreInitStateCollector) prevListener;
+        for (ClusterMetadata item : preinit.getItems())
+        {
+            if (item.epoch.getEpoch() > Epoch.FIRST.getEpoch())
+                configService.maybeReportMetadata(item);
+        }
     }
 
     /**
@@ -476,27 +495,6 @@ public class AccordService implements IAccordService, Shutdownable
 
             if (remote != null)
                 remote.forEach(configService::reportTopology, highestKnown + 1, Integer.MAX_VALUE);
-
-            // Subscribe to TCM events
-            ChangeListener prevListener = MetadataChangeListener.instance.collector.getAndSet(new ChangeListener()
-            {
-                @Override
-                public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
-                {
-                    if (state != State.SHUTDOWN)
-                        configService.maybeReportMetadata(next);
-                }
-            });
-
-            Invariants.require((prevListener instanceof MetadataChangeListener.PreInitStateCollector),
-                               "Listener should have been initialized with Accord pre-init state collector, but was " + prevListener.getClass());
-
-            MetadataChangeListener.PreInitStateCollector preinit = (MetadataChangeListener.PreInitStateCollector) prevListener;
-            for (ClusterMetadata item : preinit.getItems())
-            {
-                if (item.epoch.getEpoch() > minEpoch())
-                    configService.maybeReportMetadata(item);
-            }
         }
         catch (InterruptedException e)
         {

@@ -232,8 +232,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     void reportMetadataInternal(ClusterMetadata metadata)
     {
         Topology topology = AccordTopology.createAccordTopology(metadata);
-        if (topology.isEmpty() && isEmpty())
-            return;
 
         updateMapping(metadata);
         if (Invariants.isParanoid())
@@ -499,7 +497,9 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         if (epoch < minEpoch() || epochs.wasTruncated(epoch))
             return;
 
-        syncPropagator.reportClosed(epoch, mapping.nodes(), ranges);
+        Topology topology = getTopologyForEpoch(epoch);
+        if (topology != null)
+            syncPropagator.reportClosed(epoch, topology.nodes(), ranges);
     }
 
     @VisibleForTesting
@@ -516,7 +516,9 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
         checkStarted();
         // TODO (expected): ensure we aren't fetching a truncated epoch; otherwise this should be non-null
-        syncPropagator.reportRetired(epoch, mapping.nodes(), ranges);
+        Topology topology = getTopologyForEpoch(epoch);
+        if (topology != null)
+            syncPropagator.reportRetired(epoch, topology.nodes(), ranges);
     }
 
     @Override

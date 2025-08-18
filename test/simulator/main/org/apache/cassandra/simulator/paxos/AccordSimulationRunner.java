@@ -47,7 +47,6 @@ public class AccordSimulationRunner extends SimulationRunner
     @BeforeClass
     public static void beforeAll()
     {
-        CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.setString(StorageCompatibilityMode.NONE.toString());
         DatabaseDescriptor.clientInitialization();
     }
 
