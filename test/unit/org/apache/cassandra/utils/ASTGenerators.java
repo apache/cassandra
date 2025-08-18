@@ -1056,7 +1056,6 @@ public class ASTGenerators
                     }
                     MutationGenBuilder mutationBuilder = new MutationGenBuilder(metadata)
                                                          .withTxnSafe()
-                                                         .withAllowUpdateMultipleClusteringKeys(false)
                                                          .withReferences(new ArrayList<>(builder.allowedReferences()));
                     if (!allowReferences)
                         mutationBuilder.withReferences(Collections.emptyList());
@@ -1183,11 +1182,7 @@ public class ASTGenerators
 
         private Gen<Mutation> mutationGen(RandomSource rs, LinkedHashMap<Symbol, Object> pk)
         {
-            MutationGenBuilder builder = mutationBuilder(IGNORED_ISSUES, rs, model, List.of(pk), indexes);
-            builder.withTxnSafe()
-                   //TODO (now, coverage): remove this as we should support
-                   // working around the bug to make progress
-                   .withAllowUpdateMultipleClusteringKeys(false);
+            MutationGenBuilder builder = mutationBuilder(IGNORED_ISSUES, rs, model, List.of(pk), indexes).withTxnSafe();
             if (!allowEmpty)
                 builder.disallowEmpty();
             return builder.build();
