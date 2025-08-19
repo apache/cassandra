@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import accord.utils.DefaultRandom;
@@ -122,7 +121,6 @@ public class SingleNodeSingleTableASTTest extends SimulationTestBase
     }
 
     @Test
-    @Ignore
     public void normal() throws IOException
     {
 //        testOne(SimulationRunner.parseHex("0x2fd91c2a2be59d7d"), SingleTableASTSimulation::new);
@@ -137,7 +135,6 @@ public class SingleNodeSingleTableASTTest extends SimulationTestBase
     }
 
     @Test
-    @Ignore
     public void accordMixedReads() throws IOException
     {
 //        testOne(SimulationRunner.parseHex("0x2fd91c2a2be59d7d"), SingleTableASTSimulation.MixedReadsAccordSingleTableASTSimulation::new);

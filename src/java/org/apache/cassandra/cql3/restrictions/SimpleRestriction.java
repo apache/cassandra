@@ -225,7 +225,7 @@ public final class SimpleRestriction implements SingleRestriction
     {
         assert operator == Operator.EQ ||
                operator == Operator.IN ||
-               operator == Operator.ANN;
+               operator == Operator.ANN : String.format("Unexpected operator: %s", operator);
         return bindAndGetClusteringElements(options);
     }
 

@@ -149,6 +149,7 @@ import org.apache.cassandra.service.accord.txn.TxnRangeReadResult;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.UnsupportedTransactionConsistencyLevel;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitConsumer;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitMutations;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
@@ -2243,7 +2244,7 @@ public class StorageProxy implements StorageProxyMBean
     public static IAccordResult<TxnResult> readWithAccord(ClusterMetadata cm, PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> range, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
+            throw UnsupportedTransactionConsistencyLevel.read(consistencyLevel);
 
         TableMetadata tableMetadata = getTableMetadata(cm, command.metadata().id);
         TableParams tableParams = tableMetadata.params;
@@ -2260,7 +2261,7 @@ public class StorageProxy implements StorageProxyMBean
     private static IAccordResult<TxnResult> readWithAccordAsync(ClusterMetadata cm, SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (consistencyLevel != null && !IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
-            throw new InvalidRequestException(consistencyLevel + " is not supported by Accord");
+            throw UnsupportedTransactionConsistencyLevel.read(consistencyLevel);
 
         // If the non-SERIAL write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely

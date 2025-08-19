@@ -148,7 +148,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     private static CommandGen<Spec> cqlOperations(Spec spec)
     {
         Gen<Statement> select = (Gen<Statement>) (Gen<?>) fromQT(new ASTGenerators.SelectGenBuilder(spec.metadata).withLimit1().build());
-        Gen<Statement> mutation = (Gen<Statement>) (Gen<?>) fromQT(new ASTGenerators.MutationGenBuilder(spec.metadata).withoutTimestamp().withoutTtl().withAllowUpdateMultipleClusteringKeys(false).build());
+        Gen<Statement> mutation = (Gen<Statement>) (Gen<?>) fromQT(new ASTGenerators.MutationGenBuilder(spec.metadata).withTxnSafe().disallowUpdateMultiplePartitionKeys().build());
         Gen<Statement> txn = (Gen<Statement>) (Gen<?>) fromQT(new ASTGenerators.TxnGenBuilder(spec.metadata).build());
         Map<Gen<Statement>, Integer> operations = new LinkedHashMap<>();
         operations.put(select, 1);

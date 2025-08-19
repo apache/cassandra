@@ -29,7 +29,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,6 +80,8 @@ import static org.apache.cassandra.utils.ArraySerializers.skipArray;
 
 public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Write
 {
+    public static final long NO_TIMESTAMP = 0;
+
     @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(TxnWrite.class);
 
@@ -245,13 +246,15 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public final int index;
         public final PartitionUpdate baseUpdate;
         public final TxnReferenceOperations referenceOps;
+        public final long timestamp;
 
-        public Fragment(PartitionKey key, int index, PartitionUpdate baseUpdate, TxnReferenceOperations referenceOps)
+        public Fragment(PartitionKey key, int index, PartitionUpdate baseUpdate, TxnReferenceOperations referenceOps, long timestamp)
         {
             this.key = key;
             this.index = index;
             this.baseUpdate = baseUpdate;
             this.referenceOps = referenceOps;
+            this.timestamp = timestamp;
         }
 
         public static int compareKeys(Fragment left, Fragment right)
@@ -302,17 +305,20 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                                                                                 baseUpdate.rowCount(),
                                                                                 baseUpdate.canHaveShadowedData());
 
-            UpdateParameters up = parameters.updateParameters(baseUpdate.metadata(), key, index);
+            UpdateParameters up = parameters.updateParameters(baseUpdate.metadata(), key, index, timestamp);
             TxnData data = parameters.getData();
             Row staticRow = applyUpdates(baseUpdate.staticRow(), referenceOps.statics, key, Clustering.STATIC_CLUSTERING, up, data);
 
             if (!staticRow.isEmpty())
                 updateBuilder.add(staticRow);
 
-            Row existing = baseUpdate.hasRows() ? Iterables.getOnlyElement(baseUpdate) : null;
-            Row row = applyUpdates(existing, referenceOps.regulars, key, referenceOps.clustering, up, data);
-            if (row != null)
-                updateBuilder.add(row);
+            for (Clustering<?> clustering : referenceOps.clusterings)
+            {
+                Row existing = baseUpdate.hasRows() ? baseUpdate.getRow(clustering) : null;
+                Row row = applyUpdates(existing, referenceOps.regulars, key, clustering, up, data);
+                if (row != null)
+                    updateBuilder.add(row);
+            }
 
             return new Update(this.key, index, updateBuilder.build(), tables);
         }
@@ -371,6 +377,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 out.writeUnsignedVInt32(fragment.index);
                 PartitionUpdate.serializer.serializeWithoutKey(fragment.baseUpdate, tables, out, version.messageVersion());
                 TxnReferenceOperations.serializer.serialize(fragment.referenceOps, tables, out, version);
+                out.writeUnsignedVInt(fragment.timestamp);
             }
 
             public Fragment deserialize(PartitionKey key, TableMetadatas tables, DataInputPlus in, Version version) throws IOException
@@ -379,7 +386,8 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 // TODO (required): why FROM_REMOTE?
                 PartitionUpdate baseUpdate = PartitionUpdate.serializer.deserialize(key, tables, in, version.messageVersion(), FROM_REMOTE);
                 TxnReferenceOperations referenceOps = TxnReferenceOperations.serializer.deserialize(tables, in, version);
-                return new Fragment(key, idx, baseUpdate, referenceOps);
+                long timestamp = in.readUnsignedVInt();
+                return new Fragment(key, idx, baseUpdate, referenceOps, timestamp);
             }
 
             public long serializedSize(Fragment fragment, TableMetadatas tables, Version version)
@@ -388,6 +396,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 size += TypeSizes.sizeofUnsignedVInt(fragment.index);
                 size += PartitionUpdate.serializer.serializedSizeWithoutKey(fragment.baseUpdate, tables, version.messageVersion());
                 size += TxnReferenceOperations.serializer.serializedSize(fragment.referenceOps, tables, version);
+                size += TypeSizes.sizeofUnsignedVInt(fragment.timestamp);
                 return size;
             }
         }

@@ -50,6 +50,13 @@ import accord.topology.Topologies;
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ast.Symbol;
+import org.apache.cassandra.cql3.ast.AssignmentOperator;
+import org.apache.cassandra.cql3.ast.Literal;
+import org.apache.cassandra.cql3.ast.Mutation;
+import org.apache.cassandra.cql3.ast.Reference;
+import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.Statement;
+import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
@@ -85,6 +92,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -3239,19 +3247,16 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  ICoordinator coordinator = cluster.coordinator(1);
                  coordinator.execute("INSERT INTO " + qualifiedAccordTableName + "(k, c, v0, v1) VALUES (0, 0, {0}, 1)", QUORUM);
 
-                 String cql = "BEGIN TRANSACTION\n" +
-                              "  LET row = (SELECT *\n" +
-                              "             FROM " + qualifiedAccordTableName + '\n' +
-                              "             WHERE k = ? AND c = ?);\n" +
-                              "  UPDATE " + qualifiedAccordTableName + '\n' +
-                              "  SET\n" +
-                              "    v0={1},\n" +
-                              "    v1 += row.v1\n" +
-                              "  WHERE \n" +
-                              "    k = ? AND \n" +
-                              "    c = ?;\n" +
-                              "COMMIT TRANSACTION";
-                 coordinator.execute(cql, QUORUM, 0, 0, 0, 0);
+                 Statement stmt = Txn.builder()
+                                     .addLet("row", Select.builder().table(KEYSPACE, accordTableName).value("k", 0).value("c", 0).build())
+                                     .addUpdate(Mutation.update(KEYSPACE, accordTableName)
+                                                        .set(v0, new Literal(Collections.singleton(1), v0.type()))
+                                                        .set(v1, new AssignmentOperator(AssignmentOperator.Kind.ADD, Reference.of(row, v1)))
+                                                        .value("k", 0)
+                                                        .value("c", 0)
+                                                        .build())
+                                     .build();
+                 coordinator.execute(stmt.toCQL(), QUORUM, stmt.bindsEncoded());
 
                  // is the data correct?
                  var result = coordinator.executeWithResult("SELECT * FROM " + qualifiedAccordTableName, QUORUM);
@@ -3259,5 +3264,89 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                  .row(0, 0, Collections.singleton(1), 2)
                          .build());
              });
+    }
+
+    @Test
+    public void updateMultipleRows()
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH " + transactionalMode.asCqlParam());
+
+        ICoordinator node = SHARED_CLUSTER.coordinator(1);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 10, 100)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 20, 200)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 30, 300)", ConsistencyLevel.QUORUM);
+
+        node.execute("BEGIN TRANSACTION\n" +
+                            "  UPDATE " + qualifiedAccordTableName + '\n' +
+                            "  SET v = 999\n" +
+                            "  WHERE pk = 1\n" +
+                            "        AND ck IN (10, 20);\n" +
+                            "COMMIT TRANSACTION", ConsistencyLevel.QUORUM);
+
+        assertRows(node.execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1", ConsistencyLevel.QUORUM),
+                   AssertUtils.row(1, 10, 999),
+                   AssertUtils.row(1, 20, 999),
+                   AssertUtils.row(1, 30, 300));
+    }
+
+    @Test
+    public void deleteMultipleRows()
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH " + transactionalMode.asCqlParam());
+
+        ICoordinator node = SHARED_CLUSTER.coordinator(1);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 10, 100)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 20, 200)", ConsistencyLevel.QUORUM);
+        node.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, 30, 300)", ConsistencyLevel.QUORUM);
+
+        node.execute("BEGIN TRANSACTION\n" +
+                     "  DELETE FROM " + qualifiedAccordTableName + '\n' +
+                     "  WHERE pk = 1\n" +
+                     "        AND ck IN (10, 20);\n" +
+                     "COMMIT TRANSACTION", ConsistencyLevel.QUORUM);
+
+        // Verify the deletes
+        assertRows(node.execute("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1", ConsistencyLevel.QUORUM),
+                   AssertUtils.row(1, 30, 300));
+    }
+
+    @Test
+    public void usingTimestamp() throws Exception
+    {
+        // This test was discovered by org.apache.cassandra.distributed.test.cql3.MixedReadsAccordInteropMultiNodeTableWalkTest
+        // It could be simplified but was boiled down to the minimum steps to reproduce the timestamp issue: USING TIMESTAMP
+        // was not respected operations that happen post read
+        test("CREATE TABLE "+qualifiedAccordTableName+" (\n" +
+             "\t\t    pk0 float,\n" +
+             "\t\t    pk1 varint,\n" +
+             "\t\t    ck0 smallint,\n" +
+             "\t\t    ck1 tinyint,\n" +
+             "\t\t    v3 uuid,\n" +
+             "\t\t    v1 list<uuid>,\n" +
+             "\t\t    v4 map<vector<uuid, 1>, frozen<map<smallint, text>>>,\n" +
+             "\t\t    PRIMARY KEY ((pk0, pk1), ck0, ck1)\n" +
+             "\t\t) WITH CLUSTERING ORDER BY (ck0 DESC, ck1 ASC)\n" +
+             "\t\t    AND " + transactionalMode.asCqlParam(), cluster -> {
+            ICoordinator node = cluster.coordinator(2);
+            node.execute("UPDATE " + qualifiedAccordTableName + " USING TIMESTAMP 6 " +
+                          "SET " +
+                          "    v1=[00000000-0000-4e00-8c00-000000000000], " +
+                          "    v4={[00000000-0000-4800-b300-000000000000]: {-30955: 'ϵ', -10479: '虑퐕㐧', 7904: '䁋'}}, " +
+                          "    v3=00000000-0000-4600-b300-000000000000 " +
+                          "WHERE  pk0 = -1.1763917E35 AND  pk1 = -466454 " +
+                          "       AND  ck0 IN (-26786, 10038, 4991) AND  ck1 IN (124 - 36, -100)", ConsistencyLevel.QUORUM);
+            AssertUtils.assertRows(node.executeWithResult("SELECT writetime(v1), writetime(v3), writetime(v4) FROM " + qualifiedAccordTableName + " WHERE pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM),
+                                   QueryResults.builder()
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .row(List.of(6L), 6L, List.of(6L))
+                                               .build());
+            node.execute("DELETE FROM " + qualifiedAccordTableName + " USING TIMESTAMP 8 WHERE  pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM);
+            QueryResultUtil.assertThat(node.executeWithResult("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM))
+                           .isEmpty();
+        });
     }
 }

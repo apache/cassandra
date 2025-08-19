@@ -70,6 +70,7 @@ import org.apache.cassandra.simulator.systems.SimulatedActionCallable;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.utils.ASTGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
@@ -241,7 +242,7 @@ public class SingleTableASTSimulation extends SimulationTestBase.SimpleSimulatio
                                                                        .uniqueBestEffort()
                                                                        .ofSize(rs.nextInt(1, 20))
                                                                        .next(rs);
-            Gen<Action> mutationGen = toGen(ASTGenerators.mutationBuilder(rs, model, uniquePartitions, i -> null).disallowEmpty().build())
+            Gen<Action> mutationGen = toGen(ASTGenerators.mutationBuilder(rs, model, uniquePartitions, i -> null).build())
                                       .map(mutation -> query(mutation));
 
             Gen<Action> selectPartitionGen = Gens.pick(uniquePartitions)
@@ -393,12 +394,12 @@ public class SingleTableASTSimulation extends SimulationTestBase.SimpleSimulatio
 
         private IIsolatedExecutor.SerializableCallable<Object[][]> query(Statement statement, ConsistencyLevel cl)
         {
-            // Simulator acts differently than jvm-dtest, so ByteBuffer isn't safe!
-            // java.lang.RuntimeException: java.io.NotSerializableException: java.nio.HeapByteBuffer
-            // So switch to literals for now
-            statement = statement.visit(StandardVisitors.BIND_TO_LITERAL);
             String cql = statement.toCQL();
-            Object[] binds = statement.binds();
+            ByteBuffer[] encoded = statement.bindsEncoded();
+            // Simulator doesn't support ByteBuffer (fails to transfer), so need to convert to byte[], which will get converted to ByteBuffer within Cassandra.
+            Object[] binds = new Object[encoded.length];
+            for (int i = 0; i < encoded.length; i++)
+                binds[i] = encoded[i] == null ? null : ByteBufferUtil.getArray(encoded[i]);
             return () -> {
                 Query q = new Query(cql, Long.MIN_VALUE, false, cl, null, binds);
                 return q.call().toObjectArrays();

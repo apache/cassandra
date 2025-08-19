@@ -570,6 +570,7 @@ public class ByteBufferUtil
 
     public static ByteBuffer objectToBytes(Object obj)
     {
+        if (obj == null) return null;
         if (obj instanceof Integer)
             return ByteBufferUtil.bytes((int) obj);
         else if (obj instanceof Byte)

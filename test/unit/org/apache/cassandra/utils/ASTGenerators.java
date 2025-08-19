@@ -411,6 +411,7 @@ public class ASTGenerators
         private Map<Symbol, ExpressionBuilder> columnExpressions = new LinkedHashMap<>();
         private boolean allowPartitionOnlyUpdate = true;
         private boolean allowPartitionOnlyInsert = true;
+        private boolean allowUpdateMultiplePartitionKeys = true;
         private boolean allowUpdateMultipleClusteringKeys = true;
         private EnumSet<KnownIssue> ignoreIssues = IGNORED_ISSUES;
 
@@ -449,10 +450,44 @@ public class ASTGenerators
             return this;
         }
 
-        public MutationGenBuilder withAllowUpdateMultipleClusteringKeys(boolean allowUpdateMultipleClusteringKeys)
+        public MutationGenBuilder allowUpdateMultiplePartitionKeys()
+        {
+            return withAllowUpdateMultiplePartitionKeys(true);
+        }
+
+        public MutationGenBuilder disallowUpdateMultiplePartitionKeys()
+        {
+            return withAllowUpdateMultiplePartitionKeys(false);
+        }
+
+        private MutationGenBuilder withAllowUpdateMultiplePartitionKeys(boolean allowUpdateMultiplePartitionKeys)
+        {
+            this.allowUpdateMultiplePartitionKeys = allowUpdateMultiplePartitionKeys;
+            return this;
+        }
+
+        public MutationGenBuilder allowUpdateMultipleClusteringKeys()
+        {
+            return withAllowUpdateMultipleClusteringKeys(true);
+        }
+
+        public MutationGenBuilder disallowUpdateMultipleClusteringKeys()
+        {
+            return withAllowUpdateMultipleClusteringKeys(false);
+        }
+
+        private MutationGenBuilder withAllowUpdateMultipleClusteringKeys(boolean allowUpdateMultipleClusteringKeys)
         {
             this.allowUpdateMultipleClusteringKeys = allowUpdateMultipleClusteringKeys;
             return this;
+        }
+
+        /**
+         * Tells the generator to avoid producing updates that do multiple partition and clustering keys.
+         */
+        public MutationGenBuilder disallowUpdateMultipleRows()
+        {
+            return disallowUpdateMultiplePartitionKeys().disallowUpdateMultipleClusteringKeys();
         }
 
         public MutationGenBuilder withColumnExpressions(Consumer<ExpressionBuilder> fn)
@@ -719,7 +754,7 @@ public class ASTGenerators
                         var timestamp = timestampGen.generate(rnd);
                         if (timestamp.isPresent())
                             builder.timestamp(valueGen(timestamp.getAsLong(), LongType.instance).generate(rnd));
-                        if (allowUpdateMultipleClusteringKeys)
+                        if (allowUpdateMultiplePartitionKeys)
                             where(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
                         else
                             values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
@@ -1056,7 +1091,7 @@ public class ASTGenerators
                     }
                     MutationGenBuilder mutationBuilder = new MutationGenBuilder(metadata)
                                                          .withTxnSafe()
-                                                         .withAllowUpdateMultipleClusteringKeys(false)
+                                                         .disallowUpdateMultiplePartitionKeys()
                                                          .withReferences(new ArrayList<>(builder.allowedReferences()));
                     if (!allowReferences)
                         mutationBuilder.withReferences(Collections.emptyList());
@@ -1183,11 +1218,9 @@ public class ASTGenerators
 
         private Gen<Mutation> mutationGen(RandomSource rs, LinkedHashMap<Symbol, Object> pk)
         {
-            MutationGenBuilder builder = mutationBuilder(IGNORED_ISSUES, rs, model, List.of(pk), indexes);
-            builder.withTxnSafe()
-                   //TODO (now, coverage): remove this as we should support
-                   // working around the bug to make progress
-                   .withAllowUpdateMultipleClusteringKeys(false);
+            MutationGenBuilder builder = mutationBuilder(IGNORED_ISSUES, rs, model, List.of(pk), indexes)
+                                         .withTxnSafe()
+                                         .disallowUpdateMultiplePartitionKeys();
             if (!allowEmpty)
                 builder.disallowEmpty();
             return builder.build();

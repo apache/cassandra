@@ -71,7 +71,7 @@ public class AccordUpdateParameters
         return data;
     }
 
-    public UpdateParameters updateParameters(TableMetadata metadata, DecoratedKey dk, int rowIndex)
+    public UpdateParameters updateParameters(TableMetadata metadata, DecoratedKey dk, int rowIndex, long overrideTimestamp)
     {
         // This is currently only used by Guardrails, but this logically have issues with Accord as drifts in config
         // values could cause unexpected issues in Accord. (ex. some nodes reject writes while others accept)
@@ -82,7 +82,7 @@ public class AccordUpdateParameters
         return new RowUpdateParameters(metadata,
                                        disabledGuardrails,
                                        options,
-                                       timestamp,
+                                       overrideTimestamp == TxnWrite.NO_TIMESTAMP ? timestamp : overrideTimestamp,
                                        MICROSECONDS.toSeconds(timestamp),
                                        ttl,
                                        prefetchRow(dk, rowIndex));
