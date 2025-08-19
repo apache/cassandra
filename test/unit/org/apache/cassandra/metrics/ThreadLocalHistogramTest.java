@@ -18,24 +18,32 @@
 
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Histogram;
+import org.junit.Assert;
+import org.junit.Test;
 
-public class CassandraHistogram extends Histogram
+public class ThreadLocalHistogramTest
 {
-    final CassandraReservoir reservoir;
-    public CassandraHistogram(CassandraReservoir reservoir)
+    @Test
+    public void testBasicOperations()
     {
-        super(reservoir);
-        this.reservoir = reservoir;
+        OverrideHistogram histogram = new ThreadLocalHistogram(new DecayingEstimatedHistogramReservoir());
+        histogram.update(10);
+        Assert.assertEquals(1, histogram.getCount());
+        histogram.update(20);
+        Assert.assertEquals(2, histogram.getCount());
+        histogram.update(100);
+        Assert.assertEquals(3, histogram.getCount());
     }
 
-    public CassandraReservoir.BucketStrategy bucketStrategy()
+    @Test
+    public void testReset()
     {
-        return reservoir.bucketStrategy();
-    }
-
-    public long[] bucketStarts(int length)
-    {
-        return reservoir.buckets(length);
+        ClearableHistogram histogram = new ClearableHistogram(new DecayingEstimatedHistogramReservoir());
+        histogram.update(1);
+        histogram.update(1);
+        histogram.update(1);
+        Assert.assertEquals(3, histogram.getCount());
+        histogram.reset();
+        Assert.assertEquals(0, histogram.getCount());
     }
 }
