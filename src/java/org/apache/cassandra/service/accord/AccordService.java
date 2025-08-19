@@ -93,6 +93,7 @@ import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -689,9 +690,9 @@ public class AccordService implements IAccordService, Shutdownable
      * with non-Accord operations.
      */
     @Override
-    public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull Dispatcher.RequestTime requestTime, long minHlc) throws RequestExecutionException
+    public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime, long minHlc) throws RequestExecutionException
     {
-        return coordinateAsync(minEpoch, txn, requestTime, minHlc).awaitAndGet();
+        return coordinateAsync(minEpoch, txn, consistencyLevel, requestTime, minHlc).awaitAndGet();
     }
 
     @Override
@@ -701,7 +702,7 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull Dispatcher.RequestTime requestTime, long minHlc)
+    public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull Dispatcher.RequestTime requestTime, long minHlc)
     {
         TxnId txnId = node.nextTxnId(minHlc >= 0 ? minHlc : 0, txn.kind(), txn.keys().domain(), cardinality(txn.keys()));
         long timeout = txnId.isWrite() ? DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) : DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);

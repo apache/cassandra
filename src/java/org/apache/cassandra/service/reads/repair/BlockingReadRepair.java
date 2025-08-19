@@ -34,6 +34,7 @@ import accord.primitives.Txn;
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
@@ -245,7 +246,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
          */
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(TableMetadatas.of(command.metadata()), keys);
         Txn txn = new Txn.InMemory(Txn.Kind.Read, keys, TxnRead.createNoOpRead(keys), TxnQuery.NONE, repairUpdate, tablesAndKeys);
-        Future<TxnResult> repairFuture = Stage.ACCORD_MIGRATION.submit(() -> AccordService.instance().coordinate(command.metadata().epoch.getEpoch(), txn, requestTime));
+        Future<TxnResult> repairFuture = Stage.ACCORD_MIGRATION.submit(() -> AccordService.instance().coordinate(command.metadata().epoch.getEpoch(), txn, ConsistencyLevel.ANY, requestTime));
 
         repairs.add(new PendingPartitionRepair()
         {

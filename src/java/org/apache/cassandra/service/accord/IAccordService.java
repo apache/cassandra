@@ -85,16 +85,16 @@ public interface IAccordService
     AsyncChain<Timestamp> maxConflict(Ranges ranges);
 
     @Nonnull
-    default IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, RequestTime requestTime)
+    default IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
     {
-        return coordinateAsync(minEpoch, txn, requestTime, IAccordService.NO_HLC);
+        return coordinateAsync(minEpoch, txn, consistencyLevel, requestTime, IAccordService.NO_HLC);
     }
-    @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, RequestTime requestTime, long minHlc);
-    @Nonnull default TxnResult coordinate(long minEpoch, @Nonnull Txn txn, RequestTime requestTime)
+    @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime, long minHlc);
+    @Nonnull default TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime)
     {
-        return coordinate(minEpoch, txn, requestTime, NO_HLC);
+        return coordinate(minEpoch, txn, consistencyLevel, requestTime, NO_HLC);
     }
-    @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, RequestTime requestTime, long minHlc) throws RequestExecutionException;
+    @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime, long minHlc) throws RequestExecutionException;
 
     List<AccordExecutor> executors();
 
@@ -231,7 +231,7 @@ public interface IAccordService
         }
 
         @Override
-        public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull RequestTime requestTime, long minHlc)
+        public @Nonnull TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull RequestTime requestTime, long minHlc)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -243,7 +243,7 @@ public interface IAccordService
         }
 
         @Override
-        public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, RequestTime requestTime, long minHlc)
+        public @Nonnull IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime, long minHlc)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -428,9 +428,9 @@ public interface IAccordService
 
         @Nonnull
         @Override
-        public TxnResult coordinate(long minEpoch, @Nonnull Txn txn, RequestTime requestTime, long minHlc)
+        public TxnResult coordinate(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime, long minHlc)
         {
-            return delegate.coordinate(minEpoch, txn, requestTime, minHlc);
+            return delegate.coordinate(minEpoch, txn, consistencyLevel, requestTime, minHlc);
         }
 
         @Override
@@ -441,9 +441,9 @@ public interface IAccordService
 
         @Nonnull
         @Override
-        public IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, RequestTime requestTime, long minHlc)
+        public IAccordResult<TxnResult> coordinateAsync(long minEpoch, @Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, RequestTime requestTime, long minHlc)
         {
-            return delegate.coordinateAsync(minEpoch, txn, requestTime, minHlc);
+            return delegate.coordinateAsync(minEpoch, txn, consistencyLevel, requestTime, minHlc);
         }
 
         @Override

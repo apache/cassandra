@@ -279,7 +279,7 @@ public class ConsensusMigrationMutationHelper
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, keyCollector.build());
         TxnUpdate update = new TxnUpdate(tables, fragments, TxnCondition.none(), clForCommit, preserveTimestamps);
         Txn.InMemory txn = new Txn.InMemory(tablesAndKeys.keys, TxnRead.empty(Domain.Key), TxnQuery.NONE, update, tablesAndKeys);
-        return AccordService.instance().coordinateAsync(minEpoch, txn, requestTime);
+        return AccordService.instance().coordinateAsync(minEpoch, txn, clForCommit, requestTime);
     }
 
     public static void validateSafeToExecuteNonTransactionally(IMutation mutation) throws RetryOnDifferentSystemException

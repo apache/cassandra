@@ -411,6 +411,7 @@ public class StorageProxy implements StorageProxyMBean
                     IAccordService accordService = AccordService.instance();
                     TxnResult txnResult = accordService.coordinate(metadata.epoch.getEpoch(),
                                                                    txn,
+                                                                   consistencyForPaxos,
                                                                    requestTime,
                                                                    decision.minHLC);
                     lastAttemptResult = request.toCasResult(txnResult);
@@ -2254,7 +2255,7 @@ public class StorageProxy implements StorageProxyMBean
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, read.keys());
         Txn txn = new Txn.InMemory(kind, read.keys(), read, TxnQuery.RANGE_QUERY, null, tablesAndKeys);
         IAccordService accordService = AccordService.instance();
-        return accordService.coordinateAsync(tableMetadata.epoch.getEpoch(), txn, requestTime);
+        return accordService.coordinateAsync(tableMetadata.epoch.getEpoch(), txn, consistencyLevel, requestTime);
     }
 
     private static IAccordResult<TxnResult> readWithAccordAsync(ClusterMetadata cm, SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
@@ -2272,7 +2273,7 @@ public class StorageProxy implements StorageProxyMBean
         TxnRead read = TxnRead.createSerialRead(group.queries, consistencyLevel, keyCollector);
         Txn.Kind kind = shouldReadEphemerally(read.keys(), tableParams, Read);
         Txn txn = new Txn.InMemory(kind, read.keys(), read, TxnQuery.ALL, null, keyCollector.buildTablesAndKeys());
-        return AccordService.instance().coordinateAsync(tableMetadata.epoch.getEpoch(), txn, requestTime);
+        return AccordService.instance().coordinateAsync(tableMetadata.epoch.getEpoch(), txn, consistencyLevel, requestTime);
     }
 
     private static ConsensusAttemptResult readWithAccord(ClusterMetadata cm, SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
