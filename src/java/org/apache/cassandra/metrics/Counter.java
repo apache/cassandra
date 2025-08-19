@@ -15,39 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.metrics;
 
-import com.google.common.annotations.VisibleForTesting;
-
+import com.codahale.metrics.Counting;
+import com.codahale.metrics.Metric;
 
 /**
- * Adds ability to reset a histogram
+ * An interface which mimics {@link com.codahale.metrics.Counter} API and allows alternative implementations
  */
-public class ClearableHistogram extends ThreadLocalHistogram
+public interface Counter extends Metric, Counting
 {
-    private final DecayingEstimatedHistogramReservoir reservoirRef;
+    void inc();
 
-    /**
-     * Creates a new {@link com.codahale.metrics.Histogram} with the given reservoir.
-     *
-     * @param reservoir the reservoir to create a histogram from
-     */
-    public ClearableHistogram(DecayingEstimatedHistogramReservoir reservoir)
-    {
-        super(reservoir);
+    void inc(long n);
 
-        this.reservoirRef = reservoir;
-    }
+    void dec();
 
-    @VisibleForTesting
-    public void clear()
-    {
-        clearCount();
-        reservoirRef.clear();
-    }
-
-    private void clearCount()
-    {
-        reset();
-    }
+    void dec(long n);
 }
