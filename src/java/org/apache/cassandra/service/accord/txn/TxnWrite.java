@@ -79,7 +79,7 @@ import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 
 public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Write
 {
-    public static final long NO_TIMESTAMP = -1;
+    public static final long NO_TIMESTAMP = 0;
 
     @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(TxnWrite.class);
@@ -368,9 +368,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 out.writeUnsignedVInt32(fragment.index);
                 PartitionUpdate.serializer.serializeWithoutKey(fragment.baseUpdate, tables, out, version.messageVersion());
                 TxnReferenceOperations.serializer.serialize(fragment.referenceOps, tables, out, version);
-                out.writeBoolean(fragment.timestamp != NO_TIMESTAMP);
-                if (fragment.timestamp != NO_TIMESTAMP)
-                    out.writeLong(fragment.timestamp);
+                out.writeUnsignedVInt(fragment.timestamp);
             }
 
             public Fragment deserialize(PartitionKey key, TableMetadatas tables, DataInputPlus in, Version version) throws IOException
@@ -379,9 +377,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 // TODO (required): why FROM_REMOTE?
                 PartitionUpdate baseUpdate = PartitionUpdate.serializer.deserialize(key, tables, in, version.messageVersion(), FROM_REMOTE);
                 TxnReferenceOperations referenceOps = TxnReferenceOperations.serializer.deserialize(tables, in, version);
-                long timestamp = NO_TIMESTAMP;
-                if (in.readBoolean())
-                    timestamp = in.readLong();
+                long timestamp = in.readUnsignedVInt();
                 return new Fragment(key, idx, baseUpdate, referenceOps, timestamp);
             }
 
@@ -391,9 +387,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 size += TypeSizes.sizeofUnsignedVInt(fragment.index);
                 size += PartitionUpdate.serializer.serializedSizeWithoutKey(fragment.baseUpdate, tables, version.messageVersion());
                 size += TxnReferenceOperations.serializer.serializedSize(fragment.referenceOps, tables, version);
-                size += TypeSizes.sizeof(true);
-                if (fragment.timestamp != NO_TIMESTAMP)
-                    size += TypeSizes.sizeof(fragment.timestamp);
+                size += TypeSizes.sizeofUnsignedVInt(fragment.timestamp);
                 return size;
             }
         }
