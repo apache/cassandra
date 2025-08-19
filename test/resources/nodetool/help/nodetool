@@ -77,6 +77,7 @@ The most commonly used nodetool commands are:
     gettraceprobability                 Print the current trace probability value
     gossipinfo                          Shows the gossip information for the cluster
     help                                Display help information
+    history                             Print previously executed nodetool commands
     import                              Import new SSTables to the system
     info                                Print node information (uptime, load, ...)
     invalidatecidrpermissionscache      Invalidate the cidr permissions cache
