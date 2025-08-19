@@ -128,6 +128,7 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          GossipInfo.class,
                          GuardrailsConfigCommand.GetGuardrailsConfig.class,
                          GuardrailsConfigCommand.SetGuardrailsConfig.class,
+                         History.class,
                          Import.class,
                          Info.class,
                          InvalidateCIDRPermissionsCache.class,

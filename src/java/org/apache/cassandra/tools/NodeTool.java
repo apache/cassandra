@@ -133,7 +133,7 @@ public class NodeTool
         String cmdLine = Joiner.on(" ").skipNulls().join(args);
         cmdLine = cmdLine.replaceFirst("(?<=(-pw|--password))\\s+\\S+", " <hidden>");
 
-        try (FileWriter writer = new File(FBUtilities.getToolsOutputDirectory(), HISTORYFILE).newWriter(APPEND))
+        try (FileWriter writer = getHistoryFile().newWriter(APPEND))
         {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
             writer.append(sdf.format(new Date())).append(": ").append(cmdLine).append(System.lineSeparator());
@@ -144,6 +144,10 @@ public class NodeTool
         }
     }
 
+    public static File getHistoryFile()
+    {
+        return new File(FBUtilities.getToolsOutputDirectory(), HISTORYFILE);
+    }
 
     public static List<String> getCommandsWithoutRoot(String separator)
     {
