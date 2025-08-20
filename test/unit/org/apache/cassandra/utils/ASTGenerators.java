@@ -824,7 +824,10 @@ public class ASTGenerators
                         if (deleteKind == DeleteKind.Row && clusteringColumns.isEmpty())
                             deleteKind = DeleteKind.Partition;
 
-                        values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+                        if (allowUpdateMultiplePartitionKeys)
+                            where(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
+                        else
+                            values(rnd, columnExpressions, builder, partitionColumns, partitionValueGen);
 
                         switch (deleteKind)
                         {

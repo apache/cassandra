@@ -461,9 +461,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
             ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
                                                                   .withTxnSafe()
-                                                                  .withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
+
+            if (rs.nextBoolean())
+                mutationGenBuilder.withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
+
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
             {
                 model.factory.regularAndStaticColumns.stream()
