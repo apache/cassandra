@@ -1,6 +1,7 @@
 5.0.6
  * Sort SSTable TOC entries for determinism (CASSANDRA-20494)
 Merged from 4.0:
+ * Add NativeTransportMaxConcurrentConnectionsPerIp to StorageProxyMBean (CASSANDRA-20642)
  * Make secondary index implementations notified about rows in fully expired SSTables in compaction (CASSANDRA-20829)
 
 
