@@ -79,6 +79,36 @@ public class ASTSingleTableModelTest
     public static final MapType<Integer, Integer> MAP_INT = MapType.getInstance(Int32Type.instance, Int32Type.instance, true);
 
     @Test
+    public void multiplePartitionUpdate()
+    {
+        TableMetadata metadata = new Builder()
+                                 .pk(1)
+                                 .ck(1)
+                                 .statics(1)
+                                 .regular(1)
+                                 .build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+        /*
+         UPDATE ks1.tbl USING TIMESTAMP 44
+         SET s0=[{00000000-0000-4100-b000-000000000000: -1, 00000000-0000-4900-9500-000000000000: -128, 00000000-0000-4b00-8700-000000000000: 115}, {00000000-0000-4200-ab00-000000000000: -115, 00000000-0000-4200-b000-000000000000: -3, 00000000-0000-4600-b400-000000000000: 66}]
+         WHERE  pk0 IN (70, 47, -35) -- on node1
+         */
+
+        model.update(Mutation.update(metadata)
+                             .timestamp(44)
+                             .set("s", 42)
+                             .in("pk", Int32Type.instance, 70, 47, -35)
+                             .build());
+        ByteBuffer s = value(42);
+        ByteBuffer[][] expected = rows(
+        row(value(47), null, s, null),
+        row(value(-35), null, s, null),
+        row(value(70), null, s, null)
+        );
+        model.validate(expected, Select.builder(metadata).build());
+    }
+
+    @Test
     public void singlePartition()
     {
         for (TableMetadata metadata : defaultTables())
@@ -861,6 +891,11 @@ public class ASTSingleTableModelTest
             }
         }
         return tables;
+    }
+
+    private static ByteBuffer value(int num)
+    {
+        return Int32Type.instance.decompose(num);
     }
 
     private static class ModelModel

@@ -596,7 +596,7 @@ public class ASTSingleTableModel
             }
             // table has clustering but non are in the write, so only pk/static can be updated
             if (!factory.clusteringColumns.isEmpty() && remaining.isEmpty())
-                return;
+                continue;
             BytesPartitionState finalPartition = partition;
             for (Clustering<ByteBuffer> cd : clustering(remaining))
             {
