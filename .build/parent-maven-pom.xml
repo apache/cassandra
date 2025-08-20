@@ -428,28 +428,29 @@
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-core</artifactId>
-        <version>2.15.3</version>
+        <version>2.19.2</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-databind</artifactId>
-        <version>2.15.3</version>
+        <version>2.19.2</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-annotations</artifactId>
-        <version>2.15.3</version>
+        <version>2.19.2</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.datatype</groupId>
         <artifactId>jackson-datatype-jsr310</artifactId>
-        <version>2.15.3</version>
+        <version>2.19.2</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.dataformat</groupId>
         <artifactId>jackson-dataformat-yaml</artifactId>
-        <version>2.15.3</version>
+        <version>2.19.2</version>
         <scope>test</scope>
+        <!-- 2.19.2 would bring in snakeyaml 2.4, but we depend on 2.1 in prod code -->
         <exclusions>
           <exclusion>
             <artifactId>snakeyaml</artifactId>
