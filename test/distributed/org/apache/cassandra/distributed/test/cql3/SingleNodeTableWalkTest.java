@@ -460,9 +460,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             }
 
             ASTGenerators.MutationGenBuilder mutationGenBuilder = new ASTGenerators.MutationGenBuilder(metadata)
-                                                                  .withoutTransaction()
-                                                                  .withoutTtl()
-                                                                  .withoutTimestamp()
+                                                                  .withTxnSafe()
                                                                   .withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)))
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
