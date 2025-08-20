@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,9 +40,16 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.compaction.writers.DefaultCompactionWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.transactions.IndexTransaction;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
@@ -173,6 +181,8 @@ public class CompactionTask extends AbstractCompactionTask
             long estimatedKeys = 0;
             long inputSizeBytes;
             long timeSpentWritingKeys;
+
+            maybeNotifyIndexersAboutRowsInFullyExpiredSSTables(fullyExpiredSSTables);
 
             Set<SSTableReader> actuallyCompact = Sets.difference(transaction.originals(), fullyExpiredSSTables);
             Collection<SSTableReader> newSStables;
@@ -464,5 +474,68 @@ public class CompactionTask extends AbstractCompactionTask
                 max = sstable.maxDataAge;
         }
         return max;
+    }
+
+    private void maybeNotifyIndexersAboutRowsInFullyExpiredSSTables(Set<SSTableReader> fullyExpiredSSTables)
+    {
+        if (fullyExpiredSSTables.isEmpty())
+            return;
+
+        List<Index> indexes = new ArrayList<>();
+        for (Index index : cfs.indexManager.listIndexes())
+        {
+            if (index.notifyIndexerAboutRowsInFullyExpiredSSTables())
+                indexes.add(index);
+        }
+
+        if (indexes.isEmpty())
+            return;
+
+        for (SSTableReader expiredSSTable : fullyExpiredSSTables)
+        {
+            try (ISSTableScanner scanner = expiredSSTable.getScanner())
+            {
+                while (scanner.hasNext())
+                {
+                    UnfilteredRowIterator partition = scanner.next();
+
+                    try (WriteContext ctx = cfs.keyspace.getWriteHandler().createContextForIndexing())
+                    {
+                        List<Index.Indexer> indexers = new ArrayList<>();
+                        for (int i = 0; i < indexes.size(); i++)
+                        {
+                            Index.Indexer indexer = indexes.get(i).indexerFor(partition.partitionKey(),
+                                                                              partition.columns(),
+                                                                              FBUtilities.nowInSeconds(),
+                                                                              ctx,
+                                                                              IndexTransaction.Type.COMPACTION,
+                                                                              null);
+
+                            if (indexer != null)
+                                indexers.add(indexer);
+                        }
+
+                        if (!indexers.isEmpty())
+                        {
+                            for (Index.Indexer indexer : indexers)
+                                indexer.begin();
+
+                            while (partition.hasNext())
+                            {
+                                Unfiltered unfiltered = partition.next();
+                                if (unfiltered instanceof Row)
+                                {
+                                    for (Index.Indexer indexer : indexers)
+                                        indexer.removeRow((Row) unfiltered);
+                                }
+                            }
+
+                            for (Index.Indexer indexer : indexers)
+                                indexer.finish();
+                        }
+                    }
+                }
+            }
+        }
     }
 }
