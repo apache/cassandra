@@ -558,6 +558,12 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
+    public boolean notifyIndexerAboutRowsInFullyExpiredSSTables()
+    {
+        return false;
+    }
+
+    @Override
     public Indexer indexerFor(DecoratedKey key,
                               RegularAndStaticColumns columns,
                               long nowInSec,
