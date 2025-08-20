@@ -473,9 +473,8 @@ public class CompactionTask extends AbstractCompactionTask
             {
                 while (scanner.hasNext())
                 {
-                    UnfilteredRowIterator partition = scanner.next();
-
-                    try (WriteContext ctx = cfs.keyspace.getWriteHandler().createContextForIndexing())
+                    try (UnfilteredRowIterator partition = scanner.next();
+                         WriteContext ctx = cfs.keyspace.getWriteHandler().createContextForIndexing())
                     {
                         List<Index.Indexer> indexers = new ArrayList<>();
                         for (int i = 0; i < indexes.size(); i++)
