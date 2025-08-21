@@ -78,6 +78,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Pair;
@@ -3347,6 +3348,21 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             node.execute("DELETE FROM " + qualifiedAccordTableName + " USING TIMESTAMP 8 WHERE  pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM);
             QueryResultUtil.assertThat(node.executeWithResult("SELECT * FROM " + qualifiedAccordTableName + " WHERE pk0 = -1.1763917E35 AND  pk1 = -466454", ConsistencyLevel.QUORUM))
                            .isEmpty();
+        });
+    }
+
+    /**
+     * When creating {@link org.apache.cassandra.service.accord.txn.TxnWrite.Fragment} CASSANDRA-20857 allowed the fragement to be an empty list,
+     * which should only happen when you have a DELETE that can't match anything ({@code c < 0 AND c > 0}).  If this gets allowed in CAS this
+     * test should start to fail which should promote the author of the change to confirm that this behavior is in fact safe in CAS.
+     */
+    @Test
+    public void emptyCas() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, s int static, c int, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute("DELETE FROM " + qualifiedAccordTableName + " WHERE k=0 AND c < 0 AND c > 0 IF s=0", QUORUM))
+                      .is(AssertionUtils.isInstanceof(InvalidRequestException.class))
+                      .hasMessageContaining("DELETE statements must restrict all PRIMARY KEY columns with equality relations");
         });
     }
 }
