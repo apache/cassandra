@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.consensus;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -287,6 +289,12 @@ public enum TransactionalMode
     public static TransactionalMode fromString(String name)
     {
         return valueOf(toLowerCaseLocalized(name));
+    }
+
+    @VisibleForTesting
+    public static TransactionalMode[] supported()
+    {
+        return new TransactionalMode[]{ TransactionalMode.off, TransactionalMode.mixed_reads, TransactionalMode.full };
     }
 
     public boolean isTestMode()

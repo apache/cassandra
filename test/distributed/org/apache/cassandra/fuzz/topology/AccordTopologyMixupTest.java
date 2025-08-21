@@ -105,7 +105,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
         overridePrimitiveTypeSupport(BytesType.instance, AbstractTypeGenerators.TypeSupport.of(BytesType.instance, Generators.bytes(1, 10), FastByteOperations::compareUnsigned));
     }
 
-    private static final List<TransactionalMode> TRANSACTIONAL_MODES = Stream.of(TransactionalMode.values()).filter(t -> t.accordIsEnabled).collect(Collectors.toList());
+    private static final List<TransactionalMode> TRANSACTIONAL_MODES = Stream.of(TransactionalMode.supported()).filter(t -> t.accordIsEnabled).collect(Collectors.toList());
 
     @Override
     protected Gen<State<Spec>> stateGen()
