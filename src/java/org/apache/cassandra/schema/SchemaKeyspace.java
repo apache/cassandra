@@ -117,6 +117,7 @@ public final class SchemaKeyspace
               + "cdc boolean,"
               + "read_repair text,"
               + "strict_mv_consistency boolean,"
+              + "auto_repair frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -185,6 +186,7 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "auto_repair frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
     private static final TableMetadata Indexes =
