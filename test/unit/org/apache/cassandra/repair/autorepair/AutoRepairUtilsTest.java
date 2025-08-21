@@ -25,7 +25,6 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.junit.Before;
