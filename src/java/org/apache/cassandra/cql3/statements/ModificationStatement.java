@@ -892,7 +892,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         if (mutations.isEmpty())
             return Collections.emptyList();
         List<PartitionUpdate> updates = new ArrayList<>(mutations.size());
-        for (var m : mutations)
+        for (IMutation m : mutations)
             updates.addAll(m.getPartitionUpdates());
         return updates;
     }
@@ -954,7 +954,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
         List<TxnWrite.Fragment> fragments = new ArrayList<>(baseUpdates.size());
-        for (var baseUpdate : baseUpdates)
+        for (PartitionUpdate baseUpdate : baseUpdates)
             fragments.add(new TxnWrite.Fragment(partitionKey, index, baseUpdate, referenceOps, timestamp));
         return fragments;
     }
@@ -965,7 +965,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
         List<TxnWrite.Fragment> fragments = new ArrayList<>(baseUpdates.size());
-        for (var baseUpdate : baseUpdates)
+        for (PartitionUpdate baseUpdate : baseUpdates)
             fragments.add(new TxnWrite.Fragment(keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), index, baseUpdate, referenceOps, timestamp));
         return fragments;
     }
