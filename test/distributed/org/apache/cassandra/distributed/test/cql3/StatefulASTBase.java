@@ -67,10 +67,12 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.util.DriverUtils;
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.repair.RepairGenerators;
@@ -86,7 +88,6 @@ import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
-import static org.apache.cassandra.distributed.util.DriverUtils.executeQuery;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 
@@ -211,7 +212,7 @@ public class StatefulASTBase extends TestBaseImpl
         var select = builder.build();
         var inst = state.selectInstance(rs);
         return new Property.SimpleCommand<>(state.humanReadable(select, null), s -> {
-            var result = executeQuery(s.session, inst, Integer.MAX_VALUE, s.selectCl(), select);
+            var result = s.executeQuery(inst, Integer.MAX_VALUE, s.selectCl(), select);
             for (var row : result)
             {
                 for (var col : state.model.factory.regularAndStaticColumns)
@@ -551,7 +552,7 @@ public class StatefulASTBase extends TestBaseImpl
             else                  annotate += ", " + postfix;
             Select finalSelect = select;
             return new Property.SimpleCommand<>(humanReadable(select, annotate), s -> {
-                s.model.validate(executeQuery(s.session, inst, fetchSize, s.selectCl(), finalSelect), finalSelect);
+                s.model.validate(s.executeQuery(inst, fetchSize, s.selectCl(), finalSelect), finalSelect);
             });
         }
 
@@ -562,7 +563,7 @@ public class StatefulASTBase extends TestBaseImpl
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
             return new Property.SimpleCommand<>(humanReadable(select, annotate), s -> {
-                s.model.validate(executeQuery(s.session, inst, Integer.MAX_VALUE, s.selectCl(), select), select);
+                s.model.validate(s.executeQuery(inst, Integer.MAX_VALUE, s.selectCl(), select), select);
             });
         }
 
@@ -595,7 +596,7 @@ public class StatefulASTBase extends TestBaseImpl
             else                  annotate += ", " + postfix;
             Mutation finalMutation = mutation;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
-                var result = executeQuery(s.session, inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
+                var result = s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
                 s.model.updateAndValidate(result, finalMutation);
                 s.mutation();
             });
@@ -618,7 +619,7 @@ public class StatefulASTBase extends TestBaseImpl
             return new Property.SimpleCommand<>(humanReadable(txn, annotate), s -> {
                 boolean hasMutation = txn.ifBlock.isPresent() || !txn.mutations.isEmpty();
                 ConsistencyLevel cl = hasMutation ? s.mutationCl() : s.selectCl();
-                s.model.updateAndValidate(executeQuery(s.session, inst, Integer.MAX_VALUE, cl, txn), txn);
+                s.model.updateAndValidate(s.executeQuery(inst, Integer.MAX_VALUE, cl, txn), txn);
                 if (hasMutation)
                     s.mutation();
             });
@@ -683,6 +684,22 @@ public class StatefulASTBase extends TestBaseImpl
         protected Value value(RandomSource rs, ByteBuffer bb, AbstractType<?> type)
         {
             return bindOrLiteralGen.next(rs) ? new Bind(bb, type) : new Literal(bb, type);
+        }
+
+        protected ByteBuffer[][] executeQuery(IInstance instance, int fetchSize, ConsistencyLevel cl, Statement stmt)
+        {
+            if (cl == ConsistencyLevel.NODE_LOCAL)
+            {
+                // This limitation is due to the fact the query column types are not known in the current QueryResult API.
+                // In order to fix this we need to alter the API, and backport to each branch else we break upgrade.
+                if (!(stmt instanceof Mutation))
+                    throw new IllegalArgumentException("Unable to execute Statement of type " + stmt.getClass() + " when ConsistencyLevel.NODE_LOCAL is used");
+                if (fetchSize != Integer.MAX_VALUE)
+                    throw new IllegalArgumentException("Fetch size is not allowed for Mutations");
+                instance.executeInternal(stmt.toCQL(), (Object[]) stmt.bindsEncoded());
+                return new ByteBuffer[0][];
+            }
+            return DriverUtils.executeQuery(session, instance, fetchSize, cl, stmt);
         }
 
         protected String humanReadable(Statement stmt, @Nullable String annotate)

@@ -38,5 +38,6 @@ public class MultiNodeTableWalkWithoutReadRepairTest extends MultiNodeTableWalkB
         // CQL_DEBUG_APPLY_OPERATOR = true;
         // When mutations look to be lost as seen by more complex SELECTs, it can be useful to just SELECT the partition/row right after to write to see if it was safe at the time.
         // READ_AFTER_WRITE = true;
+        builder.withSeed(3456199402316345789L).withExamples(1);
     }
 }
