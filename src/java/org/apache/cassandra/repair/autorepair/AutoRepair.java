@@ -38,7 +38,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DurationSpec;
