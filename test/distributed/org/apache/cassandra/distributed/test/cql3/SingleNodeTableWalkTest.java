@@ -464,8 +464,11 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
 
-//            if (rs.nextBoolean())
-//                mutationGenBuilder.withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
+            // Run the test with and without bound partitions
+            // When using fixed partitions, each mutation will be for a single partition and will use pk=? syntax
+            // When using unbounded partitions then IN clause is used on partition keys, leading to mutations touching multiple partitions
+            if (rs.nextBoolean())
+                mutationGenBuilder.withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
 
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
             {
