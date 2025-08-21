@@ -96,7 +96,8 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
         {
             super(rs, cluster);
             allowUsingTimestamp = rs.nextBoolean();
-            wrapMutationAsTxn = rs.nextFloat();
+            // when USING TIMESTAMP is done for the mutation, BEGIN TRANSACTION can't be supported as it doesn't allow that syntax; so need to disable wrapping mutations
+            wrapMutationAsTxn = allowUsingTimestamp ? 0F : rs.nextFloat();
         }
 
         @Override
@@ -111,7 +112,7 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
         @Override
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Mutation mutation, @Nullable String annotate)
         {
-            if (rs.decide(wrapMutationAsTxn))
+            if (wrapMutationAsTxn != 0 && rs.decide(wrapMutationAsTxn))
                 return super.command(rs, Txn.wrap(mutation), annotate);
             return super.command(rs, mutation, annotate);
         }
@@ -119,8 +120,7 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
         @Override
         protected boolean allowUsingTimestamp()
         {
-            return false;
-//            return allowUsingTimestamp;
+            return allowUsingTimestamp;
         }
 
         @Override
