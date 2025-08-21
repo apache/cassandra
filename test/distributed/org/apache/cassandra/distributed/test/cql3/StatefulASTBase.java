@@ -53,6 +53,7 @@ import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.StandardVisitors;
 import org.apache.cassandra.cql3.ast.Statement;
 import org.apache.cassandra.cql3.ast.TableReference;
+import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.cql3.ast.Visitor;
 import org.apache.cassandra.cql3.ast.Visitor.CompositeVisitor;
@@ -597,6 +598,29 @@ public class StatefulASTBase extends TestBaseImpl
                 var result = executeQuery(s.session, inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
                 s.model.updateAndValidate(result, finalMutation);
                 s.mutation();
+            });
+        }
+
+        protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Txn txn)
+        {
+            return command(rs, txn, null);
+        }
+
+        protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Txn txn, @Nullable String annotate)
+        {
+            var inst = selectInstance(rs);
+            String postfix = "on " + inst;
+            if (model.isConditional(txn))
+                postfix += ", would apply " + model.shouldApply(txn);
+            if (annotate == null) annotate = postfix;
+            else annotate += ", " + postfix;
+
+            return new Property.SimpleCommand<>(humanReadable(txn, annotate), s -> {
+                boolean hasMutation = txn.ifBlock.isPresent() || !txn.mutations.isEmpty();
+                ConsistencyLevel cl = hasMutation ? s.mutationCl() : s.selectCl();
+                s.model.updateAndValidate(executeQuery(s.session, inst, Integer.MAX_VALUE, cl, txn), txn);
+                if (hasMutation)
+                    s.mutation();
             });
         }
 

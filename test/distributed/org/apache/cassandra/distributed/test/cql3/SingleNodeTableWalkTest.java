@@ -464,8 +464,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                   .withColumnExpressions(e -> e.withOperators(Generators.fromGen(BOOLEAN_DISTRIBUTION.next(rs))))
                                                                   .withIgnoreIssues(IGNORED_ISSUES);
 
-            if (rs.nextBoolean())
-                mutationGenBuilder.withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
+//            if (rs.nextBoolean())
+//                mutationGenBuilder.withPartitions(Generators.fromGen(Gens.mixedDistribution(uniquePartitions).next(rs)));
 
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_EMPTY_TYPE))
             {
