@@ -481,6 +481,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
 
                 // recreate the reads to avoid autoReads adding reads
+                keyCollector = new TableMetadatasAndKeys.KeyCollector(tables);
                 reads = createNamedReads(options, null, keyCollector);
                 if (reads.isEmpty())
                 {
