@@ -3351,18 +3351,31 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         });
     }
 
-    /**
-     * When creating {@link org.apache.cassandra.service.accord.txn.TxnWrite.Fragment} CASSANDRA-20857 allowed the fragement to be an empty list,
-     * which should only happen when you have a DELETE that can't match anything ({@code c < 0 AND c > 0}).  If this gets allowed in CAS this
-     * test should start to fail which should promote the author of the change to confirm that this behavior is in fact safe in CAS.
-     */
     @Test
-    public void emptyCas() throws Exception
+    public void emptyModification() throws Exception
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int, s int static, c int, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
-            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute("DELETE FROM " + qualifiedAccordTableName + " WHERE k=0 AND c < 0 AND c > 0 IF s=0", QUORUM))
+            String deleteStmt = "DELETE FROM " + qualifiedAccordTableName + " WHERE k=0 AND c < 0 AND c > 0";
+            String selectStmt = "SELECT * FROM " + qualifiedAccordTableName + " WHERE k=0";
+            ICoordinator node = cluster.coordinator(1);
+            node.execute("INSERT INTO " + qualifiedAccordTableName + " (k, s, c, v) VALUES (0, 0, 0, 0)", QUORUM);
+
+            // CAS rejects
+            Assertions.assertThatThrownBy(() -> node.execute(deleteStmt + " IF s=0", QUORUM))
                       .is(AssertionUtils.isInstanceof(InvalidRequestException.class))
                       .hasMessageContaining("DELETE statements must restrict all PRIMARY KEY columns with equality relations");
+
+            // BEGIN TRANSACTION does not!  This should no-op (user has no way to know it did)
+            node.execute(wrapInTxn(deleteStmt), QUORUM);
+            Assertions.assertThat(node.instance().logs().watchFor(TransactionStatement.WRITE_TXN_EMPTY_WITH_NO_READS).getResult()).isNotEmpty();
+
+            // if there was a read, the txn was downgraded to a read txn
+            var results = node.execute(wrapInTxn(selectStmt, deleteStmt), QUORUM);
+            Assertions.assertThat(results).hasDimensions(1, 4);
+
+            // there are lets but no returning
+            node.execute(wrapInTxn("LET a = (" + selectStmt + " LIMIT 1" + ')', deleteStmt), QUORUM);
+            Assertions.assertThat(node.instance().logs().watchFor(TransactionStatement.WRITE_TXN_EMPTY_WITH_IGNORED_READS).getResult()).isNotEmpty();
         });
     }
 }
