@@ -621,7 +621,7 @@ public class ASTSingleTableModel
         for (Clustering<ByteBuffer> pd : pks)
         {
             BytesPartitionState partition = partitions.get(factory.createRef(pd));
-            if (partition == null) return; // can't delete a partition that doesn't exist...
+            if (partition == null) continue; // can't delete a partition that doesn't exist...
 
             DeleteKind kind = DeleteKind.PARTITION;
             if (!delete.columns.isEmpty())
