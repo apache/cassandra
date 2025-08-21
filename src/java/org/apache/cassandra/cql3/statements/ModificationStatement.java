@@ -39,6 +39,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -950,23 +951,25 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
     {
-        List<PartitionUpdate> baseUpdates = getTxnUpdate(state, options);
-        TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
-        long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
-        List<TxnWrite.Fragment> fragments = new ArrayList<>(baseUpdates.size());
-        for (PartitionUpdate baseUpdate : baseUpdates)
-            fragments.add(new TxnWrite.Fragment(partitionKey, index, baseUpdate, referenceOps, timestamp));
-        return fragments;
+        return getTxnWriteFragment(index, state, options, baseUpdate -> {
+            Invariants.require(baseUpdate.partitionKey().equals(partitionKey.partitionKey()));
+            return partitionKey;
+        });
     }
 
     public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector)
+    {
+        return getTxnWriteFragment(index, state, options, baseUpdate -> keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()));
+    }
+
+    private List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, java.util.function.Function<PartitionUpdate, PartitionKey> keyCollector)
     {
         List<PartitionUpdate> baseUpdates = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
         List<TxnWrite.Fragment> fragments = new ArrayList<>(baseUpdates.size());
         for (PartitionUpdate baseUpdate : baseUpdates)
-            fragments.add(new TxnWrite.Fragment(keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), index, baseUpdate, referenceOps, timestamp));
+            fragments.add(new TxnWrite.Fragment(keyCollector.apply(baseUpdate), index, baseUpdate, referenceOps, timestamp));
         return fragments;
     }
 
