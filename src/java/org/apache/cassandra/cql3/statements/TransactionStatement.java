@@ -350,9 +350,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         int idx = 0;
         for (ModificationStatement modification : updates)
         {
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx, state, options, keyCollector);
-            minEpoch = Math.max(minEpoch, fragment.baseUpdate.metadata().epoch.getEpoch());
-            fragments.add(fragment);
+            minEpoch = Math.max(minEpoch, modification.metadata().epoch.getEpoch());
+            fragments.addAll(modification.getTxnWriteFragment(idx, state, options, keyCollector));
 
             if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
             {

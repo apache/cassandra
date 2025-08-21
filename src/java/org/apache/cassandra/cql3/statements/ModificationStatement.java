@@ -886,15 +886,15 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
     }
 
-    public PartitionUpdate getTxnUpdate(ClientState state, QueryOptions options)
+    public List<PartitionUpdate> getTxnUpdate(ClientState state, QueryOptions options)
     {
         List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0));
-        // TODO: Temporary fix for CASSANDRA-20079
         if (mutations.isEmpty())
-            return PartitionUpdate.emptyUpdate(metadata, metadata.partitioner.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        if (mutations.size() != 1)
-            throw new IllegalArgumentException("When running withing a transaction, modification statements may only mutate a single partition");
-        return Iterables.getOnlyElement(mutations.get(0).getPartitionUpdates());
+            return Collections.emptyList();
+        List<PartitionUpdate> updates = new ArrayList<>(mutations.size());
+        for (var m : mutations)
+            updates.addAll(m.getPartitionUpdates());
+        return updates;
     }
 
     private static List<TxnReferenceOperation> getTxnReferenceOps(List<ReferenceOperation> operations, QueryOptions options)
@@ -948,20 +948,26 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return operations.allSubstitutions();
     }
 
-    public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
+    public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
     {
-        PartitionUpdate baseUpdate = getTxnUpdate(state, options);
+        List<PartitionUpdate> baseUpdates = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
-        return new TxnWrite.Fragment(partitionKey, index, baseUpdate, referenceOps, timestamp);
+        List<TxnWrite.Fragment> fragments = new ArrayList<>(baseUpdates.size());
+        for (var baseUpdate : baseUpdates)
+            fragments.add(new TxnWrite.Fragment(partitionKey, index, baseUpdate, referenceOps, timestamp));
+        return fragments;
     }
 
-    public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector)
+    public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, KeyCollector keyCollector)
     {
-        PartitionUpdate baseUpdate = getTxnUpdate(state, options);
+        List<PartitionUpdate> baseUpdates = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         long timestamp = attrs.isTimestampSet() ? attrs.getTimestamp(TxnWrite.NO_TIMESTAMP, options) : TxnWrite.NO_TIMESTAMP;
-        return new TxnWrite.Fragment(keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), index, baseUpdate, referenceOps, timestamp);
+        List<TxnWrite.Fragment> fragments = new ArrayList<>(baseUpdates.size());
+        for (var baseUpdate : baseUpdates)
+            fragments.add(new TxnWrite.Fragment(keyCollector.collect(baseUpdate.metadata(), baseUpdate.partitionKey()), index, baseUpdate, referenceOps, timestamp));
+        return fragments;
     }
 
     final void addUpdates(UpdatesCollector collector,

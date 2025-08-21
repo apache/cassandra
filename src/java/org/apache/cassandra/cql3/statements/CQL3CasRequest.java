@@ -558,15 +558,13 @@ public class CQL3CasRequest implements CASRequest
             // see CASSANDRA-18337
             ModificationStatement modification = update.stmt.forTxn();
             QueryOptions options = update.options;
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options, partitionKey);
-            fragments.add(fragment);
+            fragments.addAll(modification.getTxnWriteFragment(idx++, state, options, partitionKey));
         }
         for (RangeDeletion rangeDeletion : rangeDeletions)
         {
             ModificationStatement modification = rangeDeletion.stmt;
             QueryOptions options = rangeDeletion.options;
-            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options, partitionKey);
-            fragments.add(fragment);
+            fragments.addAll(modification.getTxnWriteFragment(idx++, state, options, partitionKey));
         }
         return fragments;
     }
