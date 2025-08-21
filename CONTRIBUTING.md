@@ -18,16 +18,43 @@
 #
 -->
 
-# Apache Cassandra and Pull Requests
-
-Apache Cassandra doesn't use GitHub pull requests as part of the development process.
-In fact, this repository is a GitHub mirror of [the official repo](https://gitbox.apache.org/repos/asf/cassandra.git).
-
 # How to Contribute
 
-Use [Cassandra JIRA](https://issues.apache.org/jira/browse/CASSANDRA/) to create an issue, then either attach a patch or post a link to a GitHub branch with your changes.
+There are many opportunities to contribute code to Apache Cassandra, including documentation updates, test improvements,
+bug fixes, changes to the Java code base, and tooling improvements.
 
-# Working with submodules
+Before getting started, please read about [Contributing Code Changes](https://cassandra.apache.org/_/development/patches.html), and familiarize yourself with Cassandra's [code style guidelines](https://cassandra.apache.org/_/development/code_style.html), [testing](https://cassandra.apache.org/_/development/testing.html) and [code review checklist](https://cassandra.apache.org/_/development/how_to_review.html).
+
+A recommended workflow to get started is:
+1. Find or create an issue in the [Cassandra JIRA](https://issues.apache.org/jira/browse/CASSANDRA/) that describes the work you plan to do.
+2. Create a personal fork of the [Apache Cassandra GitHub repo](https://github.com/apache/cassandra).
+3. Clone your fork into your development environment.
+4. Create your feature branch. Please see the branch naming suggestion, below.
+5. Make, build, test and self-review your changes on your feature branch.
+6. Submit the patch, either by creating a GitHub pull request, attaching a patch file to your JIRA, or posting a
+link to a GitHub branch with your changes.
+
+Branch naming: To ease collaboration, consider naming your feature branch like `your-name/jira-id/base-branch`. For
+example, `jcshepherd/CASSANDRA-12345/trunk`. This convention will help with managing multiple collaborators on a shared
+fork, and managing patches which differ across different Cassandra versions.
+
+Note: [Committers](https://projects.apache.org/committee.html?cassandra) follow additional processes for handling patches, pull requests, and committing directly to [the official repo](https://gitbox.apache.org/), which the Apache Cassandra GitHub repo mirrors.
+
+## Contributing to Related Projects
+
+There are a number of [Cassandra-related projects](https://github.com/apache?q=cassandra&type=all&language=&sort=) where
+contributions may be welcomed, including:
+- [Cassandra Website](https://github.com/apache/cassandra-website)
+- [Cassandra Sidecar](https://github.com/apache/cassandra-sidecar)
+- [Cassandra Analytics](https://github.com/apache/cassandra-analytics)
+- Cassandra drivers for [Java](https://github.com/apache/cassandra-java-driver) and [Go](https://github.com/apache/cassandra-gocql-driver)
+- [Cassandra Spark Connector](https://github.com/apache/cassandra-spark-connector)
+- [Cassandra DTests (distributed tests)](https://github.com/apache/cassandra-dtest)
+
+... and [more](https://github.com/apache?q=cassandra&type=all&language=&sort=). Visit those repositories and their related
+JIRA issues for more information on making contributions.
+
+# Working with Submodules
 
 Apache Cassandra uses git submodules for a set of dependencies, this is to make cross cutting changes easier for developers.  When working on such changes, there are a set of scripts to help with the process.
 
