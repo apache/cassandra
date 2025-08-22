@@ -18,16 +18,23 @@
 
 package org.apache.cassandra.tools;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 
 import com.google.common.base.CharMatcher;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
 
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
@@ -224,5 +231,53 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
         assertSystemKSNotLoaded();
         assertKeyspaceNotLoaded();
         assertServerNotLoaded();
+    }
+
+    @Test
+    public void testLoadingOfSStableWithRangeTombstoneAsMaxClustering() throws IOException
+    {
+        String sstableWithTombstones = copySSTables("sstable_metadata", "CASSANDRA_20855");
+        ToolResult tool = ToolRunner.invokeClass(SSTableMetadataViewer.class, sstableWithTombstones);
+        assertTrue(tool.getStdout(), CharMatcher.ascii().matchesAllOf(tool.getStdout()));
+        Assertions.assertThat(tool.getStdout()).contains(sstableWithTombstones.replaceAll("-Data\\.db$", ""));
+        Assertions.assertThat(tool.getStdout()).contains("minClusteringValues: [clust_key_1_1, clust_key_2_1]");
+        // Range tombstone end as a max clustering value, only the first clustering key is stored in metadata
+        Assertions.assertThat(tool.getStdout()).contains("maxClusteringValues: [clust_key_1_2]");
+        assertTrue(tool.getStderr(), tool.getStderr().isEmpty());
+        assertEquals(0, tool.getExitCode());
+        assertGoodEnvPostTest();
+    }
+
+    @Test
+    @Ignore
+    // the logic is used only to generate test data for testLoadingOfSStableWithRangeTombstoneAsMaxClustering
+    // the result of the generation is committed to SCM
+    public void generateSSTableWithRangeTombstone() throws IOException
+    {
+        SchemaLoader.prepareServer();
+        StorageService.instance.initServer();
+        Keyspace.setInitialized();
+        QueryProcessor.executeInternal("CREATE KEYSPACE sstable_metadata WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        QueryProcessor.executeInternal("CREATE TABLE sstable_metadata.CASSANDRA_20855 (pk text, ck_1 text, ck_2 text, val text, PRIMARY KEY (pk, ck_1, ck_2))");
+
+        QueryProcessor.executeInternal(String.format("INSERT INTO sstable_metadata.CASSANDRA_20855 (pk, ck_1, ck_2, val) VALUES ('%s', '%s', '%s', '%s')",
+                                                     "part_key_1", "clust_key_1_1", "clust_key_2_1", "value"));
+
+        QueryProcessor.executeInternal(String.format("DELETE FROM sstable_metadata.CASSANDRA_20855 WHERE pk = '%s' AND ck_1 = '%s'",
+                                                     "part_key_1", "clust_key_1_2"));
+
+        StorageService.instance.forceKeyspaceFlush("sstable_metadata");
+    }
+
+
+    private static String copySSTables(String keyspace, String table) throws IOException
+    {
+        File targetKeyspaceDir = new File("build/test/cassandra/data/", keyspace);
+        targetKeyspaceDir.mkdirs();
+        File targetTableDir = new File(targetKeyspaceDir, table);
+        File srcKeyspaceDir = new File("test/data/" + keyspace);
+        FileUtils.copyDirectory(new File(srcKeyspaceDir, table), targetTableDir);
+        File[] sstableFiles = targetTableDir.listFiles((file) -> file.isFile() && file.getName().endsWith("-Data.db"));
+        return sstableFiles[0].getAbsolutePath();
     }
 }
