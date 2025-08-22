@@ -476,32 +476,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
             List<TxnWrite.Fragment> writeFragments = createWriteFragments(state, options, autoReads, keyCollector);
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
-            if (writeFragments.isEmpty())
+            if (writeFragments.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
             {
-                // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
-
-                // recreate the reads to avoid autoReads adding reads
-                keyCollector.clear(); // just to discared the borrowed memory
-                keyCollector = new TableMetadatasAndKeys.KeyCollector(tables);
-                reads = createNamedReads(options, null, keyCollector);
-                if (reads.isEmpty())
-                {
-                    // no reads, this is a no-op
-                    noSpamLogger.info(WRITE_TXN_EMPTY_WITH_NO_READS);
-                    return null;
-                }
-                if (returningSelect == null && returningReferences == null)
-                {
-                    // the reads were for the mutation, and since the mutation doesn't exist the reads are not needed
-                    noSpamLogger.info(WRITE_TXN_EMPTY_WITH_IGNORED_READS);
-                    return null;
-                }
-
-                // Return a read only txn
-                Keys keys = keyCollector.build();
-                TxnRead read = createTxnRead(tables, reads, consistencyLevelForAccordRead(cm, tables, keys, options.getSerialConsistency()), Domain.Key);
-                Txn.Kind kind = shouldReadEphemerally(keys, tables.getMetadata((TableId)keys.get(0).prefix()).params, Read);
-                return new Txn.InMemory(kind, keys, read, TxnQuery.ALL, null, new TableMetadatasAndKeys(tables, keys));
+                // cleanup memory
+                keyCollector.clear();
+                autoReads.clear();
+                return maybeCreateTxnFromEmptyWrites(cm, options, tables);
             }
             ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             Keys keys = keyCollector.build();
@@ -509,6 +489,30 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             TxnRead read = createTxnRead(tables, reads, null, Domain.Key);
             return new Txn.InMemory(keys, read, TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
         }
+    }
+
+    private Txn.InMemory maybeCreateTxnFromEmptyWrites(ClusterMetadata cm, QueryOptions options, TableMetadatas.Complete tables)
+    {
+        TableMetadatasAndKeys.KeyCollector keyCollector = new TableMetadatasAndKeys.KeyCollector(tables);
+        List<TxnNamedRead> reads = createNamedReads(options, null, keyCollector);
+        if (reads.isEmpty())
+        {
+            // no reads, this is a no-op
+            noSpamLogger.info(WRITE_TXN_EMPTY_WITH_NO_READS);
+            return null;
+        }
+        if (returningSelect == null && returningReferences == null)
+        {
+            // the reads were for the mutation, and since the mutation doesn't exist the reads are not needed
+            noSpamLogger.info(WRITE_TXN_EMPTY_WITH_IGNORED_READS);
+            return null;
+        }
+
+        // Return a read only txn
+        Keys keys = keyCollector.build();
+        TxnRead read = createTxnRead(tables, reads, consistencyLevelForAccordRead(cm, tables, keys, options.getSerialConsistency()), Domain.Key);
+        Txn.Kind kind = shouldReadEphemerally(keys, tables.getMetadata((TableId)keys.get(0).prefix()).params, Read);
+        return new Txn.InMemory(kind, keys, read, TxnQuery.ALL, null, new TableMetadatasAndKeys(tables, keys));
     }
 
     /**
