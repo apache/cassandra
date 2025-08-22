@@ -1,4 +1,5 @@
 4.0.19
+ * Fix IndexOutOfBoundsException in sstablemetadata tool when a range tombstone is a max clustering value (CASSANDRA-20855)
  * Update Jackson to 2.19.2 (CASSANDRA-20848)
  * Update commons-lang3 to 3.18.0 (CASSANDRA-20849)
  * Add NativeTransportMaxConcurrentConnectionsPerIp to StorageProxyMBean (CASSANDRA-20642)
