@@ -491,6 +491,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         }
     }
 
+    @Nullable
     private Txn.InMemory maybeCreateTxnFromEmptyWrites(ClusterMetadata cm, QueryOptions options, TableMetadatas.Complete tables)
     {
         TableMetadatasAndKeys.KeyCollector keyCollector = new TableMetadatasAndKeys.KeyCollector(tables);
