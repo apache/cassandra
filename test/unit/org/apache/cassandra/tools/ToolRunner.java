@@ -283,11 +283,6 @@ public class ToolRunner
         return invokeClass(klass.getName(), null, false, args);
     }
 
-    public static ToolResult invokeClass(String klass, boolean captureLogging, String... args)
-    {
-        return invokeClass(klass, null, captureLogging, args);
-    }
-
     public static ToolResult invokeClass(Class<?> klass, boolean captureLogging, String... args)
     {
         return invokeClass(klass.getName(), null, captureLogging, args);
