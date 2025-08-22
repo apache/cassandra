@@ -40,7 +40,7 @@ public class AuditLogEntry
 {
     static final String DEFAULT_KEY_VALUE_SEPARATOR = ":";
     static final String DEFAULT_FIELD_SEPARATOR = "|";
-    private final InetAddressAndPort host = FBUtilities.getBroadcastAddressAndPort();
+    private final InetAddressAndPort host = FBUtilities.getBroadcastNativeAddressAndPort();
     private final InetAddressAndPort source;
     private final String user;
     private final long timestamp;

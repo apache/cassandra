@@ -22,12 +22,23 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
+
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.apache.cassandra.audit.AuditLogFilter.isFiltered;
 
 public class AuditLogFilterTest
 {
+    @Before
+    public void setup()
+    {
+        DatabaseDescriptor.setConfig(new Config());
+        DatabaseDescriptor.applyAddressConfig();
+    }
+
     @Test
     public void testInputWithSpaces()
     {
