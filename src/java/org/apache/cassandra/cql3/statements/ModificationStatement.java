@@ -952,7 +952,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     public List<TxnWrite.Fragment> getTxnWriteFragment(int index, ClientState state, QueryOptions options, PartitionKey partitionKey)
     {
         return getTxnWriteFragment(index, state, options, baseUpdate -> {
-            Invariants.require(baseUpdate.partitionKey().equals(partitionKey.partitionKey()), "PartitionUpdate generated a partition key different than the one excepted");
+            Invariants.require(baseUpdate.partitionKey().equals(partitionKey.partitionKey()), "PartitionUpdate generated a partition key different than the one expected");
             return partitionKey;
         });
     }
