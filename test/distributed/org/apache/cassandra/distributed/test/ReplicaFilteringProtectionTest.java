@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -69,6 +70,14 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     {
         if (cluster != null)
             cluster.close();
+    }
+
+    @Before
+    public void beforeTest() throws IOException
+    {
+        // Before every test reset to the default value to avoid the threshold interference
+        cluster.get(1).runOnInstance(() -> StorageService.instance.setCachedReplicaRowsFailThreshold(DEFAULT_FAIL_THRESHOLD));
+        cluster.get(1).runOnInstance(() -> StorageService.instance.setCachedReplicaRowsWarnThreshold(DEFAULT_WARN_THRESHOLD));
     }
 
     @Test
@@ -215,7 +224,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
     private void verifyWarningState(boolean shouldWarn, SimpleQueryResult futureResult)
     {
         List<String> futureWarnings = futureResult.warnings();
-        assertEquals(shouldWarn, futureWarnings.stream().anyMatch(w -> w.contains("cached_replica_rows_warn_threshold")));
+        assertEquals(shouldWarn, futureWarnings.stream().anyMatch(w -> w.contains("cached_rows_warn_threshold")));
         assertEquals(shouldWarn ? 1 : 0, futureWarnings.size());
     }
 
