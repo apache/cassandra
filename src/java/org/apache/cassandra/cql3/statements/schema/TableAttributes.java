@@ -164,6 +164,9 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(MIN_INDEX_INTERVAL))
             builder.minIndexInterval(getInt(MIN_INDEX_INTERVAL));
 
+        if (hasOption(Option.NO_DELETES))
+            builder.noDeletes(getBoolean(Option.NO_DELETES));
+
         if (hasOption(SPECULATIVE_RETRY))
             builder.speculativeRetry(SpeculativeRetryPolicy.fromString(getString(SPECULATIVE_RETRY)));
 

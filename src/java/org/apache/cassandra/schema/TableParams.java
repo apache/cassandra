@@ -100,7 +100,8 @@ public final class TableParams
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
         PENDING_DROP,
-        AUTO_REPAIR;
+        AUTO_REPAIR,
+        NO_DELETES;
 
         @Override
         public String toString()
@@ -132,6 +133,7 @@ public final class TableParams
     public final TransactionalMode transactionalMode;
     public final TransactionalMigrationFromMode transactionalMigrationFrom;
     public final boolean pendingDrop;
+    public final boolean noDeletes;
 
     public final AutoRepairParams autoRepair;
 
@@ -164,6 +166,7 @@ public final class TableParams
         pendingDrop = builder.pendingDrop;
         checkNotNull(transactionalMigrationFrom);
         autoRepair = builder.autoRepair;
+        noDeletes = builder.noDeletes;
     }
 
     public static Builder builder()
@@ -196,7 +199,8 @@ public final class TableParams
                             .transactionalMode(params.transactionalMode)
                             .transactionalMigrationFrom(params.transactionalMigrationFrom)
                             .pendingDrop(params.pendingDrop)
-                            .automatedRepair(params.autoRepair);
+                            .automatedRepair(params.autoRepair)
+                            .noDeletes(params.noDeletes);
     }
 
     public Builder unbuild()
@@ -297,7 +301,8 @@ public final class TableParams
             && transactionalMode == p.transactionalMode
             && transactionalMigrationFrom == p.transactionalMigrationFrom
             && pendingDrop == p.pendingDrop
-            && autoRepair.equals(p.autoRepair);
+            && autoRepair.equals(p.autoRepair)
+            && noDeletes == p.noDeletes;
     }
 
     @Override
@@ -326,7 +331,8 @@ public final class TableParams
                                 transactionalMode,
                                 transactionalMigrationFrom,
                                 pendingDrop,
-                                autoRepair);
+                                autoRepair,
+                                noDeletes);
     }
 
     @Override
@@ -358,6 +364,7 @@ public final class TableParams
                           .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
                           .add(PENDING_DROP.toString(), pendingDrop)
                           .add(Option.AUTO_REPAIR.toString(), autoRepair)
+                          .add(Option.NO_DELETES.toString(), noDeletes)
                           .toString();
     }
 
@@ -407,6 +414,8 @@ public final class TableParams
                .newLine()
                .append("AND min_index_interval = ").append(minIndexInterval)
                .newLine()
+               .append("AND no_deletes = ").append(noDeletes)
+               .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
                .newLine();
 
@@ -454,6 +463,7 @@ public final class TableParams
         public boolean pendingDrop = false;
 
         private AutoRepairParams autoRepair = AutoRepairParams.DEFAULT;
+        private boolean noDeletes = false;
         public Builder()
         {
         }
@@ -606,6 +616,12 @@ public final class TableParams
             autoRepair = val;
             return this;
         }
+
+        public Builder noDeletes(boolean val)
+        {
+            noDeletes = val;
+            return this;
+        }
     }
 
     public static class Serializer implements MetadataSerializer<TableParams>
@@ -641,6 +657,7 @@ public final class TableParams
                 out.writeInt(t.transactionalMode.ordinal());
                 out.writeInt(t.transactionalMigrationFrom.ordinal());
                 out.writeBoolean(t.pendingDrop);
+                out.writeBoolean(t.noDeletes);
             }
         }
 
@@ -671,7 +688,8 @@ public final class TableParams
                 builder.fastPath(FastPathStrategy.serializer.deserialize(in, version))
                        .transactionalMode(TransactionalMode.fromOrdinal(in.readInt()))
                        .transactionalMigrationFrom(TransactionalMigrationFromMode.fromOrdinal(in.readInt()))
-                       .pendingDrop(in.readBoolean());
+                       .pendingDrop(in.readBoolean())
+                       .noDeletes(in.readBoolean());
             }
             return builder.build();
         }
@@ -702,7 +720,8 @@ public final class TableParams
                 size += FastPathStrategy.serializer.serializedSize(t.fastPath, version) +
                         sizeof(t.transactionalMode.ordinal()) +
                         sizeof(t.transactionalMigrationFrom.ordinal()) +
-                        sizeof(t.pendingDrop);
+                        sizeof(t.pendingDrop) +
+                        sizeof(t.noDeletes);
             }
             return size;
         }
