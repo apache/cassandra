@@ -93,6 +93,8 @@ public enum CassandraRelevantProperties
     CASSANDRA_CLI_LAYOUT("cassandra.cli.layout", "airline"),
     /** The classpath storage configuration file. */
     CASSANDRA_CONFIG("cassandra.config", "cassandra.yaml"),
+    /** Decaying histogram reset interval in milliseconds. Default is {@code 30} minutes. */
+    CASSANDRA_DECAYING_HISTOGRAM_RESET_INTERVAL_MS("cassandra.decaying_histogram_reset_interval_ms", "1800000"),
     /**
      * The cassandra-foreground option will tell CassandraDaemon whether
      * to close stdout/stderr, but it's up to us not to background.

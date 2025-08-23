@@ -38,7 +38,7 @@
     <property name="async-profiler.name" value="async-profiler-${async-profiler.version}-${async-profiler.suffix}"/>
     <property name="async-profiler.base" value="${build.dir}/async-profiler"/>
 
-    <property name="test.profiler.opts.default" value="event=cpu;threads=true;output=flamegraph;simple=true;ann=true"/>
+    <property name="test.profiler.opts.default" value="event=cpu;threads=true;output=flamegraph;simple=true;ann=true;interval=1000000"/>
     <property name="test.profiler.output" value="${build.test.dir}/profiler"/>
 
     <target name="-microbench">
@@ -55,7 +55,9 @@
             </or>
         </condition>
 
-        <property name="async-profiler.lib.path" value="${async-profiler.base}/build/libasyncProfiler.so"/>
+        <condition property="async-profiler.lib.path" value="${async-profiler.base}/lib/libasyncProfiler.dylib" else="${async-profiler.base}/build/libasyncProfiler.so">
+            <isset property="isMac"/>
+        </condition>
 
         <mkdir dir="${test.profiler.output}"/>
 

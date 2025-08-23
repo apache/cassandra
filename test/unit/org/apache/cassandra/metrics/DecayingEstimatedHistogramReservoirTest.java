@@ -33,7 +33,9 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
@@ -43,6 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Snapshot;
+import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
@@ -50,6 +53,9 @@ import org.apache.cassandra.utils.Pair;
 import org.quicktheories.core.Gen;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.Util.spinAssertEquals;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.LANDMARK_RESET_INTERVAL_IN_NS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
@@ -64,6 +70,27 @@ import static org.quicktheories.generators.SourceDSL.longs;
 public class DecayingEstimatedHistogramReservoirTest
 {
     public static final Logger logger = LoggerFactory.getLogger(DecayingEstimatedHistogramReservoirTest.class);
+    private static Interruptible rescaleThread;
+
+    @BeforeClass
+    public static void setUp()
+    {
+        rescaleThread = executorFactory().infiniteLoop("DecayingEstimatedHistogramReservoirTest-Releaser",
+                                                       () -> {
+                                                              Thread.sleep(500);
+                                                              DecayingEstimatedHistogramReservoir.rescale();
+                                                       },
+                                                       UNSAFE);
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        rescaleThread.interrupt();
+        rescaleThread = null;
+    }
+
+
     public static class NonParameterizedTests
     {
         public static final int numExamples = 1000000;
@@ -171,20 +198,19 @@ public class DecayingEstimatedHistogramReservoirTest
         }
 
         @Test
-        public void testStriping() throws InterruptedException
+        public void testThreadLocal() throws InterruptedException
         {
-            TestClock clock = new TestClock();
-            int nStripes = 4;
+            MonotonicClock clock = MonotonicClock.Global.approxTime;
+            int threads = 8;
             DecayingEstimatedHistogramReservoir model = new DecayingEstimatedHistogramReservoir(clock);
             DecayingEstimatedHistogramReservoir test = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION,
                                                                                                DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT,
-                                                                                               nStripes,
                                                                                                clock);
 
             long seed = nanoTime();
             System.out.println("DecayingEstimatedHistogramReservoirTest#testStriping.seed = " + seed);
             Random valGen = new Random(seed);
-            ExecutorService executors = Executors.newFixedThreadPool(nStripes * 2);
+            ExecutorService executors = Executors.newFixedThreadPool(threads);
             for (int i = 0; i < 1_000_000; i++)
             {
                 long value = Math.abs(valGen.nextInt());
@@ -195,8 +221,20 @@ public class DecayingEstimatedHistogramReservoirTest
                 });
             }
 
+            assertEquals(model.size(), test.size());
+            assertEquals(threads, model.getBucketsThreadLocals().size());
+            assertEquals(threads, test.getBucketsThreadLocals().size());
             executors.shutdown();
             Assert.assertTrue(executors.awaitTermination(1, TimeUnit.MINUTES));
+
+            // All phantom references should be cleared.
+            spinAssertEquals(0, () -> {
+                                 // Hint to the GC to collect the phantom references.
+                                 System.gc();
+                                 return model.getBucketsThreadLocals().size();
+                             }
+                , 30);
+            spinAssertEquals(0, () -> test.getBucketsThreadLocals().size(), 30);
 
             Snapshot modelSnapshot = toSnapshot.apply(model);
             Snapshot testSnapshot = toSnapshot.apply(test);
@@ -208,13 +246,15 @@ public class DecayingEstimatedHistogramReservoirTest
             for (double i = 0.0; i < 1.0; i += 0.1)
                 assertEquals(modelSnapshot.getValue(i), testSnapshot.getValue(i), DOUBLE_ASSERT_DELTA);
 
-
-            int stripedValues = 0;
-            for (int i = model.size(); i < model.size() * model.stripeCount(); i++)
+            long modelValues = 0;
+            long testValues = 0;
+            for (int i = 0; i < model.size(); i++)
             {
-                stripedValues += model.stripedBucketValue(i, true);
+                modelValues += modelSnapshot.getValues()[i];
+                testValues += testSnapshot.getValues()[i];
             }
-            assertTrue("no striping found", stripedValues > 0);
+            assertTrue(modelValues > 0);
+            assertTrue(testValues > 0);
         }
 
         @Test
@@ -243,7 +283,7 @@ public class DecayingEstimatedHistogramReservoirTest
         @Test
         public void testOverflow()
         {
-            DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION, 1, 1);
+            DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION, 1);
             histogram.update(100);
             assert histogram.isOverflowed();
             assertEquals(Long.MAX_VALUE, toSnapshot.apply(histogram).getMax());
@@ -279,7 +319,6 @@ public class DecayingEstimatedHistogramReservoirTest
 
                 DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(true,
                                                                                                         DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT,
-                                                                                                        DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT,
                                                                                                         clock);
                 for (int i = 0; i < 40; i++)
                     histogram.update(0);
@@ -316,7 +355,7 @@ public class DecayingEstimatedHistogramReservoirTest
         {
             TestClock clock = new TestClock();
 
-            DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION, 90, 1, clock);
+            DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION, 90, clock);
             histogram.update(23282687);
             assertFalse(histogram.isOverflowed());
             assertEquals(1, histogram.getSnapshot().getValues()[89]);
@@ -391,7 +430,6 @@ public class DecayingEstimatedHistogramReservoirTest
 
                 DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(true,
                                                                                                         DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT,
-                                                                                                        DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT,
                                                                                                         clock);
                 histogram.update(0);
                 histogram.update(0);

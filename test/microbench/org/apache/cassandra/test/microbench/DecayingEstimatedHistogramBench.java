@@ -22,7 +22,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
-import org.apache.cassandra.utils.MonotonicClock;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -30,43 +29,31 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
-import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.DEFAULT_BUCKET_COUNT;
-import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT;
-import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION;
-
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Warmup(iterations = 2, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 4, time = 2, timeUnit = TimeUnit.SECONDS)
+@Warmup(iterations = 1, time = 3, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 3, time = 3, timeUnit = TimeUnit.SECONDS)
 @Threads(4)
-@Fork(value = 3)
 @State(Scope.Benchmark)
 public class DecayingEstimatedHistogramBench
 {
-    @Param({ "100000", "500000", "1000000" })
-    private long landmarkResetIntervalNs;
-
     DecayingEstimatedHistogramReservoir reservoir;
 
     @Setup
     public void setup()
     {
-        reservoir = new DecayingEstimatedHistogramReservoir(DEFAULT_ZERO_CONSIDERATION,
-                                                            DEFAULT_BUCKET_COUNT,
-                                                            DEFAULT_STRIPE_COUNT,
-                                                            MonotonicClock.Global.approxTime,
-                                                            landmarkResetIntervalNs);
+        reservoir = new DecayingEstimatedHistogramReservoir();
     }
 
     @State(Scope.Thread)
@@ -77,14 +64,51 @@ public class DecayingEstimatedHistogramBench
         @Setup(Level.Invocation)
         public void setup() throws Throwable
         {
-            update = ThreadLocalRandom.current().nextInt(10, 1000);
+            update = ThreadLocalRandom.current().nextInt(10, 10000);
         }
     }
 
     @Benchmark
-    public void update(HistogramUpdateState state)
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
+                                       "-Dcassandra.decaying_histogram_reset_interval_ms=100" })
+    public void update100msRescale(HistogramUpdateState state)
     {
         reservoir.update(state.update);
+    }
+
+    @Benchmark
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
+                                       "-Dcassandra.decaying_histogram_reset_interval_ms=500" })
+    public void update500msRescale(HistogramUpdateState state)
+    {
+        reservoir.update(state.update);
+    }
+
+    @Benchmark
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
+                                       "-Dcassandra.decaying_histogram_reset_interval_ms=1000" })
+    public void update1000msRescale(HistogramUpdateState state)
+    {
+        reservoir.update(state.update);
+    }
+
+    @Benchmark
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
+    public void update30minRescale(HistogramUpdateState state)
+    {
+        reservoir.update(state.update);
+    }
+
+    @Benchmark
+    @Fork(value = 1, jvmArgsAppend = { "-Djmh.executor=CUSTOM",
+                                       "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
+    public void get(Blackhole blackhole)
+    {
+        blackhole.consume(reservoir.getSnapshot());
     }
 
     public static void main(String[] args) throws RunnerException
